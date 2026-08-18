@@ -8,7 +8,12 @@ import { SchemaForm } from "@/components/agents/schema-form";
 import { SpecialistList } from "@/components/agents/specialist-list";
 import { Label, Switch } from "@/components/ui";
 import { useAgents, usePermissions } from "@/hooks";
-import { delegationNameClashes, readSubagentsConfig, SUBAGENTS_ID } from "@/lib/agent-spec";
+import {
+  delegationNameClashes,
+  readSubagentsConfig,
+  SUBAGENTS_ID,
+  unboundBinding,
+} from "@/lib/agent-spec";
 import type {
   CapabilityBindingSpec,
   CapabilityCatalogEntry,
@@ -41,6 +46,8 @@ interface SubagentsSectionProps {
   /** `spec.subagents` - top level, never in the config blob. */
   subagents: SubagentRef[];
   onChange: (binding: CapabilityBindingSpec) => void;
+  /** Forwarded to the panel, where the switch now lives - see `CapabilityDetail`. */
+  onToggleEnabled?: () => void;
   onSubagentsChange: (subagents: SubagentRef[]) => void;
   disabled?: boolean;
 }
@@ -69,6 +76,7 @@ export function SubagentsSection({
   subagents,
   onChange,
   onSubagentsChange,
+  onToggleEnabled,
   disabled,
 }: SubagentsSectionProps) {
   const t = useTranslations("agents");
@@ -160,17 +168,19 @@ export function SubagentsSection({
         />
       </section>
 
-      {binding && (
-        <CapabilityDetail
-          binding={binding}
-          definition={definition}
-          onChange={onChange}
-          disabled={disabled}
-          // The three sections above *are* this capability's configuration; the
-          // generated form would draw the policy fields a second time.
-          hideConfigForm
-        />
-      )}
+      {/* Rendered whether or not the capability is granted: the switch that
+          grants it is on its title row, and the controls above are inert until
+          it is. */}
+      <CapabilityDetail
+        binding={binding ?? unboundBinding(definition.id)}
+        definition={definition}
+        onChange={onChange}
+        onToggleEnabled={onToggleEnabled}
+        disabled={disabled}
+        // The three sections above *are* this capability's configuration; the
+        // generated form would draw the policy fields a second time.
+        hideConfigForm
+      />
     </div>
   );
 }

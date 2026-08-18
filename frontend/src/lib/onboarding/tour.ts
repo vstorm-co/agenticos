@@ -155,19 +155,24 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "agent-tab-toolbox",
     permission: Perm.agentsView,
   },
+  // What the agent is *given* - collections, skills - is picked inside the panel
+  // of the capability that reads it, so these point at the row that opens that
+  // panel rather than at the picker. The picker is two clicks in (tab, then row)
+  // and `activate` clicks one thing; the row is also the bounded element, where
+  // the panel runs past the bottom of the screen.
   {
     id: "agent-knowledge",
     page: AGENT_BUILDER,
-    target: "agent-collections",
-    activate: "agent-tab-knowledge",
+    target: "capability-knowledge",
+    activate: "agent-tab-toolbox",
     permission: Perm.agentsView,
     inTour: true,
   },
   {
     id: "agent-skills",
     page: AGENT_BUILDER,
-    target: "agent-skills",
-    activate: "agent-tab-skills",
+    target: "capability-skills",
+    activate: "agent-tab-toolbox",
     permission: Perm.agentsView,
     inTour: true,
   },

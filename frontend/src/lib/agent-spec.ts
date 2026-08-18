@@ -21,6 +21,31 @@ import type {
 /** The capability that turns bound skills into tools the model can call. */
 export const SKILLS_ID = "skills";
 
+/** The capability that searches the collections bound in `collection_ids`. */
+export const KNOWLEDGE_ID = "knowledge";
+
+/**
+ * The binding a capability would get if somebody switched it on.
+ *
+ * So the detail panel has something to render for a capability nobody has
+ * granted yet: its controls are shown at their real values and left inert, and
+ * the switch that grants it is on the panel too. Deliberately the same shape
+ * `withCapability` creates, and deliberately never passed to a change handler -
+ * it is what the panel *would* be configuring, shown so the decision can be made
+ * on the real thing rather than on an abridgement.
+ */
+export function unboundBinding(capabilityId: string): CapabilityBindingSpec {
+  return {
+    id: capabilityId,
+    config: {},
+    approval: "default",
+    tool_approval: {},
+    tool_overrides: {},
+    secret_id: null,
+    enabled: false,
+  };
+}
+
 /**
  * The alert block an agent has when nothing has said otherwise.
  *

@@ -4,15 +4,14 @@ import { useMemo, useState } from "react";
 import { ShieldAlert } from "lucide-react";
 
 import { CapabilityDetail } from "@/components/agents/capability-settings";
-import { ContextSection } from "@/components/agents/context-section";
+import { CapabilityResources, type AgentResources } from "@/components/agents/capability-resources";
 import { SubagentsSection } from "@/components/agents/subagents-section";
 import { WorkspaceSection } from "@/components/agents/workspace-section";
 import { SearchInput, Switch } from "@/components/ui";
-import { CONTEXT_ID, readSubagentsConfig, SANDBOX_ID, SUBAGENTS_ID } from "@/lib/agent-spec";
+import { readSubagentsConfig, SANDBOX_ID, SUBAGENTS_ID, unboundBinding } from "@/lib/agent-spec";
 import type { FieldProblem } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry, SubagentRef } from "@/types/agents";
-import type { ContextFileSummary } from "@/types/providers";
 import { useTranslations } from "next-intl";
 
 interface CapabilityWorkbenchProps {
@@ -31,16 +30,14 @@ interface CapabilityWorkbenchProps {
   subagents: SubagentRef[];
   onSubagentsChange: (subagents: SubagentRef[]) => void;
   /**
-   * The organization's context files, and which of them this agent reads.
+   * What the organization owns and this agent may be given - context files,
+   * collections, skills.
    *
-   * Top level on the spec rather than inside the capability's config - the same
-   * arrangement as `subagents` - so the panel that picks them is handed that
-   * slice as well as the binding.
+   * Top level on the spec rather than inside a capability's config, the same
+   * arrangement as `subagents`, so the panel that picks them is handed that slice
+   * as well as the binding. One bundle rather than twelve props.
    */
-  contextFiles: ContextFileSummary[];
-  contextTotal: number;
-  contextIds: string[];
-  onContextToggle: (fileId: string) => void;
+  resources: AgentResources;
   /**
    * The agent's own model profile, handed to the delegation panel so promoting a
    * specialist that runs on "the same model as its parent" can resolve one.
@@ -55,26 +52,6 @@ interface CapabilityWorkbenchProps {
    * reason `validate_spec` reports fields as well as sentences (#882).
    */
   configProblems?: readonly FieldProblem[];
-}
-
-/**
- * The binding a capability would get if somebody switched it on.
- *
- * Exists so the detail panel has something to render for a capability nobody has
- * granted yet. Deliberately the same shape `withCapability` creates, and
- * deliberately not passed to `onChange`: it is what the panel *would* be
- * configuring, shown so the decision can be made on the real thing.
- */
-function unboundBinding(capabilityId: string): CapabilityBindingSpec {
-  return {
-    id: capabilityId,
-    config: {},
-    approval: "default",
-    tool_approval: {},
-    tool_overrides: {},
-    secret_id: null,
-    enabled: false,
-  };
 }
 
 /**
@@ -107,10 +84,7 @@ export function CapabilityWorkbench({
   onChange,
   subagents,
   onSubagentsChange,
-  contextFiles,
-  contextTotal,
-  contextIds,
-  onContextToggle,
+  resources,
   modelProfileId,
   disabled,
   configProblems,
@@ -227,33 +201,6 @@ export function CapabilityWorkbench({
       <div className="min-h-0 min-w-0 scrollbar-thin lg:overflow-y-auto lg:pr-1">
         {focused && (
           <div className="space-y-3">
-            {/* The switch travels with the panel as well as sitting in the row.
-                The list scrolls independently, so the capability being read can
-                be off screen from the control that grants it. */}
-            <div className="border-border bg-card flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3">
-              <div className="min-w-0">
-                <p className="text-sm font-medium">
-                  {isOn
-                    ? t("capabilityIsOn", { name: focused.name })
-                    : t("giveThisAgent", { name: focused.name })}
-                </p>
-                <p className="text-muted-foreground mt-0.5 text-xs">
-                  {isOn ? t("everythingBelowAppliesAgent") : t("readHereFirstSettings")}
-                </p>
-              </div>
-              <Switch
-                checked={isOn}
-                disabled={disabled}
-                // Named as the state of the capability on show, not as the
-                // picker's own control above. Two switches doing the same thing
-                // is fine; two switches answering to the same name is not - a
-                // screen reader announces them identically and neither says
-                // which capability it belongs to.
-                aria-label={t("namedEnabled", { name: focused.name })}
-                onCheckedChange={() => onToggle(focused.id)}
-              />
-            </div>
-
             {/* The workspace's configuration is a choice between three
                 backends and who shares them, not a set of fields - and one of
                 those scopes shares files between people, which a generated form
@@ -263,6 +210,7 @@ export function CapabilityWorkbench({
               <WorkspaceSection
                 definition={focused}
                 binding={bound}
+                onToggleEnabled={() => onToggle(focused.id)}
                 onChange={onChange}
                 disabled={disabled || !isOn}
               />
@@ -272,27 +220,11 @@ export function CapabilityWorkbench({
                   bounding both. The pins are the reason - a delegate that has
                   moved on is stale, and staleness nothing surfaces is a bug
                   frozen in place under a published parent. */
-            /* Context is the capability that reads the files, so the files are
-               picked here. They were a card in the Skills tab, which is two tabs
-               from the switch that decides whether any of them reach the model:
-               injection happens inside this capability, so bound files with it
-               off are not injected anyway - they are nothing. */
-            focused.id === CONTEXT_ID ? (
-              <ContextSection
-                definition={focused}
-                binding={bound ?? unboundBinding(focused.id)}
-                files={contextFiles}
-                total={contextTotal}
-                selectedIds={contextIds}
-                onToggleFile={onContextToggle}
-                onChange={onChange}
-                configProblems={configProblems}
-                disabled={disabled || !isOn}
-              />
-            ) : focused.id === SUBAGENTS_ID ? (
+            focused.id === SUBAGENTS_ID ? (
               <SubagentsSection
                 definition={focused}
                 binding={bound}
+                onToggleEnabled={() => onToggle(focused.id)}
                 catalog={catalog}
                 parentCapabilities={selected}
                 parentModelProfileId={modelProfileId}
@@ -306,7 +238,19 @@ export function CapabilityWorkbench({
                 binding={bound ?? unboundBinding(focused.id)}
                 definition={focused}
                 onChange={onChange}
+                onToggleEnabled={() => onToggle(focused.id)}
                 configProblems={configProblems}
+                // What this capability reads of the organization's, where it has
+                // any: the context files, the collections, the skills. Null for
+                // most of them.
+                settingsExtra={
+                  <CapabilityResources
+                    capabilityId={focused.id}
+                    enabled={isOn}
+                    resources={resources}
+                    disabled={disabled || !isOn}
+                  />
+                }
                 // A capability nobody granted has nothing to configure yet, so
                 // its controls are shown at their real values and left inert.
                 // The alternative - live controls writing to a binding that does
@@ -353,6 +297,11 @@ function CapabilityRow({
   const t = useTranslations("agents");
   return (
     <div
+      // Addressable per capability, because the walkthrough points at three of
+      // these rows: what an agent may search, read and load is picked inside the
+      // panel a row opens, and the row is the bounded thing a spotlight can sit
+      // on. The panel itself only exists once one has been clicked.
+      data-tour={`capability-${entry.id}`}
       className={cn(
         "flex items-start gap-2 rounded-lg border px-2 py-2 transition-colors",
         focused ? "border-foreground/25 bg-accent" : "hover:bg-accent/50 border-transparent",

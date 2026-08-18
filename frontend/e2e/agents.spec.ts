@@ -66,6 +66,10 @@ async function toolRow(page: Page): Promise<Locator> {
   // mounted at all.
   await openBuilderTab(page, "Toolbox");
   const panel = await capabilityPanel(page, CAPABILITY_WITH_TOOLS);
+  // Settings and Tools are two tabs inside the panel: a capability's own form
+  // and approval on one, the prompt text of each tool on the other, because a
+  // rich capability made one scroll of two unrelated jobs.
+  await panel.getByRole("tab", { name: "Tools", exact: true }).click();
   const row = panel.getByRole("listitem", { name: CAPABILITY_TOOL });
   await expect(row).toBeVisible();
   return row;

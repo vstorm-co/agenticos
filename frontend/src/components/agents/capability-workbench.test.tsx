@@ -3,6 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { CapabilityWorkbench } from "./capability-workbench";
+import type { AgentResources } from "./capability-resources";
 import { jsonSchemaType } from "./capability-settings";
 import { newSpecialist } from "@/lib/agent-spec";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agents";
@@ -99,6 +100,32 @@ function binding(
   };
 }
 
+/** An organization with nothing to give an agent - what most of these are about. */
+const NO_RESOURCES: AgentResources = {
+  contextFiles: [],
+  contextTotal: 0,
+  contextIds: [],
+  onContextToggle: vi.fn(),
+  collections: [],
+  collectionIds: [],
+  onCollectionToggle: vi.fn(),
+  skills: [],
+  skillTotal: 0,
+  skillIds: [],
+  onSkillToggle: vi.fn(),
+};
+
+/**
+ * Show the focused panel's Tools tab.
+ *
+ * Settings and Tools are two tabs since a rich capability - a six-field form, an
+ * approval and a tool whose description is a paragraph - made one scroll of two
+ * unrelated jobs. Anything asserting on a tool reaches through here.
+ */
+async function openTools() {
+  await userEvent.click(screen.getByRole("tab", { name: "Tools" }));
+}
+
 function renderWorkbench(props: Partial<Parameters<typeof CapabilityWorkbench>[0]> = {}) {
   return render(
     <CapabilityWorkbench
@@ -108,10 +135,7 @@ function renderWorkbench(props: Partial<Parameters<typeof CapabilityWorkbench>[0
       onChange={vi.fn()}
       subagents={[]}
       onSubagentsChange={vi.fn()}
-      contextFiles={[]}
-      contextTotal={0}
-      contextIds={[]}
-      onContextToggle={vi.fn()}
+      resources={NO_RESOURCES}
       modelProfileId={null}
       {...props}
     />,
@@ -133,6 +157,7 @@ describe("the capability workbench", () => {
     renderWorkbench();
 
     await userEvent.click(screen.getByRole("button", { name: /^Skills/ }));
+    await openTools();
 
     expect(screen.getByText("list_skills")).toBeInTheDocument();
     expect(screen.getByText("load_skill")).toBeInTheDocument();
@@ -148,6 +173,7 @@ describe("the capability workbench", () => {
     await userEvent.click(screen.getByRole("button", { name: /^Charts/ }));
 
     expect(screen.getByLabelText("Human approval")).toBeInTheDocument();
+    await openTools();
     expect(screen.getByLabelText("Description the model reads")).toHaveValue(
       "Draw a chart of numbers you already have.\n\nFor a scatter chart, give every row a numeric x and y.",
     );
@@ -160,6 +186,7 @@ describe("the capability workbench", () => {
     renderWorkbench();
 
     await userEvent.click(screen.getByRole("button", { name: /^Charts/ }));
+    await openTools();
 
     expect(screen.getByLabelText("Description the model reads")).toBeDisabled();
   });
@@ -204,11 +231,12 @@ describe("the capability workbench", () => {
     expect(screen.queryByRole("group", { name: "Skills" })).not.toBeInTheDocument();
   });
 
-  it("offers the whole description the model reads, not its first line", () => {
+  it("offers the whole description the model reads, not its first line", async () => {
     // The description editor holds the full contract text: an override
     // replaces everything the model is told, so editing a summary-only field
     // would silently drop the rest.
     renderWorkbench({ selected: [binding("charts")] });
+    await openTools();
 
     expect(screen.getByLabelText("Description the model reads")).toHaveValue(
       "Draw a chart of numbers you already have.\n\nFor a scatter chart, give every row a numeric x and y.",
@@ -217,6 +245,7 @@ describe("the capability workbench", () => {
 
   it("names the arguments the model has to fill in", async () => {
     renderWorkbench({ selected: [binding("charts")] });
+    await openTools();
 
     await userEvent.click(screen.getByText("Arguments (3)"));
 
@@ -381,20 +410,35 @@ describe("the workspace, which is a row like the rest and a detail unlike it", (
   it("offers the backends and the scope instead of a generated form", async () => {
     // The objection this answers: "which backend, and who shares it" is not the
     // same kind of decision as switching on a chart tool. Enablement still is,
-    // so the switch above stays exactly where every capability has it.
+    // and it is the switch on the panel's own title row.
     renderSandbox([binding("sandbox", { config: { backend: "state" } })]);
 
     expect(await screen.findByRole("button", { name: /^Container/ })).toBeVisible();
     expect(screen.getByRole("combobox", { name: "Who shares it by default" })).toBeVisible();
-    expect(screen.getByText("Files & shell is on")).toBeVisible();
+    expect(screen.getByRole("switch", { name: "Files & shell enabled" })).toBeVisible();
   });
 
-  it("keeps the header switch for every other capability", async () => {
+  it("grants the workspace from its own panel too", async () => {
+    // The switch is on the panel's title row for every capability, the bespoke
+    // panels included - it was a card above them, and a card is what went.
+    const onToggle = vi.fn();
+    renderWorkbench({ catalog: [SANDBOX, CHARTS], onToggle });
+
+    await userEvent.click(screen.getByRole("switch", { name: "Files & shell enabled" }));
+
+    expect(onToggle).toHaveBeenCalledWith("sandbox");
+  });
+
+  it("keeps the panel's own switch for every other capability", async () => {
+    // The switch used to be a card above the panel, headed "Charts is on" with a
+    // sentence under it - two lines of chrome per capability for one control that
+    // is also in the row you clicked. The card went; the switch moved onto the
+    // panel's title row, because the list scrolls and the row can be off screen.
     renderSandbox();
 
     await userEvent.click(screen.getByRole("button", { name: /Charts/ }));
 
-    expect(screen.getByText(/Give this agent Charts/)).toBeVisible();
+    expect(screen.getByRole("switch", { name: "Charts enabled" })).toBeVisible();
   });
 });
 
@@ -453,6 +497,16 @@ describe("delegation, the other capability with a panel of its own", () => {
 
     expect(screen.getByRole("button", { name: "Add a specialist" })).toBeDisabled();
   });
+
+  it("grants delegation from its own panel too", async () => {
+    const onToggle = vi.fn();
+    renderWorkbench({ catalog: [DELEGATION, CHARTS], onToggle });
+
+    await userEvent.click(screen.getByRole("button", { name: /^Delegation/ }));
+    await userEvent.click(screen.getByRole("switch", { name: "Delegation enabled" }));
+
+    expect(onToggle).toHaveBeenCalledWith("subagents");
+  });
 });
 
 /**
@@ -489,8 +543,7 @@ describe("context, the capability that reads the files", () => {
     renderWorkbench({
       catalog: [CONTEXT, CHARTS],
       selected: [binding("context")],
-      contextFiles: [FILE],
-      contextTotal: 1,
+      resources: { ...NO_RESOURCES, contextFiles: [FILE], contextTotal: 1 },
     });
 
     await userEvent.click(screen.getByRole("button", { name: /^Context/ }));

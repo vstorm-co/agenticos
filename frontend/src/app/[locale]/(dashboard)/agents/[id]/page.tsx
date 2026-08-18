@@ -26,7 +26,6 @@ import { toMapDelegates } from "@/components/agents/agent-map-tree";
 import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
-import { CollectionPicker } from "@/components/agents/collection-picker";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
 import { ExposuresPanel } from "@/components/agents/exposures-panel";
 import { McpServerPicker } from "@/components/agents/mcp-server-picker";
@@ -37,7 +36,6 @@ import { PublishDialog } from "@/components/agents/publish-dialog";
 import { PublishState } from "@/components/agents/publish-state";
 import { RunSummary } from "@/components/agents/run-summary";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
-import { SkillGallery } from "@/components/agents/skill-gallery";
 import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
 import { VersionHistory } from "@/components/agents/version-history";
@@ -92,7 +90,6 @@ import {
 import {
   readSubagentsConfig,
   SANDBOX_ID,
-  SKILLS_ID,
   SUBAGENTS_ID,
   THINKING_ID,
   withCapability,
@@ -435,16 +432,17 @@ export default function AgentBuilderPage({ params }: PageProps) {
         ? tAgents("mapTreeTruncated")
         : null;
 
-  // Two capabilities are configured elsewhere and so are kept off this list,
-  // because a second control for one field is a control that disagrees with the
-  // first. Thinking sits with the model settings: it contributes no tools and
-  // changes how the model runs, not what the agent can do. Skills sits in its
-  // own section, which owns both halves of a decision that used to be split -
-  // see `setSkills`. The workspace stays in the picker: it is a row like the
-  // rest, and the detail panel gives it the controls a switch cannot - see
-  // `CapabilityWorkbench`.
+  // Thinking is the one capability kept off this list, because a second control
+  // for one field is a control that disagrees with the first: it sits with the
+  // model settings, contributes no tools, and changes how the model runs rather
+  // than what the agent can do.
+  //
+  // Skills used to be kept off it too, on the grounds that its own tab owned both
+  // halves of the decision. That tab is gone: the gallery is in this capability's
+  // panel, so switching it off is exactly what unpicking every skill already did,
+  // and there was no way to grant the tools without picking one first.
   const grantable = useMemo(
-    () => capabilities.filter((entry) => entry.id !== THINKING_ID && entry.id !== SKILLS_ID),
+    () => capabilities.filter((entry) => entry.id !== THINKING_ID),
     [capabilities],
   );
 
@@ -800,12 +798,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
           <TabsTrigger value="toolbox" data-tour="agent-tab-toolbox">
             {t("toolbox")}
           </TabsTrigger>
-          <TabsTrigger value="knowledge" data-tour="agent-tab-knowledge">
-            {t("knowledge")}
-          </TabsTrigger>
-          <TabsTrigger value="skills" data-tour="agent-tab-skills">
-            {t("skills")}
-          </TabsTrigger>
           <TabsTrigger value="limits" data-tour="agent-tab-limits">
             {t("limits")}
           </TabsTrigger>
@@ -902,14 +894,25 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 // is handed that slice as well as the binding.
                 subagents={spec.subagents ?? []}
                 onSubagentsChange={(subagents) => update({ subagents })}
-                // Which context files this agent reads, picked in the panel of
-                // the capability that reads them. `setContext` switches that
-                // capability on with the first file, because bound without it
-                // the files are resolved and discarded.
-                contextFiles={contextFiles}
-                contextTotal={contextCount}
-                contextIds={spec.context_ids}
-                onContextToggle={(fileId) => setContext(toggleId(spec.context_ids, fileId))}
+                // What the agent is *given*, picked in the panel of the
+                // capability that reads it. Each setter switches that capability
+                // on with the first pick, because bound without it the resources
+                // are resolved and then discarded.
+                resources={{
+                  contextFiles,
+                  contextTotal: contextCount,
+                  contextIds: spec.context_ids,
+                  onContextToggle: (fileId: string) =>
+                    setContext(toggleId(spec.context_ids, fileId)),
+                  collections,
+                  collectionIds: spec.collection_ids,
+                  onCollectionToggle: (collectionId: string) =>
+                    update({ collection_ids: toggleId(spec.collection_ids, collectionId) }),
+                  skills,
+                  skillTotal: skillCount,
+                  skillIds: spec.skill_ids,
+                  onSkillToggle: (skillId: string) => setSkills(toggleId(spec.skill_ids, skillId)),
+                }}
                 // So promoting a specialist that runs on the parent's model can
                 // resolve one for the standalone agent it becomes.
                 modelProfileId={spec.model_profile_id ?? null}
@@ -972,48 +975,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 disabled={!canEdit}
               />
               <p className="text-muted-foreground mt-4 text-xs">{t("twoLimitsWorthKnowing")}</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="knowledge" className="mt-4 space-y-6">
-          <Card data-tour="agent-collections">
-            <CardHeader>
-              <CardTitle>{t("collections")}</CardTitle>
-              <CardDescription>{t("whatAgentMaySearch")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <CollectionPicker
-                collections={collections}
-                selectedIds={spec.collection_ids}
-                onToggle={(collectionId) =>
-                  update({ collection_ids: toggleId(spec.collection_ids, collectionId) })
-                }
-                disabled={!canEdit}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Its own tab rather than a card under Knowledge. A collection is
-            something the agent searches; a skill is something it reads and then
-            acts on. Sharing a tab made the gallery look like a second picker for
-            the same decision, and put the two things with the most to read on
-            one scroll. */}
-        <TabsContent value="skills" className="mt-4 space-y-6">
-          <Card data-tour="agent-skills">
-            <CardHeader>
-              <CardTitle>{t("skills2")}</CardTitle>
-              <CardDescription>{t("writtenKnowHowAgent")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <SkillGallery
-                skills={skills}
-                total={skillCount}
-                selectedIds={spec.skill_ids}
-                onToggle={(skillId) => setSkills(toggleId(spec.skill_ids, skillId))}
-                disabled={!canEdit}
-              />
             </CardContent>
           </Card>
         </TabsContent>

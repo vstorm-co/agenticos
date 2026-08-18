@@ -20,6 +20,11 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Switch,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
   Textarea,
 } from "@/components/ui";
 import { InlineSecret } from "@/components/vault/inline-secret";
@@ -199,14 +204,42 @@ interface CapabilityDetailProps {
    * and only the component rendering one knows which it is.
    */
   configProblems?: readonly FieldProblem[];
+  /**
+   * Grant or revoke the capability from its own panel.
+   *
+   * Rendered as a switch on the title row when given. It used to be a card above
+   * the panel saying "Charts is on / Everything below applies to this agent
+   * alone" - two lines of chrome per capability to carry one control that is also
+   * in the row you clicked to get here. The control was worth keeping (the list
+   * scrolls, so the row can be off screen); the card was not.
+   *
+   * Absent where enablement is somebody else's: a specialist's capabilities are
+   * switched on in the grid above their settings.
+   */
+  onToggleEnabled?: () => void;
+  /**
+   * The controls this capability has that a schema cannot draw - the files a
+   * context capability reads, the collections a search capability may reach.
+   *
+   * First in Settings, above the generated form: they are what the capability is
+   * *for*, where the form is how it behaves.
+   */
+  settingsExtra?: ReactNode;
 }
 
 /**
- * Everything one capability lets an agent decide.
+ * Everything one capability lets an agent decide, in two tabs.
  *
  * Its own component because the Builder shows exactly one at a time now - the
  * capability you are looking at, beside the list you picked it from. Stacking
  * every enabled one below a grid is what made these settings hard to find.
+ *
+ * **Settings and Tools are separated because a rich capability made one scroll
+ * of two unrelated jobs.** Image generation is a form of six fields, an approval
+ * and then a tool whose description is a paragraph the model reads: below each
+ * other, choosing a size means scrolling past prompt text, and editing prompt
+ * text means scrolling past a form. A capability with no tools keeps the flat
+ * body - a tab bar with one tab is chrome.
  */
 export function CapabilityDetail({
   binding,
@@ -215,12 +248,86 @@ export function CapabilityDetail({
   disabled,
   hideConfigForm,
   configProblems,
+  onToggleEnabled,
+  settingsExtra,
 }: CapabilityDetailProps) {
   const t = useTranslations("agents");
   const configErrors = capabilityConfigErrors(configProblems ?? [], binding.id);
+  const settings = (
+    <>
+      {settingsExtra}
+
+      {definition.config_schema && !hideConfigForm && (
+        <SchemaForm
+          idPrefix={binding.id}
+          schema={definition.config_schema}
+          value={binding.config}
+          disabled={disabled}
+          errors={configErrors}
+          onChange={(config) => onChange({ ...binding, config })}
+        />
+      )}
+
+      {/* Only when *this* configuration needs one. A capability offering a
+            free provider and a paid one declares the requirement once and
+            names the configurations it applies to; asking for a key the server
+            will not demand is as wrong as not asking for one it will. */}
+      {definition.requires_secret !== null &&
+        secretIsRequired(definition.requires_secret, binding.config) && (
+          <SecretField
+            binding={binding}
+            requirement={definition.requires_secret}
+            onChange={onChange}
+            disabled={disabled}
+          />
+        )}
+
+      {definition.requires_secret === null && binding.secret_id !== null && (
+        <StaleSecretNotice binding={binding} onChange={onChange} disabled={disabled} />
+      )}
+
+      <div className="space-y-2">
+        <Label htmlFor={`${binding.id}-approval`}>{t("humanApproval")}</Label>
+        <Select
+          value={binding.approval}
+          disabled={disabled}
+          onValueChange={(approval) => onChange({ ...binding, approval: approval as ApprovalMode })}
+        >
+          <SelectTrigger id={`${binding.id}-approval`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {APPROVAL_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {t(option.words)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-muted-foreground text-xs">
+          {t(approvalHint(binding.approval, definition.side_effecting))}
+          {definition.tools.length > 0 && ` ${t("everyToolFollowsThis")}`}
+        </p>
+      </div>
+
+      {definition.config_schema && <SchemaPreview schema={definition.config_schema} />}
+    </>
+  );
+
+  const tools = definition.tools.length > 0 && (
+    <ToolList
+      binding={binding}
+      tools={definition.tools}
+      contracts={definition.contracts}
+      sideEffecting={definition.side_effecting}
+      onChange={onChange}
+      disabled={disabled}
+    />
+  );
+
   return (
-    // Grouped and named, so the tool rows below are read as belonging to
-    // this capability rather than to the page.
+    // Grouped and named, so the tool rows are read as belonging to this
+    // capability rather than to the page.
     <Card role="group" aria-label={definition.name}>
       <CardContent className="space-y-4 p-5">
         <div className="flex flex-wrap items-center gap-2">
@@ -232,78 +339,41 @@ export function CapabilityDetail({
               {t("actsOutsideWorld")}
             </Badge>
           )}
+          {onToggleEnabled && (
+            <Switch
+              className="ml-auto"
+              checked={binding.enabled === true}
+              // Never `disabled`: that prop means "this capability is off", and a
+              // switch disabled by its own state is a switch nobody can turn back
+              // on. Only a caller who may not edit the spec at all takes it away.
+              disabled={disabled && binding.enabled === true}
+              // Named as the capability it grants, not as "enabled". Two switches
+              // doing the same thing is fine; two announcing the same words is
+              // not - the row in the list beside this carries the other one.
+              aria-label={t("namedEnabled", { name: definition.name })}
+              onCheckedChange={onToggleEnabled}
+            />
+          )}
         </div>
 
         <p className="text-muted-foreground text-sm">{definition.description}</p>
 
-        {definition.config_schema && !hideConfigForm && (
-          <SchemaForm
-            idPrefix={binding.id}
-            schema={definition.config_schema}
-            value={binding.config}
-            disabled={disabled}
-            errors={configErrors}
-            onChange={(config) => onChange({ ...binding, config })}
-          />
+        {tools ? (
+          <Tabs defaultValue="settings">
+            <TabsList>
+              <TabsTrigger value="settings">{t("capabilitySettingsTab")}</TabsTrigger>
+              <TabsTrigger value="tools">{t("capabilityToolsTab")}</TabsTrigger>
+            </TabsList>
+            <TabsContent value="settings" className="mt-4 space-y-4">
+              {settings}
+            </TabsContent>
+            <TabsContent value="tools" className="mt-4">
+              {tools}
+            </TabsContent>
+          </Tabs>
+        ) : (
+          settings
         )}
-
-        {/* Only when *this* configuration needs one. A capability offering a
-            free provider and a paid one declares the requirement once and
-            names the configurations it applies to; asking for a key the server
-            will not demand is as wrong as not asking for one it will. */}
-        {definition.requires_secret !== null &&
-          secretIsRequired(definition.requires_secret, binding.config) && (
-            <SecretField
-              binding={binding}
-              requirement={definition.requires_secret}
-              onChange={onChange}
-              disabled={disabled}
-            />
-          )}
-
-        {definition.requires_secret === null && binding.secret_id !== null && (
-          <StaleSecretNotice binding={binding} onChange={onChange} disabled={disabled} />
-        )}
-
-        <div className="space-y-2">
-          <Label htmlFor={`${binding.id}-approval`}>{t("humanApproval")}</Label>
-          <Select
-            value={binding.approval}
-            disabled={disabled}
-            onValueChange={(approval) =>
-              onChange({ ...binding, approval: approval as ApprovalMode })
-            }
-          >
-            <SelectTrigger id={`${binding.id}-approval`}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {APPROVAL_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {t(option.words)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-muted-foreground text-xs">
-            {t(approvalHint(binding.approval, definition.side_effecting))}
-            {definition.tools.length > 0 &&
-              " Every tool below follows this until you answer for it separately."}
-          </p>
-        </div>
-
-        {definition.tools.length > 0 && (
-          <ToolList
-            binding={binding}
-            tools={definition.tools}
-            contracts={definition.contracts}
-            sideEffecting={definition.side_effecting}
-            onChange={onChange}
-            disabled={disabled}
-          />
-        )}
-
-        {definition.config_schema && <SchemaPreview schema={definition.config_schema} />}
       </CardContent>
     </Card>
   );

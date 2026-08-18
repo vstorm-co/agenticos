@@ -441,8 +441,8 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       {
         id: "flow-agent-knowledge",
         page: AGENT_BUILDER,
-        target: "agent-collections",
-        activate: "agent-tab-knowledge",
+        target: "capability-knowledge",
+        activate: "agent-tab-toolbox",
         permission: Perm.agentsView,
         include: (state) => state.hasKnowledgeBase,
       },
@@ -487,8 +487,8 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       {
         id: "flow-agent-knowledge-attach",
         page: AGENT_BUILDER,
-        target: "agent-collections",
-        activate: "agent-tab-knowledge",
+        target: "capability-knowledge",
+        activate: "agent-tab-toolbox",
         permission: Perm.agentsView,
         requires: "flow-agent-knowledge-ask",
       },
@@ -497,8 +497,8 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       {
         id: "flow-agent-skills",
         page: AGENT_BUILDER,
-        target: "agent-skills",
-        activate: "agent-tab-skills",
+        target: "capability-skills",
+        activate: "agent-tab-toolbox",
         permission: Perm.agentsView,
         include: (state) => state.hasSkill,
       },
@@ -537,8 +537,8 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       {
         id: "flow-agent-skills-attach",
         page: AGENT_BUILDER,
-        target: "agent-skills",
-        activate: "agent-tab-skills",
+        target: "capability-skills",
+        activate: "agent-tab-toolbox",
         permission: Perm.agentsView,
         requires: "flow-agent-skills-ask",
       },
