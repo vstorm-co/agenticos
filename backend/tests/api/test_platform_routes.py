@@ -328,6 +328,14 @@ CALLS: tuple[Call, ...] = (
         body={"name": "github", "url": "https://mcp.example.com/mcp"},
     ),
     Call(
+        # The GitHub OAuth App variant: fixed endpoints, the org's stored creds,
+        # keyed to a trigger portal rather than a raw server URL.
+        "POST",
+        "/mcp-connections/oauth/start/github",
+        Perm.MCP_MANAGE,
+        body={"portal_key": "github"},
+    ),
+    Call(
         "POST",
         "/mcp-connections",
         Perm.MCP_MANAGE,

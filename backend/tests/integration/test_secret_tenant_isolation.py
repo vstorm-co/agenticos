@@ -106,3 +106,47 @@ class TestAGithubOAuthAppSecretIsBoundToItsOrganization:
                 scope=VaultScope.organization(theirs.id),
                 key_version=row.key_version,
             )
+
+
+class TestGetByKindReadsTheOrgsSecretOfThatKind:
+    async def test_it_finds_the_org_own_secret_and_none_for_another_org_or_kind(self, db) -> None:
+        """The lookup the GitHub connect flow reaches the OAuth App credentials by.
+
+        It is org-scoped and kind-scoped: the organization's own github_oauth_app
+        row comes back, while another organization's identical kind and a kind this
+        organization never stored are both `None`. A mock would only restate the
+        query; this proves the `WHERE` against a real row.
+        """
+        mine, mine_owner = await _org(db, name="Kindful")
+        theirs, _ = await _org(db, name="Otherkind")
+        ctx = _ctx(mine, mine_owner)
+
+        stored = await OrganizationSecretService(db).create(
+            ctx,
+            name="Kindful GitHub app",
+            value=GithubOAuthAppSecret(
+                client_id="Iv1.aaaabbbbccccdddd", client_secret="ghs-live-1111"
+            ),
+            purpose="github_oauth_app",
+        )
+
+        found = await organization_secret_repo.get_by_kind(
+            db, organization_id=mine.id, kind=SecretKind.GITHUB_OAUTH_APP.value
+        )
+        assert found is not None
+        assert found.id == stored.id
+
+        # Another organization does not see it - the org filter.
+        assert (
+            await organization_secret_repo.get_by_kind(
+                db, organization_id=theirs.id, kind=SecretKind.GITHUB_OAUTH_APP.value
+            )
+            is None
+        )
+        # Nor does a kind this organization has never stored - the kind filter.
+        assert (
+            await organization_secret_repo.get_by_kind(
+                db, organization_id=mine.id, kind=SecretKind.API_KEY.value
+            )
+            is None
+        )

@@ -162,6 +162,18 @@ class McpOAuthStart(BaseSchema):
     url: str = Field(..., min_length=1, max_length=2048)
 
 
+class GithubOAuthStart(BaseSchema):
+    """Begin the GitHub OAuth App flow for a trigger portal.
+
+    Carries the portal key, not a URL or a name: the endpoints are GitHub's fixed
+    ones, the client credentials come from the organization's stored
+    `github_oauth_app` secret, and the connection is named after the portal's MCP
+    catalog entry - so nothing about the server is the caller's to choose.
+    """
+
+    portal_key: str = Field(..., min_length=1, max_length=64)
+
+
 class McpOAuthStartResult(BaseSchema):
     # The provider consent URL the browser should be redirected to.
     authorization_url: str

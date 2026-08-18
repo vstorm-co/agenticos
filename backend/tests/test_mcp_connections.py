@@ -27,6 +27,7 @@ from app.agents.mcp_oauth import McpOAuthPayload
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.sanitize import SSRFBlockedError
+from app.core.secret_kinds import GithubOAuthAppSecret
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.mcp_connection import McpConnection
 from app.schemas.mcp_connection import (
@@ -44,6 +45,8 @@ from app.services.mcp_connection import (
     _resolve_auth_headers,
     connection_scope,
 )
+from app.services.organization_secret import OrganizationSecretService
+from app.services.portals import github_oauth
 
 
 @contextlib.asynccontextmanager
@@ -1340,6 +1343,23 @@ class TestMcpConnectionService:
             await service.oauth_callback(state="state-broken", code="the-code")
 
     @pytest.mark.anyio
+    async def test_oauth_callback_on_a_discovery_flow_missing_its_verifier_restarts(
+        self, service, repo
+    ):
+        """A discovery payload that decrypts but has lost its PKCE verifier - a
+        rotated master key left it unreadable - is a dead flow the user restarts,
+        not a 500 mid-exchange. Distinct from the undecryptable-payload case above:
+        here the payload reads fine and only the verifier is gone."""
+        dead = _connection(auth_type="oauth", oauth_state="state-noverifier")
+        dead.oauth_pending_payload = _seal_into(
+            dead, _base_payload(code_verifier=None).model_dump_json()
+        )
+        repo.get_by_oauth_state = AsyncMock(return_value=dead)
+
+        with pytest.raises(mcp_oauth.OAuthError, match="no longer valid"):
+            await service.oauth_callback(state="state-noverifier", code="the-code")
+
+    @pytest.mark.anyio
     async def test_update_url_drops_oauth_tokens(self, service, repo, monkeypatch):
         """Tokens are bound to the host they were issued for - moving the URL
         must not send a provider's access token to a different server."""
@@ -1773,6 +1793,10 @@ class TestOrganizationConnections:
                 ),
                 id="test",
             ),
+            pytest.param(
+                lambda service, ctx, connection_id: service.get_org_connection(ctx, connection_id),
+                id="get_org_connection",
+            ),
         ],
     )
     async def test_a_server_this_organization_does_not_own_is_not_found(
@@ -1789,6 +1813,16 @@ class TestOrganizationConnections:
             "connection_id": connection_id,
             "organization_id": ctx.organization_id,
         }
+
+    @pytest.mark.anyio
+    async def test_get_org_connection_returns_the_row_it_finds(self, service, ctx, repo):
+        """The public lookup a caller uses to prove a `connection_id` is its own
+        before storing it - the trigger service, before persisting the account its
+        webhook registers through."""
+        conn = self._org_connection(ctx)
+        repo.get_org_scoped_by_id.return_value = conn
+
+        assert await service.get_org_connection(ctx, conn.id) is conn
 
     @pytest.mark.anyio
     async def test_the_personal_routes_cannot_reach_an_organization_server(self, service, repo):
@@ -2060,3 +2094,211 @@ class TestWebhookAccessToken:
             self._ctx(), uuid4(), required_scopes=["admin:repo_hook"]
         )
         assert token == "live-token"
+
+
+class TestGithubPortalOAuth:
+    """The GitHub OAuth App connect flow: the org's stored creds, fixed endpoints.
+
+    Unlike the discovery flow, nothing here is registered or discovered - the
+    endpoints are GitHub's, the client is the organization's stored
+    `github_oauth_app`, and the resulting connection is keyed to the `github` MCP
+    catalog entry so the trigger portal and the agent's tools share one account.
+    """
+
+    pytestmark = pytest.mark.anyio
+
+    @pytest.fixture
+    def ctx(self) -> AuthContext:
+        return AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER.value)
+
+    @pytest.fixture
+    def service(self):
+        return McpConnectionService(db=AsyncMock())
+
+    @pytest.fixture
+    def repo(self, monkeypatch):
+        mock_repo = MagicMock()
+        mock_repo.get_org_scoped_by_name = AsyncMock(return_value=None)
+        mock_repo.create_org_scoped = AsyncMock()
+        mock_repo.update = AsyncMock()
+        mock_repo.get_by_oauth_state = AsyncMock()
+        monkeypatch.setattr(mcp_connection_service, "mcp_connection_repo", mock_repo)
+        return mock_repo
+
+    @pytest.fixture
+    def creds(self, monkeypatch):
+        """The organization's stored GitHub OAuth App, as the vault reader returns it."""
+        value = GithubOAuthAppSecret(client_id="Iv1.0123456789ab", client_secret="ghsec-42")
+        monkeypatch.setattr(
+            OrganizationSecretService, "github_oauth_app", AsyncMock(return_value=value)
+        )
+        return value
+
+    async def test_a_start_without_a_stored_secret_is_a_clean_4xx_not_a_500(
+        self, service, ctx, repo, monkeypatch
+    ):
+        """A missing prerequisite is the operator's to fix, not a bug - and the row
+        is never created, so a retry after adding the secret is not a name clash."""
+        monkeypatch.setattr(
+            OrganizationSecretService,
+            "github_oauth_app",
+            AsyncMock(side_effect=NotFoundError(message="add a secret first")),
+        )
+        with pytest.raises(NotFoundError):
+            await service.oauth_start_for_org_github(ctx, portal_key="github")
+        repo.create_org_scoped.assert_not_called()
+
+    async def test_a_start_for_an_unknown_portal_is_refused(self, service, ctx, repo, creds):
+        with pytest.raises(BadRequestError):
+            await service.oauth_start_for_org_github(ctx, portal_key="no-such-portal")
+        repo.create_org_scoped.assert_not_called()
+
+    async def test_a_start_whose_catalog_entry_is_missing_is_refused(
+        self, service, ctx, repo, monkeypatch
+    ):
+        """A portal that names an MCP catalog key the catalog no longer holds is a
+        misconfiguration - a 4xx before any consent URL or secret read, not a 500."""
+        monkeypatch.setattr("app.services.mcp_connection.get_entry", lambda _key: None)
+        with pytest.raises(BadRequestError):
+            await service.oauth_start_for_org_github(ctx, portal_key="github")
+        repo.create_org_scoped.assert_not_called()
+
+    async def test_a_start_stages_the_flow_with_githubs_endpoints_and_the_org_creds(
+        self, service, ctx, repo, creds
+    ):
+        url = await service.oauth_start_for_org_github(ctx, portal_key="github")
+
+        # The consent URL is GitHub's own, carrying the org's client id and the
+        # portal's scopes - and never the client secret.
+        assert url.startswith("https://github.com/login/oauth/authorize?")
+        assert "client_id=Iv1.0123456789ab" in url
+        assert "scope=repo+admin%3Arepo_hook" in url
+        assert "ghsec-42" not in url
+
+        stored = repo.create_org_scoped.await_args.kwargs
+        assert stored["organization_id"] == ctx.organization_id
+        assert stored["created_by_user_id"] == ctx.subject_id
+        # Keyed to the MCP catalog entry so the portal join finds this connection.
+        assert stored["catalog_key"] == "github"
+        assert (stored["auth_type"], stored["sealed_token"]) == ("oauth", None)
+        assert stored["oauth_state"] and stored["oauth_pending_payload"]
+
+        payload = McpOAuthPayload.model_validate_json(
+            unseal(
+                stored["oauth_pending_payload"],
+                scope=VaultScope.organization(ctx.organization_id),
+            )
+        )
+        assert payload.provider == "github"
+        assert payload.token_endpoint == github_oauth.TOKEN_ENDPOINT
+        assert payload.authorization_endpoint == github_oauth.AUTHORIZE_ENDPOINT
+        assert payload.scope == "repo admin:repo_hook"
+        # The secret is sealed in the pending payload, never in a plain column.
+        assert payload.client_secret == "ghsec-42"
+        assert payload.access_token is None
+        assert payload.code_verifier is None  # no PKCE on this flow
+
+    async def test_reauthorizing_keeps_the_live_token_until_consent_lands(
+        self, service, ctx, repo, creds
+    ):
+        """Re-running the flow on a connected account must not break it if the user
+        abandons the consent tab - the live token survives until the callback."""
+        live = _connection(
+            scope="org",
+            user_id=None,
+            organization_id=ctx.organization_id,
+            catalog_key="github",
+            auth_type="oauth",
+            name="github",
+        )
+        live.oauth_payload = _seal_into(
+            live, _base_payload(access_token="live-token").model_dump_json()
+        )
+        repo.get_org_scoped_by_name.return_value = live
+
+        await service.oauth_start_for_org_github(ctx, portal_key="github")
+
+        update_data = repo.update.await_args.kwargs["update_data"]
+        assert update_data["oauth_pending_payload"]
+        assert "oauth_payload" not in update_data  # the working token survives
+        repo.create_org_scoped.assert_not_called()
+
+    async def test_the_callback_exchanges_the_code_and_persists_the_granted_scopes(
+        self, service, repo, monkeypatch
+    ):
+        organization_id = uuid4()
+        pending = _connection(
+            scope="org",
+            user_id=None,
+            organization_id=organization_id,
+            catalog_key="github",
+            auth_type="oauth",
+            name="github",
+            url="https://api.githubcopilot.com/mcp/",
+            oauth_state="gh-state",
+        )
+        pending.oauth_pending_payload = _seal_into(
+            pending,
+            _base_payload(
+                provider="github",
+                client_secret="ghsec-42",
+                code_verifier=None,
+                token_endpoint=github_oauth.TOKEN_ENDPOINT,
+                scope="repo admin:repo_hook",
+            ).model_dump_json(),
+        )
+        repo.get_by_oauth_state.return_value = pending
+        repo.update.return_value = pending
+        monkeypatch.setattr(
+            github_oauth,
+            "exchange_code",
+            AsyncMock(
+                return_value=github_oauth.GithubToken(
+                    access_token="gho_live", granted_scopes=["repo", "admin:repo_hook"]
+                )
+            ),
+        )
+
+        await service.oauth_callback(state="gh-state", code="the-code")
+
+        update_data = repo.update.await_args.kwargs["update_data"]
+        # The scopes GitHub actually granted, mirrored to the plain column the
+        # webhook path reads.
+        assert update_data["granted_scopes"] == ["repo", "admin:repo_hook"]
+        assert update_data["oauth_pending_payload"] is None
+        assert update_data["oauth_state"] is None
+        assert update_data["last_status"] == "ok"
+        payload = McpOAuthPayload.model_validate_json(
+            _open_from(pending, update_data["oauth_payload"])
+        )
+        assert payload.access_token == "gho_live"
+        # A classic OAuth App token neither refreshes nor expires.
+        assert payload.refresh_token is None
+        assert payload.expires_at is None
+
+    async def test_a_github_exchange_failure_surfaces_as_an_oauth_error(
+        self, service, repo, monkeypatch
+    ):
+        pending = _connection(
+            scope="org",
+            user_id=None,
+            organization_id=uuid4(),
+            catalog_key="github",
+            auth_type="oauth",
+            name="github",
+            oauth_state="gh-state",
+        )
+        pending.oauth_pending_payload = _seal_into(
+            pending,
+            _base_payload(provider="github", code_verifier=None).model_dump_json(),
+        )
+        repo.get_by_oauth_state.return_value = pending
+        monkeypatch.setattr(
+            github_oauth,
+            "exchange_code",
+            AsyncMock(side_effect=github_oauth.GithubOAuthError("GitHub said no")),
+        )
+
+        with pytest.raises(mcp_oauth.OAuthError):
+            await service.oauth_callback(state="gh-state", code="the-code")
+        repo.update.assert_not_called()

@@ -632,3 +632,51 @@ class TestTheKeyThatAsksAProviderForItsCatalog:
             new=AsyncMock(return_value=[]),
         ):
             assert await OrganizationSecretService(_db()).listing_key(_ctx(), "openrouter") is None
+
+
+class TestTheGithubOAuthAppReader:
+    """`github_oauth_app` is the vault's third reader, and the most narrowly scoped.
+
+    It opens one kind of secret and lets only the public `client_id` escape; the
+    `client_secret` it unseals goes to GitHub's token endpoint inside the connect
+    flow and nowhere else. It exists so the GitHub-provider OAuth flow can run the
+    token exchange with credentials the organization stored, without ever handing
+    them to a route or a client.
+    """
+
+    @pytest.mark.anyio
+    async def test_it_unseals_the_organizations_github_oauth_app(self):
+        ctx = _ctx()
+        row = _row(
+            ctx,
+            GithubOAuthAppSecret(client_id="Iv1.0123456789abcdef", client_secret="ghsec-42"),
+            name="GitHub OAuth App",
+        )
+
+        with patch(
+            "app.services.organization_secret.organization_secret_repo.get_by_kind",
+            new=AsyncMock(return_value=row),
+        ) as get_by_kind:
+            value = await OrganizationSecretService(_db()).github_oauth_app(ctx)
+
+        assert isinstance(value, GithubOAuthAppSecret)
+        assert value.client_id == "Iv1.0123456789abcdef"
+        assert value.client_secret.get_secret_value() == "ghsec-42"
+        # Read org-scoped and by the GitHub kind - never another tenant's, never
+        # another shape.
+        assert get_by_kind.await_args.kwargs == {
+            "organization_id": ctx.organization_id,
+            "kind": SecretKind.GITHUB_OAUTH_APP.value,
+        }
+
+    @pytest.mark.anyio
+    async def test_a_missing_secret_is_a_clean_not_found_not_a_500(self):
+        """The connect UI shows this as "add a GitHub OAuth App secret first"."""
+        with (
+            patch(
+                "app.services.organization_secret.organization_secret_repo.get_by_kind",
+                new=AsyncMock(return_value=None),
+            ),
+            pytest.raises(NotFoundError),
+        ):
+            await OrganizationSecretService(_db()).github_oauth_app(_ctx())

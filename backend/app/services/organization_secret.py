@@ -2,14 +2,18 @@
 
 Everything above this deals in secret ids; everything below deals in ciphertext.
 There is deliberately no method that returns a plaintext to a caller who could
-keep one. Two methods unseal, and both hand what they opened straight to the thing
+keep one. Three methods unseal, and each hands what it opened straight to the thing
 that had to have it: :meth:`OrganizationSecretService.resolve_for_bindings`, called
-by the runner, and :meth:`OrganizationSecretService.listing_key`, which returns a
-bearer token for one outbound catalog request.
+by the runner; :meth:`OrganizationSecretService.listing_key`, which returns a
+bearer token for one outbound catalog request; and
+:meth:`OrganizationSecretService.github_oauth_app`, which hands a GitHub OAuth App's
+client secret to GitHub's own token endpoint inside the connect flow and to nowhere
+else.
 """
 
 from __future__ import annotations
 
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +24,7 @@ from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import (
     ApiKeySecret,
+    GithubOAuthAppSecret,
     SecretKind,
     StorableSecret,
     seal_secret,
@@ -347,6 +352,49 @@ class OrganizationSecretService:
             if isinstance(value, ApiKeySecret):
                 return value.api_key.get_secret_value()
         return None
+
+    async def github_oauth_app(self, ctx: AuthContext) -> GithubOAuthAppSecret:
+        """Unseal the organization's GitHub OAuth App credentials for a token exchange.
+
+        The third plaintext reader here, and deliberately the narrowest: it opens one
+        kind of secret and the only field that leaves is the public `client_id`. The
+        `client_secret` is a `SecretStr` that escapes only when the connect flow
+        passes it straight to GitHub's token endpoint - it is never returned to a
+        client, logged, or written to the audit trail.
+
+        Not gated on `secrets:view`, for the same reason `resolve_for_bindings` is
+        not: this is the runtime spending a credential the organization stored, not a
+        member reading the vault. The caller's `mcp:manage` on the connect route is
+        what authorizes reaching it.
+
+        Raises:
+            NotFoundError: If the organization has stored no `github_oauth_app`
+                secret. A 4xx the connect UI shows as "add a GitHub OAuth App secret
+                first", never a 500 - a missing prerequisite is the operator's to
+                fix, not a bug.
+        """
+        row = await organization_secret_repo.get_by_kind(
+            self.db,
+            organization_id=ctx.organization_id,
+            kind=SecretKind.GITHUB_OAUTH_APP.value,
+        )
+        if row is None:
+            raise NotFoundError(
+                message=(
+                    "Connect GitHub after adding a GitHub OAuth App secret in Settings - Secrets."
+                ),
+                details={"kind": SecretKind.GITHUB_OAUTH_APP.value},
+            )
+        value = unseal_secret(
+            row.sealed_secret,
+            kind=SecretKind.GITHUB_OAUTH_APP,
+            scope=VaultScope.organization(ctx.organization_id),
+            key_version=row.key_version,
+        )
+        # `unseal_secret` refuses anything whose sealed kind is not the one asked
+        # for, so this is the concrete type - the cast narrows it without a branch
+        # that could never run.
+        return cast(GithubOAuthAppSecret, value)
 
     async def _get(
         self, ctx: AuthContext, secret_id: UUID, *, perm: Perm = Perm.SECRETS_VIEW

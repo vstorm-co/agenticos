@@ -40,6 +40,27 @@ async def get_by_name(
     return result.scalar_one_or_none()
 
 
+async def get_by_kind(
+    db: AsyncSession, *, organization_id: UUID, kind: str
+) -> OrganizationSecret | None:
+    """The organization's secret of a given kind, or None.
+
+    For a kind an organization stores exactly one of and wants the credential
+    itself rather than a picker - its GitHub OAuth App, read server-side to run a
+    token exchange. Ordered by name so the choice is stable if more than one is
+    ever stored; `list_secrets` remains the path for a chooser that shows them all.
+    """
+    result = await db.execute(
+        select(OrganizationSecret)
+        .where(
+            OrganizationSecret.organization_id == organization_id,
+            OrganizationSecret.kind == kind,
+        )
+        .order_by(OrganizationSecret.name.asc())
+    )
+    return result.scalars().first()
+
+
 async def get_many(
     db: AsyncSession, secret_ids: list[UUID], *, organization_id: UUID
 ) -> dict[UUID, OrganizationSecret]:

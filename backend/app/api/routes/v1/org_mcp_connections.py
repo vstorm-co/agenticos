@@ -25,6 +25,7 @@ from app.agents.mcp_oauth import OAuthError
 from app.api.deps import Auth, McpConnectionSvc, require
 from app.core.permissions import Perm
 from app.schemas.mcp_connection import (
+    GithubOAuthStart,
     McpConnectionTestResult,
     McpOAuthStart,
     McpOAuthStartResult,
@@ -87,6 +88,32 @@ async def start_org_mcp_oauth(data: McpOAuthStart, service: McpConnectionSvc, ct
         authorization_url = await service.oauth_start_for_org(ctx, name=data.name, url=data.url)
     except OAuthError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return McpOAuthStartResult(authorization_url=authorization_url)
+
+
+@router.post(
+    "/oauth/start/github",
+    response_model=McpOAuthStartResult,
+    dependencies=[Depends(require(Perm.MCP_MANAGE))],
+)
+async def start_org_github_oauth(
+    data: GithubOAuthStart, service: McpConnectionSvc, ctx: Auth
+) -> Any:
+    """Begin the GitHub OAuth App flow for a trigger portal, using the org's own creds.
+
+    GitHub does not support the discovery-and-registration flow the sibling
+    `/oauth/start` runs. This one instead reads the organization's stored
+    `github_oauth_app` secret, builds GitHub's consent URL for the portal's scopes
+    (`repo` to see events, `admin:repo_hook` to register the webhook), and stages the
+    flow on the organization's connection - keyed to the portal's MCP catalog entry
+    so the trigger and the agent's tools share one connected account.
+
+    A `github_oauth_app` secret that has not been added yet is a `NotFoundError`
+    (404) the UI shows as a prerequisite, and a portal that does not connect through
+    GitHub is a `BadRequestError` (400); both are the platform's domain exceptions,
+    so no `OAuthError` translation is needed here.
+    """
+    authorization_url = await service.oauth_start_for_org_github(ctx, portal_key=data.portal_key)
     return McpOAuthStartResult(authorization_url=authorization_url)
 
 

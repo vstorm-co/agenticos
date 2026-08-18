@@ -110,6 +110,11 @@ class McpOAuthPayload(BaseModel):
     once tokens arrive it is dropped and `access_token`/`refresh_token` are
     filled in. `expires_at` is epoch seconds (or None if the token doesn't
     expire).
+
+    `provider` names a non-discovery flow when one issued the payload - `"github"`
+    for a GitHub OAuth App, whose endpoints are fixed and whose token exchange has
+    its own quirks (see `app/services/portals/github_oauth.py`). `None` is the
+    ordinary MCP discovery flow, which carries a PKCE `code_verifier` instead.
     """
 
     server_url: str
@@ -126,6 +131,7 @@ class McpOAuthPayload(BaseModel):
     access_token: str | None = None
     refresh_token: str | None = None
     expires_at: float | None = None
+    provider: str | None = None
 
 
 @dataclass(frozen=True)
