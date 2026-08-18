@@ -464,6 +464,16 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     isLoading,
     error,
     fetchConversations,
+    /**
+     * Re-ask the server for every listing, and nothing else.
+     *
+     * The narrow half of `fetchConversations`, for a caller that knows the
+     * stored rows have changed but is not opening one of them. Which agents
+     * answered in a conversation is derived from its stored turns, so a row
+     * fetched before the first answer was written carries no agent at all -
+     * and nothing else in the client will ask again.
+     */
+    refreshConversations: invalidateLists,
     fetchMoreConversations,
     hasMore,
     createConversation,
