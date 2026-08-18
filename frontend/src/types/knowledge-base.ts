@@ -108,6 +108,14 @@ export interface KnowledgeBase {
    */
   embedding_model: string;
   embedding_dim: number;
+  /**
+   * The reranker reordering this collection's search results, and the org vault
+   * key it is billed to. Both null unless reranking is configured. Unlike the
+   * embedding model this pair can be changed after creation - see
+   * `UpdateRerankInput`.
+   */
+  rerank_model: string | null;
+  rerank_secret_id: string | null;
   created_at: string;
   updated_at: string | null;
   /**
@@ -154,6 +162,20 @@ export interface CreateKnowledgeBaseInput {
   rerank_model?: string;
   /** The org vault key that pays for reranking - a `cohere`-purpose api_key. */
   rerank_secret_id?: string;
+}
+
+/**
+ * Changing a collection's reranking after creation.
+ *
+ * The pair is read together on the backend: send both to turn reranking on or
+ * change its key, both `null` to turn it off, and omit both to leave it be
+ * (which is why they are `null`-able rather than merely optional - `null` is the
+ * "off" signal, absence is "don't touch"). No other field changes here; name,
+ * description and ingestion have their own paths.
+ */
+export interface UpdateRerankInput {
+  rerank_model: string | null;
+  rerank_secret_id: string | null;
 }
 
 /** A single document tracked in a KB's underlying vector collection. */

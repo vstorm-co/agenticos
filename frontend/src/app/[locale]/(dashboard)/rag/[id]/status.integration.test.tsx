@@ -47,6 +47,8 @@ const COLLECTION: KnowledgeBase = {
   ingestion_config: DEFAULT_INGESTION_CONFIG,
   embedding_model: "text-embedding-3-small",
   embedding_dim: 1536,
+  rerank_model: null,
+  rerank_secret_id: null,
   created_at: "2026-01-01T00:00:00Z",
   updated_at: null,
   document_count: 2,

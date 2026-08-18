@@ -35,6 +35,7 @@ import {
   ingestionProblems,
   sameIngestion,
 } from "@/lib/ingestion-config";
+import { DEFAULT_RERANK_MODEL, RERANK_KEY_PURPOSE, RERANK_OFF } from "@/lib/rerank-config";
 import type { CreateKnowledgeBaseInput, IngestionConfig, KBScope } from "@/types";
 import { useTranslations } from "next-intl";
 
@@ -47,15 +48,6 @@ const EMBEDDING_KEY_PURPOSE = "openrouter";
 
 /** Sentinel for "the deployment's key" - a Select item may not be empty. */
 const DEPLOYMENT_KEY = "__deployment__";
-
-/** The purpose a key must carry to pay for reranking - mirrors the backend. */
-const RERANK_KEY_PURPOSE = "cohere";
-
-/** Sentinel for "no reranking" - a Select item may not be empty. */
-const RERANK_OFF = "__off__";
-
-/** The one reranker there is. No endpoint lists them, so it is a constant. */
-const DEFAULT_RERANK_MODEL = "rerank-v3.5";
 
 interface EmbeddingModels {
   default: string;

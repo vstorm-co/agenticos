@@ -307,6 +307,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inTour: true,
   },
   { id: "kb-ingestion", page: KB_DETAIL, target: "kb-ingestion", permission: Perm.collectionsView },
+  { id: "kb-rerank", page: KB_DETAIL, target: "kb-rerank", permission: Perm.collectionsView },
   { id: "kb-sync", page: KB_DETAIL, target: "kb-sync", permission: Perm.collectionsView },
 
   { id: "orgs-new", page: ROUTES.ORGS, target: "orgs-new" },

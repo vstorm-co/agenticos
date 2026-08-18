@@ -16,6 +16,8 @@ import { SyncSourcesSection } from "@/components/rag/sync-sources-section";
 import { FileViewer } from "@/components/kb/file-viewer";
 import { IngestionDialog } from "@/components/kb/ingestion-dialog";
 import { IngestionPanel } from "@/components/kb/ingestion-panel";
+import { RerankDialog } from "@/components/kb/rerank-dialog";
+import { RerankPanel } from "@/components/kb/rerank-panel";
 import { UploadOverrideDialog } from "@/components/kb/upload-override-dialog";
 import { useKBDetail, usePermissions, usePollWhileIngesting } from "@/hooks";
 import { overrideSize } from "@/lib/ingestion-config";
@@ -50,6 +52,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     refresh,
     loadMoreDocuments,
     updateIngestion,
+    updateRerank,
     uploadDocument,
     deleteDocument,
     deleteCollection,
@@ -69,6 +72,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   const [creatingSource, setCreatingSource] = useState(false);
   const [viewerDoc, setViewerDoc] = useState<KBDocument | null>(null);
   const [ingestionOpen, setIngestionOpen] = useState(false);
+  const [rerankOpen, setRerankOpen] = useState(false);
   const [overrideOpen, setOverrideOpen] = useState(false);
   /**
    * What a destructive control has asked for and not yet been granted.
@@ -239,6 +243,12 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         <IngestionPanel kb={kb} onEdit={mayEdit ? () => setIngestionOpen(true) : undefined} />
       </div>
 
+      {/* After ingestion: reranking is the other per-collection retrieval knob,
+          and the only one changeable after creation. */}
+      <div className="mb-8" data-tour="kb-rerank">
+        <RerankPanel kb={kb} onEdit={mayEdit ? () => setRerankOpen(true) : undefined} />
+      </div>
+
       <SyncSourcesSection
         kbId={id}
         syncSources={syncSources}
@@ -340,6 +350,14 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         config={kb.ingestion_config}
         collectionName={kb.collection_name}
         onSave={updateIngestion}
+      />
+
+      <RerankDialog
+        open={rerankOpen}
+        onOpenChange={setRerankOpen}
+        rerankSecretId={kb.rerank_secret_id}
+        collectionName={kb.collection_name}
+        onSave={updateRerank}
       />
 
       <UploadOverrideDialog
