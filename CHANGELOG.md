@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.199] - 2026-08-18
+
 ### Fixed
 
 - **The storage-root check is a barrier the query actually applies.** 0.0.184
