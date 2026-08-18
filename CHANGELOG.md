@@ -17,6 +17,31 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **The storage-root check is a barrier the query actually applies.** 0.0.184
+  rewrote it into the `realpath` + `startswith` idiom `py/path-injection` models
+  and closed one of the three alerts it claimed; #14 and #15, both sinks in
+  `LocalFileStorage.load`, survived on `main` for thirteen releases. The idiom
+  was right and the *shape* was wrong: the query clears a normalised path only
+  where the `startswith` call alone decides the branch, and the check was written
+  `if candidate != base and not candidate.startswith(prefix)`. Falling through
+  `A and B` proves neither conjunct, so the guard never applied. The root is
+  answered in its own branch above, leaving `startswith` as the whole condition
+  of its own — same refusals, same message, same tests. Established by running
+  CodeQL 2.26.3 with `codeql/python-queries` over this tree rather than by
+  predicting it: two results before, none after. (#903)
+- **What 0.0.184 claimed about those alerts is corrected in its own entry**, so a
+  reader who goes looking there finds what happened rather than the claim. (#903)
+
+### Added
+
+- **A test that fails if the containment check stops being one condition.** It
+  reads `_resolve_safe_path`'s AST and asserts the `startswith` call is the whole
+  test of its branch — the property 0.0.184 lost, which every behavioural test in
+  the file passed straight through. It pins the shape; only CodeQL answers the
+  verdict, and the pull request's own scan is where that is read. (#903)
+
 ## [0.0.197] - 2026-08-18
 
 The `e2e` job stopped stalling for twenty-five minutes on an apt mirror.
@@ -406,10 +431,13 @@ Three places where the code said something about itself that was not true.
 
 ### Fixed
 
-- **The storage-root check is written so a static analyser can follow it**, which
-  is what closes three CodeQL `py/path-injection` alerts — a `Path.parents`
-  membership test is correct and invisible to the query, and an alert nobody can
-  close is an alert everybody learns to ignore. (#841)
+- **The storage-root check is written so a static analyser can follow it** — a
+  `Path.parents` membership test is correct and invisible to the query, and an
+  alert nobody can close is an alert everybody learns to ignore. (#841)
+  **Correction:** this said it closed three CodeQL `py/path-injection` alerts. It
+  closed one. #14 and #15 stayed open on `main` because the check was written as
+  a conjunction, which is not a shape the query accepts as a barrier; see
+  Unreleased and (#903).
 - **A filesystem root can be the storage root again.** The rewritten check built
   its prefix as `base + os.sep` unconditionally, so with `MEDIA_DIR=/` the prefix
   was `//` — which nothing under `/` starts with. `load`, `delete` and
