@@ -83,17 +83,32 @@ test.describe("Onboarding", () => {
   test("replays the current page's tips from the header ?, without re-onboarding", async ({
     page,
   }) => {
-    // The returning user's path: help on demand. It must not write completion —
-    // asking for help is not finishing onboarding — so any PATCH here is a bug.
+    // Help on demand, and it must not record completion — asking for help is not
+    // finishing onboarding. The flag is *unset* for this, deliberately: with it
+    // already set, `dismiss` short-circuits on the flag rather than on the mode,
+    // and the assertion below would pass against a build that had lost the
+    // distinction entirely. `/agents` is not where the first-run tour auto-opens,
+    // so unsetting it here starts nothing.
+    const reset = await page.request.patch("/api/users/me", {
+      data: { onboarding_completed_at: null },
+    });
+    expect(reset.ok(), `resetting onboarding answered ${reset.status()}`).toBe(true);
+
     await page.goto("/agents");
     await expect(pageHeading(page, "Agents")).toBeVisible();
 
-    const patched: string[] = [];
-    page.on("request", (request) => {
-      if (request.method() === "PATCH" && new URL(request.url()).pathname === "/api/users/me") {
-        patched.push(request.url());
-      }
-    });
+    // Raced against a deadline rather than sampled after the fact: the write, if it
+    // came, is fired from an un-awaited async call, so "no request yet" a
+    // millisecond after the close proves nothing.
+    const stray = page
+      .waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === "/api/users/me" &&
+          response.request().method() === "PATCH",
+        { timeout: 3_000 },
+      )
+      .then(() => true)
+      .catch(() => false);
 
     await page.getByRole("button", { name: HELP }).click();
     // The Agents walk opens on its own first stop, not the first-run welcome.
@@ -101,7 +116,11 @@ test.describe("Onboarding", () => {
 
     await page.locator(CLOSE).click();
     await expect(page.locator(POPOVER)).toBeHidden();
-    expect(patched, "a '?' replay recorded onboarding as finished").toEqual([]);
+    expect(await stray, "a '?' replay wrote to /users/me").toBe(false);
+
+    // And the server agrees: still unfinished, so the first-run tour is still owed.
+    const me = await (await page.request.get("/api/users/me")).json();
+    expect(me.onboarding_completed_at).toBeNull();
   });
 
   test("offers no ? on a page the walkthrough does not cover", async ({ page }) => {
@@ -113,8 +132,11 @@ test.describe("Onboarding", () => {
     await page.goto("/agents");
     await expect(page.getByRole("button", { name: HELP })).toBeVisible();
 
+    // By its own title, not by "some h1": a redirect, a 403 or an error boundary
+    // renders a heading too, and against `toBeVisible()` alone the count below
+    // would pass without the admin header ever having been on screen.
     await page.goto("/admin/users");
-    await expect(pageHeading(page)).toBeVisible();
+    await expect(pageHeading(page, "Workspace administration")).toBeVisible();
     await expect(page.getByRole("button", { name: HELP })).toHaveCount(0);
   });
 });

@@ -70,12 +70,13 @@ describe("useOnboardingStore", () => {
     });
   });
 
-  it("answer records a fork and steps past the question in one move", () => {
+  it("answer records a fork and moves to the index it is given, in one update", () => {
     useOnboardingStore.setState({ mode: "flow", flowId: "create-agent", index: 4 });
-    useOnboardingStore.getState().answer("flow-agent-knowledge-ask", "yes");
+    useOnboardingStore.getState().answer("flow-agent-knowledge-ask", "yes", 5);
     expect(useOnboardingStore.getState().choices).toEqual({ "flow-agent-knowledge-ask": "yes" });
     // The detour is now in the flow and the step after the question is where the
-    // reader lands.
+    // reader lands. Where that is comes from `useOnboardingFlow`, which can see the
+    // list the answer widened; this store cannot, and used to guess at `index + 1`.
     expect(useOnboardingStore.getState().index).toBe(5);
   });
 
@@ -86,7 +87,7 @@ describe("useOnboardingStore", () => {
       index: 9,
       choices: { "flow-agent-knowledge-ask": "yes" },
     });
-    useOnboardingStore.getState().answer("flow-agent-skills-ask", "skip");
+    useOnboardingStore.getState().answer("flow-agent-skills-ask", "skip", 10);
     expect(useOnboardingStore.getState().choices).toEqual({
       "flow-agent-knowledge-ask": "yes",
       "flow-agent-skills-ask": "skip",

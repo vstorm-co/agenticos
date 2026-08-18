@@ -70,8 +70,8 @@ interface OnboardingState {
   openOffer: (flowId: FlowId) => void;
   /** Dismiss the prompt — the reader declined, and nothing is recorded. */
   dismissOffer: () => void;
-  /** Record a fork's answer and step past the question in one move. */
-  answer: (questionId: string, value: ChoiceValue) => void;
+  /** Record a fork's answer and move to `nextIndex` in one update. */
+  answer: (questionId: string, value: ChoiceValue, nextIndex: number) => void;
   /** Remember the agent the flow just created, for the return leg of a detour. */
   setFlowAgentId: (agentId: string) => void;
   /** Put a running flow back exactly where it was — see `RunningFlow`. */
@@ -125,15 +125,16 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
     }),
   openOffer: (flowId) => set({ offer: flowId }),
   dismissOffer: () => set({ offer: null }),
-  // Advancing here rather than leaving it to the coach keeps the widening of the
-  // step list and the move onto its first new step in one update: the recorded
-  // answer brings the detour into the flow, and `index + 1` lands on it. A
-  // question is never the flow's last step, so stepping past it always has
-  // somewhere to go.
-  answer: (questionId, value) =>
+  // One update, because the recorded answer is what widens the step list and the
+  // index has to land inside the widened one. Where it lands is the caller's to
+  // decide: this store cannot see the step list, and the answer's destination
+  // depends on it — a fork with nothing after it once stepped past the end and
+  // trapped the reader on the question they had just answered. `useOnboardingFlow`
+  // resolves that against the list the choice produces.
+  answer: (questionId, value, nextIndex) =>
     set((state) => ({
       choices: { ...state.choices, [questionId]: value },
-      index: state.index + 1,
+      index: nextIndex,
     })),
   setFlowAgentId: (agentId) => set({ flowAgentId: agentId }),
   resume: ({ flowId, index, choices, flowAgentId }) =>

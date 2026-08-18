@@ -34,7 +34,10 @@ export function RestartTourButton() {
   const pathname = usePathname();
   const openPage = useOnboardingStore((state) => state.openPage);
 
-  if (!pageHasSteps(stripLocale(pathname))) return null;
+  // `?? "/"` because this now renders in twenty headers rather than one page, and
+  // `usePathname` is nullable outside a route — an error or not-found boundary
+  // would otherwise take the whole header down on `stripLocale`'s first line.
+  if (!pageHasSteps(stripLocale(pathname ?? "/"))) return null;
 
   return (
     <IconButton

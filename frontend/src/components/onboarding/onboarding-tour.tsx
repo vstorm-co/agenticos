@@ -85,10 +85,6 @@ export function OnboardingTour() {
   const { isOpen, steps, step, index, isFirst, isLast, next, back, dismiss } = useOnboardingTour();
   const mode = useOnboardingStore((state) => state.mode);
   const openOffer = useOnboardingStore((state) => state.openOffer);
-  // Three list queries stand behind the detail stops, and most walks name none:
-  // the vault, runs and channels sections have no detail view at all, so asking
-  // for agents, collections and organizations there is three requests per press
-  // of "?". Enabled only for a walk that actually has somewhere to open.
   const needsDetail = useMemo(
     () => steps.some((s) => s.page !== undefined && FETCHED_DETAIL_PAGES.has(s.page)),
     [steps],

@@ -453,6 +453,17 @@ describe("useOnboardingFlow", () => {
     expect(result.current.signalMet).toBe(true);
   });
 
+  it("ignores an answer when no flow is running", () => {
+    // The whole state object is returned whether or not a flow is live, so `answer`
+    // is callable with nothing to answer. Without a flow there is no step list to
+    // resolve the choice against, and recording one would leave a stray fork in the
+    // store for whichever flow opened next.
+    const { result } = renderHook(() => useOnboardingFlow());
+    act(() => result.current.answer("flow-agent-knowledge-ask", "yes"));
+    expect(useOnboardingStore.getState().choices).toEqual({});
+    expect(useOnboardingStore.getState().index).toBe(0);
+  });
+
   it("ends the walk when the fork it answers is the last step, rather than re-asking it", () => {
     // `answer` in the store records the choice and advances in one update, on the
     // claim that a question is never a flow's last step. It can be: create-agent's

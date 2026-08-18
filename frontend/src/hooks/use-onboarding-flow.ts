@@ -46,7 +46,10 @@ export interface OnboardingFlowState {
   next: () => void;
   /** End the flow now — the coach's close button. */
   finish: () => void;
-  /** Answer a fork step: records the choice and steps onto whatever it opens. */
+  /**
+   * Answer a fork step: records the choice and steps onto whatever it opens, or
+   * ends the walk when the choice opens nothing and the fork was the last step.
+   */
   answer: (questionId: string, value: ChoiceValue) => void;
   /** Hand off to another flow — a fork whose `"yes"` starts a different one. */
   openFlow: (flowId: FlowId) => void;
@@ -170,6 +173,18 @@ function useOrgSnapshot(): {
  * captured in state during render rather than in an effect: an effect would miss
  * the first frame, and a list that loads from `0` to its real count would trip
  * the signal before anything was created.
+ *
+ * A fork's answer is resolved here rather than in the store, and this is why: the
+ * store advances by an index it is handed, because where an answer lands depends on
+ * the list the answer produces and the store cannot see that list. A fork *can* be a
+ * flow's last surviving step — create-agent's tail is gated on `agents:publish`, so
+ * a role holding `agents:edit` and `collections:edit` and nothing else walks a flow
+ * ending on the "add a knowledge base?" question — and a Skip there widens nothing.
+ * Stepping past it blindly put the reader back on the question they had just
+ * answered, with Skip re-answering it forever and the close button the only way out.
+ * So a choice that opens nothing after the last step ends the walk, decided before
+ * the update rather than clamped after it, and no frame shows the answered question
+ * again.
  */
 export function useOnboardingFlow(): OnboardingFlowState {
   const isOpen = useOnboardingStore((state) => state.isOpen);
@@ -285,26 +300,12 @@ export function useOnboardingFlow(): OnboardingFlowState {
 
   const finish = useCallback(() => close(), [close]);
 
-  // Recording a fork's answer advances in the same update (`onboarding-store.ts`),
-  // which rests on a fork never being a flow's last surviving step. It can be:
-  // create-agent's tail — limits, publish, the first chat run — is gated on
-  // `agents:publish`, so a role holding `agents:edit` and `collections:edit` and
-  // nothing else walks a flow that ends on the "add a knowledge base?" fork. Skip
-  // there recorded the choice, widened nothing, and stepped one past the end, where
-  // `clamped` put the reader back on the fork they had just answered and Skip
-  // re-answered it forever — the close button the only way out.
-  //
-  // So the answer is resolved against the list it produces rather than trusted to
-  // land on something: if nothing follows the fork once the choice is in, the walk
-  // is over. Computed here rather than clamped afterwards, so there is no frame in
-  // which the answered question is on screen again.
   const answer = useCallback(
     (questionId: string, value: ChoiceValue) => {
-      const widened = flow
-        ? stepsForFlow(flow, orgState, can, { ...choices, [questionId]: value })
-        : [];
+      if (!flow) return;
+      const widened = stepsForFlow(flow, orgState, can, { ...choices, [questionId]: value });
       if (clamped >= widened.length - 1) close();
-      else recordAnswer(questionId, value);
+      else recordAnswer(questionId, value, clamped + 1);
     },
     [flow, orgState, can, choices, clamped, close, recordAnswer],
   );

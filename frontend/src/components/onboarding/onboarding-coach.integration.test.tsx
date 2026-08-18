@@ -435,23 +435,56 @@ describe("OnboardingCoach", () => {
     expect(fireEvent.keyDown(input, { key: " " })).toBe(true);
   });
 
-  it("keeps Tab inside the card while the page is frozen", async () => {
-    // The freeze paints over pointers and leaves the tab order alone, so Tab
-    // walked into the dimmed page behind the card and Enter on whatever it found
-    // acted — a sidebar link, another tab, the wandering the freeze exists to
-    // prevent. It is the keyboard half of the submit guard's hole.
-    const roaming = step({ signal: undefined });
-    flow.state = makeState({ step: roaming, steps: [roaming] });
+  it("lets Tab reach the control the step is waiting on, not only the card", async () => {
+    // The step the walk spends most of its time on has a signal and therefore no
+    // Next — the reader is meant to operate the spotlit control, and that is the
+    // whole advance. A trap confined to the card would leave a keyboard user with
+    // no route to it and abandoning the walk as the only exit, which is worse than
+    // no trap at all.
+    const spotlit = document.createElement("button");
+    spotlit.setAttribute("data-tour", "skills-new");
+    spotlit.textContent = "New skill";
+    document.body.appendChild(spotlit);
+    vi.mocked(waitForElement).mockImplementation(async () => spotlit);
+
+    // The default step carries `signal: { kind: "created" }`, so the card has a
+    // close button and nothing else.
     render(<OnboardingCoach />);
     await screen.findByText("Add your skill");
+    await waitFor(() => expect(document.querySelector("[data-coach-ring]")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "Next" })).toBeNull();
+
+    const close = screen.getByRole("button", { name: "Close" });
+    close.focus();
+    fireEvent.keyDown(close, { key: "Tab" });
+    expect(document.activeElement).toBe(spotlit);
+
+    // And back round to the card, so neither is a one-way trip.
+    fireEvent.keyDown(spotlit, { key: "Tab" });
+    expect(document.activeElement).toBe(close);
+  });
+
+  it("keeps Tab inside the card on a fork, which cuts no hole to reach through", async () => {
+    // The freeze paints over pointers and leaves the tab order alone, so Tab walked
+    // into the dimmed page behind the card and Enter on whatever it found acted —
+    // the keyboard half of the submit guard's hole. A fork points at no control, so
+    // here the card really is the whole of what the reader may operate.
+    const fork = step({
+      id: "flow-agent-knowledge-ask",
+      question: true,
+      signal: undefined,
+      target: undefined,
+      page: undefined,
+    });
+    flow.state = makeState({ flowId: "create-agent", step: fork, steps: [fork] });
+    render(<OnboardingCoach />);
+    await screen.findByText("No knowledge base yet — create one?");
 
     // A control on the frozen page behind, where focus can be stranded.
     const outside = document.createElement("button");
     document.body.appendChild(outside);
-    const card = document.querySelector<HTMLElement>("[data-coach-card]");
-    expect(card).not.toBeNull();
     const close = screen.getByRole("button", { name: "Close" });
-    const nextButton = screen.getByRole("button", { name: "Finish" });
+    const yes = screen.getByRole("button", { name: "Yes, let's do it" });
 
     // Where focus lands is the assertion, not that the key was cancelled: jsdom
     // moves focus for nobody, so in this environment the only thing that can put
@@ -466,18 +499,20 @@ describe("OnboardingCoach", () => {
 
     // Forward reaches the last control, and once more wraps rather than escaping.
     tab(close);
-    expect(document.activeElement).toBe(nextButton);
-    tab(nextButton);
+    expect(screen.getByRole("button", { name: "Skip" })).toBe(document.activeElement);
+    tab(document.activeElement as HTMLElement);
+    expect(document.activeElement).toBe(yes);
+    tab(yes);
     expect(document.activeElement).toBe(close);
 
     // Shift walks the other way, wrapping at the front for the same reason.
     tab(close, true);
-    expect(document.activeElement).toBe(nextButton);
+    expect(document.activeElement).toBe(yes);
 
     // And Shift from the page behind lands on the card's last control, not out.
     outside.focus();
     tab(outside, true);
-    expect(document.activeElement).toBe(nextButton);
+    expect(document.activeElement).toBe(yes);
   });
 
   it("leaves Tab alone on a roam step, where the reader is meant to work the page", async () => {

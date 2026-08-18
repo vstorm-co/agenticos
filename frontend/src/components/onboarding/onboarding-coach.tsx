@@ -90,6 +90,26 @@ const OPEN_OVERLAY =
  */
 const OPEN_DIALOG = '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]';
 
+/**
+ * What a keyboard can land on inside `root`, `root` itself included.
+ *
+ * Deliberately the tab-order shape rather than a full a11y tree: the spotlit
+ * control is as often a wrapper as a button — a field group, a `<details>`, a
+ * picker whose trigger is one node inside it — so the element and its descendants
+ * are both asked. `aria-disabled` is honoured beside the real attribute because a
+ * Radix trigger stays enabled in the DOM and refuses on the ARIA one.
+ */
+const FOCUSABLE =
+  'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"]), [contenteditable="true"]';
+
+function focusable(root: HTMLElement | null): HTMLElement[] {
+  if (root === null) return [];
+  const usable = (el: HTMLElement) =>
+    !el.hasAttribute("disabled") && el.getAttribute("aria-disabled") !== "true";
+  const inside = Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(usable);
+  return root.matches(FOCUSABLE) && usable(root) ? [root, ...inside] : inside;
+}
+
 /** A small dot centred in the viewport — where the ring starts each flow before it travels. */
 function centerDot(): Box {
   return {
@@ -183,6 +203,8 @@ export function OnboardingCoach() {
   const [dialogNode, setDialogNode] = useState<HTMLElement | null>(null);
   const [blockRect, setBlockRect] = useState<Rect | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  /** The control this step spotlights, once found — what the freeze leaves usable. */
+  const targetRef = useRef<HTMLElement | null>(null);
 
   const stepId = step?.id;
   const blockSubmit = step?.blockSubmit;
@@ -353,6 +375,12 @@ export function OnboardingCoach() {
       // on step change or flow end already bounds this wait.
       const target = await waitForElement(selector, signal, null);
       if (signal.aborted || !(target instanceof HTMLElement)) return;
+      // Held for the keyboard trap below, which has to let Tab reach the one
+      // control the cut-out leaves clickable.
+      targetRef.current = target;
+      signal.addEventListener("abort", () => {
+        targetRef.current = null;
+      });
 
       // A `<details>` hides its content without taking it out of the document, so
       // the wait above happily returns a control nobody can see and the ring frames
@@ -470,30 +498,31 @@ export function OnboardingCoach() {
     if (frozen) cardRef.current?.focus();
   }, [isActive, step, overlayOpen]);
 
-  // Moving focus onto the card is not enough to keep it there: the freeze paints
-  // over pointer events and the tab order is untouched, so Tab walked straight into
-  // the dimmed page behind and Enter on whatever it reached acted — a sidebar link,
-  // another tab, the very wandering mid-step the freeze exists to prevent, and the
-  // keyboard half of the same hole the submit guard had. So while the page is frozen
-  // Tab cycles the card's own buttons and nothing else. Reversing the list for Shift
-  // is what keeps both directions one expression: focus resting on the card itself
-  // reads as -1 either way, which lands on the first control going forward and the
-  // last going back. `roam`, `inOverlay` and any open dialog are excluded — the
-  // reader is meant to work the page or Radix owns the trap.
+  // The freeze blocks pointers and leaves the tab order alone, so Tab walked into
+  // the dimmed page behind and Enter on whatever it reached acted — the keyboard
+  // half of the hole the submit guard closes. Tab is confined to what the freeze
+  // leaves usable, which is *two* things and not one: the card, and the control
+  // inside the cut-out. Trapping to the card alone would be worse than not trapping
+  // at all — a step with a signal renders no Next by design, so its reader would
+  // have no keyboard route to the very control the step is waiting on, and the only
+  // way out of the walk would be abandoning it. `roam`, `inOverlay` and any open
+  // dialog are excluded: there the reader works the page, or Radix owns the trap.
   useEffect(() => {
     if (!isActive || !step) return;
     if (step.roam || step.inOverlay || overlayOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Tab") return;
-      const card = cardRef.current;
-      if (card === null) return;
-      const stops = Array.from(card.querySelectorAll<HTMLElement>("button:not([disabled])"));
+      // A fork cuts no hole, so the card is the whole of it.
+      const spotlit = step.question ? null : targetRef.current;
+      const stops = [...focusable(cardRef.current), ...focusable(spotlit)];
       if (stops.length === 0) return;
       event.preventDefault();
+      // Reversed for Shift so both directions are one expression, and focus resting
+      // on neither reads as -1 either way — the first stop going forward, the last
+      // going back.
       const order = event.shiftKey ? [...stops].reverse() : stops;
       const here = order.indexOf(document.activeElement as HTMLElement);
-      // In range by construction: a modulo of a non-empty array's own length.
-      order.at((here + 1) % order.length)!.focus();
+      order[(here + 1) % order.length]?.focus();
     };
     document.addEventListener("keydown", onKeyDown, true);
     return () => document.removeEventListener("keydown", onKeyDown, true);
