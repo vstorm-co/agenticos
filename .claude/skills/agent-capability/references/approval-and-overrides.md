@@ -51,6 +51,16 @@ server tools are discovered at run time, so nothing declared them and nothing ga
 them. Do not assume otherwise when reviewing a change that adds an MCP connection to
 a published agent.
 
+**A tool the model provider executes** — a native fetch, a native search. There is
+no local execution to wrap, so the gate never sees the call. A capability declares
+those with `provider_executed` in its `register(...)`, and `_policy.py` refuses on
+it twice: `ungateable_tool_problems` at publish, and `refuse_ungateable_approvals`
+in `build_agent`, because a frozen `AgentVersion` is never re-validated and a
+publish-only refusal leaves every agent already published with it running
+unapproved (#857, #871). A new capability whose config can hand a tool to the
+provider **must** declare it; nothing infers it, and the failure without it is
+silent.
+
 ## Presentation overrides
 
 ```python

@@ -16,7 +16,8 @@ vi.mock("@/lib/api-client", async () => {
 });
 
 const deleteProfile = vi.hoisted(() => ({ mutate: vi.fn() }));
-vi.mock("@/hooks", () => ({ useModelProviders: () => ({ deleteProfile }) }));
+const refetchProfiles = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock("@/hooks", () => ({ useModelProviders: () => ({ deleteProfile, refetchProfiles }) }));
 
 // The real form is a provider, a model id and a key from the vault, tested in
 // `add-model.integration.test.tsx`. What this panel owes it is the callback: a
@@ -71,9 +72,18 @@ function profile(overrides: Partial<ModelProfile> = {}): ModelProfile {
 }
 
 function mount(props: Partial<Parameters<typeof ModelProfilePicker>[0]> = {}) {
-  render(<ModelProfilePicker profiles={[profile()]} value={null} onChange={vi.fn()} {...props} />, {
-    wrapper,
-  });
+  render(
+    // Loaded unless a case says otherwise: every claim this panel makes about
+    // what the organization has is one the list cannot support before then.
+    <ModelProfilePicker
+      profiles={[profile()]}
+      profilesStatus="loaded"
+      value={null}
+      onChange={vi.fn()}
+      {...props}
+    />,
+    { wrapper },
+  );
 }
 
 describe("ModelProfilePicker", () => {
@@ -137,12 +147,26 @@ describe("ModelProfilePicker", () => {
     // fields kept the nothing they mounted with. "Choose a provider" over an agent
     // that plainly has one - which passed on a warm laptop and failed in CI.
     const { rerender } = render(
-      <ModelProfilePicker profiles={[]} value="p1" allowAdd onChange={vi.fn()} />,
+      <ModelProfilePicker
+        profiles={[]}
+        profilesStatus="loaded"
+        value="p1"
+        allowAdd
+        onChange={vi.fn()}
+      />,
       { wrapper },
     );
     expect(screen.getByTestId("form-starts-on")).toHaveTextContent("nothing");
 
-    rerender(<ModelProfilePicker profiles={[profile()]} value="p1" allowAdd onChange={vi.fn()} />);
+    rerender(
+      <ModelProfilePicker
+        profiles={[profile()]}
+        profilesStatus="loaded"
+        value="p1"
+        allowAdd
+        onChange={vi.fn()}
+      />,
+    );
 
     expect(screen.getByTestId("form-starts-on")).toHaveTextContent("openai default");
   });
@@ -167,11 +191,79 @@ describe("ModelProfilePicker", () => {
     expect(screen.getByText("openai · gpt-4.1")).toBeInTheDocument();
   });
 
-  it("tells an empty organization what is wrong without offering the fix it cannot give", () => {
+  it("tells an empty organization what is wrong and where a model comes from", () => {
     mount({ profiles: [] });
 
     expect(screen.getByText(/no models yet/)).toBeInTheDocument();
+    // The path out, rather than only the problem: it names where models come from —
+    // the Builder, by a member who manages connections — without claiming this
+    // reader lacks a permission, which a picker that only knows `allowAdd` cannot
+    // tell (the delegation picker passes none yet its caller may hold it).
+    expect(screen.getByText(/added in the Builder/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add a model" })).toBeNull();
+  });
+
+  it("does not tell an organization it has no models when the read did not answer", async () => {
+    // The empty-page trap, in the one panel that turns an empty list into a
+    // sentence: a refused or failed `/providers/model-profiles` arrives here as
+    // the same `[]` an organization with no model does, so this panel told a
+    // builder with a dozen models that it had none and that its agents could not
+    // run - on a 502 (#863).
+    mount({ profiles: [], profilesStatus: "failed" });
+
+    expect(screen.queryByText(/no models yet/)).toBeNull();
+    expect(screen.getByText("Models could not be listed")).toBeInTheDocument();
+    expect(screen.getByText(/did not answer/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(refetchProfiles).toHaveBeenCalled();
+  });
+
+  it("says the saved models are missing rather than silently offering none", () => {
+    // The add-capable shape drops the disclosure when the list is empty, which
+    // is right for an organization that has saved none and wrong for a read that
+    // failed: a control that quietly is not there reads as the product not
+    // having it. The form above is untouched - this failed at listing what
+    // exists, not at writing.
+    mount({ allowAdd: true, profiles: [], profilesStatus: "failed" });
+
+    expect(screen.getByText("Models could not be listed")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add model" })).toBeInTheDocument();
+  });
+
+  it("neither claims nor blames while the read is still in flight", () => {
+    // Every cold load of this panel starts here, with `[]` and nothing settled.
+    // Saying the organization has no models would be the defect this file
+    // exists for; a destructive failure panel on the ordinary path would be
+    // worse - a false alarm often enough to teach people to ignore the one that
+    // is real. It waits instead.
+    mount({ profiles: [], profilesStatus: "pending" });
+
+    expect(screen.queryByText(/no models yet/)).toBeNull();
+    expect(screen.queryByText("Models could not be listed")).toBeNull();
+    expect(screen.getByRole("status", { name: "Loading" })).toBeInTheDocument();
+  });
+
+  it("says nothing about saved models while the read is still in flight either", () => {
+    // The add-capable shape has no gap to fill: the form is the panel and it
+    // already works, so a wait would stand in for a disclosure that may have
+    // nothing to disclose.
+    mount({ allowAdd: true, profiles: [], profilesStatus: "pending" });
+
+    expect(screen.getByRole("button", { name: "Add model" })).toBeInTheDocument();
+    expect(screen.queryByText("Models could not be listed")).toBeNull();
+    expect(screen.queryByRole("status", { name: "Loading" })).toBeNull();
+  });
+
+  it("keeps the saved models it already has when a later read fails", () => {
+    // A refetch that errors over a list already on screen leaves that list
+    // standing: stale rows somebody can still choose from beat a red panel
+    // instead of them.
+    mount({ allowAdd: true, profilesStatus: "failed" });
+
+    expect(screen.getByText("Use a saved model (1)")).toBeInTheDocument();
+    expect(screen.queryByText("Models could not be listed")).toBeNull();
   });
 
   it("moves the agent onto the model that was just created", async () => {

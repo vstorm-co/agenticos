@@ -292,6 +292,7 @@ function ConversationList({
       <div className="flex items-center gap-1 px-3 pt-3 pb-2">
         <button
           type="button"
+          data-tour="chat-start"
           onClick={handleNewChat}
           className="text-muted-foreground hover:text-foreground hover:bg-secondary flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors"
         >

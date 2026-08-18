@@ -42,6 +42,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     connectors,
     sectionFailures,
     isLoading,
+    loadFailed,
     isLoadingMoreDocs,
     isUploading,
     uploadProgress,
@@ -128,7 +129,10 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   };
 
   if (isLoading && !kb) return <KBDetailSkeleton />;
-  if (error && !kb) {
+  // A cold failure of a load-bearing read - the collection or its documents -
+  // takes the whole page. A failed *refresh* does not reach here: it keeps `kb`
+  // and shows the "may be stale" banner below instead.
+  if (loadFailed) {
     return (
       <div className="text-destructive flex h-64 items-center justify-center text-sm">{error}</div>
     );
@@ -146,16 +150,18 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         disabled={isUploading}
       />
 
-      <KBDetailHeader
-        kb={kb}
-        mayEdit={mayEdit}
-        isLoading={isLoading}
-        isUploading={isUploading}
-        onRefresh={() => refresh()}
-        onEditParseOptions={() => setOverrideOpen(true)}
-        onChooseFiles={() => fileInputRef.current?.click()}
-        onDelete={() => setDeletingCollection(true)}
-      />
+      <div data-tour="kb-header">
+        <KBDetailHeader
+          kb={kb}
+          mayEdit={mayEdit}
+          isLoading={isLoading}
+          isUploading={isUploading}
+          onRefresh={() => refresh()}
+          onEditParseOptions={() => setOverrideOpen(true)}
+          onChooseFiles={() => fileInputRef.current?.click()}
+          onDelete={() => setDeletingCollection(true)}
+        />
+      </div>
 
       <KBStatsStrip
         scope={kb.scope}
@@ -229,7 +235,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
       {/* Under the documents, because it is the answer to a question the table
           above raises: the parser column says what read each file, and this says
           what will read the next one. */}
-      <div className="mb-8">
+      <div className="mb-8" data-tour="kb-ingestion">
         <IngestionPanel kb={kb} onEdit={mayEdit ? () => setIngestionOpen(true) : undefined} />
       </div>
 
@@ -359,8 +365,6 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           try {
             await createSyncSource(data);
             setWizardOpen(false);
-          } catch {
-            /* toast handled in hook */
           } finally {
             setCreatingSource(false);
           }

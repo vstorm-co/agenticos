@@ -17,6 +17,846 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.200] - 2026-08-18
+
+### Fixed
+
+- **A connector's refusal names the field it is about.** The protocol was
+  `tuple[bool, str | None]` — a flag and a sentence — so a per-field refusal
+  raised inside a connector could not survive the return, and the wizard's
+  configure step took no error prop at all. Both halves are done: the protocol
+  carries the field, the service roots it against the posted document, and the
+  step marks the input the server named and returns to it, since submission
+  happens two steps later and a mark on an invisible field says nothing. (#897)
+- **A refusal is marked or announced, not both.** The wizard's mutations no
+  longer toast what the form is already showing beside the input it belongs to.
+  (#897)
+- **An abandoned submission cannot steer the wizard that replaced it.** Dismiss
+  the dialog while a create is pending, reopen it, and the old refusal used to
+  send the new session back to a step whose connector had been reset — a blank
+  dialog caused by a form the reader had already left. Each opening is its own
+  session now; a superseded answer is said and touches nothing else. Blocking
+  dismissal while submitting was the alternative and would have trapped a reader
+  behind a hung request. (#897)
+- **Both write paths refuse the same way.** `create_source` carried its own copy
+  of the validate-and-raise; it goes through the same helper as clone and update,
+  so the two cannot drift apart again. (#897)
+- **A refused model id is no longer posted back.** `details` is serialized into
+  the response body *and* written to the log line beside it, so refusing a bare
+  OpenRouter id sent the caller's own submission into the deployment's logs. It
+  names the `model` field now and the id is gone. (#898)
+- **Two provider refusals name the input they are about.** "This provider is
+  keyless so it needs an endpoint" and "this provider needs a key" both answered
+  with the provider, which is neither `base_url` nor `secret_id` — so the sentence
+  arrived with nothing marked. (#898)
+- **A stale key refusal is cleared when the key changes.** Both routes to a new
+  key only set the value, so the sentence survived under a key the reader had
+  already replaced — a refusal that accuses the current value is worse than
+  none. (#898)
+- **The mark and its reason are associated.** The model combobox announced
+  "invalid" to a screen reader and never why; it goes through the same
+  `FormField` the endpoint already used, so the bespoke `invalid` prop that would
+  have been a second convention is gone. (#898)
+
+## [0.0.199] - 2026-08-18
+
+### Fixed
+
+- **The storage-root check is a barrier the query actually applies.** 0.0.184
+  rewrote it into the `realpath` + `startswith` idiom `py/path-injection` models
+  and closed one of the three alerts it claimed; #14 and #15, both sinks in
+  `LocalFileStorage.load`, survived on `main` for thirteen releases. The idiom
+  was right and the *shape* was wrong: the query clears a normalised path only
+  where the `startswith` call alone decides the branch, and the check was written
+  `if candidate != base and not candidate.startswith(prefix)`. Falling through
+  `A and B` proves neither conjunct, so the guard never applied. The root is
+  answered in its own branch above, leaving `startswith` as the whole condition
+  of its own — same refusals, same message, same tests. Established by running
+  CodeQL 2.26.3 with `codeql/python-queries` over this tree rather than by
+  predicting it: two results before, none after. (#903)
+- **What 0.0.184 claimed about those alerts is corrected in its own entry**, so a
+  reader who goes looking there finds what happened rather than the claim. (#903)
+
+### Added
+
+- **A test that fails if the containment check stops being one condition.** It
+  reads `_resolve_safe_path`'s AST and asserts the `startswith` call is the whole
+  test of its branch — the property 0.0.184 lost, which every behavioural test in
+  the file passed straight through. It pins the shape; only CodeQL answers the
+  verdict, and the pull request's own scan is where that is read. (#903)
+
+## [0.0.198] - 2026-08-18
+
+### Fixed
+
+- **Eighteen refusals that name a field now mark it.** They answered with a
+  singular `details={"field": "<name>"}`, and the frontend reads the plural
+  shape and FastAPI's own `detail` and nothing else — so a mistyped model
+  endpoint, a blocked MCP server URL and a spec YAML that would not parse each
+  delivered a sentence to a toast and left every input unmarked. The same defect
+  0.0.195 fixed for `details["errors"]`, in the third shape it deliberately did
+  not touch. `refused_field` takes the sentence **once**, so the envelope's copy
+  and the field's cannot drift apart. (#891)
+- **A sandbox probe's 404 stopped blaming the address.** It is the one failure
+  the two callers of `_get_json` do not share — a session that ended, versus a
+  service with no such endpoint — so naming `base_url` for both would have put
+  "Sandbox session not found" under the operator's Address box: confidently
+  wrong where it had been merely vague. (#891)
+
+### Changed
+
+- **The rules that teach how to write a refusal name the helper.**
+  `.claude/rules/exceptions-security.md` and `docs/patterns.md` still taught
+  `{"field": "base_url"}` as *the* way to name a field a refusal is about, and
+  never mentioned `app/core/field_errors.py` — so this change would have removed
+  the shape from the code and left the instruction to recreate it, which is
+  exactly how `assistant.py` and `UserRole` outlived their own deletion. (#891)
+
+## [0.0.197] - 2026-08-18
+
+The `e2e` job stopped stalling for twenty-five minutes on an apt mirror.
+
+### Fixed
+
+- **Nothing was cancelling those jobs.** GitHub records a job it ends on its own
+  `timeout-minutes` as `cancelled` rather than as a failure, and a `cancelled`
+  required check is not a pass the way a `skipped` one is — so the merge stayed
+  blocked on a diff that was fine. Across 300 runs, 15 jobs ended that way, and
+  the jobs API names the same step in fourteen of them: `Install Playwright
+  browsers`. `--with-deps` shells out to `apt-get`, the runner's mirror answers
+  `Ign` for every index, and apt stops dead on the fallback — 22 minutes of
+  silence. The flag bought nothing: on a healthy run every library Chromium
+  links against is already the newest version, and the 21 MB it does install is
+  fonts no spec renders. It is gone, and the full suite still passes. (#879)
+- **A stall now fails the step that stalled, by name.** Step-level bounds sit
+  under the job's, so a residual hang says which step rather than ending the job
+  at its outer limit with no explanation. `test_ci_workflow.py` refuses any step
+  that installs system packages, so the flag cannot come back quietly. (#879)
+
+### Changed
+
+- **`make coverage-all` runs across worker processes**, like `test` and
+  `test-fast` already did. It was the one suite still single-process, which is
+  what made 25 minutes reachable on a slow runner: 14m46s of a job for a number
+  that does not gate anything. Measured on the branch's own run, the step went
+  from 4m31s to 2m41s, and `Install Playwright browsers` from 70s to 1s. (#879)
+
+## [0.0.196] - 2026-08-18
+
+### Fixed
+
+- **An MCP server that writes an address nothing can dial is refused, not
+  crashed on.** `httpx.InvalidURL` does not subclass `httpx.HTTPError`, so it
+  escaped all three catches in the OAuth flow and answered 500 — one layer
+  further out than 0.0.190's fix could reach, because `httpx` refuses to build
+  the URL before this project's validator is ever called. Discovery treats an
+  unusable candidate as ending *that candidate*: a server with a broken
+  `WWW-Authenticate` hint and correct well-known documents still connects. The
+  two sites below it raise a refusal of their own. (#889)
+- **"Nothing can dial this" and "we will not go there" stay two different
+  claims.** The refusal for an unbuildable address is deliberately distinct from
+  the blocked-address one, so a failure never misattributes whose fault it was.
+  The address itself goes to the log: `InvalidURL`'s message quotes the text it
+  could not cast, and on this flow that text is written by the server being
+  refused. (#889)
+- **`create_client_registration_request` is guarded at all** — it sat outside the
+  try it appeared to be inside. (#889)
+
+## [0.0.195] - 2026-08-18
+
+A refusal that names a field marks that field.
+
+### Fixed
+
+- **A per-field refusal highlights the input it names.** The forms mark an
+  offending field from `details.fields`, and four refusals answered with
+  `details.errors` instead — so an ingestion override, a spec import and a
+  capability setting each showed a sentence and left every box unmarked. That is
+  the half that says *which one to fix*, and it was missing from three fixes
+  released earlier today. One module builds the shape now, reading `loc` and
+  `msg` only, so what is left out is decided once rather than remembered at four
+  call sites. (#882)
+- **A capability setting refused at publish reaches the Builder.** Saving a draft
+  does not validate a config schema, so publish is the only place a mistyped
+  setting is refused — and the accumulator kept the message and dropped the
+  path. Paths are qualified by capability, and by specialist where one applies,
+  because two capabilities can hold a setting of the same name and the Builder
+  draws a form per specialist over the same set. `SchemaForm` has accepted an
+  `errors` prop since it was written; nothing had ever passed it. (#882)
+- **A field genuinely called `body` is no longer mistaken for FastAPI's
+  transport marker.** The two are told apart by which entry point is asking, not
+  by the string: a spec whose top-level key is `body` now says so. (#882)
+- **The same field refused two ways answers with the same path.** An upload's
+  ingestion override and a collection's own settings both name
+  `ingestion_config.chunk_size`, where only the cross-field rule used to line
+  up. (#882)
+
+## [0.0.194] - 2026-08-18
+
+MCP OAuth connects to the address it checked, at every hop.
+
+### Fixed
+
+- **The addresses an MCP OAuth flow reaches are pinned to what passed the
+  check.** The authorization server, token endpoint, registration endpoint and
+  every redirect after them come from the *remote server's* discovery documents,
+  not from an operator — and the validator returned a string, so the name was
+  resolved a second time to connect and whoever controlled it decided what the
+  second answer was. One hostile server was enough, with no operator
+  complicity. Every request now goes to an address that passed, with the
+  original host in the `Host` header and in TLS SNI, so certificate
+  verification is unchanged. (#860)
+- **A redirect to a new host is re-checked rather than followed on trust**, and
+  the flow walks the hops itself so it can count them. Substitution happens
+  inside the transport on a copy of the request, which is also what keeps a
+  relative `Location` resolving against the name rather than against the pinned
+  address. (#860)
+- **Every validated address is tried, not only the first.** A name with several
+  public records used to lose the rest, so an unreachable first answer — an
+  IPv6 record in an IPv4-only network — failed the flow where an ordinary
+  client would have moved on. Only a refused connection moves on, because that
+  proves nothing was sent; a failure after the connection is raised, since a
+  token grant may already have been processed. A mixed answer is still refused
+  whole. (#860)
+- **An outbound proxy still works, and the notes say where the pin ends.**
+  `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` behave as they did — refusing to
+  run when proxied would have cost a proxy-only deployment MCP OAuth entirely,
+  in exchange for an egress control it already has. What is pinned is the
+  address the proxy is *asked* to reach; TLS stays end to end either way. (#860)
+- **A refused hop says so without quoting the URL.** The OAuth error is a fixed
+  sentence; the address goes to the log. The catches were narrowed from
+  `ValueError` to the refusal type this repository raises, so an unrelated
+  library failure is no longer reported as "this server pointed us at a blocked
+  address" — a confident claim about whose fault a failure was. (#860)
+
+## [0.0.193] - 2026-08-18
+
+### Fixed
+
+- **The model picker stops telling an organization it has no models when the
+  request failed.** It made that claim from an array a refused or failed read
+  degrades to `[]` — the ambiguity 0.0.186 fixed one element above it, on the
+  page — and it made it in both of the picker's shapes, so an `allowAdd` panel
+  also dropped its saved-model disclosure silently. A failed read now says so and
+  offers a retry. (#863)
+- **And it says nothing at all while the answer is still coming.** The flag
+  behind the distinction is the query's success, which is equally false before
+  the first answer as after a failure, so the first version of this fix showed a
+  destructive failure panel on **every cold render of the Builder** — a false
+  alarm on the ordinary path, which is worse than the wrong sentence it replaced.
+  The hook answers with three states now, not two, and 0.0.186's page-level
+  consumer reads the same one, so there is no second vocabulary to drift. (#863)
+
+## [0.0.192] - 2026-08-18
+
+### Fixed
+
+- **A network blip no longer fails the dependency audit.** `pip-audit` asks
+  pypi.org once per locked distribution with no retry, so one slow answer ended
+  the run and turned `Security Scan` — a required check — red on a pull request
+  whose dependencies were fine. Every run that reaches no verdict is retried now,
+  unconditionally: re-running a deterministic failure costs seconds and the same
+  answer, while not re-running a transient one is the false red this fixes. (#855)
+- **The audit says which of four things happened, in a line a job can read.**
+  `make audit` ends on `AUDIT: CLEAN|VULNERABLE|NETWORK|FAILED — detail`, mirrored
+  into the job summary. The exit code cannot carry that: GNU Make turns any failed
+  recipe status into its own 2, and GitHub Actions never surfaces a step's exit
+  code anyway — so a code was the wrong place for a verdict, whether or not `make`
+  was in the way. The script keeps 0/1/75 for a human at a terminal, and
+  `docs/commands.md` now says which interface delivers which. (#855)
+- **An audit that did not happen is never green.** The verdict comes from the JSON
+  report, which `pip-audit` writes on both the clean and the vulnerable path and
+  only after every distribution has been queried — so its presence means the audit
+  finished, whatever the process exited with. (#855)
+
+## [0.0.191] - 2026-08-18
+
+### Fixed
+
+- **A hand-edited agent spec says which field is wrong.** `AgentSpec.from_yaml`
+  was called inline in the route expression, and a pydantic `ValidationError` is
+  a `ValueError` but not a `RequestValidationError` — so every mistake in an
+  imported spec answered 500 with no field path and left a traceback in the log,
+  on an endpoint whose ordinary case *is* somebody iterating on YAML by hand. The
+  parse moved into the service that owns the refusal: a rule broken answers 400
+  with the field path, YAML that will not parse answers 400 with the line and
+  column, and
+  a document that is not a mapping says so. (#873)
+- **A syntax error reports its position, never the line it read.** `str()` on a
+  marked YAML error includes the offending source, and the document being refused
+  is somebody's spec — instructions, a `secret_id`. Neither the failing text nor
+  the submitted values come back; a reader error with only a byte offset gets no
+  invented position. (#873)
+- **Nothing is read or written before the document is judged.** The parse runs
+  first, so a refusal depends only on the caller's own text: it opens no
+  transaction and says nothing about which agents exist. (#873)
+
+## [0.0.190] - 2026-08-18
+
+### Fixed
+
+- **An ingestion override the pipeline cannot use is refused, not crashed on.**
+  An upload whose `chunk_overlap` is not smaller than its `chunk_size` was
+  rejected by a validator whose own docstring said "the form is what says so" —
+  and the form got a 500 with `details: null`, while the log took a traceback for
+  a number somebody typed. Both upload routes answer 400 naming both settings,
+  before the file is stored, and the submitted values are not echoed back. A
+  collection's own settings were already correct: they arrive as a schema field,
+  so FastAPI refuses the same pair with a 422 before the route is entered, which
+  is now pinned by a test rather than asserted in prose. (#874)
+
+## [0.0.189] - 2026-08-18
+
+### Fixed
+
+- **A blocked MCP server URL names the refusal instead of answering 500.**
+  `SSRFBlockedError` is a `ValueError` and nothing mapped it, so an operator
+  pasting an address that resolves to a private host got "an unexpected error
+  occurred" and left a traceback in the log as though the platform had broken.
+  All five call sites — personal and organization, create, update and the OAuth
+  start — answer 400 naming the `url` field. (#861)
+- **A URL with an unusable port is refused rather than validated.**
+  `http://8.8.8.8:not-a-port/x` used to come back as checked, to a client that
+  could not dial it — the IP-literal branch swallowed the parse error. (#861)
+- **The validator stopped calling an MCP address a webhook.** Its messages said
+  "Webhook URL blocked" to somebody who had just typed a server URL, and the same
+  text reached the browser-automation publish problem. `validate_webhook_url` has
+  had no webhook caller for some time. (#861)
+
+  Caught in review of the same change, and never released: an intermediate
+  version of the refusal caught `ValueError` broadly, which would have put the
+  caller's own text — `urlsplit` parses the port at attribute access, so
+  `http://example.com:client_secret=abc123/mcp` produces a message carrying that
+  secret — into the 400 body. `UrlRefusedError` is the base for refusals written
+  here, the catch is narrowed to it, and a parametrised test asserts that
+  invariant so the next bare `ValueError` fails a test rather than reaching a
+  response. Before any of this the malformed port answered a generic 500, so no
+  released version put that text in a body.
+
+- **The frontend suite has deadlines it can actually meet.** `test-frontend`
+  went red on specs that pass in about a second alone, and the diagnosis in the
+  issue was half right: measured over four whole-suite runs, coverage
+  instrumentation is a 1.6x multiplier on an idle machine but 3.6x on a busy
+  one, and **the bare run failed under load too** — so this was never a coverage
+  defect, and a deadline that differed between the fast loop and the gate could
+  not have reproduced the gate. `testTimeout` moves to 15s, which is 2.5x the
+  worst duration measured under load and the figure `playwright.config.ts`
+  already justifies for the same class of problem. (#862)
+- **The second deadline nobody had noticed.** Two of the three failures in each
+  loaded run were Testing Library's own 1s `asyncUtilTimeout`, not
+  `testTimeout` — including one of the two specs the issue named, so raising
+  `testTimeout` alone would have left the reported symptom reproducible. It goes
+  to 5s, deliberately well under `testTimeout`, so an element that is never
+  coming loses the race and the failure names it rather than blaming the test.
+  (#862)
+
+## [0.0.188] - 2026-08-18
+
+An approval nobody was ever asked for is refused rather than assumed.
+
+**Upgrading:** an agent published with `approval: required` on a search or fetch
+its model provider executes **stops running** on this version, with the same
+sentence publish would have shown. It is deliberate. Such an agent has been
+running without the approval its author asked for — `ApprovalGate` wraps tool
+execution, and a provider-executed tool never reaches it — so keeping it running
+means keeping the bypass. Set the capability's method to a locally-run one, or
+drop the approval requirement, and republish.
+
+### Fixed
+
+- **A provider-executed search cannot be sold as approval-gated.** `web_fetch`
+  got this refusal in 0.0.182; `web_research` had the same shape and the same
+  silence, with the queue staying empty while the agent searched unapproved.
+  (#857)
+- **The refusal now also covers agents published before it existed.** Execution
+  loads a frozen `AgentVersion` and hands its spec straight to `build_agent`
+  without going near `validate_spec`, so a publish-time check alone left every
+  already-published agent — including every `web_fetch` one from 0.0.182 —
+  bypassing indefinitely. `build_agent` refuses before it assembles anything,
+  the way it already refuses an ungranted scope or a deleted secret. (#857)
+
+### Changed
+
+- **A capability declares which of its tools the provider may execute**, through
+  `provider_executed` on its registration, and the publish and assembly checks
+  read that. The knowledge was a table of capability internals in the service
+  layer, which had already gone stale once — and that staleness is exactly what
+  #857 was. Tests now assert the declarations name tools and config fields that
+  exist, because both halves are silent when wrong: they refuse nothing. (#857)
+
+## [0.0.187] - 2026-08-18
+
+The product teaches itself: a first-run tour, and guided flows that build the
+first of each thing.
+
+### Added
+
+- **A passive walkthrough on every dashboard page, replayed by its "?".**
+  `TOUR_STEPS` is a registry keyed on the page, each step gated on the
+  permission its control carries, so a walk never waits on an element a refusal
+  never mounted. Where the completion is stored is the point: `PATCH /users/me`
+  rather than a `localStorage` flag, so somebody who signs in on a second
+  machine is not walked through it again. (#53)
+- **Guided creation flows.** At the end of a walk the product offers to build
+  the thing the page is for — an agent, a collection, a skill, an MCP
+  connection — with a coach that spotlights one control at a time and waits for
+  the signal that the step actually happened rather than for a click. The
+  organization's state is frozen when a flow starts, so the steps cannot morph
+  under the reader mid-walk. (#53)
+- **Three e2e specs for the tour itself**, which the feature had shipped
+  without. (#53)
+
+### Fixed
+
+- **The seeded e2e owner is marked as having finished onboarding.** Without it
+  the tour auto-opened over every spec that landed on the dashboard and, with
+  `allowClose: false`, swallowed the clicks — six specs red for a reason that
+  had nothing to do with what they were testing. (#53)
+- **A "?" pressed where nothing is walkable closes itself.** A page that renders
+  the header but has no steps — or whose steps a permission filters to nothing —
+  froze the anchor with an empty list and no popover, so there was no close
+  button and nothing ever called `close()`: every later "?" on any page
+  recomputed from the stale anchor and stayed empty, leaving the button dead
+  app-wide until a reload. (#53)
+- **Skip cannot loop on an answered question.** With `agents:edit` and
+  `collections:edit` but no `agents:publish`, the agent flow ends on the
+  knowledge fork; stepping past the end bounced back onto the answered question
+  and re-answered it forever. The step index is resolved against the list the
+  flow actually produces rather than guessed at. (#53)
+- **Enter and Space no longer walk through the coach's guard.** The freeze
+  blocked pointer events only, so Enter in a dialog's name field submitted the
+  form three steps early — the collection was created, the later step baselined
+  its count after the fact, and the signal it waited for could never fire. Both
+  keys are blocked on the guarded control, with Enter keeping its input-wide
+  block. (#53)
+- **A keyboard user can finish a step.** The coach card is a real dialog now —
+  `aria-modal`, focus moved to it on each step, Escape to leave — and the trap
+  cycles the card *and* the spotlit control, because a step that waits for a
+  signal renders no Next button and confining Tab to the card alone would make
+  it uncompletable. (#53)
+- **The coach does not offer to build what the organization already has.** While
+  the live state was still null it fell back to "this organization has
+  nothing", so the "no published agent — build one first?" fork could appear for
+  an organization with one and then swap away underneath the reader. (#53)
+
+## [0.0.186] - 2026-08-18
+
+### Fixed
+
+- **The Builder says up front when a draft can never get a model.** A member with
+  `agents:edit` but not `connections:manage`, in an organization that has stored
+  no model profile, could build an agent they cannot publish: the picker's "add"
+  control is gated on a permission they do not hold, and publish is refused
+  without a model. Nothing said so until publish failed, and then it pointed at
+  the permission rather than at what to do. The panel now says it where the
+  missing control would be. (#591)
+- **A failed profile query is no longer read as an empty organization.** The hook
+  degrades a refused `/providers/model-profiles` to `[]`, and its loading flag
+  goes false when retries are exhausted as well as when an answer arrives — so a
+  502 told somebody with a dozen models to go and ask an admin for one. The
+  notice waits on the query's own success now, not on the absence of loading.
+  (#591)
+- **The notice waits for the permission set before claiming the caller cannot add
+  a model.** `can()` answering false while the set is still loading is right for
+  *hiding* a control and wrong for a sentence that tells somebody what they may
+  not do: false there means "not known yet". (#591)
+
+## [0.0.185] - 2026-08-18
+
+Three places where the code said something about itself that was not true.
+
+### Fixed
+
+- **`EMAIL_PROVIDER=resend` silently sent nothing.** `get_email_provider` had no
+  `case "resend"` and the match ended `case "log" | _`, so a deployment setting
+  the value its own module docstring advertised got the *development* provider:
+  every invitation, password reset and approval notice was written to a log line
+  and returned `accepted=True`. Nobody found out, because every call site catches
+  and logs. An unknown value is refused now, with the supported set in `details`,
+  and `ResendProvider` — never reachable — is deleted rather than wired up.
+  `LOG_PROVIDER_WRITE_TO_DISK` is passed through, which it never had been. (#829)
+- **The OAuth refusals no longer say where the server keeps its files.** Two of
+  them quoted the whole URL back, query string included, on a path whose
+  endpoints are reached with credentials. They name the host now, or nothing
+  where there is no host. (#840)
+- **A claim about who chooses an MCP OAuth URL is corrected in all four places
+  that made it.** "Bearable because an operator types the address" holds for a
+  connection URL and a `cdp_url`, but not for the OAuth flow, where the
+  authorization server, token endpoint, registration endpoint and every redirect
+  hop come from the remote server's discovery documents — one hostile server is
+  enough, with no operator complicity. Pinning the validated address is a
+  transport change and is tracked in #860; what shipped here is the code and the
+  documentation saying what is actually true. (#840)
+- **The written-to-disk log filename is safe by construction and unique**:
+  `{timestamp}_{msg_id}.html`, with the subject moved to the log line beside the
+  path. Two messages in the same second no longer overwrite each other either.
+  Not a traversal, despite appearances — the timestamp prefix means the first
+  path component is never `..` — and the docstring now says so rather than
+  leaving the next reader to re-derive it. (#840)
+- **The `ty` relaxations name libraries this project actually has.** They were
+  justified by langgraph and deepagents, which never were dependencies, and by
+  langchain, which stopped being one. (#833)
+
+## [0.0.184] - 2026-08-18
+
+### Fixed
+
+- **The storage-root check is written so a static analyser can follow it** — a
+  `Path.parents` membership test is correct and invisible to the query, and an
+  alert nobody can close is an alert everybody learns to ignore. (#841)
+  **Correction:** this said it closed three CodeQL `py/path-injection` alerts. It
+  closed one. #14 and #15 stayed open on `main` because the check was written as
+  a conjunction, which is not a shape the query accepts as a barrier; fixed in
+  0.0.199 (#903).
+- **A filesystem root can be the storage root again.** The rewritten check built
+  its prefix as `base + os.sep` unconditionally, so with `MEDIA_DIR=/` the prefix
+  was `//` — which nothing under `/` starts with. `load`, `delete` and
+  `get_full_path` all refused with "Path escapes storage root" while `save`
+  carried on writing, leaving the store handing back paths it could no longer
+  read. The separator is appended only when the root lacks one, and the
+  comparison stays a `startswith` on a `realpath` result rather than moving to
+  `commonpath` or `is_relative_to`: both are correct, and neither is a barrier
+  the query models. (#841)
+
+## [0.0.183] - 2026-08-18
+
+Chunking is ours, and `langsmith` is out of the image.
+
+### Changed
+
+- **The RAG pipeline splits text with its own splitters.** Two classes and one
+  method replace the LangChain tree — ten megabytes and eight transitive
+  packages, of which the notable one was not the size: `langsmith`, LangChain's
+  hosted-observability client, sat in every image built for a platform that
+  standardised on Logfire. It was never configured and never imported by us; it
+  arrived behind a text splitter. `RecursiveCharacterSplitter` is a port of the
+  library's at 1.1.2, narrowed to the one configuration the pipeline built, and
+  `MarkdownHeaderSplitter` finds the same sections and then runs the recursive
+  splitter over each. Golden tests pin the chunk boundaries so the port cannot
+  drift. (#158)
+- **The `markdown` strategy honours `chunk_size` again** — it had been silently
+  ignoring it. (#158)
+
+### Fixed
+
+- **A document's chunk count is recorded**, where the only stored count was a
+  constant 0 — which is also what made a chunking change unmeasurable, and why
+  it had to land with the splitters rather than after them. (#147)
+- **Re-ingesting a document no longer counts it twice.** A replacement deletes
+  one vector document and inserts one, but every dispatch created a fresh
+  tracking row, so the superseded row outlived its vectors and kept its
+  `chunk_count` in the collection's total. The replaced row and its stored file
+  are retired now. (#158)
+- **The over-size warning no longer fires at exactly the limit.** A chunk of
+  exactly `chunk_size` is within it. The comparison that decides the split is
+  untouched — widening that would move every boundary in every collection
+  already ingested, which is what the golden tests exist to prevent. (#158)
+
+## [0.0.182] - 2026-08-18
+
+An agent can read the page its search found, and cannot be gated by a gate that
+would not hold.
+
+### Added
+
+- **`web_fetch` — a capability that reads one URL and returns the page as
+  Markdown.** `web_research` returns titles, URLs and snippets and nothing
+  fetched a page, so an agent answered from the snippet and cited a page it had
+  never opened. Its own capability rather than a second tool on `web_research`,
+  because it composes with every search method — including `native`, where the
+  builder returns Pydantic AI's own `WebSearch` and contributes no toolset of
+  ours, so a tool added there would be missing for exactly the agents most
+  likely to want it. "May this agent dereference whatever URL it likes" is also
+  a different grant from "may it search": `web:fetch` is its own scope. (#51)
+- **The Builder can edit a list of strings.** The generated form fell back to a
+  text input for an array-valued property, so typing a hostname into an
+  allowlist stored a scalar string that Pydantic then refused — leaving the
+  field blank was the only publishable path. Arrays of strings now render as one
+  comma-separated input; arrays of anything else still fall through. (#51)
+
+### Fixed
+
+- **A fetch the model provider runs cannot be sold as approval-gated.**
+  `ApprovalGate` wraps tool execution, which is the only place a call can be
+  held, so a provider-native fetch never reaches it: under `method: native`
+  there is no local tool at all, and under `auto` there is one only on a model
+  with no native fetch. A binding that asked for approval and chose either got a
+  gate that never fired — the queue stayed empty and the agent read pages nobody
+  approved, silently. It is refused at publish now, rather than repaired by
+  forcing the local tool: which of the two an author wants is their decision,
+  and `auto` is refused alongside `native` because which one runs is a property
+  of the model profile and changes without republishing. (#51)
+- **A domain filter matched one spelling of a name that has several.** A
+  denylist holding `xn--exmple-cua.com` did not stop `https://exämple.com/`, and
+  `getaddrinfo` resolves the two identically — so the miss was a fetch rather
+  than a failure, and the validator's ASCII-only pattern left no way to write
+  the alias by hand. Entries are stored as the single name DNS would be asked
+  for (lower case, no root label, IDNA-encoded with the same codec
+  `getaddrinfo` uses), and every equivalent spelling reaches both the native and
+  the local filter. (#51)
+- **An empty `blocked_domains` is no longer refused with the allowlist's
+  error.** The two fields do not mean the same thing by `[]`: an empty allowlist
+  allows nothing, an empty denylist denies nothing — which is exactly what
+  `null` says. A spec imported from YAML or posted by an API client spelling "no
+  denied hosts" that way was refused for saying something true. (#51)
+
+## [0.0.181] - 2026-08-18
+
+### Changed
+
+- **jsdom moves to 30.0.1** in the frontend test environment. The bump arrived
+  without a regenerated `bun.lock`, so `test-frontend` and `e2e` both failed at
+  the install step — `lockfile had changes, but lockfile is frozen` — before
+  either had run a single test, which is why the red read like the major version
+  breaking the suite. With the lock regenerated the suite is green on jsdom 30:
+  308 files, 4704 tests. (#850)
+
+## [0.0.180] - 2026-08-18
+
+### Fixed
+
+- **Every `backendFetch` route says `no-store`.** The 44 route files under
+  `orgs/**`, `me/**`, `admin/**`, `sessions/**` and `auth/**` answered with no
+  `Cache-Control` at all, so the members, invitations and integrations lists
+  refetched right after a create, invite or revoke could be served from cache —
+  the same staleness class as #230, on the one surface the shared proxy does not
+  cover. `platformProxy` already stamps the header on anything the backend left
+  unmarked; a hand-rolled route owes the same, and now cannot forget it: every
+  `NextResponse.json` goes through `bffJson`, which stamps `no-store` and leaves
+  an explicit policy alone. The binary routes that set their own `max-age` keep
+  it. (#553)
+
+## [0.0.179] - 2026-08-18
+
+### Changed
+
+- **Disconnecting an MCP server asks in the product, not in the browser.**
+  `window.confirm` was the lone holdout after rag, agents, skills and embeds
+  moved to `ConfirmDialog`; the confirmation is now keyed on the pending
+  connection, and a second click while the DELETE is in flight is a no-op rather
+  than a second request. (#554)
+- **The two MCP dialogs left the list component.** The connect/edit dialog and
+  the tool picker move into their own modules, taking `mcp-server-list.tsx` from
+  about 985 lines to 765. A pure move — the JSX is unchanged and the parent
+  keeps its state and both handlers — with the shapes all three share extracted
+  to a leaf module so a dialog never imports the component that renders it.
+  (#569)
+
+## [0.0.178] - 2026-08-18
+
+The collection page is server state again, not seven `useState` slots.
+
+### Changed
+
+- **`useKBDetail` moved onto React Query.** Seven pieces of local state became
+  `qk.kb.detail(id)`, `qk.kb.documents(id)` (paged with `useInfiniteQuery`) and
+  three keyed section queries, so an external mutation can invalidate the page
+  and the two keys that were dead are live. The bespoke tenant-clearing block is
+  gone — `useTenantCacheReset`'s `removeQueries()` already covered it. A cold
+  first-load failure stays distinct from a failed refresh: one is the page's
+  error, the other is the last good answer under a stale banner. (#557)
+- **The admin query-key factories are typed to their real parameters**, the dead
+  `admin.users` factory is gone, and the `{ summary: true }` discriminator went
+  with the ratings page it distinguished against. (#558)
+- **The sandbox `usage` discriminator lives in the key**, not at the call site:
+  a listing the service sampled for per-sandbox usage is a more expensive
+  request than one without, and the two must not share a cache entry. (#569)
+
+### Fixed
+
+- **The members table waits for the permission answer before drawing its action
+  column**, rather than drawing it and then discovering the caller may not use
+  it. (#569)
+- **`api/files/[id]` encodes its path segment**, and `patchKB` rethrows the way
+  its siblings do. (#569)
+- **A sync source written into an unread cache now shows up.** The three
+  sections sit behind `connections:manage`, so a refused read leaves nothing
+  cached while the write is still allowed — the write's second arm covers that,
+  and now has the test to say so, along with the tenant guard on the two writes
+  that add a row. (#569)
+
+## [0.0.177] - 2026-08-18
+
+### Changed
+
+- **Thirteen backend dependencies move up** — the backend-everything-else group,
+  at the versions the lockfile now holds: `uvicorn` 0.52.3, `pydantic-settings`
+  2.15.0, `sqlalchemy` 2.0.52, `alembic` 1.19.1, `greenlet` 3.5.5, `prefect`
+  3.8.3, `llama-cloud` 2.14.0, `liteparse` 2.13.0, `boto3` 1.43.73,
+  `pydantic-monty` 0.0.21, and `ruff` 0.16.3, `ty` 0.0.72 and `pre-commit` 4.6.2
+  among the dev tools. Three of those resolve above the floor the group asked
+  for, which is why they are quoted from the lock. The lockfile was resolved
+  against the merged manifest rather than the group's own base, so Pydantic AI
+  stays where 0.0.176 put it instead of being rolled back a release for the
+  second time. (#838)
+
+## [0.0.176] - 2026-08-17
+
+### Changed
+
+- **Pydantic AI's floor moves to 2.30.0**, with `genai-prices` at 0.1.2 — the
+  agent-frameworks dependency group.
+- **A group bump no longer rolls the lock backwards.** The bump resolved
+  `pydantic-ai-slim` and `pydantic-graph` to 2.30.0 while `main` already held
+  2.31.0, and `backend/Dockerfile` installs the lockfile verbatim
+  (`uv sync --frozen`), so the "upgrade" would have shipped an image with an
+  older Pydantic AI than the one before it. Re-resolved to 2.31.0, with
+  `genai-prices` at 0.1.3, and the note above the floor now names that failure
+  rather than a version it had already outlived. (#837)
+
+## [0.0.175] - 2026-08-17
+
+One mechanism draws every third-party mark, and 471 MB leaves the install.
+
+### Changed
+
+- **Every brand and provider mark comes from one generated glyph set.**
+  `frontend/scripts/gen-brand-icons.ts` fetches each mark from the set that owns
+  it and writes 89 of them as raw path data; `components/icons/glyph.tsx` is the
+  one thing that turns that data into an `<svg>`, so `BrandIcon` and
+  `ProviderIcon` draw identically rather than agreeing by accident. Adding a mark
+  is a row in the generator's table and a re-run — never an import, never a
+  hand-authored `d`. Three mechanisms answered this question before, and
+  `@lobehub/icons` dragged in a second copy of `lucide-react` besides. Each of
+  the 89 marks was rendered from the removed packages and diffed against its
+  glyph: 89 identical, 0 differ. (#156, #836)
+- **`bun run analyze` produces a report again.** `@next/bundle-analyzer` is a
+  webpack plugin and Next 16 builds with Turbopack, so every run printed "no
+  report will be generated" and exited 0. It is `next experimental-analyze` now.
+  (#156)
+
+### Added
+
+- **`make lint` fails on a frontend dependency nothing imports.** knip, narrowed
+  to the one question it is never wrong about, moves from `bunx knip@5` to a
+  pinned devDependency with its ignores in `knip.jsonc`, each carrying its reason
+  on the line above. `date-fns` sat unused for months *and* was listed in knip's
+  own ignores, so the report that would have found it had been told not to look.
+  (#156)
+- **The frontend's OpenTelemetry spans can leave the process.** The SDK
+  registered on every boot, but no compose file, Dockerfile or CI job passed
+  `OTEL_EXPORTER_OTLP_ENDPOINT` through, so the spans were built and dropped
+  in-process. The variable is passed through now, and the code says plainly what
+  leaving it unset means. (#156)
+
+### Removed
+
+- **Four frontend dependencies — 471 MB and 290 packages off every install.**
+  `react-icons` and `@lobehub/icons` (replaced by the generated set),
+  `@next/bundle-analyzer` (see above), and `date-fns`, which nothing imported.
+  `nanoid`'s four call sites all wanted a client-side id, which `chat-store.ts`
+  already had; both now call `clientId()` in `src/lib/ids.ts`, keeping the
+  non-secure-context fallback that an embedded widget on a plain-HTTP internal
+  host depends on. `node_modules` goes from 1.2 GB / 1012 packages to 729 MB /
+  722. (#156, #836)
+
+## [0.0.174] - 2026-08-17
+
+A delegate's provider text no longer reaches the parent's transcript through a
+status answer.
+
+### Fixed
+
+- **`check_task` and `wait_tasks` name the exception's class, not the provider's
+  message.** Both composed their `Error:`, `Retry N:` and `Outcome:` lines from
+  `handle.error`, which embeds the exception's own text — and a model client's
+  message carries the failing request URL with the key still in its query string
+  on a custom `base_url`. What those tools return becomes a `ToolReturnPart`, and
+  a return is stored *whole* on purpose, so `tool_retry_notice` (#695) could
+  never reach it: the key landed on a stored tool-call row, rendered in the
+  conversation and in run history to every member who can read the run, and
+  streamed live as `tool_result`. Fixed upstream in
+  `subagents-pydantic-ai` 0.2.20, which composes all four lines from
+  `TaskHandle.exception`; the floor here moves with it. (#819)
+- **The retry line leaked for delegations that eventually succeed.**
+  `TaskHandle.finish` clears `error` on completion, so the handle ends clean —
+  but a model that polled `check_task` mid-retry already has the answer on a
+  transcript row, and nothing goes back to remove it. (#819)
+
+## [0.0.173] - 2026-08-17
+
+A dependency nothing imports is now a failing build, not a thing somebody
+notices by reading all 46 lines.
+
+### Added
+
+- **`deptry` runs in `make lint`, over `app`, `cli` and `alembic`.** vulture
+  reads the code and finds what is written but unused; deptry reads the manifest
+  and finds what is declared but unimported. The scope is the point rather than a
+  detail: scanning `app` alone called `tabulate` dead when `cli/commands.py`
+  imports it, and removing it took the e2e seed down before a single product spec
+  ran. A tree that ships and is not scanned is a tree whose imports do not count.
+  (#155)
+
+### Removed
+
+- **Three distributions nothing imports.** `fastapi-cache2` and the eleven-line
+  `app/core/cache.py` that called `FastAPICache.init()` on every boot — there is
+  no `@cache` decorator on any route; `jinja2`, whose email templates are
+  compiled ahead of time and read off disk; and the duplicate, weaker-floored
+  `python-multipart` and `httpx` declarations. (#155)
+- **The `try/except ImportError` around `rank-bm25`.** It guarded a case that
+  cannot happen — hybrid retrieval fuses BM25 with the vector search and a
+  deployment cannot choose otherwise — so the import moved to module scope. The
+  24 MB of `numpy` behind it is the price of that, taken deliberately and now
+  recorded in the manifest. (#155)
+
+### Fixed
+
+- **`anyio` was imported and undeclared.** `app/services/rag_document.py` imports
+  it at module scope while the manifest declared it only in the `dev` group, so
+  the image — built with `uv sync --no-dev` — was relying on Starlette to pull it
+  in. Found by the new gate on its first run. (#155)
+- **The manifest says why the ones that read as dead are alive.** `psycopg2-binary`
+  (alembic builds a *sync* engine from a bare `postgresql://` URL, so removing it
+  breaks every migration), `itsdangerous` (Starlette signs our `SessionMiddleware`
+  cookies with it), `tabulate` and `pillow` — the last two listed as zero-import
+  in the audit and both wrong, with call sites in `cli/commands.py` and
+  `app/services/channels/chart_png.py`. (#155)
+
+## [0.0.172] - 2026-08-17
+
+All files answers "what is that file", not only "who is holding a copy of it".
+
+### Added
+
+- **Search and sort on the All files grid.** The same `useListControls` +
+  `SearchInput` pair the five galleries use, filtering on path, agent name and
+  extension — `.csv` matches the suffix rather than the string — and ordering by
+  name, size, modified or agent. Size and modified descend, because "what is
+  biggest" and "what changed" are the questions those orders answer. The bound
+  stays on screen while a filter is applied, with a line saying the filter
+  searched only what was read: a client-side filter over a truncated listing
+  searched a sample, and "3 results" with no caveat would claim the search was
+  exhaustive. (#138)
+- **A tile is the file card every other surface draws.** The three-line row is
+  gone; the grid now uses `components/files`' `FileCard`, so a CSV looks like the
+  same thing in the composer, the transcript and here — including the suffix and
+  size band (`CSV · 2.0 KB`) that was the extension-legibility half of the issue.
+  The line under each card carries what only this view knows: the agent holding
+  the file, who else can see it, and the download. (#138)
+- **A stored text file previews its first lines, and a stored image draws
+  itself.** Both come out of the JSONB document the listing already reads, so a
+  grid of thirty tiles is still one request: eight lines capped at 200 characters
+  for text, and a 160×128 `data:` URI for a raster image. A container-backed
+  workspace answers `null` for both — its bytes are on a host, and one round trip
+  per file is exactly what this listing refuses. (#827)
+
+### Fixed
+
+- **A thumbnail's decode is bounded by pixels, not by bytes.** A PNG under a
+  kilobyte can declare 8000×8000, and scaling it allocates all 64 megapixels on a
+  request somebody made by opening a page. Pillow's own ceiling does not catch
+  it — it refuses at 89 megapixels — so the declared size is checked against a
+  16 Mpx limit in the header, before any pixel is read. (#827)
+- **A thumbnail is drawn as the image is.** Transparency survives (converting to
+  `RGB` does not remove what the alpha channel hid, it paints it — usually
+  black), and a camera's EXIF orientation is applied before the scale, so a
+  portrait photograph is no longer sideways on its tile. (#827)
+- **A file's React key joins its workspace and path with a separator.** Without
+  one, `{workspace: "ab", path: "c"}` and `{workspace: "a", path: "bc"}`
+  collided into a single key. (#138)
+
 ## [0.0.171] - 2026-08-16
 
 Tool search's scale guarantee is pinned by a fixture, not a claim.

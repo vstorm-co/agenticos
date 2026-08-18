@@ -4,18 +4,19 @@ import { useAgentSelectionStore } from "./agent-selection-store";
 import { useChatStore } from "./chat-store";
 import { useConversationStore } from "./conversation-store";
 import { useFilePreviewStore } from "./file-preview-store";
+import { useOnboardingStore } from "./onboarding-store";
 import { useOrgStore } from "./org-store";
 import { useSourcesPanelStore } from "./sources-panel-store";
 
 /**
  * Empty every store holding something that belonged to one organization.
  *
- * Conversations, agents and the documents behind a retrieved answer all belong
- * to a tenant, and none of them live in the query cache: they are module-scope
- * stores, so dropping the cache on a switch does not touch them. Without this,
- * selecting another organization left the previous one's open conversation, its
- * streamed messages, the file being previewed and the sources behind the last
- * answer on screen underneath the new organization's name.
+ * Conversations, agents, the documents behind a retrieved answer and a running
+ * onboarding flow all belong to a tenant, and none of them live in the query
+ * cache: they are module-scope stores, so dropping the cache on a switch does not
+ * touch them. Without this, selecting another organization left the previous one's
+ * open conversation, its streamed messages, the file being previewed and the
+ * sources behind the last answer on screen underneath the new organization's name.
  *
  * Left alone: the theme, the sidebars, and the organization selection itself -
  * the last of these because the switch is what called this.
@@ -31,6 +32,14 @@ export function resetTenantState(): void {
   useSourcesPanelStore.setState({ isOpen: false, sources: [], highlightedIndex: null });
   useAgentSelectionStore.getState().select(null);
   useAgentSelectionStore.getState().setDefault(null);
+  // The guided flow is tenant-coupled too: it holds the id of an agent built in
+  // this organization and the choices made getting there, so a flow left running
+  // across the switch would `router.push` to the previous org's agent and land on
+  // a refusal. Closing stops the coach — its `isActive` needs `isOpen` — and the
+  // next `openFlow` clears the captured id and choices; the pending offer goes with
+  // it, an offer minted from this org's caches having no meaning in the next.
+  useOnboardingStore.getState().close();
+  useOnboardingStore.getState().dismissOffer();
 }
 
 /**

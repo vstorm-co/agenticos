@@ -59,6 +59,8 @@ type NavItem = {
   icon: LucideIcon;
   /** Hidden unless the caller holds this. Omitted means always shown. */
   permission?: Permission;
+  /** A `data-tour` anchor the onboarding coach points at — only where a flow returns here. */
+  dataTour?: string;
 };
 
 type NavGroup = {
@@ -79,7 +81,13 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     labelKey: "build",
     items: [
-      { labelKey: "agents", href: ROUTES.AGENTS, icon: Bot, permission: Perm.agentsView },
+      {
+        labelKey: "agents",
+        href: ROUTES.AGENTS,
+        icon: Bot,
+        permission: Perm.agentsView,
+        dataTour: "nav-agents",
+      },
       { labelKey: "skills", href: ROUTES.SKILLS, icon: BookOpen, permission: Perm.skillsView },
       { labelKey: "context", href: ROUTES.CONTEXT, icon: FileText, permission: Perm.contextView },
       { labelKey: "activity", href: ROUTES.RUNS, icon: Activity, permission: Perm.runsView },
@@ -209,6 +217,7 @@ function NavLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => void 
     <Link
       href={item.href}
       onClick={onNavigate}
+      data-tour={item.dataTour}
       aria-current={active ? "page" : undefined}
       className={cn(
         "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors",

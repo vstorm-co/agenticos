@@ -324,6 +324,13 @@ provider's own text goes to the server log. A delegate stopped by its usage limi
 or by a budget ceiling keeps the limit's message whole: that is a ceiling doing
 its job, not a failure to diagnose.
 
+The rule reaches the *parent's* transcript too. When an agent delegates in the
+background it polls `check_task` and `wait_tasks` for the outcome, and what those
+answer becomes a tool-call row in the conversation — stored whole, because a tool
+return is the tool's own answer rather than something this platform composed. So
+they name the exception's class rather than repeating the provider's message,
+which is `subagents-pydantic-ai` 0.2.20 and the reason the floor is there.
+
 **The dashboard's windowed figure carries it too.** `GET /stats/usage` answers a
 `cost` block for whatever period the filter chose, and that block is runs *plus*
 ingestion — the same arithmetic the monthly cap is measured with — with
@@ -786,6 +793,25 @@ Four properties worth knowing:
 - **`required` works on any capability**, not only side-effecting ones. "This only
   reads, but in my organization somebody approves it anyway" is a real decision
   and is expressible.
+- **Except on a tool the model provider runs, where it is refused at publish.**
+  The gate wraps *tool execution*, which is the only place a call can be held, so
+  a native fetch or a native search — executed on the provider's side — never
+  reaches it, and gating one would leave the queue empty while the agent acted
+  unapproved. Which configurations hand which tools over is declared by the
+  capability itself (`provider_executed` in its `register(...)`), so the refusal
+  covers every capability that grows a provider-executed method rather than the
+  ones a validator happened to know about
+  ([#857](https://github.com/vstorm-co/agenticos/issues/857)). Choose a method
+  this deployment runs itself, or drop the approval requirement; both are
+  legitimate agents, and which one is wanted is not a decision to make on the
+  author's behalf.
+- **And a version published before that refusal existed does not run.** Nothing
+  re-validates a frozen version — a run loads its stored spec and assembles it —
+  so the same check runs again when the agent is built, and refuses rather than
+  quietly swapping the method to make the gate work. The cost is real and
+  deliberate: an agent that has been running like this stops, with a message
+  saying what to change. What stops is an agent whose operator asked for an
+  approval nobody was ever being asked for.
 - **One model step can park several calls.** A model that answers with two
   side-effecting calls at once - "email the customer and the account manager" -
   parks both, each its own approval row decided on its own. The rows are written

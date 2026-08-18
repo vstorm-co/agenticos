@@ -134,7 +134,7 @@ describe("useAgent validation", () => {
     const { result } = renderHook(() => useAgent("a1"), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    expect(await result.current.validate()).toEqual([]);
+    expect(await result.current.validate()).toEqual({ problems: [], fields: [] });
   });
 
   it("returns every problem rather than throwing", async () => {
@@ -160,10 +160,48 @@ describe("useAgent validation", () => {
     const { result } = renderHook(() => useAgent("a1"), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    expect(await result.current.validate()).toEqual([
-      "Unknown capability: typo",
-      "No model selected",
+    expect(await result.current.validate()).toEqual({
+      problems: ["Unknown capability: typo", "No model selected"],
+      fields: [],
+    });
+  });
+
+  it("carries the inputs a refused capability configuration named", async () => {
+    // The half that says *which box to fix*. Publish validation aggregates
+    // every problem in a spec into sentences, and it used to keep only the
+    // sentence for a refused config - so `default_top_k: 999` reached the
+    // Builder as one line about the capability and marked nothing (#882).
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: {} });
+    vi.mocked(apiClient.post).mockRejectedValue(
+      new ApiError(400, "This agent cannot be published yet", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "This agent cannot be published yet",
+          details: {
+            problems: ["Capability 'knowledge': Invalid configuration for capability 'knowledge'"],
+            fields: [
+              {
+                field: "capabilities.knowledge.config.default_top_k",
+                message: "Input should be less than or equal to 50",
+              },
+            ],
+          },
+        },
+      }),
+    );
+
+    const { result } = renderHook(() => useAgent("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    const refusal = await result.current.validate();
+    expect(refusal.fields).toEqual([
+      {
+        field: "capabilities.knowledge.config.default_top_k",
+        message: "Input should be less than or equal to 50",
+      },
     ]);
+    // And still as a line, because most of a spec is not a generated form.
+    expect(refusal.problems).toHaveLength(1);
   });
 
   it("falls back to the error message when the server sends no problem list", async () => {
@@ -173,7 +211,10 @@ describe("useAgent validation", () => {
     const { result } = renderHook(() => useAgent("a1"), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    expect(await result.current.validate()).toEqual(["Service unavailable"]);
+    expect(await result.current.validate()).toEqual({
+      problems: ["Service unavailable"],
+      fields: [],
+    });
   });
 
   it("does not turn a refused permission into a list of spec problems", async () => {
@@ -194,7 +235,10 @@ describe("useAgent validation", () => {
     const { result } = renderHook(() => useAgent("a1"), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    expect(await result.current.validate()).toEqual(["You cannot edit this agent"]);
+    expect(await result.current.validate()).toEqual({
+      problems: ["You cannot edit this agent"],
+      fields: [],
+    });
   });
 
   it("does not fetch until an agent is selected", () => {

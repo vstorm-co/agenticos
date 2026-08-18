@@ -292,6 +292,7 @@ lint-backend:
 	uv run --directory backend ruff format . ../scripts --check
 	uv run --directory backend ty check
 	uv run --directory backend vulture
+	uv run --directory backend deptry app cli alembic
 	python3 scripts/check_backticks.py
 	python3 scripts/check_routes.py
 	python3 scripts/check_comments.py
@@ -304,24 +305,32 @@ lint-backend:
 # deleting. The same role dependency-freshness plays for dependencies. See
 # [tool.vulture] in backend/pyproject.toml.
 #
-# The frontend half is knip, also a report rather than a gate: on a
+# The frontend half is knip's *full* report, and stays a report: on a
 # design-system codebase it flags the whole UI-primitive barrel and every
-# exported type it cannot trace a use for, so `frontend/knip.json` narrows it to
-# what is worth reading and the rest is read by eye. `bunx` fetches knip on
-# demand - it is not a project dependency, because nothing gating runs it.
+# exported type it cannot trace a use for, so `frontend/knip.jsonc` narrows it to
+# what is worth reading and the rest is read by eye. Its one unambiguous half -
+# a declared dependency nothing imports - is a gate instead, in `lint-frontend`.
 dead-code:
 	uv run --directory backend vulture --min-confidence 60
-	cd frontend && bunx knip@5 --no-progress
+	cd frontend && bunx knip --no-progress
 
 # The i18n guard is the fourth step and belongs here rather than beside the Python
 # ones: since #395 it *is* TypeScript, reading `frontend/src` through
 # `ts.createSourceFile` instead of ten regexes over source text. It runs last because
 # it is the slowest of the four and the other three answer faster on a typo.
+#
+# `lint:deps` is knip narrowed to the one thing it is never wrong about: a
+# package declared in `package.json` that nothing imports, and the reverse.
+# It gates because the alternative was measured - `date-fns` was declared,
+# imported nowhere, and *listed in knip's own ignores*, so the report that
+# would have found it had been told not to (#156). The rest of knip's output
+# needs a human and stays in `make dead-code`.
 lint-frontend:
 	cd frontend && bun run lint
 	cd frontend && bunx prettier --check "scripts/**/*.ts" "src/**/*.{ts,tsx}" "e2e/**/*.ts"
 	cd frontend && bun run type-check
 	cd frontend && bun run check:i18n
+	cd frontend && bun run lint:deps
 
 # Spelling, over every tracked file rather than the ones a commit happens to
 # touch. The hook alone only ever reads changed files, so a misspelling that
@@ -382,8 +391,13 @@ test-cov:
 # Everything, including template-inherited subsystems. Informational: those are
 # not held to the platform bar, because mock-heavy tests over code we did not
 # design buy a number rather than confidence.
+#
+# It runs across workers like every other suite here. It was the one that did not,
+# which made it the longest step in the `test` job - 14m46s of the 25 that job is
+# allowed, against 8m39s for the gated suite beside it - so a runner about three
+# times slower than usual took the whole job past its bound (#879).
 coverage-all:
-	uv run --directory backend pytest tests/ -q --cov=app --cov-report=term-missing --cov-fail-under=0
+	uv run --directory backend pytest tests/ -q --cov=app --cov-report=term-missing --cov-fail-under=0 -n auto --maxprocesses 4
 
 test-frontend:
 	cd frontend && bun run test:run
@@ -402,10 +416,26 @@ build-frontend:
 # virtualenv. The export is fully pinned, so `--no-deps --disable-pip` skips a
 # resolution round-trip pip-audit would otherwise do in a throwaway virtualenv.
 #
-# Needs the network: the advisory database is fetched, not vendored.
+# Needs the network: the advisory database is fetched, not vendored - one request
+# per locked distribution, 254 of them, none of which pip-audit retries and all of
+# which exit 1 the way a real advisory does. `scripts/audit_dependencies.py` is
+# what stops a single slow answer reading as a finding on a required check (#855):
+# it retries every run that reached no verdict, and says which of the four states
+# it ended in.
+#
+# It says so on its **last line**, not in its exit status, because make has no way
+# to carry one: a failed recipe becomes make's own exit 2, so a caller reaching
+# this through `make audit` - which the `Security Scan` job does - cannot tell 75
+# from 1. So the contract is `AUDIT: CLEAN|VULNERABLE|NETWORK|FAILED - detail`,
+# also appended to $GITHUB_STEP_SUMMARY inside a job. `make audit | tail -1` is
+# the whole of it; the script's own 0/1/75 is for callers that invoke it directly.
+AUDIT_ATTEMPTS ?= 3
+AUDIT_TIMEOUT ?= 30
+
 audit:
 	cd backend && uv export --frozen --no-emit-project --no-hashes -o requirements-audit.txt
-	cd backend && uv tool run pip-audit -r requirements-audit.txt --no-deps --disable-pip --progress-spinner=off
+	python3 scripts/audit_dependencies.py backend/requirements-audit.txt \
+		--attempts $(AUDIT_ATTEMPTS) --timeout $(AUDIT_TIMEOUT)
 
 # Playwright starts the frontend itself; the backend and its seed are on you.
 # Checked rather than assumed: against a backend that is not there the suite

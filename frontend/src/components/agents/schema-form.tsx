@@ -54,10 +54,10 @@ interface SchemaFormProps {
  * per capability is how the two drift - the form keeps accepting a field the
  * backend removed, and the new field nobody added stays unreachable.
  *
- * The supported subset is deliberately small: strings, numbers, booleans and
- * enums, which is what capability configuration actually is. A capability that
- * needs a richer editor should ship its own component rather than push this
- * towards being a general schema renderer.
+ * The supported subset is deliberately small: strings, numbers, booleans, enums
+ * and a list of strings, which is what capability configuration actually is. A
+ * capability that needs a richer editor should ship its own component rather
+ * than push this towards being a general schema renderer.
  *
  * The same generator builds the vault's secret forms, from the schemas
  * `/secrets/kinds` serves - which is why it knows about `const` and about
@@ -139,6 +139,10 @@ function SchemaField({
   // Off on every mount, including a re-open of the same dialog: revealing is a
   // decision about the room you are in, and the room changes.
   const [revealed, setRevealed] = useState(false);
+  // A list is edited as text and stored as an array, so the text is state of its
+  // own. Deriving it from the array instead would re-render the separator away
+  // the moment it is typed, leaving a field nobody can put a second entry in.
+  const [listText, setListText] = useState(() => (Array.isArray(value) ? value.join(", ") : ""));
   const errorId = `${id}-error`;
   const invalid =
     error === undefined ? undefined : { "aria-invalid": true, "aria-describedby": errorId };
@@ -208,6 +212,23 @@ function SchemaField({
             ))}
           </SelectContent>
         </Select>
+      )}
+
+      {kind === "stringList" && (
+        <Input
+          id={id}
+          value={listText}
+          placeholder={t("separateWithCommas")}
+          disabled={disabled}
+          // Blank stores nothing rather than an empty array, which is the same
+          // distinction the other inputs make and the one the server reads: an
+          // absent list is "no restriction", where `[]` is a list of nothing.
+          onChange={(event) => {
+            setListText(event.target.value);
+            onChange(parseList(event.target.value));
+          }}
+          {...invalid}
+        />
       )}
 
       {kind === "string" && multiline && (
@@ -280,7 +301,7 @@ function SchemaField({
   );
 }
 
-type FieldKind = "string" | "number" | "boolean" | "enum";
+type FieldKind = "string" | "number" | "boolean" | "enum" | "stringList";
 
 /**
  * What kind of input a property needs.
@@ -293,6 +314,7 @@ function resolveKind(property: JsonSchemaProperty): FieldKind {
   // Before the type check, not after: a `Literal` is a string, and a text box
   // for a closed set of values is a way to type one the backend will refuse.
   if (enumChoices(property) !== null) return "enum";
+  if (isStringList(property)) return "stringList";
 
   const candidates = property.anyOf
     ? property.anyOf.map((entry) => entry.type)
@@ -317,6 +339,28 @@ function enumChoices(property: JsonSchemaProperty): string[] | null {
   const values = property.enum ?? property.anyOf?.find((entry) => entry.enum)?.enum;
   if (values === undefined) return null;
   return values.filter((value): value is string => typeof value === "string");
+}
+
+/**
+ * Whether this field is a list of strings, which is the one array it renders.
+ *
+ * `list[str] | None` arrives as `anyOf: [{type: "array", items: …}, {type:
+ * "null"}]`, so the branch carries the `items` rather than the property. An
+ * array of anything else falls through to a text box, as it did before this
+ * existed: a list of objects is the richer editor a capability should ship
+ * itself. Without this every list was a text box, so typing a hostname into one
+ * stored the string and the server refused the spec - which left `web_fetch`'s
+ * domain filters publishable only by leaving them empty.
+ */
+function isStringList(property: JsonSchemaProperty): boolean {
+  const branch = property.anyOf?.find((entry) => entry.type === "array") ?? property;
+  return branch.type === "array" && branch.items?.type === "string";
+}
+
+/** The entries typed into a list field, or `undefined` when it is blank. */
+function parseList(text: string): string[] | undefined {
+  const entries = text.split(/[\s,]+/).filter((entry) => entry !== "");
+  return entries.length === 0 ? undefined : entries;
 }
 
 /**

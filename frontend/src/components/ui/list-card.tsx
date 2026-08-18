@@ -22,6 +22,7 @@ export function ListCard({
   controls,
   contentClassName,
   children,
+  ...rest
 }: {
   title: string;
   /**
@@ -36,9 +37,9 @@ export function ListCard({
   controls?: ReactNode;
   contentClassName?: string;
   children: ReactNode;
-}) {
+} & HTMLAttributes<HTMLDivElement>) {
   return (
-    <Card>
+    <Card {...rest}>
       <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
         <div className="space-y-1">
           <CardTitle className="text-sm">{title}</CardTitle>

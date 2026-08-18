@@ -118,15 +118,19 @@ export default function RunsPage() {
         <LoadingState variant="skeleton-table" columns={6} rows={6} />
       ) : (
         <>
-          <ActivityFigures canView={canView} canDecide={canDecide} period={period} />
+          <div data-tour="activity-overview">
+            <ActivityFigures canView={canView} canDecide={canDecide} period={period} />
+          </div>
           <Tabs defaultValue="runs">
             <TabsList>
               {/* Runs first: the page's main question is what ran. The queue
                 keeps its count badge, so what is waiting is visible from the
                 strip without opening it. */}
-              <TabsTrigger value="runs">{t("runs2")}</TabsTrigger>
+              <TabsTrigger value="runs" data-tour="activity-tab-runs">
+                {t("runs2")}
+              </TabsTrigger>
               {canDecide && (
-                <TabsTrigger value="approvals">
+                <TabsTrigger value="approvals" data-tour="activity-tab-approvals">
                   {t("approvals")}
                   {waiting > 0 && (
                     <Badge variant="secondary" className="ml-2">
@@ -135,16 +139,18 @@ export default function RunsPage() {
                   )}
                 </TabsTrigger>
               )}
-              <TabsTrigger value="spend">{t("spend")}</TabsTrigger>
+              <TabsTrigger value="spend" data-tour="activity-tab-spend">
+                {t("spend")}
+              </TabsTrigger>
             </TabsList>
 
             {canDecide && (
-              <TabsContent value="approvals">
+              <TabsContent value="approvals" data-tour="activity-approvals">
                 <ApprovalsTab period={period} onFocusRun={focusRun} />
               </TabsContent>
             )}
 
-            <TabsContent value="runs">
+            <TabsContent value="runs" data-tour="activity-runs">
               {/* The export lives on the tab's control row, beside the filters it
                 exports the result of - see RunHistoryTab. */}
               <RunHistoryTab
@@ -158,7 +164,7 @@ export default function RunsPage() {
               />
             </TabsContent>
 
-            <TabsContent value="spend">
+            <TabsContent value="spend" data-tour="activity-spend">
               <SpendTab period={period} />
             </TabsContent>
           </Tabs>

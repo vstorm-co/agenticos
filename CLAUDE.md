@@ -44,7 +44,8 @@ changes" is. Concretely, in this repo:
   an exception, never add a fallback that papers over a bug.
 - **No dead weight.** No speculative abstraction, unused parameter, commented-out code
   or "just in case" branch. If a branch cannot be reached, delete it; if it can, test it.
-  `make lint` runs `vulture` as a gate on what it is sure of; `make dead-code` is the
+  `make lint` runs `vulture` as a gate on what it is sure of, and `deptry` on the
+  manifest so a dependency nothing imports fails the same way; `make dead-code` is the
   deeper, human-read scan for unused functions (`docs/branching.md`, `code-style.md`).
 - **Comments are scarce; the default is none.** Reasoning lives in docstrings (the
   reference docs are generated from them). The bar for a `#`/`//` comment is one
@@ -139,7 +140,7 @@ make check                                        # every CI job but e2e — bef
 
 | | |
 |---|---|
-| `make lint` / `make format` | ruff + ty + vulture + eslint + prettier + tsc + the guard scripts + codespell |
+| `make lint` / `make format` | ruff + ty + vulture + deptry + eslint + prettier + tsc + the guard scripts + codespell |
 | `make lint-backend` / `make lint-frontend` | one half of it — CI runs them in two jobs |
 | `make dead-code` | vulture + knip, unused functions — a report to read, not a gate |
 | `make test-fast` | no coverage — the write-run-write loop |
@@ -287,6 +288,44 @@ Trigger map — what changed → which page:
 | `.github/workflows/ai-review.yml`, `.github/codex/**` | `docs/code-review.md` |
 | `.pre-commit-config.yaml`, `.github/dependabot.yml`, the branch rulesets | `docs/branching.md` |
 | A capability, permission or setting that changes the first-run path | `docs/first-agent.md`, `docs/install.md` |
+| A new dashboard page, tab or create control | `frontend/src/lib/onboarding/{tour,flows}.ts` — see below |
+
+### A new surface owes the walkthrough a stop (required)
+
+The product teaches itself: `frontend/src/lib/onboarding/tour.ts` is the passive
+walk a walked page's "?" replays, and `flows.ts` is the guided creation the walk
+offers at its end. Both are **registries**, so a page, tab, section or control
+added anywhere else is simply absent from them — nothing fails, nothing warns,
+and the feature ships invisible to everyone who learns the product through the
+tour. That is the whole failure mode: it is silent.
+
+The one place it is now audible: a page with no stop in `tour.ts` renders **no
+"?" at all** (`pageHasSteps`), rather than one that opens a walk with nothing in
+it and closes again. So a new page whose header carries no help button has not
+been added to the registry.
+
+So a change that adds a surface adds its stop in the same change.
+
+| Added | Owed |
+|---|---|
+| A dashboard page, or a tab/section within one | A `TourStep` in `tour.ts`, and `data-tour` on the control it names |
+| A page that can *create* something | A `CreationFlow` in `flows.ts`, plus its `flowForPage` entry |
+| A detail view with no route of its own | A pseudo-page id and its resolver in `components/onboarding/detail-targets.ts` |
+| A step, of either kind | `steps.<id>.title` / `.body` in `messages/en.json` — a missing key renders the key |
+
+Three things that decide whether a stop actually works, each of which has been
+got wrong here:
+
+- **Gate it on the permission its control carries.** An ungated step describes a
+  control the server hid, and the walk then waits four seconds for an element
+  that will never mount.
+- **`optional: true` for a control that renders only when data exists** — an
+  "add integration" button behind a non-empty catalog. Without it an empty
+  organization gets a caption pinned to nothing.
+- **Point at something bounded.** `data-tour` on a card whose body is a full
+  catalog spotlights the entire viewport, which highlights nothing; anchor the
+  describing step on the header and leave the card's own anchor for the guided
+  flow, which needs the list reachable.
 
 **When updating a page:** keep its altitude — `docs/reference/*` is generated from
 docstrings, so fix the **docstring** there rather than adding prose. Keep the

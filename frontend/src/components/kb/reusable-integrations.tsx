@@ -76,15 +76,13 @@ export function ReusableIntegrations({ targets }: ReusableIntegrationsProps) {
 
   if (!mayManage) return null;
 
+  // A refusal is left to travel: the wizard is what marks the field the server
+  // named and goes back to the step holding it.
   const handleCreate = async (data: SyncSourceCreate) => {
     setSubmitting(true);
     try {
       await create(data);
       setWizardOpen(false);
-    } catch {
-      // Reported by the hook. Swallowed here so the wizard stays open on the
-      // step that holds the field the server rejected - and so a refusal is not
-      // an unhandled rejection in the click handler.
     } finally {
       setSubmitting(false);
     }
@@ -98,7 +96,12 @@ export function ReusableIntegrations({ targets }: ReusableIntegrationsProps) {
           <p className="text-muted-foreground mt-0.5 text-xs">{t("configuredOnceUsedAs")}</p>
         </div>
         {connectors.length > 0 && (
-          <Button variant="outline" size="sm" onClick={() => setWizardOpen(true)}>
+          <Button
+            data-tour="knowledge-add-integration"
+            variant="outline"
+            size="sm"
+            onClick={() => setWizardOpen(true)}
+          >
             <Plug className="h-4 w-4" />
             {t("addIntegration")}
           </Button>

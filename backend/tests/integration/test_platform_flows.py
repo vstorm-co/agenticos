@@ -1766,6 +1766,42 @@ class TestWhatACollectionReportsItHolds:
         assert counts[collection.collection_name].indexed == 1
         assert counts[collection.collection_name].chunks == 7
 
+    async def test_re_ingesting_a_document_does_not_count_it_twice(self, db) -> None:
+        """The vector store keeps one document; `rag_documents` gained a second row.
+
+        Every ingest path creates a fresh tracking row, the replacing one
+        included, so before the replaced row was retired a nightly sync reported
+        a collection growing by its own size every night while the vectors never
+        moved. `documents` was already wrong this way; the chunk sum only became
+        visibly wrong once a real number was recorded (#147).
+        """
+        tenant = await _tenant(db, name="Reingested")
+        collection = await _collection_with(db, tenant, name="again", config=IngestionConfig())
+        first = await _rag_document(
+            db, collection_name=collection.collection_name, filename="handbook.md"
+        )
+        first.chunk_count = 12
+        second = await _rag_document(
+            db, collection_name=collection.collection_name, filename="handbook.md"
+        )
+        second.chunk_count = 12
+        await db.flush()
+
+        await RAGDocumentService(db).complete_ingestion(
+            str(second.id),
+            vector_document_id=second.vector_document_id,
+            chunk_count=12,
+            replaced_document_id=first.vector_document_id,
+        )
+
+        counts = await rag_document_repo.counts_by_collection(
+            db, collections=[collection.collection_name]
+        )
+
+        assert counts[collection.collection_name].documents == 1
+        assert counts[collection.collection_name].chunks == 12
+        assert await rag_document_repo.get_by_id(db, first.id) is None
+
     async def test_another_tenants_documents_are_not_counted(self, db) -> None:
         """The counts are keyed on `collection_name`, and `rag_documents` carries a
         nullable `organization_id` that a sync task never stamps - so the tenant

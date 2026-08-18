@@ -32,7 +32,6 @@ from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
 from app.agents.capabilities.knowledge._search import search_knowledge_base
 from app.api import deps
 from app.api.exception_handlers import (
-    _field_path,
     _summarize,
     budget_exceeded_handler,
     validation_exception_handler,
@@ -50,32 +49,6 @@ from app.schemas.message_rating import RatingValue
 from app.services.email import templates
 from app.services.email.exceptions import EmailTemplateError
 from app.services.model_profile import validate_endpoint_url
-
-
-class TestFieldPath:
-    """The path a form has to be able to match against its own inputs."""
-
-    @pytest.mark.parametrize(
-        ("location", "expected"),
-        [
-            (("body", "name"), "name"),
-            # The Builder posts the whole spec under one key; the field a person
-            # is looking at is the leaf, and the path has to reach it.
-            (("body", "spec", "name"), "spec.name"),
-            (("query", "limit"), "limit"),
-            # An index is the most useful part of the path when a list is
-            # rejected - "the third capability", not "a capability".
-            (("body", "spec", "capabilities", 2, "id"), "spec.capabilities.2.id"),
-            # A body that is not an object at all belongs to no field.
-            (("body",), "request"),
-        ],
-    )
-    def test_the_origin_is_dropped_and_the_rest_is_a_dotted_path(self, location, expected):
-        assert _field_path(location) == expected
-
-    def test_an_unrecognised_origin_is_kept(self):
-        """Dropping a leading segment we do not recognise would lose the field."""
-        assert _field_path(("name",)) == "name"
 
 
 class TestSummary:
@@ -478,5 +451,6 @@ class TestDetailsDescribeTheRefusalNotTheServer:
 
         response = await self._refusal_on_the_wire(client, refusal.value)
 
-        assert response.json()["error"]["details"] == {"field": "base_url"}
+        error = response.json()["error"]
+        assert error["details"] == {"fields": [{"field": "base_url", "message": error["message"]}]}
         assert "hunter2" not in response.text

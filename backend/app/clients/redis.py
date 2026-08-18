@@ -41,7 +41,9 @@ class RedisClient:
         """Get a value by key."""
         if not self.client:
             raise RuntimeError("Redis client not connected")
-        return await self.client.get(key)  # type: ignore[no-any-return]
+        # `bytes` to the stubs, `str` at runtime: `connect` passes
+        # `decode_responses=True`, which redis-py cannot express in a return type.
+        return await self.client.get(key)  # ty: ignore[invalid-return-type]
 
     async def set(
         self,

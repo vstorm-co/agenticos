@@ -53,6 +53,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import BadRequestError
+from app.core.field_errors import field_problems
 from app.core.secret_kinds import ApiKeySecret, SecretKind, unseal_secret
 from app.core.vault import VaultScope
 from app.repositories import organization_secret_repo
@@ -279,12 +280,14 @@ class IngestionConfig(BaseModel):
 
     @model_validator(mode="after")
     def overlap_fits_inside_a_chunk(self) -> IngestionConfig:
-        """An overlap at least as large as the chunk never terminates.
+        """An overlap as large as the chunk advances by almost nothing.
 
-        `RecursiveCharacterTextSplitter` warns and then produces chunks that
-        each start where the previous one did, so a document either grows
-        without bound or is silently cut wrong. Refusing the pair here means the
-        form is what says so.
+        :class:`app.services.rag._splitters.RecursiveCharacterSplitter` carries
+        as much of the previous chunk as still fits, so an overlap equal to the
+        chunk size leaves room for roughly one new piece each time: 200 words at
+        `chunk_size=100` come out as 174 chunks holding nineteen times the
+        source text. It terminates, and it is not chunking. Refusing the pair
+        here means the form is what says so.
         """
         if self.chunk_overlap >= self.chunk_size:
             raise ValueError(
@@ -359,11 +362,29 @@ class IngestionOverride(BaseModel):
         be legal: a collection with `chunk_size=512` and an override setting
         `chunk_overlap=600` is two individually valid numbers and one
         configuration that does not terminate.
+
+        Raises:
+            BadRequestError: If the merged configuration is not legal. The
+                refusal is about the form field the override arrived in, so it
+                leaves as the same refusal :func:`parse_override` raises for a
+                field the override could not be read from at all - a raw
+                `ValidationError` reaches no handler, so the upload answered a
+                500 for a number the caller typed (#874). The pair rule names
+                neither field in `loc`, so the refusal falls back to
+                `ingestion_config` - the same field the 422 names when the pair
+                arrives as a collection's own settings, so the form marks one
+                place whichever entry point refused.
         """
         changes = self.model_dump(exclude_unset=True, exclude={"image_description"})
         if self.image_description is not None:
             changes["image_description"] = self.image_description.applied_to(base.image_description)
-        return IngestionConfig.model_validate({**base.model_dump(), **changes})
+        try:
+            return IngestionConfig.model_validate({**base.model_dump(), **changes})
+        except ValidationError as exc:
+            raise BadRequestError(
+                message="The 'ingestion' field is not a valid override for this collection",
+                details={"fields": field_problems(exc.errors(), root="ingestion_config")},
+            ) from exc
 
 
 def parse_override(raw: str | None) -> IngestionOverride | None:
@@ -387,7 +408,7 @@ def parse_override(raw: str | None) -> IngestionOverride | None:
     except ValidationError as exc:
         raise BadRequestError(
             message="The 'ingestion' field is not a valid ingestion override",
-            details={"errors": exc.errors(include_url=False, include_input=False)},
+            details={"fields": field_problems(exc.errors(), root="ingestion_config")},
         ) from exc
 
 

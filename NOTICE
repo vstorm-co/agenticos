@@ -5,3 +5,18 @@ This product includes software developed at Vstorm (https://vstorm.co).
 
 Licensed under the Apache License, Version 2.0. See the LICENSE file for the
 full terms.
+
+--------------------------------------------------------------------------------
+
+Third-party brand marks
+
+frontend/src/lib/brand-glyphs.generated.ts contains SVG path data for the brand
+marks the console draws, fetched by frontend/scripts/gen-brand-icons.ts from:
+
+  Simple Icons      https://simpleicons.org            CC0 1.0 Universal
+  Font Awesome Free https://fontawesome.com/license    icons under CC BY 4.0
+  @lobehub/icons    https://icons.lobehub.com          MIT
+
+The marks themselves are the trademarks of their respective owners and are used
+to identify those products. Their inclusion implies no affiliation with or
+endorsement by them.

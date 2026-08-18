@@ -1,6 +1,25 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
+
+/**
+ * How long `findBy*` and `waitFor` keep looking, raised from Testing Library's
+ * 1s default.
+ *
+ * The second deadline in this suite, and the one `testTimeout` cannot cover: a
+ * `findByText` that gives up at 1s fails the test at 1s, whatever vitest's
+ * limit is. Under the load #862 was filed from it is the deadline that bites
+ * most often — two of the three failures in each loaded run, bare and
+ * instrumented alike, and the same specs that pass in about a second on a
+ * quiet machine.
+ *
+ * 5s rather than vitest's 15s on purpose: an element that is never coming has
+ * to lose the race to `testTimeout`, so the failure reads "Unable to find an
+ * element with the text: …" and names it, rather than "Test timed out in
+ * 15000ms" and names nothing. It costs nothing when a wait succeeds, which is
+ * every passing test — only a genuine failure waits the whole 5s.
+ */
+configure({ asyncUtilTimeout: 5_000 });
 
 /**
  * Whether this file runs in a browser-shaped environment.

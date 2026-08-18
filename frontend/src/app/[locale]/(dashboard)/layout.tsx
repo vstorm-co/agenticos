@@ -6,6 +6,8 @@ import { AuthGuard } from "@/components/layout/auth-guard";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { PageTransition } from "@/components/layout/page-transition";
+import { OnboardingFlows } from "@/components/onboarding/onboarding-flows";
+import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -41,6 +43,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <Sidebar />
           <MobileTabBar />
           <CommandPalette />
+          <OnboardingTour />
+          <OnboardingFlows />
         </div>
       </CustomIconsProvider>
     </AuthGuard>

@@ -53,7 +53,9 @@ from app.agents.mcp_oauth import McpOAuthPayload, OAuthError
 from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
+from app.core.sanitize import UrlRefusedError
 from app.core.vault import SealedSecret, VaultScope, seal, unseal
 from app.db.models.mcp_connection import McpConnection
 from app.db.updates import writable
@@ -80,6 +82,43 @@ def _oauth_redirect_uri() -> str:
 
 def _now_epoch() -> float:
     return datetime.now(UTC).timestamp()
+
+
+async def _checked_url(url: str) -> str:
+    """SSRF-check a submitted URL, refusing it as a 400 rather than a crash.
+
+    `validate_mcp_url` raises `SSRFBlockedError`, which subclasses `ValueError`
+    and which no handler in `app/api/exception_handlers.py` maps - so pasting a
+    `localhost` server URL into the connection dialog answered 500 "An
+    unexpected error occurred" with `details: null`, and left a traceback in the
+    log, for a guard doing exactly what it is there for. The operator who could
+    have fixed it in five seconds was told the platform had broken (#861).
+
+    `details` names the field rather than repeating the address, and the reason
+    is the validator's own message, which names a host and never a URL - a URL
+    carries a key in its query string (#840).
+
+    Which is why this catches `UrlRefusedError` and not `ValueError`. Only the
+    narrower type is a refusal *written here* and so safe to quote; a bare
+    `ValueError` escaping the validator is the standard library talking about
+    the caller's own text - `Port could not be cast to integer value as
+    'client_secret=...'` - and quoting that would put a query-string secret in
+    the response body. Nothing below the validator can raise one today, so there
+    is no second branch to answer with a controlled sentence: if that changes,
+    it is a bug and the generic 500 is the honest answer, since the traceback
+    goes to the log and the body stays empty. `tests/test_ssrf.py` fails on a
+    refusal that is not a `UrlRefusedError`.
+
+    Raises:
+        BadRequestError: If the URL is malformed or points inside the
+            deployment's network.
+    """
+    try:
+        return await validate_mcp_url(url)
+    except UrlRefusedError as exc:
+        # Ours to quote, in the log as much as in the body - see the docstring.
+        logger.warning("MCP server URL refused: %s", exc)
+        raise refused_field("url", f"This MCP server URL cannot be used: {exc}") from exc
 
 
 def _apply_token(payload: McpOAuthPayload, token: OAuthToken) -> McpOAuthPayload:
@@ -343,7 +382,7 @@ class McpConnectionService:
         return await mcp_connection_repo.list_for_user(self.db, user_id=user_id)
 
     async def create(self, *, user_id: UUID, data: McpConnectionCreate) -> McpConnection:
-        url = await validate_mcp_url(data.url)
+        url = await _checked_url(data.url)
         existing = await mcp_connection_repo.get_by_name(self.db, user_id=user_id, name=data.name)
         if existing is not None:
             raise AlreadyExistsError(
@@ -378,7 +417,7 @@ class McpConnectionService:
         )
 
         if "url" in update_data:
-            update_data["url"] = await validate_mcp_url(update_data["url"])
+            update_data["url"] = await _checked_url(update_data["url"])
 
         if "name" in update_data and update_data["name"] != db_connection.name:
             collision = await mcp_connection_repo.get_by_name(
@@ -530,7 +569,7 @@ class McpConnectionService:
         once. Two copies of an OAuth handshake is two places for a PKCE verifier
         to be dropped.
         """
-        url = await validate_mcp_url(url)
+        url = await _checked_url(url)
         server = await mcp_oauth.discover(url)  # raises OAuthError if unsupported
         redirect_uri = _oauth_redirect_uri()
         client_id, client_secret = await mcp_oauth.register_client(server, redirect_uri)
@@ -776,7 +815,7 @@ class McpConnectionService:
                 message=f"Unknown catalog server: {data.catalog_key}",
                 details={"catalog_key": data.catalog_key},
             )
-        url = await validate_mcp_url(data.url)
+        url = await _checked_url(data.url)
         existing = await mcp_connection_repo.get_org_scoped_by_name(
             self.db, organization_id=ctx.organization_id, name=data.name
         )
@@ -827,7 +866,7 @@ class McpConnectionService:
         )
 
         if "url" in update_data:
-            update_data["url"] = await validate_mcp_url(update_data["url"])
+            update_data["url"] = await _checked_url(update_data["url"])
 
         if "name" in update_data and update_data["name"] != db_connection.name:
             collision = await mcp_connection_repo.get_org_scoped_by_name(

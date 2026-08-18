@@ -13,6 +13,7 @@ import {
   submitFailure,
 } from "./api-error";
 import { BFF_ERROR_KEYS } from "./bff-errors";
+import { INGESTION_FORM_FIELDS } from "./ingestion-config";
 
 /**
  * The real `errors` messages, in both locales: what a refusal shows is what these
@@ -172,6 +173,148 @@ describe("fieldProblems", () => {
       envelope("VALIDATION_ERROR", "…", { fields: [null, { field: "name" }, 3] }),
     );
     expect(fieldProblems(enveloped)).toEqual([]);
+  });
+});
+
+/**
+ * The three refusals a service raises for a document a route's schema cannot
+ * validate, each body copied from the backend test that pins it: an ingestion
+ * override (`tests/api/test_ingestion_override_routes.py`), a hand-edited spec
+ * (`tests/api/test_agent_spec_import_refusal.py`) and a capability's config
+ * blob (`tests/test_capability_registry.py`).
+ *
+ * All three are `BAD_REQUEST`, not the 422 the validation handler answers, and
+ * all three used to carry Pydantic's own error list under `details.errors` -
+ * which this module reads nowhere, so each one showed a sentence and marked no
+ * input at all (#882). They are here rather than in the reader's own describe
+ * block because what is being tested is that the wire shape reaches a form.
+ */
+const OVERRIDE_REFUSED = envelope(
+  "BAD_REQUEST",
+  "The 'ingestion' field is not a valid override for this collection",
+  {
+    fields: [
+      {
+        field: "ingestion_config",
+        message: "Value error, chunk_overlap (4096) must be smaller than chunk_size (512)",
+      },
+    ],
+  },
+);
+
+const SPEC_REFUSED = envelope("BAD_REQUEST", "This spec does not match the agent spec format", {
+  fields: [{ field: "instrucitons", message: "Extra inputs are not permitted" }],
+});
+
+const CONFIG_REFUSED = envelope("BAD_REQUEST", "Invalid configuration for capability 'knowledge'", {
+  capability_id: "knowledge",
+  fields: [{ field: "default_top_k", message: "Input should be less than or equal to 50" }],
+});
+
+describe("a refusal a service raised about a document it validated itself", () => {
+  it("names the setting a rejected ingestion override is about", () => {
+    // A `model_validator` names neither of the two settings it is about, so the
+    // server attributes the pair to the object - the field `IngestionSettings`
+    // reserves for exactly this rule.
+    expect(fieldProblems(apiError(400, OVERRIDE_REFUSED))).toEqual([
+      {
+        field: "ingestion_config",
+        message: "Value error, chunk_overlap (4096) must be smaller than chunk_size (512)",
+      },
+    ]);
+  });
+
+  it("marks the ingestion input the refusal names, and stays out of the toast", () => {
+    const failure = submitFailure(
+      apiError(400, OVERRIDE_REFUSED),
+      { fields: [...INGESTION_FORM_FIELDS] },
+      tEn,
+    );
+
+    expect(failure.fields.ingestion_config).toBe(
+      "Value error, chunk_overlap (4096) must be smaller than chunk_size (512)",
+    );
+    expect(failure.toast).toBeNull();
+  });
+
+  it("names the key a hand-edited spec misspelled", () => {
+    expect(fieldProblems(apiError(400, SPEC_REFUSED))).toEqual([
+      { field: "instrucitons", message: "Extra inputs are not permitted" },
+    ]);
+  });
+
+  it("marks the config input a capability refused, and keeps the capability it is about", () => {
+    const error = apiError(400, CONFIG_REFUSED);
+    const failure = submitFailure(error, { fields: ["default_top_k"] }, tEn);
+
+    expect(failure.fields.default_top_k).toBe("Input should be less than or equal to 50");
+    expect(failure.toast).toBeNull();
+    // Which card to open it on. The Builder posts every binding at once, so the
+    // field alone does not say which capability was refused.
+    expect(error.details?.capability_id).toBe("knowledge");
+  });
+});
+
+describe("a refusal a service states in prose about one input", () => {
+  /**
+   * Bodies copied out of the backend's own tests. Eighteen of these answered a
+   * singular `details.field` with the sentence on the envelope, which this
+   * module reads nowhere - so each showed a toast and marked nothing (#891).
+   */
+  const ENDPOINT_REFUSED = envelope(
+    "BAD_REQUEST",
+    "A model endpoint must be an http or https URL",
+    {
+      fields: [{ field: "base_url", message: "A model endpoint must be an http or https URL" }],
+    },
+  );
+
+  const MCP_URL_REFUSED = envelope(
+    "BAD_REQUEST",
+    "This MCP server URL cannot be used: loopback addresses are not reachable",
+    {
+      fields: [
+        {
+          field: "url",
+          message: "This MCP server URL cannot be used: loopback addresses are not reachable",
+        },
+      ],
+    },
+  );
+
+  const YAML_REFUSED = envelope("BAD_REQUEST", "This spec is not valid YAML - line 2, column 14", {
+    fields: [{ field: "yaml", message: "This spec is not valid YAML - line 2, column 14" }],
+  });
+
+  it("marks the endpoint a model profile was refused over", () => {
+    const failure = submitFailure(apiError(400, ENDPOINT_REFUSED), { fields: ["base_url"] }, tEn);
+
+    expect(failure.fields.base_url).toBe("A model endpoint must be an http or https URL");
+    expect(failure.toast).toBeNull();
+  });
+
+  it("marks the server URL an MCP connection was refused over", () => {
+    expect(fieldProblems(apiError(400, MCP_URL_REFUSED))).toEqual([
+      {
+        field: "url",
+        message: "This MCP server URL cannot be used: loopback addresses are not reachable",
+      },
+    ]);
+  });
+
+  it("carries the position of a spec that never parsed in the sentence it marks with", () => {
+    // The line and column used to be `details` keys of their own that nothing
+    // read; they are only worth reporting to the reader who has the document.
+    expect(fieldProblems(apiError(400, YAML_REFUSED))).toEqual([
+      { field: "yaml", message: "This spec is not valid YAML - line 2, column 14" },
+    ]);
+  });
+
+  it("says one thing once - the field, and no toast repeating it", () => {
+    const failure = submitFailure(apiError(400, ENDPOINT_REFUSED), { fields: ["base_url"] }, tEn);
+
+    expect(Object.keys(failure.fields)).toEqual(["base_url"]);
+    expect(failure.toast).toBeNull();
   });
 });
 

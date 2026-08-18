@@ -299,9 +299,55 @@ Per collection, alongside the parser:
 
 | Strategy | Best For |
 |----------|----------|
-| `recursive` | General text; splits by paragraph, then sentence, then word |
-| `markdown` | Markdown/structured docs; splits at heading boundaries |
-| `fixed` | Uniform chunk sizes; simplest but may split mid-sentence |
+| `recursive` | General text; splits on paragraph, then line, then word, then character |
+| `markdown` | Markdown/structured docs; splits at heading boundaries, then by size within each section |
+| `fixed` | Uniform chunk sizes; splits on line ends only, so a long line is emitted whole |
+
+All three come from `app/services/rag/_splitters.py`, which replaced
+`langchain-text-splitters` in [#158](https://github.com/vstorm-co/agenticos/issues/158)
+— the eight packages behind it included `langsmith`, a second hosted-telemetry
+SDK in a platform that standardised on Logfire.
+
+Three things about them are worth knowing before tuning the numbers:
+
+- **`chunk_overlap` is a ceiling, not a guarantee.** A chunk repeats as much of
+  the one before it as still fits under `chunk_size`, which is frequently less
+  than the setting and sometimes nothing at all.
+- **A piece with no separator left is emitted whole, not cut.** `fixed` splits
+  on line ends only, so a 4 KB line becomes a 4 KB chunk; the splitter logs a
+  warning rather than handing the embedding model something it will reject. The
+  warning means *over* `chunk_size` — a line of exactly `chunk_size` characters
+  is within the limit and passes silently.
+- **`markdown` keeps the heading in the chunk**, and until #158 it applied
+  neither `chunk_size` nor `chunk_overlap` — a 50 KB section between two `##`
+  was one chunk. It now runs the recursive splitter over each section, so both
+  settings mean on this strategy what they mean on the others.
+
+Chunk boundaries are what a search matches against, so a collection ingested
+before that change keeps the chunks it was ingested with. Re-upload a document,
+or re-run `uv run agenticos cmd rag-ingest`, to re-chunk it.
+
+**An override is checked against the merged pair, not against its own value.** A
+per-upload `ingestion` field carries only what it changes, so `chunk_overlap:
+4096` sent to a collection chunking at 512 is two individually legal numbers and
+one configuration that repeats almost everything it advances past. The merge
+re-validates, and the upload is refused with a **400** naming both settings in
+`details.fields` — before the file is stored and before a document row exists,
+so there is nothing to retry or clean up. It answered 500 with an empty
+`details` until [#874](https://github.com/vstorm-co/agenticos/issues/874): the
+merge raised a raw Pydantic error, which reaches no handler. The same pair sent
+as a collection's own configuration was always refused with a 422, because there
+it is a field of a JSON body and FastAPI validates it before the route is
+entered.
+
+Both refusals name the same fields, `ingestion_config` for the pair rule and
+`ingestion_config.chunk_size` for a setting of its own — so the form marks one
+place whichever entry point refused. (The pair rule names the object because
+Pydantic attributes a `model_validator(mode="after")` to neither of the two
+fields it is about.) The 400 named its fields under `details.errors` until
+[#882](https://github.com/vstorm-co/agenticos/issues/882), in Pydantic's own
+error format, which nothing on the frontend read: the sentence reached a toast
+and no input was ever highlighted.
 
 ### Embeddings — the model, and whose key pays
 
@@ -471,10 +517,20 @@ Ingested documents are tracked in the SQL database via the `RAGDocument` model:
 | `status` | `processing`, `done`, or `error` |
 | `error_message` | What failed, if `status` is `error` — see below |
 | `vector_document_id` | ID in the vector store |
-| `chunk_count` | Number of chunks created |
+| `chunk_count` | Number of chunks created. Recorded since [#147](https://github.com/vstorm-co/agenticos/issues/147); a document ingested before it holds `0` and its collection's card under-reports until it is re-ingested |
 | `storage_path` | Path to original file (for re-ingestion/download) |
 | `created_at` | Ingestion start time |
 | `completed_at` | Ingestion completion time |
+
+**A replacement retires the row it replaced.** Every ingest path — the upload,
+the CLI, a sync run — writes a *new* tracking row, while an ingest with
+`replace=true` deletes the vector document it supersedes and inserts one. So the
+older row is left describing vectors nobody holds: its `chunk_count` keeps being
+summed into the collection's totals, and its parsed-content view has nothing to
+read. Completing an ingest therefore deletes the tracking rows pointing at the
+vector document it replaced, along with their stored copies of the file. Without
+that a directory synced nightly reported a collection growing by its own size
+every night.
 
 Failed ingestions can be retried via `POST /rag/documents/{id}/retry`. It
 re-reads `storage_path` — the copy the upload kept for exactly this — and
@@ -580,6 +636,27 @@ connector used to fall back to `GOOGLE_DRIVE_CREDENTIALS_FILE` whenever
 was listed under the *operator's* service account and whatever that account had
 been shared. The fallback is gone; the setting now serves only the
 `rag-sync-gdrive` CLI command, which an operator runs from their own shell.
+
+### A connector's refusal names the field it is about
+
+`validate_config` answers a `ConfigRefusal` — a sentence, and the field that
+sentence is about — or `None` when the config is acceptable. The connector names
+its own `CONFIG_SCHEMA` key; `SyncSourceService` roots that against the document
+the wizard posted (`folder_id` → `config.folder_id`) and raises it with
+`refused_field`, so it reaches the browser as `details["fields"]` in the one
+shape a form reads (`app/core/field_errors.py`) and the configure step marks the
+input the connector rejected.
+
+It used to answer `(bool, str | None)`, and a flag with a sentence cannot say
+*which of four inputs* was wrong. The folder-id check above knew, the reader
+did not: the wizard showed one line of prose under four boxes.
+
+Naming a field is optional, and deliberately so. A connector may refuse a config
+without blaming one part of it — connectivity that fails, two credentials that
+do not belong to the same account — and `ConfigRefusal(message=...)` with no
+field is the honest answer there. Inventing a field name would send somebody to
+edit a value that was accepted. `checked_drive_folder_id` names none for the same
+reason: it answers three sinks and only one of them was sent a form to mark.
 
 ### Image Description
 

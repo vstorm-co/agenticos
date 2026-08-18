@@ -3,7 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConnectionDialog } from "./connection-dialog";
+import { ApiError } from "@/lib/api-error";
 import type { SandboxConnectionRecord } from "@/lib/sandbox-connections-api";
+import { providerMarkIn } from "@/test-utils/brand-marks";
 
 interface VaultKey {
   id: string;
@@ -54,11 +56,6 @@ vi.mock("@/components/vault/inline-secret", () => ({
     </button>
   ),
 }));
-
-/** The brand mark actually drawn, by the name lobehub titles its SVG with. */
-function markIn(element: HTMLElement): string | null {
-  return element.querySelector("svg > title")?.textContent ?? null;
-}
 
 function connection(overrides: Partial<SandboxConnectionRecord> = {}): SandboxConnectionRecord {
   return {
@@ -190,7 +187,7 @@ describe("ConnectionDialog", () => {
     await userEvent.click(screen.getByLabelText("Credential"));
 
     const marked = screen.getByRole("option", { name: /Acme webhook/ });
-    expect(markIn(marked)).toBe("OpenAI");
+    expect(providerMarkIn(marked)).toBe("openai");
     expect(marked).toHaveTextContent("····1111");
     // `daytona` is a service with no compiled-in mark, and so is a key with no
     // purpose at all. Both draw the monogram of what they are for - the initial
@@ -205,7 +202,7 @@ describe("ConnectionDialog", () => {
     ];
     mount(connection());
 
-    expect(markIn(screen.getByLabelText("Credential"))).toBe("OpenAI");
+    expect(providerMarkIn(screen.getByLabelText("Credential"))).toBe("openai");
   });
 
   it("takes one added inline as well", async () => {
@@ -288,6 +285,84 @@ describe("ConnectionDialog", () => {
 
     expect(screen.getByText("that name is taken")).toBeVisible();
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  /**
+   * Which box to fix, not just what went wrong.
+   *
+   * `_check_shape` and the probe both answer `details.fields` against
+   * `base_url`, and a duplicate name is a 409 this form places itself through
+   * `identifiedBy` (#891). Before that, all three were one red line at the
+   * bottom of a dialog with four inputs in it.
+   */
+  it("marks the address the service refused", async () => {
+    const message = "A container connection needs the address its sandbox service answers on";
+    const onSubmit = vi.fn().mockRejectedValue(
+      new ApiError(400, message, {
+        error: {
+          code: "BAD_REQUEST",
+          message,
+          details: { fields: [{ field: "base_url", message }] },
+        },
+      }),
+    );
+    render(<ConnectionDialog editing={connection()} onOpenChange={vi.fn()} onSubmit={onSubmit} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    const address = screen.getByLabelText("Address");
+    expect(address).toHaveAttribute("aria-invalid", "true");
+    expect(address).toHaveAccessibleDescription(message);
+    expect(screen.getByLabelText("Name")).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("marks the name a duplicate is about, and does not repeat it below", async () => {
+    const message = "A sandbox connection by that name already exists";
+    const onSubmit = vi.fn().mockRejectedValue(
+      new ApiError(409, message, {
+        error: { code: "ALREADY_EXISTS", message, details: { name: "Local Docker" } },
+      }),
+    );
+    render(<ConnectionDialog editing={connection()} onOpenChange={vi.fn()} onSubmit={onSubmit} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(screen.getByLabelText("Name")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getAllByText(message)).toHaveLength(1);
+  });
+
+  it("clears the mark as soon as the address changes", async () => {
+    const message = "The sandbox service at http://typo:8080 did not answer";
+    const onSubmit = vi.fn().mockRejectedValue(
+      new ApiError(400, message, {
+        error: {
+          code: "BAD_REQUEST",
+          message,
+          details: { fields: [{ field: "base_url", message }] },
+        },
+      }),
+    );
+    render(<ConnectionDialog editing={connection()} onOpenChange={vi.fn()} onSubmit={onSubmit} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await userEvent.type(screen.getByLabelText("Address"), "0");
+
+    expect(screen.getByLabelText("Address")).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("clears the mark as soon as the name changes", async () => {
+    const message = "A sandbox connection by that name already exists";
+    const onSubmit = vi.fn().mockRejectedValue(
+      new ApiError(409, message, {
+        error: { code: "ALREADY_EXISTS", message, details: { name: "Local Docker" } },
+      }),
+    );
+    render(<ConnectionDialog editing={connection()} onOpenChange={vi.fn()} onSubmit={onSubmit} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await userEvent.type(screen.getByLabelText("Name"), "2");
+
+    expect(screen.getByLabelText("Name")).not.toHaveAttribute("aria-invalid", "true");
   });
 
   it("cancelling closes without saving", async () => {

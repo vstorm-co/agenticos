@@ -1,7 +1,6 @@
 import { CalendarClock, Code2, Globe, MessageSquare } from "lucide-react";
-import { FaSlack } from "react-icons/fa6";
-import { SiMattermost, SiTelegram } from "react-icons/si";
 
+import { brandMark } from "@/components/icons/brand-icon";
 import { cn } from "@/lib/utils";
 import type { Translate } from "@/lib/agent-step-captions";
 
@@ -23,9 +22,9 @@ const MARKS = {
   web: MessageSquare,
   embed: Globe,
   api: Code2,
-  slack: FaSlack,
-  telegram: SiTelegram,
-  mattermost: SiMattermost,
+  slack: brandMark("slack"),
+  telegram: brandMark("telegram"),
+  mattermost: brandMark("mattermost"),
   schedule: CalendarClock,
 } as const;
 

@@ -214,18 +214,20 @@ export default function DashboardPage() {
   // Agents, `New collection` on Knowledge bases).
   const headerActions = (
     <div className="flex items-center gap-2">
-      <DashboardPresetMenu
-        presets={presets}
-        isCustom={isCustom}
-        onApply={handleApplyPreset}
-        onUseDefault={handleReset}
-        onNewBlank={() => openEditor(true)}
-        onDelete={removePreset}
-      />
-      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => openEditor(false)}>
-        <LayoutGrid className="size-3.5" aria-hidden />
-        {t("edit.customize")}
-      </Button>
+      <div data-tour="dashboard-customize" className="flex items-center gap-2">
+        <DashboardPresetMenu
+          presets={presets}
+          isCustom={isCustom}
+          onApply={handleApplyPreset}
+          onUseDefault={handleReset}
+          onNewBlank={() => openEditor(true)}
+          onDelete={removePreset}
+        />
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => openEditor(false)}>
+          <LayoutGrid className="size-3.5" aria-hidden />
+          {t("edit.customize")}
+        </Button>
+      </div>
       {can(Perm.agentsRun) ? (
         <Button asChild size="sm" className="gap-1.5">
           <Link href={ROUTES.CHAT}>

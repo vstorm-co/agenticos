@@ -173,6 +173,7 @@ export function DocumentsTable({
 
   return (
     <ListCard
+      data-tour="kb-documents"
       title={t("documents")}
       counted={
         isLoading && documents.length === 0

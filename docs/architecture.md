@@ -79,6 +79,13 @@ type rather than as data access.
 - Input validation via Pydantic schemas
 - Authentication and authorization checks
 - **Never** contains direct DB calls — always delegates to a service
+- **Never** parses untrusted input in the route expression. A `ValidationError`
+  raised there is a `ValueError` but not a `RequestValidationError`, so no
+  handler maps it and the caller is answered 500 with `details: null` — which is
+  how every mistake in a hand-edited spec YAML was reported as a crash (#873).
+  Parsing is the owning service's job, and so is the refusal: `import_spec` on
+  `AgentRegistryService` answers a broken document with a 400 that names the
+  field, and never quotes what was submitted back at the caller.
 
 ### Services (`services/`)
 - Business logic and validation
@@ -269,6 +276,83 @@ table in the schema. The index on `parent_run_id` serves
 [Governance](governance.md#what-run-history-shows) for why run history never lists
 the two kinds of row together.
 
+## A refusal that names a field
+
+Every refusal leaves in one envelope, `{"error": {"code", "message", "details"}}`,
+and a refusal about a *field* names it in one shape:
+
+```json
+{"details": {"fields": [{"field": "spec.name", "message": "String should have at most 128 characters"}]}}
+```
+
+`fieldProblems` in `frontend/src/lib/api-error.ts` reads that and nothing else,
+which is what lets a form mark the offending input rather than showing a sentence
+the reader has to re-scan the page for. `app/core/field_errors.py` is the only
+place it is built, and it has three entry points. Two of them read Pydantic, and
+**which caller you are decides what the first element of `loc` means**:
+
+| | For | `loc` starts with |
+|---|---|---|
+| `request_field_problems` | `validation_exception_handler`, every `RequestValidationError` | where the value came from (`body`, `query`, …), which is dropped |
+| `field_problems(…, root=…)` | a service validating a document a route's schema cannot — a per-upload ingestion override, a hand-edited spec YAML, a capability's config blob | a field of that document, reported below `root` |
+| `refused_field(field, message, **context)` | a rule a service states in prose rather than in a model — an endpoint carrying a password, a Mattermost bot losing its server, a YAML document that never parsed | — it answers with the `BadRequestError` for the caller to raise |
+
+`refused_field` names the sentence once, because the envelope's `message` and the
+field's are the same sentence; a raiser needing another status builds the same
+`details` with `field_details`. Eighteen call sites answered
+`details={"field": "<name>"}` instead, singular, with the sentence on the
+envelope, and no form has ever read it — the same defect in a third shape
+([#891](https://github.com/vstorm-co/agenticos/issues/891)). A fourth spelling
+was `details={"<field>": <value>}`, where the key was the field name and the
+value was what the caller had just sent: `model_profile.py` answered a refused
+model id with the id, in a body and in the log line beside it
+([#898](https://github.com/vstorm-co/agenticos/issues/898)).
+
+Deciding by the string instead would misread a spec whose forbidden top-level
+key is literally called `body`, which is one shape standing in for two — the
+mistake the module exists to end.
+
+Two more properties are worth knowing before adding a call site. It reads `loc`
+and `msg` only, so the rejected value cannot come back beside the field it broke,
+which is why those call sites hand it `exc.errors()` unfiltered. And `root` is
+what the caller's form calls the whole document, so every path is relative to it:
+that gives a `model_validator(mode="after")` somewhere to land — it reports
+`loc: ()`, because the rule it broke is about two fields at once — and it makes
+the entry points agree, an override refused at upload naming exactly what the 422
+names when the same pair arrives as a collection's own settings.
+
+Handing Pydantic's own `exc.errors()` through instead was
+[#882](https://github.com/vstorm-co/agenticos/issues/882) — a second shape,
+carrying `input`, `ctx` and `url`, that nothing on the frontend read.
+
+**An aggregated refusal carries both halves.** `validate_spec` reports every
+problem in a spec at once and most of them are broken references with no input to
+mark, so it answers `details.problems` (a line each, which the Builder lists) and
+`details.fields` for the subset that names one. A capability's configuration is
+the one part of a spec rendered as a generated form, so its refusals name the
+input — `capabilities.knowledge.config.default_top_k`, and
+`specialists.researcher.` in front of that for a capability configured inside a
+delegate, because the Builder renders one form per specialist. Keeping only the
+sentence was the other half of #882: saving a draft does not validate a config
+schema at all, so publish validation is the only place a mistyped setting is ever
+refused.
+
+**Two kinds of refusal deliberately name no field**, and the line between them
+and the rest is what stops the one shape from meaning two things again:
+
+- **A refusal about a value no caller sent.** A remote file's name is chosen by
+  whoever can drop a file in the synced folder, and both checks in
+  `app/services/rag/remote_names.py` run inside a background sync, where the
+  reader is a log rather than a form. Same for a Google Drive source read back
+  without its credential: the row is stored, and `CONFIG_SCHEMA` is what refuses
+  it at the route.
+- **A conflict.** `AlreadyExistsError` reports a fact about a row that already
+  exists, not about the shape of what was sent — and which of a form's own
+  inputs produced the taken value is a thing only the form knows, since an
+  agent's handle is derived from a name nobody typed as a handle. That is
+  claimed by `submitFailure`'s `identifiedBy` on the client, so a 409 carries the
+  taken value and no field.
+
 ## Key Files
 
 - Entry point: `app/main.py`
@@ -276,6 +360,7 @@ the two kinds of row together.
 - Dependencies: `app/api/deps.py`
 - Auth utilities: `app/core/security.py`
 - Exception handlers: `app/api/exception_handlers.py`
+- Field-level refusals: `app/core/field_errors.py`
 
 ## Authentication & Authorization
 
