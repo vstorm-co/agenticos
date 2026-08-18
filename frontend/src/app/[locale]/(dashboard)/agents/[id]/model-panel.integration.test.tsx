@@ -31,6 +31,8 @@ const MODEL_PROFILE = {
   secret_id: "s-1",
 };
 
+const refetchProfiles = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+
 const state = {
   permissions: [] as Permission[],
   profiles: [MODEL_PROFILE] as (typeof MODEL_PROFILE)[],
@@ -88,6 +90,7 @@ vi.mock("@/hooks", () => ({
   useModelProviders: () => ({
     profiles: state.profiles,
     profilesLoaded: state.profilesLoaded,
+    refetchProfiles,
     isLoading: false,
     deleteProfile: { mutate: vi.fn() },
     createProfile: { mutateAsync: vi.fn(), isPending: false },
@@ -202,16 +205,19 @@ describe("the Builder's model panel", () => {
     expect(screen.queryByText(/no model yet/)).toBeNull();
   });
 
-  it("stays quiet when the model profiles could not be read", async () => {
+  it("claims nothing about the organization when the model profiles could not be read", async () => {
     // The empty-page trap: a request that failed and an organization with no
     // model are the same empty list, and only one of them is a dead end. An
-    // organization with a dozen models must not be told it has none because
-    // `/providers/model-profiles` answered 502.
+    // organization with a dozen models must not be told it has none, that its
+    // agents cannot run, or that a permission is what stands in the way -
+    // because `/providers/model-profiles` answered 502. The panel says what is
+    // actually known, which is that the read did not land (#863).
     state.profiles = [];
     state.profilesLoaded = false;
     await mount();
 
-    expect(await screen.findByText(/organization has no models/)).toBeInTheDocument();
+    expect(await screen.findByText("Models could not be listed")).toBeInTheDocument();
+    expect(screen.queryByText(/organization has no models/)).toBeNull();
     expect(screen.queryByText(/no model yet/)).toBeNull();
   });
 

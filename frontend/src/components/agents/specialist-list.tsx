@@ -340,7 +340,7 @@ function SpecialistResources({
   onChange: (changes: Partial<SpecialistSpec>) => void;
 }) {
   const t = useTranslations("agents");
-  const { profiles } = useModelProviders();
+  const { profiles, profilesLoaded } = useModelProviders();
   const { kbs: collections } = useKnowledgeBases();
   const { skills, total: skillCount } = useSkills({ limit: 100 });
 
@@ -354,6 +354,7 @@ function SpecialistResources({
           <Label>{t("specialistModel")}</Label>
           <ModelProfilePicker
             profiles={profiles}
+            profilesLoaded={profilesLoaded}
             value={specialist.model_profile_id ?? null}
             disabled={disabled}
             onChange={(model_profile_id) => onChange({ model_profile_id })}

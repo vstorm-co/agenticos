@@ -93,6 +93,8 @@ export function useModelProviders() {
      * from an organization that has stored no model.
      */
     profilesLoaded: profiles.isSuccess,
+    /** Read the profiles again - what a panel that could not list them offers. */
+    refetchProfiles: invalidate,
     isLoading: catalog.isLoading || profiles.isLoading,
     isFetching: catalog.isFetching || profiles.isFetching,
     createProfile,

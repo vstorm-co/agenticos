@@ -5,6 +5,7 @@ import { Check, ChevronRight, KeyRound, Trash2 } from "lucide-react";
 
 import { AddModel } from "@/components/agents/add-model";
 import { ProviderIcon } from "@/components/vault/provider-icon";
+import { ErrorState } from "@/components/states";
 import { Badge, Button } from "@/components/ui";
 import { useModelProviders } from "@/hooks";
 import { modelDetail } from "@/lib/model-profiles";
@@ -14,6 +15,17 @@ import { useTranslations } from "next-intl";
 
 interface ModelProfilePickerProps {
   profiles: ModelProfile[];
+  /**
+   * Whether `profiles` is the organization's answer rather than a placeholder.
+   *
+   * The list arrives as `?? []`, so a refused or failed read of
+   * `/providers/model-profiles` reaches this panel as the same empty array an
+   * organization with no model does - and this panel turns an empty array into a
+   * sentence. Its callers hold the query and this is `profilesLoaded` from
+   * `useModelProviders`, the same distinction the Builder's own notice is gated
+   * on (#846).
+   */
+  profilesLoaded: boolean;
   /** `null` means "whatever the organization's default is". */
   value: string | null;
   onChange: (profileId: string | null) => void;
@@ -69,6 +81,13 @@ interface ModelProfilePickerProps {
  * model can be deleted from here. They were the same flag until the
  * knowledge-base dialog needed one without the other.
  *
+ * An empty list is two different facts and the panel says which. "This
+ * organization has no models yet. An agent cannot run without one" is a claim
+ * about an organization, and it used to be made from an array that a 502 on
+ * `/providers/model-profiles` degrades to `[]` - so a builder with a dozen
+ * models was told it had none and that its agents could not run, because one
+ * request failed (#863). `profilesLoaded` is what separates them.
+ *
  * The current-model line renders in both shapes. It says whether the profile
  * that will actually be used has a key, which is the fact that decides whether
  * the run - or the ingestion - can happen at all, and it is not something one
@@ -76,6 +95,7 @@ interface ModelProfilePickerProps {
  */
 export function ModelProfilePicker({
   profiles,
+  profilesLoaded,
   value,
   onChange,
   allowAdd = false,
@@ -83,7 +103,8 @@ export function ModelProfilePicker({
   disabled,
 }: ModelProfilePickerProps) {
   const t = useTranslations("agents");
-  const { deleteProfile } = useModelProviders();
+  const tc = useTranslations("common");
+  const { deleteProfile, refetchProfiles } = useModelProviders();
   const selected = profiles.find((profile) => profile.id === value);
   // Generated rather than a constant: the Builder and a dialog can both have a
   // picker mounted, and two elements answering to one id makes the second group's
@@ -140,10 +161,22 @@ export function ModelProfilePicker({
     </div>
   ) : null;
 
+  // An empty list nobody has answered for. Every sentence below about what this
+  // organization has is a claim the list cannot support until then, so the panel
+  // says what is actually known - the read did not land - and offers it again.
+  const unanswered = (
+    <ErrorState
+      title={t("modelsCouldNotBeListed")}
+      description={t("modelsCouldNotBeListedHint")}
+      cta={{ label: tc("retry"), onClick: () => void refetchProfiles() }}
+    />
+  );
+
   // A panel that only chooses between what exists is the list, and the line
   // saying which of them is in use.
   if (!allowAdd) {
     if (profiles.length === 0) {
+      if (!profilesLoaded) return unanswered;
       // No models, and this caller cannot add one — the Builder hid the form
       // above. Say why and where the fix is, rather than leave them to discover it
       // at publish: an agent with no model is refused there, and the only ways to
@@ -198,6 +231,12 @@ export function ModelProfilePicker({
           onChange(profile.id);
         }}
       />
+
+      {/* The disclosure is absent either because the organization has saved no
+          model or because nobody knows - and a control that quietly is not there
+          reads as the product not having it. The form above is unaffected: adding
+          a model is a write, and this failed at listing what exists. */}
+      {profiles.length === 0 && !profilesLoaded && unanswered}
 
       {profiles.length > 0 && (
         <details className="group">

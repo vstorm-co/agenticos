@@ -840,6 +840,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   // so it is the one panel that also takes one away.
                   allowRemove={can(Perm.connectionsManage)}
                   profiles={profiles}
+                  profilesLoaded={profilesLoaded}
                   value={spec.model_profile_id ?? null}
                   onChange={(model_profile_id) => update({ model_profile_id })}
                   disabled={!canEdit}
