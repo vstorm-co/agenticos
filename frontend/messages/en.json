@@ -1974,6 +1974,11 @@
     "reasoning": "Reasoning",
     "remove": "Remove",
     "removeNamed": "Remove {name}?",
+    "rerank": "Reranking",
+    "rerankHelp": "A reranker reorders search results by relevance. Off unless a key is set.",
+    "rerankKey": "Reranking key",
+    "rerankKeyName": "Cohere (reranking)",
+    "rerankOff": "Off",
     "reusableIntegrations": "Reusable integrations",
     "save": "Save",
     "saving": "Saving…",
@@ -2657,6 +2662,10 @@
       "flow-kb-field-embeddings": {
         "title": "Embeddings (leave the default)",
         "body": "How documents are indexed for search. It's frozen at creation, but the deployment default is right for almost everyone — expand it only if you know you need a different model. Choose Next."
+      },
+      "flow-kb-field-rerank": {
+        "title": "Reranking (optional)",
+        "body": "A reranker reorders search results by relevance. It stays off unless you pick a key to pay for it, and the default off is right for almost everyone. Choose Next."
       },
       "flow-kb-field-create": {
         "title": "Create it",

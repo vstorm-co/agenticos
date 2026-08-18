@@ -147,6 +147,13 @@ export interface CreateKnowledgeBaseInput {
   embedding_model?: string;
   /** The org vault key that pays for embeddings; omit for the deployment key. */
   embedding_secret_id?: string;
+  /**
+   * The reranker applied to search results. Reranking is on only when this and
+   * `rerank_secret_id` are both sent; omit both to leave it off.
+   */
+  rerank_model?: string;
+  /** The org vault key that pays for reranking - a `cohere`-purpose api_key. */
+  rerank_secret_id?: string;
 }
 
 /** A single document tracked in a KB's underlying vector collection. */

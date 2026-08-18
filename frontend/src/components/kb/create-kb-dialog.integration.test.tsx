@@ -301,9 +301,10 @@ describe("the two keys this dialog can store", () => {
 
     expect(screen.queryByRole("button", { name: "Add a key: OpenRouter (embeddings)" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Add a key: OpenAI" })).toBeNull();
-    // Two sentences, not silence, one per offer: the inline form says it here,
-    // and the model panel says it in its own words because a disabled Add model
-    // with nothing beside it explains nothing.
-    expect(screen.getAllByText(/permission you do not hold/)).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "Add a key: Cohere (reranking)" })).toBeNull();
+    // A sentence, not silence, one per offer: the embedding and rerank inline
+    // forms say it here, and the model panel says it in its own words because a
+    // disabled Add model with nothing beside it explains nothing.
+    expect(screen.getAllByText(/permission you do not hold/)).toHaveLength(3);
   });
 });

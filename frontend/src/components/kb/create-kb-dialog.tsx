@@ -48,6 +48,15 @@ const EMBEDDING_KEY_PURPOSE = "openrouter";
 /** Sentinel for "the deployment's key" - a Select item may not be empty. */
 const DEPLOYMENT_KEY = "__deployment__";
 
+/** The purpose a key must carry to pay for reranking - mirrors the backend. */
+const RERANK_KEY_PURPOSE = "cohere";
+
+/** Sentinel for "no reranking" - a Select item may not be empty. */
+const RERANK_OFF = "__off__";
+
+/** The one reranker there is. No endpoint lists them, so it is a constant. */
+const DEFAULT_RERANK_MODEL = "rerank-v3.5";
+
 interface EmbeddingModels {
   default: string;
   models: { model: string; dim: number }[];
@@ -68,11 +77,13 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   const [ingestion, setIngestion] = useState<IngestionConfig>(DEFAULT_INGESTION_CONFIG);
   const [embeddingModel, setEmbeddingModel] = useState<string | null>(null);
   const [embeddingSecretId, setEmbeddingSecretId] = useState<string | null>(null);
+  const [rerankSecretId, setRerankSecretId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
   const { createKB } = useKnowledgeBases();
   const { secrets } = useSecrets();
   const embeddingKeys = secrets.filter((secret) => secret.purpose === EMBEDDING_KEY_PURPOSE);
+  const rerankKeys = secrets.filter((secret) => secret.purpose === RERANK_KEY_PURPOSE);
   // Which models this build can index with. A build property, not tenant data,
   // so it never goes stale while a dialog is open.
   //
@@ -105,6 +116,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
     setIngestion(DEFAULT_INGESTION_CONFIG);
     setEmbeddingModel(null);
     setEmbeddingSecretId(null);
+    setRerankSecretId(null);
     setErrors({});
   };
 
@@ -125,6 +137,12 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
         input.embedding_model = embeddingModel;
       }
       if (embeddingSecretId) input.embedding_secret_id = embeddingSecretId;
+      // Both or neither: the backend turns reranking on only when the model and
+      // the key arrive together, so a key with no model would be a silent no-op.
+      if (rerankSecretId) {
+        input.rerank_secret_id = rerankSecretId;
+        input.rerank_model = DEFAULT_RERANK_MODEL;
+      }
       const kb = await createKB(input);
       reset();
       onOpenChange(false);
@@ -328,6 +346,48 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                     purpose={EMBEDDING_KEY_PURPOSE}
                     suggestedName={t("embeddingsKeyName")}
                     onCreated={setEmbeddingSecretId}
+                  />
+                </div>
+              </div>
+            </details>
+
+            <details className="group border-border rounded-lg border" data-tour="kb-dialog-rerank">
+              <summary className="text-foreground flex cursor-pointer list-none items-center gap-1.5 p-3 text-sm">
+                <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
+                {t("rerank")}
+                <span className="text-muted-foreground ml-auto text-xs">
+                  {rerankSecretId ? DEFAULT_RERANK_MODEL : t("rerankOff")}
+                </span>
+              </summary>
+              <div className="space-y-4 border-t p-4">
+                <p className="text-muted-foreground text-xs">{t("rerankHelp")}</p>
+                <div className="space-y-1.5">
+                  <Label htmlFor="kb-rerank-key">{t("rerankKey")}</Label>
+                  <Select
+                    value={rerankSecretId ?? RERANK_OFF}
+                    onValueChange={(v) => setRerankSecretId(v === RERANK_OFF ? null : v)}
+                  >
+                    <SelectTrigger id="kb-rerank-key">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={RERANK_OFF}>{t("rerankOff")}</SelectItem>
+                      {rerankKeys.map((secret) => (
+                        <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
+                          <ProviderRow
+                            provider={RERANK_KEY_PURPOSE}
+                            name={secret.name}
+                            hint={secret.hint}
+                          />
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <InlineSecret
+                    kind="api_key"
+                    purpose={RERANK_KEY_PURPOSE}
+                    suggestedName={t("rerankKeyName")}
+                    onCreated={setRerankSecretId}
                   />
                 </div>
               </div>
