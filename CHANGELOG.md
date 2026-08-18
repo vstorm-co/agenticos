@@ -17,6 +17,40 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.188] - 2026-08-18
+
+An approval nobody was ever asked for is refused rather than assumed.
+
+**Upgrading:** an agent published with `approval: required` on a search or fetch
+its model provider executes **stops running** on this version, with the same
+sentence publish would have shown. It is deliberate. Such an agent has been
+running without the approval its author asked for — `ApprovalGate` wraps tool
+execution, and a provider-executed tool never reaches it — so keeping it running
+means keeping the bypass. Set the capability's method to a locally-run one, or
+drop the approval requirement, and republish.
+
+### Fixed
+
+- **A provider-executed search cannot be sold as approval-gated.** `web_fetch`
+  got this refusal in 0.0.182; `web_research` had the same shape and the same
+  silence, with the queue staying empty while the agent searched unapproved.
+  (#857)
+- **The refusal now also covers agents published before it existed.** Execution
+  loads a frozen `AgentVersion` and hands its spec straight to `build_agent`
+  without going near `validate_spec`, so a publish-time check alone left every
+  already-published agent — including every `web_fetch` one from 0.0.182 —
+  bypassing indefinitely. `build_agent` refuses before it assembles anything,
+  the way it already refuses an ungranted scope or a deleted secret. (#857)
+
+### Changed
+
+- **A capability declares which of its tools the provider may execute**, through
+  `provider_executed` on its registration, and the publish and assembly checks
+  read that. The knowledge was a table of capability internals in the service
+  layer, which had already gone stale once — and that staleness is exactly what
+  #857 was. Tests now assert the declarations name tools and config fields that
+  exist, because both halves are silent when wrong: they refuse nothing. (#857)
+
 ## [0.0.187] - 2026-08-18
 
 The product teaches itself: a first-run tour, and guided flows that build the
