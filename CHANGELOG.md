@@ -17,6 +17,35 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.195] - 2026-08-18
+
+A refusal that names a field marks that field.
+
+### Fixed
+
+- **A per-field refusal highlights the input it names.** The forms mark an
+  offending field from `details.fields`, and four refusals answered with
+  `details.errors` instead — so an ingestion override, a spec import and a
+  capability setting each showed a sentence and left every box unmarked. That is
+  the half that says *which one to fix*, and it was missing from three fixes
+  released earlier today. One module builds the shape now, reading `loc` and
+  `msg` only, so what is left out is decided once rather than remembered at four
+  call sites. (#882)
+- **A capability setting refused at publish reaches the Builder.** Saving a draft
+  does not validate a config schema, so publish is the only place a mistyped
+  setting is refused — and the accumulator kept the message and dropped the
+  path. Paths are qualified by capability, and by specialist where one applies,
+  because two capabilities can hold a setting of the same name and the Builder
+  draws a form per specialist over the same set. `SchemaForm` has accepted an
+  `errors` prop since it was written; nothing had ever passed it. (#882)
+- **A field genuinely called `body` is no longer mistaken for FastAPI's
+  transport marker.** The two are told apart by which entry point is asking, not
+  by the string: a spec whose top-level key is `body` now says so. (#882)
+- **The same field refused two ways answers with the same path.** An upload's
+  ingestion override and a collection's own settings both name
+  `ingestion_config.chunk_size`, where only the cross-field rule used to line
+  up. (#882)
+
 ## [0.0.194] - 2026-08-18
 
 MCP OAuth connects to the address it checked, at every hop.
