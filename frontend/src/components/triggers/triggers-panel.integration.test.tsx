@@ -329,6 +329,88 @@ describe("TriggersPanel", () => {
     });
   });
 
+  it("edits the message through the shared markdown source/preview editor", async () => {
+    const user = userEvent.setup();
+    serve([]);
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "New schedule" }));
+    const dialog = await screen.findByRole("dialog");
+    // The message field is the same MarkdownEditor the agent's instructions use,
+    // so it carries that field's source/preview toggle rather than a bare box.
+    expect(within(dialog).getByRole("button", { name: "Source" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Preview" })).toBeInTheDocument();
+  });
+
+  it("marks each event source in the Fires on picker", async () => {
+    const user = userEvent.setup();
+    serve([]);
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "New trigger" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("combobox", { name: "Fires on" }));
+    // Every source carries a mark beside its name, not four bare words.
+    const option = await screen.findByRole("option", { name: "A LinkedIn post" });
+    expect(option.querySelector("svg")).not.toBeNull();
+  });
+
+  it("leads an event trigger row with its source mark", async () => {
+    serve([trigger({ trigger_type: "event", event_source: "github", interval_seconds: null })]);
+    await mount({ canManage: false });
+
+    const summary = await screen.findByText("On new GitHub issues");
+    const row = summary.closest("div.rounded-md");
+    expect(row?.querySelector("svg")).not.toBeNull();
+  });
+
+  it("fires an every-N-days preset as a continuous interval, not a day-of-month step", async () => {
+    const user = userEvent.setup();
+    serve([]);
+    vi.mocked(apiClient.post).mockResolvedValue(trigger());
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "New schedule" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Message"), "Every couple of days");
+    await user.click(within(dialog).getByRole("tab", { name: "At a set time" }));
+    await user.click(within(dialog).getByRole("combobox", { name: "Repeat" }));
+    await user.click(await screen.findByRole("option", { name: "Every few days" }));
+    await user.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    // `*/2` on day-of-month resets at each month boundary; an interval repeats
+    // continuously, which is what "every 2 days" promises. Two days, in seconds.
+    expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
+      prompt: "Every couple of days",
+      name: null,
+      trigger_type: "schedule",
+      environment_id: null,
+      schedule_kind: "interval",
+      interval_seconds: 172800,
+    });
+  });
+
+  it("does not resend a non-round cadence when only the message is edited", async () => {
+    const user = userEvent.setup();
+    // 90s is not a whole number of minutes, so seeding the editor rounds it for
+    // display; a prompt-only edit must still not send that rounded value back and
+    // reset the schedule's clock.
+    serve([trigger({ interval_seconds: 90 })]);
+    vi.mocked(apiClient.patch).mockResolvedValue(trigger({ interval_seconds: 90 }));
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    const message = within(dialog).getByLabelText("Message");
+    await user.clear(message);
+    await user.type(message, "Reworded");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`, {
+      prompt: "Reworded",
+    });
+  });
+
   it("creates a cron schedule from the set-time tab", async () => {
     const user = userEvent.setup();
     serve([]);

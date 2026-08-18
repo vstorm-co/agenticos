@@ -14,6 +14,7 @@ import {
   FormField,
   Input,
   Label,
+  MarkdownEditor,
   Select,
   SelectContent,
   SelectItem,
@@ -22,8 +23,8 @@ import {
   Tabs,
   TabsList,
   TabsTrigger,
-  Textarea,
 } from "@/components/ui";
+import { EventSourceMark } from "@/components/triggers/event-source-mark";
 import { useAgentEnvironments, useAgents } from "@/hooks";
 import { useTriggers } from "@/hooks/use-triggers";
 import { useAgentSelectionStore } from "@/stores";
@@ -39,7 +40,6 @@ import type {
 
 /** Sentinel for "the default environment" - a Select item may not be empty. */
 const DEFAULT_ENV = "__default__";
-const MAX_PROMPT = 10000;
 /** The backend's floor for a webhook secret; the generator comfortably clears it. */
 const MIN_SECRET = 16;
 
@@ -253,6 +253,11 @@ export function TriggerFormDialog({
   const [cronWeekdays, setCronWeekdays] = useState<number[]>(cronSeed?.weekdays ?? [1]);
   const [cronDayOfMonth, setCronDayOfMonth] = useState(cronSeed?.dayOfMonth ?? "1");
   const [cronAdvanced, setCronAdvanced] = useState(trigger?.cron_expression ?? "0 9 * * *");
+  // Whether the user actually touched a cadence control. Seeding the editor from
+  // a non-round interval rounds it (`intervalToUnit`), so comparing a rebuilt
+  // cadence to the original would report a change on a prompt-only edit and reset
+  // the clock; the cadence is sent only when this says it was really edited.
+  const [cadenceTouched, setCadenceTouched] = useState(false);
 
   const [eventSource, setEventSource] = useState<EventSource>(trigger?.event_source ?? "github");
   const [secret, setSecret] = useState("");
@@ -268,15 +273,14 @@ export function TriggerFormDialog({
 
   const pending = create.isPending || update.isPending;
 
-  /** The cron expression the builder's current choices compile to. */
+  /** The cron expression the builder's current choices compile to. `everyNDays`
+   *  is deliberately absent: it is fired as an interval, not cron (see
+   *  `scheduleCadence`), because no cron day-of-month form repeats continuously. */
   function composeCron(): string {
     if (cronFreq === "advanced") return cronAdvanced.trim();
     const [rawHour, rawMinute] = cronTime.split(":");
     const hour = clampInt(rawHour ?? "", 0, 23, 9);
     const minute = clampInt(rawMinute ?? "", 0, 59, 0);
-    if (cronFreq === "everyNDays") {
-      return `${minute} ${hour} */${clampInt(cronEveryDays, 1, 31, 1)} * *`;
-    }
     if (cronFreq === "weekly") {
       const days = cronWeekdays.length ? [...cronWeekdays].sort((a, b) => a - b).join(",") : "1";
       return `${minute} ${hour} * * ${days}`;
@@ -293,17 +297,36 @@ export function TriggerFormDialog({
     );
   }
 
+  /** Wraps a cadence setter so editing any cadence control flips `cadenceTouched`. */
+  function onCadence<T>(setter: (value: T) => void): (value: T) => void {
+    return (value) => {
+      setCadenceTouched(true);
+      setter(value);
+    };
+  }
+
   /** The cadence fields a schedule sends - on create, and on a cadence edit. */
   function scheduleCadence(): Pick<
     TriggerCreate,
     "schedule_kind" | "interval_seconds" | "cron_expression"
   > {
-    return scheduleKind === "cron"
-      ? { schedule_kind: "cron", cron_expression: composeCron() }
-      : {
+    if (scheduleKind === "cron") {
+      // "Every N days" is an interval, not cron: `*/N` on day-of-month steps
+      // within a month and resets at each boundary, so an every-2-days schedule
+      // could fire Jan 31 then Feb 1. An interval repeats continuously, which is
+      // what the preset promises.
+      if (cronFreq === "everyNDays") {
+        return {
           schedule_kind: "interval",
-          interval_seconds: unitToSeconds(intervalUnit, Math.max(1, Number(intervalCount) || 1)),
+          interval_seconds: unitToSeconds("days", clampInt(cronEveryDays, 1, 31, 1)),
         };
+      }
+      return { schedule_kind: "cron", cron_expression: composeCron() };
+    }
+    return {
+      schedule_kind: "interval",
+      interval_seconds: unitToSeconds(intervalUnit, Math.max(1, Number(intervalCount) || 1)),
+    };
   }
 
   function buildCreate(): TriggerCreate {
@@ -336,18 +359,13 @@ export function TriggerFormDialog({
         if (nextName !== (trigger.name ?? null)) patch.name = nextName;
         const env = environmentId === DEFAULT_ENV ? null : environmentId;
         if (env !== (trigger.environment_id ?? null)) patch.environment_id = env;
-        // A schedule's cadence, only when it actually changed - the server
-        // recomputes next_fire_at on any cadence field it receives, so echoing an
-        // unchanged cadence on a prompt-only edit would needlessly reset the clock.
-        if (trigger.trigger_type === "schedule") {
-          const cadence = scheduleCadence();
-          const changed =
-            cadence.schedule_kind !== trigger.schedule_kind ||
-            (cadence.schedule_kind === "interval" &&
-              cadence.interval_seconds !== trigger.interval_seconds) ||
-            (cadence.schedule_kind === "cron" &&
-              cadence.cron_expression !== trigger.cron_expression);
-          if (changed) Object.assign(patch, cadence);
+        // A schedule's cadence, only when a cadence control was actually touched.
+        // The server recomputes next_fire_at on any cadence field it receives, so
+        // echoing the cadence on a prompt-only edit would needlessly reset the
+        // clock - and a non-round interval, rounded when it seeded the editor,
+        // would even be sent back changed.
+        if (trigger.trigger_type === "schedule" && cadenceTouched) {
+          Object.assign(patch, scheduleCadence());
         }
         await update.mutateAsync({ triggerId: trigger.id, patch });
         onOpenChange(false);
@@ -442,16 +460,21 @@ export function TriggerFormDialog({
             </FormField>
           )}
 
-          <FormField label={t("prompt")} htmlFor="trigger-prompt" description={t("promptHelp")}>
-            <Textarea
+          <div className="space-y-1.5">
+            <Label htmlFor="trigger-prompt">{t("prompt")}</Label>
+            <MarkdownEditor
               id="trigger-prompt"
+              label={t("prompt")}
               value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
+              onChange={setPrompt}
               placeholder={t("promptPlaceholder")}
-              maxLength={MAX_PROMPT}
-              rows={3}
+              rows={6}
+              describedBy="trigger-prompt-desc"
             />
-          </FormField>
+            <p id="trigger-prompt-desc" className="text-muted-foreground text-xs leading-relaxed">
+              {t("promptHelp")}
+            </p>
+          </div>
 
           <FormField label={t("nameLabel")} htmlFor="trigger-name" description={t("nameHelp")}>
             <Input
@@ -466,24 +489,24 @@ export function TriggerFormDialog({
           {type === "schedule" && (
             <ScheduleFields
               scheduleKind={scheduleKind}
-              onScheduleKind={setScheduleKind}
+              onScheduleKind={onCadence(setScheduleKind)}
               intervalCount={intervalCount}
-              onIntervalCount={setIntervalCount}
+              onIntervalCount={onCadence(setIntervalCount)}
               intervalUnit={intervalUnit}
-              onIntervalUnit={setIntervalUnit}
+              onIntervalUnit={onCadence(setIntervalUnit)}
               cron={{
                 freq: cronFreq,
-                onFreq: setCronFreq,
+                onFreq: onCadence(setCronFreq),
                 time: cronTime,
-                onTime: setCronTime,
+                onTime: onCadence(setCronTime),
                 everyDays: cronEveryDays,
-                onEveryDays: setCronEveryDays,
+                onEveryDays: onCadence(setCronEveryDays),
                 weekdays: cronWeekdays,
-                onToggleWeekday: toggleWeekday,
+                onToggleWeekday: onCadence(toggleWeekday),
                 dayOfMonth: cronDayOfMonth,
-                onDayOfMonth: setCronDayOfMonth,
+                onDayOfMonth: onCadence(setCronDayOfMonth),
                 advanced: cronAdvanced,
-                onAdvanced: setCronAdvanced,
+                onAdvanced: onCadence(setCronAdvanced),
               }}
             />
           )}
@@ -731,15 +754,19 @@ function CronBuilder({
             </FormField>
           )}
 
-          <FormField label={t("timeLabel")} htmlFor="cron-time">
-            <Input
-              id="cron-time"
-              type="time"
-              value={time}
-              onChange={(event) => onTime(event.target.value)}
-              className="w-36"
-            />
-          </FormField>
+          {/* An "every N days" cadence is a continuous interval with no time of
+              day to anchor to, so it offers no time field. */}
+          {freq !== "everyNDays" && (
+            <FormField label={t("timeLabel")} htmlFor="cron-time">
+              <Input
+                id="cron-time"
+                type="time"
+                value={time}
+                onChange={(event) => onTime(event.target.value)}
+                className="w-36"
+              />
+            </FormField>
+          )}
 
           <p className="text-muted-foreground text-sm">
             <CronSummary
@@ -772,7 +799,7 @@ function CronSummary({
 }) {
   const t = useTranslations("triggers");
   if (freq === "everyNDays") {
-    return <>{t("summaryEveryNDays", { count: clampInt(everyDays, 1, 31, 1), time })}</>;
+    return <>{t("summaryEveryNDays", { count: clampInt(everyDays, 1, 31, 1) })}</>;
   }
   if (freq === "weekly") {
     const chosen = weekdays.length ? weekdays : [1];
@@ -806,6 +833,15 @@ const SOURCE_FILTERS: Partial<Record<EventSource, readonly [string, string]>> = 
   email: ["subjectContains", "senderContains"],
   linkedin: ["authorContains", "textContains"],
 };
+
+/** The sources the picker offers, each with its static label key so the catalog
+ *  check can see them; the mark beside each comes from `EventSourceMark`. */
+const EVENT_SOURCES: readonly { value: EventSource; labelKey: string }[] = [
+  { value: "github", labelKey: "sourceGithub" },
+  { value: "email", labelKey: "sourceEmail" },
+  { value: "linkedin", labelKey: "sourceLinkedin" },
+  { value: "webhook", labelKey: "sourceWebhook" },
+];
 
 /** Where each source's delivery comes from - a static key per source so the
  *  catalog check can see them, rather than one interpolated key it cannot. */
@@ -843,13 +879,18 @@ function EventFields({
       >
         <Select value={eventSource} onValueChange={(next) => onEventSource(next as EventSource)}>
           <SelectTrigger id="trigger-source">
+            {/* Radix mirrors the chosen item's content, mark and all, into the value. */}
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="github">{t("sourceGithub")}</SelectItem>
-            <SelectItem value="email">{t("sourceEmail")}</SelectItem>
-            <SelectItem value="linkedin">{t("sourceLinkedin")}</SelectItem>
-            <SelectItem value="webhook">{t("sourceWebhook")}</SelectItem>
+            {EVENT_SOURCES.map((source) => (
+              <SelectItem key={source.value} value={source.value}>
+                <span className="flex items-center gap-2">
+                  <EventSourceMark source={source.value} className="h-4 w-4 shrink-0" />
+                  {t(source.labelKey)}
+                </span>
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </FormField>

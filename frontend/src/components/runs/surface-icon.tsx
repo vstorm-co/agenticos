@@ -1,4 +1,4 @@
-import { Code2, Globe, MessageSquare } from "lucide-react";
+import { CalendarClock, Code2, Globe, MessageSquare } from "lucide-react";
 import { FaSlack } from "react-icons/fa6";
 import { SiMattermost, SiTelegram } from "react-icons/si";
 
@@ -16,7 +16,8 @@ import type { Translate } from "@/lib/agent-step-captions";
  * (`surface-picker.tsx`): a run from the widget wears the Website widget
  * card's globe, an API run the Public API card's code tag - so what somebody
  * published and what ran through it carry the same face. The dashboard chat,
- * which no card publishes, is the chat bubble.
+ * which no card publishes, is the chat bubble. A scheduled run - the one member
+ * a trigger stamps rather than a person reaching the agent - wears the clock.
  */
 const MARKS = {
   web: MessageSquare,
@@ -25,6 +26,7 @@ const MARKS = {
   slack: FaSlack,
   telegram: SiTelegram,
   mattermost: SiMattermost,
+  schedule: CalendarClock,
 } as const;
 
 /** The display name beside the mark - "Mattermost", not the enum's lowercase. */
@@ -35,6 +37,7 @@ const LABEL_KEYS = {
   slack: "surfaceSlack",
   telegram: "surfaceTelegram",
   mattermost: "surfaceMattermost",
+  schedule: "surfaceSchedule",
 } as const;
 
 /**

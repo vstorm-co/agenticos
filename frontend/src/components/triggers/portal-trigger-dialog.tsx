@@ -15,6 +15,7 @@ import {
   FormField,
   Input,
   Label,
+  MarkdownEditor,
   Select,
   SelectContent,
   SelectItem,
@@ -24,7 +25,6 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger,
-  Textarea,
 } from "@/components/ui";
 import { useAgentEnvironments, useAgents } from "@/hooks";
 import { usePortalTargets } from "@/hooks/use-portal-targets";
@@ -37,7 +37,6 @@ import type { TriggerCreate, TriggerCreated } from "@/types/triggers";
 
 /** Sentinel for "the default environment" - a Select item may not be empty. */
 const DEFAULT_ENV = "__default__";
-const MAX_PROMPT = 10000;
 
 /** The field label for a portal's target kind, as a fixed key. */
 function targetLabelKey(targetKind: string | null): string {
@@ -254,16 +253,21 @@ export function PortalTriggerDialog({
               </Select>
             </FormField>
 
-            <FormField label={tt("prompt")} htmlFor="portal-prompt" description={tt("promptHelp")}>
-              <Textarea
+            <div className="space-y-1.5">
+              <Label htmlFor="portal-prompt">{tt("prompt")}</Label>
+              <MarkdownEditor
                 id="portal-prompt"
+                label={tt("prompt")}
                 value={prompt}
-                onChange={(event) => setPrompt(event.target.value)}
+                onChange={setPrompt}
                 placeholder={tt("promptPlaceholder")}
-                maxLength={MAX_PROMPT}
-                rows={3}
+                rows={6}
+                describedBy="portal-prompt-desc"
               />
-            </FormField>
+              <p id="portal-prompt-desc" className="text-muted-foreground text-xs leading-relaxed">
+                {tt("promptHelp")}
+              </p>
+            </div>
 
             <FormField label={tt("nameLabel")} htmlFor="portal-name" description={tt("nameHelp")}>
               <Input

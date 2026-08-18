@@ -12,7 +12,7 @@ import { SurfaceIcon } from "./surface-icon";
  * degrade to the plain name, not borrow somebody else's logo.
  */
 describe("SurfaceIcon", () => {
-  it.each(["web", "embed", "api", "slack", "telegram", "mattermost"])(
+  it.each(["web", "embed", "api", "slack", "telegram", "mattermost", "schedule"])(
     "draws a decorative mark for %s",
     (surface) => {
       const { container } = render(<SurfaceIcon surface={surface} />);
@@ -23,7 +23,7 @@ describe("SurfaceIcon", () => {
   );
 
   it("renders nothing for a surface it has no mark for", () => {
-    const { container } = render(<SurfaceIcon surface="schedule" />);
+    const { container } = render(<SurfaceIcon surface="playground" />);
     expect(container).toBeEmptyDOMElement();
   });
 });

@@ -1,6 +1,6 @@
 import type { SVGProps } from "react";
 import type { IconType } from "react-icons";
-import { FaAws, FaMicrosoft, FaSlack } from "react-icons/fa6";
+import { FaAws, FaLinkedin, FaMicrosoft, FaSlack } from "react-icons/fa6";
 import {
   SiAirtable,
   SiAsana,
@@ -67,7 +67,8 @@ import {
 } from "react-icons/si";
 
 /** Brand glyphs sourced from a maintained icon set (Simple Icons via
- *  react-icons, Font Awesome for Microsoft) - never hand-authored SVG paths,
+ *  react-icons, Font Awesome for Microsoft and LinkedIn, which Simple Icons
+ *  no longer ships) - never hand-authored SVG paths,
  *  so the marks stay correct and recognizable. Monochrome (currentColor) so
  *  they inherit the surrounding text color. */
 
@@ -82,6 +83,7 @@ export type BrandName =
   | "microsoft"
   | "stripe"
   | "linear"
+  | "linkedin"
   | "vercel"
   | "figma"
   | "loom"
@@ -151,6 +153,7 @@ const ICONS: Record<BrandName, IconType> = {
   microsoft: FaMicrosoft,
   stripe: SiStripe,
   linear: SiLinear,
+  linkedin: FaLinkedin,
   vercel: SiVercel,
   figma: SiFigma,
   loom: SiLoom,

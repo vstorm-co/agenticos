@@ -27,12 +27,45 @@ function wrapper({ children }: { children: ReactNode }) {
 describe("useOrgTriggers", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("reads the organization-wide endpoint", async () => {
+  it("reads the organization-wide endpoint, paginated", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
     const { result } = renderHook(() => useOrgTriggers(), { wrapper });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(apiClient.get).toHaveBeenCalledWith("/triggers");
+    expect(apiClient.get).toHaveBeenCalledWith("/triggers?skip=0&limit=100");
+  });
+
+  it("gathers every page when the total exceeds one page", async () => {
+    // A page is capped at the server limit; without walking it, the tail - the
+    // older rows a listing with no next-page control can never reach - is lost.
+    const page = (start: number, count: number, total: number) => ({
+      items: Array.from({ length: count }, (_, index) => ({ id: `t${start + index}` })),
+      total,
+    });
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce(page(0, 100, 150))
+      .mockResolvedValueOnce(page(100, 50, 150));
+    const { result } = renderHook(() => useOrgTriggers(), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.triggers).toHaveLength(150);
+    expect(result.current.total).toBe(150);
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/triggers?skip=0&limit=100");
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, "/triggers?skip=100&limit=100");
+  });
+
+  it("stops after a full page that already reaches the total", async () => {
+    // A page filled to the limit that has collected every row must not ask for a
+    // second, empty page - the total, not only a short page, ends the walk.
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: Array.from({ length: 100 }, (_, index) => ({ id: `t${index}` })),
+      total: 100,
+    });
+    const { result } = renderHook(() => useOrgTriggers(), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.triggers).toHaveLength(100);
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
   });
 
   it("does not fetch while it is disabled", () => {

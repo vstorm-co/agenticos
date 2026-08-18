@@ -53,7 +53,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
 
 function serve(triggers: Trigger[]) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
-    if (path === "/triggers") return { items: triggers, total: triggers.length };
+    if (path.startsWith("/triggers")) return { items: triggers, total: triggers.length };
     if (path.startsWith("/agents/")) return { items: [], total: 0 };
     throw new Error(`unexpected GET ${path}`);
   });
