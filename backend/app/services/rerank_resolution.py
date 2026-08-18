@@ -33,9 +33,10 @@ from app.repositories import knowledge_base_repo, organization_secret_repo
 
 logger = logging.getLogger(__name__)
 
-# Secret purposes that can pay for reranking. Cohere is the only reranker today;
-# the tuple exists so a second provider is one entry, not a hunt, and so the
-# `cohere` entry in the services catalog has a consumer that names it.
+# Secret purposes that can pay for reranking. Cohere is the only reranker today,
+# and `cohere` is already a model-provider purpose - one Cohere API key reranks
+# and chats alike - so this reuses it rather than minting a second entry that
+# would collide with it. The tuple exists so a second provider is one entry.
 RERANK_KEY_PURPOSES = ("cohere",)
 
 
