@@ -42,9 +42,11 @@ async def test_one_failed_dispatch_does_not_drop_the_rest_of_the_batch() -> None
     `claimed_at`, the same timestamp the claim stamped on every marker, so the fire it
     starts clears only the marker its claim set."""
     triggers = [MagicMock(id=uuid.uuid4()) for _ in range(3)]
-    attempted: list[tuple[str, datetime]] = []
+    attempted: list[tuple[str, datetime | None]] = []
 
-    async def dispatch(trigger_id: str, claimed_at: datetime) -> None:
+    async def dispatch(
+        trigger_id: str, *, event_context: str | None = None, claimed_at: datetime | None = None
+    ) -> None:
         attempted.append((trigger_id, claimed_at))
         if trigger_id == str(triggers[1].id):
             raise RuntimeError("prefect api 503")
@@ -53,7 +55,7 @@ async def test_one_failed_dispatch_does_not_drop_the_rest_of_the_batch() -> None
     service.claim_and_advance = AsyncMock(return_value=triggers)
     with (
         patch.object(trigger_tasks, "get_worker_db_context", _fake_db_context),
-        patch.object(trigger_tasks, "_dispatch", side_effect=dispatch),
+        patch.object(trigger_tasks, "dispatch_trigger_fire", side_effect=dispatch),
         patch("app.services.agent_trigger.AgentTriggerService", return_value=service),
     ):
         await trigger_tasks.check_agent_triggers_flow.fn()  # must not raise
@@ -76,14 +78,16 @@ async def test_a_failed_dispatch_does_not_release_the_marker() -> None:
         opened.append(db)
         yield db
 
-    async def dispatch(trigger_id: str, claimed_at: datetime) -> None:
+    async def dispatch(
+        trigger_id: str, *, event_context: str | None = None, claimed_at: datetime | None = None
+    ) -> None:
         raise RuntimeError("prefect api 503")
 
     service = MagicMock()
     service.claim_and_advance = AsyncMock(return_value=[trigger])
     with (
         patch.object(trigger_tasks, "get_worker_db_context", tracking_context),
-        patch.object(trigger_tasks, "_dispatch", side_effect=dispatch),
+        patch.object(trigger_tasks, "dispatch_trigger_fire", side_effect=dispatch),
         patch("app.services.agent_trigger.AgentTriggerService", return_value=service),
     ):
         await trigger_tasks.check_agent_triggers_flow.fn()  # must not raise

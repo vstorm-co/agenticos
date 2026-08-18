@@ -25,6 +25,7 @@ from app.agents.capabilities import (
     CapabilityBinding,
     CapabilityBuildContext,
     CapabilityToolInfo,
+    ProviderExecuted,
     ToolOverride,
     all_capabilities,
     build,
@@ -38,7 +39,7 @@ from app.agents.capabilities.clock import Clock
 from app.agents.capabilities.code_execution import CodeExecution, CodeExecutionConfig
 from app.agents.capabilities.knowledge import Knowledge, KnowledgeConfig
 from app.agents.capabilities.skills import SAFE_SKILL_TOOLS, Skills
-from app.agents.capabilities.web_research import WebResearch
+from app.agents.capabilities.web_research import WebResearch, WebResearchConfig
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
     DynamicSpecialists,
@@ -440,6 +441,51 @@ class TestEffectiveTools:
         )
 
 
+class TestProviderExecutedDeclarations:
+    """What a capability says the model provider runs on its own side.
+
+    Publish validation refuses approval on those tools, because `ApprovalGate`
+    wraps tool execution and there is no call of ours to hold (#857). Both halves
+    of a declaration are silent when they are wrong: a tool id nobody registers
+    refuses nothing, and a config field the schema does not have reads as `None`,
+    matches no value, and refuses nothing either - which is the same silent
+    ungated tool the declaration exists to prevent.
+    """
+
+    @staticmethod
+    def _declaring():
+        return [d for d in all_capabilities() if d.provider_executed is not None]
+
+    def test_every_declaration_names_tools_and_a_config_field_that_exist(self):
+        for definition in self._declaring():
+            declared = definition.provider_executed
+            assert declared is not None
+            assert frozenset(declared.tools) <= definition.tool_ids, definition.id
+            assert definition.config_schema is not None, definition.id
+            assert declared.field in definition.config_schema.model_fields, definition.id
+
+    def test_the_capabilities_that_declare_one_are_the_ones_with_a_native_method(self):
+        assert sorted(d.id for d in self._declaring()) == ["web_fetch", "web_research"]
+
+    @staticmethod
+    def _declared(capability_id: str) -> ProviderExecuted:
+        declared = get(capability_id).provider_executed
+        assert declared is not None
+        return declared
+
+    def test_a_binding_with_no_config_at_all_hands_nothing_over(self):
+        """A capability with no config schema validates to `None`, not to a default."""
+        assert self._declared("web_fetch").tools_for(None) == frozenset()
+
+    def test_a_method_this_deployment_runs_hands_nothing_over(self):
+        declared = self._declared("web_research")
+        assert declared.tools_for(WebResearchConfig(method="duckduckgo")) == frozenset()
+
+    def test_a_native_method_hands_the_declared_tools_over(self):
+        declared = self._declared("web_research")
+        assert declared.tools_for(WebResearchConfig(method="native")) == frozenset({"web_search"})
+
+
 class TestRegistration:
     def test_builtin_capabilities_are_registered(self):
         assert {
@@ -479,11 +525,28 @@ class TestConfigValidation:
         assert config.default_top_k == 8
 
     def test_invalid_config_reports_field_errors(self):
-        """The Builder needs field-level errors to point at the right input."""
+        """The Builder needs field-level errors to point at the right input.
+
+        In `details["fields"]`, which is the only shape `fieldProblems` reads:
+        under `errors` this refusal marked nothing, and the capability it is
+        about was the only part of it a form could act on (#882).
+        """
         with pytest.raises(BadRequestError) as exc:
             get("knowledge").validate_config({"default_top_k": 999})
         assert exc.value.details is not None
-        assert exc.value.details["errors"]
+        assert exc.value.details["capability_id"] == "knowledge"
+        assert [problem["field"] for problem in exc.value.details["fields"]] == [
+            "config.default_top_k"
+        ]
+
+    def test_a_rule_about_two_settings_is_attributed_to_the_config_itself(self):
+        """A `model_validator(mode="after")` names no field, so the refusal
+        falls back to the blob it was about - `browser_use` refusing a
+        `cdp_url` in the mode that launches its own browser is about the pair."""
+        with pytest.raises(BadRequestError) as exc:
+            get("browser_use").validate_config({"mode": "playwright", "cdp_url": "ws://host:9222"})
+        assert exc.value.details is not None
+        assert [problem["field"] for problem in exc.value.details["fields"]] == ["config"]
 
     def test_the_rejected_value_is_not_echoed_back(self):
         """`details` reaches the caller verbatim, so it carries the diagnosis
@@ -491,7 +554,7 @@ class TestConfigValidation:
         with pytest.raises(BadRequestError) as exc:
             get("knowledge").validate_config({"default_top_k": 999})
         assert exc.value.details is not None
-        assert all("input" not in error for error in exc.value.details["errors"])
+        assert all(set(problem) == {"field", "message"} for problem in exc.value.details["fields"])
 
     def test_capabilities_without_a_schema_accept_nothing(self):
         assert get("charts").validate_config({}) is None

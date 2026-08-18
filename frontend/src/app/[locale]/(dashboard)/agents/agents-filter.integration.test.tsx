@@ -26,7 +26,11 @@ vi.mock("@/lib/api-client", async () => {
   };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  // The header's "?" reads the path to decide whether this page has tips.
+  usePathname: () => "/agents",
+}));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => true }) }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -47,6 +51,7 @@ function agent(name: string, status: Agent["status"]): Agent {
     owner_user_id: "u1",
     current_version_id: status === "published" ? "v1" : null,
     has_avatar: false,
+    can_run: false,
     created_at: "2026-07-01T00:00:00Z",
   };
 }

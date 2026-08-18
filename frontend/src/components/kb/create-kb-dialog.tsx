@@ -162,16 +162,18 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
           <div className="-mx-1 min-h-0 flex-1 scrollbar-thin space-y-4 overflow-y-auto px-1">
-            <FormField label={t("name")} htmlFor="kb-name" error={errors.name}>
-              <Input
-                id="kb-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t("productDocs")}
-                maxLength={MAX_NAME}
-                autoFocus
-              />
-            </FormField>
+            <div data-tour="kb-dialog-name">
+              <FormField label={t("name")} htmlFor="kb-name" error={errors.name}>
+                <Input
+                  id="kb-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={t("productDocs")}
+                  maxLength={MAX_NAME}
+                  autoFocus
+                />
+              </FormField>
+            </div>
             <FormField
               label={t("descriptionOptional")}
               htmlFor="kb-description"
@@ -186,7 +188,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                 rows={2}
               />
             </FormField>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5" data-tour="kb-dialog-scope">
               <Label htmlFor="kb-scope">{t("scope")}</Label>
               <Select value={scope} onValueChange={(v) => setScope(v as KBScope)}>
                 <SelectTrigger id="kb-scope">
@@ -204,7 +206,10 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
               creation (the vector column is created at the model's width), so
               it matters - but the default is right for almost everyone.
             */}
-            <details className="group border-border rounded-lg border">
+            <details
+              className="group border-border rounded-lg border"
+              data-tour="kb-dialog-embeddings"
+            >
               <summary className="text-foreground flex cursor-pointer list-none items-center gap-1.5 p-3 text-sm">
                 <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
                 {t("embeddings")}
@@ -359,7 +364,11 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {t("cancel")}
             </Button>
-            <Button type="submit" disabled={!canSubmit || isSubmitting}>
+            <Button
+              type="submit"
+              disabled={!canSubmit || isSubmitting}
+              data-tour="kb-dialog-create"
+            >
               {isSubmitting ? t("creating") : t("create")}
             </Button>
           </DialogFooter>

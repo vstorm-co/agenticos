@@ -14,6 +14,7 @@ from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Sco
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.services.access import (
     COLLECTION,
+    accessible_ids,
     publisher_context,
     resolve_access,
     visible_resource_ids,
@@ -238,6 +239,136 @@ class TestListingHelper:
                 MagicMock(), ctx, resource_type=COLLECTION, perm=Perm.COLLECTIONS_VIEW
             )
         assert result == shared
+
+
+class TestAccessibleIdsBatch:
+    """`accessible_ids` - the batch counterpart of `resolve_access`.
+
+    It answers "which of these rows may the caller touch with this permission"
+    for a whole set, applying the same `max(role scope, grant)` rule per row but
+    reading every grant in one lookup rather than one per row. The refusals it
+    inherits are the ones that matter: a cross-tenant row is never returned, and
+    a context with no subject is answered empty before any query.
+    """
+
+    def _shared(self, ids):
+        return patch(
+            "app.services.access.resource_grant_repo.list_shared_ids",
+            new=AsyncMock(return_value=ids),
+        )
+
+    @pytest.mark.anyio
+    async def test_a_role_that_reaches_everything_admits_all_without_a_grant_query(self):
+        ctx = _ctx(OrgRoleName.OWNER)
+        rows = [_resource(ctx.organization_id, owner_user_id=uuid.uuid4()) for _ in range(3)]
+
+        with patch(
+            "app.services.access.resource_grant_repo.list_shared_ids", new=AsyncMock()
+        ) as lookup:
+            result = await accessible_ids(
+                MagicMock(), ctx, rows, Perm.COLLECTIONS_VIEW, resource_type=COLLECTION
+            )
+
+        assert result == {row.id for row in rows}
+        lookup.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_narrow_scope_admits_the_owned_and_org_visible_rows(self):
+        """`shared` reaches mine plus what is org-wide, without any grant."""
+        ctx = _ctx(OrgRoleName.MEMBER)
+        mine = _resource(ctx.organization_id, owner_user_id=ctx.user_id)
+        org_wide = _resource(
+            ctx.organization_id, owner_user_id=uuid.uuid4(), visibility=Visibility.ORG
+        )
+        private_other = _resource(ctx.organization_id, owner_user_id=uuid.uuid4())
+
+        with self._shared([]):
+            result = await accessible_ids(
+                MagicMock(),
+                ctx,
+                [mine, org_wide, private_other],
+                Perm.COLLECTIONS_VIEW,
+                resource_type=COLLECTION,
+            )
+
+        assert result == {mine.id, org_wide.id}
+
+    @pytest.mark.anyio
+    async def test_an_own_scope_admits_only_the_callers_rows(self):
+        ctx = _ctx(OrgRoleName.MEMBER)
+        mine = _resource(ctx.organization_id, owner_user_id=ctx.user_id)
+        theirs = _resource(ctx.organization_id, owner_user_id=uuid.uuid4())
+
+        with self._shared([]):
+            result = await accessible_ids(
+                MagicMock(),
+                ctx,
+                [mine, theirs],
+                Perm.COLLECTIONS_EDIT,
+                resource_type=COLLECTION,
+            )
+
+        assert result == {mine.id}
+
+    @pytest.mark.anyio
+    async def test_a_grant_admits_a_row_the_role_scope_does_not_reach(self):
+        """The point of the batch: a shared row rides in beside the scope ones."""
+        ctx = _ctx(OrgRoleName.VIEWER)
+        granted = _resource(ctx.organization_id, owner_user_id=uuid.uuid4())
+        ungranted = _resource(ctx.organization_id, owner_user_id=uuid.uuid4())
+
+        with self._shared([granted.id]):
+            result = await accessible_ids(
+                MagicMock(),
+                ctx,
+                [granted, ungranted],
+                Perm.COLLECTIONS_VIEW,
+                resource_type=COLLECTION,
+            )
+
+        assert result == {granted.id}
+
+    @pytest.mark.anyio
+    async def test_another_organizations_row_is_never_admitted(self):
+        ctx = _ctx(OrgRoleName.OWNER)
+        foreign = _resource(uuid.uuid4(), owner_user_id=ctx.user_id)
+
+        with self._shared([foreign.id]):
+            result = await accessible_ids(
+                MagicMock(), ctx, [foreign], Perm.COLLECTIONS_VIEW, resource_type=COLLECTION
+            )
+
+        assert result == set()
+
+    @pytest.mark.anyio
+    async def test_a_subjectless_context_admits_nothing_without_a_query(self):
+        ctx = AuthContext(user_id=None, organization_id=uuid.uuid4(), role=OrgRoleName.OWNER.value)
+        row = _resource(ctx.organization_id, owner_user_id=None, visibility=Visibility.ORG)
+
+        with patch(
+            "app.services.access.resource_grant_repo.list_shared_ids", new=AsyncMock()
+        ) as lookup:
+            result = await accessible_ids(
+                MagicMock(), ctx, [row], Perm.COLLECTIONS_VIEW, resource_type=COLLECTION
+            )
+
+        assert result == set()
+        lookup.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_an_empty_input_is_answered_empty_without_a_query(self):
+        """Nothing to admit, and no reason to pay for a grant lookup proving it."""
+        ctx = _ctx(OrgRoleName.MEMBER)
+
+        with patch(
+            "app.services.access.resource_grant_repo.list_shared_ids", new=AsyncMock()
+        ) as lookup:
+            result = await accessible_ids(
+                MagicMock(), ctx, [], Perm.COLLECTIONS_VIEW, resource_type=COLLECTION
+            )
+
+        assert result == set()
+        lookup.assert_not_awaited()
 
 
 class TestARunWithNobodyBehindIt:

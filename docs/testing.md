@@ -48,7 +48,7 @@ no-op, and nothing had ever exercised the claim.
 Once, before pushing — `make check` runs all of it, in this order:
 
 ```bash
-make lint               # ruff, ruff format, ty, vulture, eslint, prettier, tsc, the guards
+make lint               # ruff, ruff format, ty, vulture, deptry, eslint, prettier, tsc, the guards
 make test               # the suite plus the 100% gate on the platform layer
 make db-check           # alembic check — a model change with no migration fails here
 make test-frontend-cov  # the frontend suite plus its own gate
@@ -157,6 +157,37 @@ bun run test:e2e --headed                                  # ...with a browser t
 **`bun run test:run` measures no coverage**, so it cannot answer whether the
 `test-frontend` job will pass: the gate wants 100% lines, statements and functions and
 97.5% branches over `src/{app/api,lib,stores,hooks}` and most of `src/components`.
+
+### Two deadlines, both sized for a loaded machine
+
+A render-heavy spec is not slow because it is badly written; it is slow because
+several thousand of them share ten cores with whatever else is running.
+`testTimeout` in `vitest.config.ts` is **15s** and Testing Library's
+`asyncUtilTimeout` in `vitest.setup.ts` is **5s**, both raised from defaults that
+only hold on an idle machine.
+
+The numbers come from running the whole suite four ways
+([#862](https://github.com/vstorm-co/agenticos/issues/862)):
+
+| Slowest single test | Bare | Under `--coverage` |
+|---|---|---|
+| Ten idle cores | 1.7s | 2.9s |
+| 32 busy loops beside it | 5.4s | 6.1s |
+
+Under that load the old 5s default failed three tests a run — a *different* three
+each time, because which files share a worker is decided on timing, and in the bare
+run as well as the instrumented one. Instrumentation costs about 1.6x of total test
+time on a quiet machine and is the smaller multiplier; scheduling latency is the
+rest. That is why neither deadline is conditional on `--coverage`: a limit the fast
+loop and the gate disagree about is one that cannot reproduce the gate.
+
+`asyncUtilTimeout` stays well under `testTimeout` on purpose. An element that is
+never coming should lose the race, so the failure says *"Unable to find an element
+with the text: …"* and names it, rather than *"Test timed out"* and names nothing.
+
+Neither number is a licence for a spec that does more work than its assertions need:
+mounting forty table rows twice to prove a count cost about two seconds in
+`rag/[id]/counts.integration.test.tsx` before its fixture was cut to three.
 
 Playwright starts what the suite needs: the frontend, and an OpenAI-compatible
 **stub model server** (`frontend/e2e/stub-model-server.ts`) on `127.0.0.1:4010`

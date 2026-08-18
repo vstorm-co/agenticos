@@ -13,7 +13,7 @@ configure into sending email unattended.
 | File | What |
 |---|---|
 | `app/agents/approval.py` | `ApprovalRequest`, the three decisions, `refusal()` |
-| `_policy.py` | `tool_needs_approval()` - the rule, and the only copy of it |
+| `_policy.py` | `tool_needs_approval()` - the rule, and the only copy of it; and what the rule cannot enforce |
 | `_capability.py` | `ApprovalGate` - the only thing that enforces them |
 
 The decision types sit a layer *below* this capability, not inside it. They are
@@ -76,6 +76,25 @@ produces no error at run time, just a tool that quietly never asks.
 Tools no capability owns (an MCP server's) are left alone even if one shares a
 name with a gated tool: their approval belongs to the connection, and answering
 for them here would be a guess.
+
+### A tool this deployment does not execute cannot be gated
+
+The gate wraps *execution*, so a tool the model provider runs on its own side -
+a native fetch, a native search - never reaches it, and a binding that gates one
+gets a gate that never fires with nothing reporting it. A capability declares
+those configurations as `provider_executed` in its `register(...)`, and
+`_policy.py` answers with both halves: `ungateable_tool_problems` is what publish
+validation appends to its list, and `refuse_ungateable_approvals` is what
+`build_agent` calls before assembling anything.
+
+The second exists because the first is not enough. A frozen `AgentVersion` is
+never re-validated - a run reads its stored spec and builds it - so a publish-only
+refusal closes the defect for new agents and leaves every agent already published
+with it fetching and searching unapproved (#871). Refused at assembly rather than
+downgraded: swapping the binding to a method this deployment runs would answer a
+question that belongs to the author, and dropping the gate is the bug. The price
+is that such an agent stops running on upgrade, and it is the right price - the
+approval its operator asked for was never being asked for.
 
 ### Declared tools, and the drift that threatens them
 

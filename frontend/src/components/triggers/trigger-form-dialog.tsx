@@ -14,6 +14,7 @@ import {
   FormField,
   Input,
   Label,
+  MarkdownEditor,
   Select,
   SelectContent,
   SelectItem,
@@ -22,24 +23,32 @@ import {
   Tabs,
   TabsList,
   TabsTrigger,
-  Textarea,
 } from "@/components/ui";
+import { EventSourceMark } from "@/components/triggers/event-source-mark";
+import { ScheduleTemplatePicker } from "@/components/triggers/schedule-template-picker";
+import { SecretRevealField } from "@/components/triggers/secret-reveal-field";
 import { useAgentEnvironments, useAgents } from "@/hooks";
 import { useTriggers } from "@/hooks/use-triggers";
 import { useAgentSelectionStore } from "@/stores";
-import { type IntervalUnit, intervalToUnit, unitToSeconds } from "@/lib/trigger-format";
+import {
+  eventFilterConfig,
+  type IntervalUnit,
+  intervalToUnit,
+  unitToSeconds,
+} from "@/lib/trigger-format";
 import type {
   EventSource,
   ScheduleKind,
   Trigger,
   TriggerCreate,
+  TriggerCreated,
   TriggerType,
   TriggerUpdate,
 } from "@/types/triggers";
+import type { ScheduleTemplate } from "@/types/schedule-templates";
 
 /** Sentinel for "the default environment" - a Select item may not be empty. */
 const DEFAULT_ENV = "__default__";
-const MAX_PROMPT = 10000;
 /** The backend's floor for a webhook secret; the generator comfortably clears it. */
 const MIN_SECRET = 16;
 
@@ -48,31 +57,6 @@ function generateSecret(): string {
   const bytes = new Uint8Array(24);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-/** The two config keys each source's filters map onto, or none. */
-const FILTER_KEYS: Partial<Record<EventSource, readonly [string, string]>> = {
-  email: ["subject_contains", "sender_contains"],
-  linkedin: ["author_contains", "text_contains"],
-};
-
-/**
- * The `event_config` a source's two substring filters produce, or undefined when
- * the source takes none (GitHub fires on its default action, the generic webhook
- * on any signed delivery). Only non-empty filters are sent, so the server stores
- * exactly what narrows the trigger and nothing that means "match anything".
- */
-function eventFilterConfig(
-  source: EventSource,
-  filterA: string,
-  filterB: string,
-): Record<string, string> | undefined {
-  const keys = FILTER_KEYS[source];
-  if (!keys) return undefined;
-  const config: Record<string, string> = {};
-  if (filterA) config[keys[0]] = filterA;
-  if (filterB) config[keys[1]] = filterB;
-  return Object.keys(config).length ? config : undefined;
 }
 
 /**
@@ -212,7 +196,10 @@ export function TriggerFormDialog({
   // already know whom they are scheduling this costs nothing new.
   const { agents } = useAgents();
   const defaultAgentId = useAgentSelectionStore((state) => state.defaultAgentId);
-  const runnable = agents.filter((agent) => agent.status === "published");
+  // Only agents the caller may actually run: a published version to run, and a
+  // `can_run` that resolves the caller's role scope plus any run grant. Seeding
+  // the default from this set never points at an agent the create would refuse.
+  const runnable = agents.filter((agent) => agent.status === "published" && agent.can_run);
   const [pickedAgentId, setPickedAgentId] = useState("");
   // The user's starred default, or the first published agent, the moment the
   // list arrives - the same resolution the chat's own picker makes.
@@ -220,11 +207,16 @@ export function TriggerFormDialog({
     pickedAgentId || (runnable.find((agent) => agent.id === defaultAgentId) ?? runnable[0])?.id;
   const effectiveAgentId = agentId ?? seededAgentId ?? null;
 
-  const { create, update, runNow } = useTriggers(effectiveAgentId);
+  const { create, update, runNow, rotateSecret } = useTriggers(effectiveAgentId);
   const { environments } = useAgentEnvironments(effectiveAgentId);
   const namedEnvironments = environments.filter((environment) => !environment.is_default);
 
-  const [type, setType] = useState<TriggerType>(trigger?.trigger_type ?? initialType);
+  // A trigger's kind is fixed once the dialog opens: editing keeps the row's type,
+  // and creating takes whichever kind the entry point chose - "New schedule" opens
+  // this on a schedule, the portal grid's "Advanced: custom webhook" hatch on an
+  // event. There is no in-dialog switch, because event triggers are created from
+  // the portal grid by default, not this raw form.
+  const type = trigger?.trigger_type ?? initialType;
   const [prompt, setPrompt] = useState(trigger?.prompt ?? "");
   const [name, setName] = useState(trigger?.name ?? "");
   const [environmentId, setEnvironmentId] = useState(trigger?.environment_id ?? DEFAULT_ENV);
@@ -253,6 +245,15 @@ export function TriggerFormDialog({
   const [cronWeekdays, setCronWeekdays] = useState<number[]>(cronSeed?.weekdays ?? [1]);
   const [cronDayOfMonth, setCronDayOfMonth] = useState(cronSeed?.dayOfMonth ?? "1");
   const [cronAdvanced, setCronAdvanced] = useState(trigger?.cron_expression ?? "0 9 * * *");
+  // Whether the user actually touched a cadence control. Seeding the editor from
+  // a non-round interval rounds it (`intervalToUnit`), so comparing a rebuilt
+  // cadence to the original would report a change on a prompt-only edit and reset
+  // the clock; the cadence is sent only when this says it was really edited.
+  const [cadenceTouched, setCadenceTouched] = useState(false);
+  // Which seeded template a new schedule started from, or null for "from
+  // scratch" (the default). Only tracked to light the picked card; the fields it
+  // prefilled stay freely editable below.
+  const [templateKey, setTemplateKey] = useState<string | null>(null);
 
   const [eventSource, setEventSource] = useState<EventSource>(trigger?.event_source ?? "github");
   const [secret, setSecret] = useState("");
@@ -268,15 +269,14 @@ export function TriggerFormDialog({
 
   const pending = create.isPending || update.isPending;
 
-  /** The cron expression the builder's current choices compile to. */
+  /** The cron expression the builder's current choices compile to. `everyNDays`
+   *  is deliberately absent: it is fired as an interval, not cron (see
+   *  `scheduleCadence`), because no cron day-of-month form repeats continuously. */
   function composeCron(): string {
     if (cronFreq === "advanced") return cronAdvanced.trim();
     const [rawHour, rawMinute] = cronTime.split(":");
     const hour = clampInt(rawHour ?? "", 0, 23, 9);
     const minute = clampInt(rawMinute ?? "", 0, 59, 0);
-    if (cronFreq === "everyNDays") {
-      return `${minute} ${hour} */${clampInt(cronEveryDays, 1, 31, 1)} * *`;
-    }
     if (cronFreq === "weekly") {
       const days = cronWeekdays.length ? [...cronWeekdays].sort((a, b) => a - b).join(",") : "1";
       return `${minute} ${hour} * * ${days}`;
@@ -293,17 +293,65 @@ export function TriggerFormDialog({
     );
   }
 
+  /** Prefill the prompt and cadence from a seeded template, still editable below. */
+  function applyTemplate(template: ScheduleTemplate) {
+    setTemplateKey(template.key);
+    setPrompt(template.prompt);
+    setCadenceTouched(true);
+    const cadence = template.suggested_cadence;
+    if (cadence.schedule_kind === "cron" && cadence.cron_expression) {
+      const parsed = parseCron(cadence.cron_expression);
+      setScheduleKind("cron");
+      setCronFreq(parsed.freq);
+      setCronTime(parsed.time);
+      setCronEveryDays(parsed.everyDays);
+      setCronWeekdays(parsed.weekdays);
+      setCronDayOfMonth(parsed.dayOfMonth);
+      setCronAdvanced(cadence.cron_expression);
+    } else if (cadence.interval_seconds) {
+      const { unit, count } = intervalToUnit(cadence.interval_seconds);
+      setScheduleKind("interval");
+      setIntervalUnit(unit);
+      setIntervalCount(String(count));
+    }
+  }
+
+  /** Clear the template prefill and return to a blank message. */
+  function scratchTemplate() {
+    setTemplateKey(null);
+    setPrompt("");
+  }
+
+  /** Wraps a cadence setter so editing any cadence control flips `cadenceTouched`. */
+  function onCadence<T>(setter: (value: T) => void): (value: T) => void {
+    return (value) => {
+      setCadenceTouched(true);
+      setter(value);
+    };
+  }
+
   /** The cadence fields a schedule sends - on create, and on a cadence edit. */
   function scheduleCadence(): Pick<
     TriggerCreate,
     "schedule_kind" | "interval_seconds" | "cron_expression"
   > {
-    return scheduleKind === "cron"
-      ? { schedule_kind: "cron", cron_expression: composeCron() }
-      : {
+    if (scheduleKind === "cron") {
+      // "Every N days" is an interval, not cron: `*/N` on day-of-month steps
+      // within a month and resets at each boundary, so an every-2-days schedule
+      // could fire Jan 31 then Feb 1. An interval repeats continuously, which is
+      // what the preset promises.
+      if (cronFreq === "everyNDays") {
+        return {
           schedule_kind: "interval",
-          interval_seconds: unitToSeconds(intervalUnit, Math.max(1, Number(intervalCount) || 1)),
+          interval_seconds: unitToSeconds("days", clampInt(cronEveryDays, 1, 31, 1)),
         };
+      }
+      return { schedule_kind: "cron", cron_expression: composeCron() };
+    }
+    return {
+      schedule_kind: "interval",
+      interval_seconds: unitToSeconds(intervalUnit, Math.max(1, Number(intervalCount) || 1)),
+    };
   }
 
   function buildCreate(): TriggerCreate {
@@ -320,7 +368,7 @@ export function TriggerFormDialog({
       ...base,
       event_source: eventSource,
       event_secret: secret,
-      event_config: eventFilterConfig(eventSource, filterA.trim(), filterB.trim()),
+      event_config: eventFilterConfig(eventSource, [filterA, filterB]),
     };
   }
 
@@ -336,18 +384,13 @@ export function TriggerFormDialog({
         if (nextName !== (trigger.name ?? null)) patch.name = nextName;
         const env = environmentId === DEFAULT_ENV ? null : environmentId;
         if (env !== (trigger.environment_id ?? null)) patch.environment_id = env;
-        // A schedule's cadence, only when it actually changed - the server
-        // recomputes next_fire_at on any cadence field it receives, so echoing an
-        // unchanged cadence on a prompt-only edit would needlessly reset the clock.
-        if (trigger.trigger_type === "schedule") {
-          const cadence = scheduleCadence();
-          const changed =
-            cadence.schedule_kind !== trigger.schedule_kind ||
-            (cadence.schedule_kind === "interval" &&
-              cadence.interval_seconds !== trigger.interval_seconds) ||
-            (cadence.schedule_kind === "cron" &&
-              cadence.cron_expression !== trigger.cron_expression);
-          if (changed) Object.assign(patch, cadence);
+        // A schedule's cadence, only when a cadence control was actually touched.
+        // The server recomputes next_fire_at on any cadence field it receives, so
+        // echoing the cadence on a prompt-only edit would needlessly reset the
+        // clock - and a non-round interval, rounded when it seeded the editor,
+        // would even be sent back changed.
+        if (trigger.trigger_type === "schedule" && cadenceTouched) {
+          Object.assign(patch, scheduleCadence());
         }
         await update.mutateAsync({ triggerId: trigger.id, patch });
         onOpenChange(false);
@@ -397,7 +440,7 @@ export function TriggerFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {editing ? t("editTitle") : type === "event" ? t("newEvent") : t("newSchedule")}
@@ -408,15 +451,6 @@ export function TriggerFormDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {!editing && (
-            <Tabs value={type} onValueChange={(next) => setType(next as TriggerType)}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="schedule">{t("typeSchedule")}</TabsTrigger>
-                <TabsTrigger value="event">{t("typeEvent")}</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          )}
-
           {agentId === null && !editing && (
             <FormField label={t("agent")} htmlFor="trigger-agent">
               <Select
@@ -442,17 +476,6 @@ export function TriggerFormDialog({
             </FormField>
           )}
 
-          <FormField label={t("prompt")} htmlFor="trigger-prompt" description={t("promptHelp")}>
-            <Textarea
-              id="trigger-prompt"
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              placeholder={t("promptPlaceholder")}
-              maxLength={MAX_PROMPT}
-              rows={3}
-            />
-          </FormField>
-
           <FormField label={t("nameLabel")} htmlFor="trigger-name" description={t("nameHelp")}>
             <Input
               id="trigger-name"
@@ -463,27 +486,51 @@ export function TriggerFormDialog({
             />
           </FormField>
 
+          {!editing && type === "schedule" && (
+            <ScheduleTemplatePicker
+              selectedKey={templateKey}
+              onPick={applyTemplate}
+              onScratch={scratchTemplate}
+            />
+          )}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="trigger-prompt">{t("prompt")}</Label>
+            <MarkdownEditor
+              id="trigger-prompt"
+              label={t("prompt")}
+              value={prompt}
+              onChange={setPrompt}
+              placeholder={t("promptPlaceholder")}
+              rows={6}
+              describedBy="trigger-prompt-desc"
+            />
+            <p id="trigger-prompt-desc" className="text-muted-foreground text-xs leading-relaxed">
+              {t("promptHelp")}
+            </p>
+          </div>
+
           {type === "schedule" && (
             <ScheduleFields
               scheduleKind={scheduleKind}
-              onScheduleKind={setScheduleKind}
+              onScheduleKind={onCadence(setScheduleKind)}
               intervalCount={intervalCount}
-              onIntervalCount={setIntervalCount}
+              onIntervalCount={onCadence(setIntervalCount)}
               intervalUnit={intervalUnit}
-              onIntervalUnit={setIntervalUnit}
+              onIntervalUnit={onCadence(setIntervalUnit)}
               cron={{
                 freq: cronFreq,
-                onFreq: setCronFreq,
+                onFreq: onCadence(setCronFreq),
                 time: cronTime,
-                onTime: setCronTime,
+                onTime: onCadence(setCronTime),
                 everyDays: cronEveryDays,
-                onEveryDays: setCronEveryDays,
+                onEveryDays: onCadence(setCronEveryDays),
                 weekdays: cronWeekdays,
-                onToggleWeekday: toggleWeekday,
+                onToggleWeekday: onCadence(toggleWeekday),
                 dayOfMonth: cronDayOfMonth,
-                onDayOfMonth: setCronDayOfMonth,
+                onDayOfMonth: onCadence(setCronDayOfMonth),
                 advanced: cronAdvanced,
-                onAdvanced: setCronAdvanced,
+                onAdvanced: onCadence(setCronAdvanced),
               }}
             />
           )}
@@ -503,6 +550,10 @@ export function TriggerFormDialog({
 
           {editing && trigger.trigger_type === "event" && trigger.webhook_url && (
             <WebhookField url={trigger.webhook_url} />
+          )}
+
+          {editing && trigger.trigger_type === "event" && trigger.can_manage && (
+            <RotateSecretSection triggerId={trigger.id} rotate={rotateSecret} />
           )}
 
           {namedEnvironments.length > 0 && (
@@ -731,15 +782,19 @@ function CronBuilder({
             </FormField>
           )}
 
-          <FormField label={t("timeLabel")} htmlFor="cron-time">
-            <Input
-              id="cron-time"
-              type="time"
-              value={time}
-              onChange={(event) => onTime(event.target.value)}
-              className="w-36"
-            />
-          </FormField>
+          {/* An "every N days" cadence is a continuous interval with no time of
+              day to anchor to, so it offers no time field. */}
+          {freq !== "everyNDays" && (
+            <FormField label={t("timeLabel")} htmlFor="cron-time">
+              <Input
+                id="cron-time"
+                type="time"
+                value={time}
+                onChange={(event) => onTime(event.target.value)}
+                className="w-36"
+              />
+            </FormField>
+          )}
 
           <p className="text-muted-foreground text-sm">
             <CronSummary
@@ -772,7 +827,7 @@ function CronSummary({
 }) {
   const t = useTranslations("triggers");
   if (freq === "everyNDays") {
-    return <>{t("summaryEveryNDays", { count: clampInt(everyDays, 1, 31, 1), time })}</>;
+    return <>{t("summaryEveryNDays", { count: clampInt(everyDays, 1, 31, 1) })}</>;
   }
   if (freq === "weekly") {
     const chosen = weekdays.length ? weekdays : [1];
@@ -806,6 +861,15 @@ const SOURCE_FILTERS: Partial<Record<EventSource, readonly [string, string]>> = 
   email: ["subjectContains", "senderContains"],
   linkedin: ["authorContains", "textContains"],
 };
+
+/** The sources the picker offers, each with its static label key so the catalog
+ *  check can see them; the mark beside each comes from `EventSourceMark`. */
+const EVENT_SOURCES: readonly { value: EventSource; labelKey: string }[] = [
+  { value: "github", labelKey: "sourceGithub" },
+  { value: "email", labelKey: "sourceEmail" },
+  { value: "linkedin", labelKey: "sourceLinkedin" },
+  { value: "webhook", labelKey: "sourceWebhook" },
+];
 
 /** Where each source's delivery comes from - a static key per source so the
  *  catalog check can see them, rather than one interpolated key it cannot. */
@@ -843,16 +907,34 @@ function EventFields({
       >
         <Select value={eventSource} onValueChange={(next) => onEventSource(next as EventSource)}>
           <SelectTrigger id="trigger-source">
+            {/* Radix mirrors the chosen item's content, mark and all, into the value. */}
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="github">{t("sourceGithub")}</SelectItem>
-            <SelectItem value="email">{t("sourceEmail")}</SelectItem>
-            <SelectItem value="linkedin">{t("sourceLinkedin")}</SelectItem>
-            <SelectItem value="webhook">{t("sourceWebhook")}</SelectItem>
+            {EVENT_SOURCES.map((source) => (
+              <SelectItem key={source.value} value={source.value}>
+                <span className="flex items-center gap-2">
+                  <EventSourceMark source={source.value} className="h-4 w-4 shrink-0" />
+                  {t(source.labelKey)}
+                </span>
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </FormField>
+      {/* The delivery URL is shown before the secret, greyed and with the id it
+          only gets on save, so the reader sees what the secret is *for* rather
+          than being asked for a password to a mechanism nothing has named yet -
+          and in the order they will use them, URL to paste first. The full URL,
+          built on the API host from PUBLIC_BASE_URL, appears once the trigger
+          exists (`WebhookField`). */}
+      <div className="space-y-1">
+        <p className="text-sm font-medium">{t("webhookUrlPreview")}</p>
+        <p className="text-muted-foreground bg-muted/40 rounded-md border px-3 py-2 font-mono text-xs break-all">
+          {t("webhookUrlPreviewValue", { source: eventSource })}
+        </p>
+        <p className="text-muted-foreground text-xs">{t("webhookUrlPreviewHelp")}</p>
+      </div>
       <div className="space-y-1">
         <Label htmlFor="trigger-secret">{t("secret")}</Label>
         <div className="flex gap-2">
@@ -888,6 +970,63 @@ function EventFields({
             />
           </FormField>
         </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Rotating an event trigger's signing secret, on its edit surface.
+ *
+ * The secret authenticates each webhook delivery; rotating mints a new one and the
+ * old one stops working at once. What the caller must then do depends on delivery:
+ * a manual trigger returns the new secret to paste into the provider (shown once,
+ * never on a read), while an auto-webhook trigger is re-registered by the platform
+ * with nothing left to paste. Only offered on a row the caller may manage.
+ */
+function RotateSecretSection({
+  triggerId,
+  rotate,
+}: {
+  triggerId: string;
+  rotate: ReturnType<typeof useTriggers>["rotateSecret"];
+}) {
+  const t = useTranslations("triggers");
+  const [rotated, setRotated] = useState<TriggerCreated | null>(null);
+
+  async function onRotate() {
+    try {
+      setRotated(await rotate.mutateAsync(triggerId));
+    } catch {
+      // The hook toasts the server's refusal; leave the button to try again.
+    }
+  }
+
+  return (
+    <div className="space-y-2 rounded-md border p-3">
+      <div className="space-y-0.5">
+        <p className="text-sm font-medium">{t("rotateSecretTitle")}</p>
+        <p className="text-muted-foreground text-xs">{t("rotateSecretHelp")}</p>
+      </div>
+      {rotated === null ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={rotate.isPending}
+          onClick={onRotate}
+        >
+          {t("rotateSecret")}
+        </Button>
+      ) : rotated.reveal_secret ? (
+        <SecretRevealField
+          secret={rotated.reveal_secret}
+          label={t("secret")}
+          note={t("rotateRevealNote")}
+          id="rotated-secret"
+        />
+      ) : (
+        <p className="text-muted-foreground text-xs">{t("rotateAutoNote")}</p>
       )}
     </div>
   );

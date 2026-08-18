@@ -27,6 +27,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     name: null,
     created_by_user_id: null,
     is_active: true,
+    can_manage: true,
     environment_id: null,
     trigger_type: "schedule",
     schedule_kind: "interval",
@@ -139,6 +140,23 @@ describe("useTriggers", () => {
     expect(toast.success).toHaveBeenCalledWith("Running now");
   });
 
+  it("rotates the signing secret through the rotate endpoint and re-reads the list", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.post).mockResolvedValue({
+      ...trigger({ trigger_type: "event" }),
+      reveal_secret: "new-secret",
+    });
+    const result = await hook();
+
+    const rotated = await result.current.rotateSecret.mutateAsync("t1");
+
+    expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/triggers/t1/rotate-secret", {});
+    // The new secret rides back on the create-shaped response, shown once.
+    expect(rotated.reveal_secret).toBe("new-secret");
+    expect(toast.success).toHaveBeenCalledWith("Signing secret rotated");
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/triggers"));
+  });
+
   it("re-reads the list after a trigger is removed", async () => {
     const { toast } = await import("sonner");
     vi.mocked(apiClient.delete).mockResolvedValue(undefined);
@@ -170,8 +188,9 @@ describe("useTriggers", () => {
     ).rejects.toThrow(refused);
     await expect(result.current.runNow.mutateAsync("t1")).rejects.toThrow(refused);
     await expect(result.current.remove.mutateAsync("t1")).rejects.toThrow(refused);
+    await expect(result.current.rotateSecret.mutateAsync("t1")).rejects.toThrow(refused);
 
-    expect(toast.error).toHaveBeenCalledTimes(5);
+    expect(toast.error).toHaveBeenCalledTimes(6);
     expect(toast.error).toHaveBeenCalledWith("You cannot run this agent");
   });
 });

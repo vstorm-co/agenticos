@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { nanoid } from "nanoid";
 import { useTranslations } from "next-intl";
 import { useWebSocket } from "./use-websocket";
 import { usePermissions } from "./use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
+import { clientId } from "@/lib/ids";
 import { useChatStore, useAuthStore, useOrgStore } from "@/stores";
 import { useTenantId } from "@/hooks/use-organizations";
 import { useAgentSelectionStore } from "@/stores";
@@ -193,7 +193,7 @@ export function useChat(options: UseChatOptions = {}) {
       // previous turn is `complete`, `final_result`, `error`, a stop, or the next
       // question - see `doSend`.
       const createNewMessage = (content: string): string => {
-        const newMsgId = nanoid();
+        const newMsgId = clientId();
         const effectiveConversationId = activeConversationId ?? undefined;
         addMessage({
           id: newMsgId,
@@ -624,7 +624,7 @@ export function useChat(options: UseChatOptions = {}) {
         updateMessage(currentMessageIdRef.current, (msg) => ({ ...msg, isStreaming: false }));
         setCurrentMessageId(null);
       }
-      const userMessageId = nanoid();
+      const userMessageId = clientId();
       addMessage({
         id: userMessageId,
         role: "user",
@@ -665,7 +665,7 @@ export function useChat(options: UseChatOptions = {}) {
       // surfaced above the input as pending entries the user can cancel; the
       // drainer effect below pops the head as soon as the agent is idle.
       if (isProcessing || !isConnected) {
-        const id = nanoid();
+        const id = clientId();
         messageQueueRef.current.push({ id, content, fileIds, files });
         setQueuedMessages([...messageQueueRef.current]);
         return;
@@ -943,7 +943,7 @@ export function useChat(options: UseChatOptions = {}) {
         // order they happened in and the order a reloaded conversation replays
         // them in. Nothing is added for a continuation that neither called
         // anything nor said anything - a resume into a refusal has both empty.
-        const continuation = nanoid();
+        const continuation = clientId();
         if (steps.length > 0 || resumed.output) {
           // A finished assistant message, which is also what makes the file panel
           // re-read: `turns` counts those, and a resumed call is usually the one

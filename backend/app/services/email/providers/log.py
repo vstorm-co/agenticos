@@ -18,6 +18,16 @@ class LogProvider:
     rather than a fixed path. A predictable path under /tmp is a symlink target
     on a shared machine, and emails in development still contain real password
     reset links.
+
+    The file is named after the generated message id, never after the subject.
+    A subject is rendered copy with user-supplied names in it -
+    `[[inviter_name]] invited you to [[org_name]]` - so an organization called
+    `a/b` used to name a directory that does not exist, and the write failed
+    into an `except` that logs a warning while `send` still answered
+    `accepted=True`. Not a traversal: the timestamp prefix means the first path
+    component is never `..`. Just the one mail nobody could find, in the
+    provider whose entire job is to let a developer read it. The id is logged
+    beside the subject, so a reader still maps one to the other.
     """
 
     def __init__(self, write_to_disk: bool = False, output_dir: str | None = None) -> None:
@@ -42,9 +52,12 @@ class LogProvider:
             try:
                 self._output_dir.mkdir(parents=True, exist_ok=True)
                 ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-                fname = self._output_dir / f"{ts}_{message.subject[:40].replace(' ', '_')}.html"
+                fname = self._output_dir / f"{ts}_{msg_id}.html"
                 fname.write_text(message.html, encoding="utf-8")
-                logger.info("email_written_to_disk", extra={"path": str(fname)})
+                logger.info(
+                    "email_written_to_disk",
+                    extra={"path": str(fname), "subject": message.subject},
+                )
             except Exception as exc:
                 logger.warning("email_write_failed", extra={"error": str(exc)})
 

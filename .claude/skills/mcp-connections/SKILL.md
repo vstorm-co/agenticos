@@ -63,10 +63,32 @@ registration (RFC 7591) → consent URL (PKCE + state + RFC 8707 resource indica
 exchange → refresh. Split across two HTTP requests because this is a web app, not a
 CLI.
 
-**Every URL in that flow is SSRF-checked**, not just the one somebody typed —
-discovery means the remote server picks most of the addresses we call. Same policy as
-webhooks (`app/core/sanitize.validate_webhook_url`), run in a thread because it
-resolves DNS. Do not add a request path that skips it.
+**Every URL in that flow is SSRF-checked and pinned**, not just the one somebody
+typed — discovery means the remote server picks most of the addresses we call. The
+flow's only client is `mcp_oauth._client()`, a `PinnedAsyncClient`
+(`app/core/pinned_http.py`): it checks each request's URL with
+`sanitize.resolve_pinned_url` and then dials **that address**, with the original host
+in `Host` and in TLS SNI. Nothing resolves the name twice, so there is no window to
+rebind (#860). Do not add a request path that builds a plain `httpx.AsyncClient` —
+`_send` takes a `PinnedAsyncClient` so that mistake does not type-check.
+
+A refused hop crosses `httpx` out of the transport as a `UrlRefusedError`, and `_send`
+answers it with a fixed `OAuthError` sentence. Catch the narrow type, never
+`ValueError`: only the narrow one is a refusal written here, and every other
+`ValueError` reported as "this server pointed us at a blocked address" is a confident
+lie about whose fault a failure was (#861).
+
+Behind `HTTP_PROXY`/`HTTPS_PROXY` the proxy does the connecting, so there the pinned
+address is what the proxy is *asked* to reach. Honoured deliberately — a proxy-only
+deployment would otherwise lose OAuth entirely, and the proxy is its own egress
+control. Do not "fix" that by naming a transport on the client: an explicit transport
+turns httpx's environment-proxy mounting off, which is how it was broken once already.
+
+Two things the pin does not cover, and neither is an oversight. The **consent URL** is
+checked with `validate_mcp_url` and then handed to a browser that resolves it itself.
+The **connection's own URL** is checked at save and resolved again at run time — a
+point-in-time check (#840), bearable only because an operator typed it. A URL a *model*
+chose belongs in neither; it needs `safe_download`.
 
 An organization's OAuth connection is still the consenting person's grant at the
 provider. Revoking their access there breaks the organization's server.

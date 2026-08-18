@@ -34,26 +34,44 @@ logger = logging.getLogger(__name__)
 _RUN_TRIGGER_DEPLOYMENT = "run-scheduled-trigger/run-scheduled-trigger"
 
 
-async def _dispatch(trigger_id: str, claimed_at: datetime) -> None:
-    """Submit one due trigger's run as its own flow run, and return.
+async def dispatch_trigger_fire(
+    trigger_id: str,
+    *,
+    event_context: str | None = None,
+    claimed_at: datetime | None = None,
+) -> None:
+    """Submit one trigger's run as its own flow run, and return.
 
     `timeout=0` is what makes this submit-and-return: `run_deployment` enqueues
-    the run and does not wait for it, so a tick's cost is one API call per due
-    trigger rather than the sum of the runs it starts. A separate flow run is also
-    what keeps each fired agent run capped by `PREFECT_RUNNER_LIMIT` and isolated
-    from the heartbeat.
+    the run and does not wait for it, so a caller's cost is one API call rather
+    than the run it starts. A separate flow run is also what keeps each fired
+    agent run capped by `PREFECT_RUNNER_LIMIT` and isolated from whatever
+    dispatched it.
 
-    `claimed_at` is the `fire_in_flight_since` the claim stamped, handed to the fire
-    as its claim ticket so it clears only the marker its own claim set - the guard
-    against a fire that outran the lease clearing a newer claim's marker. It rides
-    across the Prefect boundary as an ISO string, the shape a flow parameter takes.
+    Both doors reach the fire through here: the scheduled heartbeat below (with no
+    `event_context`) and an inbound event delivery (`trigger_webhooks`, carrying
+    the rendered context). Routing the event path through the same capped flow is
+    why a burst of deliveries - five issues opened in a minute - starts capped
+    worker flow runs rather than that many concurrent agent runs inside the API
+    process, competing with request handling for its event loop.
+
+    `claimed_at` is the `fire_in_flight_since` the scheduled claim stamped, handed
+    to the fire as its claim ticket so it clears only the marker its own claim set -
+    the guard against a fire that outran the lease clearing a newer claim's marker.
+    Only the scheduled heartbeat sets it; an event delivery has no claim behind it.
+    It rides across the Prefect boundary as an ISO string, the shape a flow
+    parameter takes.
     """
     # `run_deployment` is sync-compatible: its stub unions the coroutine it
     # returns in an async context with the `FlowRun` a sync caller gets, and ty
     # cannot tell which applies. Awaiting it is correct here.
     await run_deployment(  # ty: ignore[invalid-await]
         name=_RUN_TRIGGER_DEPLOYMENT,
-        parameters={"trigger_id": trigger_id, "claimed_at": claimed_at.isoformat()},
+        parameters={
+            "trigger_id": trigger_id,
+            "event_context": event_context,
+            "claimed_at": None if claimed_at is None else claimed_at.isoformat(),
+        },
         timeout=0,
     )
 
@@ -76,7 +94,7 @@ async def check_agent_triggers_flow() -> None:
     dispatched = 0
     for trigger in triggers:
         try:
-            await _dispatch(str(trigger.id), now)
+            await dispatch_trigger_fire(str(trigger.id), claimed_at=now)
         except Exception:
             # Isolate each dispatch so a single failed `run_deployment` (a transient
             # Prefect API error) does not abort the loop and cost the rest of the
@@ -95,18 +113,27 @@ async def check_agent_triggers_flow() -> None:
 
 
 @flow(name="run-scheduled-trigger", log_prints=True)
-async def run_scheduled_trigger_flow(trigger_id: str, claimed_at: str | None = None) -> None:
-    """One fired run: run the agent this trigger schedules, as its creator.
+async def run_scheduled_trigger_flow(
+    trigger_id: str, event_context: str | None = None, claimed_at: str | None = None
+) -> None:
+    """One fired run: run the agent this trigger fires, as its creator.
 
-    `claimed_at` is the `fire_in_flight_since` the claim stamped, round-tripped as an
-    ISO string. It is handed back to `fire` as this fire's claim ticket, so the
-    marker is cleared only while it still belongs to this claim - a fire that outran
-    the lease must not clear the marker a newer claim set. Optional so a manually
-    triggered flow run with no claim behind it still fires (and simply leaves any
-    marker for the lease).
+    Reached by the heartbeat with no `event_context` (a scheduled fire) and by an
+    inbound event delivery with the rendered context (an event fire), so both kinds
+    run in this one capped, isolated flow rather than the event kind running in the
+    API process.
+
+    `claimed_at` is the `fire_in_flight_since` the scheduled claim stamped,
+    round-tripped as an ISO string and handed back to `fire` as this fire's claim
+    ticket, so the marker is cleared only while it still belongs to this claim - a
+    fire that outran the lease must not clear the marker a newer claim set. Only the
+    scheduled path sets it; an event or manually triggered fire has none and leaves
+    any marker for the lease.
     """
     from app.services.agent_trigger import AgentTriggerService
 
     parsed = None if claimed_at is None else datetime.fromisoformat(claimed_at)
     async with get_worker_db_context() as db:
-        await AgentTriggerService(db).fire(UUID(trigger_id), claimed_at=parsed)
+        await AgentTriggerService(db).fire(
+            UUID(trigger_id), event_context=event_context, claimed_at=parsed
+        )

@@ -26,6 +26,7 @@ tools listed.
 | `skills` | Skills | knowledge | `list_skills`, `load_skill`, `read_skill_resource` | `knowledge:read` | — |
 | `context` | Context | knowledge | `list_context`, `read_context` | — | — |
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services |
+| `web_fetch` | Web fetch | research | `web_fetch` | `web:fetch` | — |
 | `browser_use` | Browser automation | research | `browse_web` | `web:browse` | via the `browser-use` extra |
 | `code_execution` | Run Python | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Files & shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
@@ -145,6 +146,85 @@ The three paid methods need an API key from the organization's
 conditional rather than flat: a flat one would either lock the free default behind
 an account, or let a Tavily agent publish with nothing to authenticate with and
 fail on its first search.
+
+Approval and `native` do not combine, for the reason
+[Web fetch](#web-fetch) gives below: the [approval](../governance.md) gate wraps
+*tool execution*, and a native search is executed by the model provider, so a
+binding that requires approval for `web_search` and sets `method` to `native` is
+refused at publish rather than given a gate that never fires. Choose a method
+this deployment runs itself, or drop the approval requirement.
+
+Search finds a page; it does not read one. Reading is
+[Web fetch](#web-fetch) below, and it is a separate capability with a separate
+scope.
+
+## Web fetch
+
+`web_fetch` — *Read the full page at a URL, as Markdown.*
+
+| Config | Default | Values |
+|---|---|---|
+| `method` | `local` | `local`, `native`, `auto` |
+| `max_content_chars` | 50000 | 1000–200000, ignored by `native` |
+| `allowed_domains` | — | bare hostnames the agent may fetch; null means any |
+| `blocked_domains` | — | bare hostnames it may never fetch |
+
+- **`local`** — this deployment fetches the page. The default, because it is the
+  only method that behaves identically on every model.
+- **`native`** — the model provider fetches it, with its own egress and its own
+  citations. Only on models that support it; Pydantic AI raises on the rest.
+- **`auto`** — native where the model has it, `local` everywhere else. Exactly one
+  of the two is ever offered, so a run cannot pick between them per call.
+
+The fetch itself is Pydantic AI's `web_fetch_tool` over its SSRF-guarded
+`safe_download`, and that is the reason this is not code of ours. The URL comes
+from the **model** and is dereferenced from inside the container, so validating it
+up front — the way `app.core.sanitize.validate_webhook_url` does for a callback
+somebody handed us — is not sufficient on its own: `httpx` resolves the hostname a
+second time and follows redirects without asking again, so a name that answered
+publicly a moment ago can answer `169.254.169.254` now, and a public URL can
+redirect to one. `safe_download` pins the address it resolved into the request and
+re-validates every hop, the domain filters included. It also bounds the body as it
+streams and refuses the compression encodings that cannot be bounded that way.
+
+Private, loopback, link-local and cloud-metadata addresses are refused, and the
+refusal reaches the model as a retryable error rather than as an empty page — a
+refusal shaped like a result is one the model answers around without saying it had
+to. The library can be told to permit local addresses; nothing here exposes that.
+
+The domain filters are **not** the security boundary — `safe_download` is. They
+match the hostname exactly, with no wildcards and no implicit subdomains, so they
+answer "which sites may this agent read" and not "can this agent reach our
+network". An entry that could never match is refused at publish: a wildcard, a
+scheme, a path, a port, or an empty **allowlist**, each of which would otherwise
+leave a denylist quietly not denying or an allowlist quietly denying everything.
+An empty *denylist* denies nothing, which is what leaving it unset already means,
+so it is read as unset rather than refused — an imported spec that spells "no
+denied hosts" as `[]` is saying something true.
+
+An entry that *can* match is stored in the single spelling DNS would be asked for:
+lower case, no trailing root label, IDNA-encoded. A name has more than one
+spelling, and an exact match against one of them is a filter with a hole in it —
+`https://exämple.com/` reaches the comparison as typed, so a denylist holding only
+`xn--exmple-cua.com` would let it through while `getaddrinfo` resolves the two
+identically. Every equivalent spelling is handed to the filter at build time; the
+spec stores one.
+
+Approval and `native` do not combine. The [approval](../governance.md) gate wraps
+*tool execution*, which is the only place a call can be held, so a fetch the model
+provider runs on its own side never reaches it. A binding that requires approval
+for `web_fetch` and sets `method` to `native` — or to `auto`, where which of the
+two runs is a property of the model profile and changes without republishing — is
+refused at publish rather than given a gate that silently never fires. Set `method`
+to `local`, or drop the approval requirement; both are legitimate agents, and which
+one is wanted is not a decision to make on the author's behalf. A version published
+before that refusal existed is refused again when it is assembled, because nothing
+re-validates a frozen version — so such an agent stops running until it is edited,
+rather than going on fetching unapproved.
+
+A page arrives as Markdown, truncated at `max_content_chars`; a PDF or an image
+arrives as binary content the model reads natively. Nothing summarises it — what
+to do with a page belongs to the agent's instructions.
 
 ## Browser automation
 
@@ -1051,12 +1131,13 @@ the agent is assembled:
 |---|---|
 | `knowledge:read` | `knowledge`, `skills` |
 | `web:read` | `web_research` |
+| `web:fetch` | `web_fetch` |
 | `web:browse` | `browser_use` |
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
 
-All six are granted by default today (`DEFAULT_GRANTED_SCOPES` in
+All seven are granted by default today (`DEFAULT_GRANTED_SCOPES` in
 `app/services/agent_registry.py`). Per-organization scope management is
 [roadmap](../ROADMAP.md) work; the check is live and honest in the meantime rather
 than disabled and forgotten.

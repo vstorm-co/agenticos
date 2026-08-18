@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Calendar, Check, Cog, Copy, Plus, Plug } from "lucide-react";
+import { toast } from "sonner";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, Spinner } from "@/components/ui";
+import { getErrorMessage, submitFailure } from "@/lib/api-error";
 import { CloneStep } from "@/components/rag/sync-source-clone-step";
 import { ConfigureStep } from "@/components/rag/sync-source-configure-step";
 import { ConnectorStep } from "@/components/rag/sync-source-connector-step";
@@ -47,6 +49,9 @@ const STEPS: { id: Step; words: string; icon: typeof Plug }[] = [
   { id: "schedule", words: "stepSchedule", icon: Calendar },
 ];
 
+/** One spelling of "nothing is wrong with this config", for all three places. */
+const NO_ERRORS: Readonly<Record<string, string>> = {};
+
 const EMPTY_FORM: SyncSourceCreate = {
   name: "",
   connector_type: "",
@@ -70,6 +75,7 @@ export function SyncSourceWizard({
   submitting,
 }: SyncSourceWizardProps) {
   const t = useTranslations("rag");
+  const tErrors = useTranslations("errors");
   const [mode, setMode] = useState<Mode>("new");
   const [step, setStep] = useState<Step>("source");
   const [form, setForm] = useState<SyncSourceCreate>({
@@ -78,6 +84,21 @@ export function SyncSourceWizard({
   });
   const [cloneSourceId, setCloneSourceId] = useState<string>("");
   const [cloneName, setCloneName] = useState<string>("");
+  const [configErrors, setConfigErrors] = useState<Readonly<Record<string, string>>>(NO_ERRORS);
+  /**
+   * Which filling-in of this wizard is on screen, counted from the first.
+   *
+   * A submission is answered after an `await`, by which time the dialog may
+   * have been dismissed and reopened - the X and Escape stay live while a
+   * create is pending. A ref rather than state because the answer has to read
+   * what is true *now*, not the value its closure captured when it was sent;
+   * an effect rather than the reset below because a ref may not be written
+   * during render, and nothing renders from this one anyway.
+   */
+  const session = useRef(0);
+  useEffect(() => {
+    if (open) session.current += 1;
+  }, [open]);
 
   // Reopening starts from the beginning, during render - an effect would show
   // the last wizard's answers for a frame before clearing them.
@@ -93,11 +114,20 @@ export function SyncSourceWizard({
     setForm({ ...EMPTY_FORM, collection_name: defaultCollection ?? null });
     setCloneSourceId("");
     setCloneName("");
+    setConfigErrors(NO_ERRORS);
   }
 
   const selectedConnector = useMemo(
     () => connectors.find((c) => c.type === form.connector_type),
     [connectors, form.connector_type],
+  );
+
+  // Which of the server's complaints the configure step can show. The backend
+  // reports them below the document it was sent - `config.folder_id` - and
+  // `submitFailure` matches a path by its leaf as well as in full.
+  const configFields = useMemo(
+    () => Object.keys(selectedConnector?.config_schema ?? {}),
+    [selectedConnector],
   );
 
   const stepIdx = STEPS.findIndex((s) => s.id === step);
@@ -134,6 +164,42 @@ export function SyncSourceWizard({
     return false;
   })();
 
+  /**
+   * Submit, and put a refusal back where it can be answered.
+   *
+   * The mutation is three steps behind the field that caused it: a connector
+   * refusing a folder id is refusing something typed on the configure step,
+   * and the reader is looking at the schedule step when it answers. So the
+   * problems the server attributed to config fields go back to that step, with
+   * it, and only what belongs to no input is announced.
+   *
+   * Unless the reader left. Dismissing the dialog mid-flight and reopening it
+   * starts a new session, and the abandoned request's refusal is about a form
+   * that no longer exists: marking an input or moving a step on the strength of
+   * it would send somebody to fix a field they never filled in, on a wizard
+   * whose connector is not even chosen yet. It is still said - a create that
+   * failed is not nothing - and nothing else is touched.
+   */
+  const handleSubmit = async () => {
+    const submittedIn = session.current;
+    setConfigErrors(NO_ERRORS);
+    try {
+      await onSubmit({
+        ...form,
+        collection_name: form.collection_name ?? defaultCollection ?? null,
+      });
+    } catch (error) {
+      if (session.current !== submittedIn) {
+        toast.error(getErrorMessage(error, tErrors));
+        return;
+      }
+      const failure = submitFailure(error, { fields: configFields }, tErrors);
+      setConfigErrors(failure.fields);
+      if (Object.keys(failure.fields).length > 0) setStep("configure");
+      if (failure.toast) toast.error(failure.toast);
+    }
+  };
+
   const handleNext = () => {
     if (!canAdvance) return;
     if (mode === "clone") {
@@ -142,8 +208,7 @@ export function SyncSourceWizard({
     }
     if (step === "source") setStep("configure");
     else if (step === "configure") setStep("schedule");
-    else if (step === "schedule")
-      onSubmit({ ...form, collection_name: form.collection_name ?? defaultCollection ?? null });
+    else if (step === "schedule") handleSubmit();
   };
 
   const handleBack = () => {
@@ -258,7 +323,18 @@ export function SyncSourceWizard({
                 />
               )}
               {step === "configure" && selectedConnector && (
-                <ConfigureStep connector={selectedConnector} form={form} setForm={setForm} />
+                <ConfigureStep
+                  connector={selectedConnector}
+                  form={form}
+                  // Editing an input drops its mark, the way every other form
+                  // here does: a refusal about a value that has since been
+                  // changed is a refusal about nothing.
+                  setForm={(update) => {
+                    setConfigErrors(NO_ERRORS);
+                    setForm(update);
+                  }}
+                  errors={configErrors}
+                />
               )}
               {step === "schedule" && (
                 <ScheduleStep collections={collections} form={form} setForm={setForm} />

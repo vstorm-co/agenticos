@@ -76,6 +76,7 @@ export function AgentPicker() {
       <PopoverTrigger asChild>
         <button
           type="button"
+          data-tour="chat-agent-picker"
           aria-label={t("current", { name: selected?.name ?? t("noneSelected") })}
           className="border-foreground/10 bg-card hover:border-foreground/25 hover:bg-foreground/[0.04] text-foreground inline-flex items-center gap-1.5 rounded-full border py-1 pr-2 pl-1 transition-colors"
         >

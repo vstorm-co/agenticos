@@ -26,7 +26,8 @@ from app.agents.mcp import (
 from app.agents.mcp_oauth import McpOAuthPayload
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.core.sanitize import SSRFBlockedError
+from app.core.pinned_http import PinnedAsyncClient
+from app.core.secret_kinds import GithubOAuthAppSecret
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.mcp_connection import McpConnection
 from app.schemas.mcp_connection import (
@@ -44,6 +45,8 @@ from app.services.mcp_connection import (
     _resolve_auth_headers,
     connection_scope,
 )
+from app.services.organization_secret import OrganizationSecretService
+from app.services.portals import github_oauth
 
 
 @contextlib.asynccontextmanager
@@ -887,9 +890,15 @@ class TestMcpConnectionService:
 
     @pytest.mark.anyio
     async def test_create_blocks_internal_urls(self, service, repo):
+        """As a refusal naming the field, not as the `ValueError` the guard
+        raises - which no handler maps, so it left as a 500 (#861)."""
         data = McpConnectionCreate(name="internal", url="http://127.0.0.1:8000/mcp")
-        with pytest.raises(SSRFBlockedError):
+        with pytest.raises(BadRequestError) as excinfo:
             await service.create(user_id=uuid4(), data=data)
+        assert excinfo.value.details == {
+            "fields": [{"field": "url", "message": excinfo.value.message}]
+        }
+        assert excinfo.value.status_code == 400
         repo.create.assert_not_called()
 
     @pytest.mark.anyio
@@ -1082,12 +1091,17 @@ class TestMcpConnectionService:
         conn = _connection(user_id=user_id)
         repo.get_by_id.return_value = conn
 
-        with pytest.raises(SSRFBlockedError):
+        with pytest.raises(BadRequestError) as excinfo:
             await service.update(
                 user_id=user_id,
                 connection_id=conn.id,
                 data=McpConnectionUpdate(url="http://169.254.169.254/mcp"),
             )
+
+        assert excinfo.value.details == {
+            "fields": [{"field": "url", "message": excinfo.value.message}]
+        }
+        repo.update.assert_not_called()
 
     @pytest.mark.anyio
     async def test_other_users_connection_is_not_found(self, service, repo):
@@ -1244,10 +1258,13 @@ class TestMcpConnectionService:
 
     @pytest.mark.anyio
     async def test_oauth_start_rejects_internal_urls(self, service, repo):
-        with pytest.raises(SSRFBlockedError):
+        with pytest.raises(BadRequestError) as excinfo:
             await service.oauth_start(
                 user_id=uuid4(), name="evil", url="http://169.254.169.254/mcp"
             )
+        assert excinfo.value.details == {
+            "fields": [{"field": "url", "message": excinfo.value.message}]
+        }
         repo.create.assert_not_called()
 
     @pytest.mark.anyio
@@ -1277,6 +1294,26 @@ class TestMcpConnectionService:
         )
         assert payload.access_token == "AT" and payload.refresh_token == "RT"
         assert payload.code_verifier is None
+
+    @pytest.mark.anyio
+    async def test_oauth_callback_records_the_granted_scopes(self, service, repo, monkeypatch):
+        """The scopes the provider granted are mirrored to a plain column so the
+        trigger-portal webhook path can read them without unwrapping the token."""
+        pending = _connection(auth_type="oauth", url="https://srv/mcp", oauth_state="state-scoped")
+        pending.oauth_pending_payload = _seal_into(
+            pending, _base_payload(code_verifier="verifier").model_dump_json()
+        )
+        repo.get_by_oauth_state = AsyncMock(return_value=pending)
+        repo.update.return_value = pending
+        token = OAuthToken(
+            access_token="AT", refresh_token="RT", expires_in=3600, scope="repo admin:repo_hook"
+        )
+        monkeypatch.setattr(mcp_oauth, "exchange_code", AsyncMock(return_value=token))
+
+        await service.oauth_callback(state="state-scoped", code="the-code")
+
+        update_data = repo.update.call_args.kwargs["update_data"]
+        assert update_data["granted_scopes"] == ["repo", "admin:repo_hook"]
 
     @pytest.mark.anyio
     async def test_oauth_callback_unknown_state_is_not_found(self, service, repo):
@@ -1318,6 +1355,23 @@ class TestMcpConnectionService:
 
         with pytest.raises(mcp_oauth.OAuthError, match="no longer valid"):
             await service.oauth_callback(state="state-broken", code="the-code")
+
+    @pytest.mark.anyio
+    async def test_oauth_callback_on_a_discovery_flow_missing_its_verifier_restarts(
+        self, service, repo
+    ):
+        """A discovery payload that decrypts but has lost its PKCE verifier - a
+        rotated master key left it unreadable - is a dead flow the user restarts,
+        not a 500 mid-exchange. Distinct from the undecryptable-payload case above:
+        here the payload reads fine and only the verifier is gone."""
+        dead = _connection(auth_type="oauth", oauth_state="state-noverifier")
+        dead.oauth_pending_payload = _seal_into(
+            dead, _base_payload(code_verifier=None).model_dump_json()
+        )
+        repo.get_by_oauth_state = AsyncMock(return_value=dead)
+
+        with pytest.raises(mcp_oauth.OAuthError, match="no longer valid"):
+            await service.oauth_callback(state="state-noverifier", code="the-code")
 
     @pytest.mark.anyio
     async def test_update_url_drops_oauth_tokens(self, service, repo, monkeypatch):
@@ -1479,10 +1533,13 @@ class TestOrganizationConnections:
 
     @pytest.mark.anyio
     async def test_creating_blocks_internal_urls(self, service, ctx, repo, audit):
-        with pytest.raises(SSRFBlockedError):
+        with pytest.raises(BadRequestError) as excinfo:
             await service.create_for_org(
                 ctx, OrgMcpConnectionCreate(name="internal", url="http://127.0.0.1:8000/mcp")
             )
+        assert excinfo.value.details == {
+            "fields": [{"field": "url", "message": excinfo.value.message}]
+        }
         repo.create_org_scoped.assert_not_called()
 
     @pytest.mark.anyio
@@ -1578,6 +1635,23 @@ class TestOrganizationConnections:
         # No new envelope, so the version that sealed the old one is left alone
         # rather than rewritten to describe a token that no longer exists.
         assert "secret_key_version" not in update_data
+
+    @pytest.mark.anyio
+    async def test_moving_the_url_somewhere_internal_is_refused_by_field(self, service, ctx, repo):
+        """The other half of #861: a connection may not be *edited* into the
+        deployment's own network either, and that refusal is a 400 too."""
+        conn = self._org_connection(ctx)
+        repo.get_org_scoped_by_id.return_value = conn
+
+        with pytest.raises(BadRequestError) as excinfo:
+            await service.update_for_org(
+                ctx, connection_id=conn.id, data=OrgMcpConnectionUpdate(url="http://[::1]/mcp")
+            )
+
+        assert excinfo.value.details == {
+            "fields": [{"field": "url", "message": excinfo.value.message}]
+        }
+        repo.update.assert_not_called()
 
     @pytest.mark.anyio
     async def test_moving_the_url_discards_the_previous_check_result(
@@ -1753,6 +1827,10 @@ class TestOrganizationConnections:
                 ),
                 id="test",
             ),
+            pytest.param(
+                lambda service, ctx, connection_id: service.get_org_connection(ctx, connection_id),
+                id="get_org_connection",
+            ),
         ],
     )
     async def test_a_server_this_organization_does_not_own_is_not_found(
@@ -1769,6 +1847,16 @@ class TestOrganizationConnections:
             "connection_id": connection_id,
             "organization_id": ctx.organization_id,
         }
+
+    @pytest.mark.anyio
+    async def test_get_org_connection_returns_the_row_it_finds(self, service, ctx, repo):
+        """The public lookup a caller uses to prove a `connection_id` is its own
+        before storing it - the trigger service, before persisting the account its
+        webhook registers through."""
+        conn = self._org_connection(ctx)
+        repo.get_org_scoped_by_id.return_value = conn
+
+        assert await service.get_org_connection(ctx, conn.id) is conn
 
     @pytest.mark.anyio
     async def test_the_personal_routes_cannot_reach_an_organization_server(self, service, repo):
@@ -1809,15 +1897,91 @@ class TestOrgReadSchema:
 
 class TestOAuthRequestSafety:
     """Discovery lets the remote server choose most of the URLs we call, so
-    every hop - redirects included - goes through the SSRF policy.
+    every hop - redirects included - is checked and then dialled at the address
+    that passed (#860).
 
-    IP literals are used throughout: the validator short-circuits on those, so
-    the tests never touch DNS.
+    IP literals are used except where a hostname is the point: the validator
+    short-circuits on a literal, so those tests never touch DNS.
     """
 
     @staticmethod
-    def _client(handler) -> httpx.AsyncClient:
-        return httpx.AsyncClient(transport=httpx.MockTransport(handler), follow_redirects=False)
+    def _client(handler) -> PinnedAsyncClient:
+        return mcp_oauth._client(httpx.MockTransport(handler))
+
+    @staticmethod
+    def _resolves(monkeypatch, *rounds: str) -> list[str]:
+        """One DNS answer per call, the last one repeating; records the names."""
+        asked: list[str] = []
+        remaining = iter(rounds)
+
+        def fake_getaddrinfo(host: str, port: int, **_kwargs: object) -> list[tuple]:
+            asked.append(host)
+            return [(2, 1, 6, "", (next(remaining, rounds[-1]), port))]
+
+        monkeypatch.setattr("app.core.sanitize.socket.getaddrinfo", fake_getaddrinfo)
+        return asked
+
+    @pytest.mark.anyio
+    async def test_a_discovery_document_naming_a_private_address_is_refused(self, monkeypatch):
+        """The authorization server comes out of the server's own metadata, so
+        this is the first hop an attacker controls outright."""
+        self._resolves(monkeypatch, "169.254.169.254")
+        seen: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(str(request.url))
+            return httpx.Response(200, json={})
+
+        async with self._client(handler) as client:
+            request = client.build_request("GET", "https://auth.attacker.test/.well-known/oauth")
+            with pytest.raises(mcp_oauth.OAuthError, match="blocked address"):
+                await mcp_oauth._send(client, request)
+
+        assert seen == []
+
+    @pytest.mark.anyio
+    async def test_a_refused_hop_is_reported_without_the_url_it_refused(self, monkeypatch):
+        """The refusal crosses `httpx` out of the transport and reaches a
+        browser as a toast, so what it may say is the same question #861
+        answered for the connection dialog. The endpoint this flow POSTs to is
+        reached with credentials, and its query string is the server's to
+        write."""
+        self._resolves(monkeypatch, "10.0.0.9")
+
+        async with self._client(lambda request: httpx.Response(200, json={})) as client:
+            request = client.build_request(
+                "POST", "https://auth.attacker.test/token?client_secret=sh-secret-value"
+            )
+            with pytest.raises(mcp_oauth.OAuthError) as excinfo:
+                await mcp_oauth._send(client, request)
+
+        shown = str(excinfo.value)
+        assert "sh-secret-value" not in shown
+        assert "auth.attacker.test" not in shown
+        assert "10.0.0.9" not in shown
+
+    @pytest.mark.anyio
+    async def test_a_name_that_turns_private_is_dialled_at_the_address_that_passed(
+        self, monkeypatch
+    ):
+        """The rebinding case: public to the check, the metadata service to
+        whatever resolves next. There is no next - the request goes to the
+        address the check approved, naming the host only in `Host` and SNI."""
+        asked = self._resolves(monkeypatch, "93.184.216.34", "169.254.169.254")
+        seen: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request)
+            return httpx.Response(200, json={})
+
+        async with self._client(handler) as client:
+            request = client.build_request("POST", "https://token.attacker.test/token")
+            response = await mcp_oauth._send(client, request)
+
+        assert response.status_code == 200
+        assert asked == ["token.attacker.test"]
+        assert seen[0].url.host == "93.184.216.34"
+        assert seen[0].headers["Host"] == "token.attacker.test"
 
     @pytest.mark.anyio
     async def test_redirect_to_internal_host_is_blocked(self):
@@ -1836,6 +2000,46 @@ class TestOAuthRequestSafety:
 
         # The first hop was allowed; the metadata address was never requested.
         assert seen == ["https://93.184.216.34/.well-known/x"]
+
+    @pytest.mark.anyio
+    async def test_a_redirect_to_a_new_host_is_re_checked_not_trusted(self, monkeypatch):
+        """A second hop gets its own resolution, and its own refusal."""
+        asked = self._resolves(monkeypatch, "93.184.216.34", "10.0.0.7")
+        seen: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(str(request.url))
+            return httpx.Response(302, headers={"Location": "https://intranet.attacker.test/x"})
+
+        async with self._client(handler) as client:
+            request = client.build_request("GET", "https://auth.attacker.test/start")
+            with pytest.raises(mcp_oauth.OAuthError, match="blocked address"):
+                await mcp_oauth._send(client, request)
+
+        assert asked == ["auth.attacker.test", "intranet.attacker.test"]
+        assert len(seen) == 1
+
+    @pytest.mark.anyio
+    async def test_a_relative_redirect_follows_the_host_not_the_pinned_address(self, monkeypatch):
+        """`next_request` is built from the URL we asked for. Were it built from
+        the dialled one, `/moved` would resolve against the IP and the hop after
+        it would be checked - and cached, and TLS-verified - as a bare address."""
+        self._resolves(monkeypatch, "93.184.216.34")
+        seen: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request)
+            if request.url.path == "/start":
+                return httpx.Response(302, headers={"Location": "/moved"})
+            return httpx.Response(200, text="ok")
+
+        async with self._client(handler) as client:
+            request = client.build_request("GET", "https://auth.example.test/start")
+            response = await mcp_oauth._send(client, request)
+
+        assert response.status_code == 200
+        assert [r.headers["Host"] for r in seen] == ["auth.example.test"] * 2
+        assert [r.url.host for r in seen] == ["93.184.216.34"] * 2
 
     @pytest.mark.anyio
     async def test_redirect_to_public_host_is_followed(self):
@@ -1976,6 +2180,187 @@ class TestOAuthRefusalsDoNotQuoteTheServer:
         assert "at-secret-9f2c" in caplog.text
 
 
+class TestAUrlNoRequestCanBeBuiltFor:
+    """A discovery document may name a URL `httpx` will not parse at all, and
+    that is the third-party server being malformed rather than this platform
+    being broken - so it answers the 400 every other bad document answers.
+
+    `httpx.InvalidURL` derives from `Exception` rather than from
+    `httpx.HTTPError`, so it escaped all three of this module's catches and
+    reached the unhandled-exception handler as a 500 with an empty body (#889).
+    Neither `app.core.sanitize` nor `PinnedAsyncClient` could have stopped it:
+    both need a request, and this is the failure to build one.
+
+    Two shapes reach here, and both are the remote server's text. A bad port
+    survives `urlparse` and is quoted back by `InvalidURL` - `Invalid port:
+    'client_secret=…'` - which is what decides the wording. An endpoint over
+    64 KiB survives `AnyHttpUrl` too, so it is the shape that reaches a stored
+    `token_endpoint` and a `registration_endpoint` after discovery has already
+    accepted the document.
+    """
+
+    _SERVER = "https://93.184.216.34/mcp"
+    _BAD_PORT = (
+        "https://auth.example.com:client_secret=sh-9f2c/.well-known/oauth-protected-resource"
+    )
+    _TOO_LONG = "https://93.184.216.35/token?p=" + "p" * 70_000
+
+    @staticmethod
+    def _serving(monkeypatch, handler) -> None:
+        """Point every client `discover` opens at *handler* instead of a network."""
+        real = mcp_oauth._client
+        monkeypatch.setattr(mcp_oauth, "_client", lambda: real(httpx.MockTransport(handler)))
+
+    @classmethod
+    def _hinting_at_the_bad_port(cls, request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            return httpx.Response(
+                401,
+                headers={"WWW-Authenticate": f'Bearer resource_metadata="{cls._BAD_PORT}"'},
+                json={},
+            )
+        return httpx.Response(404, json={})
+
+    @staticmethod
+    def _metadata(token_endpoint: str) -> dict[str, object]:
+        return {
+            "issuer": "https://93.184.216.35",
+            "authorization_endpoint": "https://93.184.216.35/authorize",
+            "token_endpoint": token_endpoint,
+            "response_types_supported": ["code"],
+        }
+
+    @pytest.mark.anyio
+    async def test_a_www_authenticate_hint_with_an_unusable_port_does_not_crash_discovery(
+        self, monkeypatch
+    ):
+        """The header is remote-controlled text that reaches `httpx.Request`
+        before anything here sees it. It used to raise `InvalidURL` out of
+        `discover`; now the candidate is skipped and the flow gives the answer
+        it gives for a server with no metadata."""
+        seen: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(str(request.url))
+            return self._hinting_at_the_bad_port(request)
+
+        self._serving(monkeypatch, handler)
+        with pytest.raises(mcp_oauth.OAuthError) as exc_info:
+            await mcp_oauth.discover(self._SERVER)
+
+        assert "did not advertise OAuth metadata" in str(exc_info.value)
+        assert "sh-9f2c" not in str(exc_info.value)
+        # The hint was never requested; the well-known URIs after it still were.
+        assert seen == [
+            self._SERVER,
+            "https://93.184.216.34/.well-known/oauth-protected-resource/mcp",
+            "https://93.184.216.34/.well-known/oauth-protected-resource",
+            "https://93.184.216.34/.well-known/oauth-authorization-server",
+        ]
+
+    @pytest.mark.anyio
+    async def test_an_unusable_hint_ends_that_candidate_and_not_the_flow(self, monkeypatch):
+        """The hint is the first of three candidates and the other two are
+        derived from the URL an operator typed, so a server that writes its
+        `WWW-Authenticate` header badly and its well-known documents correctly
+        still connects."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/.well-known/oauth-protected-resource":
+                return httpx.Response(
+                    200,
+                    json={
+                        "resource": "https://93.184.216.34/mcp",
+                        "authorization_servers": ["https://93.184.216.35"],
+                    },
+                )
+            if request.url.path == "/.well-known/oauth-authorization-server":
+                return httpx.Response(200, json=self._metadata("https://93.184.216.35/token"))
+            return self._hinting_at_the_bad_port(request)
+
+        self._serving(monkeypatch, handler)
+        server = await mcp_oauth.discover(self._SERVER)
+
+        assert server.token_endpoint == "https://93.184.216.35/token"
+        assert server.authorization_endpoint == "https://93.184.216.35/authorize"
+
+    @pytest.mark.anyio
+    async def test_a_token_endpoint_discovery_accepted_but_httpx_will_not_build(
+        self, monkeypatch, caplog
+    ):
+        """`AnyHttpUrl` has no length limit and `httpx` stops at 64 KiB, which
+        is how an endpoint the metadata document was validated with reaches the
+        vault and comes back at every refresh. The refresh path answers `None`
+        on an `OAuthError` and a 500 on anything else."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/.well-known/oauth-protected-resource":
+                return httpx.Response(
+                    200,
+                    json={
+                        "resource": "https://93.184.216.34/mcp",
+                        "authorization_servers": ["https://93.184.216.35"],
+                    },
+                )
+            if request.url.path == "/.well-known/oauth-authorization-server":
+                return httpx.Response(200, json=self._metadata(self._TOO_LONG))
+            return httpx.Response(404, json={})
+
+        self._serving(monkeypatch, handler)
+        server = await mcp_oauth.discover(self._SERVER)
+        assert server.token_endpoint == self._TOO_LONG
+
+        with (
+            caplog.at_level(logging.WARNING, logger="app.agents.mcp_oauth"),
+            pytest.raises(mcp_oauth.OAuthError) as exc_info,
+        ):
+            await mcp_oauth._token_request(server.token_endpoint, {"grant_type": "refresh_token"})
+
+        assert "a token endpoint" in str(exc_info.value)
+        assert "URL too long" in caplog.text
+
+    @pytest.mark.anyio
+    async def test_a_registration_endpoint_no_request_can_be_built_for_is_refused(self):
+        """`create_client_registration_request` sits above the client, so this
+        one raised before the flow's `except httpx.HTTPError` was even entered."""
+        metadata = OAuthMetadata(
+            issuer=AnyUrl("https://auth.example.com"),
+            authorization_endpoint=AnyUrl("https://auth.example.com/authorize"),
+            token_endpoint=AnyUrl("https://auth.example.com/token"),
+            registration_endpoint=AnyUrl(self._TOO_LONG),
+            response_types_supported=["code"],
+        )
+        server = mcp_oauth.DiscoveredServer(
+            authorization_endpoint=str(metadata.authorization_endpoint),
+            token_endpoint=str(metadata.token_endpoint),
+            registration_endpoint=str(metadata.registration_endpoint),
+            resource="https://mcp.example.com/",
+            scope=None,
+            metadata=metadata,
+        )
+        with pytest.raises(mcp_oauth.OAuthError) as exc_info:
+            await mcp_oauth.register_client(server, "https://app.example.com/oauth/callback")
+
+        assert "a registration endpoint" in str(exc_info.value)
+
+    @pytest.mark.anyio
+    async def test_the_refusal_does_not_quote_the_port_it_could_not_parse(self, caplog):
+        """`InvalidURL` says `Invalid port: 'client_secret=sh-9f2c'`, and on this
+        flow that string was written by the server being refused. It stays in
+        the log; the browser is told which endpoint was unusable and no more."""
+        endpoint = "https://auth.example.com:client_secret=sh-9f2c/token"
+        with (
+            caplog.at_level(logging.WARNING, logger="app.agents.mcp_oauth"),
+            pytest.raises(mcp_oauth.OAuthError) as exc_info,
+        ):
+            await mcp_oauth._token_request(endpoint, {"grant_type": "authorization_code"})
+
+        shown = str(exc_info.value)
+        assert "sh-9f2c" not in shown
+        assert "auth.example.com" not in shown
+        assert "sh-9f2c" in caplog.text
+
+
 class TestReadSchema:
     def test_token_never_leaves_backend(self):
         conn = _connection()
@@ -2007,3 +2392,244 @@ class TestReadSchema:
             conn, _base_payload(code_verifier="v").model_dump_json()
         )
         assert McpConnectionRead.from_model(conn).oauth_authorized is True
+
+
+class TestWebhookAccessToken:
+    """The token the trigger portals use to register a webhook - handed back only
+    when the account was re-authorized for the scope, so a plain tool connection
+    falls back to manual rather than registering with a scope it never had."""
+
+    @staticmethod
+    def _ctx() -> AuthContext:
+        return AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER.value)
+
+    @pytest.mark.anyio
+    async def test_a_connection_without_the_scope_yields_no_token(self, monkeypatch):
+        service = McpConnectionService(AsyncMock())
+        conn = _connection(scope="org", granted_scopes=["repo"])
+        monkeypatch.setattr(McpConnectionService, "_get_org", AsyncMock(return_value=conn))
+        token = await service.webhook_access_token(
+            self._ctx(), uuid4(), required_scopes=["admin:repo_hook"]
+        )
+        assert token is None
+
+    @pytest.mark.anyio
+    async def test_a_scoped_connection_yields_its_live_token(self, monkeypatch):
+        service = McpConnectionService(AsyncMock())
+        conn = _connection(scope="org", granted_scopes=["repo", "admin:repo_hook"])
+        monkeypatch.setattr(McpConnectionService, "_get_org", AsyncMock(return_value=conn))
+        monkeypatch.setattr(
+            mcp_connection_service, "_oauth_access_token", AsyncMock(return_value="live-token")
+        )
+        token = await service.webhook_access_token(
+            self._ctx(), uuid4(), required_scopes=["admin:repo_hook"]
+        )
+        assert token == "live-token"
+
+
+class TestGithubPortalOAuth:
+    """The GitHub OAuth App connect flow: the org's stored creds, fixed endpoints.
+
+    Unlike the discovery flow, nothing here is registered or discovered - the
+    endpoints are GitHub's, the client is the organization's stored
+    `github_oauth_app`, and the resulting connection is keyed to the `github` MCP
+    catalog entry so the trigger portal and the agent's tools share one account.
+    """
+
+    pytestmark = pytest.mark.anyio
+
+    @pytest.fixture
+    def ctx(self) -> AuthContext:
+        return AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER.value)
+
+    @pytest.fixture
+    def service(self):
+        return McpConnectionService(db=AsyncMock())
+
+    @pytest.fixture
+    def repo(self, monkeypatch):
+        mock_repo = MagicMock()
+        mock_repo.get_org_scoped_by_name = AsyncMock(return_value=None)
+        mock_repo.create_org_scoped = AsyncMock()
+        mock_repo.update = AsyncMock()
+        mock_repo.get_by_oauth_state = AsyncMock()
+        monkeypatch.setattr(mcp_connection_service, "mcp_connection_repo", mock_repo)
+        return mock_repo
+
+    @pytest.fixture
+    def creds(self, monkeypatch):
+        """The organization's stored GitHub OAuth App, as the vault reader returns it."""
+        value = GithubOAuthAppSecret(client_id="Iv1.0123456789ab", client_secret="ghsec-42")
+        monkeypatch.setattr(
+            OrganizationSecretService, "github_oauth_app", AsyncMock(return_value=value)
+        )
+        return value
+
+    async def test_a_start_without_a_stored_secret_is_a_clean_4xx_not_a_500(
+        self, service, ctx, repo, monkeypatch
+    ):
+        """A missing prerequisite is the operator's to fix, not a bug - and the row
+        is never created, so a retry after adding the secret is not a name clash."""
+        monkeypatch.setattr(
+            OrganizationSecretService,
+            "github_oauth_app",
+            AsyncMock(side_effect=NotFoundError(message="add a secret first")),
+        )
+        with pytest.raises(NotFoundError):
+            await service.oauth_start_for_org_github(ctx, portal_key="github")
+        repo.create_org_scoped.assert_not_called()
+
+    async def test_a_start_for_an_unknown_portal_is_refused(self, service, ctx, repo, creds):
+        with pytest.raises(BadRequestError):
+            await service.oauth_start_for_org_github(ctx, portal_key="no-such-portal")
+        repo.create_org_scoped.assert_not_called()
+
+    async def test_a_start_whose_catalog_entry_is_missing_is_refused(
+        self, service, ctx, repo, monkeypatch
+    ):
+        """A portal that names an MCP catalog key the catalog no longer holds is a
+        misconfiguration - a 4xx before any consent URL or secret read, not a 500."""
+        monkeypatch.setattr("app.services.mcp_connection.get_entry", lambda _key: None)
+        with pytest.raises(BadRequestError):
+            await service.oauth_start_for_org_github(ctx, portal_key="github")
+        repo.create_org_scoped.assert_not_called()
+
+    async def test_a_start_stages_the_flow_with_githubs_endpoints_and_the_org_creds(
+        self, service, ctx, repo, creds
+    ):
+        url = await service.oauth_start_for_org_github(ctx, portal_key="github")
+
+        # The consent URL is GitHub's own, carrying the org's client id and the
+        # portal's scopes - and never the client secret.
+        assert url.startswith("https://github.com/login/oauth/authorize?")
+        assert "client_id=Iv1.0123456789ab" in url
+        assert "scope=repo+admin%3Arepo_hook" in url
+        assert "ghsec-42" not in url
+
+        stored = repo.create_org_scoped.await_args.kwargs
+        assert stored["organization_id"] == ctx.organization_id
+        assert stored["created_by_user_id"] == ctx.subject_id
+        # Keyed to the MCP catalog entry so the portal join finds this connection.
+        assert stored["catalog_key"] == "github"
+        assert (stored["auth_type"], stored["sealed_token"]) == ("oauth", None)
+        assert stored["oauth_state"] and stored["oauth_pending_payload"]
+
+        payload = McpOAuthPayload.model_validate_json(
+            unseal(
+                stored["oauth_pending_payload"],
+                scope=VaultScope.organization(ctx.organization_id),
+            )
+        )
+        assert payload.provider == "github"
+        assert payload.token_endpoint == github_oauth.TOKEN_ENDPOINT
+        assert payload.authorization_endpoint == github_oauth.AUTHORIZE_ENDPOINT
+        assert payload.scope == "repo admin:repo_hook"
+        # The secret is sealed in the pending payload, never in a plain column.
+        assert payload.client_secret == "ghsec-42"
+        assert payload.access_token is None
+        assert payload.code_verifier is None  # no PKCE on this flow
+
+    async def test_reauthorizing_keeps_the_live_token_until_consent_lands(
+        self, service, ctx, repo, creds
+    ):
+        """Re-running the flow on a connected account must not break it if the user
+        abandons the consent tab - the live token survives until the callback."""
+        live = _connection(
+            scope="org",
+            user_id=None,
+            organization_id=ctx.organization_id,
+            catalog_key="github",
+            auth_type="oauth",
+            name="github",
+        )
+        live.oauth_payload = _seal_into(
+            live, _base_payload(access_token="live-token").model_dump_json()
+        )
+        repo.get_org_scoped_by_name.return_value = live
+
+        await service.oauth_start_for_org_github(ctx, portal_key="github")
+
+        update_data = repo.update.await_args.kwargs["update_data"]
+        assert update_data["oauth_pending_payload"]
+        assert "oauth_payload" not in update_data  # the working token survives
+        repo.create_org_scoped.assert_not_called()
+
+    async def test_the_callback_exchanges_the_code_and_persists_the_granted_scopes(
+        self, service, repo, monkeypatch
+    ):
+        organization_id = uuid4()
+        pending = _connection(
+            scope="org",
+            user_id=None,
+            organization_id=organization_id,
+            catalog_key="github",
+            auth_type="oauth",
+            name="github",
+            url="https://api.githubcopilot.com/mcp/",
+            oauth_state="gh-state",
+        )
+        pending.oauth_pending_payload = _seal_into(
+            pending,
+            _base_payload(
+                provider="github",
+                client_secret="ghsec-42",
+                code_verifier=None,
+                token_endpoint=github_oauth.TOKEN_ENDPOINT,
+                scope="repo admin:repo_hook",
+            ).model_dump_json(),
+        )
+        repo.get_by_oauth_state.return_value = pending
+        repo.update.return_value = pending
+        monkeypatch.setattr(
+            github_oauth,
+            "exchange_code",
+            AsyncMock(
+                return_value=github_oauth.GithubToken(
+                    access_token="gho_live", granted_scopes=["repo", "admin:repo_hook"]
+                )
+            ),
+        )
+
+        await service.oauth_callback(state="gh-state", code="the-code")
+
+        update_data = repo.update.await_args.kwargs["update_data"]
+        # The scopes GitHub actually granted, mirrored to the plain column the
+        # webhook path reads.
+        assert update_data["granted_scopes"] == ["repo", "admin:repo_hook"]
+        assert update_data["oauth_pending_payload"] is None
+        assert update_data["oauth_state"] is None
+        assert update_data["last_status"] == "ok"
+        payload = McpOAuthPayload.model_validate_json(
+            _open_from(pending, update_data["oauth_payload"])
+        )
+        assert payload.access_token == "gho_live"
+        # A classic OAuth App token neither refreshes nor expires.
+        assert payload.refresh_token is None
+        assert payload.expires_at is None
+
+    async def test_a_github_exchange_failure_surfaces_as_an_oauth_error(
+        self, service, repo, monkeypatch
+    ):
+        pending = _connection(
+            scope="org",
+            user_id=None,
+            organization_id=uuid4(),
+            catalog_key="github",
+            auth_type="oauth",
+            name="github",
+            oauth_state="gh-state",
+        )
+        pending.oauth_pending_payload = _seal_into(
+            pending,
+            _base_payload(provider="github", code_verifier=None).model_dump_json(),
+        )
+        repo.get_by_oauth_state.return_value = pending
+        monkeypatch.setattr(
+            github_oauth,
+            "exchange_code",
+            AsyncMock(side_effect=github_oauth.GithubOAuthError("GitHub said no")),
+        )
+
+        with pytest.raises(mcp_oauth.OAuthError):
+            await service.oauth_callback(state="gh-state", code="the-code")
+        repo.update.assert_not_called()

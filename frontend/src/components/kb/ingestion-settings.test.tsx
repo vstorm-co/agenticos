@@ -1,13 +1,24 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createTranslator } from "next-intl";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import en from "../../../messages/en.json";
 import { IngestionSettings } from "./ingestion-settings";
+import type { Translate } from "@/lib/agent-step-captions";
 import { apiClient } from "@/lib/api-client";
-import { DEFAULT_INGESTION_CONFIG } from "@/lib/ingestion-config";
+import { ApiError, submitFailure } from "@/lib/api-error";
+import { DEFAULT_INGESTION_CONFIG, INGESTION_FORM_FIELDS } from "@/lib/ingestion-config";
 import type { IngestionConfig } from "@/types";
+
+/** The real `errors` copy, for the one part of a refusal a form cannot show. */
+const tErrors = createTranslator({
+  locale: "en",
+  messages: en,
+  namespace: "errors",
+}) as Translate;
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -257,5 +268,70 @@ describe("IngestionSettings", () => {
       screen.getByText("chunk_overlap (600) must be smaller than chunk_size (512)"),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Overlap")).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  /**
+   * From the body the server sends to the control it marks, with nothing made up
+   * in between - the two tests above start from `errors` already sorted.
+   *
+   * Both bodies are copied from the backend tests that pin them
+   * (`tests/test_ingestion_config.py`), and until #882 both carried their fields
+   * under `details.errors` in Pydantic's own format instead. `fieldProblems`
+   * reads `details.fields` and nothing else, so what reached this form was `{}`:
+   * the sentence went to a toast and no control was ever marked.
+   */
+  describe("a refused upload override, from the wire", () => {
+    const refusal = (message: string, fields: { field: string; message: string }[]) =>
+      new ApiError(400, "…", {
+        error: { code: "BAD_REQUEST", message, details: { fields } },
+      });
+
+    const shown = (error: ApiError) =>
+      submitFailure(error, { fields: [...INGESTION_FORM_FIELDS] }, tErrors);
+
+    it("marks the setting the server named", () => {
+      const failure = shown(
+        refusal("The 'ingestion' field is not a valid ingestion override", [
+          { field: "chunk_size", message: "Input should be greater than or equal to 64" },
+        ]),
+      );
+      render(
+        <IngestionSettings
+          idPrefix="test"
+          value={DEFAULT_INGESTION_CONFIG}
+          onChange={vi.fn()}
+          errors={failure.fields}
+        />,
+        { wrapper },
+      );
+
+      const size = screen.getByLabelText("Chunk size");
+      expect(size).toHaveAttribute("aria-invalid", "true");
+      expect(size).toHaveAccessibleDescription("Input should be greater than or equal to 64");
+      // Nothing is left over to announce separately: a field-shaped failure
+      // shown on the field must not also arrive as a toast saying it broke.
+      expect(failure.toast).toBeNull();
+    });
+
+    it("shows the pair rule on the settings block it is about", () => {
+      const message = "Value error, chunk_overlap (4096) must be smaller than chunk_size (512)";
+      const failure = shown(
+        refusal("The 'ingestion' field is not a valid override for this collection", [
+          { field: "ingestion_config", message },
+        ]),
+      );
+      render(
+        <IngestionSettings
+          idPrefix="test"
+          value={DEFAULT_INGESTION_CONFIG}
+          onChange={vi.fn()}
+          errors={failure.fields}
+        />,
+        { wrapper },
+      );
+
+      expect(screen.getByText(message)).toBeInTheDocument();
+      expect(failure.toast).toBeNull();
+    });
   });
 });

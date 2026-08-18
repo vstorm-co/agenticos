@@ -98,7 +98,7 @@ export default function ContextPage() {
       description={t("contextStandingKnowledge")}
       actions={
         canEdit ? (
-          <Button onClick={() => setCreateOpen(true)}>
+          <Button data-tour="context-new" onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4" />
             {t("newContext")}
           </Button>
@@ -149,6 +149,7 @@ export default function ContextPage() {
       {header}
 
       <ListCard
+        data-tour="context-list"
         title={t("contextFiles")}
         counted={error ? null : t("contextCount", { count: total })}
         controls={controls}

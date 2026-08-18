@@ -294,9 +294,19 @@ class RAGDocumentService:
         self,
         doc_id: str,
         vector_document_id: str,
-        chunk_count: int = 0,
+        *,
+        chunk_count: int,
+        replaced_document_id: str | None,
     ) -> None:
-        """Mark a document as successfully ingested."""
+        """Mark a document as successfully ingested, retiring what it replaced.
+
+        Neither keyword has a default on purpose. `chunk_count` had one, `0`,
+        and all four call sites took it - so every document in the product
+        reported an empty collection that answered searches perfectly well
+        (#147). `replaced_document_id` is the same shape of trap one step on: a
+        call site that omits it leaves a stale row behind and the collection
+        over-reports by exactly the size of the document just replaced.
+        """
         doc = await self.get_document(doc_id)
         await rag_document_repo.update_status(
             self.db,
@@ -306,6 +316,43 @@ class RAGDocumentService:
             chunk_count=chunk_count,
             completed_at=datetime.now(UTC),
         )
+        if replaced_document_id:
+            await self._retire_superseded(
+                collection_name=doc.collection_name,
+                vector_document_id=replaced_document_id,
+                keep_id=doc.id,
+            )
+
+    async def _retire_superseded(
+        self, *, collection_name: str, vector_document_id: str, keep_id: UUID
+    ) -> None:
+        """Drop the tracking rows for a vector document a replacement deleted.
+
+        Every ingest path creates a fresh `rag_documents` row, including the
+        replacing one - the upload, the CLI and the sync all do - while the
+        vector store keeps one document. So the old row outlives the vectors it
+        describes: `counts_by_collection` sums its `chunk_count` into the
+        collection's total, its "view parsed content" reads a document that is
+        gone, and a directory synced nightly accumulates one dead row per file
+        per run.
+
+        The stored file goes with it, on the same best-effort terms as
+        `delete_document`: a storage backend that refuses must not leave the
+        database describing vectors nobody holds.
+        """
+        superseded = await rag_document_repo.get_superseded(
+            self.db,
+            collection_name=collection_name,
+            vector_document_id=vector_document_id,
+            keep_id=keep_id,
+        )
+        for stale in superseded:
+            if stale.storage_path:
+                try:
+                    await get_file_storage().delete(stale.storage_path)
+                except Exception as exc:
+                    logger.warning("Failed to delete superseded file: %s", exc)
+            await rag_document_repo.delete(self.db, stale.id)
 
     async def fail_ingestion(self, doc_id: str, error_message: str) -> None:
         """Mark a document ingestion as failed."""

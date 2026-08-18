@@ -22,6 +22,7 @@ from app.core.secret_kinds import (
     AwsCredentialsSecret,
     AzureOpenAISecret,
     GcpServiceAccountSecret,
+    GithubOAuthAppSecret,
     NoSecret,
     SecretKind,
     SecretRequirement,
@@ -96,6 +97,30 @@ class TestSecretKinds:
         value = ApiKeySecret(api_key="sk-live-1234")
         assert "sk-live-1234" in value.model_dump_json()
 
+    def test_a_github_oauth_app_needs_both_halves(self):
+        """The id says which app, the secret authenticates it; neither may be blank."""
+        with pytest.raises(ValidationError):
+            GithubOAuthAppSecret(client_id="", client_secret="ghs-abcd")
+        with pytest.raises(ValidationError):
+            GithubOAuthAppSecret(client_id="Iv1.0123abcd", client_secret="")
+
+    def test_a_github_oauth_app_secret_masks_itself_in_a_repr(self):
+        """Only the client_secret is confidential; the client_id is public."""
+        value = GithubOAuthAppSecret(
+            client_id="Iv1.0123456789abcdef", client_secret="ghs-do-not-print-me"
+        )
+        assert "ghs-do-not-print-me" not in repr(value)
+        assert "ghs-do-not-print-me" not in str(value.model_dump())
+        # The id is not a secret, so it is fine for it to appear.
+        assert "Iv1.0123456789abcdef" in repr(value)
+
+    def test_a_github_oauth_app_is_hinted_by_its_public_client_id(self):
+        """The client id names the app in GitHub's settings and is not confidential."""
+        value = GithubOAuthAppSecret(
+            client_id="Iv1.0123456789wxyz", client_secret="ghs-never-shown"
+        )
+        assert value.hint == "wxyz"
+
     def test_an_unknown_field_is_refused_rather_than_ignored(self):
         with pytest.raises(ValidationError):
             ApiKeySecret(api_key="sk", region_name="eu-west-1")
@@ -161,6 +186,21 @@ class TestSealAndOpen:
         opened = unseal_secret(sealed.ciphertext, kind=SecretKind.AZURE_OPENAI, scope=scope)
 
         assert opened == value
+
+    def test_a_github_oauth_app_survives_the_envelope_whole(self):
+        scope = VaultScope.organization(uuid.uuid4())
+        value = GithubOAuthAppSecret(
+            client_id="Iv1.0123456789abcdef", client_secret="ghs-live-4242"
+        )
+        sealed = seal_secret(value, scope=scope)
+
+        opened = unseal_secret(sealed.ciphertext, kind=SecretKind.GITHUB_OAUTH_APP, scope=scope)
+
+        assert isinstance(opened, GithubOAuthAppSecret)
+        assert opened.client_id == "Iv1.0123456789abcdef"
+        assert opened.client_secret.get_secret_value() == "ghs-live-4242"
+        # The identifying id becomes the hint, not the punctuation of the JSON.
+        assert sealed.hint == "cdef"
 
     def test_an_envelope_whose_kind_disagrees_with_the_row_is_refused(self):
         """A swapped column would otherwise hand the wrong shape to a caller."""
@@ -592,3 +632,51 @@ class TestTheKeyThatAsksAProviderForItsCatalog:
             new=AsyncMock(return_value=[]),
         ):
             assert await OrganizationSecretService(_db()).listing_key(_ctx(), "openrouter") is None
+
+
+class TestTheGithubOAuthAppReader:
+    """`github_oauth_app` is the vault's third reader, and the most narrowly scoped.
+
+    It opens one kind of secret and lets only the public `client_id` escape; the
+    `client_secret` it unseals goes to GitHub's token endpoint inside the connect
+    flow and nowhere else. It exists so the GitHub-provider OAuth flow can run the
+    token exchange with credentials the organization stored, without ever handing
+    them to a route or a client.
+    """
+
+    @pytest.mark.anyio
+    async def test_it_unseals_the_organizations_github_oauth_app(self):
+        ctx = _ctx()
+        row = _row(
+            ctx,
+            GithubOAuthAppSecret(client_id="Iv1.0123456789abcdef", client_secret="ghsec-42"),
+            name="GitHub OAuth App",
+        )
+
+        with patch(
+            "app.services.organization_secret.organization_secret_repo.get_by_kind",
+            new=AsyncMock(return_value=row),
+        ) as get_by_kind:
+            value = await OrganizationSecretService(_db()).github_oauth_app(ctx)
+
+        assert isinstance(value, GithubOAuthAppSecret)
+        assert value.client_id == "Iv1.0123456789abcdef"
+        assert value.client_secret.get_secret_value() == "ghsec-42"
+        # Read org-scoped and by the GitHub kind - never another tenant's, never
+        # another shape.
+        assert get_by_kind.await_args.kwargs == {
+            "organization_id": ctx.organization_id,
+            "kind": SecretKind.GITHUB_OAUTH_APP.value,
+        }
+
+    @pytest.mark.anyio
+    async def test_a_missing_secret_is_a_clean_not_found_not_a_500(self):
+        """The connect UI shows this as "add a GitHub OAuth App secret first"."""
+        with (
+            patch(
+                "app.services.organization_secret.organization_secret_repo.get_by_kind",
+                new=AsyncMock(return_value=None),
+            ),
+            pytest.raises(NotFoundError),
+        ):
+            await OrganizationSecretService(_db()).github_oauth_app(_ctx())

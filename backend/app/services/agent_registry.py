@@ -21,14 +21,17 @@ import re
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import Any
 from uuid import UUID
 
+import yaml
 from pydantic import BaseModel, ValidationError
 from pydantic_ai_harness.compaction import resolve_context_window
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import TOOL_NAME_PATTERN, CapabilityDef, all_capabilities
 from app.agents.capabilities import get as get_capability
+from app.agents.capabilities.approval import ungateable_tool_problems
 from app.agents.capabilities.browser_use import BrowserUseConfig, validate_cdp_url
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
@@ -40,6 +43,7 @@ from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
 )
+from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.credential import ModelProfile
@@ -64,6 +68,7 @@ from app.services.access import (
     CONTEXT,
     SECRET,
     SKILL,
+    accessible_ids,
     resolve_access,
     visible_resource_ids,
 )
@@ -91,6 +96,7 @@ DEFAULT_GRANTED_SCOPES = frozenset(
     {
         "knowledge:read",
         "web:read",
+        "web:fetch",
         "web:browse",
         "code:execute",
         "sandbox:execute",
@@ -246,6 +252,51 @@ def _tool_override_problems(binding: CapabilityBindingSpec, definition: Capabili
         )
 
     return problems
+
+
+@dataclass
+class _SpecProblems:
+    """Everything wrong with a spec: a line to read, and where to put it.
+
+    `messages` is the list the Builder shows and has always been the whole of
+    the answer. `fields` is the same refusal aimed at an input, in the shape
+    `frontend/src/lib/api-error.ts` marks one from - because a capability's
+    configuration is a *form*, and "Capability 'knowledge': Invalid
+    configuration for capability 'knowledge'" leaves the reader to work out
+    which of its boxes is wrong.
+
+    Both, never one. `validate_spec` reports every problem at once and most of
+    them are broken references with no input to mark, so a field problem adds a
+    line as well: the message is what a form that does not render that field
+    still has to show (#882).
+    """
+
+    messages: list[str] = field(default_factory=list)
+    fields: list[dict[str, str]] = field(default_factory=list)
+
+    def add(self, messages: Sequence[str]) -> None:
+        """Problems with nothing to mark - a broken reference, a missing model."""
+        self.messages.extend(messages)
+
+    def merge(self, other: _SpecProblems) -> None:
+        self.messages.extend(other.messages)
+        self.fields.extend(other.fields)
+
+    def within_specialist(self, name: str) -> _SpecProblems:
+        """The same problems, said about a specialist defined inside this agent.
+
+        Both halves are scoped, or a mistake in a specialist's copy of
+        `knowledge` would mark the parent's own `knowledge` card - the Builder
+        renders one form per specialist and they configure the same
+        capabilities.
+        """
+        return _SpecProblems(
+            [f"Specialist '{name}': {message}" for message in self.messages],
+            [
+                {**problem, "field": f"specialists.{name}.{problem['field']}"}
+                for problem in self.fields
+            ],
+        )
 
 
 @dataclass(frozen=True)
@@ -409,6 +460,31 @@ def _share_problems(spec: AgentSpec, config: SubagentsConfig) -> list[str]:
     return problems
 
 
+def _config_problems(capability_id: str, refusal: BadRequestError) -> _SpecProblems:
+    """A capability's refused configuration, as a line *and* as its inputs.
+
+    `validate_config` names each field that broke a rule, and publish validation
+    used to keep only `refusal.message` - so `default_top_k: 999` reached the
+    Builder as "Capability 'knowledge': Invalid configuration for capability
+    'knowledge'" and no box was ever marked. Draft saving does not validate a
+    config schema at all, which makes this the path a Builder submission
+    actually takes (found reviewing #892).
+
+    The path is qualified by the capability because the form is per capability
+    and two of them can hold a field of the same name; `SchemaForm` keys its
+    errors by the bare field, and `capabilityConfigErrors` in
+    `frontend/src/lib/agent-spec.ts` is what takes one apart again.
+    """
+    fields = refusal.details.get("fields", []) if refusal.details else []
+    return _SpecProblems(
+        [f"Capability '{capability_id}': {refusal.message}"],
+        [
+            {**problem, "field": f"capabilities.{capability_id}.{problem['field']}"}
+            for problem in fields
+        ],
+    )
+
+
 def _collision_problems(names: Sequence[str]) -> list[str]:
     """Delegates the parent's model cannot tell apart.
 
@@ -480,6 +556,60 @@ def _window_of(profile: ModelProfile | None) -> int | None:
     return resolve_context_window(f"{profile.provider}:{profile.model}")
 
 
+def _yaml_refusal(exc: yaml.YAMLError) -> str:
+    """Where the document stopped parsing, without quoting any of it.
+
+    `str()` on a marked YAML error includes the offending source line, and the
+    document is somebody's spec - instructions, a `secret_id`, whatever they
+    were editing when it broke. So the position is reported and the text is not:
+    it is already in front of the person who wrote it
+    (`.claude/rules/exceptions-security.md`). A `ReaderError` - a control
+    character in the file - carries a byte offset and no mark, which is why the
+    line is optional rather than assumed.
+
+    In the sentence rather than beside it: the position used to be `details`
+    keys of its own, which nothing has ever read (#891), and a line number is
+    only worth reporting to the reader who has the document open.
+    """
+    refusal = "This spec is not valid YAML"
+    mark = getattr(exc, "problem_mark", None)
+    if mark is None:
+        return refusal
+    return f"{refusal} - line {mark.line + 1}, column {mark.column + 1}"
+
+
+def _parse_spec_yaml(text: str) -> AgentSpec:
+    """Read a spec written or edited outside the Builder.
+
+    Every field rule in `AgentSpec` exists to explain what is wrong with a spec,
+    and none of those explanations used to reach the person who wrote one: a
+    pydantic `ValidationError` is a `ValueError` but not a
+    `RequestValidationError`, so nothing between the parse and the ASGI boundary
+    mapped it and a typo answered 500 with a traceback in the log, as though the
+    platform had broken rather than the file (#873). Bad input is this path's
+    ordinary case - somebody is editing YAML by hand and iterating.
+
+    Raises:
+        BadRequestError: If the document does not parse, is not a mapping, or
+            breaks a field rule - carrying the field path a form can mark, and
+            no copy of what was submitted. All three answer in the one shape,
+            `details["fields"]`: a field rule below `yaml`, and a document that
+            never parsed against `yaml` itself, since the editor it was typed
+            into is the only input there is to blame.
+    """
+    try:
+        return AgentSpec.from_yaml(text)
+    except ValidationError as exc:
+        raise BadRequestError(
+            message="This spec does not match the agent spec format",
+            details={"fields": field_problems(exc.errors(), root="yaml")},
+        ) from exc
+    except yaml.YAMLError as exc:
+        raise refused_field("yaml", _yaml_refusal(exc)) from exc
+    except ValueError as exc:
+        raise refused_field("yaml", str(exc)) from exc
+
+
 class AgentRegistryService:
     """Manage an organization's agents."""
 
@@ -501,6 +631,18 @@ class AgentRegistryService:
         if not allowed:
             raise NotFoundError(message="Agent not found", details={"agent_id": str(agent_id)})
         return agent
+
+    async def may_run(self, ctx: AuthContext, agent: Agent) -> bool:
+        """Whether this caller may run this agent - the floor to create a trigger on it.
+
+        The per-resource counterpart to the `can_run` the listing fills in batch:
+        the detail route reads it for one agent it already loaded. It resolves the
+        run access the same way, through `resolve_access`, so a Viewer holding an
+        explicit run grant reads true here where the role-level check would refuse
+        them. The access call stays in the service rather than the route, which is
+        the layering every other per-resource decision here already follows.
+        """
+        return await resolve_access(self.db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT)
 
     async def list_agents(
         self,
@@ -562,6 +704,10 @@ class AgentRegistryService:
         version_ids = [agent.current_version_id for agent in agents if agent.current_version_id]
         budget_caps = await agent_repo.published_budget_caps(self.db, version_ids=version_ids)
         windows = await self._context_windows(ctx, version_ids)
+        # Which of these the caller may run, in one grant query for the page - the
+        # floor for offering "new trigger" on a card. A grant widens it per row, so
+        # a Viewer shared run on one agent sees the control there and nowhere else.
+        runnable = await accessible_ids(self.db, ctx, agents, Perm.AGENTS_RUN, resource_type=AGENT)
         rows = [
             AgentRead(
                 id=agent.id,
@@ -574,6 +720,7 @@ class AgentRegistryService:
                 current_version_id=agent.current_version_id,
                 has_avatar=agent.has_avatar,
                 avatar_color=agent.avatar_color,
+                can_run=agent.id in runnable,
                 shared_user_count=shared_counts.get(agent.id, 0),
                 channels=surfaces.get(agent.id, []),
                 budget_monthly_usd=(
@@ -655,11 +802,11 @@ class AgentRegistryService:
                     "is what an @mention resolves to, so it has to be unique and cannot be "
                     "changed later - give this agent a name that produces a different handle."
                 ),
-                # `field` names the input a person is looking at, which is not
-                # what the server calls it: they typed a *name*, and the thing
-                # that collided is the handle derived from it. Without this the
-                # form has to guess where to put the message.
-                details={"slug": slug, "field": "name"},
+                # The handle, not the input that produced it: a conflict is a
+                # fact about a row, and which of its own fields derived the
+                # taken value is the form's to say - `submitFailure`'s
+                # `identifiedBy`, in `frontend/src/lib/api-error.ts` (#891).
+                details={"slug": slug},
             )
 
         agent = await agent_repo.create(
@@ -801,6 +948,20 @@ class AgentRegistryService:
             },
         )
 
+    async def import_spec(self, ctx: AuthContext, agent_id: UUID, text: str) -> Agent:
+        """Replace the draft with a spec exported into a client's own repository.
+
+        The parse happens before the agent is read. What it refuses depends only
+        on the document the caller sent, so putting it first leaks nothing about
+        which agents exist and answers somebody iterating on a file without
+        opening a transaction against a row they were never going to write.
+
+        Raises:
+            BadRequestError: If the document does not parse, is not a mapping, or
+                breaks a field rule.
+        """
+        return await self.save_draft(ctx, agent_id, _parse_spec_yaml(text))
+
     async def validate_spec(
         self, ctx: AuthContext, spec: AgentSpec, *, agent_id: UUID | None = None
     ) -> None:
@@ -829,25 +990,28 @@ class AgentRegistryService:
 
         Raises:
             BadRequestError: With a `problems` list naming each broken
-                reference.
+                reference, and a `fields` list for those a form can mark. A
+                capability's configuration is the one part of a spec rendered as
+                a generated form, so its refusals name the input rather than
+                only the capability (#882).
         """
-        problems: list[str] = []
+        problems = _SpecProblems()
 
         for binding in spec.capabilities:
-            problems.extend(await self._binding_problems(ctx, binding))
+            problems.merge(await self._binding_problems(ctx, binding))
 
         # A model, named. There is no organization-wide default to fall back
         # on: a model an agent did not choose is one somebody else's change can
         # swap underneath it, and "why did this get more expensive" then has no
         # answer in the agent's own history.
         if spec.model_profile_id is None:
-            problems.append("No model selected - pick one before publishing")
+            problems.add(["No model selected - pick one before publishing"])
         else:
-            problems.extend(await self._model_profile_problems(ctx, spec.model_profile_id))
+            problems.add(await self._model_profile_problems(ctx, spec.model_profile_id))
 
-        problems.extend(await self._collection_problems(ctx, spec.collection_ids))
-        problems.extend(await self._skill_problems(ctx, spec.skill_ids))
-        problems.extend(await self._context_problems(ctx, spec.context_ids))
+        problems.add(await self._collection_problems(ctx, spec.collection_ids))
+        problems.add(await self._skill_problems(ctx, spec.skill_ids))
+        problems.add(await self._context_problems(ctx, spec.context_ids))
 
         for connection_id in spec.mcp_server_ids:
             connection = await mcp_connection_repo.get_org_scoped_by_id(
@@ -858,25 +1022,30 @@ class AgentRegistryService:
                 # likely one - a personal connection picked in the Builder - is
                 # not a missing row and "not found" would send the person
                 # looking for something that is right in front of them.
-                problems.append(
-                    f"MCP server {connection_id} is not shared with this organization. "
-                    "A published agent can only use connections the organization owns, "
-                    "never a member's personal one - otherwise what it can reach would "
-                    "depend on who happens to run it."
+                problems.add(
+                    [
+                        f"MCP server {connection_id} is not shared with this organization. "
+                        "A published agent can only use connections the organization owns, "
+                        "never a member's personal one - otherwise what it can reach would "
+                        "depend on who happens to run it."
+                    ]
                 )
 
-        problems.extend(await _sandbox_problems(self.db, ctx, spec))
-        problems.extend(await self._delegation_problems(ctx, spec, agent_id=agent_id))
+        problems.add(await _sandbox_problems(self.db, ctx, spec))
+        problems.merge(await self._delegation_problems(ctx, spec, agent_id=agent_id))
 
-        if problems:
-            raise BadRequestError(
-                message="This agent cannot be published yet",
-                details={"problems": problems},
-            )
+        if problems.messages:
+            # `fields` only when there is one: an empty list is a claim that
+            # nothing here can be marked, which a reader would have to tell
+            # apart from a refusal that never names a field at all.
+            details: dict[str, Any] = {"problems": problems.messages}
+            if problems.fields:
+                details["fields"] = problems.fields
+            raise BadRequestError(message="This agent cannot be published yet", details=details)
 
     async def _binding_problems(
         self, ctx: AuthContext, binding: CapabilityBindingSpec
-    ) -> list[str]:
+    ) -> _SpecProblems:
         """Everything wrong with one capability binding.
 
         One binding rather than a spec's list, because a specialist defined
@@ -885,35 +1054,41 @@ class AgentRegistryService:
         step would drift, and the half that drifted would be the one nobody
         thought of as an agent.
         """
+        problems = _SpecProblems()
         try:
             definition = get_capability(binding.id)
         except BadRequestError:
-            return [f"Unknown capability: {binding.id}"]
+            problems.add([f"Unknown capability: {binding.id}"])
+            return problems
 
-        problems: list[str] = []
         missing_scopes = definition.scopes - DEFAULT_GRANTED_SCOPES
         if missing_scopes:
-            problems.append(
-                f"Capability '{binding.id}' needs scopes not granted here: "
-                f"{', '.join(sorted(missing_scopes))}"
+            problems.add(
+                [
+                    f"Capability '{binding.id}' needs scopes not granted here: "
+                    f"{', '.join(sorted(missing_scopes))}"
+                ]
             )
         try:
             config = definition.validate_config(binding.config)
         except BadRequestError as exc:
-            problems.append(f"Capability '{binding.id}': {exc.message}")
+            problems.merge(_config_problems(binding.id, exc))
         else:
-            problems.extend(await _browser_use_problems(config))
+            problems.add(await _browser_use_problems(config))
+            problems.add(ungateable_tool_problems(binding, definition, config))
         # A tool_approval key that matches nothing is the dangerous kind of
         # typo: it is not an error at run time, it is silence - the tool the
         # author meant to gate runs unapproved and nobody is told.
         unknown_tools = sorted(set(binding.tool_approval) - definition.tool_ids)
         if unknown_tools:
-            problems.append(
-                f"Capability '{binding.id}' has no tool named "
-                f"{', '.join(unknown_tools)} to set approval for"
+            problems.add(
+                [
+                    f"Capability '{binding.id}' has no tool named "
+                    f"{', '.join(unknown_tools)} to set approval for"
+                ]
             )
-        problems.extend(_tool_override_problems(binding, definition))
-        problems.extend(await self._secret_problems(ctx, binding, definition))
+        problems.add(_tool_override_problems(binding, definition))
+        problems.add(await self._secret_problems(ctx, binding, definition))
         return problems
 
     async def _model_profile_problems(self, ctx: AuthContext, profile_id: UUID) -> list[str]:
@@ -1080,7 +1255,7 @@ class AgentRegistryService:
 
     async def _delegation_problems(
         self, ctx: AuthContext, spec: AgentSpec, *, agent_id: UUID | None
-    ) -> list[str]:
+    ) -> _SpecProblems:
         """Everything wrong with what this agent delegates to.
 
         Three things, checked together because they interact: the specialists
@@ -1101,11 +1276,13 @@ class AgentRegistryService:
                 # tools, so without it they are configuration that reads as a
                 # decision and has no effect - and the author who wired up three
                 # delegates is the last person who would notice.
-                return [
-                    "This agent names delegates, but its delegation capability is not "
-                    "enabled - nothing would ever call them. Enable it, or remove them."
-                ]
-            return []
+                return _SpecProblems(
+                    [
+                        "This agent names delegates, but its delegation capability is not "
+                        "enabled - nothing would ever call them. Enable it, or remove them."
+                    ]
+                )
+            return _SpecProblems()
         try:
             config = SubagentsConfig.model_validate(binding.config)
         except ValidationError:
@@ -1113,29 +1290,31 @@ class AgentRegistryService:
             # A policy that does not parse says nothing further about the
             # specialists it would have carried, and guessing at half of one
             # would report problems against a shape nobody wrote.
-            return []
+            return _SpecProblems()
 
-        problems: list[str] = []
+        problems = _SpecProblems()
         names: list[str] = []
         for specialist in config.inline:
             names.append(specialist.name)
-            problems.extend(await self._specialist_problems(ctx, specialist))
-        problems.extend(_share_problems(spec, config))
+            problems.merge(await self._specialist_problems(ctx, specialist))
+        problems.add(_share_problems(spec, config))
 
         pins = await self._resolve_pins(ctx, spec.subagents)
-        problems.extend(pins.problems)
+        problems.add(pins.problems)
         # A delegate's handle is its row's slug; a specialist's is the name as
         # typed, which is already constrained to what a tool argument can carry.
         # Both are what the runtime hands the model, which is the only namespace
         # a collision can happen in.
         names.extend(pins.handles)
-        problems.extend(_collision_problems(names))
-        problems.extend(
+        problems.add(_collision_problems(names))
+        problems.add(
             await self._cycle_problems(ctx, pins.delegates, agent_id=agent_id, root_name=spec.name)
         )
         return problems
 
-    async def _specialist_problems(self, ctx: AuthContext, specialist: SpecialistSpec) -> list[str]:
+    async def _specialist_problems(
+        self, ctx: AuthContext, specialist: SpecialistSpec
+    ) -> _SpecProblems:
         """Everything wrong with a specialist defined inside this agent.
 
         The same checks the parent's own bindings and collections get, through the
@@ -1150,18 +1329,18 @@ class AgentRegistryService:
         Every problem carries the specialist's name. A Builder form has one input
         per specialist and cannot point at the right one otherwise.
         """
-        problems: list[str] = []
+        problems = _SpecProblems()
         for binding in specialist.capabilities:
-            problems.extend(await self._binding_problems(ctx, binding))
-        problems.extend(await self._collection_problems(ctx, specialist.collection_ids))
-        problems.extend(await self._skill_problems(ctx, specialist.skill_ids))
-        problems.extend(await self._context_problems(ctx, specialist.context_ids))
+            problems.merge(await self._binding_problems(ctx, binding))
+        problems.add(await self._collection_problems(ctx, specialist.collection_ids))
+        problems.add(await self._skill_problems(ctx, specialist.skill_ids))
+        problems.add(await self._context_problems(ctx, specialist.context_ids))
         # A specialist naming no profile runs on the parent's, which publish has
         # already checked - so only a profile it *did* name is a reference that
         # can be broken, or borrowed from another organization.
         if specialist.model_profile_id is not None:
-            problems.extend(await self._model_profile_problems(ctx, specialist.model_profile_id))
-        return [f"Specialist '{specialist.name}': {problem}" for problem in problems]
+            problems.add(await self._model_profile_problems(ctx, specialist.model_profile_id))
+        return problems.within_specialist(specialist.name)
 
     async def _resolve_pins(self, ctx: AuthContext, refs: Sequence[SubagentRef]) -> _ResolvedPins:
         """Every way a pin to a published delegate can be wrong.

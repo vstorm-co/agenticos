@@ -280,6 +280,14 @@ export interface Agent {
   has_avatar?: boolean;
   /** Chosen default-avatar colour slot (1..10); null/absent is auto from the id. */
   avatar_color?: number | null;
+  /**
+   * Whether the current caller may run this agent - the floor for creating a
+   * trigger, schedule or event on it. Resolved per caller from their role scope
+   * and any explicit run grant, so a Viewer granted run on one agent reads true
+   * here where the role-level check would say false. Hides create controls; the
+   * backend re-checks on every create, so it is not a security boundary.
+   */
+  can_run: boolean;
   /** How many members hold an explicit grant. Filled by the listing only. */
   shared_user_count?: number;
   /** Surfaces with an active binding ("slack", "telegram", ...). Listing only. */
@@ -533,11 +541,17 @@ export interface JsonSchemaProperty {
    * they are editing in.
    */
   "x-multiline"?: boolean;
+  /**
+   * What a `list[...]` holds. Only `{"type": "string"}` is rendered; anything
+   * else is the richer editor the generated form deliberately does not grow.
+   */
+  items?: { type?: string };
   /** A `Literal | None` arrives as branches, one carrying the values. */
   anyOf?: {
     type?: string;
     enum?: unknown[];
     format?: string;
+    items?: { type?: string };
     "x-enum-labels"?: Record<string, string>;
   }[];
 }

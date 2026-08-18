@@ -7,11 +7,18 @@ because a fired run goes through the same
 does. This service owns the two halves the runner does not: deciding a trigger is
 due without two heartbeats firing it twice, and deciding whom a fired run runs as.
 
-Who may manage a trigger is `agents:run` **on that agent**, resolved per-resource
+Who may *create* a trigger is `agents:run` **on that agent**, resolved per-resource
 through :class:`app.services.agent_registry.AgentRegistryService` - the same grant
 -aware check the run path itself makes, not a role gate. Creating a schedule is
 asserting "run this agent, repeatedly, as me", so the floor is exactly the
 permission to run it once.
+
+Managing an *existing* trigger is stricter, because a trigger runs its stored
+prompt with its creator's identity and sandbox. The creator manages their own with
+that same `agents:run`; managing someone else's - editing its prompt, deleting it,
+firing it now - needs `agents:edit` on the agent, so a member who could merely run
+the agent cannot edit another member's trigger into exfiltrating that member's
+files. See :meth:`AgentTriggerService._owned`.
 
 Whom a fired run runs *as* is the trigger's creator, re-resolved every fire, the
 way a channel mention runs as its sender and an embed widget as its owner. There
@@ -26,6 +33,7 @@ from __future__ import annotations
 
 import json
 import logging
+import secrets
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -34,11 +42,18 @@ from uuid import UUID
 
 from croniter import croniter
 from fastapi.encoders import jsonable_encoder
+from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
 from app.core.background import spawn_after_commit
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.config import settings
+from app.core.exceptions import (
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+    ValidationError,
+)
 from app.core.permissions import AuthContext, Perm
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.agent_run import RunStatus, RunSurface
@@ -51,10 +66,18 @@ from app.repositories import (
     conversation_repo,
     member_repo,
 )
-from app.schemas.agent_trigger import TriggerCreate, TriggerRead, TriggerUpdate
-from app.services import trigger_events
-from app.services.access import AGENT, visible_resource_ids
+from app.schemas.agent_trigger import (
+    _EVENT_CONFIG_MODELS,
+    TriggerCreate,
+    TriggerRead,
+    TriggerUpdate,
+    _cron_has_next,
+)
+from app.services import portal_catalog, portals, trigger_dedupe, trigger_events
+from app.services.access import AGENT, resolve_access, visible_resource_ids
 from app.services.agent_registry import AgentRegistryService
+from app.services.mcp_connection import McpConnectionService
+from app.services.portal_catalog import DeliveryMode
 
 logger = logging.getLogger(__name__)
 
@@ -146,9 +169,9 @@ def _resolve_cadence(trigger: AgentTrigger, changes: dict[str, Any]) -> None:
         changes["cron_expression"] = None
     else:
         cron = changes.get("cron_expression", trigger.cron_expression)
-        if not cron or not croniter.is_valid(cron):
+        if not cron or not _cron_has_next(cron):
             raise BadRequestError(
-                message="a cron schedule needs a valid crontab expression",
+                message="a cron schedule needs a valid crontab expression that ever fires",
                 details={"trigger_id": str(trigger.id)},
             )
         changes["schedule_kind"] = ScheduleKind.CRON.value
@@ -177,6 +200,18 @@ def _update_action(changes: dict[str, Any]) -> str:
     return "agent.trigger_updated"
 
 
+def _is_auto_webhook(trigger: AgentTrigger) -> bool:
+    """Whether the platform registered this trigger's webhook at its provider.
+
+    The three fields the registration recorded, all present together or not at
+    all: a manual event trigger and a schedule carry none of them. Named once so
+    the rotate path and the delete path agree on what an auto-registered hook is -
+    a hook the platform holds the secret for, and must teach a new secret to when
+    it rotates.
+    """
+    return bool(trigger.provider_webhook_id and trigger.connection_id and trigger.portal_key)
+
+
 def _parse_json(body: bytes) -> dict[str, Any]:
     """The delivery body as a JSON object, or a 400 the webhook route surfaces.
 
@@ -199,17 +234,29 @@ class AgentTriggerService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
         self.agents = AgentRegistryService(db)
+        self.connections = McpConnectionService(db)
 
-    async def list_for_agent(self, ctx: AuthContext, agent_id: UUID) -> list[AgentTrigger]:
-        """Every schedule on this agent.
+    async def list_for_agent(self, ctx: AuthContext, agent_id: UUID) -> list[TriggerRead]:
+        """Every schedule on this agent, each flagged whether this caller manages it.
 
         Requires only `agents:view` (the registry's default): seeing when an agent
-        runs itself is part of understanding what it is.
+        runs itself is part of understanding what it is. `can_manage` is the
+        `agents:edit`-on-the-agent the write path enforces, resolved once for the
+        agent, OR ownership of the row - so the page renders edit, pause, run-now
+        and delete for exactly the rows the caller could act on, and a Viewer with
+        an explicit grant is no longer hidden from their own.
         """
         agent = await self.agents.get(ctx, agent_id)
-        return await agent_trigger_repo.list_for_agent(
+        rows = await agent_trigger_repo.list_for_agent(
             self.db, agent_id=agent.id, organization_id=ctx.organization_id
         )
+        can_edit = await resolve_access(self.db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT)
+        reads: list[TriggerRead] = []
+        for trigger in rows:
+            read = TriggerRead.model_validate(trigger)
+            read.can_manage = can_edit or trigger.created_by_user_id == ctx.subject_id
+            reads.append(read)
+        return reads
 
     async def list_for_organization(
         self, ctx: AuthContext, *, skip: int = 0, limit: int = 50
@@ -247,11 +294,42 @@ class AgentTriggerService:
             limit=limit,
         )
         triggers: list[TriggerRead] = []
-        for trigger, agent_name in rows:
+        # `agents:edit` resolved once per agent, not once per row: an org-wide list
+        # is many triggers over few agents, and the answer is the agent's.
+        can_edit: dict[UUID, bool] = {}
+        for trigger, agent in rows:
             read = TriggerRead.model_validate(trigger)
-            read.agent_name = agent_name
+            read.agent_name = agent.name
+            if agent.id not in can_edit:
+                can_edit[agent.id] = await resolve_access(
+                    self.db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT
+                )
+            read.can_manage = can_edit[agent.id] or trigger.created_by_user_id == ctx.subject_id
             triggers.append(read)
         return triggers, total
+
+    async def list_portal_targets(
+        self, ctx: AuthContext, portal_key: str, connection_id: UUID
+    ) -> list[portals.PortalTarget]:
+        """The targets a portal's preset can point at, from the connected account.
+
+        Empty rather than an error when the portal registers no webhooks, or the
+        account cannot be read for the scope - the picker falls back to a free-text
+        target, so a listing that cannot answer must not block building a trigger.
+        A portal key that names nothing is a 404, because a bad key is a mistake.
+        """
+        portal = portal_catalog.get_portal(portal_key)
+        if portal is None:
+            raise NotFoundError(message="Portal not found", details={"portal_key": portal_key})
+        adapter = portals.get_adapter(portal_key)
+        if adapter is None:
+            return []
+        token = await self.connections.webhook_access_token(
+            ctx, connection_id, required_scopes=portal.read_scopes
+        )
+        if token is None:
+            return []
+        return await adapter.list_preset_targets(access_token=token)
 
     async def create(self, ctx: AuthContext, agent_id: UUID, data: TriggerCreate) -> AgentTrigger:
         """Schedule the agent to run itself, or fire it on an incoming event.
@@ -272,21 +350,58 @@ class AgentTriggerService:
             await self._environment_of(ctx, agent.id, data.environment_id)
 
         now = datetime.now(UTC)
+        event_source: str | None = None
+        event_config: dict[str, Any] = {}
+        event_secret_encrypted: str | None = None
+        secret_key_version: int | None = None
+        next_fire_at: datetime | None = None
+        connection_id: UUID | None = None
+        portal_key: str | None = None
+        delivery_mode: str | None = None
+        portal: portal_catalog.PortalEntry | None = None
+        plaintext_secret: str | None = None
+
         if data.trigger_type == TriggerType.EVENT.value:
-            sealed = seal(
-                cast(str, data.event_secret),
-                scope=VaultScope.organization(ctx.organization_id),
-            )
-            event_source = data.event_source
-            event_config = data.event_config or {}
-            event_secret_encrypted: str | None = sealed.ciphertext
-            secret_key_version: int | None = sealed.key_version
-            next_fire_at: datetime | None = None
+            if data.portal_key is not None:
+                # A preset: the source comes from the catalog and the secret is
+                # minted here, so the caller handles neither. The filter is the
+                # preset's defaults with the caller's optional `event_config`
+                # override merged over, then validated against the source the
+                # catalog resolves - so a bad override key is a 422 naming it
+                # rather than a 500 or a filter stored to match nothing.
+                resolved = portal_catalog.get_preset(data.portal_key, cast(str, data.preset_key))
+                if resolved is None:
+                    raise BadRequestError(
+                        message="Unknown portal or preset",
+                        details={"portal_key": data.portal_key, "preset_key": data.preset_key},
+                    )
+                portal, preset = resolved
+                event_source = portal.event_source
+                event_config = self._merged_preset_config(event_source, preset, data.event_config)
+                plaintext_secret = secrets.token_urlsafe(32)
+                portal_key = portal.key
+                # Resolve the caller-supplied connection against their own
+                # organization before it is stored, whatever the delivery mode:
+                # only the auto_webhook path unwraps a token for it, so without
+                # this a manual or polling preset would persist another tenant's
+                # `mcp_connections.id` on the row unchecked. A foreign or bogus id
+                # is the same unprobeable 404 every org-scoped connection lookup
+                # gives.
+                if data.connection_id is not None:
+                    await self.connections.get_org_connection(ctx, data.connection_id)
+                connection_id = data.connection_id
+            else:
+                event_source = data.event_source
+                event_config = data.event_config or {}
+                plaintext_secret = cast(str, data.event_secret)
+            sealed = seal(plaintext_secret, scope=VaultScope.organization(ctx.organization_id))
+            event_secret_encrypted = sealed.ciphertext
+            secret_key_version = sealed.key_version
+            # Manual until an auto-registration below succeeds, so a preset whose
+            # account lacks the scope or whose provider refuses degrades to the
+            # pasted-URL path rather than a half-set trigger.
+            delivery_mode = "manual"
         else:
-            event_source = None
-            event_config = {}
-            event_secret_encrypted = None
-            secret_key_version = None
             next_fire_at = _next_fire(
                 schedule_kind=data.schedule_kind,
                 interval_seconds=data.interval_seconds,
@@ -311,7 +426,26 @@ class AgentTriggerService:
             secret_key_version=secret_key_version,
             environment_id=data.environment_id,
             next_fire_at=next_fire_at,
+            connection_id=connection_id,
+            portal_key=portal_key,
+            delivery_mode=delivery_mode,
         )
+        # Auto-register the provider webhook for a preset whose portal supports it
+        # and whose connected account carries the scope; any miss leaves the
+        # trigger `manual` and the caller pastes the URL the response exposes.
+        if (
+            portal is not None
+            and portal.delivery is DeliveryMode.AUTO_WEBHOOK
+            and connection_id is not None
+        ):
+            await self._auto_register_webhook(
+                ctx,
+                trigger,
+                portal=portal,
+                connection_id=connection_id,
+                target=data.target,
+                secret=cast(str, plaintext_secret),
+            )
         # Open the run-log conversation now, not on the first fire, so a new
         # trigger is a clickable item in the sidebar the moment it exists - empty
         # until a fire appends to it. `_run_log` stays the idempotent fallback for
@@ -342,18 +476,121 @@ class AgentTriggerService:
         # be a `MissingGreenlet` 500 - the exact failure a mocked service test
         # cannot see, since it never serializes a live row.
         await self.db.refresh(trigger)
+        # Reveal the minted secret exactly once - only for a preset the platform
+        # could not register itself (manual delivery), where the person wiring the
+        # relay needs it to sign deliveries. A transient attribute, never a column:
+        # `TriggerCreateRead` reads it on the create response, and `TriggerRead`
+        # (every read and the listing) has no such field, so a sealed secret is
+        # never re-exposed. A raw trigger's secret is the caller's own and is not
+        # echoed back.
+        reveal = portal is not None and trigger.delivery_mode == "manual"
+        # `setattr`, not `trigger.reveal_secret = …`: it is not a mapped column, so
+        # a direct assignment fails the type checker. B010 prefers the assignment,
+        # which is exactly what does not type here.
+        setattr(trigger, "reveal_secret", plaintext_secret if reveal else None)  # noqa: B010
+        # The creator can always manage what they just made; the list surfaces
+        # resolve this per row, a single create response states it directly.
+        setattr(trigger, "can_manage", True)  # noqa: B010
         return trigger
+
+    async def _auto_register_webhook(
+        self,
+        ctx: AuthContext,
+        trigger: AgentTrigger,
+        *,
+        portal: portal_catalog.PortalEntry,
+        connection_id: UUID,
+        target: str | None,
+        secret: str,
+    ) -> None:
+        """Register the trigger's webhook at the provider, or leave it manual.
+
+        Best-effort by design: no adapter, no scope-bearing token, or a provider
+        that refuses all leave the trigger `manual` and the caller pastes the URL.
+        A registered hook records its id and target so `delete` can remove it.
+        """
+        adapter = portals.get_adapter(portal.key)
+        if adapter is None:
+            return
+        token = await self.connections.webhook_access_token(
+            ctx, connection_id, required_scopes=portal.webhook_admin_scopes
+        )
+        if token is None:
+            return
+        base = settings.PUBLIC_BASE_URL.rstrip("/")
+        webhook_url = f"{base}/api/v1/webhooks/triggers/{trigger.event_source}/{trigger.id}"
+        try:
+            registered = await adapter.register_webhook(
+                access_token=token, target=target, webhook_url=webhook_url, secret=secret
+            )
+        except portals.PortalError:
+            logger.info(
+                "trigger_webhook_manual_fallback",
+                extra={"trigger_id": str(trigger.id), "portal": portal.key},
+            )
+            return
+        trigger.provider_webhook_id = registered.provider_webhook_id
+        trigger.provider_target = target
+        trigger.delivery_mode = "auto_webhook"
+        await self.db.flush()
+
+    async def _deregister_webhook(self, ctx: AuthContext, trigger: AgentTrigger) -> None:
+        """Remove a trigger's provider webhook, best-effort, before it is deleted.
+
+        Never blocks the delete: an orphaned hook that now 401s on delivery is
+        harmless, but a delete that fails because the provider is down is not. A
+        manual or schedule trigger has no hook and this is a no-op.
+        """
+        if not _is_auto_webhook(trigger):
+            return
+        # `_is_auto_webhook` guarantees these three are set together; the casts
+        # annotate what the guard already proved, the same idiom `_unseal_event_secret`
+        # uses for a field the shape CHECK guarantees.
+        portal_key = cast(str, trigger.portal_key)
+        portal = portal_catalog.get_portal(portal_key)
+        adapter = portals.get_adapter(portal_key)
+        if portal is None or adapter is None:
+            return
+        try:
+            token = await self.connections.webhook_access_token(
+                ctx, cast(UUID, trigger.connection_id), required_scopes=portal.webhook_admin_scopes
+            )
+            if token is None:
+                return
+            await adapter.delete_webhook(
+                access_token=token,
+                target=trigger.provider_target,
+                provider_webhook_id=cast(str, trigger.provider_webhook_id),
+            )
+        except Exception:
+            logger.warning(
+                "trigger_webhook_deregister_failed",
+                extra={"trigger_id": str(trigger.id)},
+            )
 
     async def update(
         self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID, data: TriggerUpdate
     ) -> AgentTrigger:
-        """Pause, resume, retime, repoint, or reword a schedule.
+        """Pause, resume, retime, repoint, reword, or refilter a trigger.
 
         Only the fields the caller actually sent are applied, so pausing a trigger
         cannot silently move it back to the default environment.
+
+        An event trigger's *filter* is editable in place too: changing which issue
+        actions fire is a filter edit, not a different trigger, so `event_config`
+        is re-validated against the source's typed model and written - while the
+        source and the secret stay immutable (repointing an event is a different
+        trigger, made by deleting this one and creating that).
         """
         trigger = await self._owned(ctx, agent_id, trigger_id)
         changes = writable(data, over=AgentTrigger)
+
+        # A filter edit, the event mirror of a cadence edit: an event trigger's
+        # `event_config` is re-normalised against its source, and one sent for a
+        # schedule (which has no filter) is refused rather than stored to mean
+        # nothing - the same shape the cadence-on-event refusal below has.
+        if "event_config" in changes:
+            changes["event_config"] = self._validated_event_config(trigger, changes["event_config"])
 
         # Cadence edits: a schedule may be retimed in place - a new interval, a new
         # cron, or a switch between the two - rather than deleted and recreated. An
@@ -396,11 +633,16 @@ class AgentTriggerService:
             target_id=str(agent_id),
             details={"trigger_id": str(trigger.id), "changes": _audit_changes(changes)},
         )
+        # `_owned` let this caller through, so they manage it - say so on the read.
+        setattr(updated, "can_manage", True)  # noqa: B010
         return updated
 
     async def delete(self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID) -> None:
         """Remove a schedule entirely - the agent stops running itself."""
         trigger = await self._owned(ctx, agent_id, trigger_id)
+        # Take the provider hook down first, so a deleted trigger stops receiving
+        # deliveries; best-effort, never blocking the delete.
+        await self._deregister_webhook(ctx, trigger)
         await agent_trigger_repo.delete(self.db, trigger)
         await record_audit(
             self.db,
@@ -412,15 +654,164 @@ class AgentTriggerService:
             details={"trigger_id": str(trigger_id)},
         )
 
+    def _merged_preset_config(
+        self,
+        event_source: str,
+        preset: portal_catalog.PortalPreset,
+        override: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """The preset's filter with the caller's override merged over, validated.
+
+        A preset carries a filter template for its source (a GitHub `issue_opened`
+        fires on the `opened` action); the caller may narrow it further per source
+        - an email preset filtered to a subject or sender. The override is merged
+        key-by-key over the preset's defaults and the result validated against the
+        source's typed model, filling defaults and refusing an unknown key. A bad
+        override is the same 422 a hand-typed config gives, not a 500 from the raw
+        pydantic error nor a filter stored to match nothing.
+        """
+        try:
+            return cast(
+                dict[str, Any],
+                _EVENT_CONFIG_MODELS[event_source]
+                .model_validate({**dict(preset.event_config), **(override or {})})
+                .model_dump(),
+            )
+        except PydanticValidationError as exc:
+            raise ValidationError(
+                message="event_config is not valid for this preset's source",
+                details={"errors": exc.errors(include_url=False, include_input=False)},
+            ) from exc
+
+    def _validated_event_config(
+        self, trigger: AgentTrigger, config: dict[str, Any]
+    ) -> dict[str, Any]:
+        """The edited filter, normalised against the trigger's source, or a refusal.
+
+        Only an event trigger's filter is editable, so the source is read off the
+        row and the new config validated against exactly the typed model create
+        used - filling defaults and refusing an unknown key. A schedule has no
+        filter, so one sent for it is a 400; a key the source refuses is the same
+        422 create gives, not a config stored to match nothing.
+        """
+        if trigger.trigger_type != TriggerType.EVENT.value:
+            raise BadRequestError(
+                message="only an event trigger has an event_config to change",
+                details={"trigger_id": str(trigger.id)},
+            )
+        model = _EVENT_CONFIG_MODELS[cast(str, trigger.event_source)]
+        try:
+            return cast(dict[str, Any], model.model_validate(config).model_dump())
+        except PydanticValidationError as exc:
+            raise ValidationError(
+                message="event_config is not valid for this trigger's source",
+                details={"errors": exc.errors(include_url=False, include_input=False)},
+            ) from exc
+
+    async def rotate_secret(
+        self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID
+    ) -> AgentTrigger:
+        """Re-seal an event trigger's signing secret, revealing the new one once.
+
+        The URL is the trigger's identity and never changes; the secret is a
+        credential and is replaceable - a re-seal and a fresh plaintext shown
+        exactly once, the same shape as every other key in this product. A schedule
+        has no secret, so rotating one is refused. Management-gated through `_owned`:
+        the creator, or the holder of `agents:edit` on the agent.
+
+        An auto-registered hook signs its deliveries with the old secret, so a
+        rotation must teach the provider the new one or every delivery would 403
+        after it. The hook is re-registered at the same URL with the new secret; if
+        the account can no longer register it - a revoked scope, a provider refusal,
+        the portal gone from the catalog - the trigger falls back to manual and the
+        revealed secret is what the person re-pastes, exactly as create's fallback.
+        """
+        trigger = await self._owned(ctx, agent_id, trigger_id)
+        if trigger.trigger_type != TriggerType.EVENT.value:
+            raise BadRequestError(
+                message="only an event trigger has a secret to rotate",
+                details={"trigger_id": str(trigger.id)},
+            )
+        plaintext = secrets.token_urlsafe(32)
+        sealed = seal(plaintext, scope=VaultScope.organization(ctx.organization_id))
+        if _is_auto_webhook(trigger):
+            await self._reregister_hook(ctx, trigger, secret=plaintext)
+        updated = await agent_trigger_repo.update(
+            self.db,
+            trigger=trigger,
+            update_data={
+                "event_secret_encrypted": sealed.ciphertext,
+                "secret_key_version": sealed.key_version,
+            },
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="agent.trigger_secret_rotated",
+            target_type="agent",
+            target_id=str(agent_id),
+            # The new secret never reaches the trail - only that it was rotated and
+            # how the trigger delivers now.
+            details={"trigger_id": str(updated.id), "delivery_mode": updated.delivery_mode},
+        )
+        # An auto-registered hook now holds the new secret, so nothing is revealed;
+        # a manual trigger (or an auto one that fell back) needs the plaintext to
+        # update its provider, shown once here and never again - `TriggerRead`, what
+        # every other read serializes, has no such field.
+        reveal = updated.delivery_mode != "auto_webhook"
+        setattr(updated, "reveal_secret", plaintext if reveal else None)  # noqa: B010
+        # `_owned` let this caller through, so they manage it - say so on the read.
+        setattr(updated, "can_manage", True)  # noqa: B010
+        return updated
+
+    async def _reregister_hook(
+        self, ctx: AuthContext, trigger: AgentTrigger, *, secret: str
+    ) -> None:
+        """Move an auto-registered hook onto a new secret, or fall back to manual.
+
+        Deletes the provider's old hook and registers a fresh one at the same URL
+        signed with `secret`. `_is_auto_webhook` guarantees the `portal_key`, so a
+        portal that has since left the catalog is the one miss handled here; every
+        other miss - no adapter, a revoked scope, a provider refusal - is
+        `_auto_register_webhook`'s own manual fallback, reached by leaving the
+        trigger manual before it runs so a failed re-register does not keep a
+        provider_webhook_id whose hook was just deleted.
+        """
+        portal = portal_catalog.get_portal(cast(str, trigger.portal_key))
+        target = trigger.provider_target
+        await self._deregister_webhook(ctx, trigger)
+        trigger.provider_webhook_id = None
+        trigger.provider_target = None
+        trigger.delivery_mode = "manual"
+        if portal is None:
+            return
+        await self._auto_register_webhook(
+            ctx,
+            trigger,
+            portal=portal,
+            connection_id=cast(UUID, trigger.connection_id),
+            target=target,
+            secret=secret,
+        )
+
     async def run_now(self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID) -> AgentTrigger:
-        """Accept one extra fire of this schedule, without disturbing its cadence.
+        """Fire this trigger once, on demand, without disturbing how it normally fires.
+
+        Works for either kind, and is deliberately offered on both. A schedule
+        fires one extra time with `next_fire_at` left untouched - running now is an
+        extra fire, not a reschedule. An **event trigger** fires too, as a manual
+        test-fire: the agent runs its base prompt with no delivery context
+        (`event_context=None`), so it is the way to confirm the agent, its prompt
+        and its budget behave without standing up a provider, signing a payload or
+        waiting for a real delivery. What it does *not* exercise is the signature
+        path or a real payload's rendered context.
 
         The caller needs `agents:run` on the agent - the floor for scheduling it
         at all, checked by `_owned`. The fire runs as the trigger's creator, the
-        same subject a heartbeat fire uses, so a schedule always runs as one
-        identity however it was set off. `next_fire_at` is left untouched: running
-        now is one extra fire, not a reschedule. A paused schedule is respected -
-        `fire` no-ops on an inactive trigger - so this is offered only on a live one.
+        same subject a heartbeat or a delivered event uses, so a trigger always
+        runs as one identity however it was set off. A paused trigger is respected
+        - `fire` no-ops on an inactive one - so this is offered only on a live one.
 
         The run itself is attributed to the creator, but *who pressed the button*
         is a separate fact and a spend, so it is audited under the caller: without
@@ -453,6 +844,8 @@ class AgentTriggerService:
         from app.worker.background.trigger_fire import fire_trigger
 
         spawn_after_commit(self.db, fire_trigger(trigger.id), name=f"trigger-run-now-{trigger.id}")
+        # `_owned` let this caller through, so they manage it - say so on the read.
+        setattr(trigger, "can_manage", True)  # noqa: B010
         return trigger
 
     async def prepare_event_fire(
@@ -494,8 +887,33 @@ class AgentTriggerService:
             source, headers=headers, payload=payload, config=trigger.event_config
         ):
             return None
+        # At-least-once delivery: a redelivery of an event already dispatched must
+        # not fire a second run and a second spend. Claim the provider's delivery
+        # id; a delivery that carries none, or a Redis that cannot be reached, fails
+        # open and fires, and a duplicate answers the same nothing-to-do `None` an
+        # unmatched delivery does, so it stays unprobeable. The claim is released by
+        # the route if the fire's hand-off then fails (`release_event_claim`).
+        delivery = trigger_events.delivery_id(source, headers)
+        if delivery is not None and not await trigger_dedupe.claim_event_delivery(
+            trigger_id=trigger.id, delivery_id=delivery
+        ):
+            return None
         context = trigger_events.render_context(source, payload=payload)
         return EventFireDecision(trigger_id=trigger.id, event_context=context)
+
+    async def release_event_claim(
+        self, source: str, trigger_id: UUID, headers: Mapping[str, str]
+    ) -> None:
+        """Give back the dedupe claim on a delivery whose fire was not dispatched.
+
+        `prepare_event_fire` claims before returning the decision, so a hand-off
+        that then raises - Prefect unreachable - must release the claim or the
+        provider's resend is dropped and the event lost. A delivery with no provider
+        id was never claimed, so this is a no-op for it.
+        """
+        delivery = trigger_events.delivery_id(source, headers)
+        if delivery is not None:
+            await trigger_dedupe.release_event_delivery(trigger_id=trigger_id, delivery_id=delivery)
 
     def _unseal_event_secret(self, trigger: AgentTrigger) -> str:
         """The trigger's signing secret, unsealed for its organization.
@@ -519,11 +937,25 @@ class AgentTriggerService:
         once take disjoint work and neither leaves a due row behind for the other.
         The worker calls this with no auth context - it is a system sweep, and the
         organization each fired run belongs to is read off its own row.
+
+        Only `next_fire_at` moves here, not `last_fired_at`: claiming is not
+        firing, and the dispatched run may still be refused (a creator who lost
+        access). The actual fire stamps `last_fired_at` in `fire`, so it means the
+        same thing - a run was created - on every entry path, scheduled or event.
+
+        An orphaned schedule - one whose creator's user row was hard-deleted, so
+        `created_by_user_id` is null - is claimed now (the query no longer filters
+        it out) and disabled here rather than dispatched: it can never run, and
+        `fire` would only disable it after a wasted flow run. Dispatching is left to
+        the schedules that can still fire.
         """
         triggers = await agent_trigger_repo.claim_due(self.db, now=now, limit=limit)
+        live: list[AgentTrigger] = []
         for trigger in triggers:
+            if trigger.created_by_user_id is None:
+                await self._disable(trigger, reason="creator_not_active")
+                continue
             trigger.next_fire_at = _next_fire_from(trigger, now=now)
-            trigger.last_fired_at = now
             # Mark the fire in flight in the same committed UPDATE that advances the
             # schedule, so no window opens in which a slow run's trigger looks
             # claimable to the next tick. This timestamp is the claim's ticket: the
@@ -534,8 +966,9 @@ class AgentTriggerService:
             # than clearing it eagerly - the child flow may have started even when the
             # submit call raised.
             trigger.fire_in_flight_since = now
+            live.append(trigger)
         await self.db.flush()
-        return triggers
+        return live
 
     async def fire(
         self,
@@ -619,10 +1052,11 @@ class AgentTriggerService:
             return
         ctx = await self._creator_context(trigger)
         if ctx is None:
-            # No membership to take a role from - the creator left the
-            # organization, or the user row itself is gone and SET NULL cleared
-            # the column. Either way the schedule is no longer attributable.
-            await self._disable(trigger, reason="creator_not_a_member")
+            # No *active* membership to take a role from - the creator left the
+            # organization, was deactivated, or the user row itself is gone and
+            # SET NULL cleared the column. Either way the schedule is no longer
+            # attributable to an account that could run it, so it stops.
+            await self._disable(trigger, reason="creator_not_active")
             return
 
         try:
@@ -665,6 +1099,17 @@ class AgentTriggerService:
             # Access was withdrawn between the pre-check and the run. Same verdict:
             # disable, do not raise into a retry.
             await self._disable(trigger, reason="creator_cannot_run_agent")
+            return
+        except BadRequestError:
+            # The agent is no longer runnable - unpublished back to a draft,
+            # archived, or its version withdrawn - so `get_runnable_spec` refuses
+            # inside execute. Left active, every cadence would dispatch another run
+            # that fails exactly here; disable it instead of retrying a certainty,
+            # the same verdict the authz refusal gets for the same reason. Caught
+            # before the blanket `Exception` below, which would otherwise find no run
+            # of this fire's to recover and simply return, leaving the schedule to
+            # dispatch the same doomed run every cadence.
+            await self._disable(trigger, reason="agent_not_runnable")
             return
         except Exception:
             # The run failed on something the runner re-raises instead of recording
@@ -711,6 +1156,10 @@ class AgentTriggerService:
                 raise
 
         trigger.last_run_id = run.id
+        # Stamp the fire on every path, not just the scheduled heartbeat: without
+        # this an event trigger or a Run now reported "never fired" however many
+        # runs it made, because only `claim_and_advance` used to set it.
+        trigger.last_fired_at = datetime.now(UTC)
         await self.db.flush()
         logger.info(
             "trigger_fired",
@@ -722,12 +1171,19 @@ class AgentTriggerService:
 
         Re-resolved every fire, never cached on the row: authority is whatever the
         creator's membership says *now*, so a role changed yesterday takes effect
-        today. None means there is no membership to take a role from - the creator
-        left the organization - and the caller disables the trigger.
+        today. None means there is no membership to take a role from, and the
+        caller disables the trigger.
+
+        `get_active`, not `get`: deactivating a user leaves the membership row in
+        place, so a plain `get` would rebuild the disabled account's old role and
+        keep firing on the schedule (or on a signed delivery the deactivated
+        creator still holds the secret for) even though that account is refused
+        everywhere a person signs in. Only an account that can still sign in may
+        run an agent with nobody at the keyboard.
         """
         if trigger.created_by_user_id is None:
             return None
-        membership = await member_repo.get(
+        membership = await member_repo.get_active(
             self.db,
             organization_id=trigger.organization_id,
             user_id=trigger.created_by_user_id,
@@ -810,21 +1266,42 @@ class AgentTriggerService:
             )
 
     async def _owned(self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID) -> AgentTrigger:
-        """The trigger, if it is this agent's and this caller may run it.
+        """The trigger, if it is this agent's and this caller may manage it.
 
-        Both halves are checked: the organization scope alone would let a caller
-        pass another agent's trigger id to an agent they *can* run and edit it,
-        which is a cross-resource escalation inside one tenant.
+        Three halves, and the third is a privilege boundary, not a lookup. The
+        organization scope and the agent match rule out cross-tenant and
+        cross-resource reads: without them a caller could pass another agent's
+        trigger id to an agent they can run and act on it.
+
+        The third: a trigger runs its stored prompt with its *creator's* identity
+        and sandbox, so editing, deleting or firing a trigger you did not create
+        is an administrative act over someone else's authority, not the
+        `agents:run` that merely lets you fire the agent as yourself. A member who
+        could only run the agent would otherwise edit another member's trigger
+        prompt - `prompt` is a writable field - and have it exfiltrate the
+        creator's per-user files on the next delivery, or press *Run now* to do so
+        at once. So managing a trigger the caller did not create needs
+        `agents:edit` on the agent (an org admin, or the holder of an explicit edit
+        grant); the creator manages their own with the `agents:run` they built it
+        on. A refusal is reported as "not found", the same unprobeable answer the
+        other two halves give.
 
         Raises:
-            NotFoundError: If the trigger is missing, in another organization, or
-                on a different agent than the one in the path.
+            NotFoundError: If the trigger is missing, in another organization, on a
+                different agent than the one in the path, or created by someone else
+                and the caller lacks `agents:edit`.
         """
         agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
         trigger = await agent_trigger_repo.get(
             self.db, trigger_id, organization_id=ctx.organization_id
         )
         if trigger is None or trigger.agent_id != agent.id:
+            raise NotFoundError(
+                message="Trigger not found", details={"trigger_id": str(trigger_id)}
+            )
+        if trigger.created_by_user_id != ctx.subject_id and not await resolve_access(
+            self.db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT
+        ):
             raise NotFoundError(
                 message="Trigger not found", details={"trigger_id": str(trigger_id)}
             )

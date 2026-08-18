@@ -166,7 +166,30 @@ There is no `(marketing)` route group.
   header, and a list refetched right after a write must reach the server. A
   hand-rolled route file owes the same header - the proxy is the only place that
   applies it for you.
+- **A brand mark is one row in a generator's table, and there is no second
+  source.** `src/lib/brand-glyphs.generated.ts` holds every service, connector
+  and model-provider mark the console draws, as raw SVG path data, written by
+  `bun run gen:brand-icons` from Simple Icons, Font Awesome and
+  `@lobehub/icons-static-svg`. Adding a mark means adding a row to `BRANDS` or
+  `PROVIDERS` in `scripts/gen-brand-icons.ts` and re-running — never an import
+  from an icon package, and never a hand-authored `d`, which is how a mark
+  quietly stops being the brand's. `BrandIcon` draws one, `brandMark(name)` binds
+  one for a table that also holds lucide icons, and `ProviderIcon` draws the
+  provider half; nothing else touches the glyph data. There were three
+  mechanisms before #156 — `react-icons` for connectors, a deep
+  `@lobehub/icons` import for providers, this file's ancestor for MCP favicons —
+  199 MB installed to draw 89 marks that are the same artwork either way.
+  The generator refuses a source SVG it cannot draw with paths alone, or one
+  carrying a literal fill: a mark that silently loses a layer still renders, and
+  is still the wrong logo.
 - Do not hand-edit `src/lib/mcp-logos.generated.ts` — run `bun run gen:mcp-logos`.
+- **A dependency nothing imports fails `make lint`.** `bun run lint:deps` is knip
+  narrowed to that one question, and it runs in `lint-frontend`. A false positive
+  takes an entry in `knip.jsonc` *with the reason on the line above it* — the
+  same bargain `i18n-exempt` and `[tool.vulture] ignore_names` take. An entry
+  added to silence a finding is worse than the finding: `date-fns` was declared,
+  imported by nothing, and sitting in that ignore list, so the report that would
+  have found it had been told not to look.
 - **Opening a file is `components/files`, and there is no second one.** `FileViewer` is
   the dialog every surface opens; `FileContent` is it without the dialog, for a surface
   with its own chrome; `FileTextView` is it without the fetching, for content already in
@@ -194,6 +217,32 @@ There is no `(marketing)` route group.
   needs none: it falls back to a humanized name and the generic renderer. What a row
   holds is `captionKey` / `displayNameKey` / `verbs`, all of them keys under
   `chat.tools`, because the table is a module constant with no translator to reach.
+
+## A new surface owes the onboarding walkthrough a stop
+
+`src/lib/onboarding/tour.ts` (the passive walk every page's "?" replays) and
+`flows.ts` (the guided creation it offers at the end) are **registries**. A page,
+tab, section or create control added anywhere else is simply missing from them —
+nothing fails and nothing warns, so the feature ships invisible to everyone who
+learns the product through the tour.
+
+Add the stop in the same change: a `TourStep` plus a `data-tour` on the control it
+names; a `CreationFlow` and its `flowForPage` entry where the page can create
+something; a resolver in `components/onboarding/detail-targets.ts` for a detail
+view with no route of its own; and `steps.<id>.title`/`.body` in `messages/en.json`,
+because a missing key renders the key.
+
+Three things decide whether the stop works, each got wrong here at least once:
+gate it on the permission its control carries (an ungated step waits four seconds
+for an element a refusal never mounts); mark it `optional: true` when the control
+renders only where data exists (an empty catalog otherwise pins a caption to
+nothing); and anchor it on something **bounded** — `data-tour` on a card whose body
+is a whole catalog spotlights the entire viewport, which highlights nothing, so the
+describing step takes the header and the card's own anchor is left to the guided
+flow, which needs the list reachable.
+
+The full picture, including what CLAUDE.md requires, is in `CLAUDE.md` under
+"A new surface owes the walkthrough a stop".
 
 ## Permissions
 
@@ -231,3 +280,8 @@ and most of `src/components`, so a suite where every test passes can still be re
 dead branch is easier to delete than to cover: a `?? ""` behind a check that already
 proved the value, or an optional prop two callers always pass, is one the gate is
 right to notice.
+
+**A red spec that says "timed out" is usually the machine.** `testTimeout` is 15s and
+`asyncUtilTimeout` 5s, both measured rather than guessed - `docs/testing.md#two-deadlines-both-sized-for-a-loaded-machine`
+has the four runs behind them (#862). Neither is a reason to keep a spec that mounts
+more than its assertions read.

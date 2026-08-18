@@ -139,6 +139,7 @@ class IngestionService:
             )
 
             action = "replaced" if existing_id else "ingested"
+            chunk_count = len(document.chunked_pages or [])
 
             await self._emit(
                 "rag.document.ingested",
@@ -147,7 +148,7 @@ class IngestionService:
                     "filename": filepath.name,
                     "collection": collection_name,
                     "action": action,
-                    "chunks": len(document.chunked_pages or []),
+                    "chunks": chunk_count,
                     "source_path": document.metadata.source_path,
                 },
             )
@@ -156,6 +157,8 @@ class IngestionService:
                 status=IngestionStatus.DONE,
                 document_id=document.id,
                 message=f"Successfully {action} '{filepath.name}'",
+                chunk_count=chunk_count,
+                replaced_document_id=existing_id,
             )
 
         except Exception as exc:

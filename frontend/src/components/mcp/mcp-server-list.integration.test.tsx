@@ -67,6 +67,7 @@ function connection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConn
     last_error: null,
     last_checked_at: null,
     catalog_key: "github",
+    granted_scopes: null,
     created_at: "2026-07-01T00:00:00Z",
     updated_at: null,
     ...overrides,
@@ -320,6 +321,36 @@ describe("McpServerList", () => {
 
     expect(screen.getByRole("group", { name: "GitHub" })).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Linear" })).toBeNull();
+  });
+
+  it("disconnects through a dialog, and a second confirm during the DELETE is a no-op", async () => {
+    // The lone holdout on window.confirm carried the three regressions the other
+    // destructive controls were migrated off it to fix: an untranslatable native
+    // prompt, a non-accessible modal, and - the real bite - no busy guard, so a
+    // double-click fired a second DELETE. The guard is what this pins.
+    await mount({ org: [connection()] });
+
+    const row = within(githubRow());
+    await userEvent.click(row.getByRole("button", { name: "Manage Organization" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Disconnect" }));
+
+    // A real dialog, not window.confirm, and its description names the server.
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/Disconnect "github"\?/)).toBeInTheDocument();
+
+    // Hold the DELETE in flight so the busy guard is observable: the confirm
+    // button disables itself, so the second click cannot fire a second DELETE.
+    let release: () => void = () => {};
+    vi.mocked(apiClient.delete).mockImplementation(
+      () => new Promise((resolve) => (release = () => resolve(undefined))),
+    );
+    const confirm = within(dialog).getByRole("button", { name: "Disconnect" });
+    await userEvent.click(confirm);
+    await userEvent.click(confirm);
+
+    expect(apiClient.delete).toHaveBeenCalledTimes(1);
+    expect(apiClient.delete).toHaveBeenCalledWith("/mcp-connections/o1");
+    release();
   });
 
   it("renders no remote asset for a logo", async () => {

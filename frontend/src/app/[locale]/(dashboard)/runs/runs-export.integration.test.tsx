@@ -27,7 +27,11 @@ vi.mock("@/lib/file-access", () => ({ saveBlob: vi.fn() }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const params = new URLSearchParams("agent=agent-1");
-vi.mock("next/navigation", () => ({ useSearchParams: () => params }));
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => params,
+  // The header's "?" reads the path to decide whether this page has tips.
+  usePathname: () => "/runs",
+}));
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

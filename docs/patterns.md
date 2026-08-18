@@ -130,7 +130,11 @@ except Exception as exc:
 `message` is held to the same bar - the envelope carries it and the handler logs
 it on the same line, so a sentence naming the endpoint leaks whatever the field
 was refused for carrying. A URL the refusal is *about* is named by its field:
-`{"field": "base_url"}`, never the endpoint with the password still in it.
+`refused_field("base_url", ...)`, never the endpoint with the password still in
+it. That helper is in `app/core/field_errors.py`, which is the only place the
+`details["fields"]` a form marks an input from is built - see
+[Architecture](architecture.md#a-refusal-that-names-a-field) for the three entry
+points and for which refusals deliberately name no field at all.
 
 The same applies to an audit entry, which is `details` with a longer life: record
 *which* fields an administrator changed, not the values they submitted.

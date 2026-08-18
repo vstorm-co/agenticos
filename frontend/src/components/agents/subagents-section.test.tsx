@@ -118,6 +118,7 @@ function agent(overrides: Partial<Agent> = {}): Agent {
     visibility: "private",
     owner_user_id: null,
     current_version_id: "v2",
+    can_run: false,
     ...overrides,
   };
 }

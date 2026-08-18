@@ -47,6 +47,20 @@ async def get_by_id(db: AsyncSession, trigger_id: UUID) -> AgentTrigger | None:
     return result.scalar_one_or_none()
 
 
+async def get_by_conversation_id(db: AsyncSession, conversation_id: UUID) -> AgentTrigger | None:
+    """The trigger whose run-log is this conversation, or None if it is not one.
+
+    How a conversation read decides whether the thread is a trigger's run-log and
+    whose agent's access governs it. One trigger opens and owns one log, so this
+    is at most one row; the caller scopes the agent it points at to the
+    conversation's own organization rather than trusting this to cross tenants.
+    """
+    result = await db.execute(
+        select(AgentTrigger).where(AgentTrigger.conversation_id == conversation_id)
+    )
+    return result.scalars().first()
+
+
 async def list_for_agent(
     db: AsyncSession, *, agent_id: UUID, organization_id: UUID
 ) -> list[AgentTrigger]:
@@ -70,8 +84,8 @@ async def list_for_organization(
     shared_ids: list[UUID],
     skip: int = 0,
     limit: int = 50,
-) -> tuple[list[tuple[AgentTrigger, str]], int]:
-    """Every trigger the caller may see in the organization, each with its agent's name.
+) -> tuple[list[tuple[AgentTrigger, Agent]], int]:
+    """Every trigger the caller may see in the organization, each with its agent.
 
     The visibility predicate is the *same* one agent listings use
     (`agent_repo.list_visible`), applied to each trigger's agent: a trigger is
@@ -101,14 +115,14 @@ async def list_for_organization(
         )
     ).scalar_one()
     result = await db.execute(
-        select(AgentTrigger, Agent.name)
+        select(AgentTrigger, Agent)
         .join(Agent, Agent.id == AgentTrigger.agent_id)
         .where(*where)
         .order_by(AgentTrigger.created_at.desc())
         .offset(skip)
         .limit(limit)
     )
-    return [(trigger, name) for trigger, name in result.all()], total
+    return [(trigger, agent) for trigger, agent in result.all()], total
 
 
 async def create(
@@ -129,6 +143,9 @@ async def create(
     secret_key_version: int | None,
     environment_id: UUID | None,
     next_fire_at: datetime | None,
+    connection_id: UUID | None = None,
+    portal_key: str | None = None,
+    delivery_mode: str | None = None,
 ) -> AgentTrigger:
     trigger = AgentTrigger(
         organization_id=organization_id,
@@ -146,6 +163,9 @@ async def create(
         secret_key_version=secret_key_version,
         environment_id=environment_id,
         next_fire_at=next_fire_at,
+        connection_id=connection_id,
+        portal_key=portal_key,
+        delivery_mode=delivery_mode,
     )
     db.add(trigger)
     await db.flush()
@@ -182,10 +202,15 @@ async def claim_due(db: AsyncSession, *, now: datetime, limit: int = 100) -> lis
     seeing one due trigger. `of=AgentTrigger` keeps the lock off the joined
     `agent_runs` row, which this only reads.
 
-    Three filters decide "due":
+    Four filters decide "due":
 
-    * `is_active`, a non-null creator, and `next_fire_at <= now` - the schedule
-      says so and it is still attributable to someone.
+    * `is_active` and `next_fire_at <= now` - the schedule says so. A null creator
+      is deliberately *not* filtered out here: an orphaned schedule (its creator's
+      user row hard-deleted, SET NULL clearing the column) can never fire, but
+      excluding it from the claim was what left it sitting active-but-dead forever,
+      never reaching the one place that disables it. `claim_and_advance` now claims
+      it and disables it instead, so the cleanup happens rather than being filtered
+      away.
     * no fire is in flight: `fire_in_flight_since` is null, or older than
       `_FIRE_LEASE`. The claim sets this marker in the same UPDATE that advances
       `next_fire_at`, and the fired run clears it in a `finally` - so a run slower
@@ -227,7 +252,6 @@ async def claim_due(db: AsyncSession, *, now: datetime, limit: int = 100) -> lis
         .outerjoin(AgentRun, AgentRun.id == AgentTrigger.last_run_id)
         .where(
             AgentTrigger.is_active.is_(True),
-            AgentTrigger.created_by_user_id.is_not(None),
             AgentTrigger.next_fire_at <= now,
             (AgentTrigger.last_run_id.is_(None)) | (AgentRun.status.not_in(_NON_TERMINAL_STATUSES)),
             ~has_run_in_flight,

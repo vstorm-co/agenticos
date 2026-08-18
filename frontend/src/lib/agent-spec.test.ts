@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  capabilityConfigErrors,
   CONTEXT_ID,
   DEFAULT_SUBAGENTS_CONFIG,
   delegationNameClashes,
@@ -276,5 +277,51 @@ describe("pinStatus", () => {
     // An agent unpublished since it was pinned has no current version to
     // compare against, and inventing one would report a stale pin as current.
     expect(pinStatus([version(1)], "v1", null)).toEqual({ kind: "unknown" });
+  });
+});
+describe("capabilityConfigErrors", () => {
+  const problem = (field: string) => ({ field, message: "Input should be <= 50" });
+
+  it("keys a capability's own settings by the name its form renders", () => {
+    // `SchemaForm` keys its errors by the bare field; the path is what says
+    // which of the forms on the page that name belongs to.
+    expect(
+      capabilityConfigErrors([problem("capabilities.knowledge.config.default_top_k")], "knowledge"),
+    ).toEqual({ default_top_k: "Input should be <= 50" });
+  });
+
+  it("leaves another capability's field alone", () => {
+    // Every problem in a spec arrives in one flat list, and two capabilities
+    // can hold a setting of the same name.
+    expect(
+      capabilityConfigErrors(
+        [problem("capabilities.web_search.config.default_top_k")],
+        "knowledge",
+      ),
+    ).toEqual({});
+  });
+
+  it("leaves a specialist's copy of the same capability alone", () => {
+    // The Builder renders one form per specialist, configuring the same
+    // capabilities as the parent - so the parent's card is not where a
+    // delegate's mistake is marked.
+    expect(
+      capabilityConfigErrors(
+        [problem("specialists.researcher.capabilities.knowledge.config.default_top_k")],
+        "knowledge",
+      ),
+    ).toEqual({});
+  });
+
+  it("leaves a refusal about the whole blob to the problem list above the form", () => {
+    // A rule about two settings at once names the config itself, and there is
+    // no input to put that under.
+    expect(capabilityConfigErrors([problem("capabilities.knowledge.config")], "knowledge")).toEqual(
+      {},
+    );
+  });
+
+  it("says nothing for the ordinary case, where no problem names an input", () => {
+    expect(capabilityConfigErrors([], "knowledge")).toEqual({});
   });
 });

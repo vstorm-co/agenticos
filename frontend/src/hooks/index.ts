@@ -21,6 +21,8 @@ export { useMcpConnections } from "./use-mcp-connections";
 export { useOrgMcpConnections } from "./use-org-mcp-connections";
 export { useMcpToolServers } from "./use-mcp-tool-servers";
 export { usePermissions, useRoleCatalog, useAssignableRoles } from "./use-permissions";
+export { useCanCreateTrigger } from "./use-can-create-trigger";
+export { useOnboardingTour, type OnboardingTourState } from "./use-onboarding";
 export {
   useAgent,
   useAgents,
@@ -31,6 +33,14 @@ export {
 } from "./use-agents";
 export { useMcpCatalog, useMcpServers, type McpServerRow } from "./use-mcp-servers";
 export { useMcpOAuthOutcome } from "./use-mcp-oauth-outcome";
+export {
+  usePortalCatalog,
+  usePortals,
+  type PortalAction,
+  type PortalWithState,
+} from "./use-portals";
+export { usePortalTargets } from "./use-portal-targets";
+export { useScheduleTemplates } from "./use-schedule-templates";
 export { useUrlSort, type UrlSort } from "./use-url-sort";
 export { useModelProviders, useProviderModels } from "./use-model-providers";
 export {

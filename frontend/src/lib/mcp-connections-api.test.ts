@@ -72,6 +72,19 @@ describe("starting an OAuth flow", () => {
       url: "https://mcp.linear.app/sse",
     });
   });
+
+  it("starts GitHub through its own org endpoint, keyed by the portal", async () => {
+    // GitHub cannot be MCP-discovered, so it has a dedicated endpoint that reads
+    // the organization's OAuth App secret rather than a name and URL.
+    vi.mocked(apiClient.post).mockResolvedValue({ authorization_url: "https://github/consent" });
+
+    await expect(personal.startGithubOrgOAuth("github")).resolves.toEqual({
+      authorization_url: "https://github/consent",
+    });
+    expect(apiClient.post).toHaveBeenCalledWith("/mcp-connections/oauth/start/github", {
+      portal_key: "github",
+    });
+  });
 });
 
 describe("the organization's connections", () => {

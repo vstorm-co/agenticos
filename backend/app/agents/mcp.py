@@ -46,9 +46,14 @@ class McpProbeError(Exception):
 async def validate_mcp_url(url: str) -> str:
     """SSRF-check a URL before we talk to it (same policy as webhooks).
 
-    Applies to every URL we request, not just the one the user typed: OAuth
-    discovery hands us endpoints the remote server chose, and those deserve
-    the same check. Runs in a thread because validation resolves DNS.
+    For a URL an operator typed: the connection's own address, and the consent
+    URL the OAuth flow hands to somebody's browser rather than fetching. Runs
+    in a thread because validation resolves DNS.
+
+    Everything the OAuth flow *fetches* is chosen by the remote server, so it
+    goes through :class:`app.core.pinned_http.PinnedAsyncClient` instead, which
+    connects to the address it checked rather than handing the name back to be
+    resolved again (#860).
     """
     return await asyncio.to_thread(validate_webhook_url, url)
 

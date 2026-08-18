@@ -7,7 +7,13 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { getErrorMessage } from "@/lib/api-error";
-import type { Trigger, TriggerCreate, TriggerList, TriggerUpdate } from "@/types/triggers";
+import type {
+  Trigger,
+  TriggerCreate,
+  TriggerCreated,
+  TriggerList,
+  TriggerUpdate,
+} from "@/types/triggers";
 
 /**
  * One agent's schedules and event triggers, and the writes that change them.
@@ -37,7 +43,9 @@ export function useTriggers(agentId: string | null) {
   );
 
   const create = useMutation({
-    mutationFn: (payload: TriggerCreate) => apiClient.post<Trigger>(base, payload),
+    // `TriggerCreated` rather than `Trigger`: the create response carries the
+    // reveal-once `reveal_secret` for a manual preset, which no read ever returns.
+    mutationFn: (payload: TriggerCreate) => apiClient.post<TriggerCreated>(base, payload),
     onSuccess: async () => {
       await invalidate();
       toast.success(t("created"));
@@ -83,6 +91,20 @@ export function useTriggers(agentId: string | null) {
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
+  const rotateSecret = useMutation({
+    // `TriggerCreated` for the same reason `create` is: the response carries the
+    // new signing secret in `reveal_secret`, shown exactly once, which no read
+    // ever returns. It is null for an auto-webhook trigger the platform re-armed
+    // itself, and the new secret to paste for a manual one.
+    mutationFn: (triggerId: string) =>
+      apiClient.post<TriggerCreated>(`${base}/${triggerId}/rotate-secret`, {}),
+    onSuccess: async () => {
+      await invalidate();
+      toast.success(t("secretRotated"));
+    },
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+
   return {
     triggers: (data?.items ?? []) as Trigger[],
     isLoading,
@@ -91,5 +113,6 @@ export function useTriggers(agentId: string | null) {
     setActive,
     runNow,
     remove,
+    rotateSecret,
   };
 }

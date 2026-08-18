@@ -24,12 +24,13 @@ Run these from the project root directory.
 | `make test` | Backend suite plus the 100% gate on the platform layer. Runs across worker processes (`-n auto --maxprocesses 4`); `pytest-cov` combines their data, so the gate is unchanged |
 | `make test-cov` | Run tests with coverage report (HTML + terminal). Runs across worker processes like `make test` |
 | `make format` | Auto-format code — ruff on the backend, prettier on the frontend |
-| `make lint` | Every static check: ruff, ruff format, ty, vulture, eslint, prettier, tsc, the guard scripts (backtick, i18n, routes, banner comments), and codespell over the whole tree |
+| `make lint` | Every static check: ruff, ruff format, ty, vulture, deptry, eslint, prettier, tsc, the guard scripts (backtick, i18n, routes, banner comments), knip's dependency check, and codespell over the whole tree |
 | `make lint-backend` / `make lint-frontend` | One half of the above. CI runs them in two different jobs, so either can be run on its own |
-| `make dead-code` | Unused functions and methods — vulture at a lower confidence than the `lint` gate, plus knip on the frontend. A report to read, not a gate: on a registry-driven codebase it comes with false positives (a CLI command, a capability hook), so read each before deleting. The same role `dependency-freshness` plays for dependencies |
+| `make dead-code` | Unused functions and methods — vulture at a lower confidence than the `lint` gate, plus knip's full report on the frontend. A report to read, not a gate: on a registry-driven codebase it comes with false positives (a CLI command, a capability hook), so read each before deleting. The same role `dependency-freshness` plays for dependencies. Its one unambiguous half — a package in `package.json` that nothing imports — gates in `lint-frontend` instead (`bun run lint:deps`), because a dependency that survived being unused for months is what motivated it |
 | `make lint-spelling` | codespell over every tracked file. The pre-commit hook reads only the files a commit touches, so a misspelling that lands with its file waits there to refuse somebody else's unrelated commit |
 | `make build-frontend` | `next build`. Type-checks the route tree and fails on a server component that cannot render — which neither tsc nor vitest sees |
-| `make audit` | Audit the locked dependency set for known vulnerabilities (needs the network) |
+| `make audit` | Audit the locked dependency set for known vulnerabilities. Needs the network — one request per locked distribution — so its last line says which of four states it ended in rather than leaving a red run ambiguous. See below |
+| `make sandbox-token` | Generate the sandbox service's own `SANDBOXD_TOKEN` into `backend/.env`, once. `make dev` runs it for you; it never regenerates, because a new token orphans every workspace the service is holding. The connection form offers to store the same value in the vault, so it does not have to be pasted anywhere |
 | `make clean` | Remove cache files (__pycache__, .pytest_cache, etc.) |
 
 ### Before a pull request
@@ -55,8 +56,59 @@ One gap no command can close: CI's `test` job has a Postgres beside it, so
 `tests/integration/` runs there, and locally it skips itself when nothing answers
 on 5432. `make check` says so at the end when that happens — `make docker-db`
 first if the change is anywhere near the database.
-| `make sandbox-token` | Generate the sandbox service's own `SANDBOXD_TOKEN` into `backend/.env`, once. `make dev` runs it for you; it never regenerates, because a new token orphans every workspace the service is holding. The connection form offers to store the same value in the vault, so it does not have to be pasted anywhere |
 
+### What a red `make audit` means
+
+`make audit` exports what the lockfile resolves to — which is what a deployment
+installs — and hands it to `pip-audit`, which asks the vulnerability feed about
+each of the 254 locked distributions in turn. `pip-audit` on its own cannot say
+which of two very different things went wrong: it exits 1 whether it found an
+advisory or died on a `ReadTimeout` reaching for one, and `Security Scan` is a
+required check, so one slow answer out of 254 blocks a merge while reading
+exactly like a real finding until somebody opens the log
+([#855](https://github.com/vstorm-co/agenticos/issues/855)).
+
+`scripts/audit_dependencies.py` stands between the two and **ends every run on
+one line**:
+
+```
+AUDIT: CLEAN — no known advisories against 254 locked dependencies
+AUDIT: VULNERABLE — 6 known advisories in 1 of 254 locked dependencies
+AUDIT: NETWORK — unreachable (ReadTimeout) after 3 attempts; no audit was performed
+AUDIT: FAILED — pip-audit reached no verdict in 3 attempts and did not say why; no audit was performed
+```
+
+| State | Means | What to do |
+|---|---|---|
+| `CLEAN` | Every locked dependency was audited, none has a known advisory | Nothing |
+| `VULNERABLE` | A locked dependency has a known advisory. Ids, fixed versions and CVE aliases are printed above the verdict | Upgrade it |
+| `NETWORK` | No audit happened, and the cause was recognisably the network | Re-run |
+| `FAILED` | No audit happened, and the cause was not recognised. pip-audit's own output is on stderr | Read that output |
+
+**A line, not an exit code, because make cannot carry one.** GNU Make turns any
+failed recipe into its own exit 2, so `make audit` returns 2 for both `VULNERABLE`
+and `NETWORK` and there is no target shape that changes that. Anything reading the
+result through this interface — the `Security Scan` job included — reads the line:
+`make audit | tail -1`, or `make audit 2>&1 | grep '^AUDIT:'`. Inside a GitHub job
+the same line is appended to `$GITHUB_STEP_SUMMARY`, so the run's summary page says
+which state it was without anyone opening the log.
+
+Invoked directly, `scripts/audit_dependencies.py` does carry it: `0` for `CLEAN`,
+`1` for `VULNERABLE`, `75` (`EX_TEMPFAIL`) for `NETWORK` and `FAILED` alike — an
+audit that did not happen is never reported green, because an unaudited dependency
+set called clean is the same defect facing the other way.
+
+**Every incomplete run is retried, whatever it said.** `AUDIT_ATTEMPTS` (default
+3) with a 5s/10s backoff, and `AUDIT_TIMEOUT` (default 30s) as the per-request
+socket timeout, raised from pip-audit's own 15. Matching a phrase in the output
+decides only whether the verdict reads `NETWORK` or `FAILED` — never whether to
+try again. The two mistakes are not symmetric: re-running a deterministic failure
+costs seconds and the same answer, while not re-running a transient one is the
+false red on a required check that this exists to prevent. So a failure phrased in
+words the list does not hold still gets its retries; it just gets a vaguer name.
+Two vocabularies are in that list, because two programs reach for the network —
+`uv`, fetching `pip-audit` itself on a cold tool cache, and then `pip-audit`,
+fetching the advisories.
 
 ### Database
 

@@ -94,7 +94,7 @@ export default function RolesPage({ params }: PageProps) {
     <div className="space-y-6">
       {breadcrumbHeader}
 
-      <Card>
+      <Card data-tour="org-roles">
         <CardHeader className="border-b px-5 py-4">
           <CardTitle className="text-sm">{t("permissionMatrix2")}</CardTitle>
           <CardDescription className="text-xs">

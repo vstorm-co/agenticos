@@ -35,8 +35,16 @@ const PURPOSES = {
       help_url: null,
       description: "A key for a service this deployment does not know about yet.",
     },
+    {
+      id: "github_oauth_app",
+      label: "GitHub OAuth App",
+      category: "other",
+      kind: "github_oauth_app",
+      help_url: "https://github.com/settings/developers",
+      description: "A GitHub OAuth App's client id and secret.",
+    },
   ],
-  total: 3,
+  total: 4,
 };
 
 vi.mock("@/lib/api-client", async () => {
@@ -95,7 +103,22 @@ const GCP: SecretKindInfo = {
   },
 };
 
-const KINDS = [API_KEY, GCP];
+const GITHUB_OAUTH_APP: SecretKindInfo = {
+  kind: "github_oauth_app",
+  name: "GitHub OAuth App",
+  description: "A GitHub OAuth App's client id and secret.",
+  json_schema: {
+    type: "object",
+    properties: {
+      kind: { const: "github_oauth_app", type: "string" },
+      client_id: { type: "string", title: "Client ID" },
+      client_secret: { type: "string", format: "password", title: "Client secret" },
+    },
+    required: ["client_id", "client_secret"],
+  },
+};
+
+const KINDS = [API_KEY, GCP, GITHUB_OAUTH_APP];
 
 const STORED: Secret = {
   id: "s1",
@@ -399,6 +422,54 @@ describe("AddSecretDialog · choosing what a key is for", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /Something else/ }));
     expect(screen.getByLabelText("Kind")).toBeInTheDocument();
+  });
+
+  it("stores a GitHub OAuth App as a client id and a masked secret", async () => {
+    // A named service carries its own shape, so no Kind picker appears: choosing
+    // it renders the two fields the kind declares - the public client id as text
+    // and the client secret masked.
+    const onSubmit = vi.fn().mockResolvedValue({});
+    render(
+      <AddSecretDialog
+        open
+        onOpenChange={vi.fn()}
+        kinds={KINDS}
+        onSubmit={onSubmit}
+        isPending={false}
+      />,
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: /Something else/ }));
+    await userEvent.click(screen.getByLabelText("Service"));
+    await userEvent.click(screen.getByRole("option", { name: /GitHub OAuth App/ }));
+
+    expect(screen.queryByLabelText("Kind")).toBeNull();
+    expect(screen.getByLabelText(/Client ID/, { selector: "input" })).toHaveValue("");
+    expect(screen.getByLabelText(/Client secret/, { selector: "input" })).toHaveAttribute(
+      "type",
+      "password",
+    );
+
+    await userEvent.type(
+      screen.getByLabelText(/Client ID/, { selector: "input" }),
+      "Iv1.0123456789abcdef",
+    );
+    await userEvent.type(
+      screen.getByLabelText(/Client secret/, { selector: "input" }),
+      "ghs-live-4242",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Store secret" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        value: {
+          kind: "github_oauth_app",
+          client_id: "Iv1.0123456789abcdef",
+          client_secret: "ghs-live-4242",
+        },
+        purpose: "github_oauth_app",
+      }),
+    );
   });
 });
 

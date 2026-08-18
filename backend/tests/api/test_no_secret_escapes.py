@@ -32,6 +32,7 @@ _SECRET_MODELS = frozenset(
         "AzureOpenAISecret",
         "AwsCredentialsSecret",
         "GcpServiceAccountSecret",
+        "GithubOAuthAppSecret",
         # `NoSecret` is deliberately absent. It said "this provider needs no
         # key", and the only thing that ever accepted it was the credential
         # store that the vault replaced - the vault has no such shape, because a
@@ -89,6 +90,11 @@ _PATTERN_ALLOWED: dict[str, str] = {
     # `invitation_token` once, listing returns none - so the allowance is gone
     # rather than kept "just in case". That round trip is what the rule is for.
     "invitation_token": "the inviter's own copy of the link, returned once at creation",
+    "reveal_secret": (
+        "a manual preset's minted signing secret, returned once on create so the "
+        "person wiring the relay can sign deliveries; TriggerRead (every read and "
+        "the listing) has no such field, so it is never re-exposed"
+    ),
     "secret_id": "a reference to a stored secret, not the secret",
     "llamaparse_secret_id": (
         "a collection's pointer at the vault key its parses are billed to - an id, never the key"

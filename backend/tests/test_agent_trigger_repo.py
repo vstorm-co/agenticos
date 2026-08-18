@@ -66,6 +66,10 @@ def _scalars(values: list[object]):
     return MagicMock(scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=values))))
 
 
+def _scalars_first(value: object):
+    return MagicMock(scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=value))))
+
+
 def _count(total: int):
     return MagicMock(scalar_one=MagicMock(return_value=total))
 
@@ -87,6 +91,15 @@ class TestReading:
         session = _RecordingSession(_scalar(None))
         await agent_trigger_repo.get_by_id(session, trigger_id)
         assert set(_filters(session).values()) == {trigger_id}
+
+    async def test_a_run_log_conversation_maps_back_to_its_trigger(self):
+        """How a conversation read learns the thread is a trigger's run-log. Filtered
+        on the conversation alone; the caller scopes the agent it points at to the
+        conversation's own organization rather than trusting this across tenants."""
+        conversation_id = uuid.uuid4()
+        session = _RecordingSession(_scalars_first(None))
+        await agent_trigger_repo.get_by_conversation_id(session, conversation_id)
+        assert set(_filters(session).values()) == {conversation_id}
 
     async def test_a_listing_is_scoped_to_the_agent_and_its_organization(self):
         agent_id, organization_id = uuid.uuid4(), uuid.uuid4()
@@ -124,13 +137,18 @@ class TestReading:
         assert {organization_id, user_id, *shared_ids} <= flat
 
     async def test_the_org_listing_with_see_all_applies_no_visibility_predicate(self):
-        """`see_all` is the service saying the role reaches every agent."""
+        """`see_all` is the service saying the role reaches every agent.
+
+        The whole agent row is selected (the service resolves `can_manage` off it),
+        so `agents.owner_user_id` appears as a projected column - what must be absent
+        is the *predicate* on it, `owner_user_id =`, and the shared-id `IN` leg.
+        """
         session = _RecordingSession(_count(0), _rows([]))
         await agent_trigger_repo.list_for_organization(
             session, organization_id=uuid.uuid4(), user_id=uuid.uuid4(), see_all=True, shared_ids=[]
         )
         sql = _sql(session)
-        assert "agents.owner_user_id" not in sql
+        assert "owner_user_id =" not in sql
         assert "agent_triggers.agent_id in" not in sql
 
     async def test_the_org_listing_without_shared_ids_still_reads_owned_and_org_visible(self):
@@ -212,7 +230,7 @@ class TestWriting:
 
 
 class TestClaiming:
-    async def test_the_claim_is_due_active_attributable_and_locked(self):
+    async def test_the_claim_is_due_active_and_locked(self):
         """The whole no-double-fire and no-overlap guard lives in this statement."""
         now = datetime(2026, 6, 1, tzinfo=UTC)
         session = _RecordingSession(_scalars([]))

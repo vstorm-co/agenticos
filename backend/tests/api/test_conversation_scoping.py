@@ -34,6 +34,17 @@ from app.main import app
 pytestmark = pytest.mark.anyio
 
 
+def _stub_context() -> MagicMock:
+    """A stand-in AuthContext for the override below.
+
+    A named callable rather than `MagicMock` itself: FastAPI reads a dependency
+    override's signature to resolve it, so the bare class is taken for a provider
+    with parameters to fill instead of being called for a value, and every read
+    then 500s.
+    """
+    return MagicMock()
+
+
 @asynccontextmanager
 async def _client(
     *, user_id: UUID, service: MagicMock, organization_id: UUID | None = None
@@ -51,6 +62,10 @@ async def _client(
     app.dependency_overrides[deps.get_active_organization] = lambda: organization
     app.dependency_overrides[deps.get_conversation_service] = lambda: service
     app.dependency_overrides[deps.get_db_session] = lambda: MagicMock()
+    # The read routes now carry the caller's context too, so a trigger's run-log
+    # can resolve against its agent. Stubbed: these tests assert on what the
+    # service is asked for, and the context is passed straight through to it.
+    app.dependency_overrides[deps.get_auth_context] = _stub_context
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             yield client

@@ -6,6 +6,65 @@ a cent of tokens.
 
 You need a running stack - see [Install](install.md).
 
+## The guided way
+
+The steps below are the manual path, and worth reading once. But a new user does
+not start here: the first time anyone signs in, a walkthrough opens on the
+dashboard and points out each section in turn. It shows **once** - finishing,
+skipping or closing it is remembered against the account, not the browser, so it
+does not return on the next device - and the **?** in the header of any walked page
+replays that page's tips whenever they are wanted. It is offered only where there
+is something to replay, so a section with no stops in the walkthrough - the
+deployment-admin pages - simply has no **?** rather than one that does nothing.
+Leaving the walkthrough, finished or skipped, says exactly that, so nobody
+discovers the "?" by accident or not at all.
+
+Finishing the walkthrough offers to build the first agent *together*. That is an
+interactive flow, not a spotlight: it points at the real controls, the reader
+operates the real dialogs, and it advances the moment the thing is actually
+created. While it runs the page is **frozen** - everything dims but the one
+control the step is about, so the reader cannot wander off mid-flow and strand a
+guided step on the wrong page; the freeze steps aside on its own whenever a dialog
+or a picker opens, so the control the step points at is always usable. It is
+adaptive - it walks the path below, checks what the organization already has, and
+only stops where something is missing, teaching a workspace with no model how to
+add one - or, for a builder who lacks the permission to add one, saying so rather
+than walking them in silence to a publish that will refuse an agent with no model
+- and skipping straight past a prerequisite already in place.
+
+Knowledge, skills and MCP servers are where it does the most. With one already,
+the flow just points at where it attaches. With none, it crosses to that
+section's own screen first and *asks there* - "no knowledge base yet, create
+one?" - so the question lands where the answer happens. A yes guides the
+creation on the spot - and not just to the button: the walk follows the reader
+into the dialog itself, framing each field in turn with what to put in it (a
+skill's name the model calls it by, the description that decides when it is
+read, the switch to Source where the know-how is written), and moves on when
+the thing is actually created. Then it walks the reader back by pointing at
+**Agents** in the sidebar, the edit pencil on the very agent just built, and
+the Knowledge tab where the new base attaches. The return leg is taught by pointing and waiting
+for the click, not by navigating for the reader, so it teaches the path through
+the app rather than performing it; a skip returns to the builder on its own.
+Skills work the same way. MCP forks the same way but stays in the builder: a
+server connects with an inline dialog right there in the Toolbox, so a "yes"
+points at that button and the flow picks up the moment the connection lands -
+no trip to another page, and none back.
+
+And building is not where it ends. After Publish lands, the flow carries the
+reader into the chat, has them pick the agent they just built, and closes only
+once they have sent it a first message - because a first agent nobody has run
+is a tour that stopped one step short of the point.
+
+Declining guides nobody; the offer returns at the end of the Agents **?** walk.
+Every other section's **?** ends the same way, offering to create that section's
+resource - a skill, a knowledge base, an MCP connection, an organization - and the
+Chat **?** offers a guided run through the chat surface itself: starting a
+conversation, switching which agent answers, and changing the model or thinking
+effort for a single chat. Chat can only talk to a *published* agent, so if there
+is none it opens by offering to build one first - a yes hands straight over to the
+agent flow. Past that it creates nothing, so it advances on Next rather than on
+anything appearing.
+
 ## 1. Store a provider key
 
 **Settings → Vault → Add credential.**

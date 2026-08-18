@@ -3,8 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useConversations, usePermissions } from "@/hooks";
-import { Perm } from "@/types/permissions";
+import { useCanCreateTrigger, useConversations } from "@/hooks";
 import { Button, Skeleton } from "@/components/ui";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui";
 import {
@@ -17,6 +16,7 @@ import { useDebounced } from "@/components/ui/list-controls";
 import { ConversationAgents } from "@/components/agents/conversation-agents";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { SidebarTriggers } from "@/components/chat/sidebar-triggers";
+import { NewEventTriggerDialog } from "@/components/triggers/new-event-trigger-dialog";
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { cn, setUrlParam } from "@/lib/utils";
 import { useChatSidebarStore } from "@/stores";
@@ -36,7 +36,6 @@ import {
   Trash2,
 } from "lucide-react";
 import type { Conversation } from "@/types";
-import type { TriggerType } from "@/types/triggers";
 import {
   ConversationFilters,
   DEFAULT_SORT,
@@ -262,14 +261,16 @@ function ConversationList({
   const t = useTranslations("chat");
   const ts = useTranslations("chat.sidebar");
   const tt = useTranslations("triggers");
-  const { can } = usePermissions();
-  // Managing a trigger is `agents:run`, resolved per row server-side; the section
-  // still shows to a viewer (viewing an agent's schedule is `agents:view`), but
-  // the create menu and the row actions are a manager's, so they are not rendered
-  // for anyone else rather than rendered and then 403'd.
-  const canManageTriggers = can(Perm.agentsRun);
+  // The floor for creating a trigger is a per-agent signal, not the role-level
+  // `agents:run`: a caller who may run any one agent - by role or by a grant on
+  // that agent - may create a trigger on it, so this menu shows for them. The
+  // section itself still shows to a viewer (viewing a schedule is `agents:view`),
+  // and each row decides its own controls from its `can_manage`, so a create menu
+  // hidden here never hides a row the caller may in fact manage.
+  const canManageTriggers = useCanCreateTrigger();
   const [shareConversationId, setShareConversationId] = useState<string | null>(null);
-  const [creatingTrigger, setCreatingTrigger] = useState<TriggerType | null>(null);
+  const [creatingSchedule, setCreatingSchedule] = useState(false);
+  const [creatingEvent, setCreatingEvent] = useState(false);
 
   const handleSelect = (id: string) => {
     onSelect(id);
@@ -291,6 +292,7 @@ function ConversationList({
       <div className="flex items-center gap-1 px-3 pt-3 pb-2">
         <button
           type="button"
+          data-tour="chat-start"
           onClick={handleNewChat}
           className="text-muted-foreground hover:text-foreground hover:bg-secondary flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors"
         >
@@ -309,18 +311,18 @@ function ConversationList({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => setCreatingTrigger("schedule")}>
+              <DropdownMenuItem onSelect={() => setCreatingSchedule(true)}>
                 {tt("newSchedule")}
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setCreatingTrigger("event")}>
-                {tt("newTrigger")}
+              <DropdownMenuItem onSelect={() => setCreatingEvent(true)}>
+                {tt("newEvent")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
       </div>
 
-      <SidebarTriggers onOpenConversation={handleSelect} canManage={canManageTriggers} />
+      <SidebarTriggers onOpenConversation={handleSelect} />
 
       {filters}
 
@@ -427,15 +429,18 @@ function ConversationList({
           }}
         />
       )}
-      {creatingTrigger && (
+      {creatingSchedule && (
         <TriggerFormDialog
           // No agent in context here - the dialog offers its picker, seeded
           // with the user's default agent.
           agentId={null}
           open
-          initialType={creatingTrigger}
-          onOpenChange={(next) => !next && setCreatingTrigger(null)}
+          initialType="schedule"
+          onOpenChange={(next) => !next && setCreatingSchedule(false)}
         />
+      )}
+      {creatingEvent && (
+        <NewEventTriggerDialog open onOpenChange={(next) => !next && setCreatingEvent(false)} />
       )}
     </>
   );

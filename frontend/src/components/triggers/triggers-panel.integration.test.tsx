@@ -16,6 +16,12 @@ vi.mock("@/lib/api-client", async () => {
   };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+// The event path is the portal grid, whose internals are covered by the portal
+// tests; here it is stubbed so the panel's own job - opening it - is what is tested.
+vi.mock("@/components/triggers/new-event-trigger-dialog", () => ({
+  NewEventTriggerDialog: ({ open }: { open: boolean }) =>
+    open ? <div role="dialog" aria-label="New event trigger" /> : null,
+}));
 
 const AGENT_ID = "a1";
 
@@ -34,6 +40,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     name: null,
     created_by_user_id: null,
     is_active: true,
+    can_manage: true,
     environment_id: null,
     trigger_type: "schedule",
     schedule_kind: "interval",
@@ -61,12 +68,17 @@ function serve(triggers: Trigger[]) {
     if (path === `/agents/${AGENT_ID}/environments`) {
       return { items: [], total: 0 };
     }
+    // The New-schedule flow reads the seeded template catalog; empty here so the
+    // picker stays out of the way of these create tests.
+    if (path === "/schedule-templates") {
+      return { items: [], total: 0 };
+    }
     throw new Error(`unexpected GET ${path}`);
   });
 }
 
-async function mount({ canManage = true } = {}) {
-  render(<TriggersPanel agentId={AGENT_ID} canManage={canManage} />, { wrapper });
+async function mount({ canCreate = true } = {}) {
+  render(<TriggersPanel agentId={AGENT_ID} canCreate={canCreate} />, { wrapper });
   await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
 }
 
@@ -95,13 +107,36 @@ describe("TriggersPanel", () => {
     await waitFor(() => expect(screen.getByText("On new GitHub issues")).toBeVisible());
   });
 
-  it("shows none of the row actions to someone who may not manage them", async () => {
+  it("opens the portal grid as the default path to a new event trigger", async () => {
+    const user = userEvent.setup();
+    serve([]);
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "New event trigger" }));
+
+    // The portal grid is the default event path; the raw form is demoted to its
+    // "Advanced: custom webhook" hatch, so the panel opens the grid, not the form.
+    expect(await screen.findByRole("dialog", { name: "New event trigger" })).toBeInTheDocument();
+  });
+
+  it("hides the create buttons from someone who may not create a trigger", async () => {
+    // The panel's `canCreate` is an agent-level signal that gates only the
+    // create buttons; an existing row decides its own controls from `can_manage`.
     serve([trigger()]);
-    await mount({ canManage: false });
+    await mount({ canCreate: false });
+
+    await waitFor(() => expect(screen.getByText("Every 15 minutes")).toBeVisible());
+    expect(screen.queryByRole("button", { name: "New schedule" })).toBeNull();
+  });
+
+  it("hides a row's actions when the caller may not manage that row", async () => {
+    // The caller may create here (`canCreate` true), but the server has decided
+    // this particular row is read-only for them, so its controls do not render.
+    serve([trigger({ can_manage: false })]);
+    await mount({ canCreate: true });
 
     await waitFor(() => expect(screen.getByText("Every 15 minutes")).toBeVisible());
     expect(screen.queryByRole("button", { name: "Pause" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "New schedule" })).toBeNull();
   });
 
   it("pauses a trigger through its row action", async () => {
@@ -180,135 +215,6 @@ describe("TriggersPanel", () => {
     });
   });
 
-  it("creates a GitHub event trigger with its signing secret", async () => {
-    const user = userEvent.setup();
-    serve([]);
-    vi.mocked(apiClient.post).mockResolvedValue(
-      trigger({ trigger_type: "event", event_source: "github", interval_seconds: null }),
-    );
-    await mount();
-
-    await user.click(await screen.findByRole("button", { name: "New trigger" }));
-    const dialog = await screen.findByRole("dialog");
-    await user.type(within(dialog).getByLabelText("Message"), "Triage it");
-    await user.type(within(dialog).getByLabelText("Signing secret"), "a-strong-shared-secret");
-    await user.click(within(dialog).getByRole("button", { name: "Create" }));
-
-    expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
-      prompt: "Triage it",
-      name: null,
-      trigger_type: "event",
-      environment_id: null,
-      event_source: "github",
-      event_secret: "a-strong-shared-secret",
-      event_config: undefined,
-    });
-  });
-
-  it("reveals the webhook url to paste after creating an event trigger", async () => {
-    const user = userEvent.setup();
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
-    serve([]);
-    vi.mocked(apiClient.post).mockResolvedValue(
-      trigger({
-        trigger_type: "event",
-        event_source: "github",
-        interval_seconds: null,
-        webhook_url: "https://api.example.com/api/v1/webhooks/triggers/github/t1",
-      }),
-    );
-    await mount();
-
-    await user.click(await screen.findByRole("button", { name: "New trigger" }));
-    let dialog = await screen.findByRole("dialog");
-    await user.type(within(dialog).getByLabelText("Message"), "Triage");
-    await user.type(within(dialog).getByLabelText("Signing secret"), "a-strong-shared-secret");
-    await user.click(within(dialog).getByRole("button", { name: "Create" }));
-
-    // The dialog does not just close: an event trigger needs its URL pasted into
-    // the provider, so it stays open on that URL with a way to copy it.
-    dialog = await screen.findByRole("dialog");
-    const url = within(dialog).getByLabelText<HTMLInputElement>("Webhook URL");
-    expect(url.value).toBe("https://api.example.com/api/v1/webhooks/triggers/github/t1");
-    await user.click(within(dialog).getByRole("button", { name: "Copy" }));
-    expect(writeText).toHaveBeenCalledWith(url.value);
-
-    await user.click(within(dialog).getByRole("button", { name: "Done" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-  });
-
-  it("creates a LinkedIn event trigger with its author and text filters", async () => {
-    const user = userEvent.setup();
-    serve([]);
-    vi.mocked(apiClient.post).mockResolvedValue(
-      trigger({ trigger_type: "event", event_source: "linkedin", interval_seconds: null }),
-    );
-    await mount();
-
-    await user.click(await screen.findByRole("button", { name: "New trigger" }));
-    const dialog = await screen.findByRole("dialog");
-    await user.type(within(dialog).getByLabelText("Message"), "Draft a reply");
-    await user.click(within(dialog).getByRole("combobox", { name: "Fires on" }));
-    await user.click(await screen.findByRole("option", { name: "A LinkedIn post" }));
-    await user.type(within(dialog).getByLabelText("Signing secret"), "a-strong-shared-secret");
-    await user.type(within(dialog).getByLabelText("Author contains"), "Jane");
-    await user.click(within(dialog).getByRole("button", { name: "Create" }));
-
-    expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
-      prompt: "Draft a reply",
-      name: null,
-      trigger_type: "event",
-      environment_id: null,
-      event_source: "linkedin",
-      event_secret: "a-strong-shared-secret",
-      event_config: { author_contains: "Jane" },
-    });
-  });
-
-  it("creates a generic webhook trigger, which takes no filters", async () => {
-    const user = userEvent.setup();
-    serve([]);
-    vi.mocked(apiClient.post).mockResolvedValue(
-      trigger({ trigger_type: "event", event_source: "webhook", interval_seconds: null }),
-    );
-    await mount();
-
-    await user.click(await screen.findByRole("button", { name: "New trigger" }));
-    const dialog = await screen.findByRole("dialog");
-    await user.type(within(dialog).getByLabelText("Message"), "Handle it");
-    await user.click(within(dialog).getByRole("combobox", { name: "Fires on" }));
-    await user.click(await screen.findByRole("option", { name: "Any webhook" }));
-    await user.type(within(dialog).getByLabelText("Signing secret"), "a-strong-shared-secret");
-    // No filter inputs for the generic webhook - filtering is the sender's job.
-    expect(within(dialog).queryByLabelText("Subject contains")).toBeNull();
-    await user.click(within(dialog).getByRole("button", { name: "Create" }));
-
-    expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
-      prompt: "Handle it",
-      name: null,
-      trigger_type: "event",
-      environment_id: null,
-      event_source: "webhook",
-      event_secret: "a-strong-shared-secret",
-      event_config: undefined,
-    });
-  });
-
-  it("fills the signing secret with a generated one", async () => {
-    const user = userEvent.setup();
-    serve([]);
-    await mount();
-
-    await user.click(await screen.findByRole("button", { name: "New trigger" }));
-    const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: "Generate" }));
-
-    expect(
-      within(dialog).getByLabelText<HTMLInputElement>("Signing secret").value.length,
-    ).toBeGreaterThanOrEqual(16);
-  });
-
   it("edits only the message and the environment of an existing trigger", async () => {
     const user = userEvent.setup();
     serve([trigger()]);
@@ -324,6 +230,75 @@ describe("TriggersPanel", () => {
 
     // Only the field that changed: the environment was not touched, so it is not
     // echoed back (which would overwrite a concurrent rebind).
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`, {
+      prompt: "Reworded",
+    });
+  });
+
+  it("edits the message through the shared markdown source/preview editor", async () => {
+    const user = userEvent.setup();
+    serve([]);
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "New schedule" }));
+    const dialog = await screen.findByRole("dialog");
+    // The message field is the same MarkdownEditor the agent's instructions use,
+    // so it carries that field's source/preview toggle rather than a bare box.
+    expect(within(dialog).getByRole("button", { name: "Source" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Preview" })).toBeInTheDocument();
+  });
+
+  it("leads an event trigger row with its source mark", async () => {
+    serve([trigger({ trigger_type: "event", event_source: "github", interval_seconds: null })]);
+    await mount({ canCreate: false });
+
+    const summary = await screen.findByText("On new GitHub issues");
+    const row = summary.closest("div.rounded-md");
+    expect(row?.querySelector("svg")).not.toBeNull();
+  });
+
+  it("fires an every-N-days preset as a continuous interval, not a day-of-month step", async () => {
+    const user = userEvent.setup();
+    serve([]);
+    vi.mocked(apiClient.post).mockResolvedValue(trigger());
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "New schedule" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Message"), "Every couple of days");
+    await user.click(within(dialog).getByRole("tab", { name: "At a set time" }));
+    await user.click(within(dialog).getByRole("combobox", { name: "Repeat" }));
+    await user.click(await screen.findByRole("option", { name: "Every few days" }));
+    await user.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    // `*/2` on day-of-month resets at each month boundary; an interval repeats
+    // continuously, which is what "every 2 days" promises. Two days, in seconds.
+    expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
+      prompt: "Every couple of days",
+      name: null,
+      trigger_type: "schedule",
+      environment_id: null,
+      schedule_kind: "interval",
+      interval_seconds: 172800,
+    });
+  });
+
+  it("does not resend a non-round cadence when only the message is edited", async () => {
+    const user = userEvent.setup();
+    // 90s is not a whole number of minutes, so seeding the editor rounds it for
+    // display; a prompt-only edit must still not send that rounded value back and
+    // reset the schedule's clock.
+    serve([trigger({ interval_seconds: 90 })]);
+    vi.mocked(apiClient.patch).mockResolvedValue(trigger({ interval_seconds: 90 }));
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    const message = within(dialog).getByLabelText("Message");
+    await user.clear(message);
+    await user.type(message, "Reworded");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
     expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`, {
       prompt: "Reworded",
     });
@@ -350,35 +325,6 @@ describe("TriggersPanel", () => {
       environment_id: null,
       schedule_kind: "cron",
       cron_expression: "0 9 * * *",
-    });
-  });
-
-  it("creates an email event trigger with a subject filter", async () => {
-    const user = userEvent.setup();
-    serve([]);
-    vi.mocked(apiClient.post).mockResolvedValue(
-      trigger({ trigger_type: "event", event_source: "email", interval_seconds: null }),
-    );
-    await mount();
-
-    await user.click(await screen.findByRole("button", { name: "New trigger" }));
-    const dialog = await screen.findByRole("dialog");
-    await user.type(within(dialog).getByLabelText("Message"), "Reply to it");
-    await user.click(within(dialog).getByRole("combobox", { name: "Fires on" }));
-    await user.click(await screen.findByRole("option", { name: "An inbound email" }));
-    await user.type(within(dialog).getByLabelText("Signing secret"), "another-strong-secret");
-    await user.type(within(dialog).getByLabelText("Subject contains"), "urgent");
-    await user.type(within(dialog).getByLabelText("Sender contains"), "boss");
-    await user.click(within(dialog).getByRole("button", { name: "Create" }));
-
-    expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
-      prompt: "Reply to it",
-      name: null,
-      trigger_type: "event",
-      environment_id: null,
-      event_source: "email",
-      event_secret: "another-strong-secret",
-      event_config: { subject_contains: "urgent", sender_contains: "boss" },
     });
   });
 
@@ -476,20 +422,6 @@ describe("TriggersPanel", () => {
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByRole("button", { name: "Create" })).toBeDisabled();
-  });
-
-  it("switches the new dialog from a schedule to an event", async () => {
-    const user = userEvent.setup();
-    serve([]);
-    await mount();
-
-    await user.click(await screen.findByRole("button", { name: "New schedule" }));
-    const dialog = await screen.findByRole("dialog");
-    // Opens as a schedule - its cadence tabs are present.
-    expect(within(dialog).getByRole("tab", { name: "Every so often" })).toBeInTheDocument();
-    await user.click(within(dialog).getByRole("tab", { name: "Trigger" }));
-    // Now the event fields are shown instead.
-    expect(within(dialog).getByLabelText("Signing secret")).toBeInTheDocument();
   });
 
   it("closes on cancel without creating anything", async () => {

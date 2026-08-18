@@ -50,7 +50,7 @@ function personal(overrides: Partial<McpConnectionRecord> = {}): McpConnectionRe
 }
 
 function organization(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConnectionRecord {
-  return { ...personal(), id: "o1", catalog_key: "github", ...overrides };
+  return { ...personal(), id: "o1", catalog_key: "github", granted_scopes: null, ...overrides };
 }
 
 describe("mergeServers", () => {

@@ -27,6 +27,19 @@ export interface NewModelProfile {
 }
 
 /**
+ * Whether an organization's models are known, still coming, or unreadable.
+ *
+ * `loaded` is the only one of the three that makes an empty list a fact about
+ * the organization.
+ */
+export type ProfilesStatus = "loaded" | "pending" | "failed";
+
+function profilesStatus(query: { isSuccess: boolean; isError: boolean }): ProfilesStatus {
+  if (query.isSuccess) return "loaded";
+  return query.isError ? "failed" : "pending";
+}
+
+/**
  * The providers this deployment can reach, and the models an organization has
  * defined on them.
  *
@@ -86,7 +99,21 @@ export function useModelProviders() {
   return {
     catalog: catalog.data?.items ?? [],
     profiles: profiles.data?.items ?? [],
+    /**
+     * What `profiles` currently is: the organization's answer, a placeholder
+     * while the read is in flight, or a read that failed.
+     *
+     * Three states rather than two, because `?? []` collapses all three into the
+     * same empty array and each owes the reader something different - a claim
+     * about the organization, a wait, and a failure with a way to try again. A
+     * pair of booleans would let a caller hold `loaded` and `failed` at once;
+     * this cannot.
+     */
+    profilesStatus: profilesStatus(profiles),
+    /** Read the profiles again - what a panel that could not list them offers. */
+    refetchProfiles: invalidate,
     isLoading: catalog.isLoading || profiles.isLoading,
+    isFetching: catalog.isFetching || profiles.isFetching,
     createProfile,
     deleteProfile,
   };

@@ -167,8 +167,8 @@ jobs:
       - name: Install dependencies
         run: uv sync --directory backend --dev
 
-      # ruff check, ruff format --check, ty, vulture and the three guard scripts -
-      # the target, not a second copy of its commands. Every step this job used to
+      # ruff check, ruff format --check, ty, vulture, deptry and the three guard
+      # scripts - the target, not a second copy of its commands. Every step this job used to
       # spell out was also spelled out in the Makefile, and the pair drifted: the
       # i18n guard was in `make lint` and never here, so hardcoded copy failed
       # locally and passed the build. Calling the target is how the two stay equal
@@ -530,9 +530,25 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('frontend/bun.lock') }}
 
       - name: Install Playwright browsers
-        # `--with-deps` still runs: the apt packages Chromium links against live
-        # outside the cached directory, and installing them on a hit is seconds.
-        run: bunx playwright install --with-deps chromium
+        # **No `--with-deps`, and #879 is why.** It shells out to `apt-get`, which
+        # on a hosted runner resolves through `azure.archive.ubuntu.com` - and when
+        # that mirror is unreachable apt falls back to the public archive and
+        # stalls there with no bound of its own. Fourteen e2e runs between 14 and
+        # 18 August died exactly that way, every one of them in this step, every
+        # one at 25 minutes on the nose: the job's `timeout-minutes` ended it, and
+        # a job ended by its bound is recorded as `cancelled` - which reads as a
+        # superseded run, is not treated as a pass by the ruleset, and blocks the
+        # merge until somebody re-runs the slowest job in CI.
+        #
+        # It was buying nothing. On a healthy run apt reports every library
+        # Chromium links against as "already the newest version" - the runner
+        # image ships all of them - and installs 21 MB of CJK, Cyrillic and emoji
+        # fonts no spec renders. An image that does drop a library fails at
+        # browser launch, with Playwright naming the package, which is louder
+        # than this was. The step keeps a bound of its own so that a stall in the
+        # CDN download fails *this step* by name rather than the job by timeout.
+        run: bunx playwright install chromium
+        timeout-minutes: 10
         working-directory: frontend
 
       - name: Run E2E tests

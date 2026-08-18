@@ -21,7 +21,22 @@ from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.deps import AgentTriggerSvc, Auth, require
 from app.core.permissions import Perm
-from app.schemas.agent_trigger import TriggerCreate, TriggerList, TriggerRead, TriggerUpdate
+from app.schemas.agent_trigger import (
+    TriggerCreate,
+    TriggerCreateRead,
+    TriggerList,
+    TriggerRead,
+    TriggerUpdate,
+)
+from app.schemas.portal import (
+    PortalCatalog,
+    PortalPresetRead,
+    PortalRead,
+    PortalTargetList,
+    PortalTargetRead,
+)
+from app.schemas.schedule_template import ScheduleTemplateList, ScheduleTemplateRead
+from app.services import portal_catalog, schedule_templates
 
 router = APIRouter()
 
@@ -31,6 +46,87 @@ router = APIRouter()
 # by `/agents/{agent_id}` from the registry, which is registered first - so it is
 # its own top-level `/triggers`, the same shape as the org-wide `/runs` listing.
 org_router = APIRouter()
+
+
+@org_router.get(
+    "/trigger-portals",
+    response_model=PortalCatalog,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_trigger_portals() -> Any:
+    """The services a trigger can be built on, each with its ready-made presets.
+
+    Hand-curated data, gated like `GET /triggers` and `GET /mcp-catalog` on the
+    coarse `agents:view` first door - browsing what can be set up, not acting on
+    one agent. The scopes a portal registers with are deliberately not exposed.
+    """
+    items = [
+        PortalRead(
+            key=portal.key,
+            name=portal.name,
+            description=portal.description,
+            category=portal.category,
+            icon=portal.icon or None,
+            event_source=portal.event_source,
+            delivery=portal.delivery.value,
+            target_kind=portal.target_kind,
+            connection_catalog_key=portal.mcp_catalog_key,
+            webhook_admin_scopes=list(portal.webhook_admin_scopes),
+            presets=[
+                PortalPresetRead(
+                    key=preset.key,
+                    label=preset.label,
+                    description=preset.description,
+                    target_required=preset.target_required,
+                )
+                for preset in portal.presets
+            ],
+        )
+        for portal in portal_catalog.CATALOG
+    ]
+    return PortalCatalog(items=items, total=len(items))
+
+
+@org_router.get(
+    "/schedule-templates",
+    response_model=ScheduleTemplateList,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_schedule_templates() -> Any:
+    """Ready-made schedules, so a schedule starts from a template, not a blank box.
+
+    Hand-curated data, gated like `GET /trigger-portals` on the coarse
+    `agents:view` first door - browsing what can be set up, not acting on one
+    agent. Each carries a prompt and a cadence the create form pre-fills.
+    """
+    items = [
+        ScheduleTemplateRead.model_validate(template) for template in schedule_templates.CATALOG
+    ]
+    return ScheduleTemplateList(items=items, total=len(items))
+
+
+@org_router.get(
+    "/trigger-portals/{portal_key}/targets",
+    response_model=PortalTargetList,
+    dependencies=[Depends(require(Perm.AGENTS_RUN))],
+)
+async def list_portal_targets(
+    portal_key: str,
+    ctx: Auth,
+    service: AgentTriggerSvc,
+    connection_id: UUID = Query(..., description="The connected account to enumerate targets from"),
+) -> Any:
+    """The repositories (or channels) a portal's preset can point at.
+
+    Gated on `agents:run`, not the catalog's `agents:view`: enumerating an
+    account's repositories through its token is part of building a trigger, not
+    browsing what exists. An empty list is a legitimate answer - a portal that
+    registers no webhooks, or a connection that cannot be read - and the picker
+    falls back to a free-text target.
+    """
+    targets = await service.list_portal_targets(ctx, portal_key, connection_id)
+    items = [PortalTargetRead(id=target.id, label=target.label) for target in targets]
+    return PortalTargetList(items=items, total=len(items))
 
 
 @org_router.get(
@@ -55,12 +151,19 @@ async def list_triggers(agent_id: UUID, ctx: Auth, service: AgentTriggerSvc) -> 
 
 
 @router.post(
-    "/{agent_id}/triggers", response_model=TriggerRead, status_code=status.HTTP_201_CREATED
+    "/{agent_id}/triggers",
+    response_model=TriggerCreateRead,
+    status_code=status.HTTP_201_CREATED,
 )
 async def create_trigger(
     agent_id: UUID, data: TriggerCreate, ctx: Auth, service: AgentTriggerSvc
 ) -> Any:
-    """Schedule this agent to run itself."""
+    """Schedule this agent to run itself.
+
+    Answers with `TriggerCreateRead` - a `TriggerRead` that carries the minted
+    signing secret once, only for a manual-delivery preset the caller must wire
+    a relay for. Every other read uses `TriggerRead`, which has no such field.
+    """
     return await service.create(ctx, agent_id, data)
 
 
@@ -72,13 +175,37 @@ async def create_trigger(
 async def run_trigger_now(
     agent_id: UUID, trigger_id: UUID, ctx: Auth, service: AgentTriggerSvc
 ) -> Any:
-    """Accept one extra fire of this schedule, as its creator, cadence untouched.
+    """Fire this trigger once, as its creator, without disturbing how it fires.
+
+    Works for either kind: a schedule fires one extra time with its cadence
+    untouched, and an event trigger fires as a manual test-fire - the base prompt
+    with no delivery context, so the agent, its prompt and its budget can be
+    confirmed without a signed payload or a real delivery.
 
     202, not 200: the fire is dispatched once this request commits rather than run
     inside it, so the trigger comes back as it stands and its `last_run_id` still
     names the previous run (#658).
     """
     return await service.run_now(ctx, agent_id, trigger_id)
+
+
+@router.post(
+    "/{agent_id}/triggers/{trigger_id}/rotate-secret",
+    response_model=TriggerCreateRead,
+)
+async def rotate_trigger_secret(
+    agent_id: UUID, trigger_id: UUID, ctx: Auth, service: AgentTriggerSvc
+) -> Any:
+    """Re-seal an event trigger's signing secret, revealing the new one once.
+
+    The URL is the trigger's identity and never changes; only the secret rotates.
+    Answers with `TriggerCreateRead`, which carries the new plaintext once for a
+    trigger the platform does not hold the secret for (a manual delivery, or an
+    auto one that fell back) - every other read uses `TriggerRead`, which has no
+    such field. A schedule has no secret and is refused; management is gated on the
+    creator-or-`agents:edit` rule the service resolves per row.
+    """
+    return await service.rotate_secret(ctx, agent_id, trigger_id)
 
 
 @router.patch("/{agent_id}/triggers/{trigger_id}", response_model=TriggerRead)

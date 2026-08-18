@@ -2,9 +2,9 @@
 
 The unit tests read the statements back; these run them. Three things a mock
 cannot tell you: that the CHECK constraints reject a bad row, that the claim
-returns exactly the due-active-attributable triggers, and - the one the whole
-no-double-fire design rests on - that a second heartbeat claiming at the same
-instant takes none of the rows the first one locked.
+returns the due, active triggers - orphans included, so they can be disabled -
+and - the one the whole no-double-fire design rests on - that a second heartbeat
+claiming at the same instant takes none of the rows the first one locked.
 """
 
 from __future__ import annotations
@@ -16,14 +16,17 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.conversation import Conversation
+from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import agent_trigger_repo
+from app.repositories.conversation import create_conversation
 from app.schemas.agent_trigger import TriggerCreate, TriggerRead, TriggerUpdate
 from app.services.agent_trigger import AgentTriggerService
 
@@ -66,6 +69,38 @@ async def _agent(db, org: Organization) -> Agent:
     db.add(agent)
     await db.flush()
     return agent
+
+
+async def _member(db, org: Organization) -> User:
+    """A second member of `org`, distinct from its owner - so deleting them tests
+    the trigger's SET NULL without tripping the org's RESTRICT on its creator."""
+    user = User(
+        id=uuid.uuid4(),
+        email=f"{uuid.uuid4().hex}@example.com",
+        hashed_password="x",
+        is_active=True,
+    )
+    db.add(user)
+    await db.flush()
+    db.add(
+        OrganizationMember(id=uuid.uuid4(), organization_id=org.id, user_id=user.id, role="member")
+    )
+    await db.flush()
+    return user
+
+
+async def _org_connection(db, org: Organization) -> McpConnection:
+    connection = McpConnection(
+        id=uuid.uuid4(),
+        scope="org",
+        organization_id=org.id,
+        name=f"conn-{uuid.uuid4().hex[:8]}",
+        url="https://mcp.example.com/sse",
+        secret_key_version=1,
+    )
+    db.add(connection)
+    await db.flush()
+    return connection
 
 
 def _trigger(org: Organization, agent: Agent, **overrides) -> AgentTrigger:
@@ -135,6 +170,16 @@ class TestTheConstraintsRejectABadRow:
         with pytest.raises(IntegrityError):
             await db.flush()
 
+    async def test_a_registered_hook_without_a_connection_is_refused(self, db):
+        """ck_trigger_registered_hook_has_connection: a provider webhook id and no
+        connection is a hook a delete could never deregister - the account whose
+        token registered it is exactly what `delete_webhook` needs."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        db.add(_trigger(org, agent, provider_webhook_id="12345678", connection_id=None))
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
 
 class TestTheEventShapeRejectsABadRow:
     async def test_a_valid_event_trigger_is_accepted(self, db):
@@ -185,7 +230,11 @@ class TestTheEventShapeRejectsABadRow:
 
 
 class TestTheClaimReturnsTheRightRows:
-    async def test_only_the_due_active_attributable_triggers_are_claimed(self, db):
+    async def test_the_due_active_triggers_are_claimed_orphans_included(self, db):
+        """Due, active, and past its next fire is claimed; not-yet and paused are
+        not. An orphaned schedule (null creator) *is* claimed now - not because it
+        can fire, but so `claim_and_advance` can disable it rather than leave it
+        filtered out of the sweep for ever."""
         org = await _org(db)
         agent = await _agent(db, org)
         due = _trigger(org, agent)
@@ -197,7 +246,7 @@ class TestTheClaimReturnsTheRightRows:
 
         claimed = await agent_trigger_repo.claim_due(db, now=datetime.now(UTC))
 
-        assert [t.id for t in claimed] == [due.id]
+        assert {t.id for t in claimed} == {due.id, orphaned.id}
 
     async def test_a_trigger_whose_last_run_is_unfinished_is_skipped(self, db):
         org = await _org(db)
@@ -387,6 +436,104 @@ class TestACreatedTriggerSerializes:
         assert read.updated_at is not None
         # And the eager run-log conversation is what made updated_at stale.
         assert read.conversation_id is not None
+
+
+class TestTheForeignKeysBehaveAsTheRuntimeExpects:
+    """The runtime rests on these `ondelete` rules, and a mock cannot prove them:
+    the creator, the conversation and the connection all SET NULL so a schedule
+    outlives the row it referenced, while the agent CASCADEs the trigger away with
+    it. The one downstream consequence a schema statement cannot show is asserted
+    too: an orphaned (null-creator) trigger is claimed and disabled, never run."""
+
+    async def test_deleting_the_creator_nulls_the_column_and_orphan_is_disabled(self, db):
+        org = await _org(db)
+        agent = await _agent(db, org)
+        creator = await _member(db, org)
+        trigger = _trigger(org, agent, created_by_user_id=creator.id)
+        db.add(trigger)
+        await db.flush()
+
+        await db.delete(creator)
+        await db.flush()
+        await db.refresh(trigger)
+        assert trigger.created_by_user_id is None
+
+        # Downstream: the orphan is claimed so it can be disabled, not dispatched.
+        live = await AgentTriggerService(db).claim_and_advance(now=datetime.now(UTC))
+        assert trigger.id not in {t.id for t in live}
+        await db.refresh(trigger)
+        assert trigger.is_active is False
+
+    async def test_deleting_the_conversation_nulls_the_column(self, db):
+        org = await _org(db)
+        agent = await _agent(db, org)
+        conversation = await create_conversation(db, organization_id=org.id, title="log")
+        trigger = _trigger(org, agent, conversation_id=conversation.id)
+        db.add(trigger)
+        await db.flush()
+
+        await db.delete(conversation)
+        await db.flush()
+        await db.refresh(trigger)
+        assert trigger.conversation_id is None
+
+    async def test_deleting_the_connection_nulls_the_column(self, db):
+        org = await _org(db)
+        agent = await _agent(db, org)
+        connection = await _org_connection(db, org)
+        trigger = _trigger(org, agent, connection_id=connection.id)
+        db.add(trigger)
+        await db.flush()
+
+        await db.delete(connection)
+        await db.flush()
+        await db.refresh(trigger)
+        assert trigger.connection_id is None
+
+    async def test_deleting_the_agent_cascades_the_trigger(self, db):
+        org = await _org(db)
+        agent = await _agent(db, org)
+        trigger = _trigger(org, agent)
+        db.add(trigger)
+        await db.flush()
+        trigger_id = trigger.id
+
+        await db.delete(agent)
+        await db.flush()
+
+        assert await agent_trigger_repo.get_by_id(db, trigger_id) is None
+
+
+class TestAConnectionIsResolvedForTheCallersOrgAtCreate:
+    """A caller supplies `connection_id`; the create path must resolve it against
+    the caller's own organization before storing it, so one tenant cannot attach
+    another's `mcp_connections.id` to its trigger (Codex P1, #537). A mock proves
+    the service calls the lookup; this proves the lookup actually refuses a row
+    that lives in another organization."""
+
+    async def test_a_connection_in_another_org_cannot_be_attached(self, db):
+        org_a = await _org(db)
+        org_b = await _org(db)
+        agent = await _agent(db, org_a)
+        foreign = await _org_connection(db, org_b)
+        ctx = AuthContext(
+            user_id=org_a.owner_user.id,  # type: ignore[attr-defined]
+            organization_id=org_a.id,
+            role=OrgRoleName.OWNER.value,
+        )
+        with pytest.raises(NotFoundError):
+            await AgentTriggerService(db).create(
+                ctx,
+                agent.id,
+                TriggerCreate(
+                    prompt="triage",
+                    trigger_type="event",
+                    portal_key="github",
+                    preset_key="issue_opened",
+                    connection_id=foreign.id,
+                    target="acme/api",
+                ),
+            )
 
 
 class TestResumingASchedule:

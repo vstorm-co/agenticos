@@ -19,7 +19,12 @@ import pytest
 from pydantic import ValidationError as PydanticValidationError
 
 from app.core.config import settings
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+    ValidationError,
+)
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.schemas.agent_trigger import TriggerCreate, TriggerRead, TriggerUpdate
@@ -29,6 +34,7 @@ from app.services.agent_trigger import (
     _next_fire_from,
     _update_action,
 )
+from app.services.portals import PortalTarget, RegisteredWebhook, WebhookRegistrationForbidden
 
 _SIGNING_SECRET = "a-signing-secret-16-plus"
 
@@ -65,6 +71,12 @@ def _service(agent: MagicMock | None = None) -> AgentTriggerService:
     service.db.info = {}
     service.agents = MagicMock()
     service.agents.get = AsyncMock(return_value=agent or _agent())
+    # A preset create resolves its `connection_id` against the caller's org before
+    # storing it; the default lets the row through, and a test proving the refusal
+    # overrides it with a `NotFoundError` side effect.
+    service.connections.get_org_connection = AsyncMock(
+        return_value=_named(id=uuid.uuid4(), name="conn")
+    )
     return service
 
 
@@ -96,6 +108,11 @@ def _trigger(**overrides: object) -> MagicMock:
         "last_fired_at": None,
         "last_run_id": None,
         "conversation_id": None,
+        "connection_id": None,
+        "portal_key": None,
+        "delivery_mode": None,
+        "provider_webhook_id": None,
+        "provider_target": None,
     }
     defaults.update(overrides)
     return MagicMock(**defaults)
@@ -124,16 +141,17 @@ def _github_event(**overrides: object) -> TriggerCreate:
 
 
 def _event_trigger(**overrides: object) -> MagicMock:
-    return _trigger(
-        trigger_type="event",
-        event_source="github",
-        event_config={"actions": ["opened"]},
-        event_secret_encrypted="sealed-ciphertext",
-        secret_key_version=1,
-        interval_seconds=None,
-        next_fire_at=None,
-        **overrides,
-    )
+    fields: dict[str, object] = {
+        "trigger_type": "event",
+        "event_source": "github",
+        "event_config": {"actions": ["opened"]},
+        "event_secret_encrypted": "sealed-ciphertext",
+        "secret_key_version": 1,
+        "interval_seconds": None,
+        "next_fire_at": None,
+    }
+    fields.update(overrides)
+    return _trigger(**fields)
 
 
 class TestScheduleMath:
@@ -203,6 +221,65 @@ class TestCreate:
         schedule that fires nothing."""
         with pytest.raises(PydanticValidationError, match="valid crontab"):
             TriggerCreate(prompt="run", schedule_kind="cron", cron_expression="not a cron")
+
+    def test_a_syntactically_valid_cron_that_never_fires_is_a_422(self):
+        """`0 0 31 2 *` - the 31st of February - passes croniter's syntax check
+        and then makes `_cron_next` exhaust its search and raise. The schema
+        resolves one occurrence, so it is a 422 here rather than a 500 at create."""
+        with pytest.raises(PydanticValidationError, match="ever fires"):
+            TriggerCreate(prompt="run", schedule_kind="cron", cron_expression="0 0 31 2 *")
+
+    def test_an_interval_beyond_the_column_ceiling_is_a_422(self):
+        """Without an upper bound the value overflows the `integer` column, and
+        `_next_fire` overflows `timedelta` on the way there - both 500s. The ceiling
+        refuses it as a 422 before a row is touched."""
+        with pytest.raises(PydanticValidationError):
+            TriggerCreate(prompt="run", interval_seconds=2_147_483_648)
+
+    def test_a_preset_create_carries_no_event_fields(self):
+        """The preset path names a portal and preset instead of a source and
+        secret; the service fills the event_* fields from the catalog."""
+        create = TriggerCreate(
+            prompt="triage",
+            trigger_type="event",
+            portal_key="github",
+            preset_key="issue_opened",
+            connection_id=uuid.uuid4(),
+            target="acme/api",
+        )
+        assert create.portal_key == "github"
+        assert create.event_source is None
+
+    def test_a_portal_without_a_preset_is_refused(self):
+        with pytest.raises(PydanticValidationError, match="given together"):
+            TriggerCreate(prompt="x", trigger_type="event", portal_key="github")
+
+    def test_a_preset_alongside_a_hand_set_source_is_refused(self):
+        with pytest.raises(PydanticValidationError, match="come from the preset"):
+            TriggerCreate(
+                prompt="x",
+                trigger_type="event",
+                portal_key="github",
+                preset_key="issue_opened",
+                event_source="github",
+            )
+
+    def test_a_preset_alongside_an_event_config_override_validates(self):
+        """The filter override is the caller's, so a preset carrying one is allowed
+        at the schema - the source it is checked against is resolved server-side."""
+        create = TriggerCreate(
+            prompt="triage",
+            trigger_type="event",
+            portal_key="email",
+            preset_key="any_email",
+            event_config={"subject_contains": "invoice"},
+        )
+        assert create.event_config == {"subject_contains": "invoice"}
+        assert create.event_source is None
+
+    def test_a_preset_on_a_schedule_is_refused(self):
+        with pytest.raises(PydanticValidationError, match="not valid for a schedule"):
+            TriggerCreate(prompt="x", portal_key="github", preset_key="issue_opened")
 
     async def test_a_new_schedule_is_persisted_and_audited(self):
         agent = _agent()
@@ -310,28 +387,71 @@ class TestReading:
             await service.list_for_agent(_ctx(OrgRoleName.VIEWER), uuid.uuid4())
         assert service.agents.get.call_args.kwargs == {}
 
+    async def test_a_listing_flags_only_the_callers_own_rows_without_agents_edit(self):
+        """No `agents:edit` on the agent, so `can_manage` is exactly the rows this
+        caller created - the controls the agent page renders for a Viewer holding
+        an explicit grant, no longer hidden by a role-only gate."""
+        agent = _agent()
+        service = _service(agent)
+        mine = _read()
+        mine.created_by_user_id = _CALLER
+        theirs = _read()
+        theirs.created_by_user_id = uuid.uuid4()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.resolve_access", new=AsyncMock(return_value=False)),
+        ):
+            repo.list_for_agent = AsyncMock(return_value=[mine, theirs])
+            reads = await service.list_for_agent(_ctx(), agent.id)
+        by_id = {read.id: read for read in reads}
+        assert by_id[mine.id].can_manage is True
+        assert by_id[theirs.id].can_manage is False
+
+    async def test_agents_edit_makes_every_row_on_the_agent_manageable(self):
+        agent = _agent()
+        service = _service(agent)
+        theirs = _read()
+        theirs.created_by_user_id = uuid.uuid4()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.resolve_access", new=AsyncMock(return_value=True)),
+        ):
+            repo.list_for_agent = AsyncMock(return_value=[theirs])
+            reads = await service.list_for_agent(_ctx(), agent.id)
+        assert reads[0].can_manage is True
+
 
 class TestOrgListing:
     async def test_the_org_listing_is_filtered_to_agents_the_caller_can_reach(self):
         service = _service()
         reachable = uuid.uuid4()
+        # Two rows on one agent, so `can_manage` resolves the agent once and reads
+        # the second off the cache rather than querying again.
+        shared_agent = _agent(name="Nightly")
+        resolve = AsyncMock(return_value=True)
         with (
             patch(
                 "app.services.agent_trigger.visible_resource_ids",
                 new=AsyncMock(return_value=[reachable]),
             ),
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.resolve_access", new=resolve),
         ):
-            repo.list_for_organization = AsyncMock(return_value=([(_read(), "Nightly")], 1))
+            repo.list_for_organization = AsyncMock(
+                return_value=([(_read(), shared_agent), (_read(), shared_agent)], 2)
+            )
             items, total = await service.list_for_organization(_ctx())
         # The grant ids are the *shared* set, combined by the repo with the
         # owned-or-org-visible predicate - not the whole filter.
         assert repo.list_for_organization.call_args.kwargs["shared_ids"] == [reachable]
         assert repo.list_for_organization.call_args.kwargs["see_all"] is False
         assert repo.list_for_organization.call_args.kwargs["user_id"] == _CALLER
-        assert total == 1
+        assert total == 2
         # The row is named with its agent, which a bare trigger does not carry.
         assert items[0].agent_name == "Nightly"
+        assert items[0].can_manage is True
+        # Resolved once for the shared agent, not per row.
+        assert resolve.await_count == 1
 
     async def test_a_role_that_reaches_every_agent_asks_for_no_predicate(self):
         """`visible_resource_ids` returning None means "sees all" - `see_all` True."""
@@ -440,6 +560,25 @@ class TestChangingASchedule:
         assert ("next_fire_at" in changes) is is_active
         assert audit.call_args.kwargs["action"] == action
 
+    async def test_retiming_to_a_cron_that_never_fires_is_refused_not_a_500(self):
+        """A retime reaches `_resolve_cadence`, not the create schema, so the same
+        never-fires expression is caught there too - a 422, before `_next_fire`
+        would exhaust its search and 500."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock()
+            with pytest.raises(BadRequestError, match="ever fires"):
+                await service.update(
+                    _ctx(), agent.id, trigger.id, TriggerUpdate(cron_expression="0 0 31 2 *")
+                )
+            repo.update.assert_not_called()
+
     async def test_retiming_validates_a_named_environment(self):
         agent = _agent()
         service = _service(agent)
@@ -491,6 +630,79 @@ class TestChangingASchedule:
         next_fire = repo.update.call_args.kwargs["update_data"]["next_fire_at"]
         # Five minutes out, not a day - computed from the new 300s.
         assert next_fire < datetime.now(UTC) + timedelta(seconds=360)
+
+    async def test_an_explicit_null_interval_is_a_clean_refusal_not_a_500(self):
+        """`interval_seconds` is a nullable column, so it is not in the schema's
+        NOT-NULL null guard; an explicit null on an interval edit is caught by
+        `_resolve_cadence`, which names the field with a 400 rather than letting the
+        shape CHECK reject it as a 500. No row is touched."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock()
+            with pytest.raises(BadRequestError, match="needs interval_seconds"):
+                await service.update(
+                    _ctx(), agent.id, trigger.id, TriggerUpdate(interval_seconds=None)
+                )
+            repo.update.assert_not_called()
+
+
+class TestManagingAnotherMembersTrigger:
+    """A trigger runs its stored prompt with its creator's identity and sandbox,
+    so editing, deleting or firing one you did not create needs `agents:edit` -
+    not the `agents:run` that only lets you fire the agent as yourself. Without
+    this a member who could merely run the agent would edit another member's
+    trigger prompt (a writable field) into exfiltrating that member's per-user
+    files on the next fire (Codex security P2, #537)."""
+
+    async def test_a_non_creator_without_agents_edit_cannot_reach_it(self):
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id, created_by_user_id=uuid.uuid4())
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.resolve_access", new=AsyncMock(return_value=False)),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.delete = AsyncMock()
+            with pytest.raises(NotFoundError):
+                await service.delete(_ctx(), agent.id, trigger.id)
+            repo.delete.assert_not_called()
+
+    async def test_a_non_creator_with_agents_edit_may_manage_it(self):
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id, created_by_user_id=uuid.uuid4())
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.resolve_access", new=AsyncMock(return_value=True)),
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.delete = AsyncMock()
+            await service.delete(_ctx(), agent.id, trigger.id)
+        repo.delete.assert_awaited_once_with(service.db, trigger)
+
+    async def test_the_creator_manages_their_own_without_the_edit_gate(self):
+        """The creator built the trigger on `agents:run`; the `agents:edit` gate
+        is only reached for someone else's row, so it is never consulted here."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id, created_by_user_id=_CALLER)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.resolve_access", new=AsyncMock()) as resolve,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.delete = AsyncMock()
+            await service.delete(_ctx(), agent.id, trigger.id)
+        resolve.assert_not_awaited()
 
 
 @pytest.fixture
@@ -584,6 +796,30 @@ class TestRunningNow:
             await _run_deferred(service.db)
         assert fired == []
 
+    async def test_running_now_on_an_event_trigger_fires_with_no_event_context(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Run now is a deliberate manual test-fire on an event trigger too, not a
+        400: it dispatches the fire with no delivery context, so the agent runs its
+        base prompt exactly as it would before any webhook arrived."""
+        calls: list[tuple[uuid.UUID, str | None]] = []
+
+        async def _fire(trigger_id: uuid.UUID, *, event_context: str | None = None) -> None:
+            calls.append((trigger_id, event_context))
+
+        monkeypatch.setattr("app.worker.background.trigger_fire.fire_trigger", _fire)
+        agent = _agent()
+        service = _service(agent)
+        trigger = _event_trigger(agent_id=agent.id)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            await service.run_now(_ctx(), agent.id, trigger.id)
+            await _run_deferred(service.db)
+        assert calls == [(trigger.id, None)]
+
 
 class TestClaiming:
     async def test_claiming_advances_each_trigger_so_no_later_tick_re_fires_it(self):
@@ -594,7 +830,8 @@ class TestClaiming:
             repo.claim_due = AsyncMock(return_value=[trigger])
             claimed = await service.claim_and_advance(now=now)
         assert trigger.next_fire_at == now + timedelta(seconds=300)
-        assert trigger.last_fired_at == now
+        # Claiming is not firing: `last_fired_at` is stamped by `fire`, not here.
+        assert trigger.last_fired_at is None
         service.db.flush.assert_awaited()
         assert claimed == [trigger]
 
@@ -616,6 +853,23 @@ class TestClaiming:
             await service.claim_and_advance(now=now)
         assert trigger.fire_in_flight_since == now
 
+    async def test_an_orphaned_schedule_is_disabled_at_claim_not_dispatched(self):
+        """A creator hard-deleted (SET NULL) leaves a schedule that can never fire.
+        The claim now returns it so it can be disabled here rather than filtered
+        out forever; it is disabled and left out of the dispatch list."""
+        service = _service()
+        orphan = _trigger(created_by_user_id=None)
+        audit = AsyncMock()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=audit),
+        ):
+            repo.claim_due = AsyncMock(return_value=[orphan])
+            claimed = await service.claim_and_advance(now=datetime(2026, 6, 1, tzinfo=UTC))
+        assert orphan.is_active is False
+        assert claimed == []
+        assert audit.call_args.kwargs["details"]["reason"] == "creator_not_active"
+
 
 class TestFiring:
     def _patches(self):
@@ -632,18 +886,18 @@ class TestFiring:
         repo_p, member_p, *_ = self._patches()
         with repo_p as repo, member_p as members:
             repo.get_by_id = AsyncMock(return_value=None)
-            members.get = AsyncMock()
+            members.get_active = AsyncMock()
             await service.fire(uuid.uuid4())
-        members.get.assert_not_called()
+        members.get_active.assert_not_called()
 
     async def test_a_disabled_trigger_does_nothing(self):
         service = _service()
         repo_p, member_p, *_ = self._patches()
         with repo_p as repo, member_p as members:
             repo.get_by_id = AsyncMock(return_value=_trigger(is_active=False))
-            members.get = AsyncMock()
+            members.get_active = AsyncMock()
             await service.fire(uuid.uuid4())
-        members.get.assert_not_called()
+        members.get_active.assert_not_called()
 
     async def test_a_trigger_whose_creator_left_the_org_is_disabled_not_run(self):
         service = _service()
@@ -651,7 +905,7 @@ class TestFiring:
         repo_p, member_p, conv_p, _audit, runner_p = self._patches()
         with repo_p as repo, member_p as members, conv_p, runner_p as runner_cls:
             repo.get_by_id = AsyncMock(return_value=trigger)
-            members.get = AsyncMock(return_value=None)
+            members.get_active = AsyncMock(return_value=None)
             await service.fire(trigger.id)
         assert trigger.is_active is False
         runner_cls.assert_not_called()
@@ -663,10 +917,10 @@ class TestFiring:
         repo_p, member_p, conv_p, _audit, runner_p = self._patches()
         with repo_p as repo, member_p as members, conv_p, runner_p as runner_cls:
             repo.get_by_id = AsyncMock(return_value=trigger)
-            members.get = AsyncMock(return_value=None)
+            members.get_active = AsyncMock(return_value=None)
             await service.fire(trigger.id)
         assert trigger.is_active is False
-        members.get.assert_not_called()
+        members.get_active.assert_not_called()
         runner_cls.assert_not_called()
 
     async def test_a_trigger_whose_grant_on_this_agent_was_revoked_is_disabled_not_retried(self):
@@ -685,13 +939,38 @@ class TestFiring:
             patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
-            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
             await service.fire(trigger.id)
         assert trigger.is_active is False
         assert audit.call_args.kwargs["action"] == "agent.trigger_disabled"
         assert audit.call_args.kwargs["actor_user_id"] is None
         assert audit.call_args.kwargs["details"]["reason"] == "creator_cannot_run_agent"
         runner_cls.assert_not_called()
+
+    async def test_a_trigger_on_a_non_runnable_agent_is_disabled_not_retried(self):
+        """A draft, archived or version-withdrawn agent makes `execute` raise
+        `BadRequestError` from `get_runnable_spec`. Left active, every cadence would
+        dispatch another run that fails there; it disables instead, the same verdict
+        an access refusal gets, so a certainty is not retried for ever."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id, conversation_id=None)
+        audit = AsyncMock()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.member_repo") as members,
+            patch("app.services.agent_trigger.conversation_repo") as conversations,
+            patch("app.services.agent_trigger.record_audit", new=audit),
+            patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            conversations.create_conversation = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+            runner = runner_cls.return_value
+            runner.execute = AsyncMock(side_effect=BadRequestError(message="not runnable"))
+            await service.fire(trigger.id)
+        assert trigger.is_active is False
+        assert audit.call_args.kwargs["details"]["reason"] == "agent_not_runnable"
 
     async def test_a_fired_run_runs_as_the_creator_and_is_stamped_schedule(self):
         agent = _agent()
@@ -707,7 +986,7 @@ class TestFiring:
             patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
-            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             conversations.create_conversation = AsyncMock(return_value=conversation)
             runner = runner_cls.return_value
             runner.execute = AsyncMock(return_value=("done", run))
@@ -718,6 +997,9 @@ class TestFiring:
         assert runner.execute.call_args.kwargs["surface"] is RunSurface.SCHEDULE
         assert runner.execute.call_args.kwargs["conversation_id"] == conversation.id
         assert trigger.last_run_id == run.id
+        # The fire stamps last_fired_at on every path, so an event trigger and a
+        # Run now no longer report "never fired" (only the heartbeat used to).
+        assert trigger.last_fired_at is not None
 
     async def test_the_run_log_conversation_is_opened_once_and_reused(self):
         agent = _agent()
@@ -733,7 +1015,7 @@ class TestFiring:
             patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
-            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             conversations.create_conversation = AsyncMock()
             runner = runner_cls.return_value
             runner.execute = AsyncMock(return_value=("done", run))
@@ -757,7 +1039,7 @@ class TestFiring:
             patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
-            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             runner = runner_cls.return_value
             runner.execute = AsyncMock(return_value=("", run))
             await service.fire(trigger.id)  # must not raise
@@ -776,7 +1058,7 @@ class TestFiring:
             patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
-            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             runner = runner_cls.return_value
             runner.execute = AsyncMock(side_effect=AuthorizationError(message="withdrawn"))
             await service.fire(trigger.id)  # must not raise
@@ -801,7 +1083,7 @@ class TestFiring:
             patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
-            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             runs.latest_run_for_conversation = AsyncMock(return_value=recorded)
             runner = runner_cls.return_value
             runner.execute = AsyncMock(side_effect=RuntimeError("provider 503"))
@@ -829,7 +1111,7 @@ class TestFiring:
             patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
-            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             runs.latest_run_for_conversation = AsyncMock(return_value=None)
             runner = runner_cls.return_value
             runner.execute = AsyncMock(side_effect=RuntimeError("spec failed to build"))
@@ -856,7 +1138,7 @@ class TestFiring:
             patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
-            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             runs.latest_run_for_conversation = AsyncMock(return_value=orphan)
             runner = runner_cls.return_value
             runner.execute = AsyncMock(side_effect=RuntimeError("workspace backend down"))
@@ -889,7 +1171,7 @@ class TestFiring:
             patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
-            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             runner = runner_cls.return_value
             runner.execute = AsyncMock(return_value=("done", run))
             await service.fire(trigger.id, claimed_at=claimed_at)
@@ -922,7 +1204,7 @@ class TestFiring:
             patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
-            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             runner = runner_cls.return_value
             runner.execute = AsyncMock(return_value=("done", run))
             await service.fire(trigger.id, claimed_at=dispatched_with)
@@ -951,7 +1233,7 @@ class TestFiring:
             patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
-            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             runner = runner_cls.return_value
             runner.execute = AsyncMock(return_value=("done", run))
             await service.fire(trigger.id)
@@ -979,7 +1261,7 @@ class TestFiring:
             patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
-            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             runs.latest_run_for_conversation = AsyncMock(return_value=previous)
             runner = runner_cls.return_value
             runner.execute = AsyncMock(side_effect=RuntimeError("spec failed to build"))
@@ -1009,7 +1291,7 @@ class TestFiring:
             patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
-            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             runs.latest_run_for_conversation = AsyncMock(return_value=uncommitted)
             runner = runner_cls.return_value
             runner.execute = AsyncMock(side_effect=RuntimeError("transcript write failed"))
@@ -1204,11 +1486,15 @@ class TestEventTriggerSchema:
     def test_a_schedule_read_has_no_webhook_url(self):
         assert _read().webhook_url is None
 
-    @pytest.mark.parametrize("field", ["prompt", "interval_seconds", "is_active"])
+    @pytest.mark.parametrize("field", ["prompt", "is_active"])
     def test_an_explicit_null_for_a_not_null_field_is_a_422(self, field):
         """`{"is_active": null}` maps to a NOT NULL column; caught here it is a 422
         naming the field, not an IntegrityError 500 the update guard exists to
-        avoid but `exclude_unset` cannot see (a sent null looks omitted)."""
+        avoid but `exclude_unset` cannot see (a sent null looks omitted).
+
+        `interval_seconds` is deliberately not here: the column is nullable, and an
+        explicit null on an interval edit is refused by the service's
+        `_resolve_cadence` instead (see `TestChangingASchedule`)."""
         with pytest.raises(PydanticValidationError, match="cannot be set to null"):
             TriggerUpdate.model_validate({field: None})
 
@@ -1304,6 +1590,103 @@ class TestPreparingAnEventFire:
             )
         assert decision == EventFireDecision(trigger_id=trigger.id, event_context="ISSUE #7 opened")
 
+    async def test_a_first_delivery_is_claimed_and_fires(self):
+        service = _service()
+        trigger = _event_trigger()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.unseal", return_value="secret"),
+            patch("app.services.agent_trigger.trigger_events") as events,
+            patch("app.services.agent_trigger.trigger_dedupe") as dedupe,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            events.verify_signature = MagicMock(return_value=True)
+            events.event_matches = MagicMock(return_value=True)
+            events.delivery_id = MagicMock(return_value="delivery-1")
+            events.render_context = MagicMock(return_value="ISSUE #7")
+            dedupe.claim_event_delivery = AsyncMock(return_value=True)
+            decision = await service.prepare_event_fire(
+                "github",
+                trigger.id,
+                body=b'{"action": "opened"}',
+                headers={"x-github-delivery": "delivery-1"},
+            )
+        assert decision == EventFireDecision(trigger_id=trigger.id, event_context="ISSUE #7")
+        dedupe.claim_event_delivery.assert_awaited_once()
+
+    async def test_a_redelivered_event_already_claimed_does_not_fire_again(self):
+        """At-least-once: a redelivery carrying the same provider delivery id is
+        deduplicated to the same nothing-to-do None a mismatch gets, so it fires no
+        second run and no second spend."""
+        service = _service()
+        trigger = _event_trigger()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.unseal", return_value="secret"),
+            patch("app.services.agent_trigger.trigger_events") as events,
+            patch("app.services.agent_trigger.trigger_dedupe") as dedupe,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            events.verify_signature = MagicMock(return_value=True)
+            events.event_matches = MagicMock(return_value=True)
+            events.delivery_id = MagicMock(return_value="delivery-1")
+            dedupe.claim_event_delivery = AsyncMock(return_value=False)
+            decision = await service.prepare_event_fire(
+                "github",
+                trigger.id,
+                body=b'{"action": "opened"}',
+                headers={"x-github-delivery": "delivery-1"},
+            )
+        assert decision is None
+
+    async def test_a_delivery_with_no_provider_id_fires_without_a_claim(self):
+        """A source that sends no delivery id cannot be deduplicated, so it fires
+        every time rather than being dropped, and no claim is taken."""
+        service = _service()
+        trigger = _event_trigger()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.unseal", return_value="secret"),
+            patch("app.services.agent_trigger.trigger_events") as events,
+            patch("app.services.agent_trigger.trigger_dedupe") as dedupe,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            events.verify_signature = MagicMock(return_value=True)
+            events.event_matches = MagicMock(return_value=True)
+            events.delivery_id = MagicMock(return_value=None)
+            events.render_context = MagicMock(return_value="a delivery")
+            dedupe.claim_event_delivery = AsyncMock()
+            decision = await service.prepare_event_fire(
+                "github", trigger.id, body=b'{"action": "opened"}', headers={}
+            )
+        assert decision is not None
+        dedupe.claim_event_delivery.assert_not_called()
+
+    async def test_release_event_claim_gives_back_a_claimed_delivery(self):
+        service = _service()
+        trigger_id = uuid.uuid4()
+        with (
+            patch("app.services.agent_trigger.trigger_events") as events,
+            patch("app.services.agent_trigger.trigger_dedupe") as dedupe,
+        ):
+            events.delivery_id = MagicMock(return_value="delivery-1")
+            dedupe.release_event_delivery = AsyncMock()
+            await service.release_event_claim("github", trigger_id, {"x-github-delivery": "d"})
+        dedupe.release_event_delivery.assert_awaited_once_with(
+            trigger_id=trigger_id, delivery_id="delivery-1"
+        )
+
+    async def test_release_event_claim_is_a_noop_without_a_provider_id(self):
+        service = _service()
+        with (
+            patch("app.services.agent_trigger.trigger_events") as events,
+            patch("app.services.agent_trigger.trigger_dedupe") as dedupe,
+        ):
+            events.delivery_id = MagicMock(return_value=None)
+            dedupe.release_event_delivery = AsyncMock()
+            await service.release_event_claim("webhook", uuid.uuid4(), {})
+        dedupe.release_event_delivery.assert_not_called()
+
     async def test_a_body_that_is_not_json_is_a_400(self):
         service = _service()
         trigger = _event_trigger()
@@ -1349,7 +1732,7 @@ class TestFiringAnEvent:
             patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
-            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             runner = runner_cls.return_value
             runner.execute = AsyncMock(return_value=("done", run))
             await service.fire(trigger.id, event_context="A GitHub issue #7 was opened")
@@ -1460,3 +1843,621 @@ class TestEventTriggerRestrictions:
                     TriggerUpdate(cron_expression="not a cron"),
                 )
             repo.update.assert_not_called()
+
+
+class TestEditingTheEventConfig:
+    """An event trigger's filter is editable in place - changing which issue actions
+    fire is a filter edit, not a delete-and-recreate. The source and secret stay
+    immutable; a schedule has no filter, so one sent for it is refused (DEENUU #537)."""
+
+    async def test_editing_a_github_filter_persists_the_normalized_config(self):
+        agent = _agent()
+        service = _service(agent)
+        trigger = _event_trigger(agent_id=agent.id)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock(return_value=trigger)
+            await service.update(
+                _ctx(),
+                agent.id,
+                trigger.id,
+                TriggerUpdate(event_config={"actions": ["closed", "reopened"]}),
+            )
+        changes = repo.update.call_args.kwargs["update_data"]
+        # Normalised through the source's typed model, the same path create uses.
+        assert changes["event_config"] == {"actions": ["closed", "reopened"]}
+
+    async def test_an_unknown_event_config_key_is_a_422(self):
+        """A key the source refuses is the same 422 create gives, not a config
+        stored to match nothing."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _event_trigger(agent_id=agent.id)
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock()
+            with pytest.raises(ValidationError):
+                await service.update(
+                    _ctx(),
+                    agent.id,
+                    trigger.id,
+                    TriggerUpdate(event_config={"unknown_filter": 1}),
+                )
+            repo.update.assert_not_called()
+
+    async def test_an_event_config_on_a_schedule_is_refused(self):
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id)  # a schedule has no filter
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock()
+            with pytest.raises(BadRequestError, match="event_config"):
+                await service.update(_ctx(), agent.id, trigger.id, TriggerUpdate(event_config={}))
+            repo.update.assert_not_called()
+
+
+class TestRotatingTheSecret:
+    """The URL is the trigger's identity and immutable; the secret is a credential
+    and replaceable - a re-seal and a new plaintext shown once. An auto-registered
+    hook is re-registered so its deliveries keep verifying (DEENUU #537)."""
+
+    async def test_rotation_reseals_and_reveals_the_new_plaintext_for_a_manual_trigger(self):
+        agent = _agent()
+        service = _service(agent)
+        trigger = _event_trigger(
+            agent_id=agent.id,
+            delivery_mode="manual",
+            event_secret_encrypted="old-ct",
+            secret_key_version=1,
+        )
+        sealed = MagicMock(ciphertext="NEW-CT", key_version=7)
+        audit = AsyncMock()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.seal", return_value=sealed) as seal_fn,
+            patch("app.services.agent_trigger.record_audit", new=audit),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock(return_value=trigger)
+            result = await service.rotate_secret(_ctx(), agent.id, trigger.id)
+        # A fresh secret is minted and sealed - not the old ciphertext, not its seal.
+        minted = seal_fn.call_args.args[0]
+        assert minted not in ("old-ct", "NEW-CT")
+        changes = repo.update.call_args.kwargs["update_data"]
+        assert changes["event_secret_encrypted"] == "NEW-CT"
+        assert changes["secret_key_version"] == 7
+        # A manual trigger reveals the plaintext once so the relay can be updated.
+        assert result.reveal_secret == minted
+        assert result.can_manage is True
+        assert audit.call_args.kwargs["action"] == "agent.trigger_secret_rotated"
+        # Neither the plaintext nor its ciphertext reaches the trail.
+        assert minted not in str(audit.call_args.kwargs["details"])
+        assert "NEW-CT" not in str(audit.call_args.kwargs["details"])
+
+    async def test_rotating_a_schedule_is_refused(self):
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id)  # a schedule has no secret
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock()
+            with pytest.raises(BadRequestError, match="secret to rotate"):
+                await service.rotate_secret(_ctx(), agent.id, trigger.id)
+            repo.update.assert_not_called()
+
+    async def test_a_non_creator_without_agents_edit_cannot_rotate(self):
+        """Management-gated exactly like edit/delete: someone else's trigger needs
+        `agents:edit`, refused as 'not found' so ids stay unprobeable."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _event_trigger(agent_id=agent.id, created_by_user_id=uuid.uuid4())
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.resolve_access", new=AsyncMock(return_value=False)),
+            patch("app.services.agent_trigger.seal") as seal_fn,
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock()
+            with pytest.raises(NotFoundError):
+                await service.rotate_secret(_ctx(), agent.id, trigger.id)
+            seal_fn.assert_not_called()
+            repo.update.assert_not_called()
+
+    async def test_rotating_an_auto_webhook_trigger_reregisters_the_hook(self):
+        agent = _agent()
+        service = _service(agent)
+        service.connections.webhook_access_token = AsyncMock(return_value="tok")
+        adapter = MagicMock()
+        adapter.delete_webhook = AsyncMock()
+        adapter.register_webhook = AsyncMock(
+            return_value=RegisteredWebhook(provider_webhook_id="hook-2")
+        )
+        trigger = _event_trigger(
+            agent_id=agent.id,
+            delivery_mode="auto_webhook",
+            provider_webhook_id="hook-1",
+            connection_id=uuid.uuid4(),
+            portal_key="github",
+            provider_target="acme/api",
+        )
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch(
+                "app.services.agent_trigger.seal",
+                return_value=MagicMock(ciphertext="CT", key_version=2),
+            ),
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock(return_value=trigger)
+            result = await service.rotate_secret(_ctx(), agent.id, trigger.id)
+        # The old hook is deleted and a fresh one registered at the same URL.
+        adapter.delete_webhook.assert_awaited_once()
+        adapter.register_webhook.assert_awaited_once()
+        assert result.provider_webhook_id == "hook-2"
+        assert result.provider_target == "acme/api"
+        assert result.delivery_mode == "auto_webhook"
+        # The provider is signed with the freshly minted plaintext, not the sealed one.
+        assert adapter.register_webhook.await_args.kwargs["secret"] != "CT"
+        # The platform holds the new secret, so nothing is revealed.
+        assert result.reveal_secret is None
+
+    async def test_an_auto_rotation_the_provider_refuses_falls_back_to_manual(self):
+        agent = _agent()
+        service = _service(agent)
+        service.connections.webhook_access_token = AsyncMock(return_value="tok")
+        adapter = MagicMock()
+        adapter.delete_webhook = AsyncMock()
+        adapter.register_webhook = AsyncMock(side_effect=WebhookRegistrationForbidden())
+        trigger = _event_trigger(
+            agent_id=agent.id,
+            delivery_mode="auto_webhook",
+            provider_webhook_id="hook-1",
+            connection_id=uuid.uuid4(),
+            portal_key="github",
+            provider_target="acme/api",
+        )
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch(
+                "app.services.agent_trigger.seal",
+                return_value=MagicMock(ciphertext="CT", key_version=1),
+            ),
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock(return_value=trigger)
+            result = await service.rotate_secret(_ctx(), agent.id, trigger.id)
+        # The re-register was refused, so the trigger falls back to manual and the
+        # new secret is revealed for a re-paste rather than the rotate failing.
+        assert result.delivery_mode == "manual"
+        assert result.provider_webhook_id is None
+        assert result.reveal_secret
+
+    async def test_rotating_when_the_portal_left_the_catalog_falls_back_to_manual(self):
+        agent = _agent()
+        service = _service(agent)
+        trigger = _event_trigger(
+            agent_id=agent.id,
+            delivery_mode="auto_webhook",
+            provider_webhook_id="hook-1",
+            connection_id=uuid.uuid4(),
+            portal_key="ghost-portal",
+            provider_target="acme/api",
+        )
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch(
+                "app.services.agent_trigger.seal",
+                return_value=MagicMock(ciphertext="CT", key_version=1),
+            ),
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.portals.get_adapter"),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock(return_value=trigger)
+            result = await service.rotate_secret(_ctx(), agent.id, trigger.id)
+        assert result.delivery_mode == "manual"
+        assert result.provider_webhook_id is None
+        assert result.reveal_secret
+
+
+def _preset_create(**overrides: object) -> TriggerCreate:
+    fields: dict[str, object] = {
+        "prompt": "triage the issue",
+        "trigger_type": "event",
+        "portal_key": "github",
+        "preset_key": "issue_opened",
+        "connection_id": uuid.uuid4(),
+        "target": "acme/api",
+    }
+    fields.update(overrides)
+    return TriggerCreate(**fields)
+
+
+class TestCreatingFromAPortalPreset:
+    """The preset path: the source and filter come from the catalog, the secret is
+    minted, and an auto_webhook portal with a scope-bearing account registers the
+    hook - any miss leaving the trigger manual rather than half-set."""
+
+    async def test_a_preset_auto_registers_the_hook_when_the_account_can(self):
+        agent = _agent()
+        service = _service(agent)
+        service.connections.webhook_access_token = AsyncMock(return_value="tok")
+        adapter = MagicMock()
+        adapter.register_webhook = AsyncMock(
+            return_value=RegisteredWebhook(provider_webhook_id="hook-1")
+        )
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter),
+        ):
+            repo.create = AsyncMock(
+                return_value=_event_trigger(conversation_id=uuid.uuid4(), delivery_mode="manual")
+            )
+            result = await service.create(_ctx(), agent.id, _preset_create())
+        assert result.delivery_mode == "auto_webhook"
+        assert result.provider_webhook_id == "hook-1"
+        assert result.provider_target == "acme/api"
+        # The platform registered the hook, so it holds the secret - nothing to reveal.
+        assert result.reveal_secret is None
+        # The minted plaintext secret is what the provider signs with, not the sealed one.
+        assert adapter.register_webhook.await_args.kwargs["secret"]
+        # The preset's normalized config and the connection reached the repo.
+        assert repo.create.await_args.kwargs["event_source"] == "github"
+        assert repo.create.await_args.kwargs["event_config"] == {"actions": ["opened"]}
+        assert repo.create.await_args.kwargs["portal_key"] == "github"
+
+    async def test_a_missing_scope_leaves_the_trigger_manual(self):
+        agent = _agent()
+        service = _service(agent)
+        service.connections.webhook_access_token = AsyncMock(return_value=None)
+        adapter = MagicMock()
+        adapter.register_webhook = AsyncMock()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter),
+        ):
+            repo.create = AsyncMock(
+                return_value=_event_trigger(conversation_id=uuid.uuid4(), delivery_mode="manual")
+            )
+            result = await service.create(_ctx(), agent.id, _preset_create())
+        assert result.delivery_mode == "manual"
+        adapter.register_webhook.assert_not_awaited()
+        # Manual fallback: the minted secret is revealed once so the relay can sign.
+        assert result.reveal_secret and len(result.reveal_secret) >= 16
+
+    async def test_a_provider_refusal_falls_back_to_manual(self):
+        agent = _agent()
+        service = _service(agent)
+        service.connections.webhook_access_token = AsyncMock(return_value="tok")
+        adapter = MagicMock()
+        adapter.register_webhook = AsyncMock(side_effect=WebhookRegistrationForbidden())
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter),
+        ):
+            repo.create = AsyncMock(
+                return_value=_event_trigger(conversation_id=uuid.uuid4(), delivery_mode="manual")
+            )
+            result = await service.create(_ctx(), agent.id, _preset_create())
+        assert result.delivery_mode == "manual"
+        assert result.provider_webhook_id is None
+
+    async def test_a_portal_with_no_adapter_stays_manual(self):
+        agent = _agent()
+        service = _service(agent)
+        service.connections.webhook_access_token = AsyncMock()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.portals.get_adapter", return_value=None),
+        ):
+            repo.create = AsyncMock(
+                return_value=_event_trigger(conversation_id=uuid.uuid4(), delivery_mode="manual")
+            )
+            result = await service.create(_ctx(), agent.id, _preset_create())
+        assert result.delivery_mode == "manual"
+        service.connections.webhook_access_token.assert_not_awaited()
+
+    async def test_a_manual_delivery_portal_never_attempts_registration(self):
+        agent = _agent()
+        service = _service(agent)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.portals.get_adapter") as get_adapter,
+        ):
+            repo.create = AsyncMock(
+                return_value=_event_trigger(
+                    event_source="email", conversation_id=uuid.uuid4(), delivery_mode="manual"
+                )
+            )
+            result = await service.create(
+                _ctx(),
+                agent.id,
+                _preset_create(portal_key="email", preset_key="any_email", target=None),
+            )
+        assert result.delivery_mode == "manual"
+        get_adapter.assert_not_called()
+
+    async def test_an_unknown_preset_is_refused(self):
+        agent = _agent()
+        service = _service(agent)
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.create = AsyncMock()
+            with pytest.raises(BadRequestError):
+                await service.create(_ctx(), agent.id, _preset_create(preset_key="no-such-preset"))
+        repo.create.assert_not_called()
+
+    async def test_a_preset_without_a_connection_skips_the_lookup(self):
+        """A manual preset the caller wires themselves carries no `connection_id`,
+        so there is nothing to resolve and the org lookup is never called."""
+        agent = _agent()
+        service = _service(agent)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.portals.get_adapter", return_value=None),
+        ):
+            repo.create = AsyncMock(
+                return_value=_event_trigger(
+                    event_source="email", conversation_id=uuid.uuid4(), delivery_mode="manual"
+                )
+            )
+            result = await service.create(
+                _ctx(),
+                agent.id,
+                _preset_create(
+                    portal_key="email", preset_key="any_email", connection_id=None, target=None
+                ),
+            )
+        assert result.delivery_mode == "manual"
+        assert repo.create.await_args.kwargs["connection_id"] is None
+        service.connections.get_org_connection.assert_not_awaited()
+
+    async def test_a_connection_from_another_organization_is_refused(self):
+        """The caller supplies `connection_id`; a bogus or cross-tenant id must be
+        a 404 before the row is stored, whatever the delivery mode - otherwise one
+        org could persist another's `mcp_connections.id` on its trigger. The
+        refusal happens before `repo.create`, so no row is written."""
+        agent = _agent()
+        service = _service(agent)
+        service.connections.get_org_connection = AsyncMock(
+            side_effect=NotFoundError(message="MCP connection not found")
+        )
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.create = AsyncMock()
+            with pytest.raises(NotFoundError):
+                await service.create(
+                    _ctx(), agent.id, _preset_create(portal_key="email", preset_key="any_email")
+                )
+        repo.create.assert_not_called()
+
+    async def test_an_event_config_override_narrows_the_presets_filter(self):
+        """A subject filter the caller supplies is merged over the email preset's
+        defaults and persisted; the filter it does not set stays its default None."""
+        agent = _agent()
+        service = _service(agent)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.create = AsyncMock(
+                return_value=_event_trigger(
+                    event_source="email", conversation_id=uuid.uuid4(), delivery_mode="manual"
+                )
+            )
+            await service.create(
+                _ctx(),
+                agent.id,
+                _preset_create(
+                    portal_key="email",
+                    preset_key="any_email",
+                    target=None,
+                    event_config={"subject_contains": "invoice"},
+                ),
+            )
+        assert repo.create.await_args.kwargs["event_config"] == {
+            "subject_contains": "invoice",
+            "sender_contains": None,
+        }
+
+    async def test_an_event_config_override_can_set_both_filters(self):
+        agent = _agent()
+        service = _service(agent)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.create = AsyncMock(
+                return_value=_event_trigger(
+                    event_source="email", conversation_id=uuid.uuid4(), delivery_mode="manual"
+                )
+            )
+            await service.create(
+                _ctx(),
+                agent.id,
+                _preset_create(
+                    portal_key="email",
+                    preset_key="any_email",
+                    target=None,
+                    event_config={"subject_contains": "invoice", "sender_contains": "@acme.com"},
+                ),
+            )
+        assert repo.create.await_args.kwargs["event_config"] == {
+            "subject_contains": "invoice",
+            "sender_contains": "@acme.com",
+        }
+
+    async def test_a_malformed_override_is_a_422_not_a_500(self):
+        """An override violating the source's model is refused before a row is
+        written - the wrapped pydantic error is a 422, never an unhandled 500."""
+        agent = _agent()
+        service = _service(agent)
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.create = AsyncMock()
+            with pytest.raises(ValidationError):
+                await service.create(
+                    _ctx(),
+                    agent.id,
+                    _preset_create(
+                        portal_key="email",
+                        preset_key="any_email",
+                        target=None,
+                        event_config={"subject_contains": "x" * 300},
+                    ),
+                )
+        repo.create.assert_not_called()
+
+    async def test_an_unknown_override_key_is_refused(self):
+        agent = _agent()
+        service = _service(agent)
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.create = AsyncMock()
+            with pytest.raises(ValidationError):
+                await service.create(
+                    _ctx(),
+                    agent.id,
+                    _preset_create(
+                        portal_key="email",
+                        preset_key="any_email",
+                        target=None,
+                        event_config={"not_a_filter": "x"},
+                    ),
+                )
+        repo.create.assert_not_called()
+
+
+class TestDeletingDeregistersItsWebhook:
+    def _deletable(self, agent, **overrides):
+        fields: dict[str, object] = {
+            "agent_id": agent.id,
+            "provider_webhook_id": "hook-1",
+            "connection_id": uuid.uuid4(),
+            "portal_key": "github",
+            "provider_target": "acme/api",
+        }
+        fields.update(overrides)
+        return _event_trigger(**fields)
+
+    async def test_an_auto_registered_hook_is_deregistered(self):
+        agent = _agent()
+        service = _service(agent)
+        service.connections.webhook_access_token = AsyncMock(return_value="tok")
+        adapter = MagicMock()
+        adapter.delete_webhook = AsyncMock()
+        trigger = self._deletable(agent)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.delete = AsyncMock()
+            await service.delete(_ctx(), agent.id, trigger.id)
+        adapter.delete_webhook.assert_awaited_once()
+        repo.delete.assert_awaited_once()
+
+    async def test_a_trigger_with_no_hook_deregisters_nothing(self):
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id)  # a schedule: no provider hook
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.portals.get_adapter") as get_adapter,
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.delete = AsyncMock()
+            await service.delete(_ctx(), agent.id, trigger.id)
+        get_adapter.assert_not_called()
+        repo.delete.assert_awaited_once()
+
+    async def test_an_unknown_portal_deregisters_nothing_but_still_deletes(self):
+        agent = _agent()
+        service = _service(agent)
+        trigger = self._deletable(agent, portal_key="ghost-portal")
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.delete = AsyncMock()
+            await service.delete(_ctx(), agent.id, trigger.id)
+        repo.delete.assert_awaited_once()
+
+    async def test_a_gone_token_stops_the_deregister(self):
+        agent = _agent()
+        service = _service(agent)
+        service.connections.webhook_access_token = AsyncMock(return_value=None)
+        adapter = MagicMock()
+        adapter.delete_webhook = AsyncMock()
+        trigger = self._deletable(agent)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.delete = AsyncMock()
+            await service.delete(_ctx(), agent.id, trigger.id)
+        adapter.delete_webhook.assert_not_awaited()
+        repo.delete.assert_awaited_once()
+
+    async def test_a_provider_error_never_blocks_the_delete(self):
+        agent = _agent()
+        service = _service(agent)
+        service.connections.webhook_access_token = AsyncMock(side_effect=RuntimeError("down"))
+        trigger = self._deletable(agent)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch(
+                "app.services.agent_trigger.portals.get_adapter",
+                return_value=MagicMock(delete_webhook=AsyncMock()),
+            ),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.delete = AsyncMock()
+            await service.delete(_ctx(), agent.id, trigger.id)
+        repo.delete.assert_awaited_once()
+
+
+class TestListingPortalTargets:
+    async def test_an_unknown_portal_is_not_found(self):
+        service = _service()
+        with pytest.raises(NotFoundError):
+            await service.list_portal_targets(_ctx(), "no-such-portal", uuid.uuid4())
+
+    async def test_a_portal_with_no_adapter_has_no_targets(self):
+        # A manual portal (email) registers no webhooks and enumerates nothing.
+        service = _service()
+        assert await service.list_portal_targets(_ctx(), "email", uuid.uuid4()) == []
+
+    async def test_no_scoped_token_lists_nothing(self):
+        service = _service()
+        service.connections.webhook_access_token = AsyncMock(return_value=None)
+        adapter = MagicMock(list_preset_targets=AsyncMock())
+        with patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter):
+            targets = await service.list_portal_targets(_ctx(), "github", uuid.uuid4())
+        assert targets == []
+        adapter.list_preset_targets.assert_not_awaited()
+
+    async def test_the_accounts_targets_are_returned(self):
+        service = _service()
+        service.connections.webhook_access_token = AsyncMock(return_value="tok")
+        target = PortalTarget(id="acme/api", label="acme/api")
+        adapter = MagicMock(list_preset_targets=AsyncMock(return_value=[target]))
+        with patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter):
+            targets = await service.list_portal_targets(_ctx(), "github", uuid.uuid4())
+        assert targets == [target]

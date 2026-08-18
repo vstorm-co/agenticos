@@ -1,0 +1,559 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { OnboardingCoach } from "./onboarding-coach";
+import { onlyHiddenMatches, waitForElement } from "./spotlight";
+import type { OnboardingFlowState } from "@/hooks/use-onboarding-flow";
+import type { FlowStep } from "@/lib/onboarding/flows";
+import { useChatStore } from "@/stores/chat-store";
+import { useConversationStore } from "@/stores/conversation-store";
+import { useSidebarStore } from "@/stores/sidebar-store";
+
+const router = vi.hoisted(() => ({
+  push: vi.fn(),
+  replace: vi.fn(),
+  prefetch: vi.fn(),
+  back: vi.fn(),
+}));
+const nav = vi.hoisted(() => ({ pathname: "/skills" }));
+vi.mock("next/navigation", () => ({
+  usePathname: () => nav.pathname,
+  useRouter: () => router,
+}));
+
+// The DOM/query boundary; the element hunt and tab reveal are stubbed so the
+// coach's orchestration is what is under test, not driver-less DOM work jsdom
+// cannot do. `spotlightPath` is kept real — the freeze layer calls it on render.
+vi.mock("@/components/onboarding/spotlight", async (importActual) => {
+  const actual = await importActual<typeof import("./spotlight")>();
+  return {
+    ...actual,
+    waitForElement: vi.fn(async () => document.createElement("div")),
+    activateTab: vi.fn(),
+    onlyHiddenMatches: vi.fn(() => false),
+  };
+});
+
+const flow = vi.hoisted(() => ({ state: null as OnboardingFlowState | null }));
+vi.mock("@/hooks/use-onboarding-flow", () => ({
+  useOnboardingFlow: () => flow.state,
+}));
+
+function step(overrides: Partial<FlowStep> = {}): FlowStep {
+  return {
+    id: "flow-skill-create",
+    page: "/skills",
+    target: "skills-new",
+    signal: { kind: "created", resource: "skill" },
+    ...overrides,
+  };
+}
+
+function makeState(overrides: Partial<OnboardingFlowState> = {}): OnboardingFlowState {
+  const one = step();
+  return {
+    isActive: true,
+    flowId: "create-skill",
+    steps: [one],
+    step: one,
+    index: 0,
+    isLast: true,
+    signalMet: false,
+    next: vi.fn(),
+    finish: vi.fn(),
+    answer: vi.fn(),
+    openFlow: vi.fn(),
+    flowAgentId: null,
+    setFlowAgentId: vi.fn(),
+    ...overrides,
+  };
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  // `clearAllMocks` wipes the default implementation a test may have replaced.
+  vi.mocked(waitForElement).mockImplementation(async () => document.createElement("div"));
+  vi.mocked(onlyHiddenMatches).mockReturnValue(false);
+  // A floating layer a prior test appended to simulate one would leak forward, and
+  // the coach reads the *document* for them — so an un-removed Radix popper leaves
+  // `overlayOpen` true for every test after it, silently disabling the freeze and
+  // everything that hangs off it. Both shapes go, not just the dialog.
+  document
+    .querySelectorAll('[role="dialog"][data-state], [data-radix-popper-content-wrapper]')
+    .forEach((node) => node.remove());
+  nav.pathname = "/skills";
+  flow.state = makeState();
+  useSidebarStore.setState({ isOpen: false });
+  useChatStore.setState({ messages: [] });
+  useConversationStore.getState().reset();
+  window.history.replaceState({}, "", "/");
+});
+
+describe("OnboardingCoach", () => {
+  it("shows the current step's instruction card", () => {
+    render(<OnboardingCoach />);
+    expect(screen.getByText("Add your skill")).toBeInTheDocument();
+  });
+
+  it("closes the flow from the close button", async () => {
+    const finish = vi.fn();
+    flow.state = makeState({ finish });
+    render(<OnboardingCoach />);
+    await userEvent.click(screen.getByLabelText("Close"));
+    expect(finish).toHaveBeenCalled();
+  });
+
+  it("advances the moment the resource is created", async () => {
+    const next = vi.fn();
+    flow.state = makeState({ signalMet: true, next });
+    render(<OnboardingCoach />);
+    await waitFor(() => expect(next).toHaveBeenCalled());
+  });
+
+  it("carries a Next for a step that has no create to wait on", async () => {
+    const next = vi.fn();
+    const descriptive = step({ signal: undefined });
+    flow.state = makeState({ step: descriptive, steps: [descriptive], next });
+    render(<OnboardingCoach />);
+    // Last step, so the manual control reads Finish; clicking it advances.
+    await userEvent.click(screen.getByRole("button", { name: "Finish" }));
+    expect(next).toHaveBeenCalled();
+  });
+
+  it("navigates to the step's page when the reader is elsewhere", async () => {
+    nav.pathname = "/dashboard";
+    render(<OnboardingCoach />);
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith("/skills"));
+  });
+
+  it("carries the reader back to the built agent for a builder step left behind", async () => {
+    // A fork that crossed to another section to ask leaves the reader there on
+    // Skip; the next builder step must return them to the agent this flow built
+    // rather than hunt for its control on the wrong page under the freeze.
+    nav.pathname = "/skills";
+    const builderStep = step({ id: "flow-agent-tools", page: "agent-builder", signal: undefined });
+    flow.state = makeState({
+      flowId: "create-agent",
+      step: builderStep,
+      steps: [builderStep],
+      flowAgentId: "a-42",
+    });
+    render(<OnboardingCoach />);
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith("/agents/a-42"));
+  });
+
+  it("renders nothing when no flow is active", () => {
+    flow.state = makeState({ isActive: false });
+    const { container } = render(<OnboardingCoach />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("freezes the page while a step is in progress", async () => {
+    render(<OnboardingCoach />);
+    await waitFor(() => expect(document.querySelector("[data-coach-freeze]")).toBeInTheDocument());
+  });
+
+  it("lifts the freeze while a modal dialog is open, so its own overlay owns the screen", async () => {
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("data-state", "open");
+    document.body.appendChild(dialog);
+
+    render(<OnboardingCoach />);
+    // The card still guides the reader; only the second freeze layer is gone.
+    await screen.findByText("Add your skill");
+    await waitFor(() => expect(document.querySelector("[data-coach-freeze]")).toBeNull());
+  });
+
+  it("draws the travelling highlight ring while a step is showing", async () => {
+    render(<OnboardingCoach />);
+    await waitFor(() => expect(document.querySelector("[data-coach-ring]")).toBeInTheDocument());
+  });
+
+  it("keeps guiding inside an open dialog for an in-overlay step", async () => {
+    // A field step points into the dialog: the freeze stays down (the dialog's
+    // own overlay dims the page) but the ring still renders, framing the field.
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("data-state", "open");
+    document.body.appendChild(dialog);
+
+    const field = step({ id: "flow-skill-field-name", inOverlay: true, signal: undefined });
+    flow.state = makeState({ step: field, steps: [field] });
+    render(<OnboardingCoach />);
+    await screen.findByText("Name it");
+    await waitFor(() => expect(document.querySelector("[data-coach-ring]")).toBeInTheDocument());
+    expect(document.querySelector("[data-coach-freeze]")).toBeNull();
+  });
+
+  it("renders the card inside the dialog it is guiding, so a keyboard can reach Next", async () => {
+    // Radix traps focus inside its own content. A card outside it is reachable by
+    // pointer and by nothing else: a keyboard user could fill the field the step
+    // points at and never Tab to the control that moves off it.
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("data-state", "open");
+    document.body.appendChild(dialog);
+
+    const field = step({ id: "flow-skill-field-name", inOverlay: true, signal: undefined });
+    flow.state = makeState({ step: field, steps: [field] });
+    render(<OnboardingCoach />);
+    await screen.findByText("Name it");
+
+    const card = document.querySelector("[data-coach-card]");
+    expect(card).not.toBeNull();
+    expect(dialog.contains(card)).toBe(true);
+  });
+
+  it("floats the card free of the page when no dialog is guiding it", async () => {
+    render(<OnboardingCoach />);
+    await screen.findByText("Add your skill");
+    const card = document.querySelector("[data-coach-card]");
+    expect(card?.parentElement).not.toBe(null);
+    expect(document.querySelector('[role="dialog"][data-state="open"]')).toBeNull();
+    expect(card?.getAttribute("role")).toBe("dialog");
+  });
+
+  it("gives a Next to an in-dialog step whose dialog the reader cancelled", async () => {
+    // Cancel and the dialog's own X stay live while the coach guides it. Without
+    // this the last field step — which waits for a creation and carries no Next —
+    // could neither advance nor reopen the form, so the walk sat there until the
+    // whole coach was closed.
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("data-state", "open");
+    document.body.appendChild(dialog);
+
+    const next = vi.fn();
+    const creating = step({ id: "flow-skill-field-create", inOverlay: true });
+    flow.state = makeState({ step: creating, steps: [creating], next });
+    render(<OnboardingCoach />);
+    await screen.findByText("Create it");
+    expect(screen.queryByRole("button", { name: "Finish" })).toBeNull();
+
+    dialog.remove();
+    await userEvent.click(await screen.findByRole("button", { name: "Finish" }));
+    expect(next).toHaveBeenCalled();
+  });
+
+  it("clears the open conversation before the guided first message", async () => {
+    // Navigating to /chat does not: the loader only ever sets a selection from
+    // `?id=` and never clears one, so the message the walk asks for landed in
+    // whatever thread was last open, with its context and its agent.
+    useConversationStore.setState({ currentConversationId: "old-thread" });
+    useChatStore.setState({ messages: [{ id: "m-0" } as never] });
+    window.history.replaceState({}, "", "/chat?id=old-thread");
+    nav.pathname = "/chat";
+
+    const pick = step({
+      id: "flow-agent-run-pick",
+      page: "/chat",
+      target: "chat-agent-picker",
+      signal: { kind: "selected" },
+      freshConversation: true,
+    });
+    flow.state = makeState({ step: pick, steps: [pick] });
+    render(<OnboardingCoach />);
+
+    await waitFor(() => expect(useConversationStore.getState().currentConversationId).toBeNull());
+    expect(useChatStore.getState().messages).toEqual([]);
+    expect(new URL(window.location.href).searchParams.get("id")).toBeNull();
+  });
+
+  it("leaves a conversation alone on a step that did not ask for a fresh one", async () => {
+    useConversationStore.setState({ currentConversationId: "old-thread" });
+    render(<OnboardingCoach />);
+    await screen.findByText("Add your skill");
+    expect(useConversationStore.getState().currentConversationId).toBe("old-thread");
+  });
+
+  it("opens the navigation drawer when every copy of the control is hidden", async () => {
+    // Below `md` the desktop column is `display: none` and the drawer is not
+    // mounted, so a step pointing into the navigation would wait behind a
+    // full-viewport freeze covering the hamburger that would fix it.
+    vi.mocked(onlyHiddenMatches).mockReturnValue(true);
+    const back = step({
+      id: "flow-agent-knowledge-return-nav",
+      page: undefined,
+      target: "nav-agents",
+    });
+    flow.state = makeState({ step: back, steps: [back] });
+    render(<OnboardingCoach />);
+    await waitFor(() => expect(useSidebarStore.getState().isOpen).toBe(true));
+  });
+
+  it("leaves the drawer shut where the control is on screen", async () => {
+    render(<OnboardingCoach />);
+    await screen.findByText("Add your skill");
+    expect(useSidebarStore.getState().isOpen).toBe(false);
+  });
+
+  it("frames the control with air around it, and never with a square corner", async () => {
+    // Sat on the control's own box with its own radius, the ring drew a hard
+    // rectangle tight around whatever it pointed at — on a plain `div`, square
+    // corners, and on a bordered field group indistinguishable from the outline a
+    // form puts on an invalid input.
+    const target = document.createElement("div");
+    target.setAttribute("data-tour", "skills-new");
+    document.body.appendChild(target);
+    target.getBoundingClientRect = () =>
+      ({ top: 100, left: 200, width: 300, height: 40 }) as DOMRect;
+    vi.mocked(waitForElement).mockImplementation(async () => target);
+
+    render(<OnboardingCoach />);
+    // Waits past the centre dot the ring starts every flow as, onto the control.
+    const ring = await waitFor(() => {
+      const found = document.querySelector("[data-coach-ring]");
+      if (!(found instanceof HTMLElement) || found.style.top !== "94px") {
+        throw new Error("not placed yet");
+      }
+      return found;
+    });
+
+    // Six pixels of air on every side — so twelve more across, and the origin back
+    // by six in both directions.
+    expect(ring.style.top).toBe("94px");
+    expect(ring.style.left).toBe("194px");
+    expect(ring.style.width).toBe("312px");
+    expect(ring.style.height).toBe("52px");
+    // The element has no radius of its own, so the frame keeps the floor rather
+    // than inheriting a 0.
+    expect(ring.style.borderRadius).toBe("12px");
+
+    target.remove();
+  });
+
+  it("advances on the right arrow where the card carries a Next", async () => {
+    const next = vi.fn();
+    const descriptive = step({ signal: undefined });
+    flow.state = makeState({ step: descriptive, steps: [descriptive], next });
+    render(<OnboardingCoach />);
+    await screen.findByText("Add your skill");
+
+    fireEvent.keyDown(document, { key: "ArrowRight" });
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores the arrow on a step that waits for the reader to create something", async () => {
+    // The step has no Next for a reason; a key that skipped it would walk the
+    // reader past the very thing the step is about.
+    const next = vi.fn();
+    flow.state = makeState({ next });
+    render(<OnboardingCoach />);
+    await screen.findByText("Add your skill");
+
+    fireEvent.keyDown(document, { key: "ArrowRight" });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("leaves the arrow to the field the reader is typing in", async () => {
+    // The coach guides readers *into* text fields, where an arrow moves a caret.
+    const next = vi.fn();
+    const descriptive = step({ signal: undefined });
+    flow.state = makeState({ step: descriptive, steps: [descriptive], next });
+    render(<OnboardingCoach />);
+    await screen.findByText("Add your skill");
+
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    fireEvent.keyDown(input, { key: "ArrowRight" });
+    expect(next).not.toHaveBeenCalled();
+    input.remove();
+  });
+
+  it("advances an opened step the moment a dialog opens on top of the count it began with", async () => {
+    const next = vi.fn();
+    const opener = step({ id: "flow-skill-create", signal: { kind: "opened" } });
+    flow.state = makeState({ step: opener, steps: [opener], next });
+    render(<OnboardingCoach />);
+    await screen.findByText("Add your skill");
+    expect(next).not.toHaveBeenCalled();
+
+    // The reader clicks the trigger and the create dialog mounts.
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("data-state", "open");
+    document.body.appendChild(dialog);
+    await waitFor(() => expect(next).toHaveBeenCalled());
+  });
+
+  it("lifts the freeze while a Radix popper is open, so a picker can be used", async () => {
+    // A popover/dropdown/select portals a wrapper the coach must step aside for,
+    // or its ring and dim would sit over the picker the step points at.
+    const popper = document.createElement("div");
+    popper.setAttribute("data-radix-popper-content-wrapper", "");
+    document.body.appendChild(popper);
+
+    render(<OnboardingCoach />);
+    await screen.findByText("Add your skill");
+    await waitFor(() => expect(document.querySelector("[data-coach-freeze]")).toBeNull());
+  });
+
+  it("asks a fork with Yes/Skip and records the answer, showing no ring", async () => {
+    const answer = vi.fn();
+    const fork = step({
+      id: "flow-agent-knowledge-ask",
+      question: true,
+      signal: undefined,
+      target: undefined,
+      page: undefined,
+    });
+    flow.state = makeState({ flowId: "create-agent", step: fork, steps: [fork], answer });
+    render(<OnboardingCoach />);
+
+    // A fork points at nothing, so it dims the page whole and draws no ring.
+    expect(document.querySelector("[data-coach-ring]")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Yes, let's do it" }));
+    expect(answer).toHaveBeenCalledWith("flow-agent-knowledge-ask", "yes");
+
+    await userEvent.click(screen.getByRole("button", { name: "Skip" }));
+    expect(answer).toHaveBeenCalledWith("flow-agent-knowledge-ask", "skip");
+  });
+
+  it("cancels Space on the guarded submit, so Tab-then-Space cannot create the resource early", async () => {
+    // The freeze blocks pointers, not Tab. A focused submit button activates on
+    // Space as well as Enter, so a keyboard user could Tab to Create and press
+    // Space, jumping past the field steps — the dead-end the guard exists to stop.
+    const guarded = step({ blockSubmit: "skills-new" });
+    flow.state = makeState({ step: guarded, steps: [guarded] });
+    render(<OnboardingCoach />);
+    await screen.findByText("Add your skill");
+
+    const submit = document.createElement("button");
+    submit.type = "submit";
+    submit.setAttribute("data-tour", "skills-new");
+    document.body.appendChild(submit);
+    submit.focus();
+    // fireEvent returns false when a handler called preventDefault.
+    expect(fireEvent.keyDown(submit, { key: " " })).toBe(false);
+
+    // Space must survive in a text field — there it types a space, not a submit.
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    input.focus();
+    expect(fireEvent.keyDown(input, { key: " " })).toBe(true);
+  });
+
+  it("lets Tab reach the control the step is waiting on, not only the card", async () => {
+    // The step the walk spends most of its time on has a signal and therefore no
+    // Next — the reader is meant to operate the spotlit control, and that is the
+    // whole advance. A trap confined to the card would leave a keyboard user with
+    // no route to it and abandoning the walk as the only exit, which is worse than
+    // no trap at all.
+    const spotlit = document.createElement("button");
+    spotlit.setAttribute("data-tour", "skills-new");
+    spotlit.textContent = "New skill";
+    document.body.appendChild(spotlit);
+    vi.mocked(waitForElement).mockImplementation(async () => spotlit);
+
+    // The default step carries `signal: { kind: "created" }`, so the card has a
+    // close button and nothing else.
+    render(<OnboardingCoach />);
+    await screen.findByText("Add your skill");
+    await waitFor(() => expect(document.querySelector("[data-coach-ring]")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "Next" })).toBeNull();
+
+    const close = screen.getByRole("button", { name: "Close" });
+    close.focus();
+    fireEvent.keyDown(close, { key: "Tab" });
+    expect(document.activeElement).toBe(spotlit);
+
+    // And back round to the card, so neither is a one-way trip.
+    fireEvent.keyDown(spotlit, { key: "Tab" });
+    expect(document.activeElement).toBe(close);
+  });
+
+  it("keeps Tab inside the card on a fork, which cuts no hole to reach through", async () => {
+    // The freeze paints over pointers and leaves the tab order alone, so Tab walked
+    // into the dimmed page behind the card and Enter on whatever it found acted —
+    // the keyboard half of the submit guard's hole. A fork points at no control, so
+    // here the card really is the whole of what the reader may operate.
+    const fork = step({
+      id: "flow-agent-knowledge-ask",
+      question: true,
+      signal: undefined,
+      target: undefined,
+      page: undefined,
+    });
+    flow.state = makeState({ flowId: "create-agent", step: fork, steps: [fork] });
+    render(<OnboardingCoach />);
+    await screen.findByText("No knowledge base yet — create one?");
+
+    // A control on the frozen page behind, where focus can be stranded.
+    const outside = document.createElement("button");
+    document.body.appendChild(outside);
+    const close = screen.getByRole("button", { name: "Close" });
+    const yes = screen.getByRole("button", { name: "Yes, let's do it" });
+
+    // Where focus lands is the assertion, not that the key was cancelled: jsdom
+    // moves focus for nobody, so in this environment the only thing that can put
+    // it anywhere is the trap itself. In a browser the `preventDefault` beside it
+    // is what stops the native move landing on top.
+    const tab = (target: HTMLElement, shiftKey = false) =>
+      fireEvent.keyDown(target, { key: "Tab", shiftKey });
+
+    outside.focus();
+    tab(outside);
+    expect(document.activeElement).toBe(close);
+
+    // Forward reaches the last control, and once more wraps rather than escaping.
+    tab(close);
+    expect(screen.getByRole("button", { name: "Skip" })).toBe(document.activeElement);
+    tab(document.activeElement as HTMLElement);
+    expect(document.activeElement).toBe(yes);
+    tab(yes);
+    expect(document.activeElement).toBe(close);
+
+    // Shift walks the other way, wrapping at the front for the same reason.
+    tab(close, true);
+    expect(document.activeElement).toBe(yes);
+
+    // And Shift from the page behind lands on the card's last control, not out.
+    outside.focus();
+    tab(outside, true);
+    expect(document.activeElement).toBe(yes);
+  });
+
+  it("leaves Tab alone on a roam step, where the reader is meant to work the page", async () => {
+    // A roam step draws no freeze at all — the reader is choosing among many
+    // controls — so trapping the keyboard there would lock them out of the very
+    // choice the step asks for.
+    const roaming = step({ roam: true, signal: undefined });
+    flow.state = makeState({ step: roaming, steps: [roaming] });
+    render(<OnboardingCoach />);
+    await screen.findByText("Add your skill");
+
+    const outside = document.createElement("button");
+    document.body.appendChild(outside);
+    outside.focus();
+    fireEvent.keyDown(outside, { key: "Tab" });
+    // Nothing pulled focus back, so the tab order is the page's own.
+    expect(document.activeElement).toBe(outside);
+  });
+
+  it("hands a fork's Yes off to another flow when it opensFlow", async () => {
+    // The chat run's "build an agent first?" fork opens create-agent rather than
+    // revealing a detour, so Yes calls openFlow, not answer.
+    const openFlow = vi.fn();
+    const answer = vi.fn();
+    const fork = step({
+      id: "flow-chat-needs-agent",
+      question: true,
+      opensFlow: "create-agent",
+      signal: undefined,
+      target: undefined,
+      page: undefined,
+    });
+    flow.state = makeState({ flowId: "explore-chat", step: fork, steps: [fork], openFlow, answer });
+    render(<OnboardingCoach />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Yes, let's do it" }));
+    expect(openFlow).toHaveBeenCalledWith("create-agent");
+    expect(answer).not.toHaveBeenCalled();
+
+    // Skip still steps over it within this flow rather than handing off.
+    await userEvent.click(screen.getByRole("button", { name: "Skip" }));
+    expect(answer).toHaveBeenCalledWith("flow-chat-needs-agent", "skip");
+  });
+});

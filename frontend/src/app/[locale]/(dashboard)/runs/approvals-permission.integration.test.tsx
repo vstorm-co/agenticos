@@ -36,7 +36,11 @@ vi.mock("@/lib/api-client", async () => {
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const params = new URLSearchParams();
-vi.mock("next/navigation", () => ({ useSearchParams: () => params }));
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => params,
+  // The header's "?" reads the path to decide whether this page has tips.
+  usePathname: () => "/runs",
+}));
 
 const EMPTY_SPEND = {
   period_days: 30,

@@ -52,6 +52,11 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
     # OAuth connection that has completed the consent flow (has usable tokens).
     # False for a bearer connection or an OAuth connection still awaiting consent.
     oauth_authorized: bool
+    # The OAuth scopes the account consented to, so a caller can tell whether a
+    # connection carries a scope a feature needs (a trigger portal's webhook-admin
+    # scope). Scope names describe breadth, not a credential, so they are safe to
+    # show; null on a bearer connection or one not yet authorized.
+    granted_scopes: list[str] | None = None
     last_status: str | None
     last_error: str | None
     last_checked_at: datetime | None
@@ -72,6 +77,7 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
             is_enabled=connection.is_enabled,
             auth_type=connection.auth_type,
             oauth_authorized=oauth_authorized,
+            granted_scopes=connection.granted_scopes,
             last_status=connection.last_status,
             last_error=connection.last_error,
             last_checked_at=connection.last_checked_at,
@@ -154,6 +160,18 @@ class McpOAuthStart(BaseSchema):
 
     name: str = Field(..., min_length=1, max_length=32, pattern=NAME_PATTERN)
     url: str = Field(..., min_length=1, max_length=2048)
+
+
+class GithubOAuthStart(BaseSchema):
+    """Begin the GitHub OAuth App flow for a trigger portal.
+
+    Carries the portal key, not a URL or a name: the endpoints are GitHub's fixed
+    ones, the client credentials come from the organization's stored
+    `github_oauth_app` secret, and the connection is named after the portal's MCP
+    catalog entry - so nothing about the server is the caller's to choose.
+    """
+
+    portal_key: str = Field(..., min_length=1, max_length=64)
 
 
 class McpOAuthStartResult(BaseSchema):

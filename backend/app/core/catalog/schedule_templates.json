@@ -1,0 +1,44 @@
+[
+  {
+    "key": "pr_digest_weekday_mornings",
+    "label": "Pull-request digest, weekday mornings",
+    "description": "Every weekday at 08:00 UTC, summarise the open pull requests that need attention.",
+    "prompt": "Summarise my team's open pull requests. Group them by whether they are waiting on a review, waiting on changes from the author, or approved and ready to merge, and call out any that have been open for more than three days.",
+    "suggested_cadence": { "schedule_kind": "cron", "cron_expression": "0 8 * * 1-5" }
+  },
+  {
+    "key": "triage_new_issues_daily",
+    "label": "Triage new issues each morning",
+    "description": "Every day at 07:00 UTC, review the issues opened since yesterday and propose a triage.",
+    "prompt": "Review the issues opened in the last day. For each one, suggest a priority and a label, note any that look like duplicates of an existing issue, and flag anything that appears to be a security report.",
+    "suggested_cadence": { "schedule_kind": "cron", "cron_expression": "0 7 * * *" }
+  },
+  {
+    "key": "standup_prep_weekdays",
+    "label": "Stand-up prep, weekday mornings",
+    "description": "Every weekday at 08:30 UTC, draft a short stand-up update from yesterday's activity.",
+    "prompt": "Draft a concise stand-up update: what was merged or closed yesterday, what is in progress, and anything that looks blocked or is waiting on someone. Keep it to a few bullet points.",
+    "suggested_cadence": { "schedule_kind": "cron", "cron_expression": "30 8 * * 1-5" }
+  },
+  {
+    "key": "weekly_team_summary",
+    "label": "Weekly team summary, Friday afternoon",
+    "description": "Every Friday at 16:00 UTC, write a summary of the week's work.",
+    "prompt": "Write a summary of this week's work for the team: the notable pull requests merged, issues opened and closed, and any themes or recurring problems worth discussing. Aim for something a stakeholder could read in two minutes.",
+    "suggested_cadence": { "schedule_kind": "cron", "cron_expression": "0 16 * * 5" }
+  },
+  {
+    "key": "monthly_report",
+    "label": "Monthly report, first of the month",
+    "description": "On the 1st of each month at 09:00 UTC, compile a report of the previous month.",
+    "prompt": "Compile a report of last month: what shipped, the main issues resolved, any metrics worth highlighting, and the priorities that carry into this month. Structure it with clear headings so it can be shared as-is.",
+    "suggested_cadence": { "schedule_kind": "cron", "cron_expression": "0 9 1 * *" }
+  },
+  {
+    "key": "hourly_monitoring",
+    "label": "Hourly monitoring check",
+    "description": "Every hour, check the systems you watch and report anything that needs attention.",
+    "prompt": "Check the systems and dashboards you have access to. Report only what needs attention - a failing check, an error spike, an unusual metric - and stay silent about anything that is healthy.",
+    "suggested_cadence": { "schedule_kind": "interval", "interval_seconds": 3600 }
+  }
+]

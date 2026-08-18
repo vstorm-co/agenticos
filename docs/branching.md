@@ -27,6 +27,7 @@ cost a second place for every change to sit, so it was removed.
 | No commit made while standing on `main` | `no-commit-to-branch` in `.pre-commit-config.yaml` |
 | Spelling, across every tracked file | codespell — as a hook on the files a commit touches, and as `make lint-spelling` in CI's `lint` job over the whole tree |
 | Routes hold only routers, no banner comments, no dead code | `check_routes.py`, `check_comments.py` and `vulture` — hooks in `.pre-commit-config.yaml` (each scans the whole tree, `pass_filenames: false`) and steps of `make lint-backend` in CI's `lint` job |
+| No dependency declared that nothing imports | `deptry` — a step of `make lint-backend` in CI's `lint` job, gating on DEP002 and DEP004. Not a pre-commit hook: it reads the whole manifest against the whole tree, so there is no per-file version of the question |
 
 A hook only ever reads what a commit touches, which makes it a poor gate on its
 own: a misspelling that merges with its file sits there until somebody edits that
@@ -124,10 +125,12 @@ this repository, so whether it reads a stacked pull request is not ours to decid
 
 `changes` was the only job in `ci.yml` carrying a `timeout-minutes`, so the other
 seven inherited GitHub's default of **360 minutes**
-([#364](https://github.com/vstorm-co/agenticos/issues/364)). Nothing has ever been
-observed to stall here — this bounds the tail rather than fixing something seen — but
-if one did, its required status check would be held for six hours and nothing in this
-repository would end it sooner.
+([#364](https://github.com/vstorm-co/agenticos/issues/364)), so a stalled job would
+have held its required status check for six hours with nothing in this repository
+ending it sooner. That was written as a precaution against something nobody had
+seen. Fourteen `e2e` runs hit the bound in the four days to 18 August
+([#879](https://github.com/vstorm-co/agenticos/issues/879)) — and what a job looks
+like when it does is below.
 
 | Job | Bound | Observed |
 |---|---|---|
@@ -166,6 +169,38 @@ So the group carries `github.run_id` on a push, which is unique per run: every
 merge gets a group of its own and collides with nothing. Pull requests all resolve
 to the same suffix and go on cancelling each other per `github.ref`.
 
+### Two things report `cancelled`, and only one of them is that
+
+The section above is the cancellation that is working as designed, and it is the
+explanation everybody reaches for. **The other one is a job that ran out of its
+`timeout-minutes`** — GitHub records a job it ended on the bound as `cancelled`,
+not as a failure — and a `cancelled` required check is *not* treated as a pass the
+way a `skipped` one is, so the merge stays blocked on a diff that is fine.
+
+Telling them apart takes one look:
+
+| | Superseded (#317) | Ended on its bound (#879) |
+|---|---|---|
+| What else is in the run | every in-flight job cancelled together | **one** job; the rest are green |
+| The run's own conclusion | `cancelled` | `success`, less the one job |
+| Duration of the cancelled job | whatever it had reached | its `timeout-minutes`, to the second |
+| A newer push on the branch | yes — that is the cause | no |
+| The log's last line | `The operation was canceled.` | the same line, which is the trap |
+
+The duration is the tell. `gh api repos/vstorm-co/agenticos/actions/runs/<id>/attempts/<n>/jobs`
+gives `started_at`, `completed_at` and per-step conclusions — **and it must be the
+`attempts/<n>` form**, because a re-run rewrites what the plain `runs/<id>/jobs`
+endpoint answers, so a job re-run into the green reports `success` there and the
+original conclusion is gone.
+
+What the fourteen had in common was one step: `playwright install --with-deps`
+shelling out to `apt-get`, which stalls unbounded when the runner's Azure mirror is
+unreachable. The e2e job no longer installs system packages at all, and
+`backend/tests/test_ci_workflow.py` refuses a step that would. The general lesson
+outlives that step, though: **a step reaching a third party is a step that can hang
+without a bound of its own**, and one that does spends the job's whole budget and
+then reports as somebody else's cancellation.
+
 ## Squash, and why the pull request title matters
 
 `main` keeps one commit per pull request, built from the **pull request title and
@@ -202,8 +237,10 @@ understood:
   extras.** `pydantic-ai-slim[openrouter,…]` is not matched by
   `pydantic-ai-slim`. That silence cost months: the `agent-frameworks` group
   never opened a single pull request, and the runtime rode in
-  `backend-everything-else` with its majors. Equally, `fastapi` stays exact —
-  `fastapi*` would drag in `fastapi-cache2`.
+  `backend-everything-else` with its majors. Conversely `fastapi` stays exact
+  because it is declared without extras and needs no wildcard; it used to need
+  to avoid one, since `fastapi*` also caught `fastapi-cache2`, until that
+  dependency was removed in #155.
 - **Dependabot cannot update `frontend/bun.lock`.** Its npm ecosystem knows
   `package-lock.json`, `yarn.lock` and `pnpm-lock.yaml`, and not bun's. So a
   frontend bump arrives as `package.json` alone and `bun install

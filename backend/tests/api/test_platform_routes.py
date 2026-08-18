@@ -239,6 +239,16 @@ CALLS: tuple[Call, ...] = (
     # same coarse door as `GET /agents`. Per-agent trigger routes stay ungated and
     # let the service resolve `agents:run` per row.
     Call("GET", "/triggers", Perm.AGENTS_VIEW),
+    Call("GET", "/trigger-portals", Perm.AGENTS_VIEW),
+    # The schedule-templates catalog, gated on `agents:view` like `/trigger-portals`
+    # beside it - browsing ready-made schedules, not acting on one agent.
+    Call("GET", "/schedule-templates", Perm.AGENTS_VIEW),
+    Call(
+        "GET",
+        "/trigger-portals/{portal_key}/targets",
+        Perm.AGENTS_RUN,
+        query="?connection_id=00000000-0000-0000-0000-000000000000",
+    ),
     Call("GET", "/runs", Perm.RUNS_VIEW),
     Call(
         "GET",
@@ -316,6 +326,14 @@ CALLS: tuple[Call, ...] = (
         "/mcp-connections/oauth/start",
         Perm.MCP_MANAGE,
         body={"name": "github", "url": "https://mcp.example.com/mcp"},
+    ),
+    Call(
+        # The GitHub OAuth App variant: fixed endpoints, the org's stored creds,
+        # keyed to a trigger portal rather than a raw server URL.
+        "POST",
+        "/mcp-connections/oauth/start/github",
+        Perm.MCP_MANAGE,
+        body={"portal_key": "github"},
     ),
     Call(
         "POST",
@@ -658,6 +676,12 @@ _PLATFORM_PREFIXES = (
     # over `GET /triggers` and its "gated or resource-aware" claim would not
     # actually cover it. (Per-agent triggers live under `/agents`.)
     "/triggers",
+    # The trigger-portals catalog, gated on `agents:view` like `/mcp-catalog` -
+    # a distinct path, not a `/triggers` prefix, so it needs its own entry.
+    "/trigger-portals",
+    # The schedule-templates catalog, the schedule counterpart of the portals
+    # catalog above, gated the same way and needing its own prefix entry too.
+    "/schedule-templates",
 )
 
 

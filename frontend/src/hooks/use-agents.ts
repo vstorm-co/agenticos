@@ -5,7 +5,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
-import { getErrorMessage, problemList } from "@/lib/api-error";
+import { fieldProblems, getErrorMessage, problemList } from "@/lib/api-error";
+import type { FieldProblem } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import type {
   Agent,
@@ -160,6 +161,18 @@ export function useAgents({
   };
 }
 
+/**
+ * Why a spec cannot be published, in the two places the Builder shows it.
+ *
+ * `fields` is a subset of what `problems` says, not a second answer: every
+ * problem that names an input also gets a line, because the page lists them all
+ * above the form and only one of the Builder's forms is generated from a schema.
+ */
+export type SpecRefusal = {
+  readonly problems: string[];
+  readonly fields: FieldProblem[];
+};
+
 /** One agent, with the spec currently being edited. */
 export function useAgent(agentId: string | null) {
   const tErrors = useTranslations("errors");
@@ -196,21 +209,29 @@ export function useAgent(agentId: string | null) {
   /**
    * Check the draft without publishing.
    *
-   * Returns the list of problems rather than throwing: the Builder shows them
-   * next to the fields that caused them, and a rejected draft is a normal state
-   * to be in while editing.
+   * Returns the problems rather than throwing: a rejected draft is a normal
+   * state to be in while editing.
+   *
+   * Both halves of the refusal, because a capability's configuration is a
+   * generated form and the rest of a spec is not. `problems` is the list the
+   * page shows; `fields` is the subset that names an input, which the Builder
+   * marks on the capability card that owns it - a `default_top_k` of 999 used
+   * to arrive as one sentence about the capability, leaving the reader to find
+   * which of its boxes was wrong (#882).
    */
-  const validate = useCallback(async (): Promise<string[]> => {
+  const validate = useCallback(async (): Promise<SpecRefusal> => {
     try {
       await apiClient.post<void>(`/agents/${agentId}/validate`, {});
-      return [];
+      return { problems: [], fields: [] };
     } catch (error) {
       // This read used to be `error.details`, a property `ApiError` has never
       // had, so the list the backend goes out of its way to report in full was
       // always thrown away and replaced with one line. `problemList` reads the
       // envelope; the fallback is for the failures that are not a verdict on
       // the spec at all - a refused permission, a dropped connection.
-      return problemList(error) ?? [getErrorMessage(error, tErrors)];
+      const problems = problemList(error);
+      if (problems === null) return { problems: [getErrorMessage(error, tErrors)], fields: [] };
+      return { problems, fields: fieldProblems(error) };
     }
   }, [agentId, tErrors]);
 

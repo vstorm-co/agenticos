@@ -686,6 +686,94 @@ class TestList:
 
         assert ([row.id for row in agents], total) == ([agent.id], 37)
 
+    @pytest.mark.anyio
+    async def test_can_run_follows_a_per_agent_grant_not_only_the_role(self):
+        """The floor for offering "new trigger" on a card.
+
+        A Viewer holds no `agents:run` from their role, but a run grant on one
+        agent must light the create control there and nowhere else - the whole
+        point of resolving this per caller rather than off the role check.
+        """
+        ctx = _ctx(OrgRoleName.VIEWER)
+        granted = _agent(ctx, owner_user_id=uuid.uuid4())
+        ungranted = _agent(ctx, owner_user_id=uuid.uuid4())
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([granted, ungranted], 2)),
+            ),
+            patch(
+                "app.services.access.resource_grant_repo.list_shared_ids",
+                new=AsyncMock(return_value=[granted.id]),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={}),
+            ),
+        ):
+            rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
+
+        by_id = {row.id: row.can_run for row in rows}
+        assert by_id == {granted.id: True, ungranted.id: False}
+
+    @pytest.mark.anyio
+    async def test_a_role_that_runs_everything_marks_every_card_runnable(self):
+        """`agents:run` at `Scope.ALL` lights every card without a grant lookup."""
+        ctx = _ctx(OrgRoleName.OWNER)
+        agent = _agent(ctx)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([agent], 1)),
+            ),
+            patch(
+                "app.services.access.resource_grant_repo.list_shared_ids", new=AsyncMock()
+            ) as shared_ids,
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={}),
+            ),
+        ):
+            rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
+
+        assert rows[0].can_run is True
+        shared_ids.assert_not_awaited()
+
+
+class TestMayRun:
+    @pytest.mark.anyio
+    async def test_it_reports_a_run_grant_the_role_alone_would_refuse(self):
+        """The per-resource `can_run` the detail route reads for one loaded agent."""
+        ctx = _ctx(OrgRoleName.VIEWER)
+        agent = _agent(ctx, owner_user_id=uuid.uuid4())
+
+        with patch(
+            "app.services.access.resource_grant_repo.get_level",
+            new=AsyncMock(return_value=GrantLevel.USE),
+        ):
+            assert await AgentRegistryService(_db()).may_run(ctx, agent) is True
+
+    @pytest.mark.anyio
+    async def test_it_refuses_when_neither_role_nor_grant_reaches_the_agent(self):
+        ctx = _ctx(OrgRoleName.VIEWER)
+        agent = _agent(ctx, owner_user_id=uuid.uuid4())
+
+        with patch(
+            "app.services.access.resource_grant_repo.get_level",
+            new=AsyncMock(return_value=None),
+        ):
+            assert await AgentRegistryService(_db()).may_run(ctx, agent) is False
+
 
 class TestCreate:
     @pytest.mark.anyio
@@ -735,7 +823,7 @@ class TestCreate:
         ):
             await AgentRegistryService(_db()).create(ctx, _spec("Support!"))
 
-        assert refused.value.details == {"slug": "support", "field": "name"}
+        assert refused.value.details == {"slug": "support"}
         # The message has to tell them what to change. They typed a *name*; the
         # thing that collided is the handle derived from it, and a refusal that
         # only states the collision leaves them staring at an input that looks
@@ -886,6 +974,49 @@ class TestSaveDraft:
         }
 
 
+class TestImportSpec:
+    """The round trip the export feature exists for: a spec committed to a
+    client's own repository, edited there, and posted back (#873)."""
+
+    @pytest.mark.anyio
+    async def test_a_valid_document_replaces_the_draft(self):
+        ctx = _ctx()
+        agent = _agent(ctx)
+        spec = _spec("Support", description="Answers billing questions")
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock(return_value=agent)
+            ) as update,
+        ):
+            await AgentRegistryService(_db()).import_spec(ctx, agent.id, spec.to_yaml())
+
+        assert update.call_args.kwargs["update_data"] == {
+            "draft_spec": spec.model_dump(mode="json"),
+            "name": "Support",
+            "description": "Answers billing questions",
+        }
+
+    @pytest.mark.anyio
+    async def test_a_document_that_does_not_parse_never_reaches_the_row(self):
+        """The refusal is a `BadRequestError`, not the `ValidationError` nothing
+        in `app/api/exception_handlers.py` maps - and it is raised before the
+        agent is read, so a spec nobody could have saved opens no transaction."""
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock()) as fetched,
+            patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock()) as update,
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).import_spec(
+                _ctx(), uuid.uuid4(), "name: x\ninstrucitons: typo\n"
+            )
+
+        assert refused.value.details["fields"][0]["field"] == "yaml.instrucitons"
+        fetched.assert_not_called()
+        update.assert_not_called()
+
+
 class TestValidateSpec:
     @pytest.mark.anyio
     async def test_a_broken_spec_reports_every_problem_at_once(self, ungranted_capability):
@@ -920,6 +1051,81 @@ class TestValidateSpec:
         assert any("Invalid configuration" in problem for problem in problems)
         assert "The selected model profile no longer exists" in problems
         assert any(problem.startswith("Collection not found:") for problem in problems)
+
+    @pytest.mark.anyio
+    async def test_a_refused_capability_config_names_the_input_as_well_as_the_capability(self):
+        """This is the path a Builder submission takes, and it discarded the field.
+
+        `validate_config` names each setting that broke a rule, and the
+        aggregator kept only `exc.message` - so `default_top_k: 999` reached the
+        form as one sentence about the capability and marked no box. Saving a
+        draft does not validate a config schema at all, which leaves publish
+        validation as the only place a mistyped setting is ever refused (found
+        reviewing #892).
+        """
+        spec = _spec(
+            capabilities=[{"id": "knowledge", "config": {"default_top_k": 999}}],
+            model_profile_id=None,
+        )
+
+        with pytest.raises(BadRequestError) as refused:
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert refused.value.details["fields"] == [
+            {
+                "field": "capabilities.knowledge.config.default_top_k",
+                "message": "Input should be less than or equal to 50",
+            }
+        ]
+        # And still as a line, because a form that does not render this field
+        # has to say something.
+        assert any(
+            "Invalid configuration" in problem for problem in refused.value.details["problems"]
+        )
+
+    @pytest.mark.anyio
+    async def test_a_specialists_config_is_marked_on_the_specialists_own_form(self):
+        """One form per specialist, configuring the same capabilities as the
+        parent - so an unscoped path would mark the parent's `knowledge` card
+        for a mistake in a copy of it that lives inside a delegate."""
+        spec = _spec(
+            capabilities=[
+                {
+                    "id": "subagents",
+                    "config": {
+                        "inline": [
+                            {
+                                "name": "researcher",
+                                "description": "Looks things up in the handbook.",
+                                "instructions": "Research things.",
+                                "capabilities": [
+                                    {"id": "knowledge", "config": {"default_top_k": 999}}
+                                ],
+                            }
+                        ]
+                    },
+                }
+            ],
+            model_profile_id=None,
+        )
+
+        with pytest.raises(BadRequestError) as refused:
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert [problem["field"] for problem in refused.value.details["fields"]] == [
+            "specialists.researcher.capabilities.knowledge.config.default_top_k"
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_spec_whose_problems_name_no_field_carries_no_fields_key(self):
+        """An empty list would be a claim that nothing can be marked, which a
+        reader has to tell apart from a refusal that never names one."""
+        with pytest.raises(BadRequestError) as refused:
+            await AgentRegistryService(_db()).validate_spec(_ctx(), _spec(model_profile_id=None))
+
+        assert refused.value.details == {
+            "problems": ["No model selected - pick one before publishing"]
+        }
 
     @pytest.mark.anyio
     async def test_an_agent_with_no_model_cannot_publish(self):
@@ -2432,6 +2638,111 @@ class TestBrowserUseRefusedAtPublish:
             f"{REGISTRY_PATH}.credential_repo.get_profile", new=AsyncMock(return_value=profile)
         ):
             await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+
+def _bound(capability_id: str, config: dict, **approval: object):
+    """A one-capability spec, configured and gated as one binding says."""
+    return _spec(
+        capabilities=[{"id": capability_id, "config": config, **approval}],
+        model_profile_id=uuid.uuid4(),
+    )
+
+
+async def _refusal(spec) -> list[str]:
+    with (
+        patch(
+            f"{REGISTRY_PATH}.credential_repo.get_profile",
+            new=AsyncMock(return_value=MagicMock()),
+        ),
+        pytest.raises(BadRequestError) as refused,
+    ):
+        await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+    return refused.value.details["problems"]
+
+
+async def _publishes(spec) -> None:
+    with patch(
+        f"{REGISTRY_PATH}.credential_repo.get_profile",
+        new=AsyncMock(return_value=MagicMock(id=spec.model_profile_id)),
+    ):
+        await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+
+class TestAFetchTheApprovalGateCouldNotHold:
+    """Approval on a `web_fetch` binding that hands the fetch to the provider.
+
+    `ApprovalGate` wraps tool execution, and a native fetch is executed by the
+    model provider - so the gate never sees it, the queue stays empty, and the
+    agent reads pages nobody approved. That is silent at run time, which is why
+    it is refused here.
+    """
+
+    @staticmethod
+    def _spec_with(config: dict, **approval: object):
+        return _bound("web_fetch", config, **approval)
+
+    @pytest.mark.anyio
+    async def test_native_fetch_with_approval_required_is_refused(self):
+        problems = await _refusal(self._spec_with({"method": "native"}, approval="required"))
+        assert any("no call to hold" in problem for problem in problems)
+
+    @pytest.mark.anyio
+    async def test_auto_is_refused_too_because_the_model_decides_which_it_gets(self):
+        """Which of the two an `auto` binding runs is a property of the model
+        profile, and that changes without republishing the agent."""
+        problems = await _refusal(
+            self._spec_with({"method": "auto"}, tool_approval={"web_fetch": "required"})
+        )
+        assert any("no call to hold" in problem for problem in problems)
+
+    @pytest.mark.anyio
+    async def test_a_local_fetch_can_be_approved_and_publishes(self):
+        await _publishes(self._spec_with({"method": "local"}, approval="required"))
+
+    @pytest.mark.anyio
+    async def test_native_fetch_nobody_asked_to_approve_publishes(self):
+        """The refusal is about approval, not about the provider doing the work."""
+        await _publishes(self._spec_with({"method": "native"}))
+
+
+class TestASearchTheApprovalGateCouldNotHold:
+    """The same refusal for `web_research`, which has the same shape (#857).
+
+    Under `method: native` the capability contributes Pydantic AI's own
+    `WebSearch()` and the provider runs the search on its own side, so there is
+    no local call for the gate to hold - a binding that asks for approval gets
+    an empty queue and an agent searching unapproved.
+    """
+
+    @staticmethod
+    def _spec_with(config: dict, **approval: object):
+        return _bound("web_research", config, **approval)
+
+    @pytest.mark.anyio
+    async def test_native_search_with_approval_required_is_refused(self):
+        problems = await _refusal(self._spec_with({"method": "native"}, approval="required"))
+        assert any("no call to hold" in problem for problem in problems)
+
+    @pytest.mark.anyio
+    async def test_the_refusal_names_the_tool_and_what_to_do_about_it(self):
+        problems = await _refusal(
+            self._spec_with({"method": "native"}, tool_approval={"web_search": "required"})
+        )
+        assert any(
+            "requires approval for web_search" in problem
+            and "method 'native'" in problem
+            and "Choose a method this deployment runs itself" in problem
+            for problem in problems
+        )
+
+    @pytest.mark.anyio
+    async def test_a_search_this_deployment_runs_can_be_approved_and_publishes(self):
+        await _publishes(self._spec_with({"method": "duckduckgo"}, approval="required"))
+
+    @pytest.mark.anyio
+    async def test_native_search_nobody_asked_to_approve_publishes(self):
+        """The refusal is about approval, not about the provider doing the work."""
+        await _publishes(self._spec_with({"method": "native"}))
 
 
 class TestASharedWorkspaceIsAnswerableAfterwards:

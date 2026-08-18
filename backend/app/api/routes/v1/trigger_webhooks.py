@@ -3,11 +3,11 @@
 Authentication is the trigger's own HMAC secret, not a session, so these routes
 carry no auth dependency - exactly like the channel webhooks. The decision to fire
 is the service's; this layer only reads the raw body (the bytes the signature
-covers), hands them over, and dispatches the fire to a background task so the
-provider gets a fast 202 while the agent run happens out of the request.
+covers), hands them over, and submits the fire as its own capped Prefect flow so
+the provider gets a fast 202 while the agent run happens in the worker, out of the
+API process.
 """
 
-import asyncio
 import logging
 from typing import Any
 from uuid import UUID
@@ -15,16 +15,10 @@ from uuid import UUID
 from fastapi import APIRouter, Request, Response, status
 
 from app.api.deps import AgentTriggerSvc
-from app.worker.background.trigger_fire import fire_trigger
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-# Holds a strong reference to each in-flight fire so the event loop cannot garbage
-# -collect the task mid-run, discarded when it finishes. The same guard the Slack
-# webhook keeps.
-_background_tasks: set[asyncio.Task[None]] = set()
 
 
 @router.post(
@@ -49,17 +43,31 @@ async def ingest_trigger_event(
     whose provider surfaces that failure so a mistyped secret is fixable; the
     trigger ids are unguessable UUIDs, so the 403 is not a practical oracle. Both
     come from the service.
+
+    A matched delivery is submitted as its own `run-scheduled-trigger` flow -
+    the same capped, isolated door the scheduled heartbeat uses - rather than run
+    in this process. A burst of deliveries therefore starts capped worker runs
+    instead of that many concurrent agent runs competing with request handling on
+    the API's event loop. The submit is one fast Prefect call, well inside a
+    provider's delivery timeout.
     """
+    headers = dict(request.headers)
     body = await request.body()
-    decision = await service.prepare_event_fire(
-        source, trigger_id, body=body, headers=dict(request.headers)
-    )
+    decision = await service.prepare_event_fire(source, trigger_id, body=body, headers=headers)
     if decision is None:
         return Response(status_code=status.HTTP_202_ACCEPTED)
 
-    task = asyncio.create_task(
-        fire_trigger(decision.trigger_id, event_context=decision.event_context)
-    )
-    _background_tasks.add(task)
-    task.add_done_callback(_background_tasks.discard)
+    # Imported here, not at module scope: `trigger_tasks` pulls in Prefect, and the
+    # API import must stay free of it (`test_main`, #520). The webhook path is the
+    # one place in the API that submits a flow, so it pays that cost on first use.
+    from app.worker.tasks.trigger_tasks import dispatch_trigger_fire
+
+    try:
+        await dispatch_trigger_fire(str(decision.trigger_id), event_context=decision.event_context)
+    except Exception:
+        # The fire was deduplicated-claimed in `prepare_event_fire`; a hand-off that
+        # failed got no 2xx and the provider will resend, so give the claim back or
+        # that resend is dropped as a duplicate. Then let the 500 surface the failure.
+        await service.release_event_claim(source, trigger_id, headers)
+        raise
     return Response(status_code=status.HTTP_202_ACCEPTED)

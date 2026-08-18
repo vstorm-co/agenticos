@@ -63,6 +63,28 @@ _CONTEXT_LIMIT = 2000
 _GITHUB_EVENT_HEADER = "x-github-event"
 _GITHUB_ISSUE_EVENT = "issues"
 
+# The provider's own id for one delivery, the key a duplicate is recognised by.
+# GitHub reuses `X-GitHub-Delivery` when it re-sends the same delivery; a relay may
+# set the generic header. A source that sends none simply is not deduplicated.
+_DELIVERY_ID_HEADER = {
+    EventSource.GITHUB.value: "x-github-delivery",
+    EventSource.EMAIL.value: "x-delivery-id",
+    EventSource.LINKEDIN.value: "x-delivery-id",
+    EventSource.WEBHOOK.value: "x-delivery-id",
+}
+
+
+def delivery_id(source: str, headers: Mapping[str, str]) -> str | None:
+    """The provider's id for this delivery, or `None` if it sent none.
+
+    Stable across a provider's retries of one delivery - GitHub reuses the
+    `X-GitHub-Delivery` UUID - so it is the key an idempotency claim dedups on. A
+    source that sends no such header cannot be deduplicated and is fired every
+    time; the claim degrades to firing rather than dropping a real event.
+    """
+    value = headers.get(_DELIVERY_ID_HEADER[source], "").strip()
+    return value or None
+
 
 def verify_signature(source: str, *, secret: str, body: bytes, headers: Mapping[str, str]) -> bool:
     """Whether `body` was signed with `secret` for this source, in constant time.

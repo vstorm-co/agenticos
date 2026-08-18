@@ -1067,7 +1067,7 @@ class TestSkillFiles:
                 ctx, skill.id, name="template.md", description=None, content="Dear {name},"
             )
 
-        assert refused.value.details == {"name": "template.md", "field": "name"}
+        assert refused.value.details == {"name": "template.md"}
         repo.create_resource.assert_not_awaited()
         repo.update.assert_not_awaited()
         audit.assert_not_awaited()

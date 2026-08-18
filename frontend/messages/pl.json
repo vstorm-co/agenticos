@@ -1,489 +1,672 @@
 {
-  "common": {
-    "loading": "Ładowanie...",
-    "error": "Błąd",
-    "success": "Sukces",
-    "save": "Zapisz",
-    "cancel": "Anuluj",
-    "delete": "Usuń",
-    "edit": "Edytuj",
-    "create": "Utwórz",
-    "search": "Szukaj",
-    "back": "Wstecz",
-    "next": "Dalej",
-    "submit": "Wyślij",
-    "close": "Zamknij",
-    "confirm": "Potwierdź",
-    "yes": "Tak",
-    "no": "Nie",
-    "done": "Gotowe",
-    "retry": "Ponów",
-    "skipToContent": "Przejdź do treści",
-    "live": "Na żywo",
-    "offline": "Offline",
-    "archiveNamedConfirm": "Zarchiwizować {name}?",
-    "deleteNamed": "Usuń {name}",
-    "deleteNamedConfirm": "Usunąć {name}?",
-    "downloadNamed": "Pobierz {name}",
-    "editNamed": "Edytuj {name}",
-    "language": "Język",
-    "openNamed": "Otwórz {name}",
-    "rangeOfTotal": "{start, number}–{end, number} z {total, number}",
-    "removeNamed": "Usuń {name}",
-    "removeNamedConfirm": "Usunąć {name}?",
-    "renameNamed": "Zmień nazwę {name}"
-  },
-  "navigation": {
-    "home": "Strona główna",
-    "dashboard": "Panel",
-    "profile": "Profil",
-    "settings": "Ustawienia",
-    "logout": "Wyloguj"
-  },
-  "nav": {
-    "dashboard": "Panel",
-    "chat": "Czat",
-    "knowledge": "Wiedza",
-    "knowledgeBases": "Bazy wiedzy",
-    "rag": "RAG",
-    "team": "Zespół",
-    "organizations": "Organizacje",
-    "admin": "Administracja",
-    "profile": "Profil",
-    "settings": "Ustawienia",
-    "overview": "Przegląd",
+  "admin": {
+    "actions": "Akcje",
+    "agentsColumn": "Agenci",
+    "conversations": "Konwersacje",
+    "created": "Utworzono",
+    "date": "Data",
+    "dislikes": "Nieprzydatne",
+    "email": "Email",
+    "generalAssistant": "Ogólny asystent",
+    "joined": "Dołączył",
+    "likes": "Polubienia",
+    "message": "Wiadomość",
+    "messages": "Wiadomości",
+    "name": "Imię",
+    "noConversations": "Nie znaleziono konwersacji.",
+    "owner": "Właściciel",
+    "search": "Szukaj...",
+    "status": "Status",
+    "title": "Tytuł",
+    "total": "{count} łącznie",
+    "untitled": "Bez tytułu",
+    "user": "Użytkownik",
     "users": "Użytkownicy",
-    "conversations": "Rozmowy",
-    "systemHealth": "Stan systemu",
-    "system": "System",
-    "account": "Konto",
-    "notifications": "Powiadomienia",
-    "slashCommands": "Polecenia ukośnika",
-    "search": "Szukaj",
-    "home": "Strona główna",
-    "kb": "BW",
-    "usage": "Zużycie",
-    "login": "Zaloguj",
-    "register": "Zarejestruj",
-    "logout": "Wyloguj",
-    "toggleMenu": "Przełącz menu",
-    "navigate": "Nawigacja",
-    "apiDocs": "Dokumentacja API",
-    "settingsSection": "Ustawienia",
-    "agents": "Agenci",
-    "skills": "Skille",
-    "activity": "Aktywność",
-    "primary": "Główna",
-    "build": "Budowanie",
-    "workspace": "Przestrzeń",
-    "vault": "Vault",
-    "mcpServers": "Serwery MCP",
-    "workspaces": "Pliki agentów",
-    "sandboxes": "Sandboxy",
-    "adminOverview": "Administracja",
-    "channels": "Kanały",
-    "commandPalette": "Paleta poleceń",
-    "esc": "ESC",
-    "knowledgeBase": "Baza wiedzy",
-    "noMatches": "Brak dopasowań.",
-    "open": "Otwórz",
-    "profileAndSettings": "Profil i ustawienia",
-    "quickActions": "Szybkie akcje",
-    "searchJump": "Szukaj lub przejdź do…",
-    "startNewChat": "Zacznij nowy czat",
-    "untitledConversation": "Rozmowa bez tytułu",
-    "allOrganizations": "Wszystkie organizacje"
+    "view": "Podgląd"
   },
   "auth": {
-    "login": "Zaloguj się",
-    "register": "Zarejestruj się",
-    "email": "Email",
-    "password": "Hasło",
-    "confirmPassword": "Potwierdź hasło",
-    "noAccount": "Nie masz konta?",
-    "hasAccount": "Masz już konto?",
-    "loginSuccess": "Zalogowano pomyślnie",
-    "registerSuccess": "Konto utworzone pomyślnie",
-    "emailRequired": "Email jest wymagany",
-    "passwordMismatch": "Hasła nie są takie same",
-    "continueWithGoogle": "Kontynuuj z Google",
-    "signUpWithGoogle": "Zarejestruj się przez Google",
-    "redirecting": "Przekierowuję...",
-    "loggingIn": "Loguję...",
-    "creatingAccount": "Tworzę konto...",
-    "nameOptional": "Imię (opcjonalnie)",
-    "welcomeBack": "Witaj z powrotem",
-    "getStarted": "Zaczynamy",
-    "forgotShort": "Zapomniałeś?",
-    "namePlaceholder": "Jak Cię nazywać?",
-    "emailPlaceholder": "imie@firma.com",
-    "orSignInWith": "lub zaloguj przez",
-    "orSignUpWith": "lub załóż konto przez",
-    "resetPassword": {
-      "eyebrow": "Reset hasła",
-      "heading": "Ustaw nowe hasło",
-      "intro": "Wybierz hasło, którego nie używasz nigdzie indziej. 8+ znaków, mieszane wielkości liter, cyfry.",
-      "newPassword": "Nowe hasło",
-      "confirm": "Potwierdź",
-      "passwordsMatch": "Pasują",
-      "passwordsDontMatch": "Hasła nie są takie same",
-      "submit": "Zaktualizuj hasło",
-      "submitting": "Aktualizuję…",
-      "minLength": "Hasło musi mieć co najmniej 8 znaków",
-      "successToast": "Hasło zaktualizowane. Zaloguj się aby kontynuować.",
-      "invalidLink": "Link resetujący jest nieprawidłowy lub wygasł.",
-      "backToSignIn": "Wróć do logowania",
-      "strengthWeak": "Słabe",
-      "strengthFair": "Średnie",
-      "strengthGood": "Dobre",
-      "strengthStrong": "Mocne"
-    },
-    "magicLink": {
-      "verifying": "Logujemy Cię…",
-      "verifyingHint": "Chwilę cierpliwości, weryfikujemy magiczny link.",
-      "success": "Zalogowano",
-      "successHint": "Przekierowujemy do Twojego workspace…",
-      "errorHeading": "Nie udało się zalogować",
-      "errorMissingToken": "Brak tokenu. Poproś o nowy link logowania.",
-      "errorInvalid": "Magiczny link jest nieprawidłowy lub wygasł.",
-      "signInWithPassword": "Zaloguj się hasłem",
-      "requestNewLink": "Poproś o nowy link"
-    },
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
     "atLeast8Characters": "Co najmniej 8 znaków",
     "backSign": "Wróć do logowania",
     "backSign2": "Wróć do logowania",
     "checkYourInbox": "Sprawdź skrzynkę",
+    "confirmPassword": "Potwierdź hasło",
     "continueWithGithub": "Kontynuuj z GitHub",
+    "continueWithGoogle": "Kontynuuj z Google",
     "continueWithMicrosoft": "Kontynuuj z Microsoft",
     "createHeading": "Utwórz swój <em>workspace.</em>",
+    "creatingAccount": "Tworzę konto...",
     "dropYourEmailBelow": "Podaj swój email — wyślemy jednorazowy link do ustawienia nowego hasła.",
+    "email": "Email",
+    "emailPlaceholder": "imie@firma.com",
+    "emailRequired": "Email jest wymagany",
     "forgotHeading": "Zdarza się <em>najlepszym.</em>",
     "forgotPasswordPrompt": "Zapomniałeś hasła?",
+    "forgotShort": "Zapomniałeś?",
+    "getStarted": "Zaczynamy",
+    "hasAccount": "Masz już konto?",
     "linkSentHeading": "Link wysłany. <em>Już leci.</em>",
     "loggedOut": "Wylogowano",
+    "loggingIn": "Loguję...",
+    "login": "Zaloguj się",
     "loginFailedPleaseTry": "Logowanie nie powiodło się. Spróbuj ponownie.",
+    "loginSuccess": "Zalogowano pomyślnie",
+    "magicLink": {
+      "errorHeading": "Nie udało się zalogować",
+      "errorInvalid": "Magiczny link jest nieprawidłowy lub wygasł.",
+      "errorMissingToken": "Brak tokenu. Poproś o nowy link logowania.",
+      "requestNewLink": "Poproś o nowy link",
+      "signInWithPassword": "Zaloguj się hasłem",
+      "success": "Zalogowano",
+      "successHint": "Przekierowujemy do Twojego workspace…",
+      "verifying": "Logujemy Cię…",
+      "verifyingHint": "Chwilę cierpliwości, weryfikujemy magiczny link."
+    },
     "n8Chars": "8+ znaków",
     "n8Chars2": "8+ znaków",
+    "nameOptional": "Imię (opcjonalnie)",
+    "namePlaceholder": "Jak Cię nazywać?",
+    "noAccount": "Nie masz konta?",
+    "orSignInWith": "lub zaloguj przez",
+    "orSignUpWith": "lub załóż konto przez",
+    "password": "Hasło",
+    "passwordMismatch": "Hasła nie są takie same",
     "passwordMustBeAt": "Hasło musi mieć co najmniej 8 znaków",
     "passwordsDoNotMatch2": "Hasła nie są takie same",
     "passwordsDoNotMatch3": "Hasła nie są takie same",
     "pleaseEnterValidEmail": "Podaj poprawny adres email",
     "pleaseEnterValidEmail2": "Podaj poprawny adres email",
     "privacyPolicy": "Polityka prywatności",
+    "redirecting": "Przekierowuję...",
+    "register": "Zarejestruj się",
+    "registerSuccess": "Konto utworzone pomyślnie",
     "registrationFailedPleaseTry": "Rejestracja nie powiodła się. Spróbuj ponownie.",
     "repeatPassword": "Powtórz hasło",
     "resetLinkSent": "Jeśli konto dla <strong>{email}</strong> istnieje, za chwilę dostaniesz link do resetu. Wygasa po godzinie.",
+    "resetPassword": {
+      "backToSignIn": "Wróć do logowania",
+      "confirm": "Potwierdź",
+      "eyebrow": "Reset hasła",
+      "heading": "Ustaw nowe hasło",
+      "intro": "Wybierz hasło, którego nie używasz nigdzie indziej. 8+ znaków, mieszane wielkości liter, cyfry.",
+      "invalidLink": "Link resetujący jest nieprawidłowy lub wygasł.",
+      "minLength": "Hasło musi mieć co najmniej 8 znaków",
+      "newPassword": "Nowe hasło",
+      "passwordsDontMatch": "Hasła nie są takie same",
+      "passwordsMatch": "Pasują",
+      "strengthFair": "Średnie",
+      "strengthGood": "Dobre",
+      "strengthStrong": "Mocne",
+      "strengthWeak": "Słabe",
+      "submit": "Zaktualizuj hasło",
+      "submitting": "Aktualizuję…",
+      "successToast": "Hasło zaktualizowane. Zaloguj się aby kontynuować."
+    },
     "sendResetLink": "Wyślij link do resetu",
     "sending": "Wysyłam…",
     "signInFailedRedirecting": "Logowanie nie powiodło się. Przekierowuję…",
     "signInHeading": "Zaloguj się do <em>swojego workspace.</em>",
     "signUpWithGithub": "Załóż konto przez GitHub",
+    "signUpWithGoogle": "Zarejestruj się przez Google",
     "signUpWithMicrosoft": "Załóż konto przez Microsoft",
     "somethingWentWrongPlease": "Coś poszło nie tak. Spróbuj ponownie.",
+    "welcomeBack": "Witaj z powrotem",
     "workspace": "workspace."
   },
-  "profile": {
-    "title": "Profil",
-    "personalInfo": "Dane osobowe",
-    "name": "Imię",
-    "email": "Email",
-    "changePassword": "Zmień hasło",
-    "currentPassword": "Obecne hasło",
-    "newPassword": "Nowe hasło",
-    "deleteAccount": "Usuń konto"
+  "billing": {
+    "description": "Zarządzaj subskrypcją dla {org}.",
+    "redirecting": "Przekierowuję...",
+    "title": "Rozliczenia"
   },
   "chat": {
-    "title": "Czat",
-    "newChat": "Nowy czat",
-    "thinking": "Myślę...",
-    "noConversations": "Brak konwersacji",
-    "startNewChat": "Zacznij nowy czat",
-    "conversations": "Konwersacje",
-    "rename": "Zmień nazwę",
-    "share": "Udostępnij",
-    "archive": "Archiwizuj",
-    "delete": "Usuń",
-    "newConversation": "Nowa konwersacja",
-    "analyzeFiles": "Przeanalizuj załączone pliki",
-    "helpful": "Pomocne",
-    "notHelpful": "Nieprzydatne",
-    "saveConversationToRate": "Najpierw zapisz konwersację, aby ocenić",
-    "ratingRemoved": "Ocena usunięta",
-    "thankYouFeedback": "Dziękujemy za opinię!",
-    "ratingFailed": "Nie udało się przesłać oceny",
-    "whatWentWrong": "Co poszło nie tak?",
-    "feedbackHelp": "Pomóż nam się poprawić - opcjonalnie opisz, co było nieprzydatne.",
-    "describeIssue": "Opisz problem... (opcjonalnie)",
-    "skipComment": "Pomiń komentarz",
-    "shareDescription": "Udostępnij tę konwersację innym użytkownikom lub wygeneruj publiczny link.",
-    "memberEmail": "Adres email",
-    "memberSuggestions": "Pasujący członkowie",
-    "generateShareLink": "Wygeneruj link do udostępnienia",
-    "sharedWith": "Udostępniono dla",
-    "conversationShared": "Konwersacja udostępniona",
-    "linkGenerated": "Link do udostępnienia wygenerowany",
     "accessRevoked": "Dostęp cofnięty",
-    "revokeAccess": "Cofnij dostęp",
+    "analyzeFiles": "Przeanalizuj załączone pliki",
+    "archive": "Archiwizuj",
+    "conversationShared": "Konwersacja udostępniona",
+    "conversations": "Konwersacje",
     "copyLink": "Link skopiowany do schowka",
-    "failedToShare": "Nie udało się udostępnić konwersacji",
+    "delete": "Usuń",
+    "describeIssue": "Opisz problem... (opcjonalnie)",
     "failedToGenerateLink": "Nie udało się wygenerować linku",
     "failedToRevoke": "Nie udało się cofnąć dostępu",
+    "failedToShare": "Nie udało się udostępnić konwersacji",
+    "feedbackHelp": "Pomóż nam się poprawić - opcjonalnie opisz, co było nieprzydatne.",
+    "generateShareLink": "Wygeneruj link do udostępnienia",
+    "helpful": "Pomocne",
+    "linkGenerated": "Link do udostępnienia wygenerowany",
+    "memberEmail": "Adres email",
+    "memberSuggestions": "Pasujący członkowie",
+    "newChat": "Nowy czat",
+    "newConversation": "Nowa konwersacja",
+    "noConversations": "Brak konwersacji",
+    "notHelpful": "Nieprzydatne",
+    "ratingFailed": "Nie udało się przesłać oceny",
+    "ratingRemoved": "Ocena usunięta",
+    "rename": "Zmień nazwę",
+    "revokeAccess": "Cofnij dostęp",
+    "saveConversationToRate": "Najpierw zapisz konwersację, aby ocenić",
+    "share": "Udostępnij",
+    "shareDescription": "Udostępnij tę konwersację innym użytkownikom lub wygeneruj publiczny link.",
+    "sharedWith": "Udostępniono dla",
+    "skipComment": "Pomiń komentarz",
+    "startNewChat": "Zacznij nowy czat",
+    "thankYouFeedback": "Dziękujemy za opinię!",
+    "thinking": "Myślę...",
+    "title": "Czat",
     "tools": {
       "patternInFile": "{pattern} w {file}"
-    }
-  },
-  "admin": {
-    "conversations": "Konwersacje",
-    "users": "Użytkownicy",
-    "search": "Szukaj...",
-    "title": "Tytuł",
-    "owner": "Właściciel",
-    "messages": "Wiadomości",
-    "agentsColumn": "Agenci",
-    "generalAssistant": "Ogólny asystent",
-    "created": "Utworzono",
-    "status": "Status",
-    "untitled": "Bez tytułu",
-    "noConversations": "Nie znaleziono konwersacji.",
-    "view": "Podgląd",
-    "email": "Email",
-    "name": "Imię",
-    "joined": "Dołączył",
-    "total": "{count} łącznie",
-    "likes": "Polubienia",
-    "dislikes": "Nieprzydatne",
-    "date": "Data",
-    "message": "Wiadomość",
-    "user": "Użytkownik",
-    "actions": "Akcje"
-  },
-  "organizations": {
-    "title": "Organizacje",
-    "description": "Zarządzaj organizacjami i przełączaj się między nimi.",
-    "personal": "Osobista",
-    "namePlaceholder": "Mój Zespół",
-    "creating": "Tworzę...",
-    "created": "Organizacja utworzona",
-    "updated": "Organizacja zaktualizowana",
-    "deleted": "Organizacja usunięta",
-    "accessLost": "Nie masz już dostępu do tej organizacji.",
-    "accessLostSwitched": "Nie masz już dostępu do tej organizacji. Przełączono na {name}.",
-    "failedDelete": "Nie udało się usunąć organizacji",
-    "failedUpdate": "Nie udało się zaktualizować organizacji"
-  },
-  "members": {
-    "title": "Członkowie",
-    "emailPlaceholder": "kolega@example.com",
-    "sending": "Wysyłam...",
-    "sendInvite": "Wyślij zaproszenie",
-    "inviteSent": "Zaproszenie wysłane do {email}",
-    "failedInvite": "Nie udało się wysłać zaproszenia",
-    "roleUpdated": "Rola zaktualizowana",
-    "failedRole": "Nie udało się zaktualizować roli",
-    "memberRemoved": "Członek usunięty",
-    "failedRemove": "Nie udało się usunąć członka",
-    "you": "(ty)",
-    "joined": "Dołączył",
-    "pendingInvitations": "Oczekujące zaproszenia",
-    "revoke": "Cofnij",
-    "revokeSuccess": "Zaproszenie cofnięte",
-    "failedRevoke": "Nie udało się cofnąć zaproszenia",
-    "failedCreateLink": "Nie udało się utworzyć linku"
-  },
-  "knowledgeBases": {
-    "title": "Bazy wiedzy",
-    "description": "Zarządzaj kolekcjami dokumentów używanymi przez AI.",
-    "namePlaceholder": "Dokumentacja produktu",
-    "scopePersonal": "Osobisty - tylko Ty",
-    "scopeApp": "Cała aplikacja",
-    "active": "Aktywna",
-    "inactive": "Nieaktywna",
-    "created": "Baza wiedzy utworzona",
-    "updated": "Baza wiedzy zaktualizowana",
-    "deleted": "Baza wiedzy usunięta",
-    "documentRemoved": "Dokument usunięty",
-    "failedCloneIntegration": "Nie udało się skopiować integracji",
-    "failedCreateSyncSource": "Nie udało się utworzyć źródła synchronizacji",
-    "failedDelete": "Nie udało się usunąć bazy wiedzy",
-    "failedDeleteDocument": "Nie udało się usunąć dokumentu",
-    "failedLoad": "Nie udało się wczytać bazy wiedzy",
-    "failedLoadMoreDocuments": "Nie udało się wczytać kolejnych dokumentów",
-    "failedRemoveSyncSource": "Nie udało się usunąć źródła synchronizacji",
-    "failedTriggerSync": "Nie udało się uruchomić synchronizacji",
-    "failedUpdate": "Nie udało się zaktualizować bazy wiedzy",
-    "ingestionSaved": "Ustawienia ingestii zapisane",
-    "integrationCloned": "Integracja skopiowana do tej bazy wiedzy",
-    "syncSourceConnected": "Źródło synchronizacji podłączone",
-    "syncSourceRemoved": "Źródło synchronizacji usunięte",
-    "syncStarted": "Synchronizacja ruszyła — dokumenty pojawią się w miarę ingestii",
-    "uploadFailed": "Przesyłanie nie powiodło się",
-    "uploaded": "Przesłano {name}"
-  },
-  "billing": {
-    "title": "Rozliczenia",
-    "description": "Zarządzaj subskrypcją dla {org}.",
-    "redirecting": "Przekierowuję..."
-  },
-  "invitations": {
-    "title": "Zaproszenie do zespołu",
-    "description": "Zostałeś zaproszony do organizacji.",
-    "acceptSuccess": "Dołączono do organizacji!",
-    "redirecting": "Przekierowuję do Twoich organizacji...",
-    "failedTitle": "Nie udało się zaakceptować zaproszenia",
-    "goDashboard": "Przejdź do panelu"
-  },
-  "legal": {
-    "eyebrow": "Dokumenty",
-    "lastUpdated": "Ostatnia aktualizacja {date}",
-    "seeAlso": "Zobacz też",
-    "terms": {
-      "title": "Regulamin",
-      "summary": "Umowa prawna między Tobą a {appName}. Prostym językiem gdzie się da; precyzyjnie gdzie musimy."
     },
-    "privacy": {
-      "title": "Polityka Prywatności",
-      "summary": "Co zbieramy, po co i co możesz z tym zrobić. Nie trenujemy na Twoich danych - nigdy."
-    },
-    "cookies": {
-      "title": "Polityka Cookies",
-      "summary": "Co przechowujemy w Twojej przeglądarce, po co i jak to wyłączyć."
-    }
+    "whatWentWrong": "Co poszło nie tak?"
   },
-  "pages": {
-    "kb": {
-      "search": "Szukaj",
-      "retry": "Spróbuj ponownie",
-      "listFailedTitle": "Nie udało się wczytać baz wiedzy",
-      "listFailedDescription": "Żądanie listy baz wiedzy nie powiodło się.",
-      "refreshFailedTitle": "Nie udało się odświeżyć tej bazy wiedzy",
-      "refreshFailedDescription": "Poniżej widzisz ostatnie wczytane dane, które mogą być nieaktualne.",
-      "syncSourcesFailedTitle": "Nie udało się wczytać źródeł synchronizacji",
-      "syncSourcesFailedDescription": "Żądanie o źródła synchronizacji tej bazy nie powiodło się, więc nie wiadomo, czy jakieś ma.",
-      "connectorsFailedTitle": "Nie udało się wczytać konektorów",
-      "connectorsFailedDescription": "Żądanie listy konektorów nie powiodło się, więc nie wiadomo, czy któryś jest włączony."
-    },
-    "runs": {
-      "scheduled": "Zaplanowane"
-    },
-    "mcp-servers": {
-      "catalogCompiledIntoBackend": "Katalog jest wkompilowany w backend, a nikt nie dodał własnego serwera. Pusta lista oznacza tutaj, że ten deployment nie dostarcza żadnego.",
-      "externalToolsYourAgents": "Zewnętrzne narzędzia, po które mogą sięgnąć Twoi agenci i Twój asystent. Serwer podłączony dla organizacji jest dostępny dla każdego agenta; podłączony dla Ciebie zostaje w Twoim własnym czacie. Opublikowany agent może korzystać wyłącznie z serwerów organizacji, bo to, po co sięga agent, nie może zależeć od tego, kto go uruchomił.",
-      "mcpServers": "Serwery MCP",
-      "noServersConnect": "Brak serwerów do podłączenia"
-    },
-    "skills": {
-      "agentsBoundSkillWill": "Agenci związani z tym skillem będą od następnego runu działać bez niego. Tego nie da się cofnąć.",
-      "allCategories": "Wszystkie kategorie",
-      "askAdministratorAccessSkills": "Poproś administratora o dostęp do skilli.",
-      "categoryCount": "{count, plural, one {1 kategoria} few {# kategorie} many {# kategorii} other {# kategorii}}",
-      "clearFilter": "Wyczyść filtr",
-      "delete": "Usuń",
-      "name": "Nazwa",
-      "nameHowModelRefers": "Nazwa to sposób, w jaki model odwołuje się do tego skilla, i nie może się zmienić. Wszystko inne tutaj może.",
-      "namesDescriptionsPickedCategories": "Sprawdzono nazwy, opisy i wybrane kategorie. Wyczyść wyszukiwanie lub filtr, żeby zobaczyć wszystko.",
-      "newSkill": "Nowy skill",
-      "newSkill2": "Nowy skill",
-      "noSkillMatches": "Żaden skill nie pasuje",
-      "noSkillsYet": "Nie ma jeszcze skilli",
-      "nobodyHasWrittenSkill": "Nikt jeszcze nie napisał skilla dla tej organizacji.",
-      "recentlyUpdated": "Ostatnio zaktualizowane",
-      "searchSkills": "Szukaj skilli…",
-      "skillCount": "{count, plural, one {1 skill} few {# skille} many {# skilli} other {# skilla}}",
-      "skillKnowHowWritten": "Skill to wiedza spisana raz i dzielona przez każdego agenta, który jej potrzebuje — jak obsługiwane są zwroty, jaki jest styl firmy. Edytujesz go tutaj, a każdy związany z nim agent jest aktualny przy swoim następnym runie.",
-      "skills": "Skille",
-      "skills2": "Skille",
-      "sort": "Sortuj",
-      "writeDownSomethingYour": "Spisz to, co Twój zespół tłumaczy więcej niż raz, a każdy agent będzie mógł to przeczytać.",
-      "youCannotSeeOrganization": "Nie możesz zobaczyć skilli tej organizacji"
-    },
-    "vault": {
-      "accessTo": "Dostęp do {name}",
-      "addKey": "Dodaj klucz",
-      "addKey2": "Dodaj klucz",
-      "addOneBecomesSelectable": "Dodaj jeden, a stanie się wybieralny wszędzie tam, gdzie jest potrzebny — provider modeli w Builderze, usługa wyszukiwania w capability.",
-      "keys": "Klucze",
-      "noKeysYet": "Nie ma jeszcze kluczy",
-      "pageDescription": "Każdy klucz zapisany przez tę organizację. Zaszyfrowany, związany z tą organizacją i nigdy więcej do odczytania — klucz da się zastąpić, nie odsłonić.",
-      "storedCount": "{count, plural, one {1 zapisany klucz} few {# zapisane klucze} many {# zapisanych kluczy} other {# zapisanego klucza}}",
-      "vault": "Vault",
-      "vault2": "Vault",
-      "whoCanBindKey": "Kto może związać ten klucz z agentem i kto może go zrotować lub usunąć. Klucz, do którego nikt nie sięga, to capability, którego nikt nie skonfiguruje."
-    }
-  },
-  "rag": {
-    "orgIntegrationsLoadFailed": "Nie udało się wczytać istniejących integracji przestrzeni; nadal możesz utworzyć nowe źródło.",
-    "connectorLoadFailed": "Nie udało się wczytać listy konektorów. Zamknij okno i spróbuj ponownie.",
-    "configureNoneNeeded": "Nie jest wymagana dodatkowa konfiguracja dla <emphasis>{name}</emphasis>.",
-    "search": {
-      "placeholder": "Przeszukaj swoje bazy wiedzy...",
-      "scopeLabel": "Zakres wyszukiwania",
-      "allBases": "Wszystkie bazy wiedzy",
-      "button": "Szukaj",
-      "searching": "Szukam...",
-      "noBases": "Nie ma jeszcze czego szukać - utwórz bazę wiedzy i wgraj dokument.",
-      "noResults": "Brak wyników",
-      "noResultsHint": "Spróbuj innego zapytania albo innej bazy wiedzy",
-      "failedTitle": "Nie udało się wykonać wyszukiwania",
-      "failedDescription": "Żądanie wyszukiwania nie powiodło się, więc nie wiadomo, czy cokolwiek pasuje.",
-      "retry": "Spróbuj ponownie",
-      "page": "s.{page}",
-      "resultCount": "{count, plural, =0 {Brak wyników} =1 {1 wynik} few {# wyniki} other {# wyników}} · {ms} ms"
-    }
+  "common": {
+    "archiveNamedConfirm": "Zarchiwizować {name}?",
+    "back": "Wstecz",
+    "cancel": "Anuluj",
+    "close": "Zamknij",
+    "confirm": "Potwierdź",
+    "create": "Utwórz",
+    "delete": "Usuń",
+    "deleteNamed": "Usuń {name}",
+    "deleteNamedConfirm": "Usunąć {name}?",
+    "done": "Gotowe",
+    "downloadNamed": "Pobierz {name}",
+    "edit": "Edytuj",
+    "editNamed": "Edytuj {name}",
+    "error": "Błąd",
+    "language": "Język",
+    "live": "Na żywo",
+    "loading": "Ładowanie...",
+    "next": "Dalej",
+    "no": "Nie",
+    "offline": "Offline",
+    "openNamed": "Otwórz {name}",
+    "rangeOfTotal": "{start, number}–{end, number} z {total, number}",
+    "removeNamed": "Usuń {name}",
+    "removeNamedConfirm": "Usunąć {name}?",
+    "retry": "Ponów",
+    "save": "Zapisz",
+    "search": "Szukaj",
+    "skipToContent": "Przejdź do treści",
+    "submit": "Wyślij",
+    "success": "Sukces",
+    "yes": "Tak",
+    "renameNamed": "Zmień nazwę {name}"
   },
   "dashboard": {
-    "title": "Panel",
-    "whatThisShows": "Co pokazuje {title}",
-    "seeAll": "Zobacz wszystko",
-    "subtitles": {
-      "app_admin": "Najpierw cała instalacja, potem Twoja organizacja - ta sama strona, więcej odpowiedzi.",
-      "steward": "Adopcja, koszty i to, co czeka na decyzję.",
-      "builder": "Czy agenci, których budujesz, są naprawdę używani - i czy są zdrowi?",
-      "operator": "Czy wszystko działa i co czeka na Ciebie?",
-      "member": "Wróć tam, gdzie skończyłeś.",
-      "viewer": "To, co Ci udostępniono."
-    },
-    "period": {
-      "label": "Okres",
-      "1d": "Dzisiaj",
-      "7d": "Ostatnie 7 dni",
-      "30d": "Ostatnie 30 dni",
-      "90d": "Ostatnie 90 dni",
-      "tm": "Ten miesiąc",
-      "lm": "Poprzedni miesiąc",
-      "custom": "Własny zakres"
-    },
-    "sectionsFilter": {
-      "label": "Sekcje",
-      "all": "Wszystkie sekcje"
-    },
-    "sections": {
-      "deployment": "Instalacja",
-      "attention": "Wymaga uwagi",
-      "usage": "Użycie i koszty",
-      "people": "Ludzie i jakość",
-      "workspace": "Twoja przestrzeń",
-      "sandboxes": "Gdzie agenci uruchamiają kod"
-    },
     "actions": {
-      "newChat": "Nowy czat",
       "createAgent": "Utwórz agenta",
-      "reviewApprovals": "Przejrzyj zatwierdzenia",
-      "invite": "Zaproś współpracownika"
+      "invite": "Zaproś współpracownika",
+      "newChat": "Nowy czat",
+      "reviewApprovals": "Przejrzyj zatwierdzenia"
     },
+    "activeSessions": "Aktywne sesje",
+    "allOtherSessionsRevoked": "Wszystkie pozostałe sesje unieważnione",
+    "breadcrumb": "Ścieżka nawigacji",
+    "cancel": "Anuluj",
+    "couldnTLoadYour": "Nie udało się wczytać Twoich sesji",
+    "current": "Bieżąca",
+    "devicesCurrentlySignedYour": "Urządzenia obecnie zalogowane na Twoje konto.",
+    "errors": {
+      "description": "Żądanie nie powiodło się. Reszta strony działa - każda karta zawodzi osobno.",
+      "retry": "Ponów",
+      "title": "Nie udało się załadować"
+    },
+    "everyDeviceSignedYour": "Każde urządzenie zalogowane na Twoje konto zostanie wylogowane — poza tym jednym.",
+    "failedRevokeSession": "Nie udało się unieważnić sesji",
+    "failedRevokeSessions": "Nie udało się unieważnić sesji",
+    "lastActive": "Ostatnia aktywność {when}",
+    "nextPage": "Następna strona",
+    "noSessionDataAvailable": "Brak danych o sesjach.",
     "orgDivider": {
       "label": "Organizacja",
       "note": "Wszystko poniżej dotyczy tej organizacji"
     },
+    "period": {
+      "1d": "Dzisiaj",
+      "30d": "Ostatnie 30 dni",
+      "7d": "Ostatnie 7 dni",
+      "90d": "Ostatnie 90 dni",
+      "custom": "Własny zakres",
+      "label": "Okres",
+      "lm": "Poprzedni miesiąc",
+      "tm": "Ten miesiąc"
+    },
+    "previousPage": "Poprzednia strona",
+    "revokeAll": "Unieważnij wszystkie",
+    "revokeAllOtherSessions": "Unieważnić wszystkie pozostałe sesje?",
+    "revokeAllOthers": "Unieważnij pozostałe",
+    "revokeSession": "Unieważnij sesję",
+    "revokeSession2": "Unieważnij sesję",
+    "sections": {
+      "attention": "Wymaga uwagi",
+      "deployment": "Instalacja",
+      "people": "Ludzie i jakość",
+      "sandboxes": "Gdzie agenci uruchamiają kod",
+      "usage": "Użycie i koszty",
+      "workspace": "Twoja przestrzeń"
+    },
+    "sectionsFilter": {
+      "all": "Wszystkie sekcje",
+      "label": "Sekcje"
+    },
+    "seeAll": "Zobacz wszystko",
+    "sessionRevoked": "Sesja unieważniona",
     "states": {
       "loading": "Ładowanie"
     },
-    "errors": {
-      "title": "Nie udało się załadować",
-      "description": "Żądanie nie powiodło się. Reszta strony działa - każda karta zawodzi osobno.",
-      "retry": "Ponów"
+    "subtitles": {
+      "app_admin": "Najpierw cała instalacja, potem Twoja organizacja - ta sama strona, więcej odpowiedzi.",
+      "builder": "Czy agenci, których budujesz, są naprawdę używani - i czy są zdrowi?",
+      "member": "Wróć tam, gdzie skończyłeś.",
+      "operator": "Czy wszystko działa i co czeka na Ciebie?",
+      "steward": "Adopcja, koszty i to, co czeka na decyzję.",
+      "viewer": "To, co Ci udostępniono."
     },
+    "title": "Panel",
+    "unknownDevice": "Nieznane urządzenie",
     "widgets": {
+      "active-users": {
+        "empty": {
+          "description": "Adopcja zaczyna się od pierwszego uruchomienia pierwszej osoby.",
+          "title": "Nikt nic nie uruchomił"
+        },
+        "subline": "uruchomiło agenta w tym okresie",
+        "title": "Aktywne osoby",
+        "description": "Ilu członków zespołu uruchomiło agenta w tym okresie.",
+        "ofMembers": "{total, plural, =1 {z 1 osoby} few {z # osób} many {z # osób} other {z # osób}}",
+        "ran": "Uruchomili agenta",
+        "didNot": "Nie uruchomili"
+      },
+      "agents": {
+        "empty": {
+          "description": "W tej organizacji nic jeszcze nie opublikowano.",
+          "title": "Brak opublikowanych agentów"
+        },
+        "idle": "Opublikowane, ale bezczynne w tym okresie:",
+        "title": "Agenci: używani i zapomniani",
+        "description": "Którzy agenci są używani, a o których zapomniano."
+      },
+      "approvals": {
+        "empty": {
+          "description": "Każde zatwierdzenie zostało rozstrzygnięte. Ta karta zasługuje na miejsce, będąc pustą.",
+          "title": "Nic nie czeka"
+        },
+        "more": "{count} więcej w kolejce",
+        "review": "Przejrzyj",
+        "title": "Czeka na decyzję",
+        "waiting": "czeka {ago}",
+        "wants": "chce wywołać {tool}",
+        "description": "Uruchomienia wstrzymane na wywołaniu narzędzia, czekające na decyzję."
+      },
+      "budget-headroom": {
+        "empty": {
+          "description": "Ustaw limit organizacji - zapas pokaże się tu, zanim pojawi się budget_exceeded.",
+          "title": "Brak miesięcznego limitu"
+        },
+        "headline": "miesięcznego limitu {cap} - zostało {left}",
+        "title": "Zapas budżetu",
+        "description": "Ile zostało z miesięcznego budżetu - organizacji i każdego agenta z własnym limitem. budget_exceeded na pierścieniu to objaw; tutaj jest przyczyna."
+      },
+      "conversations": {
+        "continue": "Kontynuuj",
+        "empty": {
+          "description": "Zacznij rozmowę z karty agenta - będzie tu na Ciebie czekać.",
+          "title": "Brak rozmów"
+        },
+        "title": "Kontynuuj, gdzie skończyłeś",
+        "untitled": "Rozmowa bez tytułu",
+        "description": "Wróć do niedawnej rozmowy w miejscu, w którym ją przerwano."
+      },
+      "health": {
+        "empty": {
+          "description": "Sonda zdrowia jeszcze nie odpowiedziała.",
+          "title": "Brak raportu usług"
+        },
+        "status": {
+          "healthy": "ok",
+          "not_checked": "niesprawdzone",
+          "unconfigured": "nieskonfigurowane",
+          "unhealthy": "awaria"
+        },
+        "title": "Zdrowie usług",
+        "description": "Czy baza danych, kolejka i magazyn wektorów odpowiadają.",
+        "services": {
+          "database": "Baza danych",
+          "redis": "Redis",
+          "vector_store": "Vector store",
+          "model_access": "Dostęp do modeli"
+        }
+      },
+      "knowledge-freshness": {
+        "empty": {
+          "description": "Kolekcje synchronizowane z Drive lub S3 raportują tu swoją świeżość.",
+          "title": "Brak źródeł synchronizacji"
+        },
+        "failing": "awaria",
+        "fresh": "aktualne",
+        "neverSynced": "nigdy nie synchronizowano",
+        "synced": "zsynchronizowano {ago}",
+        "title": "Synchronizacja wiedzy",
+        "description": "Które kolekcje wiedzy przestały się synchronizować."
+      },
+      "latency": {
+        "empty": {
+          "description": "Opóźnienie wymaga co najmniej jednego zakończonego uruchomienia.",
+          "title": "Brak ukończonych uruchomień"
+        },
+        "p50": "Mediana (p50)",
+        "p95": "Najwolniejsze 5% (p95)",
+        "title": "Opóźnienie",
+        "viewSlowest": "Otwórz te runy, od najwolniejszego",
+        "description": "Ile trwają uruchomienia — mediana i ogon rozkładu.",
+        "tail": "Najwolniejsze 5% trwa {ratio}× dłużej niż mediana"
+      },
+      "mcp-health": {
+        "checked": "sprawdzono {ago}",
+        "down": "nie działa",
+        "downSince": "nie działa od {ago}",
+        "empty": {
+          "description": "Podłącz serwer z katalogu - jego zdrowie wyląduje tutaj.",
+          "title": "Brak podłączonych serwerów MCP"
+        },
+        "title": "Integracje",
+        "unchecked": "jeszcze nie sprawdzono",
+        "description": "Czy podłączone serwery MCP nadal odpowiadają. Taki, który przestanie, po cichu zabiera swoje narzędzia każdemu agentowi, który z niego korzysta."
+      },
+      "members": {
+        "empty": {
+          "description": "Zaproś kogoś - adopcja potrzebuje ludzi.",
+          "title": "Tylko Ty"
+        },
+        "roles": {
+          "admin": "Administrator",
+          "builder": "Builder",
+          "member": "Członek",
+          "operator": "Operator",
+          "owner": "Właściciel",
+          "viewer": "Obserwator"
+        },
+        "title": "Członkowie",
+        "description": "Kto jest w organizacji, według roli.",
+        "unit": "{count, plural, one {członek} few {członkowie} many {członków} other {członków}}"
+      },
+      "model-mix": {
+        "empty": {
+          "description": "Podział modeli pojawi się z pierwszym uruchomieniem.",
+          "title": "Brak uruchomień w tym okresie"
+        },
+        "notRecorded": "nie zarejestrowano",
+        "title": "Modele za uruchomieniami",
+        "description": "Które modele stoją za runami - tak, jak zapisał to każdy run.",
+        "unit": "uruchomień"
+      },
+      "my-activity": {
+        "empty": {
+          "description": "Uruchom dowolnego agenta - Twoja historia pokaże się tutaj, tylko Tobie.",
+          "title": "Brak Twoich uruchomień"
+        },
+        "pending": "{count} Twoich uruchomień czeka na czyjąś decyzję",
+        "title": "Twoja aktywność",
+        "unit": "Twoich uruchomień w tym okresie",
+        "description": "Twoje własne uruchomienia i to, co czeka na decyzję."
+      },
+      "my-agents": {
+        "empty": {
+          "description": "Nic Ci jeszcze nie udostępniono - poproś buildera albo stwórz własnego.",
+          "title": "Brak agentów"
+        },
+        "openChat": "Otwórz czat",
+        "runs": "{count} uruchomień",
+        "shared": "udostępniony",
+        "sharedTitle": "Agenci udostępnieni Tobie",
+        "title": "Twoi agenci",
+        "yours": "twój",
+        "description": "Agenci, których budujesz, i ci udostępnieni Tobie."
+      },
+      "my-quality": {
+        "empty": {
+          "description": "Oceniaj odpowiedzi kciukiem w górę lub w dół - Twój trend wyląduje tutaj.",
+          "title": "Brak ocenionych odpowiedzi"
+        },
+        "subline": "z {count} ocenionych odpowiedzi w Twoich rozmowach",
+        "title": "Jakość odpowiedzi w Twoich czatach",
+        "description": "Jak oceniane są odpowiedzi w Twoich rozmowach."
+      },
+      "my-top-agents": {
+        "empty": {
+          "description": "Uruchom dowolnego agenta - Twoi ulubieńcy pojawią się tutaj.",
+          "title": "Brak Twoich uruchomień"
+        },
+        "subline": "Twoje własne uruchomienia w tym okresie - niczyje inne.",
+        "title": "Agenci, których używasz najczęściej",
+        "description": "Agenci, których używasz najczęściej."
+      },
+      "org-ratings": {
+        "empty": {
+          "description": "Kciuki przy odpowiedziach lądują tutaj.",
+          "title": "Brak ocen"
+        },
+        "subline": "z {count} ocenionych odpowiedzi było pozytywnych w tym okresie",
+        "title": "Jakość odpowiedzi",
+        "description": "Jak oceniane są odpowiedzi w całej organizacji."
+      },
+      "outcomes": {
+        "attention": "1 na {n} uruchomień wymagało uwagi w tym okresie",
+        "completed": "ukończone",
+        "empty": {
+          "description": "Podział wyników pojawi się z pierwszym uruchomieniem.",
+          "title": "Brak uruchomień w tym okresie"
+        },
+        "status": {
+          "awaiting_approval": "Czeka na zatwierdzenie",
+          "budget_exceeded": "Przekroczony budżet",
+          "completed": "Ukończone",
+          "failed": "Nieudane",
+          "other": "W toku lub anulowane"
+        },
+        "title": "Wyniki",
+        "description": "Jak kończyły się uruchomienia — ukończone, nieudane, po przekroczeniu budżetu, oczekujące."
+      },
+      "platform": {
+        "active24h": "{count} aktywnych w 24 h",
+        "agents": "Agenci",
+        "conversations": "Rozmowy",
+        "empty": {
+          "description": "Świeża instalacja: brak organizacji poza startową, brak uruchomień.",
+          "title": "Jeszcze nic tu nie ma"
+        },
+        "organizations": "Organizacje",
+        "title": "Platforma w skrócie",
+        "users": "Użytkownicy",
+        "description": "Liczby dla całej instalacji: organizacje, ludzie, agenci, rozmowy."
+      },
+      "platform-ratings": {
+        "empty": {
+          "description": "Nikt jeszcze nie ocenił żadnej odpowiedzi w tej instalacji.",
+          "title": "Brak ocen"
+        },
+        "subline": "ocenionych pozytywnie - {count} ocen we wszystkich organizacjach",
+        "title": "Jakość odpowiedzi w całej instalacji",
+        "description": "Jak oceniane są odpowiedzi w całej instalacji."
+      },
+      "recent-failures": {
+        "budgetExceeded": "budżet przekroczony w trakcie",
+        "empty": {
+          "description": "Każde uruchomienie w tym okresie zakończyło się czysto.",
+          "title": "Brak niepowodzeń"
+        },
+        "failed": "nieudane",
+        "open": "Otwórz uruchomienia",
+        "title": "Ostatnie niepowodzenia",
+        "unknownAgent": "Nieznany agent",
+        "description": "Uruchomienia, które zawiodły lub wyczerpały budżet, od najnowszych."
+      },
+      "runs": {
+        "delta": "vs poprzedni okres",
+        "empty": {
+          "description": "Opublikuj agenta i daj mu kanał - adopcja pojawi się tutaj.",
+          "title": "Brak uruchomień w tym okresie"
+        },
+        "title": "Uruchomienia w czasie",
+        "unit": "uruchomień",
+        "description": "Ile uruchomień odbyło się w danym okresie, dzień po dniu."
+      },
+      "sandbox-capacity": {
+        "elsewhere": "Działa na Daytonie — tamte sandboxy liczą się na tamtym koncie, nie tutaj.",
+        "empty": {
+          "description": "Zarejestruj hosta, a miejsce dla agentów na uruchamianie kodu wyląduje tutaj.",
+          "title": "Nie zarejestrowano hosta sandboxów"
+        },
+        "hostUncounted": "Nie da się tu pokazać, jak pełny jest sam host - odmowa przy karcie z zapasem oznacza, że host zapełnił ktoś inny.",
+        "openOfTenantLimit": "{used} z {limit}",
+        "openUncapped": "{count, plural, one {1 otwarty} few {# otwarte} many {# otwartych} other {# otwartego}}",
+        "title": "Pojemność sandboxów",
+        "description": "Ile pojemności sandbox jest zajęte: otwarte sandboxy wobec sufitu tej organizacji, czyli liczby, z której bierze się 429."
+      },
+      "sandbox-policy": {
+        "ceilings": {
+          "hostOpen": "Otwarte, na całym hoście",
+          "hostResident": "Rezydentne, na całym hoście",
+          "perOrganization": "Ta organizacja"
+        },
+        "default": "domyślny",
+        "elsewhere": {
+          "description": "Daytona nie publikuje własnej listy dozwolonych — to, na co pozwala, jest ustawieniem na tamtym koncie.",
+          "title": "Sandboxy działają na Daytonie"
+        },
+        "empty": {
+          "description": "Zarejestruj hosta, a runtime'y, na które pozwala, wylądują tutaj.",
+          "title": "Nie zarejestrowano hosta sandboxów"
+        },
+        "noMemoryCeiling": "bez limitu",
+        "noRuntime": "Ta usługa nie pozwala na żaden runtime, więc żaden agent nie uruchomi na niej kodu.",
+        "title": "Runtime'y sandboxów",
+        "description": "Co host sandbox pozwala uruchamiać agentom. To sufity ustawione przy starcie usługi, nie liczba w użyciu - tylko ten per organizacja da się pokazać jako ułamek."
+      },
+      "sandbox-sessions": {
+        "activityOf": "Pokaż, co zrobiono w sandboxie {id}",
+        "elsewhere": {
+          "description": "Sesje otwarte tam pojawiają się w panelu tamtego konta, nie tutaj.",
+          "title": "Sandboxy działają na Daytonie"
+        },
+        "empty": {
+          "description": "Zarejestruj hosta, a sandboxy otwierane przez Twoich agentów wylądują tutaj.",
+          "title": "Nie zarejestrowano hosta sandboxów"
+        },
+        "hideActivity": "Ukryj",
+        "idle": {
+          "hours": "{count} godz. bezczynności",
+          "minutes": "{count} min bezczynności",
+          "seconds": "{count} s bezczynności"
+        },
+        "memoryOfLimit": "{used} z {limit}",
+        "noActivity": "Nic jeszcze nie zapisano dla tego sandboxa.",
+        "nothingRunning": "Nic nie działa. Sandbox otwiera się, gdy agent pierwszy raz uruchamia kod.",
+        "runningOn": "na {name}",
+        "sampleUsage": "Pamięć",
+        "sampleUsageHint": "Próbka pamięci i CPU — jedno zapytanie do hosta na sandbox",
+        "scope": {
+          "agent": "dzielony w obrębie całego agenta",
+          "channel": "dzielony w jednym kanale",
+          "conversation": "dzielony w jednej rozmowie",
+          "run": "tylko jeden run",
+          "unknown": "zakres, którego ta wersja nie rozpoznaje",
+          "user": "dzielony przez jedną osobę"
+        },
+        "showActivity": "Aktywność",
+        "title": "Otwarte sandboxy",
+        "tookMs": "{ms} ms",
+        "unattributed": "Nie zapisano agenta",
+        "description": "Sesje sandboxów działające w tej chwili."
+      },
+      "shared-with-you": {
+        "agents": "Agenci",
+        "collections": "Kolekcje",
+        "empty": {
+          "description": "Gdy ktoś udostępni agenta, kolekcję albo skilla, policzy się tutaj.",
+          "title": "Jeszcze nic nie udostępniono"
+        },
+        "skills": "Skille",
+        "title": "Udostępnione Tobie",
+        "description": "Agenci, wiedza i umiejętności udostępnione Tobie."
+      },
+      "spend": {
+        "delta": "vs poprzedni okres",
+        "empty": {
+          "description": "Koszt modeli ląduje tutaj uruchomienie po uruchomieniu.",
+          "title": "Jeszcze nic nie wydano"
+        },
+        "monthToDate": "W tym miesiącu do teraz: {amount}",
+        "notRecorded": "nie zarejestrowano",
+        "title": "Wydatki",
+        "unit": "w tym okresie",
+        "description": "Ile kosztował okres i ile miesiąc kalendarzowy do dziś. Kwota miesięczna zgadza się z fakturą, więc celowo nie reaguje na filtr okresu.",
+        "split": "{models} na modele · {ingestion} na indeksowanie"
+      },
+      "surfaces": {
+        "empty": {
+          "description": "Playground, czat web, API, Slack, Telegram, Mattermost i widget lądują tutaj.",
+          "title": "Brak uruchomień w tym okresie"
+        },
+        "names": {
+          "api": "HTTP API",
+          "embed": "Widget",
+          "mattermost": "Mattermost",
+          "playground": "Playground",
+          "schedule": "Harmonogram",
+          "slack": "Slack",
+          "telegram": "Telegram",
+          "web": "Czat web"
+        },
+        "title": "Skąd pochodzą uruchomienia",
+        "description": "Skąd pochodzą uruchomienia — czat web, API, kanały.",
+        "unit": "uruchomień"
+      },
+      "top-orgs": {
+        "agents": "Agenci",
+        "empty": {
+          "description": "Istnieje tylko organizacja startowa.",
+          "title": "Brak organizacji"
+        },
+        "members": "Członkowie",
+        "organization": "Organizacja",
+        "title": "Największe organizacje",
+        "description": "Najbardziej zajęte organizacje w tej instalacji.",
+        "owner": "Właściciel",
+        "noOwner": "Brak właściciela"
+      },
+      "top-people": {
+        "columns": {
+          "cost": "Koszt",
+          "lastRun": "Ostatnie",
+          "person": "Osoba",
+          "runs": "Uruchomienia"
+        },
+        "disclosure": "Widzi to każdy z runs:view - builderzy i operatorzy tak samo jak właściciele i admini.",
+        "empty": {
+          "description": "Pierwsze uruchomienie pierwszej osoby wpisze tu nazwisko.",
+          "title": "Nikt nic nie uruchomił"
+        },
+        "others": "{count, plural, =1 {1 kolejna osoba uruchomiła co najmniej jednego agenta} few {# kolejne osoby uruchomiły co najmniej jednego agenta} many {# kolejnych osób uruchomiło co najmniej jednego agenta} other {# kolejnych osób uruchomiło co najmniej jednego agenta}}",
+        "title": "Kto z tego korzysta",
+        "description": "Osoby korzystające najczęściej, według runów, z kosztem obok."
+      },
+      "version-compare": {
+        "empty": {
+          "description": "Opublikuj nową wersję - porównanie pojawi się, gdy obie będą miały uruchomienia w okresie.",
+          "title": "Działała tylko jedna wersja"
+        },
+        "metric": {
+          "completed": "Skuteczność",
+          "cost": "Koszt uruchomienia",
+          "p95": "Opóźnienie p95",
+          "ratings": "Oceny pozytywne",
+          "runs": "Uruchomienia"
+        },
+        "subline": "{agent} - {current} (bieżąca) vs {previous}, tylko uruchomienia danej wersji",
+        "title": "Wersja do wersji",
+        "description": "Czy nowa wersja agenta zachowuje się lepiej niż poprzednia."
+      },
       "summary": {
         "title": "Ten okres w skrócie",
         "description": "Runy, jak się zakończyły, ile kosztowały i ile osób z nich korzystało.",
@@ -498,408 +681,6 @@
           "title": "Nic nie uruchomiono w tym okresie",
           "description": "Wybierz szerszy zakres albo daj agentowi powierzchnię - liczby pojawią się tutaj."
         }
-      },
-      "platform": {
-        "title": "Platforma w skrócie",
-        "organizations": "Organizacje",
-        "users": "Użytkownicy",
-        "agents": "Agenci",
-        "conversations": "Rozmowy",
-        "active24h": "{count} aktywnych w 24 h",
-        "empty": {
-          "title": "Jeszcze nic tu nie ma",
-          "description": "Świeża instalacja: brak organizacji poza startową, brak uruchomień."
-        },
-        "description": "Liczby dla całej instalacji: organizacje, ludzie, agenci, rozmowy."
-      },
-      "health": {
-        "title": "Zdrowie usług",
-        "status": {
-          "healthy": "ok",
-          "unhealthy": "awaria",
-          "unconfigured": "nieskonfigurowane",
-          "not_checked": "niesprawdzone"
-        },
-        "empty": {
-          "title": "Brak raportu usług",
-          "description": "Sonda zdrowia jeszcze nie odpowiedziała."
-        },
-        "description": "Czy baza danych, kolejka i magazyn wektorów odpowiadają.",
-        "services": {
-          "database": "Baza danych",
-          "redis": "Redis",
-          "vector_store": "Vector store",
-          "model_access": "Dostęp do modeli"
-        }
-      },
-      "top-orgs": {
-        "title": "Największe organizacje",
-        "organization": "Organizacja",
-        "members": "Członkowie",
-        "agents": "Agenci",
-        "empty": {
-          "title": "Brak organizacji",
-          "description": "Istnieje tylko organizacja startowa."
-        },
-        "description": "Najbardziej zajęte organizacje w tej instalacji.",
-        "owner": "Właściciel",
-        "noOwner": "Brak właściciela"
-      },
-      "platform-ratings": {
-        "title": "Jakość odpowiedzi w całej instalacji",
-        "subline": "ocenionych pozytywnie - {count} ocen we wszystkich organizacjach",
-        "empty": {
-          "title": "Brak ocen",
-          "description": "Nikt jeszcze nie ocenił żadnej odpowiedzi w tej instalacji."
-        },
-        "description": "Jak oceniane są odpowiedzi w całej instalacji."
-      },
-      "runs": {
-        "title": "Uruchomienia w czasie",
-        "unit": "uruchomień",
-        "delta": "vs poprzedni okres",
-        "empty": {
-          "title": "Brak uruchomień w tym okresie",
-          "description": "Opublikuj agenta i daj mu kanał - adopcja pojawi się tutaj."
-        },
-        "description": "Ile uruchomień odbyło się w danym okresie, dzień po dniu."
-      },
-      "outcomes": {
-        "title": "Wyniki",
-        "completed": "ukończone",
-        "attention": "1 na {n} uruchomień wymagało uwagi w tym okresie",
-        "status": {
-          "completed": "Ukończone",
-          "failed": "Nieudane",
-          "budget_exceeded": "Przekroczony budżet",
-          "awaiting_approval": "Czeka na zatwierdzenie",
-          "other": "W toku lub anulowane"
-        },
-        "empty": {
-          "title": "Brak uruchomień w tym okresie",
-          "description": "Podział wyników pojawi się z pierwszym uruchomieniem."
-        },
-        "description": "Jak kończyły się uruchomienia — ukończone, nieudane, po przekroczeniu budżetu, oczekujące."
-      },
-      "surfaces": {
-        "title": "Skąd pochodzą uruchomienia",
-        "names": {
-          "playground": "Playground",
-          "web": "Czat web",
-          "embed": "Widget",
-          "api": "HTTP API",
-          "slack": "Slack",
-          "telegram": "Telegram",
-          "mattermost": "Mattermost",
-          "schedule": "Harmonogram"
-        },
-        "empty": {
-          "title": "Brak uruchomień w tym okresie",
-          "description": "Playground, czat web, API, Slack, Telegram, Mattermost i widget lądują tutaj."
-        },
-        "description": "Skąd pochodzą uruchomienia — czat web, API, kanały.",
-        "unit": "uruchomień"
-      },
-      "agents": {
-        "title": "Agenci: używani i zapomniani",
-        "idle": "Opublikowane, ale bezczynne w tym okresie:",
-        "empty": {
-          "title": "Brak opublikowanych agentów",
-          "description": "W tej organizacji nic jeszcze nie opublikowano."
-        },
-        "description": "Którzy agenci są używani, a o których zapomniano."
-      },
-      "latency": {
-        "title": "Opóźnienie",
-        "p50": "Mediana (p50)",
-        "p95": "Najwolniejsze 5% (p95)",
-        "empty": {
-          "title": "Brak ukończonych uruchomień",
-          "description": "Opóźnienie wymaga co najmniej jednego zakończonego uruchomienia."
-        },
-        "viewSlowest": "Otwórz te runy, od najwolniejszego",
-        "description": "Ile trwają uruchomienia — mediana i ogon rozkładu.",
-        "tail": "Najwolniejsze 5% trwa {ratio}× dłużej niż mediana"
-      },
-      "active-users": {
-        "title": "Aktywne osoby",
-        "subline": "uruchomiło agenta w tym okresie",
-        "empty": {
-          "title": "Nikt nic nie uruchomił",
-          "description": "Adopcja zaczyna się od pierwszego uruchomienia pierwszej osoby."
-        },
-        "description": "Ilu członków zespołu uruchomiło agenta w tym okresie.",
-        "ofMembers": "{total, plural, =1 {z 1 osoby} few {z # osób} many {z # osób} other {z # osób}}",
-        "ran": "Uruchomili agenta",
-        "didNot": "Nie uruchomili"
-      },
-      "top-people": {
-        "title": "Kto z tego korzysta",
-        "columns": {
-          "person": "Osoba",
-          "runs": "Uruchomienia",
-          "cost": "Koszt",
-          "lastRun": "Ostatnie"
-        },
-        "others": "{count, plural, =1 {1 kolejna osoba uruchomiła co najmniej jednego agenta} few {# kolejne osoby uruchomiły co najmniej jednego agenta} many {# kolejnych osób uruchomiło co najmniej jednego agenta} other {# kolejnych osób uruchomiło co najmniej jednego agenta}}",
-        "empty": {
-          "title": "Nikt nic nie uruchomił",
-          "description": "Pierwsze uruchomienie pierwszej osoby wpisze tu nazwisko."
-        },
-        "description": "Osoby korzystające najczęściej, według runów, z kosztem obok.",
-        "disclosure": "Widzi to każdy z runs:view - builderzy i operatorzy tak samo jak właściciele i admini."
-      },
-      "spend": {
-        "title": "Wydatki",
-        "unit": "w tym okresie",
-        "delta": "vs poprzedni okres",
-        "notRecorded": "nie zarejestrowano",
-        "monthToDate": "W tym miesiącu do teraz: {amount}",
-        "empty": {
-          "title": "Jeszcze nic nie wydano",
-          "description": "Koszt modeli ląduje tutaj uruchomienie po uruchomieniu."
-        },
-        "description": "Ile kosztował okres i ile miesiąc kalendarzowy do dziś. Kwota miesięczna zgadza się z fakturą, więc celowo nie reaguje na filtr okresu.",
-        "split": "{models} na modele · {ingestion} na indeksowanie"
-      },
-      "model-mix": {
-        "title": "Modele za uruchomieniami",
-        "notRecorded": "nie zarejestrowano",
-        "empty": {
-          "title": "Brak uruchomień w tym okresie",
-          "description": "Podział modeli pojawi się z pierwszym uruchomieniem."
-        },
-        "description": "Które modele stoją za runami - tak, jak zapisał to każdy run.",
-        "unit": "uruchomień"
-      },
-      "version-compare": {
-        "title": "Wersja do wersji",
-        "subline": "{agent} - {current} (bieżąca) vs {previous}, tylko uruchomienia danej wersji",
-        "metric": {
-          "runs": "Uruchomienia",
-          "completed": "Skuteczność",
-          "p95": "Opóźnienie p95",
-          "cost": "Koszt uruchomienia",
-          "ratings": "Oceny pozytywne"
-        },
-        "empty": {
-          "title": "Działała tylko jedna wersja",
-          "description": "Opublikuj nową wersję - porównanie pojawi się, gdy obie będą miały uruchomienia w okresie."
-        },
-        "description": "Czy nowa wersja agenta zachowuje się lepiej niż poprzednia."
-      },
-      "approvals": {
-        "title": "Czeka na decyzję",
-        "wants": "chce wywołać {tool}",
-        "waiting": "czeka {ago}",
-        "review": "Przejrzyj",
-        "more": "{count} więcej w kolejce",
-        "empty": {
-          "title": "Nic nie czeka",
-          "description": "Każde zatwierdzenie zostało rozstrzygnięte. Ta karta zasługuje na miejsce, będąc pustą."
-        },
-        "description": "Uruchomienia wstrzymane na wywołaniu narzędzia, czekające na decyzję."
-      },
-      "recent-failures": {
-        "title": "Ostatnie niepowodzenia",
-        "unknownAgent": "Nieznany agent",
-        "budgetExceeded": "budżet przekroczony w trakcie",
-        "failed": "nieudane",
-        "open": "Otwórz uruchomienia",
-        "empty": {
-          "title": "Brak niepowodzeń",
-          "description": "Każde uruchomienie w tym okresie zakończyło się czysto."
-        },
-        "description": "Uruchomienia, które zawiodły lub wyczerpały budżet, od najnowszych."
-      },
-      "budget-headroom": {
-        "title": "Zapas budżetu",
-        "headline": "miesięcznego limitu {cap} - zostało {left}",
-        "empty": {
-          "title": "Brak miesięcznego limitu",
-          "description": "Ustaw limit organizacji - zapas pokaże się tu, zanim pojawi się budget_exceeded."
-        },
-        "description": "Ile zostało z miesięcznego budżetu - organizacji i każdego agenta z własnym limitem. budget_exceeded na pierścieniu to objaw; tutaj jest przyczyna."
-      },
-      "mcp-health": {
-        "title": "Integracje",
-        "downSince": "nie działa od {ago}",
-        "down": "nie działa",
-        "checked": "sprawdzono {ago}",
-        "unchecked": "jeszcze nie sprawdzono",
-        "empty": {
-          "title": "Brak podłączonych serwerów MCP",
-          "description": "Podłącz serwer z katalogu - jego zdrowie wyląduje tutaj."
-        },
-        "description": "Czy podłączone serwery MCP nadal odpowiadają. Taki, który przestanie, po cichu zabiera swoje narzędzia każdemu agentowi, który z niego korzysta."
-      },
-      "knowledge-freshness": {
-        "title": "Synchronizacja wiedzy",
-        "synced": "zsynchronizowano {ago}",
-        "neverSynced": "nigdy nie synchronizowano",
-        "failing": "awaria",
-        "fresh": "aktualne",
-        "empty": {
-          "title": "Brak źródeł synchronizacji",
-          "description": "Kolekcje synchronizowane z Drive lub S3 raportują tu swoją świeżość."
-        },
-        "description": "Które kolekcje wiedzy przestały się synchronizować."
-      },
-      "members": {
-        "title": "Członkowie",
-        "roles": {
-          "owner": "Właściciel",
-          "admin": "Administrator",
-          "builder": "Builder",
-          "operator": "Operator",
-          "member": "Członek",
-          "viewer": "Obserwator"
-        },
-        "empty": {
-          "title": "Tylko Ty",
-          "description": "Zaproś kogoś - adopcja potrzebuje ludzi."
-        },
-        "description": "Kto jest w organizacji, według roli.",
-        "unit": "{count, plural, one {członek} few {członkowie} many {członków} other {członków}}"
-      },
-      "org-ratings": {
-        "title": "Jakość odpowiedzi",
-        "subline": "z {count} ocenionych odpowiedzi było pozytywnych w tym okresie",
-        "empty": {
-          "title": "Brak ocen",
-          "description": "Kciuki przy odpowiedziach lądują tutaj."
-        },
-        "description": "Jak oceniane są odpowiedzi w całej organizacji."
-      },
-      "my-agents": {
-        "title": "Twoi agenci",
-        "sharedTitle": "Agenci udostępnieni Tobie",
-        "yours": "twój",
-        "shared": "udostępniony",
-        "runs": "{count} uruchomień",
-        "openChat": "Otwórz czat",
-        "empty": {
-          "title": "Brak agentów",
-          "description": "Nic Ci jeszcze nie udostępniono - poproś buildera albo stwórz własnego."
-        },
-        "description": "Agenci, których budujesz, i ci udostępnieni Tobie."
-      },
-      "conversations": {
-        "title": "Kontynuuj, gdzie skończyłeś",
-        "untitled": "Rozmowa bez tytułu",
-        "continue": "Kontynuuj",
-        "empty": {
-          "title": "Brak rozmów",
-          "description": "Zacznij rozmowę z karty agenta - będzie tu na Ciebie czekać."
-        },
-        "description": "Wróć do niedawnej rozmowy w miejscu, w którym ją przerwano."
-      },
-      "my-activity": {
-        "title": "Twoja aktywność",
-        "unit": "Twoich uruchomień w tym okresie",
-        "pending": "{count} Twoich uruchomień czeka na czyjąś decyzję",
-        "empty": {
-          "title": "Brak Twoich uruchomień",
-          "description": "Uruchom dowolnego agenta - Twoja historia pokaże się tutaj, tylko Tobie."
-        },
-        "description": "Twoje własne uruchomienia i to, co czeka na decyzję."
-      },
-      "my-top-agents": {
-        "title": "Agenci, których używasz najczęściej",
-        "subline": "Twoje własne uruchomienia w tym okresie - niczyje inne.",
-        "empty": {
-          "title": "Brak Twoich uruchomień",
-          "description": "Uruchom dowolnego agenta - Twoi ulubieńcy pojawią się tutaj."
-        },
-        "description": "Agenci, których używasz najczęściej."
-      },
-      "my-quality": {
-        "title": "Jakość odpowiedzi w Twoich czatach",
-        "subline": "z {count} ocenionych odpowiedzi w Twoich rozmowach",
-        "empty": {
-          "title": "Brak ocenionych odpowiedzi",
-          "description": "Oceniaj odpowiedzi kciukiem w górę lub w dół - Twój trend wyląduje tutaj."
-        },
-        "description": "Jak oceniane są odpowiedzi w Twoich rozmowach."
-      },
-      "shared-with-you": {
-        "title": "Udostępnione Tobie",
-        "agents": "Agenci",
-        "collections": "Kolekcje",
-        "skills": "Skille",
-        "empty": {
-          "title": "Jeszcze nic nie udostępniono",
-          "description": "Gdy ktoś udostępni agenta, kolekcję albo skilla, policzy się tutaj."
-        },
-        "description": "Agenci, wiedza i umiejętności udostępnione Tobie."
-      },
-      "sandbox-capacity": {
-        "title": "Pojemność sandboxów",
-        "openOfTenantLimit": "{used} z {limit}",
-        "openUncapped": "{count, plural, one {1 otwarty} few {# otwarte} many {# otwartych} other {# otwartego}}",
-        "hostUncounted": "Nie da się tu pokazać, jak pełny jest sam host - odmowa przy karcie z zapasem oznacza, że host zapełnił ktoś inny.",
-        "elsewhere": "Działa na Daytonie — tamte sandboxy liczą się na tamtym koncie, nie tutaj.",
-        "empty": {
-          "title": "Nie zarejestrowano hosta sandboxów",
-          "description": "Zarejestruj hosta, a miejsce dla agentów na uruchamianie kodu wyląduje tutaj."
-        },
-        "description": "Ile pojemności sandbox jest zajęte: otwarte sandboxy wobec sufitu tej organizacji, czyli liczby, z której bierze się 429."
-      },
-      "sandbox-policy": {
-        "title": "Runtime'y sandboxów",
-        "ceilings": {
-          "hostOpen": "Otwarte, na całym hoście",
-          "hostResident": "Rezydentne, na całym hoście",
-          "perOrganization": "Ta organizacja"
-        },
-        "default": "domyślny",
-        "noMemoryCeiling": "bez limitu",
-        "noRuntime": "Ta usługa nie pozwala na żaden runtime, więc żaden agent nie uruchomi na niej kodu.",
-        "elsewhere": {
-          "title": "Sandboxy działają na Daytonie",
-          "description": "Daytona nie publikuje własnej listy dozwolonych — to, na co pozwala, jest ustawieniem na tamtym koncie."
-        },
-        "empty": {
-          "title": "Nie zarejestrowano hosta sandboxów",
-          "description": "Zarejestruj hosta, a runtime'y, na które pozwala, wylądują tutaj."
-        },
-        "description": "Co host sandbox pozwala uruchamiać agentom. To sufity ustawione przy starcie usługi, nie liczba w użyciu - tylko ten per organizacja da się pokazać jako ułamek."
-      },
-      "sandbox-sessions": {
-        "title": "Otwarte sandboxy",
-        "nothingRunning": "Nic nie działa. Sandbox otwiera się, gdy agent pierwszy raz uruchamia kod.",
-        "runningOn": "na {name}",
-        "unattributed": "Nie zapisano agenta",
-        "memoryOfLimit": "{used} z {limit}",
-        "sampleUsage": "Pamięć",
-        "sampleUsageHint": "Próbka pamięci i CPU — jedno zapytanie do hosta na sandbox",
-        "showActivity": "Aktywność",
-        "hideActivity": "Ukryj",
-        "activityOf": "Pokaż, co zrobiono w sandboxie {id}",
-        "noActivity": "Nic jeszcze nie zapisano dla tego sandboxa.",
-        "tookMs": "{ms} ms",
-        "idle": {
-          "seconds": "{count} s bezczynności",
-          "minutes": "{count} min bezczynności",
-          "hours": "{count} godz. bezczynności"
-        },
-        "scope": {
-          "run": "tylko jeden run",
-          "conversation": "dzielony w jednej rozmowie",
-          "channel": "dzielony w jednym kanale",
-          "user": "dzielony przez jedną osobę",
-          "agent": "dzielony w obrębie całego agenta",
-          "unknown": "zakres, którego ta wersja nie rozpoznaje"
-        },
-        "elsewhere": {
-          "title": "Sandboxy działają na Daytonie",
-          "description": "Sesje otwarte tam pojawiają się w panelu tamtego konta, nie tutaj."
-        },
-        "empty": {
-          "title": "Nie zarejestrowano hosta sandboxów",
-          "description": "Zarejestruj hosta, a sandboxy otwierane przez Twoich agentów wylądują tutaj."
-        },
-        "description": "Sesje sandboxów działające w tej chwili."
       },
       "channels": {
         "title": "Kanały",
@@ -949,27 +730,7 @@
         }
       }
     },
-    "activeSessions": "Aktywne sesje",
-    "allOtherSessionsRevoked": "Wszystkie pozostałe sesje unieważnione",
-    "breadcrumb": "Ścieżka nawigacji",
-    "cancel": "Anuluj",
-    "couldnTLoadYour": "Nie udało się wczytać Twoich sesji",
-    "current": "Bieżąca",
-    "devicesCurrentlySignedYour": "Urządzenia obecnie zalogowane na Twoje konto.",
-    "everyDeviceSignedYour": "Każde urządzenie zalogowane na Twoje konto zostanie wylogowane — poza tym jednym.",
-    "failedRevokeSession": "Nie udało się unieważnić sesji",
-    "failedRevokeSessions": "Nie udało się unieważnić sesji",
-    "lastActive": "Ostatnia aktywność {when}",
-    "nextPage": "Następna strona",
-    "noSessionDataAvailable": "Brak danych o sesjach.",
-    "previousPage": "Poprzednia strona",
-    "revokeAll": "Unieważnij wszystkie",
-    "revokeAllOtherSessions": "Unieważnić wszystkie pozostałe sesje?",
-    "revokeAllOthers": "Unieważnij pozostałe",
-    "revokeSession": "Unieważnij sesję",
-    "revokeSession2": "Unieważnij sesję",
-    "sessionRevoked": "Sesja unieważniona",
-    "unknownDevice": "Nieznane urządzenie",
+    "whatThisShows": "Co pokazuje {title}",
     "edit": {
       "customize": "Dostosuj",
       "subtitle": "Ułóż swój dashboard — przeciągaj karty, aby zmieniać ich kolejność między sekcjami, zmieniaj im rozmiar, koloruj i zwijaj sekcje albo dodaj kolejne.",
@@ -1079,163 +840,6 @@
       "reset": "Wróć do filtra strony"
     }
   },
-  "ui": {
-    "nextMonths": "Następne miesiące",
-    "previousMonths": "Poprzednie miesiące",
-    "cancel": "Anuluj",
-    "checkConnection": "Sprawdź połączenie i spróbuj ponownie.",
-    "close": "Zamknij",
-    "close2": "Zamknij",
-    "confirm": "aby potwierdzić",
-    "dismissQuestions": "Odrzuć pytania",
-    "done": "Gotowe",
-    "labelPreview": "Podgląd: {label}",
-    "markdown": "Markdown",
-    "matchedOfTotal": "{matched} z {counted}",
-    "next": "Dalej",
-    "nextPage": "Następna strona",
-    "noResults": "Brak wyników.",
-    "nothingWrittenYet": "Nic jeszcze nie napisano.",
-    "pagerAll": "{counted} · strona {page} z {pageCount}",
-    "pagerMatched": "{matched} z {counted} · strona {page} z {pageCount}",
-    "preview": "Podgląd",
-    "previousPage": "Poprzednia strona",
-    "providerDefault": "Domyślne providera",
-    "questionFromAssistant": "Pytanie od asystenta",
-    "questionStep": "Pytanie {step} z {total}",
-    "skip": "Pomiń",
-    "somethingElse": "Coś innego",
-    "somethingWentWrong": "Coś poszło nie tak",
-    "sortBy": "Sortuj po tej kolumnie",
-    "sortedAscending": "Posortowane rosnąco — kliknij, aby odwrócić",
-    "sortedDescending": "Posortowane malejąco — kliknij, aby odwrócić",
-    "source": "Źródło",
-    "typeToConfirm": "Wpisz <mono>{phrase}</mono>, aby potwierdzić",
-    "typeYourAnswer": "Wpisz odpowiedź…",
-    "useProviderDefault": "Użyj domyślnych providera"
-  },
-  "ragStatus": {
-    "processing": "Przetwarzanie",
-    "running": "W toku",
-    "done": "Gotowe",
-    "error": "Niepowodzenie",
-    "cancelled": "Anulowano"
-  },
-  "triggers": {
-    "cadence": {
-      "everyMinutes": "{count, plural, =1 {Co minutę} few {Co # minuty} many {Co # minut} other {Co # minuty}}",
-      "everyHours": "{count, plural, =1 {Co godzinę} few {Co # godziny} many {Co # godzin} other {Co # godziny}}",
-      "everyDays": "{count, plural, =1 {Codziennie} other {Co # dni}}",
-      "cron": "Cron {expression} (UTC)"
-    },
-    "event": {
-      "github": "Przy nowym zgłoszeniu GitHub",
-      "email": "Przy przychodzącym e-mailu",
-      "linkedin": "Przy nowym poście LinkedIn",
-      "webhook": "Przy żądaniu webhooka"
-    },
-    "panelTitle": "Harmonogramy i wyzwalacze",
-    "panelDescription": "Kiedy ten agent uruchamia się sam - według harmonogramu lub gdy nadejdzie zdarzenie.",
-    "empty": "Ten agent działa tylko wtedy, gdy ktoś do niego napisze.",
-    "paused": "Wstrzymany",
-    "created": "Wyzwalacz utworzony",
-    "pausedToast": "Wyzwalacz wstrzymany",
-    "resumedToast": "Wyzwalacz wznowiony",
-    "runningNow": "Uruchamiam teraz",
-    "removed": "Wyzwalacz usunięty",
-    "newSchedule": "Nowy harmonogram",
-    "newTrigger": "Nowy wyzwalacz",
-    "newEvent": "Nowy wyzwalacz",
-    "editTitle": "Edytuj wyzwalacz",
-    "createDescription": "Agent uruchamia się sam, bez nikogo przy klawiaturze.",
-    "editDescription": "Zmień wiadomość lub środowisko. Aby zmienić kadencję lub zdarzenie, usuń ten i utwórz nowy.",
-    "typeSchedule": "Harmonogram",
-    "typeEvent": "Wyzwalacz",
-    "prompt": "Wiadomość",
-    "promptHelp": "Co agent dostaje przy każdym uruchomieniu.",
-    "promptPlaceholder": "Podsumuj, co zmieniło się od wczoraj.",
-    "nameLabel": "Nazwa",
-    "nameHelp": "Opcjonalnie. Pokazywana zamiast nazwy agenta tam, gdzie widnieje na liście.",
-    "namePlaceholder": "np. Poranny przegląd",
-    "kindInterval": "Co jakiś czas",
-    "kindCron": "O ustalonej porze",
-    "runEvery": "Uruchamiaj co",
-    "unitMinutes": "minut",
-    "unitHours": "godzin",
-    "unitDays": "dni",
-    "cronExpression": "Wyrażenie cron",
-    "cronHelp": "Wyrażenie crontab, liczone w UTC. 0 9 * * * to 09:00 każdego dnia.",
-    "repeat": "Powtarzaj",
-    "freqDaily": "Codziennie",
-    "freqEveryNDays": "Co kilka dni",
-    "freqWeekly": "Dni tygodnia",
-    "freqMonthly": "Co miesiąc",
-    "freqAdvanced": "Własne (cron)",
-    "weekdaysLabel": "W te dni",
-    "dayOfMonthLabel": "Dzień miesiąca",
-    "timeLabel": "Godzina (UTC)",
-    "weekdayMon": "Pn",
-    "weekdayTue": "Wt",
-    "weekdayWed": "Śr",
-    "weekdayThu": "Cz",
-    "weekdayFri": "Pt",
-    "weekdaySat": "Sb",
-    "weekdaySun": "Nd",
-    "summaryDaily": "Uruchomi się codziennie o {time} UTC.",
-    "summaryEveryNDays": "Uruchomi się co {count, plural, =1 {dzień} few {# dni} many {# dni} other {# dni}} o {time} UTC.",
-    "summaryWeekly": "Uruchomi się o {time} UTC w: {days}.",
-    "summaryMonthly": "Uruchomi się {day}. dnia każdego miesiąca o {time} UTC.",
-    "eventSource": "Uruchamia się przy",
-    "sourceGithub": "Zgłoszeniu GitHub",
-    "sourceEmail": "Przychodzącym e-mailu",
-    "secret": "Sekret podpisujący",
-    "secretHelp": "Webhook jest weryfikowany tym sekretem. Wklej go u dostawcy albo wygeneruj.",
-    "secretPlaceholder": "Silny współdzielony sekret",
-    "generate": "Generuj",
-    "subjectContains": "Temat zawiera",
-    "senderContains": "Nadawca zawiera",
-    "filterOptional": "Opcjonalne - zostaw puste, aby dopasować dowolne",
-    "webhookUrl": "Adres webhooka",
-    "webhookHelp": "Dostarczaj tu podpisane zdarzenia. Sekret podpisujący je uwierzytelnia.",
-    "environment": "Środowisko",
-    "defaultEnvironment": "Domyślne",
-    "cancel": "Anuluj",
-    "save": "Zapisz",
-    "create": "Utwórz",
-    "runNow": "Uruchom teraz",
-    "edit": "Edytuj",
-    "pause": "Wstrzymaj",
-    "resume": "Wznów",
-    "delete": "Usuń",
-    "unit": "Jednostka",
-    "activityTitle": "Harmonogramy i wyzwalacze",
-    "activityDescription": "Każdy agent uruchamiający się sam w organizacji - według harmonogramu lub zdarzenia.",
-    "activityEmptyTitle": "Nic jeszcze nie zaplanowano",
-    "activityEmptyDescription": "Gdy agent zostanie ustawiony, by uruchamiał się sam, pojawi się tutaj.",
-    "agent": "Agent",
-    "chooseAgent": "Wybierz agenta",
-    "sectionTitle": "Harmonogramy i wyzwalacze",
-    "sectionEmpty": "Nic jeszcze nie zaplanowano.",
-    "sectionError": "Nie udało się wczytać listy.",
-    "newMenu": "Nowy harmonogram lub wyzwalacz",
-    "openItem": "Otwórz wyzwalacz agenta {agent}",
-    "itemActions": "Akcje wyzwalacza agenta {agent}",
-    "sourceLinkedin": "Post LinkedIn",
-    "sourceWebhook": "Dowolny webhook",
-    "sourceHelpGithub": "Dodaj ten webhook w ustawieniach repozytorium; uruchamia się przy wybranych akcjach zgłoszeń.",
-    "sourceHelpEmail": "Skieruj parser poczty przychodzącej na ten webhook; uruchamia się przy pasującej wiadomości.",
-    "sourceHelpLinkedin": "Niech przekaźnik (Zapier, Make, skrypt) wyśle tu żądanie, gdy zobaczy pasujący post.",
-    "sourceHelpWebhook": "Dowolna usługa, która potrafi wysłać podpisany JSON, go uruchamia - filtrowanie należy do nadawcy.",
-    "authorContains": "Autor zawiera",
-    "textContains": "Treść zawiera",
-    "copy": "Kopiuj",
-    "copied": "Skopiowano",
-    "createdTitle": "Jeszcze jeden krok",
-    "createdDescription": "Dodaj ten adres webhooka u swojego dostawcy, podpisany ustawionym sekretem. Nic się nie uruchomi, dopóki nie nadejdzie żądanie.",
-    "done": "Gotowe",
-    "deleteTitle": "Usunąć ten wyzwalacz?",
-    "deleteConfirm": "Agent przestanie uruchamiać się sam. Tej operacji nie można cofnąć."
-  },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",
     "avatarNotAvailable": "Awatar jest niedostępny",
@@ -1254,40 +858,6 @@
     "sessionExpired": "Sesja wygasła",
     "unexpected": "Wystąpił nieoczekiwany błąd",
     "uploadFailed": "Przesyłanie nie powiodło się"
-  },
-  "states": {
-    "loading": "Wczytywanie"
-  },
-  "layout": {
-    "breadcrumb": "Ścieżka nawigacji",
-    "checkingAuthentication": "Sprawdzanie uwierzytelnienia...",
-    "commandPalette": "Paleta poleceń",
-    "esc": "ESC",
-    "goBack": "Wróć",
-    "navigate": "Nawigacja",
-    "noMatches": "Brak dopasowań.",
-    "open": "Otwórz",
-    "primary": "Główne",
-    "quickActions": "Szybkie akcje",
-    "searchJump": "Szukaj lub przejdź do…"
-  },
-  "theme": {
-    "darkMode": "Tryb ciemny",
-    "darkMode2": "Tryb ciemny",
-    "followingSystem": "(zgodnie z systemem)",
-    "lightMode": "Tryb jasny",
-    "lightMode2": "Tryb jasny",
-    "switchThemeCurrent": "Przełącz motyw (obecnie: {theme})",
-    "systemTheme": "Motyw systemowy",
-    "systemTheme2": "Motyw systemowy",
-    "themeTitle": "Motyw: {theme}",
-    "toggleTheme": "Przełącz motyw"
-  },
-  "time": {
-    "daysAgo": "{count, plural, one {# dzień temu} other {# dni temu}}",
-    "hoursAgo": "{count, plural, other {# godz. temu}}",
-    "justNow": "przed chwilą",
-    "minutesAgo": "{count, plural, other {# min temu}}"
   },
   "files": {
     "couldNotBeFetched": "Nie udało się pobrać tego pliku",
@@ -1337,6 +907,73 @@
     "removeAttachment": "Usuń {name}",
     "uploadFailed": "Nie udało się załączyć tego pliku.",
     "uploading": "Załączam…"
+  },
+  "invitations": {
+    "acceptSuccess": "Dołączono do organizacji!",
+    "description": "Zostałeś zaproszony do organizacji.",
+    "failedTitle": "Nie udało się zaakceptować zaproszenia",
+    "goDashboard": "Przejdź do panelu",
+    "redirecting": "Przekierowuję do Twoich organizacji...",
+    "title": "Zaproszenie do zespołu"
+  },
+  "knowledgeBases": {
+    "active": "Aktywna",
+    "created": "Baza wiedzy utworzona",
+    "deleted": "Baza wiedzy usunięta",
+    "description": "Zarządzaj kolekcjami dokumentów używanymi przez AI.",
+    "documentRemoved": "Dokument usunięty",
+    "failedCloneIntegration": "Nie udało się skopiować integracji",
+    "failedDelete": "Nie udało się usunąć bazy wiedzy",
+    "failedDeleteDocument": "Nie udało się usunąć dokumentu",
+    "failedLoad": "Nie udało się wczytać bazy wiedzy",
+    "failedLoadMoreDocuments": "Nie udało się wczytać kolejnych dokumentów",
+    "failedRemoveSyncSource": "Nie udało się usunąć źródła synchronizacji",
+    "failedTriggerSync": "Nie udało się uruchomić synchronizacji",
+    "failedUpdate": "Nie udało się zaktualizować bazy wiedzy",
+    "inactive": "Nieaktywna",
+    "ingestionSaved": "Ustawienia ingestii zapisane",
+    "integrationCloned": "Integracja skopiowana do tej bazy wiedzy",
+    "namePlaceholder": "Dokumentacja produktu",
+    "scopeApp": "Cała aplikacja",
+    "scopePersonal": "Osobisty - tylko Ty",
+    "syncSourceConnected": "Źródło synchronizacji podłączone",
+    "syncSourceRemoved": "Źródło synchronizacji usunięte",
+    "syncStarted": "Synchronizacja ruszyła — dokumenty pojawią się w miarę ingestii",
+    "title": "Bazy wiedzy",
+    "updated": "Baza wiedzy zaktualizowana",
+    "uploadFailed": "Przesyłanie nie powiodło się",
+    "uploaded": "Przesłano {name}",
+    "failedCreateSyncSource": "Nie udało się utworzyć źródła synchronizacji"
+  },
+  "layout": {
+    "breadcrumb": "Ścieżka nawigacji",
+    "checkingAuthentication": "Sprawdzanie uwierzytelnienia...",
+    "commandPalette": "Paleta poleceń",
+    "esc": "ESC",
+    "goBack": "Wróć",
+    "navigate": "Nawigacja",
+    "noMatches": "Brak dopasowań.",
+    "open": "Otwórz",
+    "primary": "Główne",
+    "quickActions": "Szybkie akcje",
+    "searchJump": "Szukaj lub przejdź do…"
+  },
+  "legal": {
+    "cookies": {
+      "summary": "Co przechowujemy w Twojej przeglądarce, po co i jak to wyłączyć.",
+      "title": "Polityka Cookies"
+    },
+    "eyebrow": "Dokumenty",
+    "lastUpdated": "Ostatnia aktualizacja {date}",
+    "privacy": {
+      "summary": "Co zbieramy, po co i co możesz z tym zrobić. Nie trenujemy na Twoich danych - nigdy.",
+      "title": "Polityka Prywatności"
+    },
+    "seeAlso": "Zobacz też",
+    "terms": {
+      "summary": "Umowa prawna między Tobą a {appName}. Prostym językiem gdzie się da; precyzyjnie gdzie musimy.",
+      "title": "Regulamin"
+    }
   },
   "mcp": {
     "accessToken": "Token dostępu",
@@ -1421,6 +1058,700 @@
     "whoeverSignsGrantsIf": "Zgody udziela ten, kto się loguje. Jeśli jego dostęp u providera zostanie cofnięty, serwer przestanie działać dla wszystkich agentów, dopóki ktoś nie zaloguje się ponownie — dlatego użyj konta, które kontroluje organizacja.",
     "yoursAloneYourOwn": "Tylko Twoje, w Twoim własnym czacie. Żaden agent nie może go związać."
   },
+  "members": {
+    "emailPlaceholder": "kolega@example.com",
+    "failedCreateLink": "Nie udało się utworzyć linku",
+    "failedInvite": "Nie udało się wysłać zaproszenia",
+    "failedRemove": "Nie udało się usunąć członka",
+    "failedRevoke": "Nie udało się cofnąć zaproszenia",
+    "failedRole": "Nie udało się zaktualizować roli",
+    "inviteSent": "Zaproszenie wysłane do {email}",
+    "joined": "Dołączył",
+    "memberRemoved": "Członek usunięty",
+    "pendingInvitations": "Oczekujące zaproszenia",
+    "revoke": "Cofnij",
+    "revokeSuccess": "Zaproszenie cofnięte",
+    "roleUpdated": "Rola zaktualizowana",
+    "sendInvite": "Wyślij zaproszenie",
+    "sending": "Wysyłam...",
+    "title": "Członkowie",
+    "you": "(ty)"
+  },
+  "nav": {
+    "account": "Konto",
+    "activity": "Aktywność",
+    "admin": "Administracja",
+    "adminOverview": "Administracja",
+    "agents": "Agenci",
+    "apiDocs": "Dokumentacja API",
+    "build": "Budowanie",
+    "channels": "Kanały",
+    "chat": "Czat",
+    "commandPalette": "Paleta poleceń",
+    "conversations": "Rozmowy",
+    "dashboard": "Panel",
+    "esc": "ESC",
+    "home": "Strona główna",
+    "kb": "BW",
+    "knowledge": "Wiedza",
+    "knowledgeBase": "Baza wiedzy",
+    "knowledgeBases": "Bazy wiedzy",
+    "login": "Zaloguj",
+    "logout": "Wyloguj",
+    "mcpServers": "Serwery MCP",
+    "navigate": "Nawigacja",
+    "noMatches": "Brak dopasowań.",
+    "notifications": "Powiadomienia",
+    "open": "Otwórz",
+    "organizations": "Organizacje",
+    "overview": "Przegląd",
+    "primary": "Główna",
+    "profile": "Profil",
+    "profileAndSettings": "Profil i ustawienia",
+    "quickActions": "Szybkie akcje",
+    "rag": "RAG",
+    "register": "Zarejestruj",
+    "sandboxes": "Sandboxy",
+    "search": "Szukaj",
+    "searchJump": "Szukaj lub przejdź do…",
+    "settings": "Ustawienia",
+    "settingsSection": "Ustawienia",
+    "skills": "Skille",
+    "slashCommands": "Polecenia ukośnika",
+    "startNewChat": "Zacznij nowy czat",
+    "system": "System",
+    "systemHealth": "Stan systemu",
+    "team": "Zespół",
+    "toggleMenu": "Przełącz menu",
+    "untitledConversation": "Rozmowa bez tytułu",
+    "usage": "Zużycie",
+    "users": "Użytkownicy",
+    "vault": "Vault",
+    "workspace": "Przestrzeń",
+    "workspaces": "Pliki agentów",
+    "allOrganizations": "Wszystkie organizacje"
+  },
+  "navigation": {
+    "dashboard": "Panel",
+    "home": "Strona główna",
+    "logout": "Wyloguj",
+    "profile": "Profil",
+    "settings": "Ustawienia"
+  },
+  "onboarding": {
+    "pageHelp": "Pokaż wskazówki dla tej strony",
+    "back": "Wstecz",
+    "next": "Dalej",
+    "finish": "Zakończ",
+    "progress": "Krok {current} z {total}",
+    "saveFailed": "Nie udało się zapisać ukończenia przewodnika, więc może pojawić się ponownie następnym razem.",
+    "helpReminder": "Wskazówki każdej strony możesz odtworzyć, kiedy chcesz — wystarczy kliknąć ? w jej nagłówku.",
+    "coachClose": "Zamknij",
+    "coachYes": "Tak, zróbmy to",
+    "coachSkip": "Pomiń",
+    "offer": {
+      "accept": "Tak, poprowadź mnie",
+      "decline": "Nie teraz",
+      "create-agent": {
+        "title": "Utworzyć pierwszego agenta?",
+        "body": "Agent to instrukcje, model i zestaw narzędzi. Zbudujemy razem Twojego pierwszego? Sprawdzimy, co Twoja organizacja już ma, i zatrzymamy się tylko tam, gdzie trzeba."
+      },
+      "create-skill": {
+        "title": "Utworzyć umiejętność?",
+        "body": "Umiejętności to instrukcje wielokrotnego użytku, które możesz podpiąć do dowolnego agenta. Zrobimy teraz Twoją pierwszą? Przeprowadzimy Cię przez to."
+      },
+      "create-kb": {
+        "title": "Utworzyć bazę wiedzy?",
+        "body": "Baza wiedzy pozwala Twoim agentom przeszukiwać Twoje dokumenty. Skonfigurujemy jedną teraz? Przeprowadzimy Cię przez to."
+      },
+      "create-mcp": {
+        "title": "Podłączyć serwer MCP?",
+        "body": "Serwery MCP dają agentom narzędzia z innych systemów. Dodamy połączenie teraz? Przeprowadzimy Cię przez to."
+      },
+      "create-org": {
+        "title": "Utworzyć organizację?",
+        "body": "Organizacja to osobna przestrzeń z własnymi agentami, członkami i ustawieniami. Utworzymy jedną teraz? Przeprowadzimy Cię przez to."
+      },
+      "explore-chat": {
+        "title": "Krótki przewodnik po czacie?",
+        "body": "Zobacz, jak zacząć rozmowę, przełączyć, który agent odpowiada, i zmienić model albo wysiłek myślenia dla pojedynczego czatu. Chcesz szybki, prowadzony przegląd?"
+      }
+    },
+    "steps": {
+      "flow-agent-create": {
+        "title": "Nazwij agenta",
+        "body": "Wybierz New agent — nadaj mu nazwę i krótki opis, i utwórz go. Otworzy się kreator, gdzie dzieje się reszta. Przejdziemy dalej, gdy tylko powstanie."
+      },
+      "flow-agent-instructions": {
+        "title": "Napisz jego instrukcje",
+        "body": "Powiedz agentowi, kim jest i co ma robić — to jego prompt systemowy. Napisz linijkę lub dwie, potem wybierz Dalej."
+      },
+      "flow-agent-model-add": {
+        "title": "Dodaj model",
+        "body": "Twoja organizacja nie ma jeszcze modelu. Wybierz dostawcę, nazwij model i wklej klucz — trafi do Sejfu i model jest gotowy. Przejdziemy dalej, gdy zostanie dodany."
+      },
+      "flow-agent-model-pick": {
+        "title": "Wybierz jego model",
+        "body": "Wybierz z listy model, na którym ma działać ten agent — agent potrzebuje go, żeby działać, więc przejdziemy dalej, gdy zostanie ustawiony."
+      },
+      "flow-agent-model-none": {
+        "title": "W tej organizacji nie ma jeszcze modelu",
+        "body": "Agent potrzebuje modelu, żeby działać, a ta organizacja żadnego nie ma. Dodanie wymaga uprawnienia do połączeń, którego nie masz — poproś administratora o dodanie modelu, wtedy ten agent będzie mógł go użyć. Wybierz Dalej, żeby na razie obejrzeć resztę."
+      },
+      "flow-agent-knowledge": {
+        "title": "Daj mu dokumenty do czytania (opcjonalnie)",
+        "body": "Podepnij bazę wiedzy, a agent będzie mógł przeszukiwać te dokumenty i się na nie powoływać. Możesz to pominąć i dodać w każdej chwili — wybierz Dalej, żeby przejść dalej."
+      },
+      "flow-agent-knowledge-ask": {
+        "title": "Nie ma jeszcze bazy wiedzy — utworzyć?",
+        "body": "Baza wiedzy pozwala temu agentowi przeszukiwać Twoje dokumenty i się na nie powoływać, a jeszcze żadnej nie masz. Utworzyć jedną teraz i ją podpiąć? Poprowadzimy Cię tam i z powrotem."
+      },
+      "flow-agent-knowledge-create": {
+        "title": "Utwórz bazę wiedzy",
+        "body": "Wybierz New knowledge base — otworzy się formularz, a my przejdziemy go razem, pole po polu. Potem odprowadzimy Cię z powrotem do agenta."
+      },
+      "flow-agent-knowledge-return-nav": {
+        "title": "Wróć do swoich agentów",
+        "body": "Wybierz Agenci na pasku bocznym, żeby wrócić do agenta, którego budujesz."
+      },
+      "flow-agent-knowledge-return-edit": {
+        "title": "Otwórz agenta ponownie",
+        "body": "Kliknij ołówek edycji na agencie, którego właśnie zbudowano, żeby ponownie otworzyć jego kreator."
+      },
+      "flow-agent-knowledge-attach": {
+        "title": "Podepnij nowo utworzoną bazę wiedzy",
+        "body": "Otwórz zakładkę Knowledge i podepnij nowo utworzoną bazę wiedzy, potem wybierz Dalej."
+      },
+      "flow-agent-skills": {
+        "title": "Daj mu umiejętności (opcjonalnie)",
+        "body": "Umiejętność to spisana wiedza, którą agent wczytuje, gdy jest potrzebna — polityka zwrotów, styl firmy. Podepnij dowolne albo wybierz Dalej, żeby przejść dalej."
+      },
+      "flow-agent-skills-ask": {
+        "title": "Nie ma jeszcze umiejętności — utworzyć?",
+        "body": "Umiejętność to spisana wiedza, którą agent wczytuje, gdy jest potrzebna, a jeszcze żadnej nie masz. Utworzyć jedną teraz i ją podpiąć? Poprowadzimy Cię tam i z powrotem."
+      },
+      "flow-agent-skills-create": {
+        "title": "Utwórz umiejętność",
+        "body": "Wybierz New skill — otworzy się formularz, a my przejdziemy go razem, pole po polu. Potem odprowadzimy Cię z powrotem do agenta."
+      },
+      "flow-agent-skills-return-nav": {
+        "title": "Wróć do swoich agentów",
+        "body": "Wybierz Agenci na pasku bocznym, żeby wrócić do agenta, którego budujesz."
+      },
+      "flow-agent-skills-return-edit": {
+        "title": "Otwórz agenta ponownie",
+        "body": "Kliknij ołówek edycji na agencie, którego właśnie zbudowano, żeby ponownie otworzyć jego kreator."
+      },
+      "flow-agent-skills-attach": {
+        "title": "Podepnij swoją umiejętność",
+        "body": "Otwórz zakładkę Skills i podepnij nowo utworzoną umiejętność, potem wybierz Dalej."
+      },
+      "flow-agent-tools": {
+        "title": "Daj mu narzędzia (opcjonalnie)",
+        "body": "Możliwości pozwalają agentowi działać — przeszukać sieć, uruchomić kod, wywołać inny system. Włącz to, czego potrzebuje, albo wybierz Dalej, żeby przejść dalej."
+      },
+      "flow-agent-mcp": {
+        "title": "Dodaj serwery MCP (opcjonalnie)",
+        "body": "Serwery MCP dają agentowi narzędzia z innych systemów, które są już podłączone. Podepnij dowolne albo wybierz Dalej, żeby przejść dalej."
+      },
+      "flow-agent-mcp-ask": {
+        "title": "Nie podłączono serwera MCP — podłączyć?",
+        "body": "Serwer MCP daje temu agentowi narzędzia z innego systemu, a jeszcze żadnego nie podłączono. Podłączyć jeden teraz? To szybkie okno tutaj — bez wychodzenia z kreatora, i ruszymy dalej w chwili, gdy się połączy."
+      },
+      "flow-agent-mcp-connect": {
+        "title": "Otwórz katalog",
+        "body": "Wybierz Connect server — katalog otworzy się tutaj, w kreatorze, i wybierzemy jeden razem."
+      },
+      "flow-agent-mcp-attach": {
+        "title": "Daj mu ten serwer",
+        "body": "Połączenie serwera nie oddaje go jeszcze temu agentowi. Zaznacz ten, który przed chwilą podłączyłeś, żeby agent mógł korzystać z jego narzędzi, potem wybierz Dalej."
+      },
+      "flow-agent-limits": {
+        "title": "Ustaw budżet (opcjonalnie)",
+        "body": "Ogranicz, ile ten agent może wydać w miesiącu i z ilu kroków może się składać jedno uruchomienie, i wybierz, kto zostanie powiadomiony przy limicie. Tak agent, który się zapętli albo wymknie spod kontroli, zatrzyma się sam. Wybierz Dalej, żeby przejść dalej."
+      },
+      "flow-agent-publish": {
+        "title": "Opublikuj go",
+        "body": "Agent musi być opublikowany, żeby dało się z nim pisać — szkic nie przyjmuje wiadomości. Kliknij Publish, aby udostępnić tę wersję; przejdziemy dalej w chwili, gdy się opublikuje."
+      },
+      "flow-agent-run-pick": {
+        "title": "Wybierz swojego agenta",
+        "body": "Jesteś teraz na czacie. Otwórz przełącznik i wybierz agenta, którego właśnie opublikowano, żeby trafiła do niego Twoja pierwsza wiadomość."
+      },
+      "flow-agent-run-send": {
+        "title": "Wyślij mu wiadomość",
+        "body": "Wpisz prompt i wyślij — pierwsze uruchomienie Twojego agenta i koniec przewodnika. Zamkniemy w chwili, gdy wiadomość poleci."
+      },
+      "flow-skill-create": {
+        "title": "Dodaj swoją umiejętność",
+        "body": "Wybierz New skill — otworzy się formularz, a my przejdziemy go razem, pole po polu."
+      },
+      "flow-kb-create": {
+        "title": "Utwórz bazę wiedzy",
+        "body": "Wybierz New knowledge base — otworzy się formularz, a my przejdziemy go razem, pole po polu."
+      },
+      "flow-skill-field-name": {
+        "title": "Nazwij ją",
+        "body": "Krótko i konkretnie, np. refund-policy — tak model odwołuje się do tej umiejętności i nie da się tego później zmienić. Potem wybierz Dalej."
+      },
+      "flow-skill-field-description": {
+        "title": "Napisz, kiedy jej używać",
+        "body": "To jedyna część, którą model czyta, decydując, czy w ogóle otworzyć umiejętność — napisz, kiedy po nią sięgnąć, nie co jest w środku. Potem wybierz Dalej."
+      },
+      "flow-skill-field-source": {
+        "title": "Napisz umiejętność",
+        "body": "Przełącz na Source i napisz samą wiedzę w Markdown — kroki, reguły, wyjątki. Możesz ją dopracować później w każdej chwili. Potem wybierz Dalej."
+      },
+      "flow-skill-field-create": {
+        "title": "Utwórz ją",
+        "body": "Kliknij Create. Przejdziemy dalej w chwili, gdy się zapisze."
+      },
+      "flow-kb-field-name": {
+        "title": "Nazwij ją",
+        "body": "Nazwij ją od tego, co będzie zawierać — Dokumentacja produktu, Wiki wsparcia — żeby każdy, kto podpina ją do agenta, wiedział, co daje. Potem wybierz Dalej."
+      },
+      "flow-kb-field-scope": {
+        "title": "Wybierz, do kogo należy",
+        "body": "Osobista należy tylko do Ciebie; organizacyjna udostępnia ją każdemu członkowi i agentowi. Dla bazy, którą będą przeszukiwać Twoi agenci, wybierz zakres organizacyjny. Potem wybierz Dalej."
+      },
+      "flow-kb-field-embeddings": {
+        "title": "Embeddingi (zostaw domyślne)",
+        "body": "Jak dokumenty są indeksowane do wyszukiwania. Zamraża się przy tworzeniu, ale domyślne ustawienie wdrożenia jest dobre dla niemal każdego — rozwiń je tylko, jeśli wiesz, że potrzebujesz innego modelu. Wybierz Dalej."
+      },
+      "flow-kb-field-create": {
+        "title": "Utwórz ją",
+        "body": "Kliknij Create. Przejdziemy dalej w chwili, gdy powstanie — dokumenty dodasz do niej zaraz potem."
+      },
+      "flow-mcp-field-pick": {
+        "title": "Wybierz serwer",
+        "body": "To katalog systemów, z których Twoi agenci mogą czerpać narzędzia. Znajdź ten, który chcesz, i kliknij na nim Connect."
+      },
+      "flow-mcp-field-form": {
+        "title": "Wypełnij połączenie",
+        "body": "Nazwij je — nazwa poprzedza nazwy jego narzędzi — zostaw zakres organizacyjny, żeby Twoi agenci mogli z niego korzystać, i wklej token, jeśli ten serwer o niego prosi. Potem wybierz Dalej."
+      },
+      "flow-mcp-field-connect": {
+        "title": "Połącz",
+        "body": "Kliknij Connect. Sprawdzamy, czy serwer odpowiada, i ruszamy dalej w chwili połączenia — serwer, który loguje się przez dostawcę, przekieruje zamiast tego na jego ekran zgody."
+      },
+      "flow-org-create": {
+        "title": "Utwórz organizację",
+        "body": "Wybierz New organization — nadaj jej nazwę i utwórz. Przejdziemy dalej, gdy tylko powstanie."
+      },
+      "flow-chat-needs-agent": {
+        "title": "Nie ma jeszcze opublikowanego agenta do rozmowy",
+        "body": "Czat rozmawia z opublikowanym agentem, a jeszcze żadnego nie masz. Zbudować najpierw jednego? Poprowadzimy Cię przez to, a potem możesz wrócić na czat. Albo pomiń, żeby na razie rozejrzeć się po czacie."
+      },
+      "flow-chat-start": {
+        "title": "Zacznij rozmowę",
+        "body": "Wybierz Nowa konwersacja, żeby zacząć świeży wątek. Każdy trzyma własną historię i ustawienia. Wybierz Dalej, gdy się rozejrzysz."
+      },
+      "flow-chat-agent": {
+        "title": "Wybierz, kto odpowiada",
+        "body": "To wybiera, który z Twoich opublikowanych agentów odpowiada. Otwórz, żeby przełączać agentów — możesz zmienić nawet w trakcie rozmowy. Wybierz Dalej."
+      },
+      "flow-chat-controls": {
+        "title": "Dostrój tę rozmowę",
+        "body": "Otwórz Controls, żeby uruchomić ten czat na innym modelu albo zmienić, jak mocno myśli — tylko dla tej rozmowy, bez ruszania samego agenta. Wybierz Dalej."
+      },
+      "flow-chat-composer": {
+        "title": "Wpisz i wyślij",
+        "body": "Napisz tu swoją wiadomość i wyślij — to Twoja pierwsza rozmowa. Wybierz Zakończ, gdy zechcesz."
+      },
+      "welcome": {
+        "title": "Witaj w AgenticOS",
+        "body": "To tutaj Twój zespół buduje, uruchamia i nadzoruje swoich agentów AI. Przejdziemy przez każdą sekcję i wskażemy, na co warto zwrócić uwagę — jakaś minuta, a zamkniesz to, kiedy chcesz."
+      },
+      "dashboard-actions": {
+        "title": "Zacznij tutaj",
+        "body": "Te skróty to najszybsze wejście: otwórz czat, utwórz pierwszego agenta, przejrzyj to, co czeka na decyzję, albo zaproś współpracownika."
+      },
+      "dashboard-filters": {
+        "title": "Filtruj pulpit",
+        "body": "Każda liczba na tej stronie podąża za okresem, który tu wybierzesz, a sekcje, których nie potrzebujesz, możesz ukryć. Widok żyje w adresie URL, więc przetrwa odświeżenie i wędruje w linku."
+      },
+      "dashboard-customize": {
+        "title": "Dostosuj po swojemu",
+        "body": "Customize otwiera edytor, w którym dodajesz, ukrywasz i przestawiasz karty; Layouts zapisuje układ i przełącza między nimi. Pulpit jest Twój do ułożenia, dla każdej osoby osobno."
+      },
+      "chat-start": {
+        "title": "Rozmawiaj ze swoimi agentami",
+        "body": "Nowy czat otwiera świeży wątek, a Twoje wcześniejsze rozmowy układają się w tym panelu. To najszybszy sposób, żeby wypróbować agenta i zobaczyć, jak działa, krok po kroku."
+      },
+      "chat-agent-picker": {
+        "title": "Wybierz, kto odpowiada",
+        "body": "Przełączaj się między agentami tutaj. Każdy wnosi własne instrukcje, narzędzia i wiedzę, więc to samo pytanie może dostać zupełnie inną odpowiedź."
+      },
+      "chat-composer": {
+        "title": "Zapytaj o cokolwiek",
+        "body": "Wpisz wiadomość, upuść plik albo zacznij od polecenia ukośnika. Enter wysyła; Shift+Enter dodaje wiersz."
+      },
+      "chat-model-picker": {
+        "title": "Dostrój model",
+        "body": "Wybierz model stojący za agentem i ustaw jego wysiłek rozumowania albo temperaturę — tylko dla tej rozmowy."
+      },
+      "agents-new": {
+        "title": "Zbuduj agenta",
+        "body": "Agent to jego instrukcje, model oraz narzędzia, serwery MCP i umiejętności, które mu dasz. Utwórz jednego tutaj, potem opublikuj wersję, żeby działał tak samo wszędzie — czat, API, Slack czy widżet."
+      },
+      "agents-filters": {
+        "title": "Znajdź szybko",
+        "body": "Filtruj po statusie albo szukaj po nazwie, gdy lista urośnie ponad ekran."
+      },
+      "agent-instructions": {
+        "title": "Instrukcje to zachowanie",
+        "body": "Otwórz agenta, a trafisz do kreatora, gdzie składa się go zakładka po zakładce. Build jest pierwsza: instrukcje to jego zachowanie, pisane zwykłym Markdown, nie kodem."
+      },
+      "agent-model": {
+        "title": "Wybierz mózg",
+        "body": "Model pod spodem robi rozumowanie. Podmień go, ustaw, jak mocno myśli, albo włącz rozumowanie krok po kroku — wszystko bez ruszania instrukcji powyżej."
+      },
+      "agent-toolbox": {
+        "title": "Daj mu narzędzia",
+        "body": "Toolbox to to, co agent naprawdę potrafi. Włącz wbudowane możliwości, jak wyszukiwanie w sieci, kod czy pliki, a każda staje się narzędziem, które model może wywołać w trakcie odpowiedzi."
+      },
+      "agent-mcp": {
+        "title": "I całe zestawy narzędzi",
+        "body": "Pod możliwościami podepnij serwery MCP — gotowe zestawy narzędzi jak GitHub czy Slack, podłączone raz dla organizacji i używane przez wielu agentów."
+      },
+      "agent-knowledge": {
+        "title": "Skieruj go na swoje dokumenty",
+        "body": "Wiedza pozwala agentowi przeszukiwać wybrane przez Ciebie kolekcje, więc odpowiada z Twojego własnego materiału, a nie zgaduje z samego treningu."
+      },
+      "agent-skills": {
+        "title": "Daj mu instrukcję działania",
+        "body": "Umiejętności to spisana wiedza, którą agent czyta przed działaniem — procedura, styl firmy, lista kontrolna — i tę samą można współdzielić między agentami."
+      },
+      "agent-limits": {
+        "title": "Trzymaj go w ryzach",
+        "body": "Ogranicz miesięczny wydatek i to, z ilu kroków może się składać jedno uruchomienie, i wybierz, kto zostanie powiadomiony, gdy agent osiągnie limit albo zawiedzie."
+      },
+      "agent-availability": {
+        "title": "Zaprzęgnij go do pracy",
+        "body": "Dostępność to miejsce, gdzie opublikowany agent wchodzi na żywo — czat na stronie, osadzenie w Twojej witrynie, Slack czy Telegram — i gdzie decydujesz, komu go udostępnić."
+      },
+      "agent-history": {
+        "title": "Każda wersja zachowana",
+        "body": "Każda publikacja zamraża specyfikację jako wersję, którą możesz wypromować do środowiska, cofnąć się do niej albo odczytać względem niej historię uruchomień."
+      },
+      "agent-publish": {
+        "title": "Opublikuj, żeby go wypuścić",
+        "body": "Nic nie działa, dopóki nie opublikujesz. Publikacja zamraża bieżący szkic jako wersję, i to ta wersja odpowiada wszędzie tam, gdzie agent jest dostępny."
+      },
+      "skills-new": {
+        "title": "Umiejętności wielokrotnego użytku",
+        "body": "Umiejętność to spakowany zestaw instrukcji, po który agent sięga do zadania. Napisz ją raz tutaj i współdziel między agentami, które jej potrzebują."
+      },
+      "skills-list": {
+        "title": "Twoje umiejętności",
+        "body": "Umiejętności, które napisano lub zainstalowano. Agent wybiera te, których potrzebuje, w swojej zakładce Skills, a ta sama umiejętność może służyć kilku agentom naraz."
+      },
+      "context-new": {
+        "title": "Dodaj stały kontekst",
+        "body": "Pliki kontekstu to tło, które nosi każdy agent — fakty o firmie, ton, terminy — wstrzykiwane do każdego prompta bez wklejania ich za każdym razem. Dodaj plik tutaj."
+      },
+      "context-list": {
+        "title": "Wspólny kontekst",
+        "body": "Pliki kontekstu, które ma ta organizacja. Jeden plik może zasilać każdego agenta, więc fakt poprawiony tutaj jest poprawiony dla wszystkich naraz."
+      },
+      "channels-new": {
+        "title": "Docieraj tam, gdzie są ludzie",
+        "body": "Zarejestruj platformę czatu — Slack, Telegram, Mattermost — i każdy agent może odpowiadać w niej. Token bota jest zapieczętowany w vault. Dodaj kanał tutaj."
+      },
+      "channels-list": {
+        "title": "Podłączone kanały",
+        "body": "Platformy, na których osiągalna jest ta organizacja. Kanał należy do organizacji, nie do jednego agenta, więc ten sam bot obsługuje każdego przypisanego do niego agenta."
+      },
+      "activity-overview": {
+        "title": "Obserwuj aktywność",
+        "body": "Każde uruchomienie jest zapisane z kosztem i wynikiem, więc widzisz, co zrobili Twoi agenci, i wkraczasz, gdy któryś czeka na decyzję. Te liczby podsumowują całość."
+      },
+      "activity-approvals": {
+        "title": "Co czeka na Ciebie",
+        "body": "Uruchomienia wstrzymane na ludzką decyzję czekają tutaj. Zatwierdź lub odrzuć każde, a uruchomienie ruszy stamtąd, gdzie stanęło — ta zakładka pojawia się tylko, jeśli wolno Ci o nich decydować."
+      },
+      "activity-runs": {
+        "title": "Każde uruchomienie",
+        "body": "Pełna historia: kto uruchomił którego agenta, ile to kosztowało i jak się skończyło. Filtruj albo otwórz uruchomienie, żeby zobaczyć całą rozmowę i wywołane narzędzia."
+      },
+      "activity-spend": {
+        "title": "Gdzie poszły pieniądze",
+        "body": "Wydatki w czasie i według agenta, względem ustawionych budżetów — więc agent, który po cichu drożeje, pojawi się tutaj, zanim zrobi to rachunek."
+      },
+      "knowledge-new": {
+        "title": "Bazy wiedzy",
+        "body": "Wgraj dokumenty, żeby Twoi agenci mogli z nich odpowiadać. Każda kolekcja jest przeszukiwalna i pozostaje prywatna dla Twojej organizacji — utwórz pierwszą tutaj."
+      },
+      "knowledge-tabs": {
+        "title": "Przeglądaj lub szukaj",
+        "body": "Dwa widoki tej samej wiedzy: kolekcje, które zbudowano, i wyszukiwanie, które przebiega przez wszystkie naraz."
+      },
+      "knowledge-integrations": {
+        "title": "Połączenia wielokrotnego użytku",
+        "body": "Połączenia współdzielone w organizacji: skonfiguruj tutaj raz bucket S3, dysk, stronę czy repozytorium i klonuj je do dowolnej kolekcji, zamiast konfigurować za każdym razem od nowa."
+      },
+      "knowledge-add-integration": {
+        "title": "Dodaj połączenie",
+        "body": "Zacznij nowe tutaj — wybierz konektor jak S3 czy Google Drive, podaj dane logowania, a stanie się dostępne do sklonowania do każdej kolekcji, która go potrzebuje."
+      },
+      "kb-header": {
+        "title": "Wnętrze kolekcji",
+        "body": "Nazwa kolekcji, zakres i sterowanie są na górze — odśwież ją, wrzuć pliki, zmień sposób ich czytania albo usuń ją."
+      },
+      "kb-documents": {
+        "title": "Co jest w środku",
+        "body": "Każdy dokument w kolekcji, ze statusem każdego w trakcie przetwarzania i indeksowania. Dodaj więcej tutaj albo podejrzyj i usuń to, co już jest."
+      },
+      "kb-ingestion": {
+        "title": "Jak czytane są dokumenty",
+        "body": "Parser, dzielenie na fragmenty i model embeddingów za tą kolekcją — to, co zamienia Twoje pliki w coś przeszukiwalnego. Zmień to, a nowe wgrania pójdą za nowymi ustawieniami."
+      },
+      "kb-sync": {
+        "title": "Trzymaj w synchronizacji",
+        "body": "Podłącz dysk, stronę czy repozytorium, a kolekcja odświeża się ze źródła zamiast czekać na ręczne ponowne wgranie."
+      },
+      "orgs-new": {
+        "title": "Twoje organizacje",
+        "body": "Wszystko jest przypisane do organizacji. Utwórz jedną albo przełączaj się między tymi, do których należysz — każda trzyma swoich agentów, klucze i wiedzę osobno."
+      },
+      "org-profile": {
+        "title": "Nazwa i twarz",
+        "body": "Nazwa i awatar organizacji, pokazywane wszędzie, gdzie się pojawia. Właściciele i administratorzy mogą je tu zmienić."
+      },
+      "org-members": {
+        "title": "Kto w niej jest",
+        "body": "Wszyscy w organizacji i rola każdego z nich. Zaproś współpracowników, zmień rolę albo usuń kogoś — wszystko z tej listy."
+      },
+      "org-roles": {
+        "title": "Co może każda rola",
+        "body": "Macierz uprawnień, rola po roli: czego każda może dotknąć i jak daleko sięga. Udostępnienie pojedynczego zasobu może poszerzyć dostęp ponad rolę, nigdy go nie zawęzi."
+      },
+      "vault-new": {
+        "title": "Sejf",
+        "body": "Klucze API i inne poświadczenia żyją tutaj, zaszyfrowane w spoczynku. Agenci używają ich, żeby sięgnąć po potrzebne narzędzia, a zapisanego sekretu nikt już nie zobaczy."
+      },
+      "vault-keys": {
+        "title": "Co jest przechowywane",
+        "body": "Wszystkie poświadczenia w tej organizacji, wypisane według nazwy i rodzaju. Agent odwołuje się do klucza po nazwie; samej wartości po zapisaniu nikt już nie zobaczy."
+      },
+      "mcp-catalog": {
+        "title": "Podłącz narzędzia",
+        "body": "Serwery MCP to gotowe zestawy narzędzi, które Twoi agenci mogą wywoływać. Podłącz jeden tutaj, potem dodaj go do agenta z jego Toolboxa."
+      },
+      "mcp-filter": {
+        "title": "Znajdź serwer",
+        "body": "Przeszukaj katalog albo zawęź go po kategorii i po tym, czy jest już podłączony."
+      },
+      "mcp-add": {
+        "title": "Dodaj własny",
+        "body": "Nie ma go w katalogu? Dodaj własny serwer, wklejając jego URL — dla całej organizacji albo tylko dla siebie."
+      },
+      "mcp-connect": {
+        "title": "Połącz, potem wybierz narzędzia",
+        "body": "Podłączenie serwera pyta, jak się zalogować, a potem pozwala wybrać dokładnie, które z jego narzędzi mogą wywoływać Twoi agenci."
+      },
+      "sandboxes-connections": {
+        "title": "Gdzie agenci uruchamiają kod",
+        "body": "Agenci, którzy piszą i uruchamiają kod, robią to na tych hostach. Obserwuj sesje na żywo i ustaw limity stąd."
+      },
+      "workspaces-browser": {
+        "title": "Pliki, które agenci zachowali dla Ciebie",
+        "body": "Gdy agent zapisuje plik, trafia tutaj — przeglądaj, podglądaj i pobieraj to, co wytworzyły Twoje rozmowy."
+      },
+      "finish": {
+        "title": "Wszystko gotowe",
+        "body": "To koniec przewodnika. Wskazówki każdej strony odtworzysz w każdej chwili przyciskiem pomocy na górze — przejdź na pulpit, gdy będziesz gotów zacząć budować."
+      },
+      "workspaces-detail": {
+        "title": "Wnętrze przestrzeni",
+        "body": "Pliki z jednej przestrzeni. Przeglądaj foldery, podejrzyj plik albo pobierz to, co agent dla Ciebie wytworzył."
+      },
+      "settings-tabs": {
+        "title": "Twoje ustawienia",
+        "body": "Twój profil, logowanie i bezpieczeństwo, powiadomienia oraz polecenia ukośnika — wszystko kryje się za tymi zakładkami; przełączaj się między nimi tutaj."
+      }
+    }
+  },
+  "organizations": {
+    "accessLost": "Nie masz już dostępu do tej organizacji.",
+    "accessLostSwitched": "Nie masz już dostępu do tej organizacji. Przełączono na {name}.",
+    "created": "Organizacja utworzona",
+    "creating": "Tworzę...",
+    "deleted": "Organizacja usunięta",
+    "description": "Zarządzaj organizacjami i przełączaj się między nimi.",
+    "failedDelete": "Nie udało się usunąć organizacji",
+    "failedUpdate": "Nie udało się zaktualizować organizacji",
+    "namePlaceholder": "Mój Zespół",
+    "personal": "Osobista",
+    "title": "Organizacje",
+    "updated": "Organizacja zaktualizowana"
+  },
+  "pages": {
+    "kb": {
+      "connectorsFailedDescription": "Żądanie listy konektorów nie powiodło się, więc nie wiadomo, czy któryś jest włączony.",
+      "connectorsFailedTitle": "Nie udało się wczytać konektorów",
+      "listFailedDescription": "Żądanie listy baz wiedzy nie powiodło się.",
+      "listFailedTitle": "Nie udało się wczytać baz wiedzy",
+      "refreshFailedDescription": "Poniżej widzisz ostatnie wczytane dane, które mogą być nieaktualne.",
+      "refreshFailedTitle": "Nie udało się odświeżyć tej bazy wiedzy",
+      "retry": "Spróbuj ponownie",
+      "search": "Szukaj",
+      "syncSourcesFailedDescription": "Żądanie o źródła synchronizacji tej bazy nie powiodło się, więc nie wiadomo, czy jakieś ma.",
+      "syncSourcesFailedTitle": "Nie udało się wczytać źródeł synchronizacji"
+    },
+    "mcp-servers": {
+      "catalogCompiledIntoBackend": "Katalog jest wkompilowany w backend, a nikt nie dodał własnego serwera. Pusta lista oznacza tutaj, że ten deployment nie dostarcza żadnego.",
+      "externalToolsYourAgents": "Zewnętrzne narzędzia, po które mogą sięgnąć Twoi agenci i Twój asystent. Serwer podłączony dla organizacji jest dostępny dla każdego agenta; podłączony dla Ciebie zostaje w Twoim własnym czacie. Opublikowany agent może korzystać wyłącznie z serwerów organizacji, bo to, po co sięga agent, nie może zależeć od tego, kto go uruchomił.",
+      "mcpServers": "Serwery MCP",
+      "noServersConnect": "Brak serwerów do podłączenia"
+    },
+    "routines": {
+      "title": "Rutyny",
+      "description": "Wszystko, co Twoi agenci robią sami — według harmonogramu lub w reakcji na zdarzenie."
+    },
+    "skills": {
+      "agentsBoundSkillWill": "Agenci związani z tym skillem będą od następnego runu działać bez niego. Tego nie da się cofnąć.",
+      "allCategories": "Wszystkie kategorie",
+      "askAdministratorAccessSkills": "Poproś administratora o dostęp do skilli.",
+      "categoryCount": "{count, plural, one {1 kategoria} few {# kategorie} many {# kategorii} other {# kategorii}}",
+      "clearFilter": "Wyczyść filtr",
+      "delete": "Usuń",
+      "name": "Nazwa",
+      "nameHowModelRefers": "Nazwa to sposób, w jaki model odwołuje się do tego skilla, i nie może się zmienić. Wszystko inne tutaj może.",
+      "namesDescriptionsPickedCategories": "Sprawdzono nazwy, opisy i wybrane kategorie. Wyczyść wyszukiwanie lub filtr, żeby zobaczyć wszystko.",
+      "newSkill": "Nowy skill",
+      "newSkill2": "Nowy skill",
+      "noSkillMatches": "Żaden skill nie pasuje",
+      "noSkillsYet": "Nie ma jeszcze skilli",
+      "nobodyHasWrittenSkill": "Nikt jeszcze nie napisał skilla dla tej organizacji.",
+      "recentlyUpdated": "Ostatnio zaktualizowane",
+      "searchSkills": "Szukaj skilli…",
+      "skillCount": "{count, plural, one {1 skill} few {# skille} many {# skilli} other {# skilla}}",
+      "skillKnowHowWritten": "Skill to wiedza spisana raz i dzielona przez każdego agenta, który jej potrzebuje — jak obsługiwane są zwroty, jaki jest styl firmy. Edytujesz go tutaj, a każdy związany z nim agent jest aktualny przy swoim następnym runie.",
+      "skills": "Skille",
+      "skills2": "Skille",
+      "sort": "Sortuj",
+      "writeDownSomethingYour": "Spisz to, co Twój zespół tłumaczy więcej niż raz, a każdy agent będzie mógł to przeczytać.",
+      "youCannotSeeOrganization": "Nie możesz zobaczyć skilli tej organizacji"
+    },
+    "vault": {
+      "accessTo": "Dostęp do {name}",
+      "addKey": "Dodaj klucz",
+      "addKey2": "Dodaj klucz",
+      "addOneBecomesSelectable": "Dodaj jeden, a stanie się wybieralny wszędzie tam, gdzie jest potrzebny — provider modeli w Builderze, usługa wyszukiwania w capability.",
+      "keys": "Klucze",
+      "noKeysYet": "Nie ma jeszcze kluczy",
+      "pageDescription": "Każdy klucz zapisany przez tę organizację. Zaszyfrowany, związany z tą organizacją i nigdy więcej do odczytania — klucz da się zastąpić, nie odsłonić.",
+      "storedCount": "{count, plural, one {1 zapisany klucz} few {# zapisane klucze} many {# zapisanych kluczy} other {# zapisanego klucza}}",
+      "vault": "Vault",
+      "vault2": "Vault",
+      "whoCanBindKey": "Kto może związać ten klucz z agentem i kto może go zrotować lub usunąć. Klucz, do którego nikt nie sięga, to capability, którego nikt nie skonfiguruje."
+    }
+  },
+  "profile": {
+    "changePassword": "Zmień hasło",
+    "currentPassword": "Obecne hasło",
+    "deleteAccount": "Usuń konto",
+    "email": "Email",
+    "name": "Imię",
+    "newPassword": "Nowe hasło",
+    "personalInfo": "Dane osobowe",
+    "title": "Profil"
+  },
+  "rag": {
+    "configureNoneNeeded": "Nie jest wymagana dodatkowa konfiguracja dla <emphasis>{name}</emphasis>.",
+    "connectorLoadFailed": "Nie udało się wczytać listy konektorów. Zamknij okno i spróbuj ponownie.",
+    "orgIntegrationsLoadFailed": "Nie udało się wczytać istniejących integracji przestrzeni; nadal możesz utworzyć nowe źródło.",
+    "search": {
+      "allBases": "Wszystkie bazy wiedzy",
+      "button": "Szukaj",
+      "failedDescription": "Żądanie wyszukiwania nie powiodło się, więc nie wiadomo, czy cokolwiek pasuje.",
+      "failedTitle": "Nie udało się wykonać wyszukiwania",
+      "noBases": "Nie ma jeszcze czego szukać - utwórz bazę wiedzy i wgraj dokument.",
+      "noResults": "Brak wyników",
+      "noResultsHint": "Spróbuj innego zapytania albo innej bazy wiedzy",
+      "page": "s.{page}",
+      "placeholder": "Przeszukaj swoje bazy wiedzy...",
+      "resultCount": "{count, plural, =0 {Brak wyników} =1 {1 wynik} few {# wyniki} other {# wyników}} · {ms} ms",
+      "retry": "Spróbuj ponownie",
+      "scopeLabel": "Zakres wyszukiwania",
+      "searching": "Szukam..."
+    }
+  },
+  "ragStatus": {
+    "cancelled": "Anulowano",
+    "done": "Gotowe",
+    "error": "Niepowodzenie",
+    "processing": "Przetwarzanie",
+    "running": "W toku"
+  },
+  "settings": {
+    "builtCommands": "Wbudowane polecenia",
+    "cancel": "Anuluj",
+    "commandNamePlaceholder": "nazwa",
+    "create3": "Utwórz",
+    "createOneSendLong": "Utwórz jedno, żeby wysyłać długi prompt kilkoma naciśnięciami klawiszy.",
+    "delete": "Usuń",
+    "delete2": "Usuń",
+    "disableAnyYouDon": "Wyłącz te, których nie chcesz widzieć w palecie.",
+    "edit": "Edytuj",
+    "edit2": "Edytuj",
+    "enabled": "Włączone",
+    "failedDelete3": "Nie udało się usunąć",
+    "failedSaveCommand": "Nie udało się zapisać polecenia",
+    "failedToggle": "Nie udało się przełączyć",
+    "failedToggle2": "Nie udało się przełączyć",
+    "local": "lokalne",
+    "lowercaseLettersDigitsHyphens": "Małe litery, cyfry, myślniki. Maks. 32 znaki.",
+    "modelAdded": "Dodano {label}",
+    "modelRemoved": "Model usunięty",
+    "name": "Nazwa",
+    "nameMustBeLowercase": "Nazwa może zawierać małe litery, cyfry i myślniki (maks. 32 znaki).",
+    "newCommand": "Nowe polecenie",
+    "newCustomCommand": "Nowe własne polecenie",
+    "noCustomCommandsYet": "Nie ma jeszcze własnych poleceń",
+    "prompt": "Prompt",
+    "promptCannotBeEmpty": "Prompt nie może być pusty.",
+    "retry": "Ponów",
+    "save2": "Zapisz",
+    "saving4": "Zapisywanie…",
+    "sentAsRegularUserMessage": "Wysyłane jako zwykła wiadomość, gdy wpiszesz <cmd>/{name}</cmd>.",
+    "slashShortcuts": "Skróty z ukośnikiem do promptów, które piszesz często. Wpisanie <cmd>/nazwa</cmd> w czacie wysyła zapisany prompt.",
+    "summarizeConversationAsChecklist": "Podsumuj rozmowę jako listę zadań do wykonania.",
+    "todo": "todo",
+    "yourCustomCommands": "Twoje własne polecenia"
+  },
+  "sharing": {
+    "access": "Dostęp",
+    "accessFor": "Dostęp dla {name}",
+    "accessRemoved": "Dostęp cofnięty",
+    "addSomeone": "Dodaj kogoś",
+    "chooseMember": "Wybierz członka",
+    "collectionRuntimeNote": "Udostępnianie decyduje o tym, kto może wybrać tę kolekcję w Builderze i kto może ją zmienić. Agent do niej podłączony przeszukuje ją dla każdego, kto może go uruchomić — także dla osób, które same nie mogą otworzyć kolekcji.",
+    "everyoneAlreadyHasAccess": "Wszyscy już mają dostęp",
+    "failedLoadShares": "Nie udało się wczytać udostępnień",
+    "failedRevoke": "Nie udało się cofnąć",
+    "failedShare": "Nie udało się udostępnić",
+    "levelEdit": "Może edytować",
+    "levelRead": "Może przeglądać",
+    "levelUse": "Może używać",
+    "notSharedWithAnyone": "Jeszcze nikomu nie udostępnione.",
+    "ownedBy": "Właściciel: {email}",
+    "people": "Osoby",
+    "peopleReaches": "Udostępnienie podnosi dostęp jednej osoby do {resource, select, agent {tego agenta} skill {tego skilla} collection {tej kolekcji} other {tego sekretu}}, nie zmieniając jej roli nigdzie indziej. „Może przeglądać” widzi konfigurację, „może używać” także uruchamia, „może edytować” także zmienia.",
+    "secretRuntimeNote": "Udostępnianie decyduje o tym, kto może związać ten klucz z agentem i kto może go zrotować — nie o tym, kto na nim korzysta. Gdy agent raz go użyje, działa z nim dla każdego, kto może uruchomić tego agenta, także dla osób, które nie widzą tu tego klucza.",
+    "share": "Udostępnij",
+    "sharingUpdated": "Udostępnianie zaktualizowane",
+    "visibility": "Widoczność",
+    "visibilityOrg": "Organizacja",
+    "visibilityOrgReaches": "Każdy w organizacji, kto w ogóle może przeglądać {resource, select, agent {agentów} skill {skille} collection {kolekcje} other {sekrety}}.",
+    "visibilityPrivate": "Prywatne",
+    "visibilityPrivateReaches": "Tylko Ty i osoby wymienione niżej. Nikt inny nie znajdzie {resource, select, agent {tego agenta} skill {tego skilla} collection {tej kolekcji} other {tego sekretu}} na swojej liście — a jeśli nie ma jeszcze właściciela, właścicielem zostajesz Ty.",
+    "visibilityReaches": "Kto sięga do {resource, select, agent {tego agenta} skill {tego skilla} collection {tej kolekcji} other {tego sekretu}} bez wymieniania z nazwiska. Udostępnianie dokłada osoby ponad to; nigdy nie odbiera dostępu.",
+    "visibilityTeam": "Zespół (już nieoferowane)",
+    "visibilityTeamReaches": "Każdy, czyja rola sięga zespołowych {resource, select, agent {agentów} skill {skilli} collection {kolekcji} other {sekretów}}. Ta organizacja nie ma zespołów — wybierz jedną z dwóch powyżej.",
+    "visibilityUpdated": "Widoczność zaktualizowana"
+  },
   "skills": {
     "addFile": "Dodaj plik",
     "apply": "Zastosuj",
@@ -1496,72 +1827,61 @@
     "support": "support",
     "whatSoModelCan": "Co w nim jest, żeby model mógł zdecydować bez wczytywania go"
   },
-  "settings": {
-    "builtCommands": "Wbudowane polecenia",
-    "cancel": "Anuluj",
-    "commandNamePlaceholder": "nazwa",
-    "create3": "Utwórz",
-    "createOneSendLong": "Utwórz jedno, żeby wysyłać długi prompt kilkoma naciśnięciami klawiszy.",
-    "delete": "Usuń",
-    "delete2": "Usuń",
-    "disableAnyYouDon": "Wyłącz te, których nie chcesz widzieć w palecie.",
-    "edit": "Edytuj",
-    "edit2": "Edytuj",
-    "enabled": "Włączone",
-    "failedDelete3": "Nie udało się usunąć",
-    "failedSaveCommand": "Nie udało się zapisać polecenia",
-    "failedToggle": "Nie udało się przełączyć",
-    "failedToggle2": "Nie udało się przełączyć",
-    "local": "lokalne",
-    "lowercaseLettersDigitsHyphens": "Małe litery, cyfry, myślniki. Maks. 32 znaki.",
-    "modelAdded": "Dodano {label}",
-    "modelRemoved": "Model usunięty",
-    "name": "Nazwa",
-    "nameMustBeLowercase": "Nazwa może zawierać małe litery, cyfry i myślniki (maks. 32 znaki).",
-    "newCommand": "Nowe polecenie",
-    "newCustomCommand": "Nowe własne polecenie",
-    "noCustomCommandsYet": "Nie ma jeszcze własnych poleceń",
-    "prompt": "Prompt",
-    "promptCannotBeEmpty": "Prompt nie może być pusty.",
-    "retry": "Ponów",
-    "save2": "Zapisz",
-    "saving4": "Zapisywanie…",
-    "sentAsRegularUserMessage": "Wysyłane jako zwykła wiadomość, gdy wpiszesz <cmd>/{name}</cmd>.",
-    "slashShortcuts": "Skróty z ukośnikiem do promptów, które piszesz często. Wpisanie <cmd>/nazwa</cmd> w czacie wysyła zapisany prompt.",
-    "summarizeConversationAsChecklist": "Podsumuj rozmowę jako listę zadań do wykonania.",
-    "todo": "todo",
-    "yourCustomCommands": "Twoje własne polecenia"
+  "states": {
+    "loading": "Wczytywanie"
   },
-  "sharing": {
-    "access": "Dostęp",
-    "accessFor": "Dostęp dla {name}",
-    "accessRemoved": "Dostęp cofnięty",
-    "addSomeone": "Dodaj kogoś",
-    "chooseMember": "Wybierz członka",
-    "collectionRuntimeNote": "Udostępnianie decyduje o tym, kto może wybrać tę kolekcję w Builderze i kto może ją zmienić. Agent do niej podłączony przeszukuje ją dla każdego, kto może go uruchomić — także dla osób, które same nie mogą otworzyć kolekcji.",
-    "everyoneAlreadyHasAccess": "Wszyscy już mają dostęp",
-    "failedLoadShares": "Nie udało się wczytać udostępnień",
-    "failedRevoke": "Nie udało się cofnąć",
-    "failedShare": "Nie udało się udostępnić",
-    "levelEdit": "Może edytować",
-    "levelRead": "Może przeglądać",
-    "levelUse": "Może używać",
-    "notSharedWithAnyone": "Jeszcze nikomu nie udostępnione.",
-    "ownedBy": "Właściciel: {email}",
-    "people": "Osoby",
-    "peopleReaches": "Udostępnienie podnosi dostęp jednej osoby do {resource, select, agent {tego agenta} skill {tego skilla} collection {tej kolekcji} other {tego sekretu}}, nie zmieniając jej roli nigdzie indziej. „Może przeglądać” widzi konfigurację, „może używać” także uruchamia, „może edytować” także zmienia.",
-    "secretRuntimeNote": "Udostępnianie decyduje o tym, kto może związać ten klucz z agentem i kto może go zrotować — nie o tym, kto na nim korzysta. Gdy agent raz go użyje, działa z nim dla każdego, kto może uruchomić tego agenta, także dla osób, które nie widzą tu tego klucza.",
-    "share": "Udostępnij",
-    "sharingUpdated": "Udostępnianie zaktualizowane",
-    "visibility": "Widoczność",
-    "visibilityOrg": "Organizacja",
-    "visibilityOrgReaches": "Każdy w organizacji, kto w ogóle może przeglądać {resource, select, agent {agentów} skill {skille} collection {kolekcje} other {sekrety}}.",
-    "visibilityPrivate": "Prywatne",
-    "visibilityPrivateReaches": "Tylko Ty i osoby wymienione niżej. Nikt inny nie znajdzie {resource, select, agent {tego agenta} skill {tego skilla} collection {tej kolekcji} other {tego sekretu}} na swojej liście — a jeśli nie ma jeszcze właściciela, właścicielem zostajesz Ty.",
-    "visibilityReaches": "Kto sięga do {resource, select, agent {tego agenta} skill {tego skilla} collection {tej kolekcji} other {tego sekretu}} bez wymieniania z nazwiska. Udostępnianie dokłada osoby ponad to; nigdy nie odbiera dostępu.",
-    "visibilityTeam": "Zespół (już nieoferowane)",
-    "visibilityTeamReaches": "Każdy, czyja rola sięga zespołowych {resource, select, agent {agentów} skill {skilli} collection {kolekcji} other {sekretów}}. Ta organizacja nie ma zespołów — wybierz jedną z dwóch powyżej.",
-    "visibilityUpdated": "Widoczność zaktualizowana"
+  "theme": {
+    "darkMode": "Tryb ciemny",
+    "darkMode2": "Tryb ciemny",
+    "followingSystem": "(zgodnie z systemem)",
+    "lightMode": "Tryb jasny",
+    "lightMode2": "Tryb jasny",
+    "switchThemeCurrent": "Przełącz motyw (obecnie: {theme})",
+    "systemTheme": "Motyw systemowy",
+    "systemTheme2": "Motyw systemowy",
+    "themeTitle": "Motyw: {theme}",
+    "toggleTheme": "Przełącz motyw"
+  },
+  "time": {
+    "daysAgo": "{count, plural, one {# dzień temu} other {# dni temu}}",
+    "hoursAgo": "{count, plural, other {# godz. temu}}",
+    "justNow": "przed chwilą",
+    "minutesAgo": "{count, plural, other {# min temu}}"
+  },
+  "ui": {
+    "cancel": "Anuluj",
+    "checkConnection": "Sprawdź połączenie i spróbuj ponownie.",
+    "close": "Zamknij",
+    "close2": "Zamknij",
+    "confirm": "aby potwierdzić",
+    "dismissQuestions": "Odrzuć pytania",
+    "done": "Gotowe",
+    "labelPreview": "Podgląd: {label}",
+    "markdown": "Markdown",
+    "matchedOfTotal": "{matched} z {counted}",
+    "next": "Dalej",
+    "nextMonths": "Następne miesiące",
+    "nextPage": "Następna strona",
+    "noResults": "Brak wyników.",
+    "nothingWrittenYet": "Nic jeszcze nie napisano.",
+    "pagerAll": "{counted} · strona {page} z {pageCount}",
+    "pagerMatched": "{matched} z {counted} · strona {page} z {pageCount}",
+    "preview": "Podgląd",
+    "previousMonths": "Poprzednie miesiące",
+    "previousPage": "Poprzednia strona",
+    "providerDefault": "Domyślne providera",
+    "questionFromAssistant": "Pytanie od asystenta",
+    "questionStep": "Pytanie {step} z {total}",
+    "skip": "Pomiń",
+    "somethingElse": "Coś innego",
+    "somethingWentWrong": "Coś poszło nie tak",
+    "sortBy": "Sortuj po tej kolumnie",
+    "sortedAscending": "Posortowane rosnąco — kliknij, aby odwrócić",
+    "sortedDescending": "Posortowane malejąco — kliknij, aby odwrócić",
+    "source": "Źródło",
+    "typeToConfirm": "Wpisz <mono>{phrase}</mono>, aby potwierdzić",
+    "typeYourAnswer": "Wpisz odpowiedź…",
+    "useProviderDefault": "Użyj domyślnych providera"
   },
   "vault": {
     "access": "Dostęp",
@@ -1626,5 +1946,181 @@
     "whoCanUse": "Kto może go używać",
     "yoursAloneYouCan": "Tylko Twój. Możesz go potem udostępnić wskazanym osobom.",
     "zendeskApiToken": "Token API Zendesk"
+  },
+  "triggers": {
+    "cadence": {
+      "everyMinutes": "{count, plural, =1 {Co minutę} few {Co # minuty} many {Co # minut} other {Co # minuty}}",
+      "everyHours": "{count, plural, =1 {Co godzinę} few {Co # godziny} many {Co # godzin} other {Co # godziny}}",
+      "everyDays": "{count, plural, =1 {Codziennie} other {Co # dni}}",
+      "cron": "Cron {expression} (UTC)"
+    },
+    "event": {
+      "github": "Przy nowym zgłoszeniu GitHub",
+      "email": "Przy przychodzącym e-mailu",
+      "linkedin": "Przy nowym poście LinkedIn",
+      "webhook": "Przy żądaniu webhooka",
+      "presetSummary": "{event} w {target}",
+      "presetGithub": "Nowe zgłoszenie",
+      "presetEmail": "Nowy e-mail",
+      "presetLinkedin": "Nowy post",
+      "presetGeneric": "Nowe zdarzenie"
+    },
+    "panelTitle": "Harmonogramy i wyzwalacze",
+    "panelDescription": "Kiedy ten agent uruchamia się sam - według harmonogramu lub gdy nadejdzie zdarzenie.",
+    "empty": "Ten agent działa tylko wtedy, gdy ktoś do niego napisze.",
+    "paused": "Wstrzymany",
+    "created": "Wyzwalacz utworzony",
+    "pausedToast": "Wyzwalacz wstrzymany",
+    "resumedToast": "Wyzwalacz wznowiony",
+    "runningNow": "Uruchamiam teraz",
+    "removed": "Wyzwalacz usunięty",
+    "newSchedule": "Nowy harmonogram",
+    "newEvent": "Nowy wyzwalacz",
+    "newEventTitle": "Nowy wyzwalacz zdarzenia",
+    "newEventDescription": "Wybierz usługę, aby uruchomić agenta, gdy coś się w niej wydarzy. Brak API? Podłącz własny webhook.",
+    "editTitle": "Edytuj wyzwalacz",
+    "createDescription": "Agent uruchamia się sam, bez nikogo przy klawiaturze.",
+    "editDescription": "Zmień wiadomość lub środowisko. Aby zmienić kadencję lub zdarzenie, usuń ten i utwórz nowy.",
+    "prompt": "Wiadomość",
+    "promptHelp": "Co agent dostaje przy każdym uruchomieniu.",
+    "promptPlaceholder": "Podsumuj, co zmieniło się od wczoraj.",
+    "nameLabel": "Nazwa",
+    "nameHelp": "Opcjonalnie. Pokazywana zamiast nazwy agenta tam, gdzie widnieje na liście.",
+    "namePlaceholder": "np. Poranny przegląd",
+    "kindInterval": "Co jakiś czas",
+    "kindCron": "O ustalonej porze",
+    "runEvery": "Uruchamiaj co",
+    "unitMinutes": "minut",
+    "unitHours": "godzin",
+    "unitDays": "dni",
+    "cronExpression": "Wyrażenie cron",
+    "cronHelp": "Wyrażenie crontab, liczone w UTC. 0 9 * * * to 09:00 każdego dnia.",
+    "repeat": "Powtarzaj",
+    "freqDaily": "Codziennie",
+    "freqEveryNDays": "Co kilka dni",
+    "freqWeekly": "Dni tygodnia",
+    "freqMonthly": "Co miesiąc",
+    "freqAdvanced": "Własne (cron)",
+    "weekdaysLabel": "W te dni",
+    "dayOfMonthLabel": "Dzień miesiąca",
+    "timeLabel": "Godzina (UTC)",
+    "weekdayMon": "Pn",
+    "weekdayTue": "Wt",
+    "weekdayWed": "Śr",
+    "weekdayThu": "Cz",
+    "weekdayFri": "Pt",
+    "weekdaySat": "Sb",
+    "weekdaySun": "Nd",
+    "summaryDaily": "Uruchomi się codziennie o {time} UTC.",
+    "summaryEveryNDays": "Uruchomi się co {count, plural, =1 {dzień} few {# dni} many {# dni} other {# dni}} o {time} UTC.",
+    "summaryWeekly": "Uruchomi się o {time} UTC w: {days}.",
+    "summaryMonthly": "Uruchomi się {day}. dnia każdego miesiąca o {time} UTC.",
+    "eventSource": "Uruchamia się przy",
+    "sourceGithub": "Zgłoszeniu GitHub",
+    "sourceEmail": "Przychodzącym e-mailu",
+    "webhookUrlPreview": "Adres dostarczania",
+    "webhookUrlPreviewValue": "…/api/v1/webhooks/triggers/{source}/‹identyfikator nadany przy zapisie›",
+    "webhookUrlPreviewHelp": "Dostawca wysyła tu żądania. Pełny adres, na hoście API, pojawi się po utworzeniu wyzwalacza — sekret podpisujący poniżej weryfikuje każde dostarczenie do niego.",
+    "secret": "Sekret podpisujący",
+    "secretHelp": "Webhook jest weryfikowany tym sekretem. Wklej go u dostawcy albo wygeneruj.",
+    "secretPlaceholder": "Silny współdzielony sekret",
+    "generate": "Generuj",
+    "subjectContains": "Temat zawiera",
+    "senderContains": "Nadawca zawiera",
+    "filterOptional": "Opcjonalne - zostaw puste, aby dopasować dowolne",
+    "webhookUrl": "Adres webhooka",
+    "webhookHelp": "Dostarczaj tu podpisane zdarzenia. Sekret podpisujący je uwierzytelnia.",
+    "environment": "Środowisko",
+    "defaultEnvironment": "Domyślne",
+    "cancel": "Anuluj",
+    "save": "Zapisz",
+    "create": "Utwórz",
+    "runNow": "Uruchom teraz",
+    "edit": "Edytuj",
+    "pause": "Wstrzymaj",
+    "resume": "Wznów",
+    "delete": "Usuń",
+    "viewRuns": "Zobacz, co zrobił ten wyzwalacz",
+    "runsTitle": "Uruchomienia wyzwalacza",
+    "noMessagesYet": "Brak wiadomości",
+    "noMessagesDescription": "Ten wyzwalacz jeszcze się nie uruchomił. Jego uruchomienia pojawią się tutaj, gdy zadziała.",
+    "runsCouldNotBeRead": "Nie udało się odczytać uruchomień tego wyzwalacza.",
+    "unit": "Jednostka",
+    "activityTitle": "Harmonogramy i wyzwalacze",
+    "activityDescription": "Każdy agent uruchamiający się sam w organizacji - według harmonogramu lub zdarzenia.",
+    "activityEmptyTitle": "Nic jeszcze nie zaplanowano",
+    "activityEmptyDescription": "Gdy agent zostanie ustawiony, by uruchamiał się sam, pojawi się tutaj.",
+    "agent": "Agent",
+    "chooseAgent": "Wybierz agenta",
+    "sectionTitle": "Harmonogramy i wyzwalacze",
+    "sectionEmpty": "Nic jeszcze nie zaplanowano.",
+    "sectionError": "Nie udało się wczytać listy.",
+    "newMenu": "Nowy harmonogram lub wyzwalacz",
+    "openItem": "Otwórz wyzwalacz agenta {agent}",
+    "itemActions": "Akcje wyzwalacza agenta {agent}",
+    "sourceLinkedin": "Post LinkedIn",
+    "sourceWebhook": "Dowolny webhook",
+    "sourceHelpGithub": "Dodaj ten webhook w ustawieniach repozytorium; uruchamia się przy wybranych akcjach zgłoszeń.",
+    "sourceHelpEmail": "Skieruj parser poczty przychodzącej na ten webhook; uruchamia się przy pasującej wiadomości.",
+    "sourceHelpLinkedin": "Niech przekaźnik (Zapier, Make, skrypt) wyśle tu żądanie, gdy zobaczy pasujący post.",
+    "sourceHelpWebhook": "Dowolna usługa, która potrafi wysłać podpisany JSON, go uruchamia - filtrowanie należy do nadawcy.",
+    "authorContains": "Autor zawiera",
+    "textContains": "Treść zawiera",
+    "copy": "Kopiuj",
+    "copied": "Skopiowano",
+    "createdTitle": "Jeszcze jeden krok",
+    "createdDescription": "Dodaj ten adres webhooka u swojego dostawcy, podpisany ustawionym sekretem. Nic się nie uruchomi, dopóki nie nadejdzie żądanie.",
+    "done": "Gotowe",
+    "deleteTitle": "Usunąć ten wyzwalacz?",
+    "deleteConfirm": "Agent przestanie uruchamiać się sam. Tej operacji nie można cofnąć.",
+    "rotateSecretTitle": "Sekret podpisujący",
+    "rotateSecretHelp": "Rotacja zastępuje sekret uwierzytelniający dostarczenia. Poprzedni przestaje działać w momencie rotacji.",
+    "rotateSecret": "Rotuj sekret podpisujący",
+    "rotateRevealNote": "Skopiuj go teraz — nie zostanie pokazany ponownie. Wklej go u dostawcy, aby dostarczenia były nadal weryfikowane.",
+    "rotateAutoNote": "Platforma ponownie zarejestrowała webhook z nowym sekretem. Nie ma nic do wklejenia.",
+    "secretRotated": "Sekret podpisujący zrotowany",
+    "templatesLabel": "Zacznij od szablonu",
+    "templateScratch": "Zacznij od zera",
+    "templateScratchHelp": "Napisz własną wiadomość i kadencję."
+  },
+  "portals": {
+    "title": "Portale",
+    "searchPlaceholder": "Szukaj portali…",
+    "category": "Kategoria",
+    "allCategories": "Wszystkie kategorie",
+    "portalCount": "{count, plural, =1 {1 portal} few {# portale} many {# portali} other {# portalu}}",
+    "createAction": "Utwórz wyzwalacz",
+    "connectAction": "Połącz konto",
+    "reauthorizeAction": "Autoryzuj ponownie",
+    "redirecting": "Przekierowanie…",
+    "advancedWebhook": "Zaawansowane: własny webhook",
+    "emptyTitle": "Brak portali",
+    "emptyDescription": "Gdy portal zostanie dodany, pojawi się tutaj.",
+    "noMatchesTitle": "Brak pasujących portali",
+    "noMatchesDescription": "Żaden portal nie pasuje do wyszukiwania ani kategorii. Spróbuj innego hasła lub wyczyść filtr.",
+    "loadError": "Nie udało się wczytać portali.",
+    "couldNotConnect": "Nie udało się rozpocząć łączenia.",
+    "dialogTitle": "Nowy wyzwalacz: {portal}",
+    "presetTab": "Zdarzenie",
+    "configureTab": "Konfiguracja",
+    "targetRepo": "Repozytorium",
+    "targetChannel": "Kanał",
+    "targetGeneric": "Cel",
+    "targetPlaceholder": "Wybierz jeden",
+    "targetFreeText": "np. właściciel/repozytorium",
+    "registeredTitle": "Wyzwalacz gotowy",
+    "registeredDescription": "Webhook został zarejestrowany. Agent uruchomi się, gdy nadejdzie zdarzenie.",
+    "manualResultDescription": "Dodaj ten adres webhooka u swojego dostawcy. Nic się nie uruchomi, dopóki nie nadejdzie zdarzenie.",
+    "secretLabel": "Sekret podpisujący",
+    "secretRevealNote": "Skopiuj go teraz - nie zostanie pokazany ponownie. Skonfiguruj przekaźnik, aby podpisywał nim każde dostarczenie.",
+    "filterHelp": "Opcjonalne. Pozostaw puste, aby uruchamiać przy każdym zdarzeniu.",
+    "subjectFilterLabel": "Temat zawiera",
+    "subjectFilterPlaceholder": "np. faktura",
+    "senderFilterLabel": "Nadawca zawiera",
+    "senderFilterPlaceholder": "np. billing@acme.com",
+    "authorFilterLabel": "Autor zawiera",
+    "authorFilterPlaceholder": "np. Jan Kowalski",
+    "textFilterLabel": "Treść zawiera",
+    "textFilterPlaceholder": "np. rekrutacja"
   }
 }

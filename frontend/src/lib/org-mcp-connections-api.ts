@@ -30,6 +30,12 @@ import type { McpConnectionRecord, McpConnectionTestResult } from "./mcp-connect
  */
 export interface OrgMcpConnectionRecord extends McpConnectionRecord {
   catalog_key: string | null;
+  /**
+   * The OAuth scopes the connected account consented to, or null for a bearer
+   * connection (which holds no consent). What a portal checks to decide whether
+   * the account can auto-register a webhook, or must be re-authorized first.
+   */
+  granted_scopes: string[] | null;
 }
 
 interface OrgMcpConnectionList {

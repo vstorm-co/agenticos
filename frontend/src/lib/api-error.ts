@@ -234,6 +234,15 @@ export type FormShape = {
 };
 
 /**
+ * A submission with nothing wrong with it yet - the state a form opens in, and
+ * the one it returns to when the input the server named is edited.
+ *
+ * Here rather than in each form, because two spellings of "no failure" is how
+ * `fields: {}` and `toast: null` come to disagree about which means "clean".
+ */
+export const NO_FAILURE: SubmitFailure = { fields: {}, toast: null };
+
+/**
  * Split a rejected submission into what the form can show and what it cannot.
  *
  * Anything the server blames on a field the form renders is returned to be

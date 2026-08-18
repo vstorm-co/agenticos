@@ -295,3 +295,17 @@ class TestSignatureVerificationIsRobust:
         assert not trigger_events.verify_signature(
             "github", secret=_SECRET, body=b"{}", headers=headers
         )
+
+
+class TestTheDeliveryIdIsWhatDedupKeysOn:
+    def test_githubs_native_delivery_header_is_read(self):
+        assert trigger_events.delivery_id("github", {"x-github-delivery": "uuid-1"}) == "uuid-1"
+
+    def test_a_relay_uses_the_generic_header(self):
+        assert trigger_events.delivery_id("webhook", {"x-delivery-id": "abc"}) == "abc"
+
+    def test_no_header_means_no_id_so_the_source_is_not_deduplicated(self):
+        assert trigger_events.delivery_id("github", {}) is None
+
+    def test_a_blank_header_is_treated_as_absent(self):
+        assert trigger_events.delivery_id("webhook", {"x-delivery-id": "   "}) is None

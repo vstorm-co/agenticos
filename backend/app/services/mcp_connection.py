@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import logging
 import secrets
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -53,7 +53,9 @@ from app.agents.mcp_oauth import McpOAuthPayload, OAuthError
 from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
+from app.core.sanitize import UrlRefusedError
 from app.core.vault import SealedSecret, VaultScope, seal, unseal
 from app.db.models.mcp_connection import McpConnection
 from app.db.updates import writable
@@ -64,7 +66,10 @@ from app.schemas.mcp_connection import (
     OrgMcpConnectionCreate,
     OrgMcpConnectionUpdate,
 )
+from app.services import portal_catalog
 from app.services.mcp_catalog import get_entry
+from app.services.organization_secret import OrganizationSecretService
+from app.services.portals import github_oauth
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +84,43 @@ def _now_epoch() -> float:
     return datetime.now(UTC).timestamp()
 
 
+async def _checked_url(url: str) -> str:
+    """SSRF-check a submitted URL, refusing it as a 400 rather than a crash.
+
+    `validate_mcp_url` raises `SSRFBlockedError`, which subclasses `ValueError`
+    and which no handler in `app/api/exception_handlers.py` maps - so pasting a
+    `localhost` server URL into the connection dialog answered 500 "An
+    unexpected error occurred" with `details: null`, and left a traceback in the
+    log, for a guard doing exactly what it is there for. The operator who could
+    have fixed it in five seconds was told the platform had broken (#861).
+
+    `details` names the field rather than repeating the address, and the reason
+    is the validator's own message, which names a host and never a URL - a URL
+    carries a key in its query string (#840).
+
+    Which is why this catches `UrlRefusedError` and not `ValueError`. Only the
+    narrower type is a refusal *written here* and so safe to quote; a bare
+    `ValueError` escaping the validator is the standard library talking about
+    the caller's own text - `Port could not be cast to integer value as
+    'client_secret=...'` - and quoting that would put a query-string secret in
+    the response body. Nothing below the validator can raise one today, so there
+    is no second branch to answer with a controlled sentence: if that changes,
+    it is a bug and the generic 500 is the honest answer, since the traceback
+    goes to the log and the body stays empty. `tests/test_ssrf.py` fails on a
+    refusal that is not a `UrlRefusedError`.
+
+    Raises:
+        BadRequestError: If the URL is malformed or points inside the
+            deployment's network.
+    """
+    try:
+        return await validate_mcp_url(url)
+    except UrlRefusedError as exc:
+        # Ours to quote, in the log as much as in the body - see the docstring.
+        logger.warning("MCP server URL refused: %s", exc)
+        raise refused_field("url", f"This MCP server URL cannot be used: {exc}") from exc
+
+
 def _apply_token(payload: McpOAuthPayload, token: OAuthToken) -> McpOAuthPayload:
     """Fold a fresh token grant/refresh into the stored payload."""
     return payload.model_copy(
@@ -91,6 +133,61 @@ def _apply_token(payload: McpOAuthPayload, token: OAuthToken) -> McpOAuthPayload
             "code_verifier": None,
         }
     )
+
+
+async def _complete_mcp_flow(
+    payload: McpOAuthPayload, code: str
+) -> tuple[McpOAuthPayload, list[str] | None]:
+    """Exchange a code through the discovery flow and fold the tokens in.
+
+    The PKCE `code_verifier` is what makes this an MCP-discovery payload; its
+    absence is a pending flow that can no longer be completed (a rotated master
+    key left the verifier unreadable), which the user restarts rather than 500s on.
+    """
+    if not payload.code_verifier:
+        raise OAuthError("This authorization session is no longer valid - start again.")
+    token = await mcp_oauth.exchange_code(
+        token_endpoint=payload.token_endpoint,
+        client_id=payload.client_id,
+        client_secret=payload.client_secret,
+        code=code,
+        code_verifier=payload.code_verifier,
+        redirect_uri=payload.redirect_uri,
+        resource=payload.resource,
+    )
+    payload = _apply_token(payload, token)
+    return payload, (payload.scope.split() if payload.scope else None)
+
+
+async def _complete_github_flow(
+    payload: McpOAuthPayload, code: str
+) -> tuple[McpOAuthPayload, list[str] | None]:
+    """Exchange a code through GitHub's OAuth App flow and fold the token in.
+
+    A classic OAuth App token neither refreshes nor expires, so both fields are
+    cleared rather than carried; the granted scopes come from GitHub's own
+    comma-separated `scope`, which is what the account actually consented to. The
+    provider-specific failure is re-raised as :class:`OAuthError` so the shared
+    callback route reports it the same way as a discovery-flow failure.
+    """
+    try:
+        token = await github_oauth.exchange_code(
+            client_id=payload.client_id,
+            client_secret=payload.client_secret or "",
+            code=code,
+            redirect_uri=payload.redirect_uri,
+        )
+    except github_oauth.GithubOAuthError as exc:
+        raise OAuthError(str(exc)) from exc
+    payload = payload.model_copy(
+        update={
+            "access_token": token.access_token,
+            "refresh_token": None,
+            "expires_at": None,
+            "code_verifier": None,
+        }
+    )
+    return payload, (token.granted_scopes or None)
 
 
 def connection_scope(connection: McpConnection) -> VaultScope:
@@ -285,7 +382,7 @@ class McpConnectionService:
         return await mcp_connection_repo.list_for_user(self.db, user_id=user_id)
 
     async def create(self, *, user_id: UUID, data: McpConnectionCreate) -> McpConnection:
-        url = await validate_mcp_url(data.url)
+        url = await _checked_url(data.url)
         existing = await mcp_connection_repo.get_by_name(self.db, user_id=user_id, name=data.name)
         if existing is not None:
             raise AlreadyExistsError(
@@ -320,7 +417,7 @@ class McpConnectionService:
         )
 
         if "url" in update_data:
-            update_data["url"] = await validate_mcp_url(update_data["url"])
+            update_data["url"] = await _checked_url(update_data["url"])
 
         if "name" in update_data and update_data["name"] != db_connection.name:
             collision = await mcp_connection_repo.get_by_name(
@@ -472,7 +569,7 @@ class McpConnectionService:
         once. Two copies of an OAuth handshake is two places for a PKCE verifier
         to be dropped.
         """
-        url = await validate_mcp_url(url)
+        url = await _checked_url(url)
         server = await mcp_oauth.discover(url)  # raises OAuthError if unsupported
         redirect_uri = _oauth_redirect_uri()
         client_id, client_secret = await mcp_oauth.register_client(server, redirect_uri)
@@ -491,6 +588,43 @@ class McpConnectionService:
             redirect_uri=redirect_uri,
             code_verifier=pkce.code_verifier,
         )
+        await self._stage_pending_oauth(
+            name=name,
+            url=url,
+            existing=existing,
+            vault_scope=vault_scope,
+            create=create,
+            payload=payload,
+            state=state,
+        )
+        return mcp_oauth.authorization_url(
+            server,
+            client_id=client_id,
+            redirect_uri=redirect_uri,
+            state=state,
+            code_challenge=pkce.code_challenge,
+        )
+
+    async def _stage_pending_oauth(
+        self,
+        *,
+        name: str,
+        url: str,
+        existing: McpConnection | None,
+        vault_scope: VaultScope,
+        create: Callable[..., Awaitable[McpConnection]],
+        payload: McpOAuthPayload,
+        state: str,
+    ) -> None:
+        """Write a staged consent flow onto an existing row or a fresh one.
+
+        Shared by the discovery-based MCP start and the GitHub-provider start: both
+        seal a pending :class:`McpOAuthPayload` under `oauth_pending_payload`, keyed
+        by `oauth_state`, and leave any live tokens in `oauth_payload` untouched
+        until the callback lands. Abandoning the consent screen therefore leaves a
+        working connection working, and re-authorizing never overwrites a URL or a
+        token that still works - both move over in :meth:`oauth_callback`.
+        """
         if existing is not None:
             if existing.auth_type != "oauth":
                 raise AlreadyExistsError(
@@ -500,8 +634,6 @@ class McpConnectionService:
             # Sealed at the row's own key version: one row, one version, so the
             # pending payload stays readable alongside a token sealed before a
             # rotation moved the row on.
-            # Only the pending flow is written - the live tokens and the URL
-            # they belong to move over in oauth_callback, once consent lands.
             await mcp_connection_repo.update(
                 self.db,
                 db_connection=existing,
@@ -524,12 +656,84 @@ class McpConnectionService:
                 oauth_state=state,
                 oauth_pending_payload=sealed.ciphertext,
             )
-        return mcp_oauth.authorization_url(
-            server,
-            client_id=client_id,
+
+    async def oauth_start_for_org_github(self, ctx: AuthContext, *, portal_key: str) -> str:
+        """Begin the GitHub OAuth App flow for a trigger portal, using the org's creds.
+
+        Unlike :meth:`oauth_start_for_org`, which discovers an authorization server
+        and dynamically registers a client, GitHub OAuth Apps do neither: the
+        endpoints are fixed and the client is one the organization registered by hand
+        and stored in the vault (`github_oauth_app`). This reads those credentials,
+        builds GitHub's consent URL for the portal's scopes, and stages the pending
+        flow on the organization's connection.
+
+        The connection is named and keyed after the portal's MCP catalog entry
+        (`catalog_key`), so the trigger portal and the agent's MCP tools resolve to
+        one connected account: the frontend joins a portal to its connection by that
+        key. Re-running it re-authorizes the existing connection, keeping the live
+        token until the new consent lands.
+
+        Raises:
+            BadRequestError: If `portal_key` names no portal, or one that does not
+                connect through GitHub (no `mcp_catalog_key`).
+            NotFoundError: If the organization has stored no `github_oauth_app`
+                secret - a 4xx the connect UI shows, never a 500.
+        """
+        portal = portal_catalog.get_portal(portal_key)
+        if portal is None or portal.mcp_catalog_key is None:
+            raise BadRequestError(
+                message="This portal does not connect through GitHub",
+                details={"portal_key": portal_key},
+            )
+        entry = get_entry(portal.mcp_catalog_key)
+        if entry is None:
+            raise BadRequestError(
+                message="This portal's connection catalog entry is missing",
+                details={"portal_key": portal_key, "catalog_key": portal.mcp_catalog_key},
+            )
+        creds = await OrganizationSecretService(self.db).github_oauth_app(ctx)
+        redirect_uri = _oauth_redirect_uri()
+        state = secrets.token_urlsafe(32)
+        scopes = [*portal.read_scopes, *portal.webhook_admin_scopes]
+        catalog_key = portal.mcp_catalog_key
+        payload = McpOAuthPayload(
+            server_url=entry.url,
+            started_at=_now_epoch(),
+            authorization_endpoint=github_oauth.AUTHORIZE_ENDPOINT,
+            token_endpoint=github_oauth.TOKEN_ENDPOINT,
+            client_id=creds.client_id,
+            client_secret=creds.client_secret.get_secret_value(),
+            scope=" ".join(scopes),
+            # GitHub uses no RFC 8707 resource indicator; the field is required, so
+            # it carries the server the connection points at, like every payload.
+            resource=entry.url,
             redirect_uri=redirect_uri,
+            provider=github_oauth.PROVIDER,
+        )
+        await self._stage_pending_oauth(
+            name=catalog_key,
+            url=entry.url,
+            existing=await mcp_connection_repo.get_org_scoped_by_name(
+                self.db, organization_id=ctx.organization_id, name=catalog_key
+            ),
+            vault_scope=VaultScope.organization(ctx.organization_id),
+            create=lambda **kwargs: mcp_connection_repo.create_org_scoped(
+                self.db,
+                organization_id=ctx.organization_id,
+                created_by_user_id=ctx.subject_id,
+                allowed_tools=None,
+                catalog_key=catalog_key,
+                sealed_token=None,
+                **kwargs,
+            ),
+            payload=payload,
             state=state,
-            code_challenge=pkce.code_challenge,
+        )
+        return github_oauth.authorization_url(
+            client_id=creds.client_id,
+            redirect_uri=redirect_uri,
+            scopes=scopes,
+            state=state,
         )
 
     async def oauth_callback(self, *, state: str, code: str) -> McpConnection:
@@ -544,20 +748,14 @@ class McpConnectionService:
         if connection is None or not connection.oauth_pending_payload:
             raise NotFoundError(message="OAuth session not found or already completed")
         payload = _decode_payload(connection, connection.oauth_pending_payload)
-        if payload is None or not payload.code_verifier:
+        if payload is None:
             raise OAuthError("This authorization session is no longer valid - start again.")
         if _now_epoch() - payload.started_at > mcp_oauth.FLOW_TTL_SECS:
             raise OAuthError("This authorization session has expired - start again.")
-        token = await mcp_oauth.exchange_code(
-            token_endpoint=payload.token_endpoint,
-            client_id=payload.client_id,
-            client_secret=payload.client_secret,
-            code=code,
-            code_verifier=payload.code_verifier,
-            redirect_uri=payload.redirect_uri,
-            resource=payload.resource,
-        )
-        payload = _apply_token(payload, token)
+        if payload.provider == github_oauth.PROVIDER:
+            payload, granted_scopes = await _complete_github_flow(payload, code)
+        else:
+            payload, granted_scopes = await _complete_mcp_flow(payload, code)
         return await mcp_connection_repo.update(
             self.db,
             db_connection=connection,
@@ -567,6 +765,11 @@ class McpConnectionService:
                 "oauth_payload": _seal_for(connection, payload.model_dump_json()).ciphertext,
                 "oauth_pending_payload": None,
                 "oauth_state": None,
+                # The scopes the provider actually granted, mirrored out of the
+                # sealed payload into a plain column so the trigger-portal webhook
+                # path can read them without unwrapping the token. Only that path
+                # reads it; tool-calling is unaffected.
+                "granted_scopes": granted_scopes,
                 "last_status": "ok",
                 "last_error": None,
                 "last_checked_at": datetime.now(UTC),
@@ -612,7 +815,7 @@ class McpConnectionService:
                 message=f"Unknown catalog server: {data.catalog_key}",
                 details={"catalog_key": data.catalog_key},
             )
-        url = await validate_mcp_url(data.url)
+        url = await _checked_url(data.url)
         existing = await mcp_connection_repo.get_org_scoped_by_name(
             self.db, organization_id=ctx.organization_id, name=data.name
         )
@@ -663,7 +866,7 @@ class McpConnectionService:
         )
 
         if "url" in update_data:
-            update_data["url"] = await validate_mcp_url(update_data["url"])
+            update_data["url"] = await _checked_url(update_data["url"])
 
         if "name" in update_data and update_data["name"] != db_connection.name:
             collision = await mcp_connection_repo.get_org_scoped_by_name(
@@ -719,6 +922,38 @@ class McpConnectionService:
         """Probe an organization server, persist the result, return its tools."""
         db_connection = await self._get_org(ctx, connection_id)
         return await self._probe(db_connection)
+
+    async def webhook_access_token(
+        self, ctx: AuthContext, connection_id: UUID, *, required_scopes: Sequence[str]
+    ) -> str | None:
+        """A live token for an org connection that consented to `required_scopes`.
+
+        For the trigger portals: registering a provider webhook needs a scope a
+        plain tool connection never requested, so this hands back a token only
+        when the account was re-authorized for it. `None` - the connection lacks
+        the scope, or its token cannot be refreshed - is the signal to fall back
+        to manual setup, never an error. A connection in another tenant is still
+        a `NotFoundError`, because a bad id is a client mistake, not a fallback.
+        """
+        connection = await self._get_org(ctx, connection_id)
+        if not set(required_scopes).issubset(connection.granted_scopes or ()):
+            return None
+        return await _oauth_access_token(self.db, connection)
+
+    async def get_org_connection(self, ctx: AuthContext, connection_id: UUID) -> McpConnection:
+        """One organization connection by id, resolved for the caller's tenant.
+
+        The public form of the org-scoped lookup, for a caller that only needs to
+        prove a `connection_id` belongs to its organization before storing it - a
+        trigger persisting the account whose token registers its webhook. A
+        connection in another tenant, or a bogus id, is a `NotFoundError`, the same
+        unprobeable refusal `_get_org` gives every other org-scoped path.
+
+        Raises:
+            NotFoundError: If no connection with this id is visible to the caller's
+                organization.
+        """
+        return await self._get_org(ctx, connection_id)
 
     async def _get_org(self, ctx: AuthContext, connection_id: UUID) -> McpConnection:
         """One organization connection, or a refusal that reveals nothing.

@@ -18,6 +18,8 @@ import {
 interface UseMcpConnectionsResult {
   connections: McpConnectionRecord[];
   isLoading: boolean;
+  /** True for a background refresh of a cached list as well as a first load. */
+  isFetching: boolean;
   error: string | null;
   refresh: () => Promise<void>;
   create: (input: {
@@ -55,6 +57,7 @@ export function useMcpConnections(): UseMcpConnectionsResult {
   const {
     data: connections = [],
     isLoading,
+    isFetching,
     error: queryError,
     refetch,
   } = useQuery({
@@ -117,5 +120,5 @@ export function useMcpConnections(): UseMcpConnectionsResult {
     [refetch],
   );
 
-  return { connections, isLoading, error, refresh, create, update, remove, test };
+  return { connections, isLoading, isFetching, error, refresh, create, update, remove, test };
 }

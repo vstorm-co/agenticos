@@ -17,7 +17,9 @@ from app.agents.approval import (
 from app.agents.capabilities.approval._capability import ApprovalGate
 from app.agents.capabilities.approval._policy import (
     approval_required_tools,
+    refuse_ungateable_approvals,
     tool_needs_approval,
+    ungateable_tool_problems,
 )
 
 __all__ = [
@@ -29,5 +31,7 @@ __all__ = [
     "ApprovalRequest",
     "approval_required_tools",
     "refusal",
+    "refuse_ungateable_approvals",
     "tool_needs_approval",
+    "ungateable_tool_problems",
 ]

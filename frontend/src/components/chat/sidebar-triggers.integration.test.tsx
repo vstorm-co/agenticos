@@ -32,6 +32,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     name: null,
     created_by_user_id: null,
     is_active: true,
+    can_manage: true,
     environment_id: null,
     trigger_type: "schedule",
     schedule_kind: "interval",
@@ -53,7 +54,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
 
 function serve(triggers: Trigger[]) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
-    if (path === "/triggers") return { items: triggers, total: triggers.length };
+    if (path.startsWith("/triggers")) return { items: triggers, total: triggers.length };
     if (path.startsWith("/agents/")) return { items: [], total: 0 };
     throw new Error(`unexpected GET ${path}`);
   });
@@ -64,7 +65,7 @@ beforeEach(() => vi.clearAllMocks());
 describe("SidebarTriggers", () => {
   it("fetches nothing until the section is expanded", () => {
     serve([]);
-    render(<SidebarTriggers onOpenConversation={vi.fn()} canManage />, { wrapper });
+    render(<SidebarTriggers onOpenConversation={vi.fn()} />, { wrapper });
 
     expect(apiClient.get).not.toHaveBeenCalled();
   });
@@ -72,7 +73,7 @@ describe("SidebarTriggers", () => {
   it("lists the organization's triggers once expanded", async () => {
     const user = userEvent.setup();
     serve([trigger()]);
-    render(<SidebarTriggers onOpenConversation={vi.fn()} canManage />, { wrapper });
+    render(<SidebarTriggers onOpenConversation={vi.fn()} />, { wrapper });
 
     await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
 
@@ -83,7 +84,7 @@ describe("SidebarTriggers", () => {
   it("says the section is empty rather than showing nothing", async () => {
     const user = userEvent.setup();
     serve([]);
-    render(<SidebarTriggers onOpenConversation={vi.fn()} canManage />, { wrapper });
+    render(<SidebarTriggers onOpenConversation={vi.fn()} />, { wrapper });
 
     await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
 
@@ -93,7 +94,7 @@ describe("SidebarTriggers", () => {
   it("says the list failed to load rather than showing it as empty", async () => {
     const user = userEvent.setup();
     vi.mocked(apiClient.get).mockRejectedValue(new Error("boom"));
-    render(<SidebarTriggers onOpenConversation={vi.fn()} canManage />, { wrapper });
+    render(<SidebarTriggers onOpenConversation={vi.fn()} />, { wrapper });
 
     await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
 
@@ -104,7 +105,7 @@ describe("SidebarTriggers", () => {
     const user = userEvent.setup();
     const onOpenConversation = vi.fn();
     serve([trigger({ last_run_id: null, conversation_id: "c1" })]);
-    render(<SidebarTriggers onOpenConversation={onOpenConversation} canManage />, { wrapper });
+    render(<SidebarTriggers onOpenConversation={onOpenConversation} />, { wrapper });
 
     await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
     await user.click(await screen.findByRole("button", { name: "Open Nightly trigger" }));
@@ -118,7 +119,7 @@ describe("SidebarTriggers", () => {
     const user = userEvent.setup();
     const onOpenConversation = vi.fn();
     serve([trigger({ last_run_id: null, conversation_id: null })]);
-    render(<SidebarTriggers onOpenConversation={onOpenConversation} canManage />, { wrapper });
+    render(<SidebarTriggers onOpenConversation={onOpenConversation} />, { wrapper });
 
     await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
     await user.click(await screen.findByRole("button", { name: "Open Nightly trigger" }));
@@ -132,7 +133,7 @@ describe("SidebarTriggers", () => {
     const user = userEvent.setup();
     const onOpenConversation = vi.fn();
     serve([trigger({ last_run_id: "r1", conversation_id: "c1" })]);
-    render(<SidebarTriggers onOpenConversation={onOpenConversation} canManage />, { wrapper });
+    render(<SidebarTriggers onOpenConversation={onOpenConversation} />, { wrapper });
 
     await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
     await user.click(await screen.findByRole("button", { name: "Open Nightly trigger" }));
@@ -145,7 +146,7 @@ describe("SidebarTriggers", () => {
     const user = userEvent.setup();
     serve([trigger()]);
     vi.mocked(apiClient.patch).mockResolvedValue(trigger({ is_active: false }));
-    render(<SidebarTriggers onOpenConversation={vi.fn()} canManage />, { wrapper });
+    render(<SidebarTriggers onOpenConversation={vi.fn()} />, { wrapper });
 
     await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
     await user.click(await screen.findByRole("button", { name: "Actions for Nightly trigger" }));
@@ -162,7 +163,7 @@ describe("SidebarTriggers", () => {
     const user = userEvent.setup();
     serve([trigger()]);
     vi.mocked(apiClient.post).mockResolvedValue(trigger());
-    render(<SidebarTriggers onOpenConversation={vi.fn()} canManage />, { wrapper });
+    render(<SidebarTriggers onOpenConversation={vi.fn()} />, { wrapper });
 
     await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
     await user.click(await screen.findByRole("button", { name: "Actions for Nightly trigger" }));
@@ -177,7 +178,7 @@ describe("SidebarTriggers", () => {
     const user = userEvent.setup();
     serve([trigger()]);
     vi.mocked(apiClient.delete).mockResolvedValue(undefined);
-    render(<SidebarTriggers onOpenConversation={vi.fn()} canManage />, { wrapper });
+    render(<SidebarTriggers onOpenConversation={vi.fn()} />, { wrapper });
 
     await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
     await user.click(await screen.findByRole("button", { name: "Actions for Nightly trigger" }));
@@ -193,7 +194,7 @@ describe("SidebarTriggers", () => {
     const user = userEvent.setup();
     serve([trigger({ is_active: false })]);
     vi.mocked(apiClient.patch).mockResolvedValue(trigger({ is_active: true }));
-    render(<SidebarTriggers onOpenConversation={vi.fn()} canManage />, { wrapper });
+    render(<SidebarTriggers onOpenConversation={vi.fn()} />, { wrapper });
 
     await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
     await user.click(await screen.findByRole("button", { name: "Actions for Nightly trigger" }));
@@ -209,7 +210,7 @@ describe("SidebarTriggers", () => {
   it("opens the editor from the row menu", async () => {
     const user = userEvent.setup();
     serve([trigger({ last_run_id: "r1", conversation_id: "c1" })]);
-    render(<SidebarTriggers onOpenConversation={vi.fn()} canManage />, { wrapper });
+    render(<SidebarTriggers onOpenConversation={vi.fn()} />, { wrapper });
 
     await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
     await user.click(await screen.findByRole("button", { name: "Actions for Nightly trigger" }));
@@ -226,8 +227,10 @@ describe("SidebarTriggers", () => {
   it("shows a viewer the list but no row menu, and does not open an editor", async () => {
     const user = userEvent.setup();
     const onOpenConversation = vi.fn();
-    serve([trigger({ last_run_id: null, conversation_id: "c1" })]);
-    render(<SidebarTriggers onOpenConversation={onOpenConversation} canManage={false} />, {
+    // The row's own `can_manage` is false - a caller with no run grant on this
+    // agent - so the server has decided this row is read-only for them.
+    serve([trigger({ last_run_id: null, conversation_id: "c1", can_manage: false })]);
+    render(<SidebarTriggers onOpenConversation={onOpenConversation} />, {
       wrapper,
     });
 
@@ -240,5 +243,23 @@ describe("SidebarTriggers", () => {
     await user.click(screen.getByRole("button", { name: "Open Nightly trigger" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(onOpenConversation).toHaveBeenCalledWith("c1");
+  });
+
+  it("offers the menu only on the row the caller may manage", async () => {
+    const user = userEvent.setup();
+    // A grant that widens one agent's triggers and not another's: the server
+    // says can_manage per row, and the sidebar must honour each separately
+    // rather than gate the whole section on a role.
+    serve([
+      trigger({ id: "t1", name: "Mine", can_manage: true }),
+      trigger({ id: "t2", name: "Theirs", agent_id: "a2", can_manage: false }),
+    ]);
+    render(<SidebarTriggers onOpenConversation={vi.fn()} />, { wrapper });
+
+    await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
+    await screen.findByText("Mine");
+
+    expect(screen.getByRole("button", { name: "Actions for Mine trigger" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Actions for Theirs trigger" })).toBeNull();
   });
 });

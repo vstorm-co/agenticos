@@ -10,6 +10,27 @@ export default defineConfig({
     setupFiles: ["./vitest.setup.ts"],
     include: ["**/*.{test,spec}.{ts,tsx}"],
     exclude: ["node_modules", ".next", "e2e"],
+    /*
+     * Raised from vitest's 5s default, because 5s is not a deadline this suite
+     * can hold and the machine decides which spec misses it.
+     *
+     * Measured over all 4941 tests, on ten cores (#862). Quiet, the slowest
+     * test is 1.7s bare and 2.9s under v8 instrumentation. At 32 busy loops
+     * beside it — the load the issue was filed from — the slowest is 5.4s bare
+     * and 6.1s instrumented, and both runs went red: three tests each, and a
+     * different three, because which files share a worker is decided on
+     * timing. Instrumentation is one multiplier of several and the smaller
+     * one; scheduling latency is the rest, which is why this is not
+     * conditional on `--coverage`. A timeout the fast loop and the gate
+     * disagree about is one that cannot reproduce the gate.
+     *
+     * 15s is 2.5x the worst duration measured under that load, and the number
+     * `playwright.config.ts` already writes down for the same class of
+     * problem. A test that genuinely hangs still fails — ten seconds later
+     * than it used to, on the one run where that is the answer rather than a
+     * lie about the diff.
+     */
+    testTimeout: 15_000,
     server: {
       deps: {
         // `next-intl/middleware` imports `next/server` bare, which Node's ESM

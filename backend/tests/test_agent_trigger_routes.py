@@ -10,7 +10,6 @@ role gate, is proven through the real app in `tests/api/test_platform_routes.py`
 
 from __future__ import annotations
 
-import asyncio
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -21,13 +20,17 @@ from app.api.routes.v1.agent_triggers import (
     create_trigger,
     delete_trigger,
     list_org_triggers,
+    list_portal_targets,
+    list_schedule_templates,
+    list_trigger_portals,
     list_triggers,
+    rotate_trigger_secret,
     run_trigger_now,
     update_trigger,
 )
 from app.api.routes.v1.trigger_webhooks import ingest_trigger_event
 from app.core.permissions import AuthContext, OrgRoleName
-from app.schemas.agent_trigger import TriggerCreate, TriggerRead, TriggerUpdate
+from app.schemas.agent_trigger import TriggerCreate, TriggerCreateRead, TriggerRead, TriggerUpdate
 from app.services.agent_trigger import EventFireDecision
 
 pytestmark = pytest.mark.anyio
@@ -53,6 +56,46 @@ async def test_a_listing_reports_its_own_total():
     service = MagicMock(list_for_agent=AsyncMock(return_value=[_read(), _read()]))
     result = await list_triggers(uuid.uuid4(), _CTX, service)
     assert result.total == 2
+
+
+async def test_the_portal_catalog_maps_every_portal_and_its_presets():
+    result = await list_trigger_portals()
+    assert result.total == len(result.items) > 0
+    github = next(portal for portal in result.items if portal.key == "github")
+    assert github.delivery == "auto_webhook"
+    assert github.connection_catalog_key == "github"
+    assert github.target_kind == "repo"
+    assert "admin:repo_hook" in github.webhook_admin_scopes
+    opened = next(preset for preset in github.presets if preset.key == "issue_opened")
+    assert opened.target_required is True
+
+
+async def test_the_schedule_template_catalog_carries_a_prompt_and_a_cadence():
+    result = await list_schedule_templates()
+    assert result.total == len(result.items) > 0
+    digest = next(t for t in result.items if t.key == "pr_digest_weekday_mornings")
+    assert digest.prompt
+    assert digest.suggested_cadence.schedule_kind == "cron"
+    assert digest.suggested_cadence.cron_expression == "0 8 * * 1-5"
+
+
+async def test_rotating_answers_with_what_the_service_returned():
+    rotated = TriggerCreateRead(
+        id=uuid.uuid4(),
+        agent_id=uuid.uuid4(),
+        is_active=True,
+        trigger_type="event",
+        schedule_kind="interval",
+        event_source="github",
+        prompt="triage",
+        reveal_secret="the-new-plaintext-secret",
+        created_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    service = MagicMock(rotate_secret=AsyncMock(return_value=rotated))
+    agent_id, trigger_id = uuid.uuid4(), uuid.uuid4()
+    result = await rotate_trigger_secret(agent_id, trigger_id, _CTX, service)
+    assert result is rotated
+    service.rotate_secret.assert_awaited_once_with(_CTX, agent_id, trigger_id)
 
 
 async def test_the_org_listing_reports_its_own_total():
@@ -119,22 +162,56 @@ async def test_a_webhook_hands_the_raw_body_and_headers_to_the_service():
 
 async def test_a_webhook_with_nothing_to_do_accepts_without_firing():
     service = MagicMock(prepare_event_fire=AsyncMock(return_value=None))
-    with patch("app.api.routes.v1.trigger_webhooks.fire_trigger") as fired:
+    with patch("app.worker.tasks.trigger_tasks.dispatch_trigger_fire") as fired:
         response = await ingest_trigger_event("github", uuid.uuid4(), _request(b"{}", {}), service)
     assert response.status_code == 202
     fired.assert_not_called()
 
 
-async def test_a_webhook_that_matches_dispatches_the_fire_in_the_background():
-    """The fire runs after the 202 goes back, so a provider's timeout never
-    catches an agent run - the same shape the channel webhooks use."""
+async def test_a_webhook_that_matches_submits_the_fire_as_a_capped_flow():
+    """The fire is submitted as its own `run-scheduled-trigger` flow, not run in
+    this process, so a burst of deliveries cannot start concurrent agent runs on
+    the API's event loop. The rendered context rides along to the flow."""
     decision = EventFireDecision(trigger_id=uuid.uuid4(), event_context="ISSUE #7")
     service = MagicMock(prepare_event_fire=AsyncMock(return_value=decision))
     fired = AsyncMock()
-    with patch("app.api.routes.v1.trigger_webhooks.fire_trigger", fired):
+    with patch("app.worker.tasks.trigger_tasks.dispatch_trigger_fire", fired):
         response = await ingest_trigger_event(
             "github", decision.trigger_id, _request(b'{"action": "opened"}', {}), service
         )
-        await asyncio.sleep(0)  # let the created task run
     assert response.status_code == 202
-    fired.assert_awaited_once_with(decision.trigger_id, event_context="ISSUE #7")
+    fired.assert_awaited_once_with(str(decision.trigger_id), event_context="ISSUE #7")
+
+
+async def test_a_dispatch_failure_releases_the_dedupe_claim_and_surfaces():
+    """The delivery was dedupe-claimed in prepare_event_fire; a hand-off that
+    raises got no 2xx, so the provider will resend - the claim must be given back
+    or that resend is dropped, and the 500 must still surface."""
+    decision = EventFireDecision(trigger_id=uuid.uuid4(), event_context="x")
+    service = MagicMock(
+        prepare_event_fire=AsyncMock(return_value=decision),
+        release_event_claim=AsyncMock(),
+    )
+    boom = AsyncMock(side_effect=RuntimeError("prefect unreachable"))
+    with (
+        patch("app.worker.tasks.trigger_tasks.dispatch_trigger_fire", boom),
+        pytest.raises(RuntimeError),
+    ):
+        await ingest_trigger_event(
+            "github",
+            decision.trigger_id,
+            _request(b"{}", {"x-github-delivery": "d"}),
+            service,
+        )
+    service.release_event_claim.assert_awaited_once()
+
+
+async def test_portal_targets_maps_the_adapters_answer():
+    from app.services.portals import PortalTarget
+
+    service = MagicMock(
+        list_portal_targets=AsyncMock(return_value=[PortalTarget(id="acme/api", label="acme/api")])
+    )
+    result = await list_portal_targets("github", _CTX, service, connection_id=uuid.uuid4())
+    assert result.total == 1
+    assert result.items[0].id == "acme/api"

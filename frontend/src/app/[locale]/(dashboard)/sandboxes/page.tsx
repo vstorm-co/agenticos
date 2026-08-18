@@ -83,6 +83,7 @@ export default function SandboxesPage() {
 
         <TabsContent value="connections">
           <ListCard
+            data-tour="sandboxes-connections"
             title={t("sandboxConnections")}
             // With the list refused or still loading, "0 connections" would
             // state as fact something no answer has said - the skeleton stays.

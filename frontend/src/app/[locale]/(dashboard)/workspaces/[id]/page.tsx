@@ -22,7 +22,9 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
   return (
     <div className="space-y-6">
       <PageHeader title={t("workspace")} description={t("whatOneAgentKeeping")} />
-      <WorkspaceExplorer workspaceId={id} />
+      <div data-tour="workspace-files">
+        <WorkspaceExplorer workspaceId={id} />
+      </div>
     </div>
   );
 }

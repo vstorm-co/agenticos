@@ -55,6 +55,23 @@ export const qk = {
     // shared `all()` prefix.
     orgList: () => ["triggers", "org"] as const,
   },
+  scheduleTemplates: {
+    all: () => ["schedule-templates"] as const,
+    // The seeded schedule catalog. Curated and compiled into the deployment, so
+    // it changes on redeploy and never on a mutation - cached like the portal one.
+    catalog: () => ["schedule-templates", "catalog"] as const,
+  },
+  portals: {
+    all: () => ["portals"] as const,
+    // The trigger-portals catalog. Curated and compiled into the deployment, so
+    // it changes on redeploy and never on a mutation - cached like the MCP one.
+    catalog: () => ["portals", "catalog"] as const,
+    // The repositories one connected account can point a preset at. Keyed per
+    // (portal, connection) because that is what is fetched - two accounts see two
+    // different lists, and a shared key would serve one for the other.
+    targets: (portalKey: string, connectionId: string) =>
+      ["portals", "targets", portalKey, connectionId] as const,
+  },
   embeds: {
     all: () => ["embeds"] as const,
     list: (agentId: string) => ["embeds", agentId] as const,
@@ -224,7 +241,6 @@ export const qk = {
      */
     list: (params?: string) =>
       params ? (["conversations", "list", params] as const) : (["conversations", "list"] as const),
-    count: () => ["conversations", "count"] as const,
     /**
      * The newest few, for the dashboard. Its own key because `list()` is owned
      * by the chat sidebar, which caches a different page under a different
@@ -242,8 +258,18 @@ export const qk = {
   kb: {
     all: () => ["kb"] as const,
     list: () => ["kb", "list"] as const,
+    // `["kb", id]` is also the prefix over everything below, so invalidating it
+    // refreshes the whole detail page - the collection, its documents and the
+    // three sources feeding it - in one call.
     detail: (id: string) => ["kb", id] as const,
     documents: (id: string) => ["kb", id, "documents"] as const,
+    // The three sources feeding a collection, each its own key so a failure in
+    // one is that section's rather than the page's. They sit behind
+    // `connections:manage`, so a member who may read the collection but not the
+    // integrations gets the page with these three empty, not an error.
+    syncSources: (id: string) => ["kb", id, "sync-sources"] as const,
+    orgIntegrations: (id: string) => ["kb", id, "org-integrations"] as const,
+    connectors: (id: string) => ["kb", id, "connectors"] as const,
     // One document's stored file, as the viewer reads it. Text and bytes keyed
     // apart because they are two different bodies for one download route, and a
     // viewer showing a PDF must not be handed a cached string for it.
@@ -329,8 +355,12 @@ export const qk = {
     // is keyed once and never invalidated.
     runtimes: () => ["sandbox-connections", "runtimes"] as const,
     // Live state on a host, keyed per connection for the same reason the policy
-    // is: two hosts must not share a cache entry one of them cannot fill.
-    sessions: (id: string) => ["sandbox-connections", "sessions", id] as const,
+    // is: two hosts must not share a cache entry one of them cannot fill. `usage`
+    // is part of the key rather than appended at the call site: a listing the
+    // service sampled for per-sandbox usage is a different, more expensive
+    // request than one without, so the two must not share a cache entry.
+    sessions: (id: string, usage = false) =>
+      ["sandbox-connections", "sessions", id, usage] as const,
     events: (id: string, sessionId: string) =>
       ["sandbox-connections", "events", id, sessionId] as const,
   },
@@ -349,10 +379,17 @@ export const qk = {
   },
   admin: {
     stats: () => ["admin", "stats"] as const,
-    users: (params?: unknown) => ["admin", "users", params] as const,
-    conversations: (params?: unknown) => ["admin", "conversations", params] as const,
+    // One user's recent conversations, for the admin user drawer. Both are part
+    // of the key because both are part of the request: a different user or a
+    // different limit is a different answer, and `unknown` let a caller drift
+    // onto a fresh key with a typo instead of failing.
+    conversations: (params: { userId?: string; limit?: number }) =>
+      ["admin", "conversations", params] as const,
     system: () => ["admin", "system"] as const,
-    ratings: (params?: unknown) => ["admin", "ratings", params] as const,
+    // The deployment-wide answer-quality summary over a window. The window is
+    // the key, so picking another period refetches rather than re-rendering the
+    // last one's chart.
+    ratings: (params: { from?: string; to?: string }) => ["admin", "ratings", params] as const,
     organizations: () => ["admin", "organizations"] as const,
   },
 } as const;

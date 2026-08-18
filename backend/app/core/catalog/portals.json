@@ -1,0 +1,72 @@
+[
+  {
+    "key": "github",
+    "name": "GitHub",
+    "description": "Run an agent when something happens in a repository - a new issue, a closed one.",
+    "category": "development",
+    "event_source": "github",
+    "delivery": "auto_webhook",
+    "icon": "github",
+    "read_scopes": ["repo"],
+    "webhook_admin_scopes": ["admin:repo_hook"],
+    "mcp_catalog_key": "github",
+    "target_kind": "repo",
+    "presets": [
+      {
+        "key": "issue_opened",
+        "label": "New issue opened",
+        "description": "Fires when someone opens an issue in the repository you pick.",
+        "event_config": { "actions": ["opened"] },
+        "target_required": true
+      },
+      {
+        "key": "issue_closed",
+        "label": "Issue closed",
+        "description": "Fires when an issue is closed.",
+        "event_config": { "actions": ["closed"] },
+        "target_required": true
+      },
+      {
+        "key": "issue_reopened",
+        "label": "Issue reopened",
+        "description": "Fires when a closed issue is reopened.",
+        "event_config": { "actions": ["reopened"] },
+        "target_required": true
+      }
+    ]
+  },
+  {
+    "key": "email",
+    "name": "Email",
+    "description": "Run an agent when an email arrives, forwarded from your inbox through a relay.",
+    "category": "productivity",
+    "event_source": "email",
+    "delivery": "manual",
+    "icon": "gmail",
+    "presets": [
+      {
+        "key": "any_email",
+        "label": "Any incoming email",
+        "description": "Fires on every forwarded email. Add a subject or sender filter to narrow it.",
+        "event_config": {}
+      }
+    ]
+  },
+  {
+    "key": "linkedin",
+    "name": "LinkedIn",
+    "description": "Run an agent when a matching LinkedIn post arrives through a relay.",
+    "category": "marketing",
+    "event_source": "linkedin",
+    "delivery": "manual",
+    "icon": "linkedin",
+    "presets": [
+      {
+        "key": "any_post",
+        "label": "Any matching post",
+        "description": "Fires on every relayed post. Add an author or text filter to narrow it.",
+        "event_config": {}
+      }
+    ]
+  }
+]
