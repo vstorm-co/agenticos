@@ -17,6 +17,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.181] - 2026-08-18
+
+### Changed
+
+- **jsdom moves to 30.0.1** in the frontend test environment. The bump arrived
+  without a regenerated `bun.lock`, so `test-frontend` and `e2e` both failed at
+  the install step — `lockfile had changes, but lockfile is frozen` — before
+  either had run a single test, which is why the red read like the major version
+  breaking the suite. With the lock regenerated the suite is green on jsdom 30:
+  308 files, 4704 tests. (#850)
+
 ## [0.0.180] - 2026-08-18
 
 ### Fixed
