@@ -99,3 +99,21 @@ export async function startMcpOAuth(
   const root = scope === "organization" ? "/orgs/mcp-connections" : ROOT;
   return apiClient.post<{ authorization_url: string }>(`${root}/oauth/start`, input);
 }
+
+/**
+ * Begin the GitHub OAuth App flow for a trigger portal, on the organization.
+ *
+ * GitHub does not support the discovery-and-registration flow `startMcpOAuth`
+ * runs, so it has its own endpoint: the backend reads the organization's stored
+ * `github_oauth_app` secret and builds GitHub's consent URL for the portal's
+ * scopes. A 404 ("add a GitHub OAuth App secret first") or a 400 (the portal
+ * does not connect through GitHub) arrives as the backend's own message, which
+ * the caller shows rather than a generic failure.
+ */
+export async function startGithubOrgOAuth(
+  portalKey: string,
+): Promise<{ authorization_url: string }> {
+  return apiClient.post<{ authorization_url: string }>("/mcp-connections/oauth/start/github", {
+    portal_key: portalKey,
+  });
+}

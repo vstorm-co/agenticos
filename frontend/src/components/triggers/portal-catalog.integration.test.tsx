@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PortalCatalog } from "./portal-catalog";
 import { apiClient } from "@/lib/api-client";
-import { startMcpOAuth } from "@/lib/mcp-connections-api";
+import { startGithubOrgOAuth, startMcpOAuth } from "@/lib/mcp-connections-api";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 
 vi.mock("@/lib/api-client", async () => {
@@ -20,7 +20,7 @@ vi.mock("@/lib/mcp-connections-api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/mcp-connections-api")>(
     "@/lib/mcp-connections-api",
   );
-  return { ...actual, startMcpOAuth: vi.fn() };
+  return { ...actual, startMcpOAuth: vi.fn(), startGithubOrgOAuth: vi.fn() };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -63,8 +63,23 @@ const PORTALS = {
         { key: "any_email", label: "Any incoming email", description: "…", target_required: false },
       ],
     },
+    {
+      // A non-GitHub auto-webhook portal: it still connects through the generic
+      // discovery flow, which is what tells the GitHub branch apart from it.
+      key: "linkedin",
+      name: "LinkedIn",
+      description: "Run an agent when a post arrives.",
+      category: "productivity",
+      icon: "linkedin",
+      event_source: "linkedin",
+      delivery: "auto_webhook",
+      webhook_admin_scopes: [],
+      target_kind: null,
+      connection_catalog_key: null,
+      presets: [{ key: "new_post", label: "New post", description: "…", target_required: false }],
+    },
   ],
-  total: 2,
+  total: 3,
 };
 
 const MCP_CATALOG = {
@@ -129,6 +144,7 @@ async function mount({
 
 const githubRow = () => within(screen.getByRole("group", { name: "GitHub" }));
 const emailRow = () => within(screen.getByRole("group", { name: "Email" }));
+const linkedinRow = () => within(screen.getByRole("group", { name: "LinkedIn" }));
 
 describe("PortalCatalog", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -195,18 +211,30 @@ describe("PortalCatalog", () => {
     expect(screen.queryByRole("button", { name: "Advanced: custom webhook" })).toBeNull();
   });
 
-  it("starts the OAuth flow on the organization when the account is connected", async () => {
-    vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://provider/consent" });
+  it("connects GitHub through the org OAuth App endpoint, keyed by the portal", async () => {
+    // GitHub cannot be MCP-discovered, so its Connect goes to the dedicated
+    // endpoint with the portal key, not the generic discovery flow.
+    vi.mocked(startGithubOrgOAuth).mockResolvedValue({
+      authorization_url: "https://github/consent",
+    });
     await mount({ org: [] });
 
     await userEvent.click(githubRow().getByRole("button", { name: "Connect account" }));
 
+    await waitFor(() => expect(startGithubOrgOAuth).toHaveBeenCalledWith("github"));
+    expect(startMcpOAuth).not.toHaveBeenCalled();
+  });
+
+  it("connects a non-GitHub portal through the generic discovery flow", async () => {
+    vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://provider/consent" });
+    await mount({ org: [] });
+
+    await userEvent.click(linkedinRow().getByRole("button", { name: "Connect account" }));
+
     await waitFor(() =>
-      expect(startMcpOAuth).toHaveBeenCalledWith(
-        { name: "GitHub", url: "https://api.githubcopilot.com/mcp/" },
-        "organization",
-      ),
+      expect(startMcpOAuth).toHaveBeenCalledWith({ name: "LinkedIn", url: "" }, "organization"),
     );
+    expect(startGithubOrgOAuth).not.toHaveBeenCalled();
   });
 
   it("says nothing yet rather than drawing an empty grid when the catalog is empty", async () => {

@@ -27,7 +27,7 @@ import {
   useListControls,
 } from "@/components/ui";
 import { usePortals, type PortalWithState } from "@/hooks";
-import { startMcpOAuth } from "@/lib/mcp-connections-api";
+import { startGithubOrgOAuth, startMcpOAuth } from "@/lib/mcp-connections-api";
 import { getErrorMessage } from "@/lib/api-error";
 
 /**
@@ -89,10 +89,16 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
   async function connect(item: PortalWithState) {
     setBusyKey(item.portal.key);
     try {
-      const { authorization_url } = await startMcpOAuth(
-        { name: item.serverName ?? item.portal.name, url: item.serverUrl ?? "" },
-        "organization",
-      );
+      // GitHub cannot be discovered like a generic MCP server, so its consent
+      // URL is built from the organization's own OAuth App secret keyed by the
+      // portal; every other portal follows the discovery-and-registration flow.
+      const { authorization_url } =
+        item.portal.event_source === "github"
+          ? await startGithubOrgOAuth(item.portal.key)
+          : await startMcpOAuth(
+              { name: item.serverName ?? item.portal.name, url: item.serverUrl ?? "" },
+              "organization",
+            );
       window.location.assign(authorization_url);
     } catch (caught) {
       toast.error(getErrorMessage(caught, tErrors, t("couldNotConnect")));

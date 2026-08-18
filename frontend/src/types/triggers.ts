@@ -67,10 +67,9 @@ export interface Trigger {
   delivery_mode?: "auto_webhook" | "manual" | null;
   connection_id?: string | null;
   /**
-   * Where a preset points - a repository, a channel. Not currently returned by
-   * `TriggerRead` (the backend holds it as `provider_target` but does not
-   * serialize it), so the preset summary reads without a target until it is
-   * exposed; present here so that summary needs no further change when it is.
+   * Where a preset points - a repository, a channel - carried on `TriggerRead` so
+   * the preset summary can read "New issue in acme/repo". Null on a schedule, on a
+   * manual trigger, and on an auto one with no target chosen.
    */
   provider_target?: string | null;
   created_at: string | null;

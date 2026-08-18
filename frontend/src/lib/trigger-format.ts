@@ -75,9 +75,10 @@ export function eventFilterConfig(
 export function triggerSummary(trigger: Trigger): TriggerSummary {
   if (trigger.trigger_type === "event") {
     // A preset reads in plain language - "New issue in acme/repo" - when the
-    // portal and its target are both known. The target comes from the backend's
-    // `provider_target`, so until `TriggerRead` exposes it a preset trigger falls
-    // back to the generic per-source label rather than showing half a sentence.
+    // portal and its target (the backend's `provider_target`) are both known; a
+    // source with no target - a schedule, a manual trigger, an auto one with none
+    // chosen - falls back to the generic per-source label rather than half a
+    // sentence.
     if (trigger.portal_key && trigger.provider_target) {
       return { kind: "preset", portalKey: trigger.portal_key, target: trigger.provider_target };
     }

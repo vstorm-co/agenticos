@@ -157,7 +157,11 @@ export function useRun(runId: string) {
  * every page here renders its empty state on a failed query, and those two must
  * not be the same pixels.
  */
-export function useRunTranscript(runId: string, scope: "run" | "conversation" = "run") {
+export function useRunTranscript(
+  runId: string,
+  scope: "run" | "conversation" = "run",
+  options?: { enabled?: boolean; refetchInterval?: number | false },
+) {
   const { data, isLoading, error } = useQuery({
     queryKey: qk.runs.transcript(runId, scope),
     queryFn: () =>
@@ -165,6 +169,12 @@ export function useRunTranscript(runId: string, scope: "run" | "conversation" = 
         `/runs/${runId}/transcript`,
         scope === "run" ? undefined : { params: { scope } },
       ),
+    // A trigger's run-log opens on `last_run_id`, which is null until the first
+    // fire - there is nothing to read until then, so the caller opts out.
+    enabled: options?.enabled ?? true,
+    // Set while a fire is in flight, so the just-appended reply is picked up
+    // without a reload; left off otherwise, a transcript being an immutable record.
+    refetchInterval: options?.refetchInterval ?? false,
   });
   return { transcript: data, isLoading, error };
 }
