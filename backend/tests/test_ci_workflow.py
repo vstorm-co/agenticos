@@ -10,12 +10,17 @@ whether it is bounded when it does.
     reads as *starting* rather than *absent* - and four pull requests merged that
     way in one day (#359).
   - `changes` was the only job declaring `timeout-minutes`, so every other job
-    inherited GitHub's default of 360 minutes. Nothing has been observed to stall;
-    the point is that if one did, its required check would be held for six hours
-    and nothing in this repository would end it sooner (#364).
+    inherited GitHub's default of 360 minutes, and a stalled required check would
+    have been held for six hours with nothing in this repository ending it sooner
+    (#364). That bound was written against a stall nobody had seen yet; fourteen
+    e2e runs then hit it in four days (#879).
+  - Which is how the third property arrived. A job ended by its own bound reports
+    `cancelled`, indistinguishable at a glance from a run somebody superseded - so
+    a step reaching a third-party apt mirror on every run is a step that can put a
+    green diff behind a conclusion that reads as somebody else's doing.
 
-Neither is testable by running CI, which is the whole difficulty: a workflow that
-does not trigger produces no evidence at all, and a bound is only exercised by the
+None is testable by running CI, which is the whole difficulty: a workflow that does
+not trigger produces no evidence at all, and a bound is only exercised by the
 incident it exists to shorten.
 """
 
@@ -119,4 +124,35 @@ class TestEveryJobBoundsItsOwnRuntime:
         assert not excessive, (
             f"{excessive} allow more than {MAX_TIMEOUT_MINUTES} minutes, which is several "
             "times the slowest job this workflow has ever run."
+        )
+
+
+class TestNoStepInstallsSystemPackages:
+    """The one stall this workflow has actually had, and the shape of it.
+
+    `playwright install --with-deps` runs `apt-get` against the runner's Azure
+    mirror. When that mirror is unreachable apt falls back to the public archive
+    and stalls with no bound of its own - fourteen `e2e` runs between 14 and 18
+    August, every one in that step, every one ended at 25 minutes by the job's
+    `timeout-minutes` and reported as `cancelled` (#879).
+
+    It is worth a test rather than a comment because re-adding the flag is the
+    obvious thing to do: it is what Playwright's own documentation recommends, it
+    is what the step said for months, and on a runner whose mirror answers it
+    costs seconds and looks harmless.
+    """
+
+    def test_no_step_shells_out_to_apt(self, workflow: dict[str, Any]) -> None:
+        offenders = [
+            f"{job_name}/{step.get('name', step['run'].splitlines()[0])}"
+            for job_name, job in workflow["jobs"].items()
+            for step in job.get("steps", [])
+            if "run" in step and ("--with-deps" in step["run"] or "apt-get" in step["run"])
+        ]
+        assert not offenders, (
+            f"{offenders} install system packages during the run. apt reaches a mirror this "
+            "repository does not control and stalls unbounded when it is unavailable, which "
+            "ends the job at its `timeout-minutes` and reports `cancelled` rather than a "
+            "failure naming the step - #879. The runner image already carries every library "
+            "Chromium links against."
         )
