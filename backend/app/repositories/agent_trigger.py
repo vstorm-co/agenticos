@@ -8,6 +8,7 @@ from uuid import UUID
 
 from sqlalchemy import false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus
@@ -198,7 +199,29 @@ async def claim_due(db: AsyncSession, *, now: datetime, limit: int = 100) -> lis
       yet is not terminal, so it keeps the schedule from piling runs behind an
       undecided gate. The caller advances `next_fire_at` under the same
       transaction, so the common case never reaches this join.
+    * no non-terminal top-level run sits in the trigger's own run-log
+      conversation. The `last_run_id` join is a fast, indexed check on the *linked*
+      previous run, but the link and the run are written in two steps: `_run`
+      commits an `awaiting_approval` row, and only then does `fire` stamp
+      `last_run_id` against it. A worker that dies between those leaves a durable
+      parked run the schedule must still wait behind, with `last_run_id` still
+      naming the previous terminal run - so once the lease lapses the join alone
+      would reclaim the trigger and fire over the pending approval. This `EXISTS`
+      reconciles the conversation directly, catching an in-flight run whether or
+      not it was ever linked. Top-level only (`parent_run_id IS NULL`): a
+      delegated child shares the conversation but is not the fire.
     """
+    in_flight = aliased(AgentRun)
+    has_run_in_flight = (
+        select(in_flight.id)
+        .where(
+            in_flight.conversation_id == AgentTrigger.conversation_id,
+            in_flight.parent_run_id.is_(None),
+            in_flight.status.in_(_NON_TERMINAL_STATUSES),
+        )
+        .correlate(AgentTrigger)
+        .exists()
+    )
     result = await db.execute(
         select(AgentTrigger)
         .outerjoin(AgentRun, AgentRun.id == AgentTrigger.last_run_id)
@@ -207,6 +230,7 @@ async def claim_due(db: AsyncSession, *, now: datetime, limit: int = 100) -> lis
             AgentTrigger.created_by_user_id.is_not(None),
             AgentTrigger.next_fire_at <= now,
             (AgentTrigger.last_run_id.is_(None)) | (AgentRun.status.not_in(_NON_TERMINAL_STATUSES)),
+            ~has_run_in_flight,
             (AgentTrigger.fire_in_flight_since.is_(None))
             | (AgentTrigger.fire_in_flight_since <= now - _FIRE_LEASE),
         )

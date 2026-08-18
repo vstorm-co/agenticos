@@ -223,6 +223,11 @@ class TestClaiming:
         assert "for update of agent_triggers skip locked" in sql
         # The no-overlap join: a fire is skipped while its previous run is unfinished.
         assert "left outer join agent_runs" in sql
+        # The reconcile that closes the unlinked-run window: an in-flight top-level run
+        # in the trigger's own conversation blocks a claim even when `last_run_id` was
+        # never stamped against it (a worker that died before linking the parked run).
+        assert "not (exists" in sql
+        assert "parent_run_id is null" in sql
         assert now in _filters(session).values()
 
     async def test_a_claim_returns_the_rows_it_locked(self):
