@@ -11,6 +11,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     name: null,
     created_by_user_id: null,
     is_active: true,
+    can_manage: true,
     environment_id: null,
     trigger_type: "schedule",
     schedule_kind: "interval",

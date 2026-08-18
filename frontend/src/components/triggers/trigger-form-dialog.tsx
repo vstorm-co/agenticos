@@ -25,6 +25,8 @@ import {
   TabsTrigger,
 } from "@/components/ui";
 import { EventSourceMark } from "@/components/triggers/event-source-mark";
+import { ScheduleTemplatePicker } from "@/components/triggers/schedule-template-picker";
+import { SecretRevealField } from "@/components/triggers/secret-reveal-field";
 import { useAgentEnvironments, useAgents } from "@/hooks";
 import { useTriggers } from "@/hooks/use-triggers";
 import { useAgentSelectionStore } from "@/stores";
@@ -34,9 +36,11 @@ import type {
   ScheduleKind,
   Trigger,
   TriggerCreate,
+  TriggerCreated,
   TriggerType,
   TriggerUpdate,
 } from "@/types/triggers";
+import type { ScheduleTemplate } from "@/types/schedule-templates";
 
 /** Sentinel for "the default environment" - a Select item may not be empty. */
 const DEFAULT_ENV = "__default__";
@@ -220,7 +224,7 @@ export function TriggerFormDialog({
     pickedAgentId || (runnable.find((agent) => agent.id === defaultAgentId) ?? runnable[0])?.id;
   const effectiveAgentId = agentId ?? seededAgentId ?? null;
 
-  const { create, update, runNow } = useTriggers(effectiveAgentId);
+  const { create, update, runNow, rotateSecret } = useTriggers(effectiveAgentId);
   const { environments } = useAgentEnvironments(effectiveAgentId);
   const namedEnvironments = environments.filter((environment) => !environment.is_default);
 
@@ -258,6 +262,10 @@ export function TriggerFormDialog({
   // cadence to the original would report a change on a prompt-only edit and reset
   // the clock; the cadence is sent only when this says it was really edited.
   const [cadenceTouched, setCadenceTouched] = useState(false);
+  // Which seeded template a new schedule started from, or null for "from
+  // scratch" (the default). Only tracked to light the picked card; the fields it
+  // prefilled stay freely editable below.
+  const [templateKey, setTemplateKey] = useState<string | null>(null);
 
   const [eventSource, setEventSource] = useState<EventSource>(trigger?.event_source ?? "github");
   const [secret, setSecret] = useState("");
@@ -295,6 +303,35 @@ export function TriggerFormDialog({
     setCronWeekdays((current) =>
       current.includes(value) ? current.filter((day) => day !== value) : [...current, value],
     );
+  }
+
+  /** Prefill the prompt and cadence from a seeded template, still editable below. */
+  function applyTemplate(template: ScheduleTemplate) {
+    setTemplateKey(template.key);
+    setPrompt(template.prompt);
+    setCadenceTouched(true);
+    const cadence = template.suggested_cadence;
+    if (cadence.schedule_kind === "cron" && cadence.cron_expression) {
+      const parsed = parseCron(cadence.cron_expression);
+      setScheduleKind("cron");
+      setCronFreq(parsed.freq);
+      setCronTime(parsed.time);
+      setCronEveryDays(parsed.everyDays);
+      setCronWeekdays(parsed.weekdays);
+      setCronDayOfMonth(parsed.dayOfMonth);
+      setCronAdvanced(cadence.cron_expression);
+    } else if (cadence.interval_seconds) {
+      const { unit, count } = intervalToUnit(cadence.interval_seconds);
+      setScheduleKind("interval");
+      setIntervalUnit(unit);
+      setIntervalCount(String(count));
+    }
+  }
+
+  /** Clear the template prefill and return to a blank message. */
+  function scratchTemplate() {
+    setTemplateKey(null);
+    setPrompt("");
   }
 
   /** Wraps a cadence setter so editing any cadence control flips `cadenceTouched`. */
@@ -460,6 +497,14 @@ export function TriggerFormDialog({
             </FormField>
           )}
 
+          {!editing && type === "schedule" && (
+            <ScheduleTemplatePicker
+              selectedKey={templateKey}
+              onPick={applyTemplate}
+              onScratch={scratchTemplate}
+            />
+          )}
+
           <div className="space-y-1.5">
             <Label htmlFor="trigger-prompt">{t("prompt")}</Label>
             <MarkdownEditor
@@ -526,6 +571,10 @@ export function TriggerFormDialog({
 
           {editing && trigger.trigger_type === "event" && trigger.webhook_url && (
             <WebhookField url={trigger.webhook_url} />
+          )}
+
+          {editing && trigger.trigger_type === "event" && trigger.can_manage && (
+            <RotateSecretSection triggerId={trigger.id} rotate={rotateSecret} />
           )}
 
           {namedEnvironments.length > 0 && (
@@ -929,6 +978,63 @@ function EventFields({
             />
           </FormField>
         </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Rotating an event trigger's signing secret, on its edit surface.
+ *
+ * The secret authenticates each webhook delivery; rotating mints a new one and the
+ * old one stops working at once. What the caller must then do depends on delivery:
+ * a manual trigger returns the new secret to paste into the provider (shown once,
+ * never on a read), while an auto-webhook trigger is re-registered by the platform
+ * with nothing left to paste. Only offered on a row the caller may manage.
+ */
+function RotateSecretSection({
+  triggerId,
+  rotate,
+}: {
+  triggerId: string;
+  rotate: ReturnType<typeof useTriggers>["rotateSecret"];
+}) {
+  const t = useTranslations("triggers");
+  const [rotated, setRotated] = useState<TriggerCreated | null>(null);
+
+  async function onRotate() {
+    try {
+      setRotated(await rotate.mutateAsync(triggerId));
+    } catch {
+      // The hook toasts the server's refusal; leave the button to try again.
+    }
+  }
+
+  return (
+    <div className="space-y-2 rounded-md border p-3">
+      <div className="space-y-0.5">
+        <p className="text-sm font-medium">{t("rotateSecretTitle")}</p>
+        <p className="text-muted-foreground text-xs">{t("rotateSecretHelp")}</p>
+      </div>
+      {rotated === null ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={rotate.isPending}
+          onClick={onRotate}
+        >
+          {t("rotateSecret")}
+        </Button>
+      ) : rotated.reveal_secret ? (
+        <SecretRevealField
+          secret={rotated.reveal_secret}
+          label={t("secret")}
+          note={t("rotateRevealNote")}
+          id="rotated-secret"
+        />
+      ) : (
+        <p className="text-muted-foreground text-xs">{t("rotateAutoNote")}</p>
       )}
     </div>
   );

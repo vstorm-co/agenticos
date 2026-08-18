@@ -14,10 +14,10 @@ import type { TriggerType } from "@/types/triggers";
 interface TriggersPanelProps {
   agentId: string;
   /**
-   * Whether the caller may manage this agent's triggers. Managing one is the same
-   * floor as running the agent (`agents:run`), which the server resolves per row;
-   * the page passes the role-level answer in, and the server refuses anything a
-   * grant does not actually widen.
+   * Whether the caller may create a trigger on this agent - the role-level
+   * `agents:run`, an agent-level signal that gates only the create buttons. Each
+   * existing row decides its own controls from its `can_manage`, so this does not
+   * reach them.
    */
   canManage: boolean;
 }
@@ -50,7 +50,7 @@ export function TriggersPanel({ agentId, canManage }: TriggersPanelProps) {
         {triggers.length === 0 && <p className="text-muted-foreground text-sm">{t("empty")}</p>}
 
         {triggers.map((trigger) => (
-          <TriggerRow key={trigger.id} trigger={trigger} canManage={canManage} />
+          <TriggerRow key={trigger.id} trigger={trigger} />
         ))}
 
         {canManage && (

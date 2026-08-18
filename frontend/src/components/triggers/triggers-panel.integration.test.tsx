@@ -34,6 +34,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     name: null,
     created_by_user_id: null,
     is_active: true,
+    can_manage: true,
     environment_id: null,
     trigger_type: "schedule",
     schedule_kind: "interval",
@@ -59,6 +60,11 @@ function serve(triggers: Trigger[]) {
       return { items: triggers, total: triggers.length };
     }
     if (path === `/agents/${AGENT_ID}/environments`) {
+      return { items: [], total: 0 };
+    }
+    // The New-schedule flow reads the seeded template catalog; empty here so the
+    // picker stays out of the way of these create tests.
+    if (path === "/schedule-templates") {
       return { items: [], total: 0 };
     }
     throw new Error(`unexpected GET ${path}`);
@@ -95,13 +101,24 @@ describe("TriggersPanel", () => {
     await waitFor(() => expect(screen.getByText("On new GitHub issues")).toBeVisible());
   });
 
-  it("shows none of the row actions to someone who may not manage them", async () => {
+  it("hides the create buttons from someone who may not create a trigger", async () => {
+    // The panel's `canManage` is an agent-level signal that gates only the
+    // create buttons; an existing row decides its own controls from `can_manage`.
     serve([trigger()]);
     await mount({ canManage: false });
 
     await waitFor(() => expect(screen.getByText("Every 15 minutes")).toBeVisible());
-    expect(screen.queryByRole("button", { name: "Pause" })).toBeNull();
     expect(screen.queryByRole("button", { name: "New schedule" })).toBeNull();
+  });
+
+  it("hides a row's actions when the caller may not manage that row", async () => {
+    // The caller may create here (`canManage` true), but the server has decided
+    // this particular row is read-only for them, so its controls do not render.
+    serve([trigger({ can_manage: false })]);
+    await mount({ canManage: true });
+
+    await waitFor(() => expect(screen.getByText("Every 15 minutes")).toBeVisible());
+    expect(screen.queryByRole("button", { name: "Pause" })).toBeNull();
   });
 
   it("pauses a trigger through its row action", async () => {

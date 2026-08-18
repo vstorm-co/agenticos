@@ -30,8 +30,6 @@ function TriggerMark({ trigger, className }: { trigger: Trigger; className?: str
 
 interface TriggerRowProps {
   trigger: Trigger;
-  /** Whether the caller may manage triggers - role-level `agents:run`. */
-  canManage: boolean;
   /**
    * Whether to name the agent this trigger belongs to. The org-wide surfaces show
    * a trigger away from its agent's page and need to name it; the agent's own
@@ -47,8 +45,12 @@ interface TriggerRowProps {
  * agents can act on each row - a single hook would only reach one agent's writes.
  * The row is the shared shape behind the Activity tab and the sidebar section, so
  * a pause looks and behaves the same in both.
+ *
+ * The controls gate on the row's own `can_manage`, resolved per trigger by the
+ * server, so a Viewer holding an explicit run grant on one agent manages that
+ * agent's triggers here without a role-level check hiding them first.
  */
-export function TriggerRow({ trigger, canManage, showAgent = false }: TriggerRowProps) {
+export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
   const t = useTranslations("triggers");
   const { setActive, runNow, remove } = useTriggers(trigger.agent_id);
   const [editing, setEditing] = useState(false);
@@ -70,7 +72,7 @@ export function TriggerRow({ trigger, canManage, showAgent = false }: TriggerRow
         <p className="text-muted-foreground truncate text-xs">{trigger.prompt}</p>
       </div>
       {!trigger.is_active && <Badge variant="secondary">{t("paused")}</Badge>}
-      {canManage && (
+      {trigger.can_manage && (
         <>
           <Button
             variant="ghost"

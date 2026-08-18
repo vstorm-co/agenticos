@@ -8,8 +8,6 @@ import { ScheduledTab } from "./scheduled-tab";
 import { apiClient } from "@/lib/api-client";
 import type { Trigger } from "@/types/triggers";
 
-let canManage = true;
-
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
   return {
@@ -17,9 +15,6 @@ vi.mock("@/lib/api-client", async () => {
     apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
   };
 });
-vi.mock("@/hooks", () => ({
-  usePermissions: () => ({ can: () => canManage, isLoading: false }),
-}));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -37,6 +32,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     name: null,
     created_by_user_id: null,
     is_active: true,
+    can_manage: true,
     environment_id: null,
     trigger_type: "schedule",
     schedule_kind: "interval",
@@ -66,7 +62,6 @@ function serveOrg(triggers: Trigger[]) {
 }
 
 beforeEach(() => {
-  canManage = true;
   vi.clearAllMocks();
 });
 afterEach(() => vi.clearAllMocks());
@@ -106,9 +101,10 @@ describe("ScheduledTab", () => {
     expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/triggers/t1", { is_active: false });
   });
 
-  it("shows no row actions to someone who may not manage triggers", async () => {
-    canManage = false;
-    serveOrg([trigger()]);
+  it("shows no row actions on a trigger the caller may not manage", async () => {
+    // The server resolves manage rights per row: a caller with no run grant on
+    // this agent gets a read-only row, and the controls do not render.
+    serveOrg([trigger({ can_manage: false })]);
     render(<ScheduledTab />, { wrapper });
 
     await screen.findByText("Nightly");

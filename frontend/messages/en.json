@@ -4058,7 +4058,16 @@
     "createdDescription": "Add this webhook URL to your provider, signed with the secret you set. Nothing fires until it delivers.",
     "done": "Done",
     "deleteTitle": "Delete this trigger?",
-    "deleteConfirm": "The agent stops running itself. This cannot be undone."
+    "deleteConfirm": "The agent stops running itself. This cannot be undone.",
+    "rotateSecretTitle": "Signing secret",
+    "rotateSecretHelp": "Rotating replaces the secret that authenticates deliveries. The old one stops working the moment you rotate.",
+    "rotateSecret": "Rotate signing secret",
+    "rotateRevealNote": "Copy it now — it won't be shown again. Paste it into the provider so deliveries keep verifying.",
+    "rotateAutoNote": "The platform re-registered the webhook with the new secret. There's nothing to paste.",
+    "secretRotated": "Signing secret rotated",
+    "templatesLabel": "Start from a template",
+    "templateScratch": "Start from scratch",
+    "templateScratchHelp": "Write your own message and cadence."
   },
   "portals": {
     "title": "Portals",

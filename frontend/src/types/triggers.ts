@@ -26,6 +26,15 @@ export interface Trigger {
   name: string | null;
   created_by_user_id: string | null;
   is_active: boolean;
+  /**
+   * Whether *this* caller may edit, pause, run-now or delete this trigger. The
+   * server resolves it per row from the caller's grants, so a Viewer holding an
+   * explicit run grant on one agent gets it on that agent's triggers and not the
+   * rest - which a role-level check on the client could never tell apart. Every
+   * trigger read carries it; the per-row controls gate on it rather than on a
+   * role.
+   */
+  can_manage: boolean;
   /** Which named environment answers here; null = the default. */
   environment_id: string | null;
   trigger_type: TriggerType;

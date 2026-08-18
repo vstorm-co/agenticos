@@ -91,6 +91,20 @@ export function useTriggers(agentId: string | null) {
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
+  const rotateSecret = useMutation({
+    // `TriggerCreated` for the same reason `create` is: the response carries the
+    // new signing secret in `reveal_secret`, shown exactly once, which no read
+    // ever returns. It is null for an auto-webhook trigger the platform re-armed
+    // itself, and the new secret to paste for a manual one.
+    mutationFn: (triggerId: string) =>
+      apiClient.post<TriggerCreated>(`${base}/${triggerId}/rotate-secret`, {}),
+    onSuccess: async () => {
+      await invalidate();
+      toast.success(t("secretRotated"));
+    },
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+
   return {
     triggers: (data?.items ?? []) as Trigger[],
     isLoading,
@@ -99,5 +113,6 @@ export function useTriggers(agentId: string | null) {
     setActive,
     runNow,
     remove,
+    rotateSecret,
   };
 }

@@ -27,6 +27,7 @@ import {
   TabsTrigger,
 } from "@/components/ui";
 import { useAgentEnvironments, useAgents } from "@/hooks";
+import { SecretRevealField } from "@/components/triggers/secret-reveal-field";
 import { usePortalTargets } from "@/hooks/use-portal-targets";
 import { useTriggers } from "@/hooks/use-triggers";
 import { useAgentSelectionStore } from "@/stores";
@@ -151,7 +152,14 @@ export function PortalTriggerDialog({
             </DialogDescription>
           </DialogHeader>
           {manual && created.webhook_url && <WebhookField url={created.webhook_url} />}
-          {manual && created.reveal_secret && <SecretField secret={created.reveal_secret} />}
+          {manual && created.reveal_secret && (
+            <SecretRevealField
+              secret={created.reveal_secret}
+              label={t("secretLabel")}
+              note={t("secretRevealNote")}
+              id="portal-secret"
+            />
+          )}
           <DialogFooter>
             <Button onClick={() => onOpenChange(false)}>{tt("done")}</Button>
           </DialogFooter>
@@ -332,38 +340,6 @@ function WebhookField({ url }: { url: string }) {
         </Button>
       </div>
       <p className="text-muted-foreground text-xs">{t("webhookHelp")}</p>
-    </div>
-  );
-}
-
-/**
- * The reveal-once signing secret, shown only on a manual-delivery create.
- *
- * The platform could not register the webhook, so the user wires their own relay
- * and this secret is what signs each delivery. It is returned exactly once - never
- * on a read - so the copy is offered here with a warning that it will not be shown
- * again.
- */
-function SecretField({ secret }: { secret: string }) {
-  const t = useTranslations("triggers");
-  const tp = useTranslations("portals");
-  const [copied, setCopied] = useState(false);
-
-  async function copy() {
-    await navigator.clipboard.writeText(secret);
-    setCopied(true);
-  }
-
-  return (
-    <div className="space-y-1">
-      <Label htmlFor="portal-secret">{tp("secretLabel")}</Label>
-      <div className="flex gap-2">
-        <Input id="portal-secret" value={secret} readOnly className="flex-1 font-mono text-xs" />
-        <Button type="button" variant="outline" onClick={copy}>
-          {copied ? t("copied") : t("copy")}
-        </Button>
-      </div>
-      <p className="text-muted-foreground text-xs">{tp("secretRevealNote")}</p>
     </div>
   );
 }

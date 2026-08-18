@@ -30,16 +30,16 @@ import type { Trigger } from "@/types/triggers";
  * a user expects clicking it. Only a trigger with no conversation at all (an
  * older row, or one whose log was deleted) falls back to the editor. The row menu
  * carries the rest: edit, pause or resume, run now, delete.
+ *
+ * Each row gates its own manage controls on the trigger's `can_manage`, resolved
+ * per row by the server: a Viewer holding an explicit run grant on one agent gets
+ * that agent's rows' menus and editor, and only informational rows for the rest.
  */
 export function SidebarTriggers({
   onOpenConversation,
-  canManage,
 }: {
   /** Opens a conversation in the chat - the sidebar's own selection handler. */
   onOpenConversation: (conversationId: string) => void;
-  /** Whether the caller may manage triggers (`agents:run`). A viewer still sees
-   *  the list but gets no row menu and no editor. */
-  canManage: boolean;
 }) {
   const t = useTranslations("triggers");
   const [expanded, setExpanded] = useState(false);
@@ -51,10 +51,10 @@ export function SidebarTriggers({
       // Open its run-log conversation whether or not it has fired: a run-less
       // trigger opens it empty, which is what clicking the item should show.
       onOpenConversation(trigger.conversation_id);
-    } else if (canManage) {
+    } else if (trigger.can_manage) {
       // No conversation to show (an older trigger, or its log was deleted): fall
-      // back to the editor, which a viewer may not use, so for them the item is
-      // informational only.
+      // back to the editor, which a caller who may not manage this row may not
+      // use, so for them the item is informational only.
       setEditing(trigger);
     }
   }
@@ -93,7 +93,6 @@ export function SidebarTriggers({
               <SidebarTriggerItem
                 key={trigger.id}
                 trigger={trigger}
-                canManage={canManage}
                 onOpen={() => openItem(trigger)}
                 onEdit={() => setEditing(trigger)}
               />
@@ -116,12 +115,10 @@ export function SidebarTriggers({
 
 function SidebarTriggerItem({
   trigger,
-  canManage,
   onOpen,
   onEdit,
 }: {
   trigger: Trigger;
-  canManage: boolean;
   onOpen: () => void;
   onEdit: () => void;
 }) {
@@ -150,7 +147,7 @@ function SidebarTriggerItem({
           <TriggerSummary trigger={trigger} />
         </span>
       </button>
-      {canManage && (
+      {trigger.can_manage && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button

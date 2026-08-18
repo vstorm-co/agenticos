@@ -263,10 +263,11 @@ function ConversationList({
   const ts = useTranslations("chat.sidebar");
   const tt = useTranslations("triggers");
   const { can } = usePermissions();
-  // Managing a trigger is `agents:run`, resolved per row server-side; the section
-  // still shows to a viewer (viewing an agent's schedule is `agents:view`), but
-  // the create menu and the row actions are a manager's, so they are not rendered
-  // for anyone else rather than rendered and then 403'd.
+  // The floor for creating a trigger is `agents:run` - an agent-level signal that
+  // gates only this create menu. The section itself still shows to a viewer
+  // (viewing an agent's schedule is `agents:view`), and each row decides its own
+  // controls from its `can_manage`, so a create menu hidden here never hides a row
+  // the caller may in fact manage.
   const canManageTriggers = can(Perm.agentsRun);
   const [shareConversationId, setShareConversationId] = useState<string | null>(null);
   const [creatingTrigger, setCreatingTrigger] = useState<TriggerType | null>(null);
@@ -320,7 +321,7 @@ function ConversationList({
         )}
       </div>
 
-      <SidebarTriggers onOpenConversation={handleSelect} canManage={canManageTriggers} />
+      <SidebarTriggers onOpenConversation={handleSelect} />
 
       {filters}
 
