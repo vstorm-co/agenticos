@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import ast
+import inspect
 import os
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -62,3 +65,35 @@ async def test_a_sibling_of_the_root_sharing_its_prefix_is_refused(storage: Loca
 
     with pytest.raises(ValueError, match="escapes storage root"):
         await storage.load(f"../{sibling.name}/secrets.env")
+
+
+async def test_the_storage_root_itself_resolves_to_the_storage_root(storage: LocalFileStorage):
+    """An empty path names the root, which is inside itself and not an escape."""
+    assert storage.get_full_path("") == storage.base_dir.resolve()
+
+
+def test_the_containment_check_is_the_whole_condition_of_its_branch():
+    """What `py/path-injection` accepts as a barrier, and what #903 was.
+
+    The query clears a normalised path only where the `startswith` call alone
+    decides the branch. `candidate != base and not candidate.startswith(prefix)`
+    refuses exactly the same paths and reads to a person as the same guard, but
+    its fall-through proves neither conjunct, so the barrier never applied and
+    both sinks in `load` stayed flagged through a release that said otherwise.
+
+    This pins the shape, not the verdict - only CodeQL answers the verdict.
+    """
+    source = textwrap.dedent(inspect.getsource(LocalFileStorage._resolve_safe_path))
+    branches = [
+        node
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.If) and "startswith" in ast.dump(node.test)
+    ]
+
+    assert len(branches) == 1
+    test = branches[0].test
+    if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
+        test = test.operand
+    assert isinstance(test, ast.Call)
+    assert isinstance(test.func, ast.Attribute)
+    assert test.func.attr == "startswith"
