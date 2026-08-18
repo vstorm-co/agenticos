@@ -17,6 +17,33 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.198] - 2026-08-18
+
+### Fixed
+
+- **Eighteen refusals that name a field now mark it.** They answered with a
+  singular `details={"field": "<name>"}`, and the frontend reads the plural
+  shape and FastAPI's own `detail` and nothing else — so a mistyped model
+  endpoint, a blocked MCP server URL and a spec YAML that would not parse each
+  delivered a sentence to a toast and left every input unmarked. The same defect
+  0.0.195 fixed for `details["errors"]`, in the third shape it deliberately did
+  not touch. `refused_field` takes the sentence **once**, so the envelope's copy
+  and the field's cannot drift apart. (#891)
+- **A sandbox probe's 404 stopped blaming the address.** It is the one failure
+  the two callers of `_get_json` do not share — a session that ended, versus a
+  service with no such endpoint — so naming `base_url` for both would have put
+  "Sandbox session not found" under the operator's Address box: confidently
+  wrong where it had been merely vague. (#891)
+
+### Changed
+
+- **The rules that teach how to write a refusal name the helper.**
+  `.claude/rules/exceptions-security.md` and `docs/patterns.md` still taught
+  `{"field": "base_url"}` as *the* way to name a field a refusal is about, and
+  never mentioned `app/core/field_errors.py` — so this change would have removed
+  the shape from the code and left the instruction to recreate it, which is
+  exactly how `assistant.py` and `UserRole` outlived their own deletion. (#891)
+
 ## [0.0.197] - 2026-08-18
 
 The `e2e` job stopped stalling for twenty-five minutes on an apt mirror.
