@@ -26,6 +26,7 @@ from app.agents.mcp import (
 from app.agents.mcp_oauth import McpOAuthPayload
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
+from app.core.pinned_http import PinnedAsyncClient
 from app.core.sanitize import SSRFBlockedError
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.mcp_connection import McpConnection
@@ -1809,15 +1810,70 @@ class TestOrgReadSchema:
 
 class TestOAuthRequestSafety:
     """Discovery lets the remote server choose most of the URLs we call, so
-    every hop - redirects included - goes through the SSRF policy.
+    every hop - redirects included - is checked and then dialled at the address
+    that passed (#860).
 
-    IP literals are used throughout: the validator short-circuits on those, so
-    the tests never touch DNS.
+    IP literals are used except where a hostname is the point: the validator
+    short-circuits on a literal, so those tests never touch DNS.
     """
 
     @staticmethod
-    def _client(handler) -> httpx.AsyncClient:
-        return httpx.AsyncClient(transport=httpx.MockTransport(handler), follow_redirects=False)
+    def _client(handler) -> PinnedAsyncClient:
+        return mcp_oauth._client(httpx.MockTransport(handler))
+
+    @staticmethod
+    def _resolves(monkeypatch, *rounds: str) -> list[str]:
+        """One DNS answer per call, the last one repeating; records the names."""
+        asked: list[str] = []
+        remaining = iter(rounds)
+
+        def fake_getaddrinfo(host: str, port: int, **_kwargs: object) -> list[tuple]:
+            asked.append(host)
+            return [(2, 1, 6, "", (next(remaining, rounds[-1]), port))]
+
+        monkeypatch.setattr("app.core.sanitize.socket.getaddrinfo", fake_getaddrinfo)
+        return asked
+
+    @pytest.mark.anyio
+    async def test_a_discovery_document_naming_a_private_address_is_refused(self, monkeypatch):
+        """The authorization server comes out of the server's own metadata, so
+        this is the first hop an attacker controls outright."""
+        self._resolves(monkeypatch, "169.254.169.254")
+        seen: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(str(request.url))
+            return httpx.Response(200, json={})
+
+        async with self._client(handler) as client:
+            request = client.build_request("GET", "https://auth.attacker.test/.well-known/oauth")
+            with pytest.raises(mcp_oauth.OAuthError, match="blocked address"):
+                await mcp_oauth._send(client, request)
+
+        assert seen == []
+
+    @pytest.mark.anyio
+    async def test_a_name_that_turns_private_is_dialled_at_the_address_that_passed(
+        self, monkeypatch
+    ):
+        """The rebinding case: public to the check, the metadata service to
+        whatever resolves next. There is no next - the request goes to the
+        address the check approved, naming the host only in `Host` and SNI."""
+        asked = self._resolves(monkeypatch, "93.184.216.34", "169.254.169.254")
+        seen: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request)
+            return httpx.Response(200, json={})
+
+        async with self._client(handler) as client:
+            request = client.build_request("POST", "https://token.attacker.test/token")
+            response = await mcp_oauth._send(client, request)
+
+        assert response.status_code == 200
+        assert asked == ["token.attacker.test"]
+        assert seen[0].url.host == "93.184.216.34"
+        assert seen[0].headers["Host"] == "token.attacker.test"
 
     @pytest.mark.anyio
     async def test_redirect_to_internal_host_is_blocked(self):
@@ -1836,6 +1892,46 @@ class TestOAuthRequestSafety:
 
         # The first hop was allowed; the metadata address was never requested.
         assert seen == ["https://93.184.216.34/.well-known/x"]
+
+    @pytest.mark.anyio
+    async def test_a_redirect_to_a_new_host_is_re_checked_not_trusted(self, monkeypatch):
+        """A second hop gets its own resolution, and its own refusal."""
+        asked = self._resolves(monkeypatch, "93.184.216.34", "10.0.0.7")
+        seen: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(str(request.url))
+            return httpx.Response(302, headers={"Location": "https://intranet.attacker.test/x"})
+
+        async with self._client(handler) as client:
+            request = client.build_request("GET", "https://auth.attacker.test/start")
+            with pytest.raises(mcp_oauth.OAuthError, match="blocked address"):
+                await mcp_oauth._send(client, request)
+
+        assert asked == ["auth.attacker.test", "intranet.attacker.test"]
+        assert len(seen) == 1
+
+    @pytest.mark.anyio
+    async def test_a_relative_redirect_follows_the_host_not_the_pinned_address(self, monkeypatch):
+        """`next_request` is built from the URL we asked for. Were it built from
+        the dialled one, `/moved` would resolve against the IP and the hop after
+        it would be checked - and cached, and TLS-verified - as a bare address."""
+        self._resolves(monkeypatch, "93.184.216.34")
+        seen: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request)
+            if request.url.path == "/start":
+                return httpx.Response(302, headers={"Location": "/moved"})
+            return httpx.Response(200, text="ok")
+
+        async with self._client(handler) as client:
+            request = client.build_request("GET", "https://auth.example.test/start")
+            response = await mcp_oauth._send(client, request)
+
+        assert response.status_code == 200
+        assert [r.headers["Host"] for r in seen] == ["auth.example.test"] * 2
+        assert [r.url.host for r in seen] == ["93.184.216.34"] * 2
 
     @pytest.mark.anyio
     async def test_redirect_to_public_host_is_followed(self):

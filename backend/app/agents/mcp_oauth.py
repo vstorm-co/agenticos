@@ -20,8 +20,9 @@ the SDK's own client; the token grant/refresh POSTs are issued here so the
 flow can be split across requests and persisted between them.
 
 Every URL reached from here - discovery candidates, the token endpoint, and
-each redirect hop - is SSRF-checked (see :func:`_send`), because discovery
-means the remote server, not the user, picks most of the addresses we call.
+each redirect hop - is SSRF-checked *and connected to at the address that
+check approved* (see :func:`_client`), because discovery means the remote
+server, not the user, picks most of the addresses we call.
 """
 
 from __future__ import annotations
@@ -48,6 +49,7 @@ from pydantic import AnyUrl, BaseModel
 
 from app.agents.mcp import CONNECT_TIMEOUT_SECS, validate_mcp_url
 from app.core.config import settings
+from app.core.pinned_http import PinnedAsyncClient
 
 logger = logging.getLogger(__name__)
 
@@ -81,29 +83,41 @@ def _flow_failed(exc: Exception, *, summary: str, advice: str) -> str:
     return f"{summary} ({type(exc).__name__}) - {advice}. The server log has the full error."
 
 
-async def _send(client: httpx.AsyncClient, request: httpx.Request) -> httpx.Response:
-    """Send *request*, SSRF-checking every hop, redirects included.
+def _client(transport: httpx.AsyncBaseTransport | None = None) -> PinnedAsyncClient:
+    """The only client this flow talks through.
+
+    `PinnedAsyncClient` checks each request's URL and then dials the address
+    that passed, sending the original host in `Host` and SNI. That is what makes
+    :func:`_send`'s guarantee hold for a URL the remote server chose: without
+    the pin the check resolves the name, approves it, and `client.send` resolves
+    it again, so a hostile server can answer public to the check and private to
+    the request between them (#860).
+
+    `transport` is for a test that needs to see what would go on the wire.
+    """
+    return PinnedAsyncClient(timeout=_HTTP_TIMEOUT, transport=transport)
+
+
+async def _send(client: PinnedAsyncClient, request: httpx.Request) -> httpx.Response:
+    """Send *request*, following redirects one checked-and-pinned hop at a time.
 
     Discovery and token endpoints are chosen by the remote server, so the URL
-    the user typed is not the URL we end up talking to. The client has
-    redirects turned off and we follow them here, one validated hop at a time -
-    otherwise a server could answer with `302 http://169.254.169.254/` and we
-    would fetch it from inside the network.
+    the user typed is not the URL we end up talking to. Redirects are off on the
+    client and followed here so their number is bounded and each new address
+    goes through the transport's check on its own - otherwise a server could
+    answer with `302 http://169.254.169.254/` and we would fetch it from inside
+    the network.
 
-    The check is point-in-time and this loop is the one caller for which that
-    matters most: `validate_mcp_url` resolves the name, approves it, and hands
-    back the string, which `client.send` resolves again. Every hop here was
-    named by the remote server, so it can answer public to the check and private
-    to the send without anyone on this side being complicit - the redirect half
-    of that attack is closed above, the rebinding half is #860.
+    `response.next_request` resolves a relative `Location` against the request
+    *we* built, which is the one naming the host; the substitution to the pinned
+    address happens inside the transport and never reaches this loop.
     """
     for _ in range(_MAX_REDIRECTS + 1):
         try:
-            await validate_mcp_url(str(request.url))
+            response = await client.send(request)
         except ValueError as exc:
             logger.warning("Blocked MCP OAuth request to %s: %s", request.url, exc)
             raise OAuthError("This server pointed the OAuth flow at a blocked address.") from exc
-        response = await client.send(request)
         if response.next_request is None:
             return response
         request = response.next_request
@@ -166,7 +180,7 @@ async def discover(server_url: str) -> DiscoveredServer:
     metadata (from the `WWW-Authenticate` header if present, else well-known
     URIs), then the authorization-server metadata (RFC 8414, OIDC fallbacks).
     """
-    async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT, follow_redirects=False) as client:
+    async with _client() as client:
         # 1. Probe the server unauthenticated to surface the WWW-Authenticate hint.
         www_auth_url: str | None = None
         try:
@@ -210,7 +224,7 @@ async def discover(server_url: str) -> DiscoveredServer:
 
         # 3. Authorization-server metadata (endpoints, PKCE support). Both the
         #    candidate URLs and auth_server_url come from the server's own
-        #    metadata, so _send validates each one before it is requested.
+        #    metadata, so each one is checked and pinned before it is requested.
         asm: OAuthMetadata | None = None
         for url in build_oauth_authorization_server_metadata_discovery_urls(
             auth_server_url, server_url
@@ -234,7 +248,8 @@ async def discover(server_url: str) -> DiscoveredServer:
             )
 
         # The consent URL is handed to the user's browser rather than fetched
-        # here, so it never passes through _send - check it now.
+        # here, so it never passes through the pinned client - and cannot: the
+        # browser resolves it itself. A point-in-time check is all there is.
         try:
             await validate_mcp_url(str(asm.authorization_endpoint))
         except ValueError as exc:
@@ -266,7 +281,7 @@ async def register_client(server: DiscoveredServer, redirect_uri: str) -> tuple[
     request = create_client_registration_request(
         server.metadata, metadata, server.authorization_endpoint
     )
-    async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT, follow_redirects=False) as client:
+    async with _client() as client:
         try:
             info = await handle_registration_response(await _send(client, request))
         except httpx.HTTPError as exc:
@@ -366,7 +381,7 @@ async def refresh_tokens(
 
 
 async def _token_request(token_endpoint: str, data: dict[str, str]) -> OAuthToken:
-    async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT, follow_redirects=False) as client:
+    async with _client() as client:
         try:
             response = await _send(
                 client,

@@ -63,18 +63,20 @@ registration (RFC 7591) → consent URL (PKCE + state + RFC 8707 resource indica
 exchange → refresh. Split across two HTTP requests because this is a web app, not a
 CLI.
 
-**Every URL in that flow is SSRF-checked**, not just the one somebody typed —
-discovery means the remote server picks most of the addresses we call. Same policy as
-webhooks (`app/core/sanitize.validate_webhook_url`), run in a thread because it
-resolves DNS. Do not add a request path that skips it.
+**Every URL in that flow is SSRF-checked and pinned**, not just the one somebody
+typed — discovery means the remote server picks most of the addresses we call. The
+flow's only client is `mcp_oauth._client()`, a `PinnedAsyncClient`
+(`app/core/pinned_http.py`): it checks each request's URL with
+`sanitize.resolve_pinned_url` and then dials **that address**, with the original host
+in `Host` and in TLS SNI. Nothing resolves the name twice, so there is no window to
+rebind (#860). Do not add a request path that builds a plain `httpx.AsyncClient` —
+`_send` takes a `PinnedAsyncClient` so that mistake does not type-check.
 
-**And do not read that check as more than it is.** It resolves the name and refuses a
-private answer *at that moment*, then returns the URL string — so the client resolves
-again when it connects and a rebinding name reaches the address the check refused
-(#840). Do not reach for "but an operator typed it" here: only the first hop was typed,
-and the authorization server, token endpoint and redirects all come from the remote
-server's discovery documents, so one hostile server aims the gap without help (#860).
-A URL a *model* chose needs `safe_download`, which dials the address it checked.
+Two things the pin does not cover, and neither is an oversight. The **consent URL** is
+checked with `validate_mcp_url` and then handed to a browser that resolves it itself.
+The **connection's own URL** is checked at save and resolved again at run time — a
+point-in-time check (#840), bearable only because an operator typed it. A URL a *model*
+chose belongs in neither; it needs `safe_download`.
 
 An organization's OAuth connection is still the consenting person's grant at the
 provider. Revoking their access there breaks the organization's server.
