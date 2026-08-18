@@ -380,9 +380,7 @@ class OrganizationSecretService:
         )
         if row is None:
             raise NotFoundError(
-                message=(
-                    "Connect GitHub after adding a GitHub OAuth App secret in Settings - Secrets."
-                ),
+                message=("Connect GitHub after adding a GitHub OAuth App secret in Vault."),
                 details={"kind": SecretKind.GITHUB_OAUTH_APP.value},
             )
         value = unseal_secret(
