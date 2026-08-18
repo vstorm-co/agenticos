@@ -280,3 +280,8 @@ and most of `src/components`, so a suite where every test passes can still be re
 dead branch is easier to delete than to cover: a `?? ""` behind a check that already
 proved the value, or an optional prop two callers always pass, is one the gate is
 right to notice.
+
+**A red spec that says "timed out" is usually the machine.** `testTimeout` is 15s and
+`asyncUtilTimeout` 5s, both measured rather than guessed - `docs/testing.md#two-deadlines-both-sized-for-a-loaded-machine`
+has the four runs behind them (#862). Neither is a reason to keep a spec that mounts
+more than its assertions read.
