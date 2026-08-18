@@ -130,14 +130,16 @@ export function modelIdIsWellFormed(providerId: string, model: string): boolean 
 /**
  * What this form can mark, for `submitFailure`.
  *
- * The endpoint and nothing else, because it is the only input the API names:
- * every `validate_endpoint_url` refusal and the "this provider has no endpoint
- * setting" one answer `details.fields` against `base_url` (#891), and a 422 on
- * the field says the same. Everything else the endpoint refuses - a bare
- * OpenRouter id, a provider with no key - names no input, and `submitFailure`
- * hands those back as one line rather than guessing at a box.
+ * Every refusal `POST /model-profiles` gives names one of these three now: a
+ * bare OpenRouter id is about `model`, a keyless provider with nothing to reach
+ * is about `base_url`, a keyed one with no key is about `secret_id` (#898), and
+ * the endpoint checks were already there (#891). `base_url` is only offered
+ * while that input is on screen - a refusal about a field the reader cannot see
+ * belongs in the line above the button, which is at least readable.
  */
-const FORM = { fields: ["base_url"] } as const;
+function markable(acceptsEndpoint: boolean): { fields: readonly string[] } {
+  return { fields: acceptsEndpoint ? ["model", "base_url", "secret_id"] : ["model", "secret_id"] };
+}
 
 export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelProps) {
   const tErrors = useTranslations("errors");
@@ -221,6 +223,13 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
     (already !== undefined || chosenKey !== "" || keyOptional) &&
     modelIdIsWellFormed(provider.id, model.trim());
 
+  // Both ways of choosing a key, because a refusal that outlives the value it
+  // named accuses the one the reader has just picked.
+  const chooseKey = (id: string) => {
+    setSecretId(id);
+    setFailure(NO_FAILURE);
+  };
+
   const submit = async () => {
     /* v8 ignore next -- the id comes from the list this select was built from */
     if (provider === undefined) return;
@@ -244,11 +253,11 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
       onCreated(profile);
     } catch (error) {
       // Caught, not left to reject: an unhandled rejection here is Next.js's
-      // full-screen error overlay for what is a typo in one field. An endpoint
-      // that is not a URL, or one for a provider that has no endpoint setting,
-      // is refused against `base_url` and marks that input; a bare OpenRouter
-      // id names no field and stays a line under the model.
-      setFailure(submitFailure(error, FORM, tErrors));
+      // full-screen error overlay for what is a typo in one field. Which field
+      // is the server's to say, and it names one for every refusal this endpoint
+      // gives (#898) - so what is left for the line above the button is a
+      // permission, a fault, or a conflict on the derived name.
+      setFailure(submitFailure(error, markable(acceptsEndpoint), tErrors));
     }
   };
 
@@ -298,17 +307,16 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
           </Select>
         </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="add-model-id">{t("model")}</Label>
-          {/*
-            The provider's catalog, searchable, and still able to carry an id
-            that is not in it. The list is never authoritative - providers ship
-            models faster than any catalog here is refreshed - so "the one that
-            came out this morning" stays expressible. What it is no longer is
-            invisible: this was a text field with a `datalist`, which browsers
-            surface only after a matching prefix is typed, so six hundred known
-            models looked like none.
-          */}
+        {/*
+          The provider's catalog, searchable, and still able to carry an id that
+          is not in it. The list is never authoritative - providers ship models
+          faster than any catalog here is refreshed - so "the one that came out
+          this morning" stays expressible. What it is no longer is invisible:
+          this was a text field with a `datalist`, which browsers surface only
+          after a matching prefix is typed, so six hundred known models looked
+          like none.
+        */}
+        <FormField htmlFor="add-model-id" label={t("model")} error={failure.fields.model}>
           <ModelCombobox
             id="add-model-id"
             value={model}
@@ -322,8 +330,7 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
             disabled={provider === undefined}
             placeholder={placeholderWords(modelPlaceholder(provider?.id), tRoot)}
           />
-          {failure.toast !== null && <p className="text-destructive text-xs">{failure.toast}</p>}
-        </div>
+        </FormField>
       </div>
 
       {provider !== undefined && (
@@ -345,7 +352,7 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
           {keys.length > 1 && (
             <>
               <Label htmlFor="add-model-key">{t("key")}</Label>
-              <Select value={chosenKey} onValueChange={setSecretId}>
+              <Select value={chosenKey} onValueChange={chooseKey}>
                 <SelectTrigger id="add-model-key">
                   <SelectValue />
                 </SelectTrigger>
@@ -379,7 +386,7 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
                   purpose={provider.id}
                   suggestedName={provider.label}
                   helpUrl={provider.help_url ?? undefined}
-                  onCreated={setSecretId}
+                  onCreated={chooseKey}
                   // Passed on rather than left to the submit button. This writes
                   // an organization-wide secret, and a caller that disabled the
                   // form - a dialog mid-save, a panel somebody may only read -
@@ -388,6 +395,13 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
                 />
               )}
             </div>
+          )}
+
+          {/* No control to mark: the server refuses `secret_id` for being null,
+              which is the state in which this block is a sentence rather than a
+              select. */}
+          {failure.fields.secret_id !== undefined && (
+            <p className="text-destructive text-xs">{failure.fields.secret_id}</p>
           )}
         </div>
       )}
@@ -446,6 +460,13 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
           {t("nameSomethingElse")}
         </button>
       )}
+
+      {/* Whatever this form has no input for - a permission, a fault, a
+          conflict on a name it derived. It sat under the model id while that was
+          the only place a refusal could land; now that all three name their own
+          field, leaving it there would say the model was wrong when the answer
+          was a 403. */}
+      {failure.toast !== null && <p className="text-destructive text-xs">{failure.toast}</p>}
 
       <div className="flex items-center gap-2 pt-1">
         <Button

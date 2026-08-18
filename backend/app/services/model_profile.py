@@ -50,12 +50,13 @@ def _validate_model_id(provider: str, model: str) -> None:
     id with `ValueError: not enough values to unpack` - deep inside a run,
     with nothing pointing at the profile that caused it. Catching it here costs
     one comparison and turns a baffling run-time crash into a form error.
+
+    A form error the form can act on: the field, not the id it refused. This
+    used to answer `details={"model": model}`, which posted the caller's own
+    submission back into a body and a log line and marked nothing (#898).
     """
     if provider == "openrouter" and "/" not in model:
-        raise BadRequestError(
-            message="OpenRouter model ids are namespaced, e.g. 'openai/gpt-4.1'",
-            details={"model": model},
-        )
+        raise refused_field("model", "OpenRouter model ids are namespaced, e.g. 'openai/gpt-4.1'")
 
 
 async def validate_endpoint_url(url: str) -> str:
@@ -168,18 +169,18 @@ class ModelProfileService:
                 )
             base_url = await validate_endpoint_url(base_url)
         elif spec.keyless and secret_id is None:
-            raise BadRequestError(
-                message=(
-                    f"{spec.name} runs without a key, so it needs an endpoint to reach - "
-                    "there is no public API to fall back on"
-                ),
-                details={"provider": provider},
+            raise refused_field(
+                "base_url",
+                f"{spec.name} runs without a key, so it needs an endpoint to reach - "
+                "there is no public API to fall back on",
+                provider=provider,
             )
 
         if secret_id is None and not spec.keyless:
-            raise BadRequestError(
-                message=f"{spec.name} needs a key. Store one in the vault, then add the model",
-                details={"provider": provider},
+            raise refused_field(
+                "secret_id",
+                f"{spec.name} needs a key. Store one in the vault, then add the model",
+                provider=provider,
             )
 
         if await credential_repo.get_profile_by_label(

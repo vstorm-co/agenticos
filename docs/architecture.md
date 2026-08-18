@@ -293,7 +293,11 @@ field's are the same sentence; a raiser needing another status builds the same
 `details` with `field_details`. Eighteen call sites answered
 `details={"field": "<name>"}` instead, singular, with the sentence on the
 envelope, and no form has ever read it — the same defect in a third shape
-([#891](https://github.com/vstorm-co/agenticos/issues/891)).
+([#891](https://github.com/vstorm-co/agenticos/issues/891)). A fourth spelling
+was `details={"<field>": <value>}`, where the key was the field name and the
+value was what the caller had just sent: `model_profile.py` answered a refused
+model id with the id, in a body and in the log line beside it
+([#898](https://github.com/vstorm-co/agenticos/issues/898)).
 
 Deciding by the string instead would misread a spec whose forbidden top-level
 key is literally called `body`, which is one shape standing in for two — the

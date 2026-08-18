@@ -243,6 +243,29 @@ class TestProfileCreation:
         assert "namespaced" in exc.value.message
 
     @pytest.mark.anyio
+    async def test_a_bare_model_id_names_the_field_and_is_not_posted_back(self):
+        """It used to answer `details={"model": model}`.
+
+        Which is the caller's own submission in a response body and in the log
+        line the handler writes beside it, and a shape `fieldProblems` reads
+        nowhere - so the form showed a sentence and marked nothing (#898).
+
+        The id refused here is deliberately not the one the message offers as
+        an example, so the second assertion is about what was submitted rather
+        than about a substring of our own copy."""
+        with pytest.raises(BadRequestError) as exc:
+            await ModelProfileService(_db()).create_profile(
+                _ctx(),
+                label="OR",
+                provider="openrouter",
+                model="gpt-5",
+                secret_id=uuid.uuid4(),
+            )
+
+        assert exc.value.details == {"fields": [{"field": "model", "message": exc.value.message}]}
+        assert "gpt-5" not in repr(exc.value.details)
+
+    @pytest.mark.anyio
     async def test_a_provider_with_no_catalog_entry_cannot_become_a_profile(self):
         """A profile the platform cannot construct is a dead option in every picker."""
         with (
@@ -807,6 +830,27 @@ class TestAnEndpointOfItsOwn:
         assert "endpoint" in str(exc.value).lower()
 
     @pytest.mark.anyio
+    async def test_a_keyless_provider_with_no_endpoint_names_the_endpoint_field(self):
+        """The refusal is about `base_url`, and it named only `provider`.
+
+        Which is a fact rather than a field, so the form had nothing to mark
+        (#898). The provider stays beside the field, the way the "no endpoint
+        setting" refusal above carries it."""
+        with pytest.raises(BadRequestError) as exc:
+            await ModelProfileService(_db()).create_profile(
+                _ctx(),
+                label="Local llama",
+                provider="ollama",
+                model="llama3.3",
+                secret_id=None,
+            )
+
+        assert exc.value.details == {
+            "provider": "ollama",
+            "fields": [{"field": "base_url", "message": exc.value.message}],
+        }
+
+    @pytest.mark.anyio
     async def test_a_keyed_provider_without_a_key_is_refused(self):
         """A model that cannot answer is not worth creating."""
         with pytest.raises(BadRequestError) as exc:
@@ -818,6 +862,23 @@ class TestAnEndpointOfItsOwn:
                 secret_id=None,
             )
         assert "key" in str(exc.value).lower()
+
+    @pytest.mark.anyio
+    async def test_a_missing_key_names_the_key_field_rather_than_the_provider(self):
+        """Same defect as its neighbour above, about `secret_id` (#898)."""
+        with pytest.raises(BadRequestError) as exc:
+            await ModelProfileService(_db()).create_profile(
+                _ctx(),
+                label="Anthropic, keyless",
+                provider="anthropic",
+                model="claude-sonnet-5",
+                secret_id=None,
+            )
+
+        assert exc.value.details == {
+            "provider": "anthropic",
+            "fields": [{"field": "secret_id", "message": exc.value.message}],
+        }
 
     @pytest.mark.anyio
     async def test_a_keyless_profile_resolves_with_no_secret_at_all(self):
