@@ -5,6 +5,7 @@ URL validation to prevent SSRF attacks.
 
 import ipaddress
 import socket
+from dataclasses import dataclass
 from urllib.parse import urlparse
 
 WEBHOOK_ALLOWED_SCHEMES = frozenset({"http", "https"})
@@ -66,55 +67,62 @@ def _is_ip_blocked(ip_str: str) -> bool:
     )
 
 
-def validate_webhook_url(
+@dataclass(frozen=True)
+class PinnedAddress:
+    """The addresses a URL was checked at, so the same ones can be dialled.
+
+    `hostname` is what the URL named and what a `Host` header and TLS SNI must
+    still say; `ips` holds every address :func:`resolve_pinned_url` approved,
+    deduplicated and in the order the resolver gave them, and is never empty.
+    Handing both to a caller is the whole difference between checking a name
+    and connecting to what was checked (#860).
+
+    Every entry passed the same check, so a caller may try them in turn - what
+    it may not do is resolve the name again.
+    """
+
+    hostname: str
+    port: int
+    ips: tuple[str, ...]
+
+
+def resolve_pinned_url(
     url: str,
     allowed_schemes: frozenset[str] | None = None,
-) -> str:
-    """Refuse a URL that points inside the deployment's network.
+) -> PinnedAddress:
+    """Refuse a URL that points inside the deployment's network, and pin it.
 
-    Checks that the URL:
-    - Uses an allowed scheme (http/https only by default)
-    - Does not contain userinfo (credentials in the URL)
-    - Does not point to private, reserved, loopback, or link-local IP addresses
-    - Resolves, *at the moment of this call*, only to public addresses
+    The policy is the whole of this module's SSRF policy - allowed scheme, no
+    userinfo, and no private, reserved, loopback, link-local or CGNAT address -
+    and :func:`validate_webhook_url` is this function with the answer thrown
+    away.
 
-    **This is not DNS-rebinding protection, and it cannot be.** The validated URL
-    is returned as the string it came in as, so every caller resolves the
-    hostname a second time when it connects - the MCP client through
-    :func:`app.agents.mcp.validate_mcp_url`, and the browser through
-    :func:`app.agents.capabilities.browser_use.validate_cdp_url`, where the
-    attach happens however long after publish the agent is first run. A name
-    answering a public address here and a private one there passes this check
-    and reaches the private address. Closing that means pinning the resolved
-    address into the request - dial the IP, send the original host in the `Host`
-    header, the way `pydantic_ai._ssrf` does - and this function has no way to
-    express that to its callers (#840).
+    **Only a caller that dials the returned `ip` is protected from DNS
+    rebinding.** A caller that takes the hostname back and connects by name
+    resolves it a second time, and a name that answers public here and private
+    there reaches the private address. `app.core.pinned_http` is what turns this
+    answer into a request: it dials the IP, sends `hostname` in the `Host`
+    header and passes it as `sni_hostname` so TLS still verifies the
+    certificate against the name.
 
-    How much that gap costs depends on **who chose the URL**, and there are two
-    answers, not one. Where it was typed by an operator - a connection's own
-    URL, a `cdp_url` - rebinding needs the person typing it to be the attacker,
-    which is narrow. But :func:`app.agents.mcp_oauth._send` validates every hop
-    of an OAuth flow whose authorization server, token endpoint and redirects
-    are all named by the *remote* MCP server's discovery documents. Connecting
-    one hostile server is enough there; no operator has to be complicit, and
-    that half is open until #860 pins the address. A URL that came from a
-    *model*, or from anyone unprivileged, does not belong here at all - fetch it
-    through Pydantic AI's `safe_download`, which pins the address it checked.
+    All resolved addresses are checked and all of them are pinned, so a name
+    that answers with one public and one private address is refused outright
+    rather than raced or narrowed to its public half.
 
-    Because of that, the refusals below name the **host**, or nothing, but never
-    the URL. A URL carries a key in its query string, and the one being refused
-    may have been written by the party being refused
-    (`.claude/rules/exceptions-security.md`). They name no *caller* either: this
-    function has had no webhook caller for some time, and every message it
-    raises is read by somebody who typed an MCP server URL or a `cdp_url`
-    (#861).
+    The refusals name the **host**, or nothing, but never the URL. A URL carries
+    a key in its query string, and the one being refused may have been written
+    by the party being refused (`.claude/rules/exceptions-security.md`) - which
+    on the OAuth path is the ordinary case rather than the exotic one. They name
+    no *caller* either: the same refusals are read by somebody who typed an MCP
+    server URL, by somebody who typed a `cdp_url`, and by nobody at all when a
+    discovery document named the address (#861).
 
     Args:
         url: The URL to validate.
         allowed_schemes: Allowed URL schemes. Defaults to {"http", "https"}.
 
     Returns:
-        The validated URL string.
+        The hostname, port and validated addresses to connect to.
 
     Raises:
         SSRFBlockedError: If the URL is blocked by SSRF protection.
@@ -123,12 +131,6 @@ def validate_webhook_url(
             `ValueError` reaching a caller from this function is a bug rather
             than a refusal, and would be one written by the standard library
             about text the caller sent.
-
-    Example:
-        >>> validate_webhook_url("https://example.com/webhook")
-        "https://example.com/webhook"
-        >>> validate_webhook_url("http://169.254.169.254/latest/meta-data/")
-        Raises SSRFBlockedError
     """
     if allowed_schemes is None:
         allowed_schemes = WEBHOOK_ALLOWED_SCHEMES
@@ -163,24 +165,21 @@ def validate_webhook_url(
         # `urlsplit` parses the port at attribute access rather than up front,
         # and says what it could not cast - which is the caller's text, and
         # reaches a response body through every caller of this function (#861).
-        # Read here rather than beside `getaddrinfo` so an unrequestable port is
-        # refused on an IP literal too, and so the `except ValueError` below
-        # cannot swallow this.
+        # Read before the IP-literal branch so an unrequestable port is refused
+        # there too, and so that branch's `except ValueError` cannot swallow it.
         raise UrlRefusedError("The URL has an invalid port") from err
 
     try:
         addr = ipaddress.ip_address(hostname)
+    except ValueError:
+        pass
+    else:
         if _is_ip_blocked(str(addr)):
             raise SSRFBlockedError(
                 f"Blocked: {hostname!r} resolves to a private/internal "
                 f"address. SSRF protection does not allow requests to internal networks."
             )
-        return url
-    except SSRFBlockedError:
-        raise
-    except ValueError:
-        # Not an IP literal - continue to DNS resolution below
-        pass
+        return PinnedAddress(hostname=hostname, port=port, ips=(str(addr),))
 
     try:
         addr_infos = socket.getaddrinfo(hostname, port, proto=socket.IPPROTO_TCP)
@@ -190,6 +189,7 @@ def validate_webhook_url(
     if not addr_infos:
         raise SSRFBlockedError(f"Blocked: hostname {hostname!r} did not resolve to any address")
 
+    ips: list[str] = []
     for _family, _type, _proto, _canonname, sockaddr in addr_infos:
         ip_str = str(sockaddr[0])
         if _is_ip_blocked(ip_str):
@@ -198,5 +198,53 @@ def validate_webhook_url(
                 f"address {ip_str!r}. SSRF protection does not allow requests to "
                 f"internal networks."
             )
+        ips.append(ip_str)
 
+    return PinnedAddress(hostname=hostname, port=port, ips=tuple(dict.fromkeys(ips)))
+
+
+def validate_webhook_url(
+    url: str,
+    allowed_schemes: frozenset[str] | None = None,
+) -> str:
+    """Refuse a URL that points inside the deployment's network.
+
+    :func:`resolve_pinned_url` with the answer discarded - same policy, same
+    refusals, for the two callers that only want a yes or no.
+
+    **This is not DNS-rebinding protection, and for these callers it cannot be.**
+    The validated URL is returned as the string it came in as, so both of them
+    resolve the hostname a second time when they connect: the MCP client through
+    :func:`app.agents.mcp.validate_mcp_url`, and the browser through
+    :func:`app.agents.capabilities.browser_use.validate_cdp_url`, where the
+    attach happens however long after publish the agent is first run. A name
+    answering a public address here and a private one there passes this check
+    and reaches the private address (#840).
+
+    That is bearable *only* because both URLs are typed by an operator, so
+    rebinding needs the person typing it to be the attacker. Where the URL is
+    chosen by someone else, this function is the wrong one: the OAuth flow's
+    discovery documents name their own endpoints and go through
+    :class:`app.core.pinned_http.PinnedAsyncClient`, which dials the address it
+    checked (#860), and a URL a *model* picked belongs in Pydantic AI's
+    `safe_download`.
+
+    Args:
+        url: The webhook URL to validate.
+        allowed_schemes: Allowed URL schemes. Defaults to {"http", "https"}.
+
+    Returns:
+        The validated URL string.
+
+    Raises:
+        SSRFBlockedError: If the URL is blocked by SSRF protection.
+        UrlRefusedError: If the URL is malformed.
+
+    Example:
+        >>> validate_webhook_url("https://example.com/webhook")
+        "https://example.com/webhook"
+        >>> validate_webhook_url("http://169.254.169.254/latest/meta-data/")
+        Raises SSRFBlockedError
+    """
+    resolve_pinned_url(url, allowed_schemes)
     return url

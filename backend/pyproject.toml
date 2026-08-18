@@ -368,7 +368,7 @@ ignore = [
 # real but whose cost right now is churn in code we did not design and are not
 # yet responsible for. They lift file by file as each subsystem is rewritten —
 # the list shrinking is the progress marker.
-"app/core/sanitize.py" = ["TRY300", "TRY301", "PTH119", "S107"]
+"app/core/sanitize.py" = ["PTH119", "S107"]
 "app/services/agent.py" = ["TRY300", "TRY301"]
 "app/services/channels/telegram.py" = ["TRY300", "S107"]
 "app/services/rag/ingestion.py" = ["TRY300", "PTH123"]
@@ -462,6 +462,9 @@ include = [
     "app/core/secret_kinds.py",
     "app/core/vault.py",
     "app/core/background.py",
+    # The client that dials the address it validated, for a URL the party being
+    # validated chose. A miss here is an SSRF the operator cannot see.
+    "app/core/pinned_http.py",
     # The one size limit that runs before a body is read. Every other one in this
     # codebase measures bytes that have already arrived.
     "app/core/body_limit.py",
@@ -628,6 +631,9 @@ include = [
     "app/core/secret_kinds.py",
     "app/core/vault.py",
     "app/core/background.py",
+    # The client that dials the address it validated, for a URL the party being
+    # validated chose. A miss here is an SSRF the operator cannot see.
+    "app/core/pinned_http.py",
     # The one size limit that runs before a body is read. Every other one in this
     # codebase measures bytes that have already arrived.
     "app/core/body_limit.py",

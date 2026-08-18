@@ -95,21 +95,46 @@ metadata, and the flow runs from there:
 
 Every URL reached in that flow is SSRF-checked, not just the one somebody typed:
 discovery means the *remote server* chooses most of the addresses we call, and
-those deserve the same policy as a webhook. The check resolves the name and
-refuses a private answer at that moment; the client then resolves it again to
-connect, so a name that changes its answer in between is not covered.
+those deserve the same policy as the one it typed. **And the address that passed the
+check is the address connected to** — the request goes to the resolved IP with
+the original host in the `Host` header and in TLS SNI, so the certificate is
+still verified against the name and nothing resolves it a second time.
 
-**That gap is open on this flow**, and it is worth being plain about why. The
-address an operator types is only the first hop — the authorization server, the
-token endpoint and every redirect after it are named by the remote server's own
-discovery documents. So connecting a single hostile server is enough to aim the
-gap: nobody in your organization has to be the attacker for a name to answer a
-public address to the check and a private one to the request that follows.
-Closing it means dialling the address that was validated rather than the name,
-which is [#860](https://github.com/vstorm-co/agenticos/issues/860). Nothing a
-*model* chooses reaches this check today, and nothing should: a URL an agent
-picked wants Pydantic AI's `safe_download`, which dials what it resolved rather
-than handing a string back to be resolved again.
+That second half is what [#860](https://github.com/vstorm-co/agenticos/issues/860)
+closed, and it matters here more than anywhere else in the product. The address
+an operator types is only the first hop — the authorization server, the token
+endpoint, the registration endpoint and every redirect after them are named by
+the remote server's own discovery documents. While the check merely resolved a
+name and handed the string back, connecting a single hostile server was enough:
+a name could answer a public address to the check and a private one to the
+request that followed, and nobody in your organization had to be the attacker.
+Redirects are followed one hop at a time, bounded at five, each with its own
+check — a `302` to a new host is re-resolved, not trusted.
+
+Where a name answers with several addresses, every one of them is checked and
+kept, and an address that refuses the connection is followed by the next — what
+an ordinary client gets from the resolver, without asking DNS a second time. A
+name answering with one public address and one private one is refused whole
+rather than narrowed to its public half.
+
+Two edges remain, both narrow and both deliberate. The **consent URL** is
+checked and then handed to somebody's browser, which resolves it itself; there
+is no pinning to do. And the **connection's own URL** is checked at save and
+resolved again when an agent runs — operator-typed, so rebinding it means being
+the operator. Nothing a *model* chooses reaches this check at all, and nothing
+should: a URL an agent picked wants Pydantic AI's `safe_download`.
+
+!!! info "Behind an egress proxy, the proxy does the connecting"
+
+    `HTTP_PROXY` and `HTTPS_PROXY` are honoured, because a deployment that
+    mandates an egress proxy would otherwise lose MCP OAuth entirely — and that
+    proxy is an egress control in its own right. On that path the pinned address
+    is what the proxy is *asked* to reach (`CONNECT 93.184.216.34:443`, or an
+    absolute-form request line for plain HTTP) rather than what this process
+    connects to, so the guarantee ends at the proxy. TLS is still end to end,
+    so the certificate is still verified against the original name. A policy
+    proxy that refuses a bare address will refuse these requests; the log line
+    written when a proxy is configured is there so that failure is readable.
 
 A step that fails says **which step gave up and what class of thing raised**,
 never what the upstream client wrote. `httpx` puts the failing request in its
