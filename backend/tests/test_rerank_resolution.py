@@ -107,6 +107,15 @@ class TestResolution:
         assert "co-secret" not in repr(resolved)
         assert "rerank-v3.5" in repr(resolved)
 
+    async def test_the_secret_is_only_ever_looked_up_within_the_collections_org(self):
+        """The tenant boundary at the resolution layer: a collection's key is
+        fetched scoped to that collection's organization, so one organization's
+        collection can never resolve another's rerank key - it would not be
+        returned by the scoped query, and the vault would refuse the envelope
+        under the wrong scope (test_vault.py)."""
+        _, secrets = await _resolve(_kb(secret_id=uuid.uuid4()), _sealed_key_row("co-org-own-key"))
+        assert secrets.get.await_args.kwargs["organization_id"] == _ORG
+
 
 class TestDegradationTurnsRerankingOff:
     """A chosen key that is gone drops reranking to off, with a line saying why.
