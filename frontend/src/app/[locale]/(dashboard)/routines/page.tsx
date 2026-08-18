@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarClock, Zap } from "lucide-react";
+import { CalendarClock } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ScheduledTab } from "@/components/runs/scheduled-tab";
-import { NewEventTriggerDialog } from "@/components/triggers/new-event-trigger-dialog";
 import { PortalsTab } from "@/components/triggers/portals-tab";
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { Button } from "@/components/ui";
@@ -16,13 +15,16 @@ import { Perm } from "@/types/permissions";
 /**
  * The org-wide home for everything an agent does on its own.
  *
- * It is where a routine is both started and managed, so it carries the Split New -
- * a schedule opens the cadence form, an event trigger opens the portal grid, the
- * default path - the org-wide list of what is already scheduled, and the portal
- * grid inline for browsing services and connecting the organization's accounts.
- * The create controls are hidden, not disabled, for a caller who may not run an
- * agent; the list still shows, because each row resolves its own controls from its
- * `can_manage`. The read-only "Scheduled" view under Activity stays as it was.
+ * It is where a routine is both started and managed: the org-wide list of what is
+ * already scheduled, and the portal grid inline for browsing services, connecting
+ * the organization's accounts, and starting an event trigger from a preset. A
+ * schedule is the one path the grid does not cover, so it keeps a "New schedule"
+ * button; the event path is the grid itself, so there is no separate button for
+ * it here - unlike the agent panel and the chat sidebar, which have no inline grid
+ * and open it in a dialog. The create controls are hidden, not disabled, for a
+ * caller who may not run an agent; the list still shows, because each row resolves
+ * its own controls from its `can_manage`. The read-only "Scheduled" view under
+ * Activity stays as it was.
  */
 export default function RoutinesPage() {
   const t = useTranslations("pages.routines");
@@ -30,7 +32,6 @@ export default function RoutinesPage() {
   const { can } = usePermissions();
   const canCreate = can(Perm.agentsRun);
   const [creatingSchedule, setCreatingSchedule] = useState(false);
-  const [creatingEvent, setCreatingEvent] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -41,10 +42,6 @@ export default function RoutinesPage() {
           <Button variant="outline" onClick={() => setCreatingSchedule(true)}>
             <CalendarClock className="mr-2 h-4 w-4" />
             {tt("newSchedule")}
-          </Button>
-          <Button variant="outline" onClick={() => setCreatingEvent(true)}>
-            <Zap className="mr-2 h-4 w-4" />
-            {tt("newEvent")}
           </Button>
         </div>
       )}
@@ -59,9 +56,6 @@ export default function RoutinesPage() {
           initialType="schedule"
           onOpenChange={(next) => !next && setCreatingSchedule(false)}
         />
-      )}
-      {creatingEvent && (
-        <NewEventTriggerDialog open onOpenChange={(next) => !next && setCreatingEvent(false)} />
       )}
     </div>
   );

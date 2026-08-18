@@ -939,6 +939,19 @@ function EventFields({
           </SelectContent>
         </Select>
       </FormField>
+      {/* The delivery URL is shown before the secret, greyed and with the id it
+          only gets on save, so the reader sees what the secret is *for* rather
+          than being asked for a password to a mechanism nothing has named yet -
+          and in the order they will use them, URL to paste first. The full URL,
+          built on the API host from PUBLIC_BASE_URL, appears once the trigger
+          exists (`WebhookField`). */}
+      <div className="space-y-1">
+        <p className="text-sm font-medium">{t("webhookUrlPreview")}</p>
+        <p className="text-muted-foreground bg-muted/40 rounded-md border px-3 py-2 font-mono text-xs break-all">
+          {t("webhookUrlPreviewValue", { source: eventSource })}
+        </p>
+        <p className="text-muted-foreground text-xs">{t("webhookUrlPreviewHelp")}</p>
+      </div>
       <div className="space-y-1">
         <Label htmlFor="trigger-secret">{t("secret")}</Label>
         <div className="flex gap-2">
