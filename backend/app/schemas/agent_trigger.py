@@ -308,6 +308,12 @@ class TriggerRead(BaseSchema, TimestampSchema):
     # and needs to name it; the per-agent list leaves it unset (the agent is the
     # page). The service fills it from the listing query's join onto agents.
     agent_name: str | None = None
+    # Whether *this caller* may edit, delete or run-now this trigger - the same
+    # creator-or-`agents:edit` rule the service's `_owned` enforces, resolved per
+    # row and per agent so a control the caller cannot use is not rendered rather
+    # than rendered and then 403'd. Defaults false: a surface that does not set it
+    # (a raw model_validate) hides the controls, which is the safe direction.
+    can_manage: bool = False
     # The trigger's own title, or null to fall back to the agent's name.
     name: str | None = None
     created_by_user_id: UUID | None = None

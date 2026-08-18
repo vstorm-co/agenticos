@@ -363,28 +363,71 @@ class TestReading:
             await service.list_for_agent(_ctx(OrgRoleName.VIEWER), uuid.uuid4())
         assert service.agents.get.call_args.kwargs == {}
 
+    async def test_a_listing_flags_only_the_callers_own_rows_without_agents_edit(self):
+        """No `agents:edit` on the agent, so `can_manage` is exactly the rows this
+        caller created - the controls the agent page renders for a Viewer holding
+        an explicit grant, no longer hidden by a role-only gate."""
+        agent = _agent()
+        service = _service(agent)
+        mine = _read()
+        mine.created_by_user_id = _CALLER
+        theirs = _read()
+        theirs.created_by_user_id = uuid.uuid4()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.resolve_access", new=AsyncMock(return_value=False)),
+        ):
+            repo.list_for_agent = AsyncMock(return_value=[mine, theirs])
+            reads = await service.list_for_agent(_ctx(), agent.id)
+        by_id = {read.id: read for read in reads}
+        assert by_id[mine.id].can_manage is True
+        assert by_id[theirs.id].can_manage is False
+
+    async def test_agents_edit_makes_every_row_on_the_agent_manageable(self):
+        agent = _agent()
+        service = _service(agent)
+        theirs = _read()
+        theirs.created_by_user_id = uuid.uuid4()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.resolve_access", new=AsyncMock(return_value=True)),
+        ):
+            repo.list_for_agent = AsyncMock(return_value=[theirs])
+            reads = await service.list_for_agent(_ctx(), agent.id)
+        assert reads[0].can_manage is True
+
 
 class TestOrgListing:
     async def test_the_org_listing_is_filtered_to_agents_the_caller_can_reach(self):
         service = _service()
         reachable = uuid.uuid4()
+        # Two rows on one agent, so `can_manage` resolves the agent once and reads
+        # the second off the cache rather than querying again.
+        shared_agent = _agent(name="Nightly")
+        resolve = AsyncMock(return_value=True)
         with (
             patch(
                 "app.services.agent_trigger.visible_resource_ids",
                 new=AsyncMock(return_value=[reachable]),
             ),
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.resolve_access", new=resolve),
         ):
-            repo.list_for_organization = AsyncMock(return_value=([(_read(), "Nightly")], 1))
+            repo.list_for_organization = AsyncMock(
+                return_value=([(_read(), shared_agent), (_read(), shared_agent)], 2)
+            )
             items, total = await service.list_for_organization(_ctx())
         # The grant ids are the *shared* set, combined by the repo with the
         # owned-or-org-visible predicate - not the whole filter.
         assert repo.list_for_organization.call_args.kwargs["shared_ids"] == [reachable]
         assert repo.list_for_organization.call_args.kwargs["see_all"] is False
         assert repo.list_for_organization.call_args.kwargs["user_id"] == _CALLER
-        assert total == 1
+        assert total == 2
         # The row is named with its agent, which a bare trigger does not carry.
         assert items[0].agent_name == "Nightly"
+        assert items[0].can_manage is True
+        # Resolved once for the shared agent, not per row.
+        assert resolve.await_count == 1
 
     async def test_a_role_that_reaches_every_agent_asks_for_no_predicate(self):
         """`visible_resource_ids` returning None means "sees all" - `see_all` True."""

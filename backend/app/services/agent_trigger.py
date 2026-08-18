@@ -217,16 +217,27 @@ class AgentTriggerService:
         self.agents = AgentRegistryService(db)
         self.connections = McpConnectionService(db)
 
-    async def list_for_agent(self, ctx: AuthContext, agent_id: UUID) -> list[AgentTrigger]:
-        """Every schedule on this agent.
+    async def list_for_agent(self, ctx: AuthContext, agent_id: UUID) -> list[TriggerRead]:
+        """Every schedule on this agent, each flagged whether this caller manages it.
 
         Requires only `agents:view` (the registry's default): seeing when an agent
-        runs itself is part of understanding what it is.
+        runs itself is part of understanding what it is. `can_manage` is the
+        `agents:edit`-on-the-agent the write path enforces, resolved once for the
+        agent, OR ownership of the row - so the page renders edit, pause, run-now
+        and delete for exactly the rows the caller could act on, and a Viewer with
+        an explicit grant is no longer hidden from their own.
         """
         agent = await self.agents.get(ctx, agent_id)
-        return await agent_trigger_repo.list_for_agent(
+        rows = await agent_trigger_repo.list_for_agent(
             self.db, agent_id=agent.id, organization_id=ctx.organization_id
         )
+        can_edit = await resolve_access(self.db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT)
+        reads: list[TriggerRead] = []
+        for trigger in rows:
+            read = TriggerRead.model_validate(trigger)
+            read.can_manage = can_edit or trigger.created_by_user_id == ctx.subject_id
+            reads.append(read)
+        return reads
 
     async def list_for_organization(
         self, ctx: AuthContext, *, skip: int = 0, limit: int = 50
@@ -264,9 +275,17 @@ class AgentTriggerService:
             limit=limit,
         )
         triggers: list[TriggerRead] = []
-        for trigger, agent_name in rows:
+        # `agents:edit` resolved once per agent, not once per row: an org-wide list
+        # is many triggers over few agents, and the answer is the agent's.
+        can_edit: dict[UUID, bool] = {}
+        for trigger, agent in rows:
             read = TriggerRead.model_validate(trigger)
-            read.agent_name = agent_name
+            read.agent_name = agent.name
+            if agent.id not in can_edit:
+                can_edit[agent.id] = await resolve_access(
+                    self.db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT
+                )
+            read.can_manage = can_edit[agent.id] or trigger.created_by_user_id == ctx.subject_id
             triggers.append(read)
         return triggers, total
 
@@ -441,6 +460,9 @@ class AgentTriggerService:
         # a direct assignment fails the type checker. B010 prefers the assignment,
         # which is exactly what does not type here.
         setattr(trigger, "reveal_secret", plaintext_secret if reveal else None)  # noqa: B010
+        # The creator can always manage what they just made; the list surfaces
+        # resolve this per row, a single create response states it directly.
+        setattr(trigger, "can_manage", True)  # noqa: B010
         return trigger
 
     async def _auto_register_webhook(
@@ -566,6 +588,8 @@ class AgentTriggerService:
             target_id=str(agent_id),
             details={"trigger_id": str(trigger.id), "changes": _audit_changes(changes)},
         )
+        # `_owned` let this caller through, so they manage it - say so on the read.
+        setattr(updated, "can_manage", True)  # noqa: B010
         return updated
 
     async def delete(self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID) -> None:
@@ -626,6 +650,8 @@ class AgentTriggerService:
         from app.worker.background.trigger_fire import fire_trigger
 
         spawn_after_commit(self.db, fire_trigger(trigger.id), name=f"trigger-run-now-{trigger.id}")
+        # `_owned` let this caller through, so they manage it - say so on the read.
+        setattr(trigger, "can_manage", True)  # noqa: B010
         return trigger
 
     async def prepare_event_fire(

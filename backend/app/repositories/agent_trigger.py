@@ -77,8 +77,8 @@ async def list_for_organization(
     shared_ids: list[UUID],
     skip: int = 0,
     limit: int = 50,
-) -> tuple[list[tuple[AgentTrigger, str]], int]:
-    """Every trigger the caller may see in the organization, each with its agent's name.
+) -> tuple[list[tuple[AgentTrigger, Agent]], int]:
+    """Every trigger the caller may see in the organization, each with its agent.
 
     The visibility predicate is the *same* one agent listings use
     (`agent_repo.list_visible`), applied to each trigger's agent: a trigger is
@@ -108,14 +108,14 @@ async def list_for_organization(
         )
     ).scalar_one()
     result = await db.execute(
-        select(AgentTrigger, Agent.name)
+        select(AgentTrigger, Agent)
         .join(Agent, Agent.id == AgentTrigger.agent_id)
         .where(*where)
         .order_by(AgentTrigger.created_at.desc())
         .offset(skip)
         .limit(limit)
     )
-    return [(trigger, name) for trigger, name in result.all()], total
+    return [(trigger, agent) for trigger, agent in result.all()], total
 
 
 async def create(

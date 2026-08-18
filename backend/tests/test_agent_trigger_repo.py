@@ -137,13 +137,18 @@ class TestReading:
         assert {organization_id, user_id, *shared_ids} <= flat
 
     async def test_the_org_listing_with_see_all_applies_no_visibility_predicate(self):
-        """`see_all` is the service saying the role reaches every agent."""
+        """`see_all` is the service saying the role reaches every agent.
+
+        The whole agent row is selected (the service resolves `can_manage` off it),
+        so `agents.owner_user_id` appears as a projected column - what must be absent
+        is the *predicate* on it, `owner_user_id =`, and the shared-id `IN` leg.
+        """
         session = _RecordingSession(_count(0), _rows([]))
         await agent_trigger_repo.list_for_organization(
             session, organization_id=uuid.uuid4(), user_id=uuid.uuid4(), see_all=True, shared_ids=[]
         )
         sql = _sql(session)
-        assert "agents.owner_user_id" not in sql
+        assert "owner_user_id =" not in sql
         assert "agent_triggers.agent_id in" not in sql
 
     async def test_the_org_listing_without_shared_ids_still_reads_owned_and_org_visible(self):
