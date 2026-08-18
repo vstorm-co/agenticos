@@ -15,7 +15,7 @@ import boto3
 from botocore.config import Config
 
 from app.core.config import settings
-from app.services.rag.connectors import BaseSyncConnector, RemoteFile
+from app.services.rag.connectors import BaseSyncConnector, ConfigRefusal, RemoteFile
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ class S3Connector(BaseSyncConnector):
             client_kwargs["endpoint_url"] = endpoint
         return boto3.client("s3", **client_kwargs, config=Config(signature_version="s3v4"))
 
-    async def validate_config(self, config: dict) -> tuple[bool, str | None]:
+    async def validate_config(self, config: dict) -> ConfigRefusal | None:
         """Validate required fields only - connectivity is checked at sync time."""
         return await super().validate_config(config)
 

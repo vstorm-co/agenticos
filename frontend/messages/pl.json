@@ -323,7 +323,6 @@
     "deleted": "Baza wiedzy usunięta",
     "documentRemoved": "Dokument usunięty",
     "failedCloneIntegration": "Nie udało się skopiować integracji",
-    "failedCreateSyncSource": "Nie udało się utworzyć źródła synchronizacji",
     "failedDelete": "Nie udało się usunąć bazy wiedzy",
     "failedDeleteDocument": "Nie udało się usunąć dokumentu",
     "failedLoad": "Nie udało się wczytać bazy wiedzy",

@@ -76,15 +76,13 @@ export function ReusableIntegrations({ targets }: ReusableIntegrationsProps) {
 
   if (!mayManage) return null;
 
+  // A refusal is left to travel: the wizard is what marks the field the server
+  // named and goes back to the step holding it.
   const handleCreate = async (data: SyncSourceCreate) => {
     setSubmitting(true);
     try {
       await create(data);
       setWizardOpen(false);
-    } catch {
-      // Reported by the hook. Swallowed here so the wizard stays open on the
-      // step that holds the field the server rejected - and so a refusal is not
-      // an unhandled rejection in the click handler.
     } finally {
       setSubmitting(false);
     }

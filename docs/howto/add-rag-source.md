@@ -26,7 +26,7 @@ import logging
 from pathlib import Path
 from typing import Any, ClassVar
 
-from app.services.rag.connectors import BaseSyncConnector, RemoteFile
+from app.services.rag.connectors import BaseSyncConnector, ConfigRefusal, RemoteFile
 
 logger = logging.getLogger(__name__)
 
@@ -84,17 +84,21 @@ class MySourceConnector(BaseSyncConnector):
 
         await asyncio.to_thread(_download)
 
-    async def validate_config(self, config: dict) -> tuple[bool, str | None]:
-        """Test connectivity to MySource (optional but recommended)."""
-        is_valid, err = await super().validate_config(config)
-        if not is_valid:
-            return is_valid, err
+    async def validate_config(self, config: dict) -> ConfigRefusal | None:
+        """Why this config is not acceptable, or None (optional but recommended)."""
+        refusal = await super().validate_config(config)
+        if refusal is not None:
+            return refusal
 
         try:
             # Test API access with provided credentials
-            return True, None
-        except Exception as e:
-            return False, f"Cannot connect to MySource: {e}"
+            return None
+        except Exception:
+            logger.exception("MySource credential check failed")
+            # One field to blame: `field="api_key"`, which is what makes the
+            # wizard mark that input rather than announce a sentence over every
+            # input on the step.
+            return ConfigRefusal(message="Could not reach MySource with these credentials.")
 ```
 
 ### 2. Define CONFIG_SCHEMA
@@ -172,7 +176,7 @@ curl -X POST http://localhost:8000/api/v1/rag/sync/sources/{source_id}/sync \
 ## Tips
 
 - Set `RemoteFile.source_path` to a unique URI (e.g., `mysource://file_id`) for deduplication
-- The `validate_config()` method is called when creating/updating sync sources via the API
+- The `validate_config()` method is called when creating/updating sync sources via the API, and the fields it names reach the wizard as `details["fields"]`
 - Use `asyncio.to_thread()` to wrap blocking SDK calls
 - Add settings to `app/core/config.py` for server-level credentials (API keys, endpoints)
 - Per-source settings go in `CONFIG_SCHEMA` and are stored per sync source in the database

@@ -25,7 +25,7 @@ from googleapiclient.discovery import Resource, build
 from googleapiclient.http import MediaIoBaseDownload
 
 from app.core.exceptions import BadRequestError
-from app.services.rag.connectors import BaseSyncConnector, RemoteFile
+from app.services.rag.connectors import BaseSyncConnector, ConfigRefusal, RemoteFile
 from app.services.rag.remote_names import checked_drive_folder_id
 
 logger = logging.getLogger(__name__)
@@ -104,22 +104,27 @@ class GoogleDriveConnector(BaseSyncConnector):
         creds = Credentials.from_service_account_info(info, scopes=SCOPES)
         return build("drive", "v3", credentials=creds)
 
-    async def validate_config(self, config: dict) -> tuple[bool, str | None]:
+    async def validate_config(self, config: dict) -> ConfigRefusal | None:
         """Validate required fields and the shape of the folder id.
 
         Connectivity is still checked at sync time. The folder id is checked
         here as well as where the query is built, so a hostile value is answered
         by the route that accepted it rather than by a sync log an hour later.
         The two cannot disagree - both ask `checked_drive_folder_id`.
+
+        The field is named here rather than by `checked_drive_folder_id`, which
+        names none: it answers three sinks and only this one was sent a form to
+        mark - the other two are a worker reading a stored row and a sub-folder
+        id that was never typed anywhere.
         """
-        is_valid, error = await super().validate_config(config)
-        if not is_valid:
-            return False, error
+        refusal = await super().validate_config(config)
+        if refusal is not None:
+            return refusal
         try:
             checked_drive_folder_id(config["folder_id"])
         except BadRequestError as exc:
-            return False, exc.message
-        return True, None
+            return ConfigRefusal(message=exc.message, field="folder_id")
+        return None
 
     def _list_folder(
         self, service: Resource, folder_id: str, include_subfolders: bool

@@ -217,21 +217,33 @@ class TestTheGoogleDriveConnector:
     async def test_a_source_with_a_hostile_folder_id_is_refused_at_creation(
         self, folder_id: object
     ) -> None:
-        valid, error = await GoogleDriveConnector().validate_config(
+        refusal = await GoogleDriveConnector().validate_config(
             {"service_account_json": "{}", "folder_id": folder_id}
         )
-        assert valid is False
-        assert error is not None
+        assert refusal is not None
+        assert refusal.message
+
+    async def test_a_refused_folder_id_names_the_input_it_was_typed_into(self) -> None:
+        """The wizard draws four inputs; a sentence about one of them marks none (#897)."""
+        refusal = await GoogleDriveConnector().validate_config(
+            {"service_account_json": "{}", "folder_id": "x' in parents"}
+        )
+        assert refusal is not None
+        assert refusal.field == "folder_id"
 
     async def test_a_source_with_a_real_folder_id_is_accepted(self) -> None:
-        assert await GoogleDriveConnector().validate_config(
-            {"service_account_json": "{}", "folder_id": "1AbC-dEf_2"}
-        ) == (True, None)
+        assert (
+            await GoogleDriveConnector().validate_config(
+                {"service_account_json": "{}", "folder_id": "1AbC-dEf_2"}
+            )
+            is None
+        )
 
     async def test_a_missing_required_field_is_still_refused_first(self) -> None:
-        valid, error = await GoogleDriveConnector().validate_config({"folder_id": "1AbC"})
-        assert valid is False
-        assert error is not None and "Service Account JSON" in error
+        refusal = await GoogleDriveConnector().validate_config({"folder_id": "1AbC"})
+        assert refusal is not None
+        assert "Service Account JSON" in refusal.message
+        assert refusal.field == "service_account_json"
 
     def test_a_source_without_its_own_credential_is_refused(self) -> None:
         """There is no deployment-wide fallback for a tenant's query to run under."""

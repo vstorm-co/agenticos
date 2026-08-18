@@ -84,26 +84,26 @@ export function useReusableIntegrations(orgId: string | null): UseReusableIntegr
     [queryClient, orgId],
   );
 
+  /**
+   * Save an integration, and leave its refusal to the wizard.
+   *
+   * The only write here that does not toast its failure. A connector's refusal
+   * names the config field it is about (#897), and that belongs on the step
+   * holding the field rather than in a toast over it - which is also the step
+   * the wizard has to go back to.
+   */
   const create = useCallback<UseReusableIntegrationsResult["create"]>(
     async (data) => {
-      try {
-        const created = await apiClient.post<SyncSourceRead>(`/orgs/${orgId}/integrations`, {
-          ...data,
-          // The wizard builds a payload with this field on it. Sending it null
-          // explicitly is what keeps the row reusable rather than pinning it to
-          // whichever collection happened to be in the form.
-          collection_name: null,
-        });
-        writeCache((prev) => [created, ...prev]);
-        toast.success(t("integrationSaved"));
-        return created;
-      } catch (cause) {
-        // Reported here and raised again: the connector's own refusal ("Invalid
-        // connector config: …") is the only sentence that says what to change,
-        // and the wizard has to stay open on the step holding the answer.
-        toast.error(cause instanceof Error ? cause.message : t("failedSaveIntegration"));
-        throw cause;
-      }
+      const created = await apiClient.post<SyncSourceRead>(`/orgs/${orgId}/integrations`, {
+        ...data,
+        // The wizard builds a payload with this field on it. Sending it null
+        // explicitly is what keeps the row reusable rather than pinning it to
+        // whichever collection happened to be in the form.
+        collection_name: null,
+      });
+      writeCache((prev) => [created, ...prev]);
+      toast.success(t("integrationSaved"));
+      return created;
     },
     [orgId, writeCache, t],
   );

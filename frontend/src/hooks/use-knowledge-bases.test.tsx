@@ -832,25 +832,16 @@ describe("the sync sources feeding a collection", () => {
     await waitFor(() => expect(result.current.syncSources[0]).toMatchObject({ id: "s-new" }));
   });
 
-  it("reports a refused connection and raises it", async () => {
-    // The wizard keeps its fields open on a refusal, so it needs the throw.
+  it("raises a refused connection without announcing it", async () => {
+    // The refusal names a config field, and the wizard marks the input rather
+    // than showing the sentence over it (#897). It needs the throw to do that.
     const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
     vi.mocked(apiClient.post).mockRejectedValue(new Error("Those credentials were refused"));
 
     await expect(
       result.current.createSyncSource({ name: "x", connector_type: "gdrive", config: {} }),
-    ).rejects.toThrow();
-    expect(toast.error).toHaveBeenCalledWith("Those credentials were refused");
-  });
-
-  it("falls back to its own sentence when a connection fails without one", async () => {
-    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
-    vi.mocked(apiClient.post).mockRejectedValue("boom");
-
-    await expect(
-      result.current.createSyncSource({ name: "x", connector_type: "gdrive", config: {} }),
-    ).rejects.toBeTruthy();
-    expect(toast.error).toHaveBeenCalledWith("Failed to create sync source");
+    ).rejects.toThrow("Those credentials were refused");
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("moves a cloned org integration out of the offer list and into the collection's", async () => {
