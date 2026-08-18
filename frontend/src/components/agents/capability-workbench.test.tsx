@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -7,7 +8,13 @@ import type { AgentResources } from "./capability-resources";
 import { jsonSchemaType } from "./capability-settings";
 import { newSpecialist } from "@/lib/agent-spec";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agents";
+
 import type { ContextFileSummary } from "@/types/providers";
+
+const { imageProviders } = vi.hoisted(() => ({ imageProviders: vi.fn() }));
+vi.mock("@/hooks/use-model-providers", () => ({
+  useImageProviders: () => imageProviders(),
+}));
 
 vi.mock("@/hooks", () => ({
   useSecrets: () => ({ secrets: [], isLoading: false, error: null }),
@@ -584,5 +591,61 @@ describe("context, the capability that reads the files", () => {
 
     expect(screen.getByRole("tab", { name: "Settings" })).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByRole("tab", { name: "Context files" })).toBeNull();
+  });
+});
+
+/**
+ * Image generation, the fourth capability with a panel of its own.
+ *
+ * Whose model draws and which one are two decisions, and both lists are the
+ * server's - so the routing is what matters here and `image-generation-section`'s
+ * own file covers the rest.
+ */
+describe("image generation, whose model is a provider and a model", () => {
+  // The panel asks the platform which providers can draw. Stubbed rather than
+  // wrapped in a QueryClient: what this describe is about is the routing, and the
+  // request belongs to `use-model-providers`' own test.
+  beforeAll(() => {
+    imageProviders.mockReturnValue({
+      providers: [
+        {
+          provider: "openai",
+          name: "OpenAI",
+          models: [{ id: "gpt-image-2", name: "GPT Image 2", description: "The best one." }],
+        },
+      ],
+      isLoading: false,
+      isError: false,
+    });
+  });
+
+  const IMAGE: CapabilityCatalogEntry = {
+    ...CHARTS,
+    id: "image_generation",
+    name: "Image generation",
+    category: "analysis",
+    description: "Generate an image from a text description.",
+    tools: [{ id: "generate_image", name: "generate_image", description: "Draw." }],
+    contracts: [],
+    config_schema: null,
+  };
+
+  it("opens its own panel rather than the generated form", async () => {
+    renderWorkbench({ catalog: [IMAGE, CHARTS], selected: [binding("image_generation")] });
+
+    await userEvent.click(screen.getByRole("button", { name: /^Image generation/ }));
+
+    expect(screen.getByLabelText("Provider")).toBeVisible();
+    expect(screen.getByLabelText("Model")).toBeVisible();
+  });
+
+  it("grants it from the panel's own switch", async () => {
+    const onToggle = vi.fn();
+    renderWorkbench({ catalog: [IMAGE, CHARTS], onToggle });
+
+    await userEvent.click(screen.getByRole("button", { name: /^Image generation/ }));
+    await userEvent.click(screen.getByRole("switch", { name: "Image generation enabled" }));
+
+    expect(onToggle).toHaveBeenCalledWith("image_generation");
   });
 });

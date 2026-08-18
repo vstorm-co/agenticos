@@ -180,8 +180,10 @@ own network rather than at a fixed host, so it is not listed here either.
 Face router both carry `architecture.output_modalities`, and a listing entry may
 name that path; nobody else states it. An empty list means *not stated*, never
 "text only" — a client filtering on it must treat absence as unknown, or it hides
-models that work. This is how "which models draw an image" can be answered at all
-without guessing from a model's name.
+models that work. It is metadata a client may narrow on; it is *not* how the image
+capability picks its models, which is a catalog file plus the SDK's own answer about
+which providers can draw at all — see
+[Image generation](reference/capabilities.md#image-generation).
 
 **Curated.** A short hand-kept list per provider, used when the provider publishes
 nothing, when the call fails, or when there is no key to make it with. Deliberately

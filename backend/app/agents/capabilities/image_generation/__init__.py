@@ -2,7 +2,7 @@
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from pydantic_ai.native_tools import ImageAspectRatio
 
 from app.agents.capabilities._registry import (
@@ -13,29 +13,15 @@ from app.agents.capabilities._registry import (
 from app.agents.capabilities.image_generation._capability import ImageGeneration
 from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE
 from app.core.secret_kinds import ApiKeySecret, SecretKind, SecretRequirement
+from app.services.image_models import (
+    default_choice,
+    image_providers,
+    is_offered,
+    resolved_model_id,
+    tool_model,
+)
 
 __all__ = ["ImageGeneration", "ImageGenerationConfig"]
-
-# Every model this capability can actually drive, and the reason the list is
-# this short is the SDK rather than the market: `ImageGenerationTool` is honoured
-# by exactly two model classes, `OpenAIResponsesModel` and `GoogleModel`
-# (`pydantic_ai.models.openai` / `.google`), and Google's refuses a model without
-# `image` in its name. Offering Together's or Fireworks' image models here would
-# be a menu whose every third entry fails at run time with "not supported by this
-# model", which is why there is no catalog of twenty providers behind this field.
-ImageModel = Literal[
-    "openai-responses:gpt-5.4",
-    "google:gemini-3-pro-image",
-    "google:gemini-3.1-flash-image",
-    "google:gemini-3.1-flash-lite-image",
-    "google:gemini-2.5-flash-image",
-]
-
-# What OpenAI's own image models are called, from the SDK's `ImageGenerationModelName`.
-# Google has no equivalent: there the image model *is* the model above, where for
-# OpenAI the model above is the Responses model that calls the tool and this is
-# what the tool draws with.
-OpenAIImageModel = Literal["gpt-image-2", "gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini"]
 
 
 class ImageGenerationConfig(BaseModel):
@@ -47,36 +33,43 @@ class ImageGenerationConfig(BaseModel):
     turns the capability on and nothing else generates images immediately.
     """
 
-    model: ImageModel = Field(
-        default="openai-responses:gpt-5.4",
-        json_schema_extra={
-            "x-enum-labels": {
-                "openai-responses:gpt-5.4": "OpenAI · GPT-5.4 (Responses)",
-                "google:gemini-3-pro-image": "Google · Nano Banana Pro (Gemini 3 Pro Image)",
-                "google:gemini-3.1-flash-image": "Google · Nano Banana 2 (Gemini 3.1 Flash Image)",
-                "google:gemini-3.1-flash-lite-image": (
-                    "Google · Nano Banana 2 Lite (Gemini 3.1 Flash Lite Image)"
-                ),
-                "google:gemini-2.5-flash-image": "Google · Nano Banana (Gemini 2.5 Flash Image)",
-            }
-        },
-    )
-    image_model: OpenAIImageModel | None = Field(
-        default=None,
+    provider: str = Field(
+        default_factory=lambda: default_choice()[0],
         description=(
-            "Which OpenAI image model draws, when the model above is an OpenAI one. "
-            "Unset leaves OpenAI's own default. Ignored by Google, where the model above "
-            "is itself the image model."
+            "Whose model draws. Only providers whose model class honours the image tool are "
+            "accepted - three today - and which those are is asked of the SDK rather than "
+            "listed here."
         ),
-        json_schema_extra={
-            "x-enum-labels": {
-                "gpt-image-2": "GPT Image 2",
-                "gpt-image-1.5": "GPT Image 1.5",
-                "gpt-image-1": "GPT Image 1",
-                "gpt-image-1-mini": "GPT Image 1 mini",
-            }
-        },
     )
+    model: str = Field(
+        default_factory=lambda: default_choice()[1],
+        description=(
+            "Which of that provider's image models draws, by the ids in "
+            "`app/core/catalog/image_models.json`. A model outside the catalog is refused: "
+            "the tool answers a model that cannot draw with an error its author only sees "
+            "mid-run."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _must_be_offered(self) -> "ImageGenerationConfig":
+        """Refuse a pair the platform does not offer.
+
+        Both halves, because both fail differently: a provider whose class lacks
+        the tool fails on the first call with "not supported by this model", and a
+        model its provider does not have fails as a bad request. `together:flux` is
+        a real model and neither check would pass it.
+        """
+        if not is_offered(self.provider, self.model):
+            offered = ", ".join(
+                f"{entry.provider}: {', '.join(model.id for model in entry.models)}"
+                for entry in image_providers()
+            )
+            raise ValueError(
+                f"{self.provider}/{self.model} cannot generate images. Offered: {offered}."
+            )
+        return self
+
     quality: Literal["low", "medium", "high", "auto"] | None = Field(
         default=None, description="Rendering quality; higher is slower and dearer."
     )
@@ -103,10 +96,10 @@ class ImageGenerationConfig(BaseModel):
         in place rather than overriding it with a null.
         """
         candidates = {
-            # The tool's own `model`, which is not the model above: for OpenAI the
-            # model above is the Responses model that *calls* the tool, and this is
-            # what it draws with.
-            "model": self.image_model,
+            # The tool's own `model`, which is not always the model chosen: for
+            # OpenAI the chosen one is what draws and some Responses model has to
+            # call it, so the id names the caller and this names the drawer.
+            "model": tool_model(self.provider, self.model),
             "quality": self.quality,
             "size": self.size,
             "background": self.background,
@@ -144,7 +137,7 @@ def _build(ctx: CapabilityBuildContext) -> ImageGeneration:
         ctx.secret.api_key.get_secret_value() if isinstance(ctx.secret, ApiKeySecret) else None
     )
     return ImageGeneration(
-        model_id=config.model,
+        model_id=resolved_model_id(config.provider, config.model),
         tool_settings=config.to_tool_kwargs(),
         api_key=api_key,
         workspace_backend=ctx.resources.get(WORKSPACE_BACKEND_RESOURCE),

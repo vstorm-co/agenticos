@@ -124,6 +124,27 @@ class ProviderModelRead(BaseSchema):
     )
 
 
+class ImageModelRead(BaseSchema):
+    """One model that draws."""
+
+    id: str = Field(description="The id stored on the binding")
+    name: str = Field(description="What to show")
+    description: str = Field(description="When to reach for this one rather than another")
+
+
+class ImageProviderRead(BaseSchema):
+    """One provider that can draw, and what may be chosen on it."""
+
+    provider: str = Field(description="The catalog id, e.g. `openai`")
+    name: str = Field(description="What to show")
+    models: list[ImageModelRead]
+
+
+class ImageProviderList(BaseSchema):
+    items: list[ImageProviderRead]
+    total: int
+
+
 class ProviderModelList(BaseSchema):
     items: list[ProviderModelRead]
     total: int

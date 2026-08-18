@@ -532,6 +532,10 @@ include = [
     "app/services/notifications.py",
     "app/services/mcp_catalog.py",
     "app/services/mcp_connection.py",
+    # Which providers can draw an image, derived from the SDK. What it decides is
+    # what the Builder offers, and a probe that quietly starts answering "no"
+    # would empty that picker without a single test failing.
+    "app/services/image_models.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
     # The rest of `app/services/rag/` came with the template and is reported
@@ -734,6 +738,10 @@ include = [
     "app/services/notifications.py",
     "app/services/mcp_catalog.py",
     "app/services/mcp_connection.py",
+    # Which providers can draw an image, derived from the SDK. What it decides is
+    # what the Builder offers, and a probe that quietly starts answering "no"
+    # would empty that picker without a single test failing.
+    "app/services/image_models.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
     # The rest of `app/services/rag/` came with the template and is reported

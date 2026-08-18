@@ -278,6 +278,10 @@ CALLS: tuple[Call, ...] = (
     # on seeing agents like the catalog beside it: the answer is a public list
     # for OpenRouter and a list of model names for everyone else.
     Call("GET", "/providers/{provider}/models", Perm.AGENTS_VIEW),
+    # Which providers can draw an image and which of their models may be asked to.
+    # Gated the same way and for the same reason: it is the Builder's picker, and
+    # "OpenAI draws through the Responses API" is not a secret.
+    Call("GET", "/providers/image-models", Perm.AGENTS_VIEW),
     Call("GET", "/providers/model-profiles", Perm.AGENTS_VIEW),
     Call(
         "POST",

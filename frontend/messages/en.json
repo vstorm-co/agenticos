@@ -607,7 +607,16 @@
     "collectionsOffButBound": "Knowledge search is switched off, so none of these collections are searched. They stay in the spec and are still checked at publish; switch it on above, or unpick them.",
     "skillsHeading": "Skills",
     "skillsDetail": "Written know-how the agent loads only when it decides a skill is relevant, so twenty skills cost almost nothing in context.",
-    "skillsOffButBound": "Skills is switched off, so none of these are loaded - the agent is resolved with them and then reads none. They stay in the spec and are still checked at publish; switch it on above, or unpick them."
+    "skillsOffButBound": "Skills is switched off, so none of these are loaded - the agent is resolved with them and then reads none. They stay in the spec and are still checked at publish; switch it on above, or unpick them.",
+    "imageProvider": "Provider",
+    "imageProviderPlaceholder": "Choose a provider",
+    "imageProviderDetail": "Only providers whose models can be given the image tool are offered; the platform asks the SDK rather than keeping a list.",
+    "imageModel": "Model",
+    "imageModelPlaceholder": "Choose a model",
+    "imageModelUnknownProvider": "This binding names {provider}, which cannot draw. Pick a provider above.",
+    "imageProvidersUnavailable": "The list of providers could not be read. The model above is still what will be used.",
+    "imageProvidersLoading": "Reading what each provider offers…",
+    "imageModelDetail": "Every model this provider can be asked to draw with."
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",

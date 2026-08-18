@@ -25,6 +25,16 @@ export const SKILLS_ID = "skills";
 export const KNOWLEDGE_ID = "knowledge";
 
 /**
+ * The capability that draws, which has a section of its own.
+ *
+ * Its model is a provider *and* a model - and for OpenAI a third choice, the one
+ * the tool draws with - where a generated form has one field and whatever the
+ * schema enumerated. Which providers can draw at all is derived from the SDK and
+ * served by the API, so the panel asks rather than lists.
+ */
+export const IMAGE_GENERATION_ID = "image_generation";
+
+/**
  * The binding a capability would get if somebody switched it on.
  *
  * So the detail panel has something to render for a capability nobody has

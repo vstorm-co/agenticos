@@ -163,3 +163,47 @@ export function useProviderModels(providerId: string) {
 
   return { models: data?.items ?? [], source: data?.source ?? null, isLoading };
 }
+
+/** One model that draws. */
+export interface ImageModel {
+  id: string;
+  name: string;
+  /** When to reach for this one rather than another. */
+  description: string;
+}
+
+/** One provider that can draw, and what may be chosen on it. */
+export interface ImageProvider {
+  provider: string;
+  name: string;
+  models: ImageModel[];
+}
+
+interface ImageProviderList {
+  items: ImageProvider[];
+  total: number;
+}
+
+/**
+ * The providers that can generate an image, and their models.
+ *
+ * Both halves are the server's answer rather than this file's. Whether a provider
+ * can draw is `supported_native_tools()` on the SDK's model class - three can
+ * today, and the answer is derived so an upgrade needs nothing here - and which
+ * models it offers is `app/core/catalog/image_models.json`, so a model released
+ * this morning is a catalog entry rather than a frontend release.
+ *
+ * A catalog, not a listing: no credential is read, and this says nothing about
+ * what the organization has a key for. The secret field beside it does that.
+ */
+export function useImageProviders() {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: qk.providers.imageModels(),
+    queryFn: () => apiClient.get<ImageProviderList>("/providers/image-models"),
+    // Fixed until the platform is redeployed, like the provider catalog.
+    staleTime: Infinity,
+    retry: false,
+  });
+
+  return { providers: data?.items ?? [], isLoading, isError };
+}

@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { ShieldAlert } from "lucide-react";
 
 import { CapabilityDetail } from "@/components/agents/capability-settings";
+import { ImageGenerationSection } from "@/components/agents/image-generation-section";
 import {
   CapabilityResources,
   resourceTabKey,
@@ -13,7 +14,13 @@ import {
 import { SubagentsSection } from "@/components/agents/subagents-section";
 import { WorkspaceSection } from "@/components/agents/workspace-section";
 import { SearchInput, Switch } from "@/components/ui";
-import { readSubagentsConfig, SANDBOX_ID, SUBAGENTS_ID, unboundBinding } from "@/lib/agent-spec";
+import {
+  IMAGE_GENERATION_ID,
+  readSubagentsConfig,
+  SANDBOX_ID,
+  SUBAGENTS_ID,
+  unboundBinding,
+} from "@/lib/agent-spec";
 import type { FieldProblem } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry, SubagentRef } from "@/types/agents";
@@ -240,7 +247,19 @@ export function CapabilityWorkbench({
                   bounding both. The pins are the reason - a delegate that has
                   moved on is stale, and staleness nothing surfaces is a bug
                   frozen in place under a published parent. */
-            focused.id === SUBAGENTS_ID ? (
+            /* Which model draws is a provider and a model, not one string of a
+               schema's making: OpenAI and Google each ship several image models
+               and the server says which. */
+            focused.id === IMAGE_GENERATION_ID ? (
+              <ImageGenerationSection
+                definition={focused}
+                binding={bound ?? unboundBinding(focused.id)}
+                onToggleEnabled={() => onToggle(focused.id)}
+                onChange={onChange}
+                configProblems={configProblems}
+                disabled={disabled || !isOn}
+              />
+            ) : focused.id === SUBAGENTS_ID ? (
               <SubagentsSection
                 definition={focused}
                 binding={bound}
