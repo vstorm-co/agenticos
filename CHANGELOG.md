@@ -17,6 +17,151 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.200] - 2026-08-18
+
+### Fixed
+
+- **A connector's refusal names the field it is about.** The protocol was
+  `tuple[bool, str | None]` — a flag and a sentence — so a per-field refusal
+  raised inside a connector could not survive the return, and the wizard's
+  configure step took no error prop at all. Both halves are done: the protocol
+  carries the field, the service roots it against the posted document, and the
+  step marks the input the server named and returns to it, since submission
+  happens two steps later and a mark on an invisible field says nothing. (#897)
+- **A refusal is marked or announced, not both.** The wizard's mutations no
+  longer toast what the form is already showing beside the input it belongs to.
+  (#897)
+- **An abandoned submission cannot steer the wizard that replaced it.** Dismiss
+  the dialog while a create is pending, reopen it, and the old refusal used to
+  send the new session back to a step whose connector had been reset — a blank
+  dialog caused by a form the reader had already left. Each opening is its own
+  session now; a superseded answer is said and touches nothing else. Blocking
+  dismissal while submitting was the alternative and would have trapped a reader
+  behind a hung request. (#897)
+- **Both write paths refuse the same way.** `create_source` carried its own copy
+  of the validate-and-raise; it goes through the same helper as clone and update,
+  so the two cannot drift apart again. (#897)
+- **A refused model id is no longer posted back.** `details` is serialized into
+  the response body *and* written to the log line beside it, so refusing a bare
+  OpenRouter id sent the caller's own submission into the deployment's logs. It
+  names the `model` field now and the id is gone. (#898)
+- **Two provider refusals name the input they are about.** "This provider is
+  keyless so it needs an endpoint" and "this provider needs a key" both answered
+  with the provider, which is neither `base_url` nor `secret_id` — so the sentence
+  arrived with nothing marked. (#898)
+- **A stale key refusal is cleared when the key changes.** Both routes to a new
+  key only set the value, so the sentence survived under a key the reader had
+  already replaced — a refusal that accuses the current value is worse than
+  none. (#898)
+- **The mark and its reason are associated.** The model combobox announced
+  "invalid" to a screen reader and never why; it goes through the same
+  `FormField` the endpoint already used, so the bespoke `invalid` prop that would
+  have been a second convention is gone. (#898)
+
+## [0.0.199] - 2026-08-18
+
+### Fixed
+
+- **The storage-root check is a barrier the query actually applies.** 0.0.184
+  rewrote it into the `realpath` + `startswith` idiom `py/path-injection` models
+  and closed one of the three alerts it claimed; #14 and #15, both sinks in
+  `LocalFileStorage.load`, survived on `main` for thirteen releases. The idiom
+  was right and the *shape* was wrong: the query clears a normalised path only
+  where the `startswith` call alone decides the branch, and the check was written
+  `if candidate != base and not candidate.startswith(prefix)`. Falling through
+  `A and B` proves neither conjunct, so the guard never applied. The root is
+  answered in its own branch above, leaving `startswith` as the whole condition
+  of its own — same refusals, same message, same tests. Established by running
+  CodeQL 2.26.3 with `codeql/python-queries` over this tree rather than by
+  predicting it: two results before, none after. (#903)
+- **What 0.0.184 claimed about those alerts is corrected in its own entry**, so a
+  reader who goes looking there finds what happened rather than the claim. (#903)
+
+### Added
+
+- **A test that fails if the containment check stops being one condition.** It
+  reads `_resolve_safe_path`'s AST and asserts the `startswith` call is the whole
+  test of its branch — the property 0.0.184 lost, which every behavioural test in
+  the file passed straight through. It pins the shape; only CodeQL answers the
+  verdict, and the pull request's own scan is where that is read. (#903)
+
+## [0.0.198] - 2026-08-18
+
+### Fixed
+
+- **Eighteen refusals that name a field now mark it.** They answered with a
+  singular `details={"field": "<name>"}`, and the frontend reads the plural
+  shape and FastAPI's own `detail` and nothing else — so a mistyped model
+  endpoint, a blocked MCP server URL and a spec YAML that would not parse each
+  delivered a sentence to a toast and left every input unmarked. The same defect
+  0.0.195 fixed for `details["errors"]`, in the third shape it deliberately did
+  not touch. `refused_field` takes the sentence **once**, so the envelope's copy
+  and the field's cannot drift apart. (#891)
+- **A sandbox probe's 404 stopped blaming the address.** It is the one failure
+  the two callers of `_get_json` do not share — a session that ended, versus a
+  service with no such endpoint — so naming `base_url` for both would have put
+  "Sandbox session not found" under the operator's Address box: confidently
+  wrong where it had been merely vague. (#891)
+
+### Changed
+
+- **The rules that teach how to write a refusal name the helper.**
+  `.claude/rules/exceptions-security.md` and `docs/patterns.md` still taught
+  `{"field": "base_url"}` as *the* way to name a field a refusal is about, and
+  never mentioned `app/core/field_errors.py` — so this change would have removed
+  the shape from the code and left the instruction to recreate it, which is
+  exactly how `assistant.py` and `UserRole` outlived their own deletion. (#891)
+
+## [0.0.197] - 2026-08-18
+
+The `e2e` job stopped stalling for twenty-five minutes on an apt mirror.
+
+### Fixed
+
+- **Nothing was cancelling those jobs.** GitHub records a job it ends on its own
+  `timeout-minutes` as `cancelled` rather than as a failure, and a `cancelled`
+  required check is not a pass the way a `skipped` one is — so the merge stayed
+  blocked on a diff that was fine. Across 300 runs, 15 jobs ended that way, and
+  the jobs API names the same step in fourteen of them: `Install Playwright
+  browsers`. `--with-deps` shells out to `apt-get`, the runner's mirror answers
+  `Ign` for every index, and apt stops dead on the fallback — 22 minutes of
+  silence. The flag bought nothing: on a healthy run every library Chromium
+  links against is already the newest version, and the 21 MB it does install is
+  fonts no spec renders. It is gone, and the full suite still passes. (#879)
+- **A stall now fails the step that stalled, by name.** Step-level bounds sit
+  under the job's, so a residual hang says which step rather than ending the job
+  at its outer limit with no explanation. `test_ci_workflow.py` refuses any step
+  that installs system packages, so the flag cannot come back quietly. (#879)
+
+### Changed
+
+- **`make coverage-all` runs across worker processes**, like `test` and
+  `test-fast` already did. It was the one suite still single-process, which is
+  what made 25 minutes reachable on a slow runner: 14m46s of a job for a number
+  that does not gate anything. Measured on the branch's own run, the step went
+  from 4m31s to 2m41s, and `Install Playwright browsers` from 70s to 1s. (#879)
+
+## [0.0.196] - 2026-08-18
+
+### Fixed
+
+- **An MCP server that writes an address nothing can dial is refused, not
+  crashed on.** `httpx.InvalidURL` does not subclass `httpx.HTTPError`, so it
+  escaped all three catches in the OAuth flow and answered 500 — one layer
+  further out than 0.0.190's fix could reach, because `httpx` refuses to build
+  the URL before this project's validator is ever called. Discovery treats an
+  unusable candidate as ending *that candidate*: a server with a broken
+  `WWW-Authenticate` hint and correct well-known documents still connects. The
+  two sites below it raise a refusal of their own. (#889)
+- **"Nothing can dial this" and "we will not go there" stay two different
+  claims.** The refusal for an unbuildable address is deliberately distinct from
+  the blocked-address one, so a failure never misattributes whose fault it was.
+  The address itself goes to the log: `InvalidURL`'s message quotes the text it
+  could not cast, and on this flow that text is written by the server being
+  refused. (#889)
+- **`create_client_registration_request` is guarded at all** — it sat outside the
+  try it appeared to be inside. (#889)
+
 ## [0.0.195] - 2026-08-18
 
 A refusal that names a field marks that field.
@@ -356,10 +501,13 @@ Three places where the code said something about itself that was not true.
 
 ### Fixed
 
-- **The storage-root check is written so a static analyser can follow it**, which
-  is what closes three CodeQL `py/path-injection` alerts — a `Path.parents`
-  membership test is correct and invisible to the query, and an alert nobody can
-  close is an alert everybody learns to ignore. (#841)
+- **The storage-root check is written so a static analyser can follow it** — a
+  `Path.parents` membership test is correct and invisible to the query, and an
+  alert nobody can close is an alert everybody learns to ignore. (#841)
+  **Correction:** this said it closed three CodeQL `py/path-injection` alerts. It
+  closed one. #14 and #15 stayed open on `main` because the check was written as
+  a conjunction, which is not a shape the query accepts as a barrier; fixed in
+  0.0.199 (#903).
 - **A filesystem root can be the storage root again.** The rewritten check built
   its prefix as `base + os.sep` unconditionally, so with `MEDIA_DIR=/` the prefix
   was `//` — which nothing under `/` starts with. `load`, `delete` and

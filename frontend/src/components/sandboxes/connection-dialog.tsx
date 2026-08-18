@@ -10,6 +10,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  FormField,
   Input,
   Label,
   Select,
@@ -19,7 +20,7 @@ import {
   SelectValue,
   Switch,
 } from "@/components/ui";
-import { getErrorMessage } from "@/lib/api-error";
+import { NO_FAILURE, submitFailure } from "@/lib/api-error";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
 import { useLocalSandboxService, useSecrets } from "@/hooks";
@@ -102,6 +103,16 @@ function isComplete(form: FormState, baseUrl: string): boolean {
 }
 
 /**
+ * What this dialog can mark, for `submitFailure`.
+ *
+ * The address, because every refusal the service and the probe give about one -
+ * a shape that cannot work, a host that does not answer, a port answering HTML
+ * - names `base_url` (#891). And the name, through `identifiedBy`: a duplicate
+ * is a 409 about a row that exists, which only this form can place.
+ */
+const FORM = { fields: ["base_url"], identifiedBy: "name" } as const;
+
+/**
  * Register or edit a place sandboxes run.
  *
  * The credential is chosen from the vault or added inline; it is never typed into
@@ -122,7 +133,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
   const [storing, setStoring] = useState(false);
   const [testing, setTesting] = useState(false);
   const [allowed, setAllowed] = useState<SandboxRuntime[] | null>(null);
-  const [refusal, setRefusal] = useState<string | null>(null);
+  const [failure, setFailure] = useState(NO_FAILURE);
 
   // Derived rather than written into state by an effect: what a service answered
   // is a default for a field nobody has touched, and an effect that filled the box
@@ -134,7 +145,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
 
   async function submit(): Promise<void> {
     setSaving(true);
-    setRefusal(null);
+    setFailure(NO_FAILURE);
     try {
       await onSubmit({
         name: form.name.trim(),
@@ -152,7 +163,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
       // Shown here rather than rethrown. The server refuses a duplicate name and
       // a shape it cannot use; both are about a field on this form, and a
       // rejection that escaped an onClick reached nobody at all.
-      setRefusal(getErrorMessage(error, tErrors));
+      setFailure(submitFailure(error, FORM, tErrors));
     } finally {
       setSaving(false);
     }
@@ -167,16 +178,22 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="connection-name">{t("name")}</Label>
+          <FormField
+            htmlFor="connection-name"
+            label={t("name")}
+            description={t("whatAgentAuthorsWill")}
+            error={failure.fields.name}
+          >
             <Input
               id="connection-name"
               value={form.name}
               placeholder={t("namePlaceholder")}
-              onChange={(event) => setForm({ ...form, name: event.target.value })}
+              onChange={(event) => {
+                setForm({ ...form, name: event.target.value });
+                setFailure(NO_FAILURE);
+              }}
             />
-            <p className="text-muted-foreground text-xs">{t("whatAgentAuthorsWill")}</p>
-          </div>
+          </FormField>
 
           <div className="space-y-2">
             <Label htmlFor="connection-kind">{t("kind")}</Label>
@@ -198,16 +215,22 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
 
           {form.kind === "docker" && (
             <div className="space-y-2">
-              <Label htmlFor="connection-url">{t("address")}</Label>
-              <Input
-                id="connection-url"
-                value={baseUrl}
-                placeholder="http://sandboxd:8080"
-                onChange={(event) =>
-                  setForm({ ...form, baseUrl: event.target.value, urlTouched: true })
-                }
-              />
-              <p className="text-muted-foreground text-xs">{t("whereSandboxServiceAnswers")}</p>
+              <FormField
+                htmlFor="connection-url"
+                label={t("address")}
+                description={t("whereSandboxServiceAnswers")}
+                error={failure.fields.base_url}
+              >
+                <Input
+                  id="connection-url"
+                  value={baseUrl}
+                  placeholder="http://sandboxd:8080"
+                  onChange={(event) => {
+                    setForm({ ...form, baseUrl: event.target.value, urlTouched: true });
+                    setFailure(NO_FAILURE);
+                  }}
+                />
+              </FormField>
               {local?.url != null && (
                 <p className="text-muted-foreground text-xs">
                   {local.registered_connection_id === null
@@ -267,12 +290,12 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
                   disabled={storing}
                   onClick={async () => {
                     setStoring(true);
-                    setRefusal(null);
+                    setFailure(NO_FAILURE);
                     try {
                       const secretId = await storeCredential();
                       setForm((current) => ({ ...current, secretId }));
                     } catch (error) {
-                      setRefusal(getErrorMessage(error, tErrors));
+                      setFailure(submitFailure(error, FORM, tErrors));
                     } finally {
                       setStoring(false);
                     }
@@ -303,12 +326,12 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
                 baseUrl.trim() && form.secretId
                   ? async () => {
                       setTesting(true);
-                      setRefusal(null);
+                      setFailure(NO_FAILURE);
                       try {
                         const policy = await probe(baseUrl.trim(), form.secretId);
                         setAllowed(policy.runtimes);
                       } catch (error) {
-                        setRefusal(getErrorMessage(error, tErrors));
+                        setFailure(submitFailure(error, FORM, tErrors));
                       } finally {
                         setTesting(false);
                       }
@@ -357,7 +380,10 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
           )}
         </div>
 
-        {refusal !== null && <p className="text-destructive text-sm">{refusal}</p>}
+        {/* What could not be placed under an input - a refused permission, a
+            vault write that failed, a server fault. A refusal that found its
+            field is not also announced here. */}
+        {failure.toast !== null && <p className="text-destructive text-sm">{failure.toast}</p>}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

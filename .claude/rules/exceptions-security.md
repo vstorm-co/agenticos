@@ -40,9 +40,37 @@ URL in the message and a URL carries a key in its query string - and an absolute
 path says where the container keeps its files. Neither is deleted: it goes in the
 `logger.exception` line beside the raise, and the refusal names what the reader
 can act on (#342). A URL the refusal is *about* is named by its field rather than
-repeated - `{"field": "base_url"}`, never the endpoint with the password still in
-it. An audit entry is `details` with a longer life and takes the same rule:
-`{"fields": sorted(update_data)}`, not the body that was submitted (#412).
+repeated - `refused_field("base_url", ...)`, never the endpoint with the password
+still in it. An audit entry is `details` with a longer life and takes the same
+rule: `{"fields": sorted(update_data)}`, not the body that was submitted (#412).
+
+**A refusal that names a field says so in one shape, and `app/core/field_errors.py`
+is the only place it is built.** `details={"fields": [{"field", "message"}]}` is
+what `fieldProblems` in `frontend/src/lib/api-error.ts` reads, and it is the
+whole reason for naming a field at all - a form marks the input rather than
+showing a sentence somebody has to re-scan the page for. Three entry points:
+
+```python
+# A rule stated in prose. The sentence is the envelope's and the field's - one
+# argument, so they cannot drift apart. Returns the exception; you raise it.
+raise refused_field("base_url", "A model endpoint must include a host")
+
+# A pydantic model a service validated itself, below what the form calls it.
+raise BadRequestError(message=..., details={"fields": field_problems(exc.errors(), root="yaml")})
+```
+
+`request_field_problems` is the third and belongs to
+`validation_exception_handler` alone. `field_details` builds the same `details`
+without the exception, for a raiser that needs another status or that may have
+no field to name.
+
+**Name a field only when the caller sent it in that request.** A refusal about a
+value nobody submitted - a remote file's name chosen by whoever shares the synced
+folder, a stored row a worker read back - names none. Nor does a conflict:
+`AlreadyExistsError` reports a fact about a row that exists, and which of a
+form's inputs produced the taken value is the form's to say, through
+`submitFailure`'s `identifiedBy` on the client. A singular `details={"field": ...}`
+is the shape #891 removed; do not bring it back.
 
 Exception handlers in `api/exception_handlers.py` automatically:
 - Map to HTTP status codes

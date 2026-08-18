@@ -683,6 +683,27 @@ was listed under the *operator's* service account and whatever that account had
 been shared. The fallback is gone; the setting now serves only the
 `rag-sync-gdrive` CLI command, which an operator runs from their own shell.
 
+### A connector's refusal names the field it is about
+
+`validate_config` answers a `ConfigRefusal` — a sentence, and the field that
+sentence is about — or `None` when the config is acceptable. The connector names
+its own `CONFIG_SCHEMA` key; `SyncSourceService` roots that against the document
+the wizard posted (`folder_id` → `config.folder_id`) and raises it with
+`refused_field`, so it reaches the browser as `details["fields"]` in the one
+shape a form reads (`app/core/field_errors.py`) and the configure step marks the
+input the connector rejected.
+
+It used to answer `(bool, str | None)`, and a flag with a sentence cannot say
+*which of four inputs* was wrong. The folder-id check above knew, the reader
+did not: the wizard showed one line of prose under four boxes.
+
+Naming a field is optional, and deliberately so. A connector may refuse a config
+without blaming one part of it — connectivity that fails, two credentials that
+do not belong to the same account — and `ConfigRefusal(message=...)` with no
+field is the honest answer there. Inventing a field name would send somebody to
+edit a value that was accepted. `checked_drive_folder_id` names none for the same
+reason: it answers three sinks and only one of them was sent a form to mark.
+
 ### Image Description
 
 When processing documents that contain images, the system can optionally

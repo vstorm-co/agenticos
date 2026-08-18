@@ -451,5 +451,6 @@ class TestDetailsDescribeTheRefusalNotTheServer:
 
         response = await self._refusal_on_the_wire(client, refusal.value)
 
-        assert response.json()["error"]["details"] == {"field": "base_url"}
+        error = response.json()["error"]
+        assert error["details"] == {"fields": [{"field": "base_url", "message": error["message"]}]}
         assert "hunter2" not in response.text

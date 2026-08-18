@@ -735,7 +735,7 @@ class TestCreate:
         ):
             await AgentRegistryService(_db()).create(ctx, _spec("Support!"))
 
-        assert refused.value.details == {"slug": "support", "field": "name"}
+        assert refused.value.details == {"slug": "support"}
         # The message has to tell them what to change. They typed a *name*; the
         # thing that collided is the handle derived from it, and a refusal that
         # only states the collision leaves them staring at an input that looks

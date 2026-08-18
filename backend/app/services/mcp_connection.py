@@ -53,6 +53,7 @@ from app.agents.mcp_oauth import McpOAuthPayload, OAuthError
 from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.core.sanitize import UrlRefusedError
 from app.core.vault import SealedSecret, VaultScope, seal, unseal
@@ -114,10 +115,7 @@ async def _checked_url(url: str) -> str:
     except UrlRefusedError as exc:
         # Ours to quote, in the log as much as in the body - see the docstring.
         logger.warning("MCP server URL refused: %s", exc)
-        raise BadRequestError(
-            message=f"This MCP server URL cannot be used: {exc}",
-            details={"field": "url"},
-        ) from exc
+        raise refused_field("url", f"This MCP server URL cannot be used: {exc}") from exc
 
 
 def _apply_token(payload: McpOAuthPayload, token: OAuthToken) -> McpOAuthPayload:

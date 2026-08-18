@@ -388,8 +388,6 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           try {
             await createSyncSource(data);
             setWizardOpen(false);
-          } catch {
-            /* toast handled in hook */
           } finally {
             setCreatingSource(false);
           }

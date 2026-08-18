@@ -479,7 +479,7 @@ class SkillService:
                     f"'{skill.name}' already has a file called '{name}'. The name is how the "
                     "model asks for it, so it has to be unique within the skill."
                 ),
-                details={"name": name, "field": "name"},
+                details={"name": name},
             )
         resource = await skill_repo.create_resource(
             self.db,

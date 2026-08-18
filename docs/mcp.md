@@ -144,6 +144,22 @@ browser; a pydantic error over an unreadable token response echoes the payload i
 rejected, which is the tokens. Both stay in the server log, which is where an
 operator already looks.
 
+**A discovery document naming a URL that cannot be requested at all is the same
+kind of answer** — a **400** saying which endpoint was unusable, and that it is
+malformed. It is a distinct refusal from "this server pointed the flow at a
+blocked address": one says the server aimed us somewhere this deployment will
+not go, the other that it wrote an address nothing can dial, and reporting
+either as the other would be a confident claim about whose fault a failure was.
+An unusable `WWW-Authenticate` hint ends that discovery candidate rather than
+the flow, because the well-known URIs after it are derived from the URL an
+operator typed and may well answer. This was a 500 with an empty body until
+[#889](https://github.com/vstorm-co/agenticos/issues/889): `httpx.InvalidURL`
+does not derive from `httpx.HTTPError`, so none of the flow's catches saw it,
+and no check here could have — the URL is refused while the request is being
+built, above both the SSRF check and the pinned client. What the parser could
+not read (`Invalid port: 'client_secret=…'`) is the remote server's own text
+and stays in the log with everything else.
+
 !!! warning "An organization's OAuth connection is still someone's grant"
 
     `POST /mcp-connections/oauth/start` produces a connection the organization
