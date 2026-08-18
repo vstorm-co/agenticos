@@ -17,6 +17,32 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.190] - 2026-08-18
+
+### Fixed
+
+- **A blocked MCP server URL names the refusal instead of answering 500.**
+  `SSRFBlockedError` is a `ValueError` and nothing mapped it, so an operator
+  pasting an address that resolves to a private host got "an unexpected error
+  occurred" and left a traceback in the log as though the platform had broken.
+  All five call sites — personal and organization, create, update and the OAuth
+  start — answer 400 naming the `url` field. (#861)
+- **A refusal quotes only the sentences this repository wrote.** Catching
+  `ValueError` broadly caught the standard library's too, and `urlsplit` parses
+  the port at attribute access — so `http://example.com:client_secret=abc123/mcp`
+  put the caller's own text, secret and all, into the 400 body and the log line.
+  `UrlRefusedError` is now the base for refusals written here, the catch is
+  narrowed to it, and the one place the standard library can raise answers "The
+  URL has an invalid port". A parametrised test asserts the invariant itself, so
+  the next bare `ValueError` fails a test rather than reaching a response. (#861)
+- **A URL with an unusable port is refused rather than validated.**
+  `http://8.8.8.8:not-a-port/x` used to come back as checked, to a client that
+  could not dial it — the IP-literal branch swallowed the parse error. (#861)
+- **The validator stopped calling an MCP address a webhook.** Its messages said
+  "Webhook URL blocked" to somebody who had just typed a server URL, and the same
+  text reached the browser-automation publish problem. `validate_webhook_url` has
+  had no webhook caller for some time. (#861)
+
 ## [0.0.189] - 2026-08-18
 
 ### Fixed
