@@ -219,9 +219,10 @@ class TestARuleStatedInProse:
             ],
         }
 
-    def test_a_raiser_that_needs_another_status_builds_the_same_details(self) -> None:
-        """`_get_json` answers 404 for a sandbox session that is not there, and
-        the address is still the input to blame for it."""
-        assert field_details("base_url", "Sandbox session not found") == {
-            "fields": [{"field": "base_url", "message": "Sandbox session not found"}]
+    def test_a_raiser_deciding_its_field_at_run_time_builds_the_same_details(self) -> None:
+        """`_get_json` describes the same five failures for a form testing an
+        address and for a page reading a saved connection, so whether there is
+        an input to blame is not known where the sentence is written."""
+        assert field_details("base_url", "The sandbox service answered 502") == {
+            "fields": [{"field": "base_url", "message": "The sandbox service answered 502"}]
         }

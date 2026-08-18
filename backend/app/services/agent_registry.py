@@ -570,10 +570,11 @@ def _yaml_refusal(exc: yaml.YAMLError) -> str:
     keys of its own, which nothing has ever read (#891), and a line number is
     only worth reporting to the reader who has the document open.
     """
+    refusal = "This spec is not valid YAML"
     mark = getattr(exc, "problem_mark", None)
     if mark is None:
-        return "This spec is not valid YAML"
-    return f"This spec is not valid YAML - line {mark.line + 1}, column {mark.column + 1}"
+        return refusal
+    return f"{refusal} - line {mark.line + 1}, column {mark.column + 1}"
 
 
 def _parse_spec_yaml(text: str) -> AgentSpec:

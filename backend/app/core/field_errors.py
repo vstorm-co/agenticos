@@ -126,8 +126,11 @@ def field_details(field: str, message: str, **context: Any) -> dict[str, Any]:
     - and takes the rule in `.claude/rules/exceptions-security.md`: a value that
     explains the refusal, never the caller's own submission and never a row.
 
-    Only :func:`refused_field` and a raiser that needs a status other than 400
-    should call this; everything else raises the exception directly.
+    :func:`refused_field` is the shape to reach for. This one is for the raiser
+    that cannot: one needing a status other than 400, or one deciding at run
+    time whether it has a field to name at all - `_get_json` describes the same
+    five failures for a form testing an address and for a page reading a saved
+    connection, and only the first has an input to blame.
     """
     return {**context, "fields": [{"field": field, "message": message}]}
 

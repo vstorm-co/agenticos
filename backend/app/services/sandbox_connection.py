@@ -375,10 +375,8 @@ class SandboxConnectionService:
             base_url=data.base_url,
             token=secret.api_key.get_secret_value(),
             path="/policy",
-            # The field, not the address it was given - the same answer
-            # `_check_shape` gives sixteen lines down, and for the reason in
-            # agenticos#342: `details` is logged as well as serialized.
             field="base_url",
+            not_found="No sandbox service answers at this address - check the address and the port",
             context={},
         )
         payload["kind"] = "docker"
@@ -666,12 +664,19 @@ class SandboxConnectionService:
             token=resolved.token,
             path=path,
             field=None,
+            not_found="Sandbox session not found",
             context={"connection_id": str(connection_id)},
         )
 
     @staticmethod
     async def _get_json(
-        *, base_url: str | None, token: str, path: str, field: str | None, context: dict[str, str]
+        *,
+        base_url: str | None,
+        token: str,
+        path: str,
+        field: str | None,
+        not_found: str,
+        context: dict[str, str],
     ) -> dict[str, Any]:
         """One authenticated GET against a sandbox service.
 
@@ -685,8 +690,16 @@ class SandboxConnectionService:
                 every one of these failures is something the address it was given
                 explains. `None` for a read against a saved connection, where the
                 reader is looking at a session rather than at a field.
-            context: What else the refusal is about, never the address itself
-                (agenticos#342: `details` is logged as well as serialized).
+            not_found: What a 404 means to this caller, which is the one failure
+                the two do not share: a session that has ended, against a service
+                with no such endpoint. Marking a form's address with the first
+                would tell an operator their port is wrong about a session they
+                never asked for.
+            context: What else the refusal is about. The address is not withheld
+                from it - the sentence carries it and `field_details` copies the
+                sentence - because a `user:pass@` one is refused at the schema
+                (`SandboxConnectionCreate`), which is what keeps agenticos#342
+                shut here.
         """
         import httpx
 
@@ -705,8 +718,7 @@ class SandboxConnectionService:
             refused = "The sandbox service refused this connection's credential"
             raise BadRequestError(message=refused, details=refusal(refused))
         if response.status_code == 404:
-            missing = "Sandbox session not found"
-            raise NotFoundError(message=missing, details=refusal(missing))
+            raise NotFoundError(message=not_found, details=refusal(not_found))
         if response.status_code != 200:
             answered = f"The sandbox service answered {response.status_code}"
             raise BadRequestError(message=answered, details=refusal(answered))

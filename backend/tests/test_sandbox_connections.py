@@ -735,9 +735,36 @@ class TestTestingAnAddressBeforeItIsSaved:
             )
 
         assert "http://typo:8080 did not answer" in refused.value.message
-        # The message names the address the operator typed; `details` names the
-        # field, because it is logged as well as returned (agenticos#342) - in
-        # the one shape the dialog marks an input from (#891).
+        # One sentence, in both places, so the dialog can mark the input rather
+        # than print a line under it (#891). It names the address the operator
+        # typed, and agenticos#342 stays shut because `SandboxProbeRequest`
+        # refuses a `user:pass@` one - see the test below.
+        assert refused.value.details == {
+            "fields": [{"field": "base_url", "message": refused.value.message}]
+        }
+
+    async def test_a_service_with_no_policy_endpoint_is_a_wrong_address_not_a_lost_session(
+        self, monkeypatch
+    ):
+        """The one failure the two callers of `_get_json` do not share.
+
+        A 404 reading a saved connection is a session that has ended. Here
+        nothing asked for a session: it is an address answering, but not as a
+        sandbox service - and marking the operator's Address box with "Sandbox
+        session not found" would be confident about the wrong thing.
+        """
+        secret_id = uuid.uuid4()
+        service = _service(monkeypatch, secret=(secret_id, ApiKeySecret(api_key="tok")))
+        _serve(monkeypatch, _Response(404))
+
+        with pytest.raises(NotFoundError) as refused:
+            await service.probe_policy(
+                _ctx(), SandboxProbeRequest(base_url="http://typo:8080", secret_id=secret_id)
+            )
+
+        assert refused.value.message == (
+            "No sandbox service answers at this address - check the address and the port"
+        )
         assert refused.value.details == {
             "fields": [{"field": "base_url", "message": refused.value.message}]
         }

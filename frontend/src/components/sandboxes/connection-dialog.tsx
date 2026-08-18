@@ -20,8 +20,7 @@ import {
   SelectValue,
   Switch,
 } from "@/components/ui";
-import { submitFailure } from "@/lib/api-error";
-import type { SubmitFailure } from "@/lib/api-error";
+import { NO_FAILURE, submitFailure } from "@/lib/api-error";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
 import { useLocalSandboxService, useSecrets } from "@/hooks";
@@ -113,8 +112,6 @@ function isComplete(form: FormState, baseUrl: string): boolean {
  */
 const FORM = { fields: ["base_url"], identifiedBy: "name" } as const;
 
-const NOTHING_WRONG: SubmitFailure = { fields: {}, toast: null };
-
 /**
  * Register or edit a place sandboxes run.
  *
@@ -136,7 +133,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
   const [storing, setStoring] = useState(false);
   const [testing, setTesting] = useState(false);
   const [allowed, setAllowed] = useState<SandboxRuntime[] | null>(null);
-  const [failure, setFailure] = useState<SubmitFailure>(NOTHING_WRONG);
+  const [failure, setFailure] = useState(NO_FAILURE);
 
   // Derived rather than written into state by an effect: what a service answered
   // is a default for a field nobody has touched, and an effect that filled the box
@@ -148,7 +145,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
 
   async function submit(): Promise<void> {
     setSaving(true);
-    setFailure(NOTHING_WRONG);
+    setFailure(NO_FAILURE);
     try {
       await onSubmit({
         name: form.name.trim(),
@@ -193,7 +190,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
               placeholder={t("namePlaceholder")}
               onChange={(event) => {
                 setForm({ ...form, name: event.target.value });
-                setFailure(NOTHING_WRONG);
+                setFailure(NO_FAILURE);
               }}
             />
           </FormField>
@@ -230,7 +227,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
                   placeholder="http://sandboxd:8080"
                   onChange={(event) => {
                     setForm({ ...form, baseUrl: event.target.value, urlTouched: true });
-                    setFailure(NOTHING_WRONG);
+                    setFailure(NO_FAILURE);
                   }}
                 />
               </FormField>
@@ -293,7 +290,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
                   disabled={storing}
                   onClick={async () => {
                     setStoring(true);
-                    setFailure(NOTHING_WRONG);
+                    setFailure(NO_FAILURE);
                     try {
                       const secretId = await storeCredential();
                       setForm((current) => ({ ...current, secretId }));
@@ -329,7 +326,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
                 baseUrl.trim() && form.secretId
                   ? async () => {
                       setTesting(true);
-                      setFailure(NOTHING_WRONG);
+                      setFailure(NO_FAILURE);
                       try {
                         const policy = await probe(baseUrl.trim(), form.secretId);
                         setAllowed(policy.runtimes);

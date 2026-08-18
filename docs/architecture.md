@@ -286,7 +286,7 @@ place it is built, and it has three entry points. Two of them read Pydantic, and
 |---|---|---|
 | `request_field_problems` | `validation_exception_handler`, every `RequestValidationError` | where the value came from (`body`, `query`, …), which is dropped |
 | `field_problems(…, root=…)` | a service validating a document a route's schema cannot — a per-upload ingestion override, a hand-edited spec YAML, a capability's config blob | a field of that document, reported below `root` |
-| `refused_field(field, message, **context)` | a rule a service states in prose rather than in a model — an endpoint carrying a password, a Mattermost bot losing its server, a YAML document that never parsed | — it raises the `BadRequestError` itself |
+| `refused_field(field, message, **context)` | a rule a service states in prose rather than in a model — an endpoint carrying a password, a Mattermost bot losing its server, a YAML document that never parsed | — it answers with the `BadRequestError` for the caller to raise |
 
 `refused_field` names the sentence once, because the envelope's `message` and the
 field's are the same sentence; a raiser needing another status builds the same
@@ -324,8 +324,8 @@ sentence was the other half of #882: saving a draft does not validate a config
 schema at all, so publish validation is the only place a mistyped setting is ever
 refused.
 
-**Two refusals deliberately name no field**, and the line between them and the
-rest is what stops the one shape from meaning two things again:
+**Two kinds of refusal deliberately name no field**, and the line between them
+and the rest is what stops the one shape from meaning two things again:
 
 - **A refusal about a value no caller sent.** A remote file's name is chosen by
   whoever can drop a file in the synced folder, and both checks in

@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { Check, KeyRound, Plus } from "lucide-react";
 
-import { submitFailure } from "@/lib/api-error";
-import type { SubmitFailure } from "@/lib/api-error";
+import { NO_FAILURE, submitFailure } from "@/lib/api-error";
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
@@ -140,8 +139,6 @@ export function modelIdIsWellFormed(providerId: string, model: string): boolean 
  */
 const FORM = { fields: ["base_url"] } as const;
 
-const NOTHING_WRONG: SubmitFailure = { fields: {}, toast: null };
-
 export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
@@ -165,7 +162,7 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
   const [label, setLabel] = useState("");
   const [secretId, setSecretId] = useState(selected?.secret_id ?? "");
   const [baseUrl, setBaseUrl] = useState(selected?.base_url ?? "");
-  const [failure, setFailure] = useState<SubmitFailure>(NOTHING_WRONG);
+  const [failure, setFailure] = useState(NO_FAILURE);
   const [naming, setNaming] = useState(false);
 
   const providers = purposes.filter((entry) => entry.category === "model_provider");
@@ -227,7 +224,7 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
   const submit = async () => {
     /* v8 ignore next -- the id comes from the list this select was built from */
     if (provider === undefined) return;
-    setFailure(NOTHING_WRONG);
+    setFailure(NO_FAILURE);
     if (already !== undefined) {
       onCreated(already);
       return;
@@ -267,7 +264,7 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
               setSecretId("");
               setModel("");
               setBaseUrl("");
-              setFailure(NOTHING_WRONG);
+              setFailure(NO_FAILURE);
             }}
           >
             <SelectTrigger id="add-model-provider">
@@ -317,7 +314,7 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
             value={model}
             onChange={(next) => {
               setModel(next);
-              setFailure(NOTHING_WRONG);
+              setFailure(NO_FAILURE);
             }}
             options={suggestions}
             source={source}
@@ -414,7 +411,7 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
             value={baseUrl}
             onChange={(event) => {
               setBaseUrl(event.target.value);
-              setFailure(NOTHING_WRONG);
+              setFailure(NO_FAILURE);
             }}
             placeholder={
               capabilities?.keyless === true
