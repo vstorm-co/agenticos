@@ -21,6 +21,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A connector's refusal names the field it is about.** The protocol was
+  `tuple[bool, str | None]` — a flag and a sentence — so a per-field refusal
+  raised inside a connector could not survive the return, and the wizard's
+  configure step took no error prop at all. Both halves are done: the protocol
+  carries the field, the service roots it against the posted document, and the
+  step marks the input the server named and returns to it, since submission
+  happens two steps later and a mark on an invisible field says nothing. (#897)
+- **A refusal is marked or announced, not both.** The wizard's mutations no
+  longer toast what the form is already showing beside the input it belongs to.
+  (#897)
+- **An abandoned submission cannot steer the wizard that replaced it.** Dismiss
+  the dialog while a create is pending, reopen it, and the old refusal used to
+  send the new session back to a step whose connector had been reset — a blank
+  dialog caused by a form the reader had already left. Each opening is its own
+  session now; a superseded answer is said and touches nothing else. Blocking
+  dismissal while submitting was the alternative and would have trapped a reader
+  behind a hung request. (#897)
+- **Both write paths refuse the same way.** `create_source` carried its own copy
+  of the validate-and-raise; it goes through the same helper as clone and update,
+  so the two cannot drift apart again. (#897)
 - **A refused model id is no longer posted back.** `details` is serialized into
   the response body *and* written to the log line beside it, so refusing a bare
   OpenRouter id sent the caller's own submission into the deployment's logs. It
