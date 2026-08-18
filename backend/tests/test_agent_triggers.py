@@ -869,15 +869,16 @@ class TestFiring:
         assert trigger.is_active is True
 
     async def test_the_scheduled_path_clears_the_in_flight_marker_when_the_run_completes(self):
-        """The claim set fire_in_flight_since; the scheduled fire it dispatched clears
-        it in a finally (`release_marker=True`), so once the run settles the next tick
-        can claim the trigger again."""
+        """The claim set fire_in_flight_since; the scheduled fire it dispatched is
+        handed that timestamp as `claimed_at` and clears the marker in a finally once
+        it still matches, so once the run settles the next tick can claim again."""
         agent = _agent()
         service = _service(agent)
+        claimed_at = datetime(2026, 1, 1, tzinfo=UTC)
         trigger = _trigger(
             agent_id=agent.id,
             conversation_id=uuid.uuid4(),
-            fire_in_flight_since=datetime(2026, 1, 1, tzinfo=UTC),
+            fire_in_flight_since=claimed_at,
         )
         run = MagicMock(id=uuid.uuid4(), status=RunStatus.COMPLETED.value)
         with (
@@ -891,9 +892,43 @@ class TestFiring:
             members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             runner = runner_cls.return_value
             runner.execute = AsyncMock(return_value=("done", run))
-            await service.fire(trigger.id, release_marker=True)
+            await service.fire(trigger.id, claimed_at=claimed_at)
 
         assert trigger.fire_in_flight_since is None
+        assert trigger.last_run_id == run.id
+
+    async def test_a_slow_fire_does_not_clear_a_newer_claims_marker(self):
+        """A fire that outran the lease finds the trigger re-claimed: `claim_due` has
+        stamped a fresh fire_in_flight_since for a second fire now in flight. This one
+        finishing must not clear that newer marker - it was dispatched with the older
+        `claimed_at`, which no longer matches - or the trigger reopens to the next
+        tick while the newer fire is still running, the self-overlap the marker
+        closes."""
+        agent = _agent()
+        service = _service(agent)
+        dispatched_with = datetime(2026, 1, 1, tzinfo=UTC)
+        newer_claim = datetime(2026, 1, 1, 1, 1, tzinfo=UTC)
+        trigger = _trigger(
+            agent_id=agent.id,
+            conversation_id=uuid.uuid4(),
+            fire_in_flight_since=newer_claim,
+        )
+        run = MagicMock(id=uuid.uuid4(), status=RunStatus.COMPLETED.value)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.member_repo") as members,
+            patch("app.services.agent_trigger.conversation_repo"),
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            runner = runner_cls.return_value
+            runner.execute = AsyncMock(return_value=("done", run))
+            await service.fire(trigger.id, claimed_at=dispatched_with)
+
+        # The newer claim's marker stands; only its own fire may clear it.
+        assert trigger.fire_in_flight_since == newer_claim
         assert trigger.last_run_id == run.id
 
     async def test_a_fire_off_the_scheduled_path_leaves_a_concurrent_claims_marker(self):
@@ -924,27 +959,65 @@ class TestFiring:
         assert trigger.fire_in_flight_since == in_flight
         assert trigger.last_run_id == run.id
 
-    async def test_a_failed_dispatch_releases_the_claims_marker(self):
-        """The claim commits the marker before the heartbeat submits the run; when the
-        submit raises, no fire runs to clear it. `release_fire_marker` clears it in the
-        heartbeat's own transaction, so the trigger is not held out of the next claim
-        until the lease lapses."""
-        service = _service()
-        trigger = _trigger(fire_in_flight_since=datetime(2026, 1, 1, tzinfo=UTC))
-        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+    async def test_a_fire_that_errors_and_leaves_only_the_previous_fires_run_is_not_misstamped(
+        self,
+    ):
+        """The error struck before this fire created a run of its own, and the trigger's
+        run-log conversation already holds an earlier fire. Recovering the conversation
+        tail returns that historical row - the one `last_run_id` already names - so it
+        must be read as "no run for this fire", not stamped again as the current one."""
+        agent = _agent()
+        service = _service(agent)
+        previous = MagicMock(id=uuid.uuid4(), status=RunStatus.COMPLETED.value)
+        trigger = _trigger(agent_id=agent.id, conversation_id=uuid.uuid4(), last_run_id=previous.id)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.member_repo") as members,
+            patch("app.services.agent_trigger.conversation_repo"),
+            patch("app.services.agent_trigger.agent_run_repo") as runs,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
+        ):
             repo.get_by_id = AsyncMock(return_value=trigger)
-            await service.release_fire_marker(trigger.id)
-        assert trigger.fire_in_flight_since is None
-        service.db.flush.assert_awaited()
+            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            runs.latest_run_for_conversation = AsyncMock(return_value=previous)
+            runner = runner_cls.return_value
+            runner.execute = AsyncMock(side_effect=RuntimeError("spec failed to build"))
+            await service.fire(trigger.id)  # must not raise
 
-    async def test_releasing_the_marker_of_a_trigger_deleted_since_the_claim_is_a_no_op(self):
-        """A trigger removed between claim and the failed dispatch has nothing to
-        release; the heartbeat neither raises nor flushes."""
-        service = _service()
-        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
-            repo.get_by_id = AsyncMock(return_value=None)
-            await service.release_fire_marker(uuid.uuid4())  # must not raise
-        service.db.flush.assert_not_awaited()
+        # last_run_id is left where it was - the historical row, not re-stamped now.
+        assert trigger.last_run_id == previous.id
+        assert trigger.is_active is True
+
+    async def test_a_fire_whose_finalization_fails_after_completion_propagates(self):
+        """The run reached a terminal write but a persistence step after it - the
+        transcript, the conversation state, the run's own commit - failed, so `_run`
+        never committed and the row is only flushed. Recovering it finds a non-failed
+        status: swallowing that would let the worker context commit a completed run
+        with no transcript behind it while Prefect saw success, so `fire` re-raises to
+        roll the half-written state back and fail the flow. It stamps nothing."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id, conversation_id=uuid.uuid4(), last_run_id=None)
+        uncommitted = MagicMock(id=uuid.uuid4(), status=RunStatus.COMPLETED.value)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.member_repo") as members,
+            patch("app.services.agent_trigger.conversation_repo"),
+            patch("app.services.agent_trigger.agent_run_repo") as runs,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            runs.latest_run_for_conversation = AsyncMock(return_value=uncommitted)
+            runner = runner_cls.return_value
+            runner.execute = AsyncMock(side_effect=RuntimeError("transcript write failed"))
+            with pytest.raises(RuntimeError, match="transcript write failed"):
+                await service.fire(trigger.id)
+
+        assert trigger.last_run_id is None
+        assert trigger.is_active is True
 
 
 class TestCreatingAnEventTrigger:

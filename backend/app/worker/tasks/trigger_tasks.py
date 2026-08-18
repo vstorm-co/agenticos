@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 _RUN_TRIGGER_DEPLOYMENT = "run-scheduled-trigger/run-scheduled-trigger"
 
 
-async def _dispatch(trigger_id: str) -> None:
+async def _dispatch(trigger_id: str, claimed_at: datetime) -> None:
     """Submit one due trigger's run as its own flow run, and return.
 
     `timeout=0` is what makes this submit-and-return: `run_deployment` enqueues
@@ -42,13 +42,18 @@ async def _dispatch(trigger_id: str) -> None:
     trigger rather than the sum of the runs it starts. A separate flow run is also
     what keeps each fired agent run capped by `PREFECT_RUNNER_LIMIT` and isolated
     from the heartbeat.
+
+    `claimed_at` is the `fire_in_flight_since` the claim stamped, handed to the fire
+    as its claim ticket so it clears only the marker its own claim set - the guard
+    against a fire that outran the lease clearing a newer claim's marker. It rides
+    across the Prefect boundary as an ISO string, the shape a flow parameter takes.
     """
     # `run_deployment` is sync-compatible: its stub unions the coroutine it
     # returns in an async context with the `FlowRun` a sync caller gets, and ty
     # cannot tell which applies. Awaiting it is correct here.
     await run_deployment(  # ty: ignore[invalid-await]
         name=_RUN_TRIGGER_DEPLOYMENT,
-        parameters={"trigger_id": trigger_id},
+        parameters={"trigger_id": trigger_id, "claimed_at": claimed_at.isoformat()},
         timeout=0,
     )
 
@@ -58,46 +63,50 @@ async def check_agent_triggers_flow() -> None:
     """Heartbeat: claim the triggers due now and submit a run for each."""
     from app.services.agent_trigger import AgentTriggerService
 
+    # The one clock for the whole tick: `claim_and_advance` stamps every claimed
+    # trigger's `fire_in_flight_since` with exactly this `now`, so it is each fire's
+    # claim ticket - handed back as `claimed_at` so the fire clears only the marker
+    # its own claim set.
+    now = datetime.now(UTC)
     async with get_worker_db_context() as db:
-        triggers = await AgentTriggerService(db).claim_and_advance(now=datetime.now(UTC))
+        triggers = await AgentTriggerService(db).claim_and_advance(now=now)
     # Dispatched after the claim's transaction commits, so every submitted run
     # sees the advanced `next_fire_at` and the tick's own work is durable before
     # any of it is handed on.
     dispatched = 0
     for trigger in triggers:
         try:
-            await _dispatch(str(trigger.id))
+            await _dispatch(str(trigger.id), now)
         except Exception:
             # Isolate each dispatch so a single failed `run_deployment` (a transient
-            # Prefect API error) does not abort the loop and cost the rest of the batch
-            # their fire too. The claim already committed this trigger's advanced
-            # `next_fire_at` and its `fire_in_flight_since` marker, and the run that
-            # would clear the marker never starts - so release it here, in its own
-            # transaction: nothing is in flight for a trigger whose dispatch failed,
-            # and a marker left set would hold it out of `claim_due` until the lease
-            # lapsed rather than the next tick firing it again on its new schedule.
+            # Prefect API error) does not abort the loop and cost the rest of the
+            # batch their fire too. The marker is deliberately left set: a submit that
+            # raised may still have created the child flow - `run_deployment` can
+            # enqueue the run on the Prefect API and then lose or time out the
+            # response - so clearing it here would let the next tick submit a second
+            # fire on top of an accepted-but-queued one, duplicating the spend and its
+            # side effects (#589). Leaving it set means `_FIRE_LEASE`, not this loop,
+            # governs re-dispatch: a genuinely lost submit waits out the lease rather
+            # than risking a double fire.
             logger.exception("agent_trigger_dispatch_failed", extra={"trigger_id": str(trigger.id)})
-            try:
-                async with get_worker_db_context() as db:
-                    await AgentTriggerService(db).release_fire_marker(trigger.id)
-            except Exception:
-                # The lease bounds this one trigger's damage; the rest of the
-                # batch must still dispatch - the reason this loop isolates at all.
-                logger.exception(
-                    "agent_trigger_marker_release_failed",
-                    extra={"trigger_id": str(trigger.id)},
-                )
         else:
             dispatched += 1
     logger.info("agent_triggers_check", extra={"dispatched": dispatched, "claimed": len(triggers)})
 
 
 @flow(name="run-scheduled-trigger", log_prints=True)
-async def run_scheduled_trigger_flow(trigger_id: str) -> None:
-    """One fired run: run the agent this trigger schedules, as its creator."""
+async def run_scheduled_trigger_flow(trigger_id: str, claimed_at: str | None = None) -> None:
+    """One fired run: run the agent this trigger schedules, as its creator.
+
+    `claimed_at` is the `fire_in_flight_since` the claim stamped, round-tripped as an
+    ISO string. It is handed back to `fire` as this fire's claim ticket, so the
+    marker is cleared only while it still belongs to this claim - a fire that outran
+    the lease must not clear the marker a newer claim set. Optional so a manually
+    triggered flow run with no claim behind it still fires (and simply leaves any
+    marker for the lease).
+    """
     from app.services.agent_trigger import AgentTriggerService
 
+    parsed = None if claimed_at is None else datetime.fromisoformat(claimed_at)
     async with get_worker_db_context() as db:
-        # The claim marked this trigger in flight; this fire, dispatched for that
-        # claim, is the one to clear the marker when the run settles.
-        await AgentTriggerService(db).fire(UUID(trigger_id), release_marker=True)
+        await AgentTriggerService(db).fire(UUID(trigger_id), claimed_at=parsed)
