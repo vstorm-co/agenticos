@@ -296,6 +296,8 @@
     "modelIdOpenRouterHint": "Namespaced by origin, as OpenRouter lists it - openai/gpt-5, anthropic/claude-opus-5.",
     "modelIdProviderHint": "As the provider names it. Free text, because they ship new ones faster than any list here could be updated.",
     "modelTheseRunsHad": "A model in these runs had no price, so this is a floor.",
+    "modelsCouldNotBeListed": "Models could not be listed",
+    "modelsCouldNotBeListedHint": "This panel is empty because the request for this organization's models did not answer, not because it has none.",
     "moreActionsFor": "More actions for {name}",
     "name": "Name",
     "name2": "Name",

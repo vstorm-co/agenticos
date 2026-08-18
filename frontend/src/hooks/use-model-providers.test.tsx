@@ -58,8 +58,8 @@ describe("useModelProviders", () => {
 
   it("does not call an empty list of models the organization's answer when the read failed", async () => {
     // `profiles` degrades to `[]` either way, so a caller reading it as "this
-    // organization has no model" would say that about a 502. `profilesLoaded`
-    // is the difference, and only the successful read carries it.
+    // organization has no model" would say that about a 502. `profilesStatus`
+    // is the difference, and only the successful read carries `loaded`.
     vi.mocked(apiClient.get).mockImplementation((path: string) =>
       path === "/providers/model-profiles"
         ? Promise.reject(new Error("upstream timed out"))
@@ -69,12 +69,33 @@ describe("useModelProviders", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     expect(result.current.profiles).toEqual([]);
-    expect(result.current.profilesLoaded).toBe(false);
+    expect(result.current.profilesStatus).toBe("failed");
+  });
+
+  it("separates a read still in flight from one that failed", async () => {
+    // The third state, and the one a pair of booleans loses: a cold render is
+    // `[]` too, and a caller that only knew "not loaded" would raise a failure
+    // on the ordinary path - every first paint of the Builder.
+    let answer: (value: { items: []; total: number }) => void = () => {};
+    vi.mocked(apiClient.get).mockImplementation((path: string) =>
+      path === "/providers/model-profiles"
+        ? new Promise((resolve) => {
+            answer = resolve;
+          })
+        : Promise.resolve({ items: [], total: 0 }),
+    );
+    const { result } = renderHook(() => useModelProviders(), { wrapper });
+
+    expect(result.current.profiles).toEqual([]);
+    expect(result.current.profilesStatus).toBe("pending");
+
+    answer({ items: [], total: 0 });
+    await waitFor(() => expect(result.current.profilesStatus).toBe("loaded"));
   });
 
   it("calls an empty list the organization's answer when the read succeeded", async () => {
     const { result } = renderHook(() => useModelProviders(), { wrapper });
-    await waitFor(() => expect(result.current.profilesLoaded).toBe(true));
+    await waitFor(() => expect(result.current.profilesStatus).toBe("loaded"));
 
     expect(result.current.profiles).toEqual([]);
   });
