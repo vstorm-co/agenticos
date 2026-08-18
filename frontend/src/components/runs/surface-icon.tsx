@@ -1,4 +1,4 @@
-import { Code2, Globe, MessageSquare } from "lucide-react";
+import { CalendarClock, Code2, Globe, MessageSquare, Zap } from "lucide-react";
 
 import { brandMark } from "@/components/icons/brand-icon";
 import { cn } from "@/lib/utils";
@@ -24,6 +24,13 @@ const MARKS = {
   slack: brandMark("slack"),
   telegram: brandMark("telegram"),
   mattermost: brandMark("mattermost"),
+  // Nobody sat at a keyboard for these two: a clock for the run a schedule was
+  // due to make, a bolt for the one an event fired. They are in this table and
+  // not yet in `SURFACES` on the filter bar, because the filter's vocabulary is
+  // what the backend will validate a query against - offering a value it refuses
+  // is a 422, and the branch that writes these surfaces adds them there.
+  schedule: CalendarClock,
+  trigger: Zap,
 } as const;
 
 /** The display name beside the mark - "Mattermost", not the enum's lowercase. */
@@ -34,6 +41,8 @@ const LABEL_KEYS = {
   slack: "surfaceSlack",
   telegram: "surfaceTelegram",
   mattermost: "surfaceMattermost",
+  schedule: "surfaceSchedule",
+  trigger: "surfaceTrigger",
 } as const;
 
 /**

@@ -3600,6 +3600,8 @@
       "surfaceSlack": "Slack",
       "surfaceTelegram": "Telegram",
       "surfaceMattermost": "Mattermost",
+      "surfaceSchedule": "Schedule",
+      "surfaceTrigger": "Trigger",
       "runResumed": "Run resumed - the agent picked up where it parked.",
       "resumeFailed": "The run could not be resumed.",
       "modelFilter": "Filter by model",
