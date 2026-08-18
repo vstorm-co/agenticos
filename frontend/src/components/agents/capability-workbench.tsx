@@ -1,10 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { ShieldAlert } from "lucide-react";
 
 import { CapabilityDetail } from "@/components/agents/capability-settings";
-import { CapabilityResources, type AgentResources } from "@/components/agents/capability-resources";
+import {
+  CapabilityResources,
+  resourceTabKey,
+  type AgentResources,
+} from "@/components/agents/capability-resources";
 import { SubagentsSection } from "@/components/agents/subagents-section";
 import { WorkspaceSection } from "@/components/agents/workspace-section";
 import { SearchInput, Switch } from "@/components/ui";
@@ -240,17 +245,17 @@ export function CapabilityWorkbench({
                 onChange={onChange}
                 onToggleEnabled={() => onToggle(focused.id)}
                 configProblems={configProblems}
-                // What this capability reads of the organization's, where it has
-                // any: the context files, the collections, the skills. Null for
-                // most of them.
-                settingsExtra={
+                // What this capability reads of the organization's, where it
+                // reads anything: the files, the collections, the skills. It gets
+                // the first tab and the panel opens on it.
+                resources={panelResources(focused.id, t, () => (
                   <CapabilityResources
                     capabilityId={focused.id}
                     enabled={isOn}
                     resources={resources}
                     disabled={disabled || !isOn}
                   />
-                }
+                ))}
                 // A capability nobody granted has nothing to configure yet, so
                 // its controls are shown at their real values and left inert.
                 // The alternative - live controls writing to a binding that does
@@ -339,4 +344,20 @@ function CapabilityRow({
       />
     </div>
   );
+}
+
+/**
+ * The resources tab for one capability, or nothing where it has none.
+ *
+ * The label is a catalog key `capability-resources` answers with - a module
+ * constant cannot translate - and the body is built lazily, so a capability with
+ * no resources renders no picker rather than one that returns null.
+ */
+function panelResources(
+  capabilityId: string,
+  t: (key: string) => string,
+  content: () => ReactNode,
+): { label: string; content: ReactNode } | undefined {
+  const key = resourceTabKey(capabilityId);
+  return key === undefined ? undefined : { label: t(key), content: content() };
 }

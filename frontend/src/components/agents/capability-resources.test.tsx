@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { CapabilityResources, type AgentResources } from "./capability-resources";
+import { CapabilityResources, resourceTabKey, type AgentResources } from "./capability-resources";
 import type { KnowledgeBase } from "@/types";
 import type { ContextFileSummary, SkillSummary } from "@/types/providers";
 
@@ -67,6 +67,22 @@ function mount(capabilityId: string, overrides: Partial<AgentResources> = {}, en
   );
   return resources;
 }
+
+describe("the tab a capability's resources get", () => {
+  it.each([
+    ["context", "contextFilesHeading"],
+    ["knowledge", "collectionsHeading"],
+    ["skills", "skillsHeading"],
+  ])("names %s with the catalog key for what it holds", (id, key) => {
+    // A key rather than a word: this is a module function, and the panel that
+    // renders the tab is what has a translator.
+    expect(resourceTabKey(id)).toBe(key);
+  });
+
+  it("gives no tab to a capability that reads nothing of the organization's", () => {
+    expect(resourceTabKey("charts")).toBeUndefined();
+  });
+});
 
 describe("what a capability reads of the organization's", () => {
   it("offers the context files in the capability that injects them", () => {

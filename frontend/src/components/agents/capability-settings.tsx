@@ -218,13 +218,15 @@ interface CapabilityDetailProps {
    */
   onToggleEnabled?: () => void;
   /**
-   * The controls this capability has that a schema cannot draw - the files a
-   * context capability reads, the collections a search capability may reach.
+   * What this capability was given - the files it reads, the collections it may
+   * search, the skills it loads - and the word for them.
    *
-   * First in Settings, above the generated form: they are what the capability is
-   * *for*, where the form is how it behaves.
+   * Its own tab, first, and the panel opens on it: it is what somebody came to
+   * this panel to change, where the generated form and a tool's prompt text are
+   * set once. Absent for a capability that reads nothing of the organization's,
+   * which is most of them.
    */
-  settingsExtra?: ReactNode;
+  resources?: { label: string; content: ReactNode };
 }
 
 /**
@@ -249,14 +251,12 @@ export function CapabilityDetail({
   hideConfigForm,
   configProblems,
   onToggleEnabled,
-  settingsExtra,
+  resources,
 }: CapabilityDetailProps) {
   const t = useTranslations("agents");
   const configErrors = capabilityConfigErrors(configProblems ?? [], binding.id);
   const settings = (
     <>
-      {settingsExtra}
-
       {definition.config_schema && !hideConfigForm && (
         <SchemaForm
           idPrefix={binding.id}
@@ -358,18 +358,26 @@ export function CapabilityDetail({
 
         <p className="text-muted-foreground text-sm">{definition.description}</p>
 
-        {tools ? (
-          <Tabs defaultValue="settings">
+        {tools || resources ? (
+          <Tabs defaultValue={resources ? "resources" : "settings"}>
             <TabsList>
+              {resources && <TabsTrigger value="resources">{resources.label}</TabsTrigger>}
               <TabsTrigger value="settings">{t("capabilitySettingsTab")}</TabsTrigger>
-              <TabsTrigger value="tools">{t("capabilityToolsTab")}</TabsTrigger>
+              {tools && <TabsTrigger value="tools">{t("capabilityToolsTab")}</TabsTrigger>}
             </TabsList>
+            {resources && (
+              <TabsContent value="resources" className="mt-4">
+                {resources.content}
+              </TabsContent>
+            )}
             <TabsContent value="settings" className="mt-4 space-y-4">
               {settings}
             </TabsContent>
-            <TabsContent value="tools" className="mt-4">
-              {tools}
-            </TabsContent>
+            {tools && (
+              <TabsContent value="tools" className="mt-4">
+                {tools}
+              </TabsContent>
+            )}
           </Tabs>
         ) : (
           settings

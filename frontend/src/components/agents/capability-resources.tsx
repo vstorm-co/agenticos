@@ -35,7 +35,22 @@ export interface AgentResources {
 }
 
 /**
- * The picker a capability's Settings tab opens with, where it has one.
+ * The catalog key naming what a capability reads, or undefined where it reads
+ * nothing of the organization's.
+ *
+ * The tab's label, resolved by whoever renders the panel: a module constant
+ * cannot call a translator, so this answers with a key and the workbench turns it
+ * into words.
+ */
+export function resourceTabKey(capabilityId: string): string | undefined {
+  if (capabilityId === CONTEXT_ID) return "contextFilesHeading";
+  if (capabilityId === KNOWLEDGE_ID) return "collectionsHeading";
+  if (capabilityId === SKILLS_ID) return "skillsHeading";
+  return undefined;
+}
+
+/**
+ * The picker a capability opens on, where it has one.
  *
  * Each of these used to be a card in a tab of its own - Knowledge and Skills had
  * a whole tab each, context shared the Skills one - two clicks from the switch
@@ -44,8 +59,10 @@ export interface AgentResources {
  * was a `top_k` field and a tool description, and the collections it searches
  * were somewhere else entirely.
  *
- * They live in Settings rather than beside the Tools tab because they are the
- * capability's subject: the tools are how the model reaches them.
+ * It gets the panel's first tab, and the panel opens on it: what a capability was
+ * given is what somebody came to this panel to change, where `top_k` and the
+ * prompt text of a tool are things they will set once. Under Settings, where it
+ * started, the picker was the top of a scroll whose first screen was a form.
  *
  * Returns null for a capability that reads nothing of the organization's, which
  * is most of them.
@@ -67,7 +84,6 @@ export function CapabilityResources({
   if (capabilityId === CONTEXT_ID) {
     return (
       <ResourceGroup
-        heading={t("contextFilesHeading")}
         detail={t("contextFilesDetail")}
         warning={enabled || resources.contextIds.length === 0 ? null : t("contextOffButBound")}
       >
@@ -85,7 +101,6 @@ export function CapabilityResources({
   if (capabilityId === KNOWLEDGE_ID) {
     return (
       <ResourceGroup
-        heading={t("collectionsHeading")}
         detail={t("collectionsDetail")}
         warning={
           enabled || resources.collectionIds.length === 0 ? null : t("collectionsOffButBound")
@@ -104,7 +119,6 @@ export function CapabilityResources({
   if (capabilityId === SKILLS_ID) {
     return (
       <ResourceGroup
-        heading={t("skillsHeading")}
         detail={t("skillsDetail")}
         warning={enabled || resources.skillIds.length === 0 ? null : t("skillsOffButBound")}
       >
@@ -123,18 +137,18 @@ export function CapabilityResources({
 }
 
 /**
- * A picker under its own heading, with the one state no control here can state
+ * A picker under what it is for, with the one state no control here can state
  * alone: the spec still carries the selection, publish still checks it exists,
  * and with the capability off not one of them reaches a run. Silence there is how
  * "why does it not know the glossary" becomes unanswerable.
+ *
+ * No heading - the tab this sits in is the heading.
  */
 function ResourceGroup({
-  heading,
   detail,
   warning,
   children,
 }: {
-  heading: string;
   detail: string;
   warning: string | null;
   children: ReactNode;
@@ -147,10 +161,7 @@ function ResourceGroup({
           <p className="text-xs">{warning}</p>
         </div>
       )}
-      <div>
-        <p className="text-sm font-medium">{heading}</p>
-        <p className="text-muted-foreground text-xs">{detail}</p>
-      </div>
+      <p className="text-muted-foreground text-xs">{detail}</p>
       {children}
     </section>
   );

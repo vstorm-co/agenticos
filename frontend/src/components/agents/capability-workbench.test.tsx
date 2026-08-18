@@ -539,7 +539,10 @@ describe("context, the capability that reads the files", () => {
     size_bytes: 120,
   } as ContextFileSummary;
 
-  it("opens the file picker in the panel of the capability that reads them", async () => {
+  it("opens on what the capability was given, not on its settings", async () => {
+    // The files are what somebody came to this panel to change; `expose_read_tool`
+    // and a tool's prompt text are set once. Under Settings, where the picker
+    // started, the first screen of the panel was a form.
     renderWorkbench({
       catalog: [CONTEXT, CHARTS],
       selected: [binding("context")],
@@ -548,6 +551,20 @@ describe("context, the capability that reads the files", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /^Context/ }));
 
+    expect(screen.getByRole("tab", { name: "Context files" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     expect(screen.getByText("glossary")).toBeVisible();
+  });
+
+  it("opens on Settings for a capability that reads nothing of the organization's", async () => {
+    // Which is most of them: no resources tab at all, rather than an empty one.
+    renderWorkbench({ catalog: [CONTEXT, CHARTS], selected: [binding("charts")] });
+
+    await userEvent.click(screen.getByRole("button", { name: /^Charts/ }));
+
+    expect(screen.getByRole("tab", { name: "Settings" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("tab", { name: "Context files" })).toBeNull();
   });
 });
