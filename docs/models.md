@@ -156,13 +156,32 @@ time.
 
 The model-id field is populated from two sources, in this order.
 
-**Live.** Ten providers publish a list endpoint and it is the only source that
+**Live.** Twenty providers publish a list endpoint, and it is the only source that
 knows about a model released this morning: `anthropic`, `openai`, `google`,
-`openrouter`, `groq`, `mistral`, `together`, `cohere`, `deepseek`, `xai`. The
-response shapes disagree — the array sits at `data`, at `models` or at the document
-root; the id is `id`, `name` or `model`; Gemini prefixes it with `models/` — so
-each is described by data rather than by a branch. Cached in-process for an hour;
-these lists move on the order of weeks.
+`openrouter`, `groq`, `mistral`, `together`, `cohere`, `deepseek`, `xai`,
+`sambanova`, `vercel`, `ovhcloud`, `huggingface`, `cerebras`, `fireworks`,
+`nebius`, `moonshotai`, `zai`, `alibaba`. The response shapes disagree — the array
+sits at `data`, at `models` or at the document root; the id is `id`, `name` or
+`model`; Gemini prefixes it with `models/` — so each is described by data rather
+than by a branch. Cached in-process for an hour; these lists move on the order of
+weeks.
+
+**Five of them need no credential at all** — `openrouter`, `sambanova`, `vercel`,
+`ovhcloud` and `huggingface` — which is what makes them worth having: the picker
+fills in before anybody has stored a key for that provider. The other fifteen are
+asked with the organization's own key when there is one.
+
+Six providers still publish nothing this can read: `github` (its catalog path is
+gone), `heroku`, `azure`, `bedrock`, `google_cloud` and a `litellm` proxy, whose
+list is whatever the deployment put behind it. `ollama` answers on the deployment's
+own network rather than at a fixed host, so it is not listed here either.
+
+**What a model emits, where the provider says so.** `openrouter` and the Hugging
+Face router both carry `architecture.output_modalities`, and a listing entry may
+name that path; nobody else states it. An empty list means *not stated*, never
+"text only" — a client filtering on it must treat absence as unknown, or it hides
+models that work. This is how "which models draw an image" can be answered at all
+without guessing from a model's name.
 
 **Curated.** A short hand-kept list per provider, used when the provider publishes
 nothing, when the call fails, or when there is no key to make it with. Deliberately

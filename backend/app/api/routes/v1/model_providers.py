@@ -122,7 +122,12 @@ async def list_provider_models(provider: str, secrets: SecretSvc, ctx: Auth) -> 
     models, source = await models_for(provider, api_key=api_key)
     return ProviderModelList(
         items=[
-            ProviderModelRead(id=entry.id, name=entry.name, context_length=entry.context_length)
+            ProviderModelRead(
+                id=entry.id,
+                name=entry.name,
+                context_length=entry.context_length,
+                output_modalities=list(entry.output_modalities),
+            )
             for entry in models
         ],
         total=len(models),

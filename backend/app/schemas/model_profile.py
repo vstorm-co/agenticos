@@ -113,6 +113,15 @@ class ProviderModelRead(BaseSchema):
     context_length: int | None = Field(
         default=None, description="Tokens the model accepts, where the provider says"
     )
+    output_modalities: list[str] = Field(
+        default_factory=list,
+        description=(
+            'What the model emits, where its provider states it - `["text"]`, '
+            '`["text", "image"]`. Empty means the listing says nothing, which is most of '
+            "them: absent is *not* text-only, so a client filtering on it must treat an empty "
+            "list as unknown rather than as a refusal."
+        ),
+    )
 
 
 class ProviderModelList(BaseSchema):

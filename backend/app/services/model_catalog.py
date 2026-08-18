@@ -47,6 +47,11 @@ class CatalogModel:
     id: str
     name: str
     context_length: int | None = None
+    # What the model emits, where its provider says so - `("text",)`,
+    # `("text", "image")`. Empty when the listing carries no such field, which is
+    # most of them: absent means "not stated", never "text only", because a
+    # picker that filtered on a guess would hide models that do work.
+    output_modalities: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,6 +78,10 @@ class ListingSpec:
     # Stripped from every id. Gemini answers `models/gemini-3.6-flash` and
     # expects `gemini-3.6-flash` back.
     id_prefix: str = ""
+    # Dotted path to a list of what the model emits, where the listing says.
+    # OpenRouter and the Hugging Face router both answer
+    # `architecture.output_modalities`; nobody else states it at all.
+    modalities_path: str | None = None
 
 
 LISTINGS: dict[str, ListingSpec] = {
@@ -82,6 +91,7 @@ LISTINGS: dict[str, ListingSpec] = {
         id_field="id",
         name_field="name",
         context_field="context_length",
+        modalities_path="architecture.output_modalities",
     ),
     "openai": ListingSpec(
         url="https://api.openai.com/v1/models",
@@ -154,6 +164,80 @@ LISTINGS: dict[str, ListingSpec] = {
         array_path="models",
         id_field="name",
         context_field="context_length",
+        auth_header="Authorization",
+        auth_template="Bearer {key}",
+    ),
+    # Public listings - no credential at all, like OpenRouter's. These are the
+    # ones worth most: the picker fills in before anybody has stored a key.
+    "sambanova": ListingSpec(
+        url="https://api.sambanova.ai/v1/models",
+        array_path="data",
+        id_field="id",
+        context_field="context_length",
+    ),
+    "vercel": ListingSpec(
+        url="https://ai-gateway.vercel.sh/v1/models",
+        array_path="data",
+        id_field="id",
+        name_field="name",
+        context_field="context_length",
+    ),
+    "ovhcloud": ListingSpec(
+        url="https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/models",
+        array_path="data",
+        id_field="id",
+        context_field="context_length",
+    ),
+    "huggingface": ListingSpec(
+        url="https://router.huggingface.co/v1/models",
+        array_path="data",
+        id_field="id",
+        modalities_path="architecture.output_modalities",
+    ),
+    # Keyed, OpenAI-shaped. Each endpoint was probed: a 401 is the answer that
+    # says the path is right and the credential is the only thing missing.
+    "cerebras": ListingSpec(
+        url="https://api.cerebras.ai/v1/models",
+        array_path="data",
+        id_field="id",
+        auth_header="Authorization",
+        auth_template="Bearer {key}",
+    ),
+    "fireworks": ListingSpec(
+        url="https://api.fireworks.ai/inference/v1/models",
+        array_path="data",
+        id_field="id",
+        context_field="context_length",
+        auth_header="Authorization",
+        auth_template="Bearer {key}",
+    ),
+    "nebius": ListingSpec(
+        url="https://api.studio.nebius.com/v1/models",
+        array_path="data",
+        id_field="id",
+        auth_header="Authorization",
+        auth_template="Bearer {key}",
+    ),
+    "moonshotai": ListingSpec(
+        url="https://api.moonshot.ai/v1/models",
+        array_path="data",
+        id_field="id",
+        auth_header="Authorization",
+        auth_template="Bearer {key}",
+    ),
+    "zai": ListingSpec(
+        url="https://api.z.ai/api/paas/v4/models",
+        array_path="data",
+        id_field="id",
+        auth_header="Authorization",
+        auth_template="Bearer {key}",
+    ),
+    "alibaba": ListingSpec(
+        # The international endpoint. The mainland one is a different host, and a
+        # key issued for one is refused by the other.
+        url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1/models",
+        array_path="data",
+        id_field="id",
         auth_header="Authorization",
         auth_template="Bearer {key}",
     ),
@@ -251,9 +335,29 @@ def _read_listing(payload: Any, spec: ListingSpec) -> list[CatalogModel]:
                 id=model_id,
                 name=name if isinstance(name, str) and name else model_id,
                 context_length=context if isinstance(context, int) else None,
+                output_modalities=_modalities(row, spec.modalities_path),
             )
         )
     return sorted(models, key=lambda entry: entry.id)
+
+
+def _modalities(row: dict[str, Any], path: str | None) -> tuple[str, ...]:
+    """What one row says the model emits, or nothing when it does not say.
+
+    Only strings are kept: a listing that answers `[null]` or `[{...}]` for this
+    is a listing whose shape has moved, and a picker filtering on the wreckage
+    would be worse than one filtering on nothing.
+    """
+    if path is None:
+        return ()
+    node: Any = row
+    for step in path.split("."):
+        if not isinstance(node, dict):
+            return ()
+        node = node.get(step)
+    if not isinstance(node, list):
+        return ()
+    return tuple(entry for entry in node if isinstance(entry, str) and entry)
 
 
 async def _fetch(spec: ListingSpec, api_key: str | None) -> list[CatalogModel]:

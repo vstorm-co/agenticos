@@ -16,7 +16,26 @@ from app.core.secret_kinds import ApiKeySecret, SecretKind, SecretRequirement
 
 __all__ = ["ImageGeneration", "ImageGenerationConfig"]
 
-ImageModel = Literal["openai-responses:gpt-5.4", "google:gemini-3-pro-image"]
+# Every model this capability can actually drive, and the reason the list is
+# this short is the SDK rather than the market: `ImageGenerationTool` is honoured
+# by exactly two model classes, `OpenAIResponsesModel` and `GoogleModel`
+# (`pydantic_ai.models.openai` / `.google`), and Google's refuses a model without
+# `image` in its name. Offering Together's or Fireworks' image models here would
+# be a menu whose every third entry fails at run time with "not supported by this
+# model", which is why there is no catalog of twenty providers behind this field.
+ImageModel = Literal[
+    "openai-responses:gpt-5.4",
+    "google:gemini-3-pro-image",
+    "google:gemini-3.1-flash-image",
+    "google:gemini-3.1-flash-lite-image",
+    "google:gemini-2.5-flash-image",
+]
+
+# What OpenAI's own image models are called, from the SDK's `ImageGenerationModelName`.
+# Google has no equivalent: there the image model *is* the model above, where for
+# OpenAI the model above is the Responses model that calls the tool and this is
+# what the tool draws with.
+OpenAIImageModel = Literal["gpt-image-2", "gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini"]
 
 
 class ImageGenerationConfig(BaseModel):
@@ -32,8 +51,29 @@ class ImageGenerationConfig(BaseModel):
         default="openai-responses:gpt-5.4",
         json_schema_extra={
             "x-enum-labels": {
-                "openai-responses:gpt-5.4": "OpenAI · GPT-5.4",
-                "google:gemini-3-pro-image": "Google · Gemini 3 Pro Image",
+                "openai-responses:gpt-5.4": "OpenAI · GPT-5.4 (Responses)",
+                "google:gemini-3-pro-image": "Google · Nano Banana Pro (Gemini 3 Pro Image)",
+                "google:gemini-3.1-flash-image": "Google · Nano Banana 2 (Gemini 3.1 Flash Image)",
+                "google:gemini-3.1-flash-lite-image": (
+                    "Google · Nano Banana 2 Lite (Gemini 3.1 Flash Lite Image)"
+                ),
+                "google:gemini-2.5-flash-image": "Google · Nano Banana (Gemini 2.5 Flash Image)",
+            }
+        },
+    )
+    image_model: OpenAIImageModel | None = Field(
+        default=None,
+        description=(
+            "Which OpenAI image model draws, when the model above is an OpenAI one. "
+            "Unset leaves OpenAI's own default. Ignored by Google, where the model above "
+            "is itself the image model."
+        ),
+        json_schema_extra={
+            "x-enum-labels": {
+                "gpt-image-2": "GPT Image 2",
+                "gpt-image-1.5": "GPT Image 1.5",
+                "gpt-image-1": "GPT Image 1",
+                "gpt-image-1-mini": "GPT Image 1 mini",
             }
         },
     )
@@ -63,6 +103,10 @@ class ImageGenerationConfig(BaseModel):
         in place rather than overriding it with a null.
         """
         candidates = {
+            # The tool's own `model`, which is not the model above: for OpenAI the
+            # model above is the Responses model that *calls* the tool, and this is
+            # what it draws with.
+            "model": self.image_model,
             "quality": self.quality,
             "size": self.size,
             "background": self.background,

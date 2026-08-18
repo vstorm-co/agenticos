@@ -451,12 +451,24 @@ draws pictures.
 
 | Config | Default | Values |
 |---|---|---|
-| `model` | `openai-responses:gpt-5.4` | `openai-responses:gpt-5.4`, `google:gemini-3-pro-image` |
+| `model` | `openai-responses:gpt-5.4` | `openai-responses:gpt-5.4`, `google:gemini-3-pro-image`, `google:gemini-3.1-flash-image`, `google:gemini-3.1-flash-lite-image`, `google:gemini-2.5-flash-image` |
+| `image_model` | OpenAI's default | `gpt-image-2`, `gpt-image-1.5`, `gpt-image-1`, `gpt-image-1-mini` |
 | `quality` | provider default | `low`, `medium`, `high`, `auto` |
 | `size` | provider default | `auto`, `1024x1024`, `1024x1536`, `1536x1024`, `512`, `1K`, `2K`, `4K` |
 | `background` | provider default | `transparent`, `opaque`, `auto` |
 | `output_format` | provider default | `png`, `webp`, `jpeg` |
 | `aspect_ratio` | provider default | `16:9`, `1:1`, `9:16`, … |
+
+**Two providers, and that is the SDK rather than the market.** `ImageGenerationTool`
+is honoured by exactly two model classes — `OpenAIResponsesModel` and `GoogleModel` —
+and Google's refuses a model without `image` in its name. So the list above is every
+model this capability can drive: adding Together's or Fireworks' image models would
+be a picker whose entries fail at run time with "not supported by this model".
+
+The two providers name the model in different places, which is why there are two
+fields. For **Google** the model *is* the image model. For **OpenAI** `model` is the
+Responses model that calls the tool, and `image_model` is what it draws with —
+unset, OpenAI applies its own default. Google ignores `image_model`.
 
 `model` also decides which provider the API key belongs to. The key is required —
 publishing an agent that binds this without one is refused — and comes from the
