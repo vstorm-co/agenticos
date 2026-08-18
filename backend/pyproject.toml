@@ -531,6 +531,7 @@ include = [
     # mention, a schedule — so a silent failure here is indistinguishable from
     # an agent that simply had nothing to say.
     "app/services/notifications.py",
+    "app/services/knowledge_search.py",
     "app/services/mcp_catalog.py",
     "app/services/mcp_connection.py",
     "app/services/model_profile.py",
@@ -734,6 +735,7 @@ include = [
     # mention, a schedule — so a silent failure here is indistinguishable from
     # an agent that simply had nothing to say.
     "app/services/notifications.py",
+    "app/services/knowledge_search.py",
     "app/services/mcp_catalog.py",
     "app/services/mcp_connection.py",
     "app/services/model_profile.py",

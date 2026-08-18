@@ -89,6 +89,7 @@ PLATFORM_MODULES = (
     "app/services/rerank_resolution.py",
     "app/services/health.py",
     "app/services/ingestion_config.py",
+    "app/services/knowledge_search.py",
     "app/services/mcp_catalog.py",
     "app/services/mcp_connection.py",
     "app/services/model_profile.py",

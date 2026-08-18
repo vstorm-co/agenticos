@@ -857,6 +857,7 @@ from app.services.rag.embeddings import EmbeddingService
 from app.services.embedding_resolution import embeddings_for_collection
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.documents import DocumentProcessor
+from app.services.knowledge_search import KnowledgeSearchService
 from app.services.rag.reranker import BaseReranker, CohereReranker
 from app.services.rag.retrieval import RetrievalService
 from app.services.rag.vectorstore import PgVectorStore
@@ -910,6 +911,16 @@ def get_retrieval_service(vector_store: VectorStoreSvc) -> RetrievalService:
 
 
 RetrievalSvc = Annotated[RetrievalService, Depends(get_retrieval_service)]
+
+
+def get_knowledge_search_service(
+    db: DBSession, retrieval: RetrievalSvc, access: CollectionAccessSvc
+) -> KnowledgeSearchService:
+    """Create KnowledgeSearchService instance."""
+    return KnowledgeSearchService(db, retrieval, access)
+
+
+KnowledgeSearchSvc = Annotated[KnowledgeSearchService, Depends(get_knowledge_search_service)]
 
 
 def get_document_processor() -> DocumentProcessor:

@@ -48,9 +48,9 @@ from app.api.deps import (
     CurrentAppAdmin,
     IngestionSvc,
     KnowledgeBaseSvc,
+    KnowledgeSearchSvc,
     RAGDocumentSvc,
     RAGSyncSvc,
-    RetrievalSvc,
     SyncSourceSvc,
     VectorStoreSvc,
     require,
@@ -242,33 +242,17 @@ async def list_documents(
 )
 async def search_documents(
     request: RAGSearchRequest,
-    retrieval_service: RetrievalSvc,
-    access: CollectionAccessSvc,
+    service: KnowledgeSearchSvc,
     ctx: Auth,
 ) -> Any:
     """Search for relevant document chunks. Supports multi-collection search.
 
     Every collection named is resolved before the first vector is read, and one
     the caller cannot reach refuses the whole search rather than being dropped
-    from it - see `CollectionAccessService.readable_all`.
+    from it. The embedding and any rerank the search runs are metered against
+    the caller's organization - see `KnowledgeSearchService`.
     """
-    names = request.collection_names or [request.collection_name]
-    collections = [kb.collection_name for kb in await access.readable_all(ctx, names)]
-    if len(collections) > 1:
-        results = await retrieval_service.retrieve_multi(
-            query=request.query,
-            collection_names=collections,
-            limit=request.limit,
-            min_score=request.min_score,
-        )
-    else:
-        results = await retrieval_service.retrieve(
-            query=request.query,
-            collection_name=collections[0],
-            limit=request.limit,
-            min_score=request.min_score,
-            filter=request.filter or "",
-        )
+    results = await service.search(ctx, request)
     api_results = [RAGSearchResult(**hit.model_dump()) for hit in results]
     return RAGSearchResponse(results=api_results)
 
