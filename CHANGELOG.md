@@ -17,6 +17,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.200] - 2026-08-18
+
+### Fixed
+
+- **A refused model id is no longer posted back.** `details` is serialized into
+  the response body *and* written to the log line beside it, so refusing a bare
+  OpenRouter id sent the caller's own submission into the deployment's logs. It
+  names the `model` field now and the id is gone. (#898)
+- **Two provider refusals name the input they are about.** "This provider is
+  keyless so it needs an endpoint" and "this provider needs a key" both answered
+  with the provider, which is neither `base_url` nor `secret_id` — so the sentence
+  arrived with nothing marked. (#898)
+- **A stale key refusal is cleared when the key changes.** Both routes to a new
+  key only set the value, so the sentence survived under a key the reader had
+  already replaced — a refusal that accuses the current value is worse than
+  none. (#898)
+- **The mark and its reason are associated.** The model combobox announced
+  "invalid" to a screen reader and never why; it goes through the same
+  `FormField` the endpoint already used, so the bespoke `invalid` prop that would
+  have been a second convention is gone. (#898)
+
 ## [0.0.199] - 2026-08-18
 
 ### Fixed
