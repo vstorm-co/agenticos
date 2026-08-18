@@ -17,6 +17,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.184] - 2026-08-18
+
+### Fixed
+
+- **The storage-root check is written so a static analyser can follow it**, which
+  is what closes three CodeQL `py/path-injection` alerts — a `Path.parents`
+  membership test is correct and invisible to the query, and an alert nobody can
+  close is an alert everybody learns to ignore. (#841)
+- **A filesystem root can be the storage root again.** The rewritten check built
+  its prefix as `base + os.sep` unconditionally, so with `MEDIA_DIR=/` the prefix
+  was `//` — which nothing under `/` starts with. `load`, `delete` and
+  `get_full_path` all refused with "Path escapes storage root" while `save`
+  carried on writing, leaving the store handing back paths it could no longer
+  read. The separator is appended only when the root lacks one, and the
+  comparison stays a `startswith` on a `realpath` result rather than moving to
+  `commonpath` or `is_relative_to`: both are correct, and neither is a barrier
+  the query models. (#841)
+
 ## [0.0.183] - 2026-08-18
 
 Chunking is ours, and `langsmith` is out of the image.
