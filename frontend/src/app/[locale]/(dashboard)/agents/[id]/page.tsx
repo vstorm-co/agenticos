@@ -1049,7 +1049,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           />
           {/* Managing a trigger is the same floor as running the agent, not
               publishing it - the server resolves `agents:run` per row. */}
-          <TriggersPanel agentId={id} canManage={can(Perm.agentsRun)} />
+          <TriggersPanel agentId={id} canCreate={agent.can_run} />
           <EmbedsPanel agentId={id} canManage={canPublish} />
           <SharingPanel resourceType="agent" resourceId={id} canManage={canEdit} />
         </TabsContent>

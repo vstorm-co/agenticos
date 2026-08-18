@@ -24,13 +24,12 @@ vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+// The trigger split menu gates on whether any agent is runnable (`can_run`), not
+// on the role - so a runnable one in this list is what makes the menu render. A
+// gating suite below flips it to prove the menu tracks that signal.
+let mockAgents: Array<{ id: string; name: string; status: string; can_run: boolean }> = [];
 vi.mock("@/hooks/use-agents", () => ({
-  useAgents: () => ({ agents: [{ id: "a-1", name: "Analyst", status: "published" }] }),
-}));
-// A manager, so the trigger split button and section render; a viewer variant is
-// covered in the section's own suite.
-vi.mock("@/hooks/use-permissions", () => ({
-  usePermissions: () => ({ can: () => true, isLoading: false }),
+  useAgents: () => ({ agents: mockAgents }),
 }));
 vi.mock("@/components/agents/agent-avatar", () => ({
   AgentAvatar: ({ name }: { name: string }) => <span>{name}</span>,
@@ -97,6 +96,7 @@ beforeEach(() => {
   urlParams = new URLSearchParams();
   window.history.replaceState({}, "", "/chat");
   useConversationStore.getState().reset();
+  mockAgents = [{ id: "a-1", name: "Analyst", status: "published", can_run: true }];
   serve([conversation("c-1", "Quarterly numbers")]);
 });
 
@@ -354,5 +354,27 @@ describe("the New Chat split button", () => {
     // Portals are the default event path, so the menu opens the grid, not the
     // raw source-and-secret form.
     expect(await screen.findByRole("dialog", { name: "New event trigger" })).toBeVisible();
+  });
+});
+
+describe("who the trigger menu is offered to", () => {
+  it("shows it to a caller who may run at least one agent", async () => {
+    // Runnability, not role: this list holds a runnable agent, which is the whole
+    // floor - a Viewer granted run on one agent reads `can_run` true there.
+    mockAgents = [{ id: "a-1", name: "Analyst", status: "published", can_run: true }];
+    mount();
+    await screen.findAllByText("Quarterly numbers");
+
+    expect(
+      within(list()).getByRole("button", { name: "New schedule or trigger" }),
+    ).toBeInTheDocument();
+  });
+
+  it("withholds it when no agent is runnable", async () => {
+    mockAgents = [{ id: "a-1", name: "Analyst", status: "published", can_run: false }];
+    mount();
+    await screen.findAllByText("Quarterly numbers");
+
+    expect(within(list()).queryByRole("button", { name: "New schedule or trigger" })).toBeNull();
   });
 });

@@ -77,8 +77,8 @@ function serve(triggers: Trigger[]) {
   });
 }
 
-async function mount({ canManage = true } = {}) {
-  render(<TriggersPanel agentId={AGENT_ID} canManage={canManage} />, { wrapper });
+async function mount({ canCreate = true } = {}) {
+  render(<TriggersPanel agentId={AGENT_ID} canCreate={canCreate} />, { wrapper });
   await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
 }
 
@@ -120,20 +120,20 @@ describe("TriggersPanel", () => {
   });
 
   it("hides the create buttons from someone who may not create a trigger", async () => {
-    // The panel's `canManage` is an agent-level signal that gates only the
+    // The panel's `canCreate` is an agent-level signal that gates only the
     // create buttons; an existing row decides its own controls from `can_manage`.
     serve([trigger()]);
-    await mount({ canManage: false });
+    await mount({ canCreate: false });
 
     await waitFor(() => expect(screen.getByText("Every 15 minutes")).toBeVisible());
     expect(screen.queryByRole("button", { name: "New schedule" })).toBeNull();
   });
 
   it("hides a row's actions when the caller may not manage that row", async () => {
-    // The caller may create here (`canManage` true), but the server has decided
+    // The caller may create here (`canCreate` true), but the server has decided
     // this particular row is read-only for them, so its controls do not render.
     serve([trigger({ can_manage: false })]);
-    await mount({ canManage: true });
+    await mount({ canCreate: true });
 
     await waitFor(() => expect(screen.getByText("Every 15 minutes")).toBeVisible());
     expect(screen.queryByRole("button", { name: "Pause" })).toBeNull();
@@ -250,7 +250,7 @@ describe("TriggersPanel", () => {
 
   it("leads an event trigger row with its source mark", async () => {
     serve([trigger({ trigger_type: "event", event_source: "github", interval_seconds: null })]);
-    await mount({ canManage: false });
+    await mount({ canCreate: false });
 
     const summary = await screen.findByText("On new GitHub issues");
     const row = summary.closest("div.rounded-md");

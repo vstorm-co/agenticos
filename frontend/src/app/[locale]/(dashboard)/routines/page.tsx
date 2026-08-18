@@ -9,8 +9,7 @@ import { ScheduledTab } from "@/components/runs/scheduled-tab";
 import { PortalsTab } from "@/components/triggers/portals-tab";
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { Button } from "@/components/ui";
-import { usePermissions } from "@/hooks";
-import { Perm } from "@/types/permissions";
+import { useCanCreateTrigger } from "@/hooks";
 
 /**
  * The org-wide home for everything an agent does on its own.
@@ -29,8 +28,7 @@ import { Perm } from "@/types/permissions";
 export default function RoutinesPage() {
   const t = useTranslations("pages.routines");
   const tt = useTranslations("triggers");
-  const { can } = usePermissions();
-  const canCreate = can(Perm.agentsRun);
+  const canCreate = useCanCreateTrigger();
   const [creatingSchedule, setCreatingSchedule] = useState(false);
 
   return (

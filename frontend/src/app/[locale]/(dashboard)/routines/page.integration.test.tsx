@@ -4,10 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import RoutinesPage from "./page";
 
-let can: (permission: string) => boolean = () => true;
+let canCreate = true;
 
 vi.mock("@/hooks", () => ({
-  usePermissions: () => ({ can, isLoading: false }),
+  useCanCreateTrigger: () => canCreate,
 }));
 // The list and the portal grid have their own suites; stubbed here so the page's
 // own job - the Split New and its gating - is what this suite checks.
@@ -23,7 +23,7 @@ vi.mock("@/components/triggers/trigger-form-dialog", () => ({
 }));
 
 beforeEach(() => {
-  can = () => true;
+  canCreate = true;
 });
 
 describe("RoutinesPage", () => {
@@ -47,7 +47,9 @@ describe("RoutinesPage", () => {
   });
 
   it("hides the New schedule button from a caller who may not run an agent", () => {
-    can = (permission) => permission !== "agents:run";
+    // Runnability, not role: a caller with no runnable agent - none owned, none
+    // shared with a run grant - reads `useCanCreateTrigger` false.
+    canCreate = false;
     render(<RoutinesPage />);
 
     expect(screen.queryByRole("button", { name: "New schedule" })).toBeNull();

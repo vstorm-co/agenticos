@@ -14,12 +14,13 @@ import { useTriggers } from "@/hooks/use-triggers";
 interface TriggersPanelProps {
   agentId: string;
   /**
-   * Whether the caller may create a trigger on this agent - the role-level
-   * `agents:run`, an agent-level signal that gates only the create buttons. Each
-   * existing row decides its own controls from its `can_manage`, so this does not
-   * reach them.
+   * Whether the caller may create a trigger on THIS agent - the agent's own
+   * `can_run`, resolved per caller from role scope plus any run grant, so a
+   * Viewer shared run on one agent sees the buttons there. Gates only the create
+   * buttons; each existing row decides its own controls from its `can_manage`,
+   * so this does not reach them.
    */
-  canManage: boolean;
+  canCreate: boolean;
 }
 
 /**
@@ -34,7 +35,7 @@ interface TriggersPanelProps {
  * not manage them. "New schedule" opens the cadence form; "New event trigger"
  * opens the portal grid, the default path to an event trigger.
  */
-export function TriggersPanel({ agentId, canManage }: TriggersPanelProps) {
+export function TriggersPanel({ agentId, canCreate }: TriggersPanelProps) {
   const t = useTranslations("triggers");
   const { triggers, isLoading } = useTriggers(agentId);
   const [creatingSchedule, setCreatingSchedule] = useState(false);
@@ -55,7 +56,7 @@ export function TriggersPanel({ agentId, canManage }: TriggersPanelProps) {
           <TriggerRow key={trigger.id} trigger={trigger} />
         ))}
 
-        {canManage && (
+        {canCreate && (
           <div className="flex flex-wrap gap-2 border-t pt-3">
             <Button variant="outline" size="sm" onClick={() => setCreatingSchedule(true)}>
               <Plus className="mr-2 h-4 w-4" />

@@ -3,8 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useConversations, usePermissions } from "@/hooks";
-import { Perm } from "@/types/permissions";
+import { useCanCreateTrigger, useConversations } from "@/hooks";
 import { Button, Skeleton } from "@/components/ui";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui";
 import {
@@ -262,13 +261,13 @@ function ConversationList({
   const t = useTranslations("chat");
   const ts = useTranslations("chat.sidebar");
   const tt = useTranslations("triggers");
-  const { can } = usePermissions();
-  // The floor for creating a trigger is `agents:run` - an agent-level signal that
-  // gates only this create menu. The section itself still shows to a viewer
-  // (viewing an agent's schedule is `agents:view`), and each row decides its own
-  // controls from its `can_manage`, so a create menu hidden here never hides a row
-  // the caller may in fact manage.
-  const canManageTriggers = can(Perm.agentsRun);
+  // The floor for creating a trigger is a per-agent signal, not the role-level
+  // `agents:run`: a caller who may run any one agent - by role or by a grant on
+  // that agent - may create a trigger on it, so this menu shows for them. The
+  // section itself still shows to a viewer (viewing a schedule is `agents:view`),
+  // and each row decides its own controls from its `can_manage`, so a create menu
+  // hidden here never hides a row the caller may in fact manage.
+  const canManageTriggers = useCanCreateTrigger();
   const [shareConversationId, setShareConversationId] = useState<string | null>(null);
   const [creatingSchedule, setCreatingSchedule] = useState(false);
   const [creatingEvent, setCreatingEvent] = useState(false);
