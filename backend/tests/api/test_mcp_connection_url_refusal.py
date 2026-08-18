@@ -37,6 +37,12 @@ _LOOPBACK_URL = "http://127.0.0.1:3000/mcp"
 # a URL can carry one.
 _URL_WITH_SECRETS = "http://console:hunter2@10.0.0.5:3000/mcp?token=sh-secret-value"
 
+# A third place, and the one the standard library used to read back out: a port
+# that is not a number. `urlsplit` parses it lazily and quotes what it could not
+# cast, so this shape - not the two above - is what an uncontrolled `str(exc)`
+# echoes.
+_URL_WITH_A_SECRET_FOR_A_PORT = "http://mcp.example.com:client_secret=sh-port-secret/mcp"
+
 
 @pytest.fixture
 def client(mock_db_session: Any, mock_redis: MagicMock) -> Iterator[Any]:
@@ -134,4 +140,22 @@ class TestTheRefusalQuotesNoSecret:
         assert response.status_code == 400
         assert "hunter2" not in response.text
         assert "sh-secret-value" not in response.text
+        assert response.json()["error"]["details"] == {"field": "url"}
+
+    async def test_a_secret_parked_where_the_port_belongs_is_not_read_back(self, client) -> None:
+        """The refusal for this one is written by `urlsplit`, not by us.
+
+        It answers a port it cannot cast with `Port could not be cast to integer
+        value as '<what you sent>'`, so a boundary that quotes any `ValueError`
+        echoes whatever was parked there - which is why `_checked_url` catches
+        `UrlRefusedError` and `validate_webhook_url` raises its own for this.
+        """
+        async with client() as opened:
+            response = await opened.post(
+                f"{settings.API_V1_STR}/me/mcp-connections",
+                json={"name": "internal", "url": _URL_WITH_A_SECRET_FOR_A_PORT},
+            )
+
+        assert response.status_code == 400
+        assert "sh-port-secret" not in response.text
         assert response.json()["error"]["details"] == {"field": "url"}

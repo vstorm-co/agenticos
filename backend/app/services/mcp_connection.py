@@ -54,6 +54,7 @@ from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
+from app.core.sanitize import UrlRefusedError
 from app.core.vault import SealedSecret, VaultScope, seal, unseal
 from app.db.models.mcp_connection import McpConnection
 from app.db.updates import writable
@@ -93,13 +94,25 @@ async def _checked_url(url: str) -> str:
     is the validator's own message, which names a host and never a URL - a URL
     carries a key in its query string (#840).
 
+    Which is why this catches `UrlRefusedError` and not `ValueError`. Only the
+    narrower type is a refusal *written here* and so safe to quote; a bare
+    `ValueError` escaping the validator is the standard library talking about
+    the caller's own text - `Port could not be cast to integer value as
+    'client_secret=...'` - and quoting that would put a query-string secret in
+    the response body. Nothing below the validator can raise one today, so there
+    is no second branch to answer with a controlled sentence: if that changes,
+    it is a bug and the generic 500 is the honest answer, since the traceback
+    goes to the log and the body stays empty. `tests/test_ssrf.py` fails on a
+    refusal that is not a `UrlRefusedError`.
+
     Raises:
         BadRequestError: If the URL is malformed or points inside the
             deployment's network.
     """
     try:
         return await validate_mcp_url(url)
-    except ValueError as exc:
+    except UrlRefusedError as exc:
+        # Ours to quote, in the log as much as in the body - see the docstring.
         logger.warning("MCP server URL refused: %s", exc)
         raise BadRequestError(
             message=f"This MCP server URL cannot be used: {exc}",
