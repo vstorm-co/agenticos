@@ -185,9 +185,27 @@ capability picks its models, which is a catalog file plus the SDK's own answer a
 which providers can draw at all — see
 [Image generation](reference/capabilities.md#image-generation).
 
-**Curated.** A short hand-kept list per provider, used when the provider publishes
-nothing, when the call fails, or when there is no key to make it with. Deliberately
-small — the five or six somebody would actually pick, not a mirror of a catalog:
+**Curated.** A short list per provider, used when the provider publishes nothing,
+when the call fails, or when there is no key to make it with. It lives in
+`backend/app/core/catalog/model_fallbacks.json` beside the other deployment
+catalogs, so adding a model is one entry rather than a Python edit — and the
+listings themselves are `model_listings.json` in the same directory, which is what
+makes a new provider's endpoint data too.
+
+Deliberately short, and deliberately *not* taken from `genai-prices`, which is
+already a dependency and does list models. It is a **price** dataset: it carries
+`ada` and `babbage` under OpenAI, `claude-2` under Anthropic, 690 rows under
+OpenRouter, and it marks almost nothing deprecated — sorted alphabetically, the
+first thing a picker would offer for OpenAI is `ada`. A short current list beats a
+long misleading one.
+
+What the library *is* used for is the half that rots. **Every context length comes
+from the snapshot at read time**, so no window is written down here; two that were
+had already gone stale, one of them recorded twice with two different figures. And
+a curated id the snapshot has never heard of fails the test suite, which is how a
+typo or a retired model is caught rather than shipped as a dropdown the provider
+answers 404 to. A model the snapshot knows but does not price simply has no window,
+which is the null the paragraph below describes.
 
 | Provider | Curated ids |
 |---|---|
