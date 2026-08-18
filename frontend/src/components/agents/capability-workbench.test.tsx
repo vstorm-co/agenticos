@@ -6,6 +6,7 @@ import { CapabilityWorkbench } from "./capability-workbench";
 import { jsonSchemaType } from "./capability-settings";
 import { newSpecialist } from "@/lib/agent-spec";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agents";
+import type { ContextFileSummary } from "@/types/providers";
 
 vi.mock("@/hooks", () => ({
   useSecrets: () => ({ secrets: [], isLoading: false, error: null }),
@@ -107,6 +108,10 @@ function renderWorkbench(props: Partial<Parameters<typeof CapabilityWorkbench>[0
       onChange={vi.fn()}
       subagents={[]}
       onSubagentsChange={vi.fn()}
+      contextFiles={[]}
+      contextTotal={0}
+      contextIds={[]}
+      onContextToggle={vi.fn()}
       modelProfileId={null}
       {...props}
     />,
@@ -228,33 +233,13 @@ describe("the frame the two panes sit in", () => {
     // workspace - the tallest panel by far - and then clicking a short one left
     // the document scrolled past its own content, with hundreds of pixels of
     // nothing below the section beneath it.
-    const { container } = render(
-      <CapabilityWorkbench
-        catalog={[CHARTS]}
-        selected={[]}
-        onToggle={vi.fn()}
-        onChange={vi.fn()}
-        subagents={[]}
-        onSubagentsChange={vi.fn()}
-        modelProfileId={null}
-      />,
-    );
+    const { container } = renderWorkbench({ catalog: [CHARTS] });
 
     expect(container.querySelector(".grid")?.className).toContain("lg:h-[36rem]");
   });
 
   it("scrolls each pane rather than the page", () => {
-    const { container } = render(
-      <CapabilityWorkbench
-        catalog={[CHARTS]}
-        selected={[]}
-        onToggle={vi.fn()}
-        onChange={vi.fn()}
-        subagents={[]}
-        onSubagentsChange={vi.fn()}
-        modelProfileId={null}
-      />,
-    );
+    const { container } = renderWorkbench({ catalog: [CHARTS] });
 
     expect(container.querySelectorAll('[class*="overflow-y-auto"]').length).toBe(2);
   });
@@ -365,17 +350,7 @@ describe("the workspace, which is a row like the rest and a detail unlike it", (
   };
 
   function renderSandbox(selected: CapabilityBindingSpec[] = []) {
-    return render(
-      <CapabilityWorkbench
-        catalog={[SANDBOX, CHARTS]}
-        selected={selected}
-        onToggle={vi.fn()}
-        onChange={vi.fn()}
-        subagents={[]}
-        onSubagentsChange={vi.fn()}
-        modelProfileId={null}
-      />,
-    );
+    return renderWorkbench({ catalog: [SANDBOX, CHARTS], selected });
   }
 
   it("says what the workspace gives the agent, not how many tools it has", async () => {
@@ -477,5 +452,49 @@ describe("delegation, the other capability with a panel of its own", () => {
     await userEvent.click(screen.getByRole("button", { name: /^Delegation/ }));
 
     expect(screen.getByRole("button", { name: "Add a specialist" })).toBeDisabled();
+  });
+});
+
+/**
+ * Context, the third capability with a panel of its own.
+ *
+ * The routing is what matters at this level - `context-section`'s own file covers
+ * what the panel then shows. The report behind it: somebody looking for "which
+ * files does this agent read" opened this capability, found a read-tool switch and
+ * two tool descriptions, and the files were a card two tabs away under Skills.
+ */
+describe("context, the capability that reads the files", () => {
+  const CONTEXT: CapabilityCatalogEntry = {
+    ...CHARTS,
+    id: "context",
+    name: "Context",
+    category: "knowledge",
+    description: "Put the organization's standing context into the agent.",
+    tools: [{ id: "list_context", name: "list_context", description: "List the files." }],
+    contracts: [],
+    config_schema: null,
+  };
+
+  const FILE = {
+    id: "f1",
+    name: "glossary",
+    description: "What the acronyms mean.",
+    format: "md",
+    mode: "inject",
+    enabled: true,
+    size_bytes: 120,
+  } as ContextFileSummary;
+
+  it("opens the file picker in the panel of the capability that reads them", async () => {
+    renderWorkbench({
+      catalog: [CONTEXT, CHARTS],
+      selected: [binding("context")],
+      contextFiles: [FILE],
+      contextTotal: 1,
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /^Context/ }));
+
+    expect(screen.getByText("glossary")).toBeVisible();
   });
 });

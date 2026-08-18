@@ -598,7 +598,10 @@
     "searchContext": "Search context files…",
     "contextCount": "{count, plural, =1 {1 context file} other {# context files}}",
     "orphanedContext": "This agent also references {count, plural, =1 {1 context file} other {# context files}} this organization no longer has. Publishing is refused until they are cleared:",
-    "contextLoadingHint": "An injected file is added to every run; a linked one the agent reads only when it decides it is relevant. <link>Manage context</link>"
+    "contextLoadingHint": "An injected file is added to every run; a linked one the agent reads only when it decides it is relevant. <link>Manage context</link>",
+    "contextFilesHeading": "Context files",
+    "contextFilesDetail": "Standing context this agent reads - a glossary or policy injected into its prompt, or files it reads on demand.",
+    "contextOffButBound": "Context is switched off, so none of these files reach the model - not the injected ones either, because the injection happens here. They stay in the spec and are still checked at publish; switch it on above, or unpick them."
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -3119,8 +3122,6 @@
       "whatAgentMaySearch": "What this agent may search. The model chooses what to look for; it can never widen where it looks. Each collection says what it holds, because attaching an empty one produces an agent that searches, finds nothing, and reads as broken.",
       "whetherAgentWorkingWhat": "Whether this agent is working, and what it has cost. The full history - surfaces, tokens, the version each run executed - lives in Activity rather than being half-rebuilt here.",
       "writtenKnowHowAgent": "Written know-how the agent loads only when it decides a skill is relevant, so twenty skills cost almost nothing in context. Picking one gives the agent the tools to read them - that used to be a separate capability somebody had to know to switch on, and skills chosen without it were resolved and then dropped on the floor.",
-      "context": "Context",
-      "standingContextAgent": "Standing context this agent reads - a glossary or policy injected into its prompt, or files it reads on demand.",
       "youAreSupportCopilot": "You are Support Copilot. Answer from the product wiki and cite the document you used. If the wiki does not cover it, say so rather than guessing.",
       "avatarColour": "Fallback colour"
     },

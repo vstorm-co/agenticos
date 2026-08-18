@@ -38,7 +38,6 @@ import { PublishState } from "@/components/agents/publish-state";
 import { RunSummary } from "@/components/agents/run-summary";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
 import { SkillGallery } from "@/components/agents/skill-gallery";
-import { ContextGallery } from "@/components/agents/context-gallery";
 import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
 import { VersionHistory } from "@/components/agents/version-history";
@@ -903,6 +902,14 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 // is handed that slice as well as the binding.
                 subagents={spec.subagents ?? []}
                 onSubagentsChange={(subagents) => update({ subagents })}
+                // Which context files this agent reads, picked in the panel of
+                // the capability that reads them. `setContext` switches that
+                // capability on with the first file, because bound without it
+                // the files are resolved and discarded.
+                contextFiles={contextFiles}
+                contextTotal={contextCount}
+                contextIds={spec.context_ids}
+                onContextToggle={(fileId) => setContext(toggleId(spec.context_ids, fileId))}
                 // So promoting a specialist that runs on the parent's model can
                 // resolve one for the standalone agent it becomes.
                 modelProfileId={spec.model_profile_id ?? null}
@@ -1005,25 +1012,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 total={skillCount}
                 selectedIds={spec.skill_ids}
                 onToggle={(skillId) => setSkills(toggleId(spec.skill_ids, skillId))}
-                disabled={!canEdit}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Standing context, beside skills because both are things the agent
-              reads rather than searches - a glossary or a policy injected into
-              the prompt or read on demand, not a procedure loaded on decision. */}
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("context")}</CardTitle>
-              <CardDescription>{t("standingContextAgent")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ContextGallery
-                files={contextFiles}
-                total={contextCount}
-                selectedIds={spec.context_ids}
-                onToggle={(fileId) => setContext(toggleId(spec.context_ids, fileId))}
                 disabled={!canEdit}
               />
             </CardContent>

@@ -4,13 +4,15 @@ import { useMemo, useState } from "react";
 import { ShieldAlert } from "lucide-react";
 
 import { CapabilityDetail } from "@/components/agents/capability-settings";
+import { ContextSection } from "@/components/agents/context-section";
 import { SubagentsSection } from "@/components/agents/subagents-section";
 import { WorkspaceSection } from "@/components/agents/workspace-section";
 import { SearchInput, Switch } from "@/components/ui";
-import { readSubagentsConfig, SANDBOX_ID, SUBAGENTS_ID } from "@/lib/agent-spec";
+import { CONTEXT_ID, readSubagentsConfig, SANDBOX_ID, SUBAGENTS_ID } from "@/lib/agent-spec";
 import type { FieldProblem } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry, SubagentRef } from "@/types/agents";
+import type { ContextFileSummary } from "@/types/providers";
 import { useTranslations } from "next-intl";
 
 interface CapabilityWorkbenchProps {
@@ -28,6 +30,17 @@ interface CapabilityWorkbenchProps {
    */
   subagents: SubagentRef[];
   onSubagentsChange: (subagents: SubagentRef[]) => void;
+  /**
+   * The organization's context files, and which of them this agent reads.
+   *
+   * Top level on the spec rather than inside the capability's config - the same
+   * arrangement as `subagents` - so the panel that picks them is handed that
+   * slice as well as the binding.
+   */
+  contextFiles: ContextFileSummary[];
+  contextTotal: number;
+  contextIds: string[];
+  onContextToggle: (fileId: string) => void;
   /**
    * The agent's own model profile, handed to the delegation panel so promoting a
    * specialist that runs on "the same model as its parent" can resolve one.
@@ -94,6 +107,10 @@ export function CapabilityWorkbench({
   onChange,
   subagents,
   onSubagentsChange,
+  contextFiles,
+  contextTotal,
+  contextIds,
+  onContextToggle,
   modelProfileId,
   disabled,
   configProblems,
@@ -255,7 +272,24 @@ export function CapabilityWorkbench({
                   bounding both. The pins are the reason - a delegate that has
                   moved on is stale, and staleness nothing surfaces is a bug
                   frozen in place under a published parent. */
-            focused.id === SUBAGENTS_ID ? (
+            /* Context is the capability that reads the files, so the files are
+               picked here. They were a card in the Skills tab, which is two tabs
+               from the switch that decides whether any of them reach the model:
+               injection happens inside this capability, so bound files with it
+               off are not injected anyway - they are nothing. */
+            focused.id === CONTEXT_ID ? (
+              <ContextSection
+                definition={focused}
+                binding={bound ?? unboundBinding(focused.id)}
+                files={contextFiles}
+                total={contextTotal}
+                selectedIds={contextIds}
+                onToggleFile={onContextToggle}
+                onChange={onChange}
+                configProblems={configProblems}
+                disabled={disabled || !isOn}
+              />
+            ) : focused.id === SUBAGENTS_ID ? (
               <SubagentsSection
                 definition={focused}
                 binding={bound}
