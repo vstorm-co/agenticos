@@ -242,16 +242,40 @@ class TestResolvePinnedUrl:
         ):
             pinned = resolve_pinned_url("https://mcp.example.com/sse")
 
-        assert pinned == PinnedAddress(hostname="mcp.example.com", port=443, ip="93.184.216.34")
+        assert pinned == PinnedAddress(hostname="mcp.example.com", port=443, ips=("93.184.216.34",))
+
+    def test_every_validated_address_is_kept_in_resolver_order(self):
+        """A caller that can only reach one of a name's records must be able to
+        try the others without asking DNS again."""
+        with patch(
+            "app.core.sanitize.socket.getaddrinfo",
+            return_value=[
+                (10, 1, 6, "", ("2606:4700:4700::1111", 443)),
+                (2, 1, 6, "", ("93.184.216.34", 443)),
+            ],
+        ):
+            pinned = resolve_pinned_url("https://mcp.example.com/sse")
+
+        assert pinned.ips == ("2606:4700:4700::1111", "93.184.216.34")
+
+    def test_an_address_listed_twice_is_pinned_once(self):
+        with patch(
+            "app.core.sanitize.socket.getaddrinfo",
+            return_value=[
+                (2, 1, 6, "", ("93.184.216.34", 443)),
+                (2, 2, 17, "", ("93.184.216.34", 443)),
+            ],
+        ):
+            assert resolve_pinned_url("https://mcp.example.com/sse").ips == ("93.184.216.34",)
 
     def test_an_ip_literal_pins_itself(self):
         assert resolve_pinned_url("http://93.184.216.34:8080/hook") == PinnedAddress(
-            hostname="93.184.216.34", port=8080, ip="93.184.216.34"
+            hostname="93.184.216.34", port=8080, ips=("93.184.216.34",)
         )
 
-    def test_the_first_address_is_pinned_and_the_rest_are_still_checked(self):
-        """Pinning one of several answers would let a name smuggle a private
-        address in behind a public one."""
+    def test_one_private_answer_refuses_the_whole_set(self):
+        """A mixed answer is refused whole, never narrowed to its public half -
+        which is what "try the next address" would quietly turn it into."""
         with (
             patch(
                 "app.core.sanitize.socket.getaddrinfo",

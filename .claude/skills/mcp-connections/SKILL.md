@@ -72,6 +72,12 @@ in `Host` and in TLS SNI. Nothing resolves the name twice, so there is no window
 rebind (#860). Do not add a request path that builds a plain `httpx.AsyncClient` —
 `_send` takes a `PinnedAsyncClient` so that mistake does not type-check.
 
+Behind `HTTP_PROXY`/`HTTPS_PROXY` the proxy does the connecting, so there the pinned
+address is what the proxy is *asked* to reach. Honoured deliberately — a proxy-only
+deployment would otherwise lose OAuth entirely, and the proxy is its own egress
+control. Do not "fix" that by naming a transport on the client: an explicit transport
+turns httpx's environment-proxy mounting off, which is how it was broken once already.
+
 Two things the pin does not cover, and neither is an oversight. The **consent URL** is
 checked with `validate_mcp_url` and then handed to a browser that resolves it itself.
 The **connection's own URL** is checked at save and resolved again at run time — a

@@ -53,17 +53,21 @@ def _is_ip_blocked(ip_str: str) -> bool:
 
 @dataclass(frozen=True)
 class PinnedAddress:
-    """The address a URL was checked at, so the same one can be dialled.
+    """The addresses a URL was checked at, so the same ones can be dialled.
 
     `hostname` is what the URL named and what a `Host` header and TLS SNI must
-    still say; `ip` is the address :func:`resolve_pinned_url` approved. Handing
-    both to a caller is the whole difference between checking a name and
-    connecting to what was checked (#860).
+    still say; `ips` holds every address :func:`resolve_pinned_url` approved,
+    deduplicated and in the order the resolver gave them, and is never empty.
+    Handing both to a caller is the whole difference between checking a name
+    and connecting to what was checked (#860).
+
+    Every entry passed the same check, so a caller may try them in turn - what
+    it may not do is resolve the name again.
     """
 
     hostname: str
     port: int
-    ip: str
+    ips: tuple[str, ...]
 
 
 def resolve_pinned_url(
@@ -85,9 +89,9 @@ def resolve_pinned_url(
     header and passes it as `sni_hostname` so TLS still verifies the
     certificate against the name.
 
-    All resolved addresses are checked and the first is pinned, so a name that
-    answers with one public and one private address is refused outright rather
-    than raced.
+    All resolved addresses are checked and all of them are pinned, so a name
+    that answers with one public and one private address is refused outright
+    rather than raced or narrowed to its public half.
 
     The refusals name the **host**, or nothing, but never the URL. A URL carries
     a key in its query string, and the one being refused may have been written
@@ -98,7 +102,7 @@ def resolve_pinned_url(
         allowed_schemes: Allowed URL schemes. Defaults to {"http", "https"}.
 
     Returns:
-        The hostname, port and validated address to connect to.
+        The hostname, port and validated addresses to connect to.
 
     Raises:
         SSRFBlockedError: If the URL is blocked by SSRF protection.
@@ -143,7 +147,7 @@ def resolve_pinned_url(
                 f"Webhook URL blocked: {hostname!r} resolves to a private/internal "
                 f"address. SSRF protection does not allow requests to internal networks."
             )
-        return PinnedAddress(hostname=hostname, port=port, ip=str(addr))
+        return PinnedAddress(hostname=hostname, port=port, ips=(str(addr),))
 
     try:
         addr_infos = socket.getaddrinfo(hostname, port, proto=socket.IPPROTO_TCP)
@@ -157,6 +161,7 @@ def resolve_pinned_url(
             f"Webhook URL blocked: hostname {hostname!r} did not resolve to any address"
         )
 
+    ips: list[str] = []
     for _family, _type, _proto, _canonname, sockaddr in addr_infos:
         ip_str = str(sockaddr[0])
         if _is_ip_blocked(ip_str):
@@ -165,8 +170,9 @@ def resolve_pinned_url(
                 f"address {ip_str!r}. SSRF protection does not allow requests to "
                 f"internal networks."
             )
+        ips.append(ip_str)
 
-    return PinnedAddress(hostname=hostname, port=port, ip=str(addr_infos[0][4][0]))
+    return PinnedAddress(hostname=hostname, port=port, ips=tuple(dict.fromkeys(ips)))
 
 
 def validate_webhook_url(

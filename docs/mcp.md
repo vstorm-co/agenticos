@@ -96,12 +96,30 @@ request that followed, and nobody in your organization had to be the attacker.
 Redirects are followed one hop at a time, bounded at five, each with its own
 check — a `302` to a new host is re-resolved, not trusted.
 
+Where a name answers with several addresses, every one of them is checked and
+kept, and an address that refuses the connection is followed by the next — what
+an ordinary client gets from the resolver, without asking DNS a second time. A
+name answering with one public address and one private one is refused whole
+rather than narrowed to its public half.
+
 Two edges remain, both narrow and both deliberate. The **consent URL** is
 checked and then handed to somebody's browser, which resolves it itself; there
 is no pinning to do. And the **connection's own URL** is checked at save and
 resolved again when an agent runs — operator-typed, so rebinding it means being
 the operator. Nothing a *model* chooses reaches this check at all, and nothing
 should: a URL an agent picked wants Pydantic AI's `safe_download`.
+
+!!! info "Behind an egress proxy, the proxy does the connecting"
+
+    `HTTP_PROXY` and `HTTPS_PROXY` are honoured, because a deployment that
+    mandates an egress proxy would otherwise lose MCP OAuth entirely — and that
+    proxy is an egress control in its own right. On that path the pinned address
+    is what the proxy is *asked* to reach (`CONNECT 93.184.216.34:443`, or an
+    absolute-form request line for plain HTTP) rather than what this process
+    connects to, so the guarantee ends at the proxy. TLS is still end to end,
+    so the certificate is still verified against the original name. A policy
+    proxy that refuses a bare address will refuse these requests; the log line
+    written when a proxy is configured is there so that failure is readable.
 
 A step that fails says **which step gave up and what class of thing raised**,
 never what the upstream client wrote. `httpx` puts the failing request in its

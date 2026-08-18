@@ -7,12 +7,13 @@ second time. `socket.getaddrinfo` is stubbed throughout - a test that reached
 DNS would be testing the resolver's mood.
 """
 
+import logging
 from collections.abc import Callable, Iterator
 
 import httpx
 import pytest
 
-from app.core.pinned_http import PinnedAsyncClient
+from app.core.pinned_http import PinnedAsyncClient, PinnedTransport
 from app.core.sanitize import SSRFBlockedError
 
 pytestmark = pytest.mark.anyio
@@ -188,6 +189,107 @@ class TestRedirectsKeepTheLogicalUrl:
 
         assert response.status_code == 302
         assert len(wire.sent) == 1
+
+
+class TestEveryValidatedAddressIsUsable:
+    """A name's other records are not thrown away: each one passed the same
+    check, and an environment that cannot reach the first (an AAAA answer on an
+    IPv4-only network) would otherwise lose the flow entirely.
+    """
+
+    async def test_the_next_validated_address_is_tried_when_a_connection_is_refused(
+        self, monkeypatch
+    ):
+        _answers(monkeypatch, ["2606:4700:4700::1111", _PUBLIC])
+
+        def responder(request: httpx.Request) -> httpx.Response:
+            if request.url.host != _PUBLIC:
+                raise httpx.ConnectError("network is unreachable", request=request)
+            return httpx.Response(200, text="ok")
+
+        wire = _Wire(responder)
+        async with PinnedAsyncClient(timeout=httpx.Timeout(5.0), transport=wire) as client:
+            response = await client.get("https://mcp.example.com/probe")
+
+        assert response.status_code == 200
+        assert [r.url.host for r in wire.sent] == ["2606:4700:4700::1111", _PUBLIC]
+
+    async def test_a_body_survives_being_tried_against_a_second_address(self, monkeypatch):
+        """The first attempt must not consume the request stream - a token
+        grant retried with an empty body is worse than a failed one."""
+        _answers(monkeypatch, ["2606:4700:4700::1111", _PUBLIC])
+
+        def responder(request: httpx.Request) -> httpx.Response:
+            if request.url.host != _PUBLIC:
+                raise httpx.ConnectError("network is unreachable", request=request)
+            return httpx.Response(200, text="ok")
+
+        wire = _Wire(responder)
+        async with PinnedAsyncClient(timeout=httpx.Timeout(5.0), transport=wire) as client:
+            await client.post("https://auth.example.com/token", data={"grant_type": "x"})
+
+        assert [r.content for r in wire.sent] == [b"grant_type=x"] * 2
+
+    async def test_a_failure_after_the_connection_is_not_retried(self, monkeypatch):
+        """Only a refused connection proves nothing was sent. Anything later may
+        have been acted on at the other end, so it is raised, not repeated."""
+        _answers(monkeypatch, ["2606:4700:4700::1111", _PUBLIC])
+
+        def responder(request: httpx.Request) -> httpx.Response:
+            raise httpx.ReadError("connection reset", request=request)
+
+        wire = _Wire(responder)
+        async with PinnedAsyncClient(timeout=httpx.Timeout(5.0), transport=wire) as client:
+            with pytest.raises(httpx.ReadError):
+                await client.post("https://auth.example.com/token", data={"grant_type": "x"})
+
+        assert len(wire.sent) == 1
+
+    async def test_when_no_validated_address_answers_the_last_failure_is_raised(self, monkeypatch):
+        _answers(monkeypatch, ["2606:4700:4700::1111", _PUBLIC])
+
+        def responder(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectTimeout(f"timed out to {request.url.host}", request=request)
+
+        wire = _Wire(responder)
+        async with PinnedAsyncClient(timeout=httpx.Timeout(5.0), transport=wire) as client:
+            with pytest.raises(httpx.ConnectTimeout, match=_PUBLIC):
+                await client.get("https://mcp.example.com/probe")
+
+        assert len(wire.sent) == 2
+
+
+class TestAConfiguredProxyIsStillUsed:
+    """Naming a transport turns off `httpx`'s environment-proxy mounting, which
+    would strand every deployment that requires an egress proxy. The mounts are
+    read back through a private attribute because that is where `httpx` keeps
+    the decision this class exists to preserve.
+    """
+
+    async def test_an_environment_proxy_is_mounted_and_pinned(self, monkeypatch, caplog):
+        monkeypatch.setenv("HTTPS_PROXY", "http://proxy.internal:3128")
+
+        with caplog.at_level(logging.INFO, logger="app.core.pinned_http"):
+            client = PinnedAsyncClient(timeout=httpx.Timeout(5.0))
+        try:
+            mounted = [t for t in client._mounts.values() if t is not None]
+        finally:
+            await client.aclose()
+
+        assert mounted
+        assert all(isinstance(transport, PinnedTransport) for transport in mounted)
+        assert "proxied" in caplog.text
+
+    async def test_nothing_is_said_about_a_proxy_when_there_is_none(self, monkeypatch, caplog):
+        for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy"):
+            monkeypatch.delenv(name, raising=False)
+        monkeypatch.setattr("httpx._utils.getproxies", dict)
+
+        with caplog.at_level(logging.INFO, logger="app.core.pinned_http"):
+            client = PinnedAsyncClient(timeout=httpx.Timeout(5.0))
+        await client.aclose()
+
+        assert "proxied" not in caplog.text
 
 
 class TestClosing:
