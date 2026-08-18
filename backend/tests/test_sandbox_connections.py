@@ -161,7 +161,9 @@ class TestRegistering:
         with pytest.raises(BadRequestError) as refused:
             await service.create(_ctx(), SandboxConnectionCreate(name="Big box", kind="docker"))
 
-        assert refused.value.details["field"] == "base_url"
+        assert refused.value.details == {
+            "fields": [{"field": "base_url", "message": refused.value.message}]
+        }
 
     async def test_daytona_needs_no_address_of_its_own(self, monkeypatch):
         """Their API has one, and asking an operator to type it invites a typo in
@@ -697,7 +699,9 @@ class TestTestingAnAddressBeforeItIsSaved:
         with pytest.raises(BadRequestError) as refused:
             await service.probe_policy(_ctx(), SandboxProbeRequest(base_url="http://s:8080"))
 
-        assert refused.value.details["field"] == "secret_id"
+        assert refused.value.details == {
+            "fields": [{"field": "secret_id", "message": refused.value.message}]
+        }
 
     async def test_a_credential_of_the_wrong_shape_cannot_authenticate_a_service(self, monkeypatch):
         secret_id = uuid.uuid4()
@@ -732,8 +736,11 @@ class TestTestingAnAddressBeforeItIsSaved:
 
         assert "http://typo:8080 did not answer" in refused.value.message
         # The message names the address the operator typed; `details` names the
-        # field, because it is logged as well as returned (agenticos#342).
-        assert refused.value.details == {"field": "base_url"}
+        # field, because it is logged as well as returned (agenticos#342) - in
+        # the one shape the dialog marks an input from (#891).
+        assert refused.value.details == {
+            "fields": [{"field": "base_url", "message": refused.value.message}]
+        }
 
     async def test_an_address_carrying_a_password_is_refused_before_it_is_stored(self):
         """A `user:pass@` here would be echoed back by every refusal below.

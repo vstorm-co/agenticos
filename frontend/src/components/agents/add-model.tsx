@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { Check, KeyRound, Plus } from "lucide-react";
 
-import { getErrorMessage } from "@/lib/api-error";
+import { submitFailure } from "@/lib/api-error";
+import type { SubmitFailure } from "@/lib/api-error";
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
 import {
   Button,
+  FormField,
   Input,
   Label,
   Select,
@@ -126,6 +128,20 @@ export function modelIdIsWellFormed(providerId: string, model: string): boolean 
   return providerId !== "openrouter" || model.includes("/");
 }
 
+/**
+ * What this form can mark, for `submitFailure`.
+ *
+ * The endpoint and nothing else, because it is the only input the API names:
+ * every `validate_endpoint_url` refusal and the "this provider has no endpoint
+ * setting" one answer `details.fields` against `base_url` (#891), and a 422 on
+ * the field says the same. Everything else the endpoint refuses - a bare
+ * OpenRouter id, a provider with no key - names no input, and `submitFailure`
+ * hands those back as one line rather than guessing at a box.
+ */
+const FORM = { fields: ["base_url"] } as const;
+
+const NOTHING_WRONG: SubmitFailure = { fields: {}, toast: null };
+
 export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
@@ -149,7 +165,7 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
   const [label, setLabel] = useState("");
   const [secretId, setSecretId] = useState(selected?.secret_id ?? "");
   const [baseUrl, setBaseUrl] = useState(selected?.base_url ?? "");
-  const [failure, setFailure] = useState<string | null>(null);
+  const [failure, setFailure] = useState<SubmitFailure>(NOTHING_WRONG);
   const [naming, setNaming] = useState(false);
 
   const providers = purposes.filter((entry) => entry.category === "model_provider");
@@ -211,7 +227,7 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
   const submit = async () => {
     /* v8 ignore next -- the id comes from the list this select was built from */
     if (provider === undefined) return;
-    setFailure(null);
+    setFailure(NOTHING_WRONG);
     if (already !== undefined) {
       onCreated(already);
       return;
@@ -231,11 +247,11 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
       onCreated(profile);
     } catch (error) {
       // Caught, not left to reject: an unhandled rejection here is Next.js's
-      // full-screen error overlay for what is a typo in one field. Every
-      // refusal this endpoint gives is about the model id - a bare id where the
-      // provider namespaces them, an endpoint that is not a URL - so it belongs
-      // under the field, where it can be fixed.
-      setFailure(getErrorMessage(error, tErrors));
+      // full-screen error overlay for what is a typo in one field. An endpoint
+      // that is not a URL, or one for a provider that has no endpoint setting,
+      // is refused against `base_url` and marks that input; a bare OpenRouter
+      // id names no field and stays a line under the model.
+      setFailure(submitFailure(error, FORM, tErrors));
     }
   };
 
@@ -251,7 +267,7 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
               setSecretId("");
               setModel("");
               setBaseUrl("");
-              setFailure(null);
+              setFailure(NOTHING_WRONG);
             }}
           >
             <SelectTrigger id="add-model-provider">
@@ -301,7 +317,7 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
             value={model}
             onChange={(next) => {
               setModel(next);
-              setFailure(null);
+              setFailure(NOTHING_WRONG);
             }}
             options={suggestions}
             source={source}
@@ -309,7 +325,7 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
             disabled={provider === undefined}
             placeholder={placeholderWords(modelPlaceholder(provider?.id), tRoot)}
           />
-          {failure !== null && <p className="text-destructive text-xs">{failure}</p>}
+          {failure.toast !== null && <p className="text-destructive text-xs">{failure.toast}</p>}
         </div>
       </div>
 
@@ -383,14 +399,22 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
           for the rest would collect a URL the client drops, and the API refuses
           it - which is the right refusal and a pointless one to walk into. */}
       {provider !== undefined && acceptsEndpoint && (
-        <div className="space-y-1.5">
-          <Label htmlFor="add-model-endpoint">{t("endpoint")}</Label>
+        <FormField
+          htmlFor="add-model-endpoint"
+          label={t("endpoint")}
+          error={failure.fields.base_url}
+          description={
+            capabilities?.keyless === true
+              ? t("gatewayLitellmProxyModel")
+              : t("optionalPointModelAt")
+          }
+        >
           <Input
             id="add-model-endpoint"
             value={baseUrl}
             onChange={(event) => {
               setBaseUrl(event.target.value);
-              setFailure(null);
+              setFailure(NOTHING_WRONG);
             }}
             placeholder={
               capabilities?.keyless === true
@@ -400,12 +424,7 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
             autoComplete="off"
             spellCheck={false}
           />
-          <p className="text-muted-foreground text-xs">
-            {capabilities?.keyless === true
-              ? t("gatewayLitellmProxyModel")
-              : t("optionalPointModelAt")}
-          </p>
-        </div>
+        </FormField>
       )}
 
       {/* The name is derived and almost never worth changing - it exists so an

@@ -92,12 +92,15 @@ class GoogleDriveConnector(BaseSyncConnector):
         """
         sa_json = config.get("service_account_json")
         if not sa_json:
+            # No `details["fields"]`: this is read from a stored row inside a
+            # sync, so there is no request whose input to blame and no form
+            # open to mark. `CONFIG_SCHEMA` is what refuses it at the route
+            # (#891).
             raise BadRequestError(
                 message=(
                     "This Google Drive source has no service account credential. "
                     "Add the service account JSON to the source configuration."
-                ),
-                details={"field": "service_account_json"},
+                )
             )
         info = _json.loads(sa_json) if isinstance(sa_json, str) else sa_json
         creds = Credentials.from_service_account_info(info, scopes=SCOPES)

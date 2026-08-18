@@ -892,7 +892,9 @@ class TestMcpConnectionService:
         data = McpConnectionCreate(name="internal", url="http://127.0.0.1:8000/mcp")
         with pytest.raises(BadRequestError) as excinfo:
             await service.create(user_id=uuid4(), data=data)
-        assert excinfo.value.details == {"field": "url"}
+        assert excinfo.value.details == {
+            "fields": [{"field": "url", "message": excinfo.value.message}]
+        }
         assert excinfo.value.status_code == 400
         repo.create.assert_not_called()
 
@@ -1093,7 +1095,9 @@ class TestMcpConnectionService:
                 data=McpConnectionUpdate(url="http://169.254.169.254/mcp"),
             )
 
-        assert excinfo.value.details == {"field": "url"}
+        assert excinfo.value.details == {
+            "fields": [{"field": "url", "message": excinfo.value.message}]
+        }
         repo.update.assert_not_called()
 
     @pytest.mark.anyio
@@ -1255,7 +1259,9 @@ class TestMcpConnectionService:
             await service.oauth_start(
                 user_id=uuid4(), name="evil", url="http://169.254.169.254/mcp"
             )
-        assert excinfo.value.details == {"field": "url"}
+        assert excinfo.value.details == {
+            "fields": [{"field": "url", "message": excinfo.value.message}]
+        }
         repo.create.assert_not_called()
 
     @pytest.mark.anyio
@@ -1491,7 +1497,9 @@ class TestOrganizationConnections:
             await service.create_for_org(
                 ctx, OrgMcpConnectionCreate(name="internal", url="http://127.0.0.1:8000/mcp")
             )
-        assert excinfo.value.details == {"field": "url"}
+        assert excinfo.value.details == {
+            "fields": [{"field": "url", "message": excinfo.value.message}]
+        }
         repo.create_org_scoped.assert_not_called()
 
     @pytest.mark.anyio
@@ -1600,7 +1608,9 @@ class TestOrganizationConnections:
                 ctx, connection_id=conn.id, data=OrgMcpConnectionUpdate(url="http://[::1]/mcp")
             )
 
-        assert excinfo.value.details == {"field": "url"}
+        assert excinfo.value.details == {
+            "fields": [{"field": "url", "message": excinfo.value.message}]
+        }
         repo.update.assert_not_called()
 
     @pytest.mark.anyio

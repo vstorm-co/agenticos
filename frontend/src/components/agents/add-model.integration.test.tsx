@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AddModel } from "./add-model";
+import { ApiError } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
 import type { SecretPurpose } from "@/types/secrets";
@@ -632,6 +633,84 @@ describe("pointing a model somewhere other than the provider's own API", () => {
     await userEvent.type(screen.getByLabelText("Endpoint"), "https://gateway.acme/v1");
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
+  });
+
+  /**
+   * The half of the refusal that says *which box to fix*.
+   *
+   * `validate_endpoint_url` answers `details.fields` against `base_url` (#891),
+   * and this is where that stops being a sentence floating under the model id -
+   * an operator who mistyped a gateway address is looking at the field that
+   * holds it.
+   */
+  function refusedEndpoint(message: string) {
+    return new ApiError(400, message, {
+      error: {
+        code: "BAD_REQUEST",
+        message,
+        details: { fields: [{ field: "base_url", message }] },
+      },
+    });
+  }
+
+  async function submitWithEndpoint(url: string) {
+    state.secrets = [secret()];
+    mount();
+    await pickProvider("OpenAI");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.type(screen.getByLabelText("Endpoint"), url);
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+  }
+
+  it("marks the endpoint the server refused, and says why on it", async () => {
+    const message = "A model endpoint must be an http or https URL";
+    state.createProfile = {
+      mutateAsync: vi.fn().mockRejectedValue(refusedEndpoint(message)),
+      isPending: false,
+    };
+
+    await submitWithEndpoint("ftp://models.example");
+
+    const endpoint = screen.getByLabelText("Endpoint");
+    expect(endpoint).toHaveAttribute("aria-invalid", "true");
+    expect(endpoint).toHaveAccessibleDescription(message);
+  });
+
+  it("clears the mark as soon as the endpoint changes", async () => {
+    // The verdict was about the value that was sent; leaving it on a field
+    // somebody has since corrected is a form arguing with itself.
+    state.createProfile = {
+      mutateAsync: vi
+        .fn()
+        .mockRejectedValue(refusedEndpoint("A model endpoint must include a host")),
+      isPending: false,
+    };
+
+    await submitWithEndpoint("http://");
+    await userEvent.type(screen.getByLabelText("Endpoint"), "gateway.acme/v1");
+
+    expect(screen.getByLabelText("Endpoint")).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("leaves a refusal that names no field where it always was", async () => {
+    // A bare OpenRouter id is refused about the model rather than the endpoint,
+    // and `submitFailure` hands back what it could not place rather than
+    // guessing at a box.
+    const message = "OpenRouter model ids are namespaced, e.g. 'openai/gpt-4.1'";
+    state.createProfile = {
+      mutateAsync: vi.fn().mockRejectedValue(
+        new ApiError(400, message, {
+          error: { code: "BAD_REQUEST", message, details: { model: "gpt-4.1" } },
+        }),
+      ),
+      isPending: false,
+    };
+
+    await submitWithEndpoint("https://gateway.acme/v1");
+
+    expect(screen.getByText(message)).toBeInTheDocument();
+    expect(screen.getByLabelText("Endpoint")).not.toHaveAttribute("aria-invalid", "true");
   });
 });
 

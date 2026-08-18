@@ -255,6 +255,69 @@ describe("a refusal a service raised about a document it validated itself", () =
   });
 });
 
+describe("a refusal a service states in prose about one input", () => {
+  /**
+   * Bodies copied out of the backend's own tests. Eighteen of these answered a
+   * singular `details.field` with the sentence on the envelope, which this
+   * module reads nowhere - so each showed a toast and marked nothing (#891).
+   */
+  const ENDPOINT_REFUSED = envelope(
+    "BAD_REQUEST",
+    "A model endpoint must be an http or https URL",
+    {
+      fields: [{ field: "base_url", message: "A model endpoint must be an http or https URL" }],
+    },
+  );
+
+  const MCP_URL_REFUSED = envelope(
+    "BAD_REQUEST",
+    "This MCP server URL cannot be used: loopback addresses are not reachable",
+    {
+      fields: [
+        {
+          field: "url",
+          message: "This MCP server URL cannot be used: loopback addresses are not reachable",
+        },
+      ],
+    },
+  );
+
+  const YAML_REFUSED = envelope("BAD_REQUEST", "This spec is not valid YAML - line 2, column 14", {
+    fields: [{ field: "yaml", message: "This spec is not valid YAML - line 2, column 14" }],
+  });
+
+  it("marks the endpoint a model profile was refused over", () => {
+    const failure = submitFailure(apiError(400, ENDPOINT_REFUSED), { fields: ["base_url"] }, tEn);
+
+    expect(failure.fields.base_url).toBe("A model endpoint must be an http or https URL");
+    expect(failure.toast).toBeNull();
+  });
+
+  it("marks the server URL an MCP connection was refused over", () => {
+    expect(fieldProblems(apiError(400, MCP_URL_REFUSED))).toEqual([
+      {
+        field: "url",
+        message: "This MCP server URL cannot be used: loopback addresses are not reachable",
+      },
+    ]);
+  });
+
+  it("carries the position of a spec that never parsed in the sentence it marks with", () => {
+    // The line and column used to be `details` keys of their own that nothing
+    // read; they are only worth reporting to the reader who has the document.
+    expect(fieldProblems(apiError(400, YAML_REFUSED))).toEqual([
+      { field: "yaml", message: "This spec is not valid YAML - line 2, column 14" },
+    ]);
+  });
+
+  it("says one thing once - the field, and no toast repeating it", () => {
+    const failure = submitFailure(apiError(400, ENDPOINT_REFUSED), { fields: ["base_url"] }, tEn);
+
+    expect(Object.keys(failure.fields)).toEqual(["base_url"]);
+    expect(failure.toast).toBeNull();
+  });
+});
+
 describe("submitFailure", () => {
   const form = { fields: ["name", "description"], identifiedBy: "name" } as const;
 
