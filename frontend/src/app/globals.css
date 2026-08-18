@@ -1578,13 +1578,14 @@
    potent over a dark page than ink is over a near-white one: at 7% the dark
    blooms measure 2.32:1 against their page and the light shading 1.07:1 - a
    gradient in one theme and nothing at all in the other, which is exactly how
-   it looked. Light is doubled to 1.15:1, and no further: past about 1.2 the
-   shading stops reading as light and starts reading as a dirty page, which is
-   the failure the paragraph above records under a different cause. */
+   it looked. Light lands at 1.10:1 - enough to see, and the ceiling is lower
+   than the arithmetic suggests: 1.15:1 was tried and read as a smudged page
+   rather than as shading, which is the failure the paragraph above records
+   under a different cause. */
 :root {
-  --ambient-a: color-mix(in oklab, var(--color-foreground) 14%, transparent);
-  --ambient-b: color-mix(in oklab, var(--color-foreground) 10%, transparent);
-  --ambient-c: color-mix(in oklab, var(--color-foreground) 12%, transparent);
+  --ambient-a: color-mix(in oklab, var(--color-foreground) 10%, transparent);
+  --ambient-b: color-mix(in oklab, var(--color-foreground) 7%, transparent);
+  --ambient-c: color-mix(in oklab, var(--color-foreground) 9%, transparent);
 }
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
