@@ -85,9 +85,14 @@ Traps, each of which has cost a red job here:
   before the response goes out (#353) - but #230 is a browser-side staleness nobody has
   closed, so the polling stays until it is. One step read once instead and took all 87
   specs down three times in a day (#335).
-- **Coverage instrumentation slows tests enough to trip a 5s `testTimeout`.** A
-  heavy spec that passes under `test:run` can time out under `test:coverage`; re-run
-  before believing it.
+- **A frontend spec that times out is usually the machine, and the deadlines are set
+  for that.** `testTimeout` is 15s in `vitest.config.ts` and `asyncUtilTimeout` 5s in
+  `vitest.setup.ts`, both raised from defaults sized for a quiet machine: measured over
+  all 4941 tests, the slowest is 1.7s bare and 2.9s instrumented on ten idle cores, and
+  5.4s bare and 6.1s instrumented with 32 busy loops beside it - where the 5s default
+  reddened three tests a run, a different three each time, bare and under coverage
+  alike (#862). Do not lower either to make a hang fail faster, and do not raise one
+  to rescue a spec doing more work than its assertions need.
 
 ## The four layers
 
