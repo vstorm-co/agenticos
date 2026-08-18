@@ -17,7 +17,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-## [0.0.201] - 2026-08-18
+## [0.0.200] - 2026-08-18
 
 ### Fixed
 
@@ -41,11 +41,6 @@ Two things are versioned separately from this file and worth knowing about:
 - **Both write paths refuse the same way.** `create_source` carried its own copy
   of the validate-and-raise; it goes through the same helper as clone and update,
   so the two cannot drift apart again. (#897)
-
-## [0.0.200] - 2026-08-18
-
-### Fixed
-
 - **A refused model id is no longer posted back.** `details` is serialized into
   the response body *and* written to the log line beside it, so refusing a bare
   OpenRouter id sent the caller's own submission into the deployment's logs. It
