@@ -17,6 +17,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.192] - 2026-08-18
+
+### Fixed
+
+- **A network blip no longer fails the dependency audit.** `pip-audit` asks
+  pypi.org once per locked distribution with no retry, so one slow answer ended
+  the run and turned `Security Scan` — a required check — red on a pull request
+  whose dependencies were fine. Every run that reaches no verdict is retried now,
+  unconditionally: re-running a deterministic failure costs seconds and the same
+  answer, while not re-running a transient one is the false red this fixes. (#855)
+- **The audit says which of four things happened, in a line a job can read.**
+  `make audit` ends on `AUDIT: CLEAN|VULNERABLE|NETWORK|FAILED — detail`, mirrored
+  into the job summary. The exit code cannot carry that: GNU Make turns any failed
+  recipe status into its own 2, and GitHub Actions never surfaces a step's exit
+  code anyway — so a code was the wrong place for a verdict, whether or not `make`
+  was in the way. The script keeps 0/1/75 for a human at a terminal, and
+  `docs/commands.md` now says which interface delivers which. (#855)
+- **An audit that did not happen is never green.** The verdict comes from the JSON
+  report, which `pip-audit` writes on both the clean and the vulnerable path and
+  only after every distribution has been queried — so its presence means the audit
+  finished, whatever the process exited with. (#855)
+
 ## [0.0.191] - 2026-08-18
 
 ### Fixed
