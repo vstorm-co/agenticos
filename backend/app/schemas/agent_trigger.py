@@ -252,7 +252,7 @@ class TriggerCreate(BaseSchema):
             raise ValueError("cron_expression is not valid for an event trigger")
 
 
-_UPDATE_NOT_NULLABLE = ("prompt", "interval_seconds", "is_active")
+_UPDATE_NOT_NULLABLE = ("prompt", "is_active")
 
 
 class TriggerUpdate(BaseSchema):
@@ -271,10 +271,14 @@ class TriggerUpdate(BaseSchema):
 
     `None` means "not sent" for every field except `environment_id` and `name`,
     whose null is the deliberate "back to the default" - the default environment,
-    the agent's own name. `prompt`, `interval_seconds` and `is_active` map to NOT
-    NULL columns, so an *explicit* null for one is refused here as a 422 rather than
-    reaching the row as a 500 IntegrityError - the `exclude_unset` dump cannot tell
-    a sent null from an unsent one, so the field must.
+    the agent's own name. `prompt` and `is_active` map to NOT NULL columns, so an
+    *explicit* null for one is refused here as a 422 rather than reaching the row
+    as a 500 IntegrityError - the `exclude_unset` dump cannot tell a sent null from
+    an unsent one, so the field must. `interval_seconds` is *not* in that set: the
+    column is nullable (an event trigger and a cron schedule both leave it null),
+    and an explicit null on an interval edit is already a clean refusal from the
+    service's `_resolve_cadence`, which names the field rather than letting the
+    shape CHECK 500.
     """
 
     prompt: str | None = Field(default=None, min_length=1, max_length=10000)
@@ -341,7 +345,10 @@ class TriggerRead(BaseSchema, TimestampSchema):
     conversation_id: UUID | None = None
     # The portal lineage, when this trigger came from a preset. `delivery_mode` is
     # `auto_webhook` when the platform registered the hook and `manual` when the
-    # user pastes the URL below; null on a schedule and on a raw event trigger.
+    # user pastes the URL below; every event trigger carries one - a raw event
+    # trigger is `manual`, since nobody registered a hook for it - and only a
+    # schedule leaves it null. `portal_key` is null on a schedule and on a raw
+    # event trigger, which came from no preset.
     portal_key: str | None = None
     delivery_mode: Literal["auto_webhook", "manual"] | None = None
     connection_id: UUID | None = None

@@ -16,8 +16,6 @@ from app.services import schedule_templates
 
 def test_the_catalog_loads_and_is_not_empty() -> None:
     assert schedule_templates.CATALOG
-    assert schedule_templates.get_template("pr_digest_weekday_mornings") is not None
-    assert schedule_templates.get_template("does-not-exist") is None
 
 
 def test_every_templates_cadence_builds_a_valid_schedule() -> None:

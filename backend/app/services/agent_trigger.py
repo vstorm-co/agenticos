@@ -379,6 +379,15 @@ class AgentTriggerService:
                 event_config = self._merged_preset_config(event_source, preset, data.event_config)
                 plaintext_secret = secrets.token_urlsafe(32)
                 portal_key = portal.key
+                # Resolve the caller-supplied connection against their own
+                # organization before it is stored, whatever the delivery mode:
+                # only the auto_webhook path unwraps a token for it, so without
+                # this a manual or polling preset would persist another tenant's
+                # `mcp_connections.id` on the row unchecked. A foreign or bogus id
+                # is the same unprobeable 404 every org-scoped connection lookup
+                # gives.
+                if data.connection_id is not None:
+                    await self.connections.get_org_connection(ctx, data.connection_id)
                 connection_id = data.connection_id
             else:
                 event_source = data.event_source
@@ -786,14 +795,22 @@ class AgentTriggerService:
         )
 
     async def run_now(self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID) -> AgentTrigger:
-        """Accept one extra fire of this schedule, without disturbing its cadence.
+        """Fire this trigger once, on demand, without disturbing how it normally fires.
+
+        Works for either kind, and is deliberately offered on both. A schedule
+        fires one extra time with `next_fire_at` left untouched - running now is an
+        extra fire, not a reschedule. An **event trigger** fires too, as a manual
+        test-fire: the agent runs its base prompt with no delivery context
+        (`event_context=None`), so it is the way to confirm the agent, its prompt
+        and its budget behave without standing up a provider, signing a payload or
+        waiting for a real delivery. What it does *not* exercise is the signature
+        path or a real payload's rendered context.
 
         The caller needs `agents:run` on the agent - the floor for scheduling it
         at all, checked by `_owned`. The fire runs as the trigger's creator, the
-        same subject a heartbeat fire uses, so a schedule always runs as one
-        identity however it was set off. `next_fire_at` is left untouched: running
-        now is one extra fire, not a reschedule. A paused schedule is respected -
-        `fire` no-ops on an inactive trigger - so this is offered only on a live one.
+        same subject a heartbeat or a delivered event uses, so a trigger always
+        runs as one identity however it was set off. A paused trigger is respected
+        - `fire` no-ops on an inactive one - so this is offered only on a live one.
 
         The run itself is attributed to the creator, but *who pressed the button*
         is a separate fact and a spend, so it is audited under the caller: without

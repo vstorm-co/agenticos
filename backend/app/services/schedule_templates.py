@@ -61,10 +61,3 @@ class ScheduleTemplate(BaseModel):
 CATALOG: tuple[ScheduleTemplate, ...] = catalog.load(
     "schedule_templates.json", TypeAdapter(tuple[ScheduleTemplate, ...])
 )
-
-BY_KEY: dict[str, ScheduleTemplate] = {template.key: template for template in CATALOG}
-
-
-def get_template(key: str) -> ScheduleTemplate | None:
-    """The template a key names, or None if it names nothing."""
-    return BY_KEY.get(key)

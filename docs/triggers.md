@@ -216,11 +216,14 @@ On a laptop `PUBLIC_BASE_URL` defaults to `http://localhost:8000`, so the URL th
 hands you is unreachable from GitHub or any hosted relay - they cannot see your machine.
 Two ways through it:
 
-- **Just use Run now.** Every trigger has a *Run now* action that fires it once on
-  demand. It goes straight to the runner with **no signature and no webhook involved** -
-  the fastest way to confirm the agent, its prompt and its budget behave, without any
-  provider set up at all. Its one gap is that it does not exercise the signature path or a
-  real payload, so it will not catch a wrong secret or a mis-named field.
+- **Just use Run now.** *Run now* fires either kind of trigger once on demand - a
+  schedule fires one extra time with its cadence untouched, and an **event trigger fires
+  too**, as a manual test-fire: the agent runs its base prompt with **no delivery context,
+  no signature and no webhook involved**. It is the fastest way to confirm the agent, its
+  prompt and its budget behave without any provider set up at all. An inactive (paused)
+  trigger is respected - *Run now* does nothing to one. Its one gap is that it does not
+  exercise the signature path or a real payload, so it will not catch a wrong secret or a
+  mis-named field.
 
 - **Expose the port with a tunnel** when you do want to test the real webhook path. Point
   a tunnel at the API, set `PUBLIC_BASE_URL` to the tunnel's public address, and **create

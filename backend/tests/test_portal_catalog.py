@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from app.db.models.agent_trigger import EventSource
 from app.schemas.agent_trigger import _EVENT_CONFIG_MODELS
-from app.services import portal_catalog
+from app.services import mcp_catalog, portal_catalog
 from app.services.portal_catalog import DeliveryMode
 
 
@@ -46,6 +46,17 @@ def test_an_auto_webhook_portal_declares_the_scope_it_registers_with() -> None:
         if portal.delivery is DeliveryMode.AUTO_WEBHOOK:
             assert portal.webhook_admin_scopes, portal.key
             assert portal.mcp_catalog_key, portal.key
+
+
+def test_every_mcp_catalog_key_names_a_real_server() -> None:
+    """A portal's `mcp_catalog_key` is the `mcp_servers.json` entry whose account
+    backs both the trigger's webhook and the agent's tools, so the connect flow
+    resolves it. Membership, not mere truthiness: a typo'd key would ship a portal
+    whose connect flow points at a server that does not exist."""
+    known = {entry.key for entry in mcp_catalog.CATALOG}
+    for portal in portal_catalog.CATALOG:
+        if portal.mcp_catalog_key is not None:
+            assert portal.mcp_catalog_key in known, portal.key
 
 
 def test_a_target_requiring_preset_lives_on_a_portal_that_has_a_target_kind() -> None:

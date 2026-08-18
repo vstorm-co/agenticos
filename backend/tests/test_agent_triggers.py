@@ -71,6 +71,12 @@ def _service(agent: MagicMock | None = None) -> AgentTriggerService:
     service.db.info = {}
     service.agents = MagicMock()
     service.agents.get = AsyncMock(return_value=agent or _agent())
+    # A preset create resolves its `connection_id` against the caller's org before
+    # storing it; the default lets the row through, and a test proving the refusal
+    # overrides it with a `NotFoundError` side effect.
+    service.connections.get_org_connection = AsyncMock(
+        return_value=_named(id=uuid.uuid4(), name="conn")
+    )
     return service
 
 
@@ -625,6 +631,26 @@ class TestChangingASchedule:
         # Five minutes out, not a day - computed from the new 300s.
         assert next_fire < datetime.now(UTC) + timedelta(seconds=360)
 
+    async def test_an_explicit_null_interval_is_a_clean_refusal_not_a_500(self):
+        """`interval_seconds` is a nullable column, so it is not in the schema's
+        NOT-NULL null guard; an explicit null on an interval edit is caught by
+        `_resolve_cadence`, which names the field with a 400 rather than letting the
+        shape CHECK reject it as a 500. No row is touched."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock()
+            with pytest.raises(BadRequestError, match="needs interval_seconds"):
+                await service.update(
+                    _ctx(), agent.id, trigger.id, TriggerUpdate(interval_seconds=None)
+                )
+            repo.update.assert_not_called()
+
 
 class TestManagingAnotherMembersTrigger:
     """A trigger runs its stored prompt with its creator's identity and sandbox,
@@ -769,6 +795,30 @@ class TestRunningNow:
                 await service.run_now(_ctx(), agent.id, uuid.uuid4())
             await _run_deferred(service.db)
         assert fired == []
+
+    async def test_running_now_on_an_event_trigger_fires_with_no_event_context(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Run now is a deliberate manual test-fire on an event trigger too, not a
+        400: it dispatches the fire with no delivery context, so the agent runs its
+        base prompt exactly as it would before any webhook arrived."""
+        calls: list[tuple[uuid.UUID, str | None]] = []
+
+        async def _fire(trigger_id: uuid.UUID, *, event_context: str | None = None) -> None:
+            calls.append((trigger_id, event_context))
+
+        monkeypatch.setattr("app.worker.background.trigger_fire.fire_trigger", _fire)
+        agent = _agent()
+        service = _service(agent)
+        trigger = _event_trigger(agent_id=agent.id)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            await service.run_now(_ctx(), agent.id, trigger.id)
+            await _run_deferred(service.db)
+        assert calls == [(trigger.id, None)]
 
 
 class TestClaiming:
@@ -1188,11 +1238,15 @@ class TestEventTriggerSchema:
     def test_a_schedule_read_has_no_webhook_url(self):
         assert _read().webhook_url is None
 
-    @pytest.mark.parametrize("field", ["prompt", "interval_seconds", "is_active"])
+    @pytest.mark.parametrize("field", ["prompt", "is_active"])
     def test_an_explicit_null_for_a_not_null_field_is_a_422(self, field):
         """`{"is_active": null}` maps to a NOT NULL column; caught here it is a 422
         naming the field, not an IntegrityError 500 the update guard exists to
-        avoid but `exclude_unset` cannot see (a sent null looks omitted)."""
+        avoid but `exclude_unset` cannot see (a sent null looks omitted).
+
+        `interval_seconds` is deliberately not here: the column is nullable, and an
+        explicit null on an interval edit is refused by the service's
+        `_resolve_cadence` instead (see `TestChangingASchedule`)."""
         with pytest.raises(PydanticValidationError, match="cannot be set to null"):
             TriggerUpdate.model_validate({field: None})
 
@@ -1895,6 +1949,50 @@ class TestCreatingFromAPortalPreset:
             repo.create = AsyncMock()
             with pytest.raises(BadRequestError):
                 await service.create(_ctx(), agent.id, _preset_create(preset_key="no-such-preset"))
+        repo.create.assert_not_called()
+
+    async def test_a_preset_without_a_connection_skips_the_lookup(self):
+        """A manual preset the caller wires themselves carries no `connection_id`,
+        so there is nothing to resolve and the org lookup is never called."""
+        agent = _agent()
+        service = _service(agent)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.portals.get_adapter", return_value=None),
+        ):
+            repo.create = AsyncMock(
+                return_value=_event_trigger(
+                    event_source="email", conversation_id=uuid.uuid4(), delivery_mode="manual"
+                )
+            )
+            result = await service.create(
+                _ctx(),
+                agent.id,
+                _preset_create(
+                    portal_key="email", preset_key="any_email", connection_id=None, target=None
+                ),
+            )
+        assert result.delivery_mode == "manual"
+        assert repo.create.await_args.kwargs["connection_id"] is None
+        service.connections.get_org_connection.assert_not_awaited()
+
+    async def test_a_connection_from_another_organization_is_refused(self):
+        """The caller supplies `connection_id`; a bogus or cross-tenant id must be
+        a 404 before the row is stored, whatever the delivery mode - otherwise one
+        org could persist another's `mcp_connections.id` on its trigger. The
+        refusal happens before `repo.create`, so no row is written."""
+        agent = _agent()
+        service = _service(agent)
+        service.connections.get_org_connection = AsyncMock(
+            side_effect=NotFoundError(message="MCP connection not found")
+        )
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.create = AsyncMock()
+            with pytest.raises(NotFoundError):
+                await service.create(
+                    _ctx(), agent.id, _preset_create(portal_key="email", preset_key="any_email")
+                )
         repo.create.assert_not_called()
 
     async def test_an_event_config_override_narrows_the_presets_filter(self):

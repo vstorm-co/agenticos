@@ -175,7 +175,12 @@ async def create_trigger(
 async def run_trigger_now(
     agent_id: UUID, trigger_id: UUID, ctx: Auth, service: AgentTriggerSvc
 ) -> Any:
-    """Accept one extra fire of this schedule, as its creator, cadence untouched.
+    """Fire this trigger once, as its creator, without disturbing how it fires.
+
+    Works for either kind: a schedule fires one extra time with its cadence
+    untouched, and an event trigger fires as a manual test-fire - the base prompt
+    with no delivery context, so the agent, its prompt and its budget can be
+    confirmed without a signed payload or a real delivery.
 
     202, not 200: the fire is dispatched once this request commits rather than run
     inside it, so the trigger comes back as it stands and its `last_run_id` still

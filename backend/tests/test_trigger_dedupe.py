@@ -8,14 +8,61 @@ fail-open is this module's.
 
 from __future__ import annotations
 
+import asyncio
+from typing import cast
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
 
+from app.clients.redis import RedisClient
 from app.services import trigger_dedupe
 
 pytestmark = pytest.mark.anyio
+
+
+class _FakeRedis:
+    """The one Redis behaviour the claim rests on: an atomic `SET NX`.
+
+    A dict guarded by no lock is enough to model `SET NX` under cooperative
+    concurrency - the operation never awaits between reading the key and writing
+    it, so two `claim_event_delivery` coroutines interleave only at the `await`
+    boundary and exactly one finds the key absent, which is the exclusivity the
+    mocked-return tests below cannot show.
+    """
+
+    def __init__(self) -> None:
+        self.store: dict[str, str] = {}
+
+    async def set(self, key: str, value: str, ttl: int | None = None, nx: bool = False) -> bool:
+        if nx and key in self.store:
+            return False
+        self.store[key] = value
+        return True
+
+    async def delete(self, key: str) -> int:
+        return int(self.store.pop(key, None) is not None)
+
+
+@pytest.fixture
+def fake_redis():
+    redis = _FakeRedis()
+    trigger_dedupe.configure(cast(RedisClient, redis))
+    yield redis
+    trigger_dedupe.configure(None)
+
+
+async def test_of_two_concurrent_claims_on_one_delivery_exactly_one_proceeds(fake_redis):
+    """The claim goes through `SET NX`, so two deliveries of the same event racing
+    at once resolve to one winner and one loser - never two fires for one event."""
+    trigger_id = uuid4()
+
+    results = await asyncio.gather(
+        trigger_dedupe.claim_event_delivery(trigger_id=trigger_id, delivery_id="d1"),
+        trigger_dedupe.claim_event_delivery(trigger_id=trigger_id, delivery_id="d1"),
+    )
+
+    assert sorted(results) == [False, True]
 
 
 @pytest.fixture

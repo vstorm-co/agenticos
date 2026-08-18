@@ -69,10 +69,23 @@ async def check_agent_triggers_flow() -> None:
         triggers = await AgentTriggerService(db).claim_and_advance(now=datetime.now(UTC))
     # Dispatched after the claim's transaction commits, so every submitted run
     # sees the advanced `next_fire_at` and the tick's own work is durable before
-    # any of it is handed on.
+    # any of it is handed on. Each dispatch is isolated: the batch already
+    # advanced every `next_fire_at`, so a trigger whose hand-off raises would not
+    # be re-claimed until its next cadence - and without this, that one failure
+    # would take the rest of the claimed batch down with it and strand them too.
+    dispatched = 0
     for trigger in triggers:
-        await dispatch_trigger_fire(str(trigger.id))
-    logger.info("agent_triggers_check", extra={"dispatched": len(triggers)})
+        try:
+            await dispatch_trigger_fire(str(trigger.id))
+        except Exception:
+            logger.warning(
+                "agent_trigger_dispatch_failed",
+                extra={"trigger_id": str(trigger.id)},
+                exc_info=True,
+            )
+            continue
+        dispatched += 1
+    logger.info("agent_triggers_check", extra={"claimed": len(triggers), "dispatched": dispatched})
 
 
 @flow(name="run-scheduled-trigger", log_prints=True)
