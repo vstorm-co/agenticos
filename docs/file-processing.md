@@ -375,6 +375,49 @@ the one caller that never asked the resolver at all, so every uploaded document
 was embedded with the deployment's model and key whatever its collection had
 chosen.
 
+### Reranking — a second pass, off unless configured
+
+Vector search orders results by embedding distance, which is a proxy for
+relevance and sometimes a poor one. A **reranker** is an optional second pass: a
+model scores each candidate against the query directly and reorders them, so a
+better answer sitting well below the top by distance can surface. Retrieval
+overfetches a wider candidate net (four times the limit rather than two),
+reranks, then truncates — for a multi-collection search, once over the union of
+every collection's candidates, because an agent's bound collections share one
+organization and so one reranker.
+
+Configured **per knowledge base**, mirroring embeddings, by
+`app/services/rerank_resolution.py`:
+
+| | |
+|---|---|
+| **Provider and model** | Cohere Rerank 3.5 is the first and only implementation behind `BaseReranker` (`app/services/rag/reranker.py`); a second provider is a second implementation, not a rewrite. `rerank_model` on the knowledge base names it, and unlike the embedding model it can be changed later. |
+| **Credential** | The Cohere vault key chosen on the collection (`rerank_secret_id`), which is what the organization is billed for. |
+
+The one deliberate difference from embeddings is that reranking is **off by
+default**. There is no deployment reranker key, so reranking runs only when a
+collection sets *both* `rerank_model` and `rerank_secret_id`; either unset — or a
+chosen key that is missing, unusable, or the wrong kind — resolves to no
+reranker, and retrieval is byte-for-byte its pre-feature self. The three
+misconfiguration cases are logged (a chosen key that vanished is an operator's
+problem); the normal off state is silent. A runtime failure of the Cohere call
+degrades to the by-distance order rather than failing the search — reranking is
+an improvement on a working retrieval, not a dependency of it. The key is
+validated at creation, the same as the embedding key and for the same reason.
+
+Rerank spend is metered like embeddings, with one deliberate exception. Ingestion
+and the agent-run path already hold a ledger open, so a rerank during a knowledge
+search books automatically — but `SpendLedger.record()` prices through
+`genai-prices`, which is token-based and does not know rerank models, and would
+book `cost_usd=0, priced=False`. So rerank does not go through `record()`: the
+per-search Cohere cost is computed from a published per-search price
+(`app/services/rag/reranker.py`, a constant checked against cohere.com/pricing
+and dated in a comment) and booked with `book_ambient_spend`, landing
+`priced=True`. `POST /rag/search` — which opened no metering block and so left
+even its embeddings unbilled (#16 class) — is now wrapped in one by
+`KnowledgeSearchService`, so both its rerank and its embedding spend reach the
+organization's monthly bill.
+
 ### Vector Storage
 Vectors are stored in **pgvector** using the existing PostgreSQL database.
 No additional services needed.
