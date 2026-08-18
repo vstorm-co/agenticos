@@ -227,6 +227,19 @@ interface CapabilityDetailProps {
    * which is most of them.
    */
   resources?: { label: string; content: ReactNode };
+  /**
+   * Configuration this capability draws itself, at the top of Settings.
+   *
+   * For the two whose configuration is a set of decisions rather than a set of
+   * fields - the workspace's backend and sharing scope, delegation's delegates
+   * and specialists. They used to render *above* the panel, which put them
+   * outside the card that names the capability they belong to and left the card
+   * itself holding nothing but an approval select.
+   *
+   * Distinct from `resources`, which is what the capability was *given* and gets
+   * a tab of its own: this is how it behaves, which is what Settings is.
+   */
+  settingsExtra?: ReactNode;
 }
 
 /**
@@ -252,11 +265,14 @@ export function CapabilityDetail({
   configProblems,
   onToggleEnabled,
   resources,
+  settingsExtra,
 }: CapabilityDetailProps) {
   const t = useTranslations("agents");
   const configErrors = capabilityConfigErrors(configProblems ?? [], binding.id);
   const settings = (
     <>
+      {settingsExtra}
+
       {definition.config_schema && !hideConfigForm && (
         <SchemaForm
           idPrefix={binding.id}
@@ -358,30 +374,29 @@ export function CapabilityDetail({
 
         <p className="text-muted-foreground text-sm">{definition.description}</p>
 
-        {tools || resources ? (
-          <Tabs defaultValue={resources ? "resources" : "settings"}>
-            <TabsList>
-              {resources && <TabsTrigger value="resources">{resources.label}</TabsTrigger>}
-              <TabsTrigger value="settings">{t("capabilitySettingsTab")}</TabsTrigger>
-              {tools && <TabsTrigger value="tools">{t("capabilityToolsTab")}</TabsTrigger>}
-            </TabsList>
-            {resources && (
-              <TabsContent value="resources" className="mt-4">
-                {resources.content}
-              </TabsContent>
-            )}
-            <TabsContent value="settings" className="mt-4 space-y-4">
-              {settings}
+        {/* Always the tab shell, even for the capability whose Settings is one
+            select: every panel then reads the same way, and "this one looks
+            unfinished" was what a flat body actually communicated. */}
+        <Tabs defaultValue={resources ? "resources" : "settings"}>
+          <TabsList>
+            {resources && <TabsTrigger value="resources">{resources.label}</TabsTrigger>}
+            <TabsTrigger value="settings">{t("capabilitySettingsTab")}</TabsTrigger>
+            {tools && <TabsTrigger value="tools">{t("capabilityToolsTab")}</TabsTrigger>}
+          </TabsList>
+          {resources && (
+            <TabsContent value="resources" className="mt-4">
+              {resources.content}
             </TabsContent>
-            {tools && (
-              <TabsContent value="tools" className="mt-4">
-                {tools}
-              </TabsContent>
-            )}
-          </Tabs>
-        ) : (
-          settings
-        )}
+          )}
+          <TabsContent value="settings" className="mt-4 space-y-4">
+            {settings}
+          </TabsContent>
+          {tools && (
+            <TabsContent value="tools" className="mt-4">
+              {tools}
+            </TabsContent>
+          )}
+        </Tabs>
       </CardContent>
     </Card>
   );

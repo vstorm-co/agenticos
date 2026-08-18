@@ -134,6 +134,12 @@ same way `knowledge` bound to no collections is not. Files are managed under
 | `method` | `duckduckgo` | `duckduckgo`, `native`, `tavily`, `brave`, `exa` |
 | `max_results` | 5 | 1–10, ignored by `native` |
 
+The console names each method rather than printing the value it stores, and draws
+the service's own mark beside it: the field carries `x-enum-labels`, which is what
+the generated form reads for a label. Without them the picker offered
+`duckduckgo` and `exa` in the case they are stored in, which reads as a config key
+to recognise rather than a product to choose.
+
 - **`duckduckgo`** — free, no account, results rendered as clickable sources.
 - **`native`** — the model provider searches with its own index and returns its
   own citations. Only on models that support it.

@@ -14,6 +14,8 @@ import {
   SelectValue,
   Switch,
 } from "@/components/ui";
+import { BrandIcon, type BrandName } from "@/components/icons/brand-icon";
+import { BRAND_GLYPHS } from "@/lib/brand-glyphs.generated";
 import { cn } from "@/lib/utils";
 import type { JsonSchema, JsonSchemaProperty } from "@/types/agents";
 import { useTranslations } from "next-intl";
@@ -207,7 +209,14 @@ function SchemaField({
             )}
             {choices.map((choice) => (
               <SelectItem key={choice} value={choice}>
-                {enumLabel(property, choice)}
+                <span className="flex items-center gap-2">
+                  {/* The service's own mark, where the value names one. A list of
+                      search providers or model vendors is read by their logos
+                      before it is read at all, and the choice is the one thing
+                      on these forms that is a product rather than a setting. */}
+                  {isBrand(choice) && <BrandIcon name={choice} className="h-3.5 w-3.5 shrink-0" />}
+                  {enumLabel(property, choice)}
+                </span>
               </SelectItem>
             ))}
           </SelectContent>
@@ -378,6 +387,11 @@ function defaultOf(property: JsonSchemaProperty): unknown {
 function numberText(value: unknown, fallback: unknown): string {
   const shown = value === undefined || value === null ? fallback : value;
   return typeof shown === "number" || typeof shown === "string" ? String(shown) : "";
+}
+
+/** Whether an enum's stored value is also the name of a mark the console holds. */
+function isBrand(choice: string): choice is BrandName {
+  return choice in BRAND_GLYPHS;
 }
 
 /**

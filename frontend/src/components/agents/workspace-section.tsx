@@ -129,7 +129,11 @@ export function WorkspaceSection({
     });
   };
 
-  return (
+  // Inside the panel's Settings tab rather than above the card: these *are* this
+  // capability's configuration, and above it they sat outside the card that names
+  // the capability they configure - which left that card holding an approval
+  // select and nothing else.
+  const controls = (
     <div className="space-y-4">
       <fieldset disabled={disabled} className="space-y-2">
         <legend className="sr-only">{t("workspace")}</legend>
@@ -232,21 +236,21 @@ export function WorkspaceSection({
           </div>
         </div>
       )}
-
-      {/* Outside the `enabled` block above, because the switch that grants the
-          capability is on this panel's title row now - inside it, an ungranted
-          workspace had no way back on from its own panel. */}
-      <CapabilityDetail
-        binding={binding ?? unboundBinding(definition.id)}
-        definition={definition}
-        onChange={onChange}
-        onToggleEnabled={onToggleEnabled}
-        disabled={disabled}
-        // The choices above *are* this capability's configuration; the generated
-        // form would render the same fields again.
-        hideConfigForm
-      />
     </div>
+  );
+
+  return (
+    <CapabilityDetail
+      binding={binding ?? unboundBinding(definition.id)}
+      definition={definition}
+      onChange={onChange}
+      onToggleEnabled={onToggleEnabled}
+      disabled={disabled}
+      settingsExtra={controls}
+      // The choices above *are* this capability's configuration; the generated
+      // form would render the same fields again.
+      hideConfigForm
+    />
   );
 }
 

@@ -658,3 +658,56 @@ describe("SchemaForm · a list of strings", () => {
     expect(screen.getByLabelText(/Rules/)).not.toHaveAttribute("placeholder");
   });
 });
+
+describe("a choice that names a service", () => {
+  it("draws the service's own mark beside its label", async () => {
+    // A list of search providers is read by their logos before it is read at
+    // all - and the choice is the one thing on these forms that is a product
+    // rather than a setting.
+    render(
+      <SchemaForm
+        idPrefix="web"
+        schema={{
+          type: "object",
+          properties: {
+            method: {
+              type: "string",
+              enum: ["duckduckgo", "brave"],
+              "x-enum-labels": { duckduckgo: "DuckDuckGo", brave: "Brave" },
+            },
+          },
+        }}
+        value={{ method: "brave" }}
+        onChange={vi.fn()}
+      />,
+    );
+
+    await userEvent.click(screen.getByLabelText("Method"));
+    const option = await screen.findByRole("option", { name: "DuckDuckGo" });
+    expect(option.querySelector("svg")).not.toBeNull();
+  });
+
+  it("leaves a choice that names no service unmarked", async () => {
+    render(
+      <SchemaForm
+        idPrefix="reduce"
+        schema={{
+          type: "object",
+          properties: {
+            strategy: {
+              type: "string",
+              enum: ["truncate", "summarize"],
+              "x-enum-labels": { truncate: "Truncate", summarize: "Summarize" },
+            },
+          },
+        }}
+        value={{ strategy: "truncate" }}
+        onChange={vi.fn()}
+      />,
+    );
+
+    await userEvent.click(screen.getByLabelText("Strategy"));
+    const option = await screen.findByRole("option", { name: "Summarize" });
+    expect(option.querySelector("svg")).toBeNull();
+  });
+});
