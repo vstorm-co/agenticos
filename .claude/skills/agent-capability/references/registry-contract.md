@@ -16,6 +16,7 @@ docstring carries the reasoning; this is the operational summary.
 | `side_effecting` | `True` routes every tool through the approval gate by default |
 | `scopes` | Refused at build time if the org has not granted them |
 | `secret` | A `SecretRequirement` — a *kind*, never an instance |
+| `provider_executed` | Which tools the model provider runs itself, under which config. Approval on one is refused at publish |
 
 `tools` having no default is deliberate: omitting it is a `TypeError` rather than a
 capability whose tools cannot be gated.
