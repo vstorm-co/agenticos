@@ -5,6 +5,7 @@ Webhook URL validation to prevent SSRF attacks.
 
 import ipaddress
 import socket
+from dataclasses import dataclass
 from urllib.parse import urlparse
 
 WEBHOOK_ALLOWED_SCHEMES = frozenset({"http", "https"})
@@ -50,62 +51,58 @@ def _is_ip_blocked(ip_str: str) -> bool:
     )
 
 
-def validate_webhook_url(
+@dataclass(frozen=True)
+class PinnedAddress:
+    """The address a URL was checked at, so the same one can be dialled.
+
+    `hostname` is what the URL named and what a `Host` header and TLS SNI must
+    still say; `ip` is the address :func:`resolve_pinned_url` approved. Handing
+    both to a caller is the whole difference between checking a name and
+    connecting to what was checked (#860).
+    """
+
+    hostname: str
+    port: int
+    ip: str
+
+
+def resolve_pinned_url(
     url: str,
     allowed_schemes: frozenset[str] | None = None,
-) -> str:
-    """Refuse a URL that points inside the deployment's network.
+) -> PinnedAddress:
+    """Refuse a URL that points inside the deployment's network, and pin it.
 
-    Checks that the URL:
-    - Uses an allowed scheme (http/https only by default)
-    - Does not contain userinfo (credentials in the URL)
-    - Does not point to private, reserved, loopback, or link-local IP addresses
-    - Resolves, *at the moment of this call*, only to public addresses
+    The policy is the whole of this module's SSRF policy - allowed scheme, no
+    userinfo, and no private, reserved, loopback, link-local or CGNAT address -
+    and :func:`validate_webhook_url` is this function with the answer thrown
+    away.
 
-    **This is not DNS-rebinding protection, and it cannot be.** The validated URL
-    is returned as the string it came in as, so every caller resolves the
-    hostname a second time when it connects - the MCP client through
-    :func:`app.agents.mcp.validate_mcp_url`, and the browser through
-    :func:`app.agents.capabilities.browser_use.validate_cdp_url`, where the
-    attach happens however long after publish the agent is first run. A name
-    answering a public address here and a private one there passes this check
-    and reaches the private address. Closing that means pinning the resolved
-    address into the request - dial the IP, send the original host in the `Host`
-    header, the way `pydantic_ai._ssrf` does - and this function has no way to
-    express that to its callers (#840).
+    **Only a caller that dials the returned `ip` is protected from DNS
+    rebinding.** A caller that takes the hostname back and connects by name
+    resolves it a second time, and a name that answers public here and private
+    there reaches the private address. `app.core.pinned_http` is what turns this
+    answer into a request: it dials the IP, sends `hostname` in the `Host`
+    header and passes it as `sni_hostname` so TLS still verifies the
+    certificate against the name.
 
-    How much that gap costs depends on **who chose the URL**, and there are two
-    answers, not one. Where it was typed by an operator - a connection's own
-    URL, a `cdp_url` - rebinding needs the person typing it to be the attacker,
-    which is narrow. But :func:`app.agents.mcp_oauth._send` validates every hop
-    of an OAuth flow whose authorization server, token endpoint and redirects
-    are all named by the *remote* MCP server's discovery documents. Connecting
-    one hostile server is enough there; no operator has to be complicit, and
-    that half is open until #860 pins the address. A URL that came from a
-    *model*, or from anyone unprivileged, does not belong here at all - fetch it
-    through Pydantic AI's `safe_download`, which pins the address it checked.
+    All resolved addresses are checked and the first is pinned, so a name that
+    answers with one public and one private address is refused outright rather
+    than raced.
 
-    Because of that, the refusals below name the **host**, or nothing, but never
-    the URL. A URL carries a key in its query string, and the one being refused
-    may have been written by the party being refused
-    (`.claude/rules/exceptions-security.md`).
+    The refusals name the **host**, or nothing, but never the URL. A URL carries
+    a key in its query string, and the one being refused may have been written
+    by the party being refused (`.claude/rules/exceptions-security.md`).
 
     Args:
-        url: The webhook URL to validate.
+        url: The URL to validate.
         allowed_schemes: Allowed URL schemes. Defaults to {"http", "https"}.
 
     Returns:
-        The validated URL string.
+        The hostname, port and validated address to connect to.
 
     Raises:
         SSRFBlockedError: If the URL is blocked by SSRF protection.
         ValueError: If the URL is malformed.
-
-    Example:
-        >>> validate_webhook_url("https://example.com/webhook")
-        "https://example.com/webhook"
-        >>> validate_webhook_url("http://169.254.169.254/latest/meta-data/")
-        Raises SSRFBlockedError
     """
     if allowed_schemes is None:
         allowed_schemes = WEBHOOK_ALLOWED_SCHEMES
@@ -133,22 +130,20 @@ def validate_webhook_url(
             "Remove the user:password@ portion from the URL."
         )
 
+    default_port = 443 if parsed.scheme == "https" else 80
+    port = parsed.port or default_port
+
     try:
         addr = ipaddress.ip_address(hostname)
+    except ValueError:
+        pass
+    else:
         if _is_ip_blocked(str(addr)):
             raise SSRFBlockedError(
                 f"Webhook URL blocked: {hostname!r} resolves to a private/internal "
                 f"address. SSRF protection does not allow requests to internal networks."
             )
-        return url
-    except SSRFBlockedError:
-        raise
-    except ValueError:
-        # Not an IP literal - continue to DNS resolution below
-        pass
-
-    default_port = 443 if parsed.scheme == "https" else 80
-    port = parsed.port or default_port
+        return PinnedAddress(hostname=hostname, port=port, ip=str(addr))
 
     try:
         addr_infos = socket.getaddrinfo(hostname, port, proto=socket.IPPROTO_TCP)
@@ -171,4 +166,51 @@ def validate_webhook_url(
                 f"internal networks."
             )
 
+    return PinnedAddress(hostname=hostname, port=port, ip=str(addr_infos[0][4][0]))
+
+
+def validate_webhook_url(
+    url: str,
+    allowed_schemes: frozenset[str] | None = None,
+) -> str:
+    """Refuse a URL that points inside the deployment's network.
+
+    :func:`resolve_pinned_url` with the answer discarded - same policy, same
+    refusals, for the two callers that only want a yes or no.
+
+    **This is not DNS-rebinding protection, and for these callers it cannot be.**
+    The validated URL is returned as the string it came in as, so both of them
+    resolve the hostname a second time when they connect: the MCP client through
+    :func:`app.agents.mcp.validate_mcp_url`, and the browser through
+    :func:`app.agents.capabilities.browser_use.validate_cdp_url`, where the
+    attach happens however long after publish the agent is first run. A name
+    answering a public address here and a private one there passes this check
+    and reaches the private address (#840).
+
+    That is bearable *only* because both URLs are typed by an operator, so
+    rebinding needs the person typing it to be the attacker. Where the URL is
+    chosen by someone else, this function is the wrong one: the OAuth flow's
+    discovery documents name their own endpoints and go through
+    :class:`app.core.pinned_http.PinnedAsyncClient`, which dials the address it
+    checked (#860), and a URL a *model* picked belongs in Pydantic AI's
+    `safe_download`.
+
+    Args:
+        url: The webhook URL to validate.
+        allowed_schemes: Allowed URL schemes. Defaults to {"http", "https"}.
+
+    Returns:
+        The validated URL string.
+
+    Raises:
+        SSRFBlockedError: If the URL is blocked by SSRF protection.
+        ValueError: If the URL is malformed.
+
+    Example:
+        >>> validate_webhook_url("https://example.com/webhook")
+        "https://example.com/webhook"
+        >>> validate_webhook_url("http://169.254.169.254/latest/meta-data/")
+        Raises SSRFBlockedError
+    """
+    resolve_pinned_url(url, allowed_schemes)
     return url

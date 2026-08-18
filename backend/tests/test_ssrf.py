@@ -8,8 +8,10 @@ from unittest.mock import patch
 import pytest
 
 from app.core.sanitize import (
+    PinnedAddress,
     SSRFBlockedError,
     _is_ip_blocked,
+    resolve_pinned_url,
     validate_webhook_url,
 )
 
@@ -223,6 +225,48 @@ class TestRefusalText:
 
 
 # SSRFBlockedError is a subclass of ValueError
+
+
+# resolve_pinned_url - the same policy, with the address kept
+
+
+class TestResolvePinnedUrl:
+    """The sibling `validate_webhook_url` could not be: it answers with the
+    address it approved, so a caller can dial that instead of the name (#860).
+    """
+
+    def test_a_resolved_name_answers_with_the_address_that_passed(self):
+        with patch(
+            "app.core.sanitize.socket.getaddrinfo",
+            return_value=[(2, 1, 6, "", ("93.184.216.34", 443))],
+        ):
+            pinned = resolve_pinned_url("https://mcp.example.com/sse")
+
+        assert pinned == PinnedAddress(hostname="mcp.example.com", port=443, ip="93.184.216.34")
+
+    def test_an_ip_literal_pins_itself(self):
+        assert resolve_pinned_url("http://93.184.216.34:8080/hook") == PinnedAddress(
+            hostname="93.184.216.34", port=8080, ip="93.184.216.34"
+        )
+
+    def test_the_first_address_is_pinned_and_the_rest_are_still_checked(self):
+        """Pinning one of several answers would let a name smuggle a private
+        address in behind a public one."""
+        with (
+            patch(
+                "app.core.sanitize.socket.getaddrinfo",
+                return_value=[
+                    (2, 1, 6, "", ("93.184.216.34", 443)),
+                    (2, 1, 6, "", ("169.254.169.254", 443)),
+                ],
+            ),
+            pytest.raises(SSRFBlockedError),
+        ):
+            resolve_pinned_url("https://mixed.attacker.test/token")
+
+    def test_a_scheme_outside_the_allowed_set_is_refused(self):
+        with pytest.raises(SSRFBlockedError):
+            resolve_pinned_url("ftp://93.184.216.34/x")
 
 
 class TestSSRFBlockedError:
