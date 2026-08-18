@@ -7,7 +7,7 @@ of 254 requests ends the run with a traceback and the same exit code a real
 advisory produces. `Security Scan` is a required check, so that reads as "a
 locked dependency is vulnerable" until somebody opens the log (#855).
 
-Two things fix that, and this script is both of them:
+Three things fix that, and this script is all of them:
 
 **A verdict is a file, not an exit code.** `--format json` is a *manifest*
 format, so pip-audit writes it on both the clean and the vulnerable path, and
@@ -15,16 +15,29 @@ only after every dependency has been queried. The report existing therefore mean
 the audit completed; the report missing means it did not, whatever the exit code
 said. Nothing here parses a summary line.
 
-**A failure that names the network is retried.** The feed answering slowly once
-is not information about the dependency set, so a network-shaped failure is tried
-again, twice, with a backoff. A failure that is *not* network-shaped — a flag the
-tool rejects, a requirements file it cannot read — is not retried, because trying
-it three times only delays the same answer.
+**An audit that did not complete is tried again.** The feed answering slowly once
+is not information about the dependency set. Every incomplete run is retried —
+*every* one, not only those whose output matches a phrase — because the two
+mistakes are not symmetric: re-running a deterministic failure costs seconds and
+the same answer, while not re-running a transient one puts a false red on a
+required check, which is the whole of #855. `NETWORK_MARKERS` therefore chooses
+the **wording** of the verdict and nothing else; a failure phrased in words the
+list does not hold is still retried, and merely reads `FAILED` rather than
+`NETWORK`. That distinction has to hold for two vocabularies, not one: uv fetches
+pip-audit before pip-audit fetches anything, so `Failed to download` is as much a
+network failure here as `ReadTimeout` is.
 
-Whichever way that ends, an incomplete audit exits `EXIT_UNAVAILABLE` (75,
-`EX_TEMPFAIL`) and says so in its first line. Only a completed audit that found
-something exits 1. It never exits 0 on an audit that did not run: an unaudited
-dependency set reported green is the same defect facing the other way.
+**The verdict is a line, because the exit code does not survive the caller.**
+GNU Make turns any failed recipe into its own exit 2, so a caller reaching this
+through `make audit` — which is what the `Security Scan` job does — cannot tell
+75 from 1. The last line of stdout is therefore always
+`AUDIT: <STATE> — <detail>`, with `STATE` one of `CLEAN`, `VULNERABLE`, `NETWORK`
+or `FAILED`, and it is mirrored into `$GITHUB_STEP_SUMMARY` when the run is inside
+a job. The exit codes below are still the contract for anything invoking this
+script directly, which is where they are readable.
+
+It never exits 0 on an audit that did not run: an unaudited dependency set
+reported green is the same defect facing the other way.
 
 Usage::
 
@@ -45,6 +58,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -55,21 +69,25 @@ from typing import Any
 
 EXIT_CLEAN = 0
 EXIT_VULNERABLE = 1
-# EX_TEMPFAIL. Distinct from 1 on purpose: the whole point is that a red job
-# whose cause is the network cannot be mistaken for one whose cause is a finding.
+# EX_TEMPFAIL. Distinct from 1 for a caller that can see it; the verdict line is
+# what says the same thing to one that cannot.
 EXIT_UNAVAILABLE = 75
+
+# The token every caller can read, whatever mangled the exit code on the way.
+VERDICT_PREFIX = "AUDIT:"
 
 # `--no-deps --disable-pip` skips the resolution round-trip pip-audit would
 # otherwise do in a throwaway virtualenv; the export is already fully pinned.
 PIP_AUDIT = ("uv", "tool", "run", "pip-audit")
 BASE_FLAGS = ("--no-deps", "--disable-pip", "--progress-spinner=off", "--desc", "off")
 
-# Substrings that mean the run ended on the way to the feed rather than on what
-# it found there. Exception names as pip-audit lets them escape (`ReadTimeout`,
-# `ConnectionError`, `ServiceError` wrapping a 5xx) plus the two messages it
-# raises itself. Matched against stdout and stderr together, because a traceback
-# and pip-audit's own logging do not share a stream.
+# Substrings that mean the run ended on the way to a feed rather than on what it
+# found there. Two vocabularies, because two programs reach for the network: uv,
+# fetching pip-audit itself on a cold tool cache, and then pip-audit, fetching the
+# advisories. Neither list is exhaustive and neither has to be — an unmatched
+# failure is retried exactly the same, and only reads `FAILED` instead.
 NETWORK_MARKERS = (
+    # pip-audit: exception names as it lets them escape, plus its own messages.
     "ConnectionError",
     "ConnectTimeout",
     "ReadTimeout",
@@ -83,6 +101,13 @@ NETWORK_MARKERS = (
     "network may be blocking",
     "Name or service not known",
     "Temporary failure in name resolution",
+    # uv, which speaks reqwest rather than requests.
+    "Failed to download",
+    "Failed to fetch",
+    "Request failed after",
+    "error sending request",
+    "client error (Connect)",
+    "dns error",
 )
 
 
@@ -126,11 +151,22 @@ def run_pip_audit(command: list[str], report: Path) -> Attempt:
 
 
 def network_marker(output: str) -> str | None:
-    """The first marker in `output` saying this failure was the network, if any."""
+    """The first marker in `output` naming this failure as the network, if any."""
     for marker in NETWORK_MARKERS:
         if marker in output:
             return marker
     return None
+
+
+def announce(state: str, detail: str) -> None:
+    """Emit the verdict where a caller can read it without an exit code."""
+    line = f"{VERDICT_PREFIX} {state} — {detail}"
+    print(line)
+
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        with Path(summary).open("a", encoding="utf-8") as handle:
+            handle.write(f"{line}\n")
 
 
 def report_findings(report: dict[str, Any]) -> int:
@@ -144,39 +180,43 @@ def report_findings(report: dict[str, Any]) -> int:
 
     audited = len(dependencies) - len(skipped)
     if not vulnerable:
-        print(f"No known vulnerabilities in {audited} locked dependencies.")
+        announce("CLEAN", f"no known advisories against {audited} locked dependencies")
         return EXIT_CLEAN
 
     count = sum(len(dep["vulns"]) for dep in vulnerable)
-    plural = "vulnerability" if count == 1 else "vulnerabilities"
-    print(f"Found {count} known {plural} in {len(vulnerable)} of {audited} locked dependencies:")
+    plural = "advisory" if count == 1 else "advisories"
     for dep in vulnerable:
         for vuln in dep["vulns"]:
             fixes = ", ".join(vuln["fix_versions"]) or "none"
             aliases = " ".join(vuln.get("aliases", []))
             print(f"  {dep['name']} {dep['version']}  {vuln['id']}  fix: {fixes}  {aliases}")
+    announce(
+        "VULNERABLE",
+        f"{count} known {plural} in {len(vulnerable)} of {audited} locked dependencies",
+    )
     return EXIT_VULNERABLE
 
 
 def report_unavailable(attempt: Attempt, marker: str | None, tries: int) -> int:
     """Print why no audit happened, in terms nobody can read as a finding."""
+    plural = "attempt" if tries == 1 else "attempts"
     if marker is None:
-        headline = "NOT AUDITED: pip-audit failed before reaching the vulnerability feed."
-        advice = "Read its output below; re-running will not change it."
-    else:
-        plural = "attempt" if tries == 1 else "attempts"
-        headline = (
-            f"NETWORK: the vulnerability feed was unreachable ({marker}) after {tries} {plural}."
+        state = "FAILED"
+        detail = (
+            f"pip-audit reached no verdict in {tries} {plural} and did not say why; "
+            "no audit was performed"
         )
-        advice = "Re-run the job."
+    else:
+        state = "NETWORK"
+        detail = f"unreachable ({marker}) after {tries} {plural}; no audit was performed"
 
-    print(headline, file=sys.stderr)
     print(
         "No audit was performed, so this is not a finding: no locked dependency has "
-        f"been reported vulnerable, and none has been cleared either. {advice}",
+        "been reported vulnerable, and none has been cleared either.",
         file=sys.stderr,
     )
     print(f"\npip-audit exited {attempt.returncode}:\n{attempt.output}", file=sys.stderr)
+    announce(state, detail)
     return EXIT_UNAVAILABLE
 
 
@@ -193,13 +233,13 @@ def audit(requirements: Path, attempts: int, timeout: int, backoff: int, extra: 
                 return report_findings(attempt.report)
 
             marker = network_marker(attempt.output)
-            if marker is None or tries >= attempts:
+            if tries >= attempts:
                 return report_unavailable(attempt, marker, tries)
 
             delay = backoff * tries
             print(
-                f"attempt {tries}/{attempts} did not reach the feed ({marker}); "
-                f"retrying in {delay}s",
+                f"attempt {tries}/{attempts} reached no verdict "
+                f"({marker or 'cause not recognised'}); retrying in {delay}s",
                 file=sys.stderr,
             )
             time.sleep(delay)

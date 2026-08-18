@@ -415,8 +415,15 @@ build-frontend:
 # per locked distribution, 254 of them, none of which pip-audit retries and all of
 # which exit 1 the way a real advisory does. `scripts/audit_dependencies.py` is
 # what stops a single slow answer reading as a finding on a required check (#855):
-# it retries a network-shaped failure and exits 75 with the word NETWORK when the
-# feed never answered, so exit 1 keeps meaning "a locked dependency is vulnerable".
+# it retries every run that reached no verdict, and says which of the four states
+# it ended in.
+#
+# It says so on its **last line**, not in its exit status, because make has no way
+# to carry one: a failed recipe becomes make's own exit 2, so a caller reaching
+# this through `make audit` - which the `Security Scan` job does - cannot tell 75
+# from 1. So the contract is `AUDIT: CLEAN|VULNERABLE|NETWORK|FAILED - detail`,
+# also appended to $GITHUB_STEP_SUMMARY inside a job. `make audit | tail -1` is
+# the whole of it; the script's own 0/1/75 is for callers that invoke it directly.
 AUDIT_ATTEMPTS ?= 3
 AUDIT_TIMEOUT ?= 30
 

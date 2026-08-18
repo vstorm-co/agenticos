@@ -7,15 +7,24 @@ and a re-run of the same commit passed unchanged (#855).
 
 `scripts/audit_dependencies.py` is what keeps those two apart, so the tests here
 are about the distinction rather than about pip-audit: a verdict is the JSON
-report existing, a network-shaped failure is retried, and an incomplete run exits
-75 rather than 1 — never 0, because an unaudited dependency set reported green is
-the same defect facing the other way.
+report existing, an incomplete run is retried and exits 75 rather than 1 — never
+0, because an unaudited dependency set reported green is the same defect facing
+the other way.
+
+Two of them are about how far that distinction actually travels, both from the
+review of #877. `make` collapses every failed recipe into its own exit 2, so the
+exit code cannot reach the job that runs `make audit` and the verdict has to be a
+line of output; and uv fetches pip-audit before pip-audit fetches anything, so a
+cold tool cache against an unreachable host fails in a vocabulary pip-audit never
+uses. The second is why matching phrases no longer decides whether to retry.
 """
 
 from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -39,6 +48,20 @@ TIMEOUT_TRACEBACK = (
     "requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='pypi.org', port=443): "
     "Read timed out. (read timeout=15)\n"
 )
+
+# What a cold `uv tool run` says when the package host is unreachable. pip-audit
+# never runs at all, so none of its own vocabulary appears.
+UV_DOWNLOAD_FAILURE = (
+    "error: Failed to download `pip-audit==2.10.1`\n"
+    "  Caused by: Request failed after 3 retries\n"
+    "  Caused by: error sending request for url (https://files.pythonhosted.org/...)\n"
+    "  Caused by: client error (Connect)\n"
+)
+
+
+def verdict(captured: pytest.CaptureResult[str]) -> str:
+    """The one line every caller can read, whatever mangled the exit code."""
+    return captured.out.splitlines()[-1]
 
 
 def clean_report(*names: str) -> dict[str, Any]:
@@ -122,32 +145,111 @@ def test_a_feed_that_never_answers_is_not_reported_as_a_finding(
     assert run(monkeypatch, fake) == audit_dependencies.EXIT_UNAVAILABLE
     assert fake.calls == 3
 
-    err = capsys.readouterr().err
-    assert "NETWORK: the vulnerability feed was unreachable (ReadTimeout) after 3 attempts" in err
-    assert "not a finding" in err
+    captured = capsys.readouterr()
+    assert (
+        verdict(captured)
+        == "AUDIT: NETWORK — unreachable (ReadTimeout) after 3 attempts; no audit was performed"
+    )
+    assert "not a finding" in captured.err
 
 
-def test_a_failure_that_is_not_the_network_is_not_retried(
+def test_a_cold_uv_cache_against_a_dead_host_is_the_network_too(
     monkeypatch: pytest.MonkeyPatch, no_sleep: None, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Three tries at a rejected flag only delay the same answer, and it is not a blip."""
-    fake = FakePipAudit("pip-audit: error: unrecognized arguments: --nonsense")
+    """uv fetches pip-audit first, and fails in reqwest's words rather than requests'.
+
+    A fresh runner or a cache miss makes this the *commonest* way the job meets an
+    unreachable host, and it used to skip the retry loop and read `NOT AUDITED`.
+    """
+    fake = FakePipAudit(UV_DOWNLOAD_FAILURE, clean_report("anyio"))
+    assert run(monkeypatch, fake) == 0
+    assert fake.calls == 2
+
+    assert audit_dependencies.network_marker(UV_DOWNLOAD_FAILURE) == "Failed to download"
+
+
+def test_a_failure_nobody_recognised_is_retried_anyway(
+    monkeypatch: pytest.MonkeyPatch, no_sleep: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """What happens the next time a phrase is missing: the wording dulls, nothing else.
+
+    Matching strings decides how the verdict reads, never whether to try again —
+    the two mistakes are not symmetric. Re-running a deterministic failure costs
+    seconds; not re-running a transient one is the false red #855 is about.
+    """
+    fake = FakePipAudit("segmentation fault", "segmentation fault", clean_report("anyio"))
+    assert run(monkeypatch, fake) == 0
+    assert fake.calls == 3
+
+
+def test_a_failure_nobody_recognised_says_so_rather_than_blaming_the_network(
+    monkeypatch: pytest.MonkeyPatch, no_sleep: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fake = FakePipAudit(*["pip-audit: error: unrecognized arguments: --nonsense"] * 3)
     assert run(monkeypatch, fake) == audit_dependencies.EXIT_UNAVAILABLE
-    assert fake.calls == 1
-    assert capsys.readouterr().err.startswith("NOT AUDITED:")
+    assert verdict(capsys.readouterr()).startswith("AUDIT: FAILED — pip-audit reached no verdict")
+
+
+def test_the_verdict_is_the_last_line_because_the_exit_code_does_not_survive_make(
+    monkeypatch: pytest.MonkeyPatch, no_sleep: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Every state ends on one grep-able line, which is what a caller through make gets."""
+    assert run(monkeypatch, FakePipAudit(clean_report("anyio"))) == 0
+    assert (
+        verdict(capsys.readouterr())
+        == "AUDIT: CLEAN — no known advisories against 1 locked dependencies"
+    )
+
+    assert run(monkeypatch, FakePipAudit(vulnerable_report())) == 1
+    assert verdict(capsys.readouterr()) == (
+        "AUDIT: VULNERABLE — 1 known advisory in 1 of 1 locked dependencies"
+    )
+
+
+def test_make_cannot_carry_the_exit_code_the_script_returns(tmp_path: Path) -> None:
+    """The constraint the verdict line exists for, asserted rather than assumed.
+
+    GNU Make prints `Error 75` and exits 2, so `Security Scan` — which runs
+    `make audit` — sees one status for a finding and for a feed that never
+    answered. Found reviewing #877.
+    """
+    (tmp_path / "Makefile").write_text("audit:\n\t@python3 -c 'raise SystemExit(75)'\n")
+    make = shutil.which("make")
+    assert make is not None
+    completed = subprocess.run(
+        [make, "-C", str(tmp_path), "audit"], capture_output=True, text=True, check=False
+    )
+    assert completed.returncode == 2
+
+
+def test_a_job_can_read_the_verdict_without_reading_the_log(
+    monkeypatch: pytest.MonkeyPatch, no_sleep: None, tmp_path: Path
+) -> None:
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    fake = FakePipAudit(TIMEOUT_TRACEBACK, TIMEOUT_TRACEBACK, TIMEOUT_TRACEBACK)
+    assert run(monkeypatch, fake) == audit_dependencies.EXIT_UNAVAILABLE
+    assert summary.read_text().startswith("AUDIT: NETWORK —")
+
+
+def test_nothing_is_written_when_the_run_is_not_inside_a_job(
+    monkeypatch: pytest.MonkeyPatch, no_sleep: None
+) -> None:
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    assert run(monkeypatch, FakePipAudit(clean_report("anyio"))) == 0
 
 
 def test_an_unauditable_dependency_is_named_rather_than_counted_as_clean(
     monkeypatch: pytest.MonkeyPatch, no_sleep: None, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """pip-audit skips a distribution PyPI has no record of; the columns report says so."""
+    """pip-audit skips a distribution PyPI has no record of, and it is not audited."""
     report = clean_report("anyio")
     report["dependencies"].append({"name": "internal-lib", "skip_reason": "not found on PyPI"})
     assert run(monkeypatch, FakePipAudit(report)) == 0
 
     out = capsys.readouterr().out
     assert "skipped: internal-lib" in out
-    assert "1 locked dependencies" in out
+    assert "against 1 locked dependencies" in out
 
 
 @pytest.mark.parametrize(
@@ -158,9 +260,14 @@ def test_an_unauditable_dependency_is_named_rather_than_counted_as_clean(
         "ERROR:pip_audit._cli:Could not connect to PyPI's vulnerability feed",
         "Tip: your network may be blocking this service.",
         "pip_audit._service.interface.ServiceError",
+        "error: Failed to download `pip-audit==2.10.1`",
+        "  Caused by: Request failed after 3 retries",
+        "  Caused by: error sending request for url (https://pypi.org/simple/pip-audit/)",
+        "  Caused by: client error (Connect)",
+        "  Caused by: dns error: failed to lookup address information",
     ],
 )
-def test_the_shapes_a_blocked_feed_arrives_in(output: str) -> None:
+def test_the_shapes_a_blocked_host_arrives_in(output: str) -> None:
     assert audit_dependencies.network_marker(output) is not None
 
 
