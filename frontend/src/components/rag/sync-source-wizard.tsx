@@ -2,8 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, Calendar, Check, Cog, Copy, Plus, Plug } from "lucide-react";
+import { toast } from "sonner";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, Spinner } from "@/components/ui";
+import { submitFailure } from "@/lib/api-error";
 import { CloneStep } from "@/components/rag/sync-source-clone-step";
 import { ConfigureStep } from "@/components/rag/sync-source-configure-step";
 import { ConnectorStep } from "@/components/rag/sync-source-connector-step";
@@ -70,6 +72,7 @@ export function SyncSourceWizard({
   submitting,
 }: SyncSourceWizardProps) {
   const t = useTranslations("rag");
+  const tErrors = useTranslations("errors");
   const [mode, setMode] = useState<Mode>("new");
   const [step, setStep] = useState<Step>("source");
   const [form, setForm] = useState<SyncSourceCreate>({
@@ -78,6 +81,7 @@ export function SyncSourceWizard({
   });
   const [cloneSourceId, setCloneSourceId] = useState<string>("");
   const [cloneName, setCloneName] = useState<string>("");
+  const [configErrors, setConfigErrors] = useState<Readonly<Record<string, string>>>({});
 
   // Reopening starts from the beginning, during render - an effect would show
   // the last wizard's answers for a frame before clearing them.
@@ -93,11 +97,20 @@ export function SyncSourceWizard({
     setForm({ ...EMPTY_FORM, collection_name: defaultCollection ?? null });
     setCloneSourceId("");
     setCloneName("");
+    setConfigErrors({});
   }
 
   const selectedConnector = useMemo(
     () => connectors.find((c) => c.type === form.connector_type),
     [connectors, form.connector_type],
+  );
+
+  // Which of the server's complaints the configure step can show. The backend
+  // reports them below the document it was sent - `config.folder_id` - and
+  // `submitFailure` matches a path by its leaf as well as in full.
+  const configFields = useMemo(
+    () => Object.keys(selectedConnector?.config_schema ?? {}),
+    [selectedConnector],
   );
 
   const stepIdx = STEPS.findIndex((s) => s.id === step);
@@ -134,6 +147,30 @@ export function SyncSourceWizard({
     return false;
   })();
 
+  /**
+   * Submit, and put a refusal back where it can be answered.
+   *
+   * The mutation is three steps behind the field that caused it: a connector
+   * refusing a folder id is refusing something typed on the configure step,
+   * and the reader is looking at the schedule step when it answers. So the
+   * problems the server attributed to config fields go back to that step, with
+   * it, and only what belongs to no input is announced.
+   */
+  const handleSubmit = async () => {
+    setConfigErrors({});
+    try {
+      await onSubmit({
+        ...form,
+        collection_name: form.collection_name ?? defaultCollection ?? null,
+      });
+    } catch (error) {
+      const failure = submitFailure(error, { fields: configFields }, tErrors);
+      setConfigErrors(failure.fields);
+      if (Object.keys(failure.fields).length > 0) setStep("configure");
+      if (failure.toast) toast.error(failure.toast);
+    }
+  };
+
   const handleNext = () => {
     if (!canAdvance) return;
     if (mode === "clone") {
@@ -142,8 +179,7 @@ export function SyncSourceWizard({
     }
     if (step === "source") setStep("configure");
     else if (step === "configure") setStep("schedule");
-    else if (step === "schedule")
-      onSubmit({ ...form, collection_name: form.collection_name ?? defaultCollection ?? null });
+    else if (step === "schedule") handleSubmit();
   };
 
   const handleBack = () => {
@@ -258,7 +294,12 @@ export function SyncSourceWizard({
                 />
               )}
               {step === "configure" && selectedConnector && (
-                <ConfigureStep connector={selectedConnector} form={form} setForm={setForm} />
+                <ConfigureStep
+                  connector={selectedConnector}
+                  form={form}
+                  setForm={setForm}
+                  errors={configErrors}
+                />
               )}
               {step === "schedule" && (
                 <ScheduleStep collections={collections} form={form} setForm={setForm} />

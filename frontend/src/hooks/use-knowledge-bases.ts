@@ -470,28 +470,32 @@ export function useKBDetail(id: string | null) {
     }
   }, [id, queryClient, t]);
 
+  /**
+   * Wire up a sync source, and leave its refusal to the wizard.
+   *
+   * Alone among the writes here, this one does not toast what went wrong. The
+   * things that stop a source being created - a folder id that is not one, a
+   * credential left empty - are fields on a step the reader can go back to, and
+   * the connector now names them (#897). A toast would say the same sentence
+   * where it cannot be acted on and then take it away.
+   */
   const createSyncSource = useCallback(
     async (data: SyncSourceCreate) => {
       if (!id) return;
       const startedIn = activeOrgId;
-      try {
-        const created = await apiClient.post<SyncSourceRead>(`/kb/${id}/sync-sources`, data);
-        // Prepended to the cached list rather than the whole list refetched -
-        // and only when the tenant has not moved, so a late answer adds the
-        // previous organization's row to its own list, never the new one's.
-        if (stillSameTenant(startedIn)) {
-          queryClient.setQueryData<SyncSourceList>(qk.kb.syncSources(id), (prev) =>
-            prev
-              ? { items: [created, ...prev.items], total: prev.total + 1 }
-              : { items: [created], total: 1 },
-          );
-        }
-        toast.success(t("syncSourceConnected"));
-        return created;
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : t("failedCreateSyncSource"));
-        throw e;
+      const created = await apiClient.post<SyncSourceRead>(`/kb/${id}/sync-sources`, data);
+      // Prepended to the cached list rather than the whole list refetched -
+      // and only when the tenant has not moved, so a late answer adds the
+      // previous organization's row to its own list, never the new one's.
+      if (stillSameTenant(startedIn)) {
+        queryClient.setQueryData<SyncSourceList>(qk.kb.syncSources(id), (prev) =>
+          prev
+            ? { items: [created, ...prev.items], total: prev.total + 1 }
+            : { items: [created], total: 1 },
+        );
       }
+      toast.success(t("syncSourceConnected"));
+      return created;
     },
     [id, activeOrgId, stillSameTenant, queryClient, t],
   );

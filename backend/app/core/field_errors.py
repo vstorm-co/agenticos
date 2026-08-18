@@ -33,7 +33,7 @@ from collections.abc import Sequence
 
 from pydantic_core import ErrorDetails
 
-__all__ = ["field_problems", "request_field_problems"]
+__all__ = ["field_details", "field_problems", "request_field_problems"]
 
 # Where a validation error came from, as FastAPI reports it in the first element
 # of `loc`. Nothing a form can act on, so it is dropped from the path - but only
@@ -94,3 +94,23 @@ def request_field_problems(errors: Sequence[ErrorDetails]) -> list[dict[str, str
         {"field": _path(_without_origin(error["loc"])) or "request", "message": error["msg"]}
         for error in errors
     ]
+
+
+def field_details(field: str, message: str, *, root: str = "") -> list[dict[str, str]]:
+    """The same shape, for a refusal that names its field without pydantic's help.
+
+    A rule written by hand - a folder id that is not one, a required field left
+    empty - knows which field it is about and has no `ValidationError` to read
+    it out of. It still answers the *list*, never a singular `details["field"]`:
+    a form reads one shape, and that is the plural one (#891).
+
+    Args:
+        field: What the form calls the input, relative to `root`.
+        message: The refusal, in the words the envelope's `message` carries.
+            Duplicated deliberately - an input can only show what is beside it,
+            and a toast is beside nothing.
+        root: What the caller's document is called on the form that sent it, as
+            in :func:`field_problems` - `config` for a connector's settings
+            blob. A field of the request body itself has no root.
+    """
+    return [{"field": ".".join(filter(None, (root, field))), "message": message}]

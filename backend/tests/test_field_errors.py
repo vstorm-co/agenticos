@@ -13,7 +13,7 @@ import pytest
 from pydantic import BaseModel, Field, ValidationError, model_validator
 from pydantic_core import ErrorDetails
 
-from app.core.field_errors import field_problems, request_field_problems
+from app.core.field_errors import field_details, field_problems, request_field_problems
 
 
 class Chunking(BaseModel):
@@ -170,3 +170,27 @@ class TestNothingElseLeaves:
 
     def test_an_empty_report_is_an_empty_list_rather_than_an_invented_field(self) -> None:
         assert field_problems([], root="ingestion_config") == []
+
+
+class TestARuleWrittenByHand:
+    """A refusal with no `ValidationError` behind it answers the same shape."""
+
+    def test_it_names_the_field_below_the_document_that_carries_it(self) -> None:
+        assert field_details("folder_id", "not a folder id", root="config") == [
+            {"field": "config.folder_id", "message": "not a folder id"}
+        ]
+
+    def test_a_field_of_the_request_body_itself_takes_no_root(self) -> None:
+        assert field_details("base_url", "that is not a URL") == [
+            {"field": "base_url", "message": "that is not a URL"}
+        ]
+
+    def test_it_agrees_with_what_pydantic_reports_about_the_same_field(self) -> None:
+        """Two ways of refusing one input must not address it two ways."""
+        by_hand = field_details("size", "too small", root="ingestion_config")
+        by_pydantic = field_problems(
+            [{"type": "x", "loc": ("size",), "msg": "too small", "input": None}],
+            root="ingestion_config",
+        )
+
+        assert by_hand == by_pydantic

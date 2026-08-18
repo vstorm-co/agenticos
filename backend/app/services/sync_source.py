@@ -71,15 +71,20 @@ async def _refuse_an_invalid_config(config: dict, connector_type: str) -> None:
     by any of them. The alternative is a check that lives only on the sink -
     correct, but it answers in a background sync log rather than to the caller
     who sent the value, and only once somebody triggers a run.
+
+    Whichever fields the connector named travel on as `details["fields"]`, in
+    the one shape a form reads (`app/core/field_errors.py`). Flattening them
+    into the sentence is what left the wizard with four inputs and a line of
+    prose saying one of them was wrong (#897).
     """
     connector_cls = CONNECTOR_REGISTRY.get(connector_type)
     if connector_cls is None:  # pragma: no cover - a stored row names a live connector
         return
-    is_valid, error = await connector_cls().validate_config(config)
-    if not is_valid:
+    refusal = await connector_cls().validate_config(config)
+    if refusal is not None:
         raise BadRequestError(
-            message=f"Invalid connector config: {error}",
-            details={"connector_type": connector_type},
+            message=f"Invalid connector config: {refusal.message}",
+            details={"connector_type": connector_type, "fields": refusal.fields},
         )
 
 
@@ -200,14 +205,7 @@ class SyncSourceService:
                 details={"connector_type": data.connector_type},
             )
 
-        connector_cls = CONNECTOR_REGISTRY[data.connector_type]
-        connector = connector_cls()
-        is_valid, error = await connector.validate_config(data.config)
-        if not is_valid:
-            raise BadRequestError(
-                message=f"Invalid connector config: {error}",
-                details={"connector_type": data.connector_type},
-            )
+        await _refuse_an_invalid_config(data.config, data.connector_type)
 
         encrypted = _encrypt_config(data.config, data.connector_type)
         source = await sync_source_repo.create(

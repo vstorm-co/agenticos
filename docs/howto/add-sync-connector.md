@@ -13,6 +13,7 @@ Sync connectors are pluggable adapters that fetch files from external systems
 | `BaseSyncConnector` | `app/services/rag/connectors/__init__.py` | Abstract base class for all connectors |
 | `remote_names` | `app/services/rag/remote_names.py` | Where a remote name may be written, and what may reach a query |
 | `RemoteFile` | `app/services/rag/connectors/__init__.py` | Pydantic model describing a remote file |
+| `ConfigRefusal` | `app/services/rag/connectors/__init__.py` | Why a config is not acceptable, and which of its fields |
 | `CONNECTOR_REGISTRY` | `app/services/rag/connectors/__init__.py` | Dict mapping connector type strings to classes |
 | `SyncSource` | `app/db/models/sync_source.py` | Database model storing source configurations |
 | `SyncLog` | `app/db/models/sync_log.py` | Database model tracking sync operations |
@@ -55,7 +56,7 @@ import logging
 from pathlib import Path
 from typing import Any, ClassVar
 
-from app.services.rag.connectors import BaseSyncConnector, RemoteFile
+from app.services.rag.connectors import BaseSyncConnector, ConfigRefusal, RemoteFile
 
 logger = logging.getLogger(__name__)
 
@@ -153,11 +154,11 @@ class NotionConnector(BaseSyncConnector):
 
         await asyncio.to_thread(_download)
 
-    async def validate_config(self, config: dict) -> tuple[bool, str | None]:
+    async def validate_config(self, config: dict) -> ConfigRefusal | None:
         """Test Notion API access with the provided token."""
-        is_valid, err = await super().validate_config(config)
-        if not is_valid:
-            return is_valid, err
+        refusal = await super().validate_config(config)
+        if refusal is not None:
+            return refusal
 
         try:
             def _test():
@@ -167,10 +168,22 @@ class NotionConnector(BaseSyncConnector):
                 notion.users.me()
 
             await asyncio.to_thread(_test)
-            return True, None
-        except Exception as e:
-            return False, f"Cannot connect to Notion: {e}"
+            return None
+        except Exception:
+            logger.exception("Notion credential check failed")
+            # `ConfigRefusal.about(field, message)` when one field is to blame -
+            # the sync-source wizard marks that input. Here it is the token or
+            # the workspace it was issued for, and guessing between them would
+            # send somebody to change the wrong one.
+            return ConfigRefusal(message="Could not reach Notion with these credentials.")
 ```
+
+`validate_config` answers *why not*, or `None` when the config is acceptable.
+`ConfigRefusal.about("api_token", "…")` is the one-field form: the sentence
+travels to the caller as `details["fields"]` and the wizard marks that input.
+Never put the client's own exception text in the message — an SDK puts the
+request it was making in there, and that routinely carries a URL with a key in
+it. Log it instead, as above.
 
 ### 2. Register in CONNECTOR_REGISTRY
 
@@ -280,7 +293,7 @@ CONFIG_SCHEMA: ClassVar[dict[str, dict[str, Any]]] = {
 
 - Set `RemoteFile.source_path` to a unique URI (e.g., `notion://page_id`) — this is used for deduplication across syncs
 - Use `asyncio.to_thread()` to wrap blocking SDK calls so they don't block the event loop
-- Implement `validate_config()` to test connectivity when users create sync sources — it prevents misconfigured sources
+- Implement `validate_config()` to test connectivity when users create sync sources — it prevents misconfigured sources, and `ConfigRefusal.about(field, message)` is what makes the wizard mark the input rather than show a sentence over four of them
 - Server-level credentials (shared across all sources) go in `app/core/config.py` and `.env`
 - Per-source credentials go in `CONFIG_SCHEMA` and are stored in the database per sync source
 - `_fetch()` writes to the `dest_path` it is handed and returns nothing — the base class answers where that is, and the ingestion pipeline handles everything from there

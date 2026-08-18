@@ -6,11 +6,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, ClassVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from app.core.field_errors import field_details
 from app.services.rag.remote_names import destination_within
 
 logger = logging.getLogger(__name__)
+
+CONFIG_ROOT = "config"
 
 
 class RemoteFile(BaseModel):
@@ -22,6 +25,29 @@ class RemoteFile(BaseModel):
     size: int | None = None
     modified_at: datetime | None = None
     source_path: str  # Dedup key: "gdrive://file_id", "s3://bucket/key"
+
+
+class ConfigRefusal(BaseModel):
+    """Why a connector will not accept a config, in a shape the wizard can act on.
+
+    `validate_config` used to answer `tuple[bool, str | None]`, so a refusal
+    that knew exactly which field was wrong could not say so: the sentence
+    reached the wire and the sync-source wizard, which draws one input per
+    `CONFIG_SCHEMA` entry, marked none of them (#897).
+
+    `fields` is optional because a connector is entitled to refuse a config
+    without blaming one field of it - connectivity that fails, two credentials
+    that do not go together - and forcing the folder-id case's shape onto that
+    would only produce an invented field name.
+    """
+
+    message: str
+    fields: list[dict[str, str]] = Field(default_factory=list)
+
+    @classmethod
+    def about(cls, field: str, message: str) -> "ConfigRefusal":
+        """A refusal of one named field of the config, said once."""
+        return cls(message=message, fields=field_details(field, message, root=CONFIG_ROOT))
 
 
 class BaseSyncConnector(ABC):
@@ -64,12 +90,18 @@ class BaseSyncConnector(ABC):
     async def _fetch(self, file: RemoteFile, dest_path: Path, config: dict) -> None:
         """Write `file`'s bytes to `dest_path`, which is already inside the sync directory."""
 
-    async def validate_config(self, config: dict) -> tuple[bool, str | None]:
-        """Validate connector config. Returns (is_valid, error_message)."""
+    async def validate_config(self, config: dict) -> ConfigRefusal | None:
+        """Why this config would not be accepted, or `None` if it would.
+
+        The required-field check knows the name of the field it is refusing, so
+        it says so: an override that has more to check calls this first and
+        returns what it answers, unchanged.
+        """
         for field_name, field_spec in self.CONFIG_SCHEMA.items():
             if field_spec.get("required") and not config.get(field_name):
-                return False, f"Missing required field: {field_spec.get('label', field_name)}"
-        return True, None
+                label = field_spec.get("label", field_name)
+                return ConfigRefusal.about(field_name, f"Missing required field: {label}")
+        return None
 
 
 CONNECTOR_REGISTRY: dict[str, type[BaseSyncConnector]] = {}
