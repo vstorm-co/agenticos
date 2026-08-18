@@ -1,6 +1,6 @@
 """Input sanitization utilities.
 
-Webhook URL validation to prevent SSRF attacks.
+URL validation to prevent SSRF attacks.
 """
 
 import ipaddress
@@ -16,11 +16,27 @@ WEBHOOK_ALLOWED_SCHEMES = frozenset({"http", "https"})
 _CGNAT_NETWORK = ipaddress.ip_network("100.64.0.0/10")
 
 
-class SSRFBlockedError(ValueError):
+class UrlRefusedError(ValueError):
+    """A URL this deployment will not request, refused in a message we wrote.
+
+    The type is the promise, and callers depend on it: both quote the message
+    to a person - `mcp_connection._checked_url` as a 400, and
+    `agent_registry._browser_use_problems` as a publish problem - and
+    `.claude/rules/exceptions-security.md` allows that only for text written in
+    this repository. `urlsplit` defers port parsing to attribute access and
+    answers a bad one with `Port could not be cast to integer value as
+    '<what you sent>'`, so a URL like `http://host:client_secret=sh-key/mcp`
+    turns the stdlib's message into an echo of a secret (#861). Every refusal
+    raised below is this type or a subclass, and `tests/test_ssrf.py` fails on
+    one that is not.
+    """
+
+
+class SSRFBlockedError(UrlRefusedError):
     """Raised when a URL is blocked by SSRF protection.
 
     Dedicated exception type to avoid fragile string matching when
-    distinguishing SSRF blocks from other ValueErrors.
+    distinguishing SSRF blocks from other refusals.
     """
 
 
@@ -88,10 +104,13 @@ def validate_webhook_url(
     Because of that, the refusals below name the **host**, or nothing, but never
     the URL. A URL carries a key in its query string, and the one being refused
     may have been written by the party being refused
-    (`.claude/rules/exceptions-security.md`).
+    (`.claude/rules/exceptions-security.md`). They name no *caller* either: this
+    function has had no webhook caller for some time, and every message it
+    raises is read by somebody who typed an MCP server URL or a `cdp_url`
+    (#861).
 
     Args:
-        url: The webhook URL to validate.
+        url: The URL to validate.
         allowed_schemes: Allowed URL schemes. Defaults to {"http", "https"}.
 
     Returns:
@@ -99,7 +118,11 @@ def validate_webhook_url(
 
     Raises:
         SSRFBlockedError: If the URL is blocked by SSRF protection.
-        ValueError: If the URL is malformed.
+        UrlRefusedError: If the URL is malformed. Every refusal raised here is
+            one of these two, so a caller may quote the message; a bare
+            `ValueError` reaching a caller from this function is a bug rather
+            than a refusal, and would be one written by the standard library
+            about text the caller sent.
 
     Example:
         >>> validate_webhook_url("https://example.com/webhook")
@@ -113,7 +136,7 @@ def validate_webhook_url(
     try:
         parsed = urlparse(url)
     except Exception as err:
-        raise ValueError("Webhook URL could not be parsed") from err
+        raise UrlRefusedError("The URL could not be parsed") from err
 
     if parsed.scheme not in allowed_schemes:
         raise SSRFBlockedError(
@@ -123,21 +146,33 @@ def validate_webhook_url(
 
     hostname = parsed.hostname
     if not hostname:
-        raise ValueError("Webhook URL has no hostname")
+        raise UrlRefusedError("The URL has no hostname")
 
     # Reject URLs with userinfo (credentials) to prevent URL parsing ambiguities
     # e.g. http://user:pass@host/ or http://foo@169.254.169.254%00@public.com/
     if parsed.username is not None or parsed.password is not None:
         raise SSRFBlockedError(
-            "Webhook URL must not contain credentials (userinfo). "
+            "The URL must not contain credentials (userinfo). "
             "Remove the user:password@ portion from the URL."
         )
+
+    default_port = 443 if parsed.scheme == "https" else 80
+    try:
+        port = parsed.port or default_port
+    except ValueError as err:
+        # `urlsplit` parses the port at attribute access rather than up front,
+        # and says what it could not cast - which is the caller's text, and
+        # reaches a response body through every caller of this function (#861).
+        # Read here rather than beside `getaddrinfo` so an unrequestable port is
+        # refused on an IP literal too, and so the `except ValueError` below
+        # cannot swallow this.
+        raise UrlRefusedError("The URL has an invalid port") from err
 
     try:
         addr = ipaddress.ip_address(hostname)
         if _is_ip_blocked(str(addr)):
             raise SSRFBlockedError(
-                f"Webhook URL blocked: {hostname!r} resolves to a private/internal "
+                f"Blocked: {hostname!r} resolves to a private/internal "
                 f"address. SSRF protection does not allow requests to internal networks."
             )
         return url
@@ -147,26 +182,19 @@ def validate_webhook_url(
         # Not an IP literal - continue to DNS resolution below
         pass
 
-    default_port = 443 if parsed.scheme == "https" else 80
-    port = parsed.port or default_port
-
     try:
         addr_infos = socket.getaddrinfo(hostname, port, proto=socket.IPPROTO_TCP)
     except socket.gaierror as err:
-        raise SSRFBlockedError(
-            f"Webhook URL blocked: unable to resolve hostname {hostname!r}"
-        ) from err
+        raise SSRFBlockedError(f"Blocked: unable to resolve hostname {hostname!r}") from err
 
     if not addr_infos:
-        raise SSRFBlockedError(
-            f"Webhook URL blocked: hostname {hostname!r} did not resolve to any address"
-        )
+        raise SSRFBlockedError(f"Blocked: hostname {hostname!r} did not resolve to any address")
 
     for _family, _type, _proto, _canonname, sockaddr in addr_infos:
         ip_str = str(sockaddr[0])
         if _is_ip_blocked(ip_str):
             raise SSRFBlockedError(
-                f"Webhook URL blocked: {hostname!r} resolves to private/internal "
+                f"Blocked: {hostname!r} resolves to private/internal "
                 f"address {ip_str!r}. SSRF protection does not allow requests to "
                 f"internal networks."
             )

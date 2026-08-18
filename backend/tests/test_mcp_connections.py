@@ -26,7 +26,6 @@ from app.agents.mcp import (
 from app.agents.mcp_oauth import McpOAuthPayload
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.core.sanitize import SSRFBlockedError
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.mcp_connection import McpConnection
 from app.schemas.mcp_connection import (
@@ -887,9 +886,13 @@ class TestMcpConnectionService:
 
     @pytest.mark.anyio
     async def test_create_blocks_internal_urls(self, service, repo):
+        """As a refusal naming the field, not as the `ValueError` the guard
+        raises - which no handler maps, so it left as a 500 (#861)."""
         data = McpConnectionCreate(name="internal", url="http://127.0.0.1:8000/mcp")
-        with pytest.raises(SSRFBlockedError):
+        with pytest.raises(BadRequestError) as excinfo:
             await service.create(user_id=uuid4(), data=data)
+        assert excinfo.value.details == {"field": "url"}
+        assert excinfo.value.status_code == 400
         repo.create.assert_not_called()
 
     @pytest.mark.anyio
@@ -1082,12 +1085,15 @@ class TestMcpConnectionService:
         conn = _connection(user_id=user_id)
         repo.get_by_id.return_value = conn
 
-        with pytest.raises(SSRFBlockedError):
+        with pytest.raises(BadRequestError) as excinfo:
             await service.update(
                 user_id=user_id,
                 connection_id=conn.id,
                 data=McpConnectionUpdate(url="http://169.254.169.254/mcp"),
             )
+
+        assert excinfo.value.details == {"field": "url"}
+        repo.update.assert_not_called()
 
     @pytest.mark.anyio
     async def test_other_users_connection_is_not_found(self, service, repo):
@@ -1244,10 +1250,11 @@ class TestMcpConnectionService:
 
     @pytest.mark.anyio
     async def test_oauth_start_rejects_internal_urls(self, service, repo):
-        with pytest.raises(SSRFBlockedError):
+        with pytest.raises(BadRequestError) as excinfo:
             await service.oauth_start(
                 user_id=uuid4(), name="evil", url="http://169.254.169.254/mcp"
             )
+        assert excinfo.value.details == {"field": "url"}
         repo.create.assert_not_called()
 
     @pytest.mark.anyio
@@ -1479,10 +1486,11 @@ class TestOrganizationConnections:
 
     @pytest.mark.anyio
     async def test_creating_blocks_internal_urls(self, service, ctx, repo, audit):
-        with pytest.raises(SSRFBlockedError):
+        with pytest.raises(BadRequestError) as excinfo:
             await service.create_for_org(
                 ctx, OrgMcpConnectionCreate(name="internal", url="http://127.0.0.1:8000/mcp")
             )
+        assert excinfo.value.details == {"field": "url"}
         repo.create_org_scoped.assert_not_called()
 
     @pytest.mark.anyio
@@ -1578,6 +1586,21 @@ class TestOrganizationConnections:
         # No new envelope, so the version that sealed the old one is left alone
         # rather than rewritten to describe a token that no longer exists.
         assert "secret_key_version" not in update_data
+
+    @pytest.mark.anyio
+    async def test_moving_the_url_somewhere_internal_is_refused_by_field(self, service, ctx, repo):
+        """The other half of #861: a connection may not be *edited* into the
+        deployment's own network either, and that refusal is a 400 too."""
+        conn = self._org_connection(ctx)
+        repo.get_org_scoped_by_id.return_value = conn
+
+        with pytest.raises(BadRequestError) as excinfo:
+            await service.update_for_org(
+                ctx, connection_id=conn.id, data=OrgMcpConnectionUpdate(url="http://[::1]/mcp")
+            )
+
+        assert excinfo.value.details == {"field": "url"}
+        repo.update.assert_not_called()
 
     @pytest.mark.anyio
     async def test_moving_the_url_discards_the_previous_check_result(

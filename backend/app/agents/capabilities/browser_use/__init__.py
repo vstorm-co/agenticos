@@ -90,7 +90,10 @@ def validate_cdp_url(config: BrowserUseConfig) -> None:
 
     Raises:
         SSRFBlockedError: the endpoint is loopback, private, reserved or metadata.
-        ValueError: the URL is malformed.
+        UrlRefusedError: the URL is malformed. `_browser_use_problems` quotes the
+            message into a publish problem a person reads, which is safe because
+            every refusal `validate_webhook_url` raises is one written there
+            rather than by the standard library about the caller's text (#861).
     """
     if config.mode == "remote" and config.cdp_url is not None:
         validate_webhook_url(config.cdp_url, allowed_schemes=_CDP_SCHEMES)

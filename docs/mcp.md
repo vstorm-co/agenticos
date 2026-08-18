@@ -28,6 +28,21 @@ Atlassian works alongside a streamable-HTTP one with nothing to configure.
 | `is_enabled` | Off without losing the credential |
 | `last_status` | What the last probe found, and when |
 
+**An address this deployment must not reach is refused, and the refusal says
+so.** A URL that resolves to a loopback, private, link-local or shared-CGNAT
+address, one that does not resolve at all, one carrying credentials in its
+userinfo, one on a scheme other than `http`/`https`, or one that is simply
+malformed, comes back as a **400**
+naming `url` as the field at fault — on create, on edit, and on starting an
+OAuth flow, personal and organization-wide alike. What it names beyond that is
+the *host*, never the URL — a URL carries a key in its query string, and the
+sentence explaining the refusal is one written in this repository rather than
+whatever the URL parser had to say about the text you sent. It
+used to be a 500 with no details and a traceback in the log, which reads as the
+platform breaking rather than as an address to correct
+([#861](https://github.com/vstorm-co/agenticos/issues/861)) — self-hosting and
+pasting a `localhost` URL is the ordinary case, not the exotic one.
+
 ### Personal or organization-wide
 
 Two kinds, and the difference is the point.
