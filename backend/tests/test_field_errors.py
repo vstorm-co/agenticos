@@ -13,7 +13,7 @@ import pytest
 from pydantic import BaseModel, Field, ValidationError, model_validator
 from pydantic_core import ErrorDetails
 
-from app.core.field_errors import field_problems, request_field_problems
+from app.core.field_errors import field_problems, refused_field, request_field_problems
 
 
 class Chunking(BaseModel):
@@ -170,3 +170,27 @@ class TestNothingElseLeaves:
 
     def test_an_empty_report_is_an_empty_list_rather_than_an_invented_field(self) -> None:
         assert field_problems([], root="ingestion_config") == []
+
+
+class TestARefusalWrittenByHand:
+    """`refused_field`, for a rule expressed in Python rather than by a model.
+
+    It exists so that a service naming one field does not invent a second shape
+    to say it in - the defect #891 found in eighteen call sites and #898 in
+    three more, where the key *was* the field name and the value was the
+    caller's own submission."""
+
+    def test_it_answers_the_same_shape_field_problems_does(self) -> None:
+        """One reader on the frontend, so one shape here. A list of
+        `{field, message}` under `details["fields"]` is what `fieldProblems`
+        reads; anything else marks no input."""
+        assert refused_field("base_url", "A model endpoint must include a host") == [
+            {"field": "base_url", "message": "A model endpoint must include a host"}
+        ]
+
+    def test_a_field_and_a_sentence_are_the_only_things_it_can_carry(self) -> None:
+        """The narrowing is the signature. There is no `input` to forget to
+        strip, because there is nowhere to put one."""
+        problem = refused_field("model", "OpenRouter model ids are namespaced")[0]
+
+        assert set(problem) == {"field", "message"}

@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { Check, KeyRound, Plus } from "lucide-react";
 
-import { getErrorMessage } from "@/lib/api-error";
+import { submitFailure } from "@/lib/api-error";
+import type { SubmitFailure } from "@/lib/api-error";
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
@@ -126,6 +127,9 @@ export function modelIdIsWellFormed(providerId: string, model: string): boolean 
   return providerId !== "openrouter" || model.includes("/");
 }
 
+/** Nothing refused yet, and what every reset goes back to. */
+const NOTHING_REFUSED: SubmitFailure = { fields: {}, toast: null };
+
 export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
@@ -149,7 +153,7 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
   const [label, setLabel] = useState("");
   const [secretId, setSecretId] = useState(selected?.secret_id ?? "");
   const [baseUrl, setBaseUrl] = useState(selected?.base_url ?? "");
-  const [failure, setFailure] = useState<string | null>(null);
+  const [failure, setFailure] = useState<SubmitFailure>(NOTHING_REFUSED);
   const [naming, setNaming] = useState(false);
 
   const providers = purposes.filter((entry) => entry.category === "model_provider");
@@ -211,7 +215,7 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
   const submit = async () => {
     /* v8 ignore next -- the id comes from the list this select was built from */
     if (provider === undefined) return;
-    setFailure(null);
+    setFailure(NOTHING_REFUSED);
     if (already !== undefined) {
       onCreated(already);
       return;
@@ -231,11 +235,13 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
       onCreated(profile);
     } catch (error) {
       // Caught, not left to reject: an unhandled rejection here is Next.js's
-      // full-screen error overlay for what is a typo in one field. Every
-      // refusal this endpoint gives is about the model id - a bare id where the
-      // provider namespaces them, an endpoint that is not a URL - so it belongs
-      // under the field, where it can be fixed.
-      setFailure(getErrorMessage(error, tErrors));
+      // full-screen error overlay for what is a typo in one field. Which field
+      // is the server's to say, and all three of its refusals used to land
+      // under the model id whatever they were about (#898). `base_url` is only
+      // a destination while that input is on screen; otherwise the refusal
+      // falls to the line above the button rather than to nothing.
+      const fields = acceptsEndpoint ? ["model", "base_url", "secret_id"] : ["model", "secret_id"];
+      setFailure(submitFailure(error, { fields }, tErrors));
     }
   };
 
@@ -251,7 +257,7 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
               setSecretId("");
               setModel("");
               setBaseUrl("");
-              setFailure(null);
+              setFailure(NOTHING_REFUSED);
             }}
           >
             <SelectTrigger id="add-model-provider">
@@ -301,15 +307,18 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
             value={model}
             onChange={(next) => {
               setModel(next);
-              setFailure(null);
+              setFailure(NOTHING_REFUSED);
             }}
             options={suggestions}
             source={source}
             loading={loadingModels}
             disabled={provider === undefined}
             placeholder={placeholderWords(modelPlaceholder(provider?.id), tRoot)}
+            invalid={failure.fields.model !== undefined}
           />
-          {failure !== null && <p className="text-destructive text-xs">{failure}</p>}
+          {failure.fields.model !== undefined && (
+            <p className="text-destructive text-xs">{failure.fields.model}</p>
+          )}
         </div>
       </div>
 
@@ -376,6 +385,13 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
               )}
             </div>
           )}
+
+          {/* No control to mark: the refusal is about `secret_id` being null,
+              which is the state in which this block is a sentence rather than a
+              select. */}
+          {failure.fields.secret_id !== undefined && (
+            <p className="text-destructive text-xs">{failure.fields.secret_id}</p>
+          )}
         </div>
       )}
 
@@ -390,8 +406,9 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
             value={baseUrl}
             onChange={(event) => {
               setBaseUrl(event.target.value);
-              setFailure(null);
+              setFailure(NOTHING_REFUSED);
             }}
+            aria-invalid={failure.fields.base_url !== undefined}
             placeholder={
               capabilities?.keyless === true
                 ? "http://localhost:11434/v1"
@@ -405,6 +422,9 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
               ? t("gatewayLitellmProxyModel")
               : t("optionalPointModelAt")}
           </p>
+          {failure.fields.base_url !== undefined && (
+            <p className="text-destructive text-xs">{failure.fields.base_url}</p>
+          )}
         </div>
       )}
 
@@ -430,6 +450,10 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
           {t("nameSomethingElse")}
         </button>
       )}
+
+      {/* Whatever this form has no input for - a permission, a fault, a field
+          it does not render. A failure with nowhere to go is still a failure. */}
+      {failure.toast !== null && <p className="text-destructive text-xs">{failure.toast}</p>}
 
       <div className="flex items-center gap-2 pt-1">
         <Button

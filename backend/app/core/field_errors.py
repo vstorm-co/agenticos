@@ -19,8 +19,14 @@ object itself under `ctx` - and `details` is serialized into the response body
 and logged on the same line, so passing one through posts the caller's own
 submission back to them (`.claude/rules/exceptions-security.md`).
 
-There are two entry points because there are two callers, and **which one you
-are decides what the first element of `loc` means**. FastAPI puts where the
+A refusal a service wrote by hand has no pydantic error to narrow, and takes
+:func:`refused_field` - the same list under the same key, so the form marks its
+input whichever way the refusal was reached. That is the whole reason it lives
+here rather than beside its raiser: a second shape for one job is what #882
+argued against.
+
+There are two entry points for a pydantic error because there are two callers,
+and **which one you are decides what the first element of `loc` means**. FastAPI puts where the
 value came from in front of the path - `("body", "spec", "name")` - and a form
 can do nothing with "body". A service validating a model itself gets no such
 segment: the first element is already a field name, and a spec whose forbidden
@@ -33,7 +39,7 @@ from collections.abc import Sequence
 
 from pydantic_core import ErrorDetails
 
-__all__ = ["field_problems", "request_field_problems"]
+__all__ = ["field_problems", "refused_field", "request_field_problems"]
 
 # Where a validation error came from, as FastAPI reports it in the first element
 # of `loc`. Nothing a form can act on, so it is dropped from the path - but only
@@ -80,6 +86,29 @@ def field_problems(errors: Sequence[ErrorDetails], *, root: str) -> list[dict[st
         {"field": ".".join(filter(None, (root, _path(error["loc"])))), "message": error["msg"]}
         for error in errors
     ]
+
+
+def refused_field(field: str, message: str) -> list[dict[str, str]]:
+    """One refusal a service wrote itself, in the shape a form marks its input from.
+
+    For a rule expressed in Python rather than by a pydantic model - a bare
+    OpenRouter model id, a keyless provider with no endpoint to reach. There is
+    no `loc` to trim and no `input` to leave behind, so the narrowing is the
+    signature itself: a field name and the sentence, with nothing else it could
+    be handed. `details` is serialized into the response body and logged on the
+    same line, so what was submitted stays out of both
+    (`.claude/rules/exceptions-security.md`).
+
+    Args:
+        field: What the request schema calls the input - `model`, `base_url`,
+            `secret_id`. Dotted where the document nests, as
+            :func:`field_problems` reports it.
+        message: The refusal, repeated from the envelope's own `message`.
+            `fieldProblems` in `frontend/src/lib/api-error.ts` reads this list
+            and never the envelope, so a problem carrying no sentence marks an
+            input and says nothing about it.
+    """
+    return [{"field": field, "message": message}]
 
 
 def request_field_problems(errors: Sequence[ErrorDetails]) -> list[dict[str, str]]:

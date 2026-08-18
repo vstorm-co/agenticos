@@ -279,8 +279,12 @@ and a refusal about a *field* names it in one shape:
 `fieldProblems` in `frontend/src/lib/api-error.ts` reads that and nothing else,
 which is what lets a form mark the offending input rather than showing a sentence
 the reader has to re-scan the page for. `app/core/field_errors.py` is the only
-place it is built, and it has two entry points because **which caller you are
-decides what the first element of Pydantic's `loc` means**:
+place it is built. A rule expressed in Python rather than by a model — a bare
+OpenRouter model id, a keyless provider with no endpoint to reach — takes
+`refused_field(field, message)`, and that signature is the whole of the case: a
+field name and the sentence, with nothing else it could be handed. A Pydantic
+error takes one of two entry points instead, because **which caller you are
+decides what the first element of `loc` means**:
 
 | | For | `loc` starts with |
 |---|---|---|
@@ -302,7 +306,13 @@ names when the same pair arrives as a collection's own settings.
 
 Handing Pydantic's own `exc.errors()` through instead was
 [#882](https://github.com/vstorm-co/agenticos/issues/882) — a second shape,
-carrying `input`, `ctx` and `url`, that nothing on the frontend read.
+carrying `input`, `ctx` and `url`, that nothing on the frontend read. Naming the
+field with a key of its own was
+[#898](https://github.com/vstorm-co/agenticos/issues/898): a refusal about a
+model id answered `details={"model": model}` and two about an endpoint and a key
+answered `details={"provider": provider}`, so the key was the field name, the
+value was the caller's own submission — in a response body and in the log line
+the handler writes beside it — and `fieldProblems` read none of the three.
 
 **An aggregated refusal carries both halves.** `validate_spec` reports every
 problem in a spec at once and most of them are broken references with no input to
