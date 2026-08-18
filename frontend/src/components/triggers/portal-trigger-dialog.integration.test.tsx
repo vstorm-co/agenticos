@@ -58,6 +58,20 @@ const EMAIL: PortalCatalogEntry = {
   ],
 };
 
+const LINKEDIN: PortalCatalogEntry = {
+  key: "linkedin",
+  name: "LinkedIn",
+  description: "…",
+  category: "marketing",
+  icon: "linkedin",
+  event_source: "linkedin",
+  delivery: "manual",
+  webhook_admin_scopes: [],
+  target_kind: null,
+  connection_catalog_key: null,
+  presets: [{ key: "new_post", label: "A new post", description: "…", target_required: false }],
+};
+
 function connection(): McpConnectionRecord {
   return {
     id: "o1",
@@ -76,8 +90,8 @@ function connection(): McpConnectionRecord {
   };
 }
 
-function agent(id: string, name: string, status = "published") {
-  return { id, name, status, description: null, has_avatar: false };
+function agent(id: string, name: string, status = "published", can_run = true) {
+  return { id, name, status, description: null, has_avatar: false, can_run };
 }
 
 function serve(targets: { id: string; label: string }[] = []) {
@@ -165,6 +179,43 @@ describe("PortalTriggerDialog", () => {
       portal_key: "email",
       preset_key: "any_email",
       event_config: { subject_contains: "invoice", sender_contains: "billing@acme.com" },
+    });
+  });
+
+  it("shows LinkedIn's author and text filters and sends them as event_config", async () => {
+    const user = userEvent.setup();
+    serve();
+    vi.mocked(apiClient.post).mockResolvedValue({
+      id: "t1",
+      trigger_type: "event",
+      delivery_mode: "manual",
+      webhook_url: "https://api.example.com/api/v1/webhooks/triggers/linkedin/t1",
+      reveal_secret: null,
+    });
+    render(
+      <PortalTriggerDialog portal={LINKEDIN} connection={null} open onOpenChange={vi.fn()} />,
+      { wrapper },
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: /A new post/ }));
+    // Not the email filters - LinkedIn narrows by author and post text, driven
+    // off the source rather than a hardcoded email check.
+    expect(within(dialog).queryByLabelText("Subject contains")).toBeNull();
+    await user.type(within(dialog).getByLabelText("Author contains"), "Jane");
+    await user.type(within(dialog).getByLabelText("Text contains"), "hiring");
+    await user.type(within(dialog).getByLabelText("Message"), "Draft a reply");
+    await user.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    const [, payload] = vi.mocked(apiClient.post).mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
+    expect(payload).toMatchObject({
+      portal_key: "linkedin",
+      preset_key: "new_post",
+      event_config: { author_contains: "Jane", text_contains: "hiring" },
     });
   });
 

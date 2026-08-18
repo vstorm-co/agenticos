@@ -33,7 +33,7 @@ describe("RoutinesPage", () => {
 
     expect(screen.getByTestId("scheduled-tab")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "New schedule" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "New trigger" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New event trigger" })).toBeInTheDocument();
   });
 
   it("opens the cadence form from New schedule", async () => {
@@ -45,11 +45,11 @@ describe("RoutinesPage", () => {
     expect(screen.getByRole("dialog", { name: "schedule-dialog:schedule" })).toBeInTheDocument();
   });
 
-  it("opens the portal picker dialog from New trigger", async () => {
+  it("opens the portal picker dialog from New event trigger", async () => {
     const user = userEvent.setup();
     render(<RoutinesPage />);
 
-    await user.click(screen.getByRole("button", { name: "New trigger" }));
+    await user.click(screen.getByRole("button", { name: "New event trigger" }));
 
     expect(screen.getByRole("dialog", { name: "event-dialog" })).toBeInTheDocument();
   });
@@ -61,7 +61,7 @@ describe("RoutinesPage", () => {
     render(<RoutinesPage />);
 
     expect(screen.queryByRole("button", { name: "New schedule" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "New trigger" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "New event trigger" })).toBeNull();
     // The list still shows - viewing is not gated on running.
     expect(screen.getByTestId("scheduled-tab")).toBeInTheDocument();
   });

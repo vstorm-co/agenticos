@@ -30,7 +30,12 @@ import { SecretRevealField } from "@/components/triggers/secret-reveal-field";
 import { useAgentEnvironments, useAgents } from "@/hooks";
 import { useTriggers } from "@/hooks/use-triggers";
 import { useAgentSelectionStore } from "@/stores";
-import { type IntervalUnit, intervalToUnit, unitToSeconds } from "@/lib/trigger-format";
+import {
+  eventFilterConfig,
+  type IntervalUnit,
+  intervalToUnit,
+  unitToSeconds,
+} from "@/lib/trigger-format";
 import type {
   EventSource,
   ScheduleKind,
@@ -52,31 +57,6 @@ function generateSecret(): string {
   const bytes = new Uint8Array(24);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-/** The two config keys each source's filters map onto, or none. */
-const FILTER_KEYS: Partial<Record<EventSource, readonly [string, string]>> = {
-  email: ["subject_contains", "sender_contains"],
-  linkedin: ["author_contains", "text_contains"],
-};
-
-/**
- * The `event_config` a source's two substring filters produce, or undefined when
- * the source takes none (GitHub fires on its default action, the generic webhook
- * on any signed delivery). Only non-empty filters are sent, so the server stores
- * exactly what narrows the trigger and nothing that means "match anything".
- */
-function eventFilterConfig(
-  source: EventSource,
-  filterA: string,
-  filterB: string,
-): Record<string, string> | undefined {
-  const keys = FILTER_KEYS[source];
-  if (!keys) return undefined;
-  const config: Record<string, string> = {};
-  if (filterA) config[keys[0]] = filterA;
-  if (filterB) config[keys[1]] = filterB;
-  return Object.keys(config).length ? config : undefined;
 }
 
 /**
@@ -216,7 +196,10 @@ export function TriggerFormDialog({
   // already know whom they are scheduling this costs nothing new.
   const { agents } = useAgents();
   const defaultAgentId = useAgentSelectionStore((state) => state.defaultAgentId);
-  const runnable = agents.filter((agent) => agent.status === "published");
+  // Only agents the caller may actually run: a published version to run, and a
+  // `can_run` that resolves the caller's role scope plus any run grant. Seeding
+  // the default from this set never points at an agent the create would refuse.
+  const runnable = agents.filter((agent) => agent.status === "published" && agent.can_run);
   const [pickedAgentId, setPickedAgentId] = useState("");
   // The user's starred default, or the first published agent, the moment the
   // list arrives - the same resolution the chat's own picker makes.
@@ -385,7 +368,7 @@ export function TriggerFormDialog({
       ...base,
       event_source: eventSource,
       event_secret: secret,
-      event_config: eventFilterConfig(eventSource, filterA.trim(), filterB.trim()),
+      event_config: eventFilterConfig(eventSource, [filterA, filterB]),
     };
   }
 
@@ -493,6 +476,16 @@ export function TriggerFormDialog({
             </FormField>
           )}
 
+          <FormField label={t("nameLabel")} htmlFor="trigger-name" description={t("nameHelp")}>
+            <Input
+              id="trigger-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder={t("namePlaceholder")}
+              maxLength={120}
+            />
+          </FormField>
+
           {!editing && type === "schedule" && (
             <ScheduleTemplatePicker
               selectedKey={templateKey}
@@ -516,16 +509,6 @@ export function TriggerFormDialog({
               {t("promptHelp")}
             </p>
           </div>
-
-          <FormField label={t("nameLabel")} htmlFor="trigger-name" description={t("nameHelp")}>
-            <Input
-              id="trigger-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder={t("namePlaceholder")}
-              maxLength={120}
-            />
-          </FormField>
 
           {type === "schedule" && (
             <ScheduleFields

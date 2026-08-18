@@ -24,16 +24,21 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
-function agent(id: string, name: string, status = "published") {
-  return { id, name, status, description: null, has_avatar: false };
+function agent(id: string, name: string, status = "published", can_run = true) {
+  return { id, name, status, description: null, has_avatar: false, can_run };
 }
 
 function serve() {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/agents") {
       return {
-        items: [agent("a1", "Analyst"), agent("a2", "Nightly"), agent("a3", "Draft", "draft")],
-        total: 3,
+        items: [
+          agent("a1", "Analyst"),
+          agent("a2", "Nightly"),
+          agent("a3", "Draft", "draft"),
+          agent("a4", "Restricted", "published", false),
+        ],
+        total: 4,
       };
     }
     // Any picked agent's environments and triggers.
@@ -80,6 +85,9 @@ describe("TriggerFormDialog with no agent in context", () => {
     await user.click(await within(dialog).findByRole("combobox", { name: "Agent" }));
     // Only published agents are offered - a draft has no version to run.
     expect(screen.queryByRole("option", { name: "Draft" })).toBeNull();
+    // Nor an agent the caller cannot run, published or not - the picker never
+    // offers a target the create would refuse.
+    expect(screen.queryByRole("option", { name: "Restricted" })).toBeNull();
     await user.click(await screen.findByRole("option", { name: "Nightly" }));
     await user.type(within(dialog).getByLabelText("Message"), "Do it");
     await user.click(within(dialog).getByRole("button", { name: "Create" }));

@@ -38,6 +38,39 @@ export function unitToSeconds(unit: IntervalUnit, count: number): number {
   return count * factor;
 }
 
+/**
+ * The two `event_config` keys each source's optional substring filters map onto,
+ * or none. Shared by both trigger builders - the raw source-and-secret form and
+ * the friendly portal dialog - so a source is described in one place: GitHub
+ * fires on its default action and the generic webhook on any signed delivery, so
+ * neither offers a filter; email narrows by subject and sender, LinkedIn by
+ * author and post text.
+ */
+export const FILTER_KEYS: Partial<Record<EventSource, readonly [string, string]>> = {
+  email: ["subject_contains", "sender_contains"],
+  linkedin: ["author_contains", "text_contains"],
+};
+
+/**
+ * The `event_config` a source's substring filters produce, or undefined when the
+ * source takes none. `values` are the field inputs in the order `FILTER_KEYS`
+ * lists them; each is trimmed and only a non-empty one is sent, so the server
+ * stores exactly what narrows the trigger and nothing that means "match anything".
+ */
+export function eventFilterConfig(
+  source: EventSource,
+  values: readonly string[],
+): Record<string, string> | undefined {
+  const keys = FILTER_KEYS[source];
+  if (!keys) return undefined;
+  const config: Record<string, string> = {};
+  keys.forEach((key, index) => {
+    const value = values[index]?.trim();
+    if (value) config[key] = value;
+  });
+  return Object.keys(config).length ? config : undefined;
+}
+
 /** What makes this trigger fire, reduced for display. */
 export function triggerSummary(trigger: Trigger): TriggerSummary {
   if (trigger.trigger_type === "event") {

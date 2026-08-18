@@ -30,9 +30,14 @@ import { usePortals, type PortalWithState } from "@/hooks";
 import { startMcpOAuth } from "@/lib/mcp-connections-api";
 import { getErrorMessage } from "@/lib/api-error";
 
-/** A backend category slug as a heading - hyphens read as a machine field. */
+/**
+ * A backend category slug as a heading - hyphens read as a machine field, and
+ * the slug is lower case, so "lead-gen" becomes "Lead Gen". Title-cased at the
+ * data level so both the card and the filter dropdown read the same; these are
+ * catalog slugs, not translatable copy, so no message key stands behind them.
+ */
 function categoryLabel(category: string): string {
-  return category.replace(/-/g, " ");
+  return category.replace(/-/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 interface PortalCatalogProps {
@@ -145,6 +150,15 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
             title={t("emptyTitle")}
             description={t("emptyDescription")}
           />
+        ) : list.matched === 0 ? (
+          // The catalog holds portals, but the search or category filter matched
+          // none - a distinct message so a fruitless search does not read as an
+          // empty catalog under a control that says there are some.
+          <ListCardEmpty
+            icon={Sparkles}
+            title={t("noMatchesTitle")}
+            description={t("noMatchesDescription")}
+          />
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {list.visible.map((item) => (
@@ -167,7 +181,7 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
                     )}
                     <div className="min-w-0 flex-1 space-y-1">
                       <span className="truncate text-sm font-medium">{item.portal.name}</span>
-                      <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
+                      <p className="text-muted-foreground text-[11px] font-medium tracking-wide">
                         {categoryLabel(item.portal.category)}
                       </p>
                       <p className="text-muted-foreground line-clamp-2 text-sm">

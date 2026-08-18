@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui";
-import { usePermissions } from "@/hooks";
+import { useCanCreateTrigger, usePermissions } from "@/hooks";
 import { Perm } from "@/types/permissions";
 
 interface NewEventTriggerDialogProps {
@@ -26,13 +26,17 @@ interface NewEventTriggerDialogProps {
  * `PortalTriggerDialog` with its own agent picker, so no context is lost even from
  * the sidebar, and the raw source-and-secret form is demoted to the grid's
  * "Advanced: custom webhook" hatch rather than a default button. The two
- * permissions the grid should not decide for itself are resolved here - creating a
- * trigger needs `agents:run`, connecting the organization's account needs
- * `connections:manage` - and the cards hide the actions the caller may not use.
+ * abilities the grid should not decide for itself are resolved here - creating a
+ * trigger is gated on the same per-agent floor as the buttons that open this
+ * dialog (`useCanCreateTrigger`, true for a Viewer holding a run grant on one
+ * agent, where the role-level `agents:run` would be false), and connecting the
+ * organization's account needs `connections:manage` - and the cards hide the
+ * actions the caller may not use.
  */
 export function NewEventTriggerDialog({ open, onOpenChange }: NewEventTriggerDialogProps) {
   const t = useTranslations("triggers");
   const { can } = usePermissions();
+  const canCreate = useCanCreateTrigger();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -41,10 +45,7 @@ export function NewEventTriggerDialog({ open, onOpenChange }: NewEventTriggerDia
           <DialogTitle>{t("newEventTitle")}</DialogTitle>
           <DialogDescription>{t("newEventDescription")}</DialogDescription>
         </DialogHeader>
-        <PortalCatalog
-          canRun={can(Perm.agentsRun)}
-          canManageConnections={can(Perm.connectionsManage)}
-        />
+        <PortalCatalog canRun={canCreate} canManageConnections={can(Perm.connectionsManage)} />
       </DialogContent>
     </Dialog>
   );

@@ -351,6 +351,10 @@
     }
   },
   "pages": {
+    "routines": {
+      "title": "Rutyny",
+      "description": "Wszystko, co Twoi agenci robią sami — według harmonogramu lub w reakcji na zdarzenie."
+    },
     "kb": {
       "search": "Szukaj",
       "retry": "Spróbuj ponownie",
@@ -1146,8 +1150,21 @@
     "runningNow": "Uruchamiam teraz",
     "removed": "Wyzwalacz usunięty",
     "newSchedule": "Nowy harmonogram",
-    "newTrigger": "Nowy trigger",
     "newEvent": "Nowy wyzwalacz",
+    "newEventTitle": "Nowy wyzwalacz zdarzenia",
+    "newEventDescription": "Wybierz usługę, aby uruchomić agenta, gdy coś się w niej wydarzy. Brak API? Podłącz własny webhook.",
+    "webhookUrlPreview": "Adres dostarczania",
+    "webhookUrlPreviewValue": "…/api/v1/webhooks/triggers/{source}/‹identyfikator nadany przy zapisie›",
+    "webhookUrlPreviewHelp": "Dostawca wysyła tu żądania. Pełny adres, na hoście API, pojawi się po utworzeniu wyzwalacza — sekret podpisujący poniżej weryfikuje każde dostarczenie do niego.",
+    "rotateSecretTitle": "Sekret podpisujący",
+    "rotateSecretHelp": "Rotacja zastępuje sekret uwierzytelniający dostarczenia. Poprzedni przestaje działać w momencie rotacji.",
+    "rotateSecret": "Rotuj sekret podpisujący",
+    "rotateRevealNote": "Skopiuj go teraz — nie zostanie pokazany ponownie. Wklej go u dostawcy, aby dostarczenia były nadal weryfikowane.",
+    "rotateAutoNote": "Platforma ponownie zarejestrowała webhook z nowym sekretem. Nie ma nic do wklejenia.",
+    "secretRotated": "Sekret podpisujący zrotowany",
+    "templatesLabel": "Zacznij od szablonu",
+    "templateScratch": "Zacznij od zera",
+    "templateScratchHelp": "Napisz własną wiadomość i kadencję.",
     "editTitle": "Edytuj wyzwalacz",
     "createDescription": "Agent uruchamia się sam, bez nikogo przy klawiaturze.",
     "editDescription": "Zmień wiadomość lub środowisko. Aby zmienić kadencję lub zdarzenie, usuń ten i utwórz nowy.",
@@ -1249,6 +1266,8 @@
     "advancedWebhook": "Zaawansowane: własny webhook",
     "emptyTitle": "Brak portali",
     "emptyDescription": "Gdy portal zostanie dodany, pojawi się tutaj.",
+    "noMatchesTitle": "Brak pasujących portali",
+    "noMatchesDescription": "Żaden portal nie pasuje do wyszukiwania ani kategorii. Spróbuj innego hasła lub wyczyść filtr.",
     "loadError": "Nie udało się wczytać portali.",
     "couldNotConnect": "Nie udało się rozpocząć łączenia.",
     "dialogTitle": "Nowy wyzwalacz: {portal}",
@@ -1264,11 +1283,15 @@
     "manualResultDescription": "Dodaj ten adres webhooka u swojego dostawcy. Nic się nie uruchomi, dopóki nie nadejdzie zdarzenie.",
     "secretLabel": "Sekret podpisujący",
     "secretRevealNote": "Skopiuj go teraz - nie zostanie pokazany ponownie. Skonfiguruj przekaźnik, aby podpisywał nim każde dostarczenie.",
-    "filterHelp": "Opcjonalne. Pozostaw puste, aby uruchamiać przy każdym przychodzącym e-mailu.",
+    "filterHelp": "Opcjonalne. Pozostaw puste, aby uruchamiać przy każdym zdarzeniu.",
     "subjectFilterLabel": "Temat zawiera",
     "subjectFilterPlaceholder": "np. faktura",
     "senderFilterLabel": "Nadawca zawiera",
-    "senderFilterPlaceholder": "np. billing@acme.com"
+    "senderFilterPlaceholder": "np. billing@acme.com",
+    "authorFilterLabel": "Autor zawiera",
+    "authorFilterPlaceholder": "np. Jan Kowalski",
+    "textFilterLabel": "Treść zawiera",
+    "textFilterPlaceholder": "np. rekrutacja"
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",

@@ -139,6 +139,21 @@ describe("PortalCatalog", () => {
     expect(screen.getByRole("group", { name: "Email" })).toBeInTheDocument();
     // Presets are shown on the card so the choice is visible before opening it.
     expect(githubRow().getByText("New issue opened")).toBeInTheDocument();
+    // The category slug reads title-cased, not the lower-case "development".
+    expect(githubRow().getByText("Development")).toBeInTheDocument();
+  });
+
+  it("says nothing matches rather than an empty grid when a search excludes every portal", async () => {
+    await mount();
+
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Search portals…" }),
+      "no-such-portal",
+    );
+
+    expect(await screen.findByText("No portals match")).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "GitHub" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Email" })).toBeNull();
   });
 
   it("offers Connect account for an auto-webhook portal nobody has connected", async () => {
