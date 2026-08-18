@@ -21,8 +21,10 @@ import re
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import Any
 from uuid import UUID
 
+import yaml
 from pydantic import BaseModel, ValidationError
 from pydantic_ai_harness.compaction import resolve_context_window
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -520,6 +522,54 @@ def _window_of(profile: ModelProfile | None) -> int | None:
     return resolve_context_window(f"{profile.provider}:{profile.model}")
 
 
+def _yaml_location(exc: yaml.YAMLError) -> dict[str, Any]:
+    """Where the document stopped parsing, without quoting any of it.
+
+    `str()` on a marked YAML error includes the offending source line, and the
+    document is somebody's spec - instructions, a `secret_id`, whatever they
+    were editing when it broke. So the position is reported and the text is not:
+    it is already in front of the person who wrote it
+    (`.claude/rules/exceptions-security.md`). A `ReaderError` - a control
+    character in the file - carries a byte offset and no mark, which is why the
+    line is optional rather than assumed.
+    """
+    mark = getattr(exc, "problem_mark", None)
+    if mark is None:
+        return {"field": "yaml"}
+    return {"field": "yaml", "line": mark.line + 1, "column": mark.column + 1}
+
+
+def _parse_spec_yaml(text: str) -> AgentSpec:
+    """Read a spec written or edited outside the Builder.
+
+    Every field rule in `AgentSpec` exists to explain what is wrong with a spec,
+    and none of those explanations used to reach the person who wrote one: a
+    pydantic `ValidationError` is a `ValueError` but not a
+    `RequestValidationError`, so nothing between the parse and the ASGI boundary
+    mapped it and a typo answered 500 with a traceback in the log, as though the
+    platform had broken rather than the file (#873). Bad input is this path's
+    ordinary case - somebody is editing YAML by hand and iterating.
+
+    Raises:
+        BadRequestError: If the document does not parse, is not a mapping, or
+            breaks a field rule - carrying the field path a form can mark, and
+            no copy of what was submitted.
+    """
+    try:
+        return AgentSpec.from_yaml(text)
+    except ValidationError as exc:
+        raise BadRequestError(
+            message="This spec does not match the agent spec format",
+            details={"errors": exc.errors(include_url=False, include_input=False)},
+        ) from exc
+    except yaml.YAMLError as exc:
+        raise BadRequestError(
+            message="This spec is not valid YAML", details=_yaml_location(exc)
+        ) from exc
+    except ValueError as exc:
+        raise BadRequestError(message=str(exc), details={"field": "yaml"}) from exc
+
+
 class AgentRegistryService:
     """Manage an organization's agents."""
 
@@ -840,6 +890,20 @@ class AgentRegistryService:
                 "description": spec.description,
             },
         )
+
+    async def import_spec(self, ctx: AuthContext, agent_id: UUID, text: str) -> Agent:
+        """Replace the draft with a spec exported into a client's own repository.
+
+        The parse happens before the agent is read. What it refuses depends only
+        on the document the caller sent, so putting it first leaks nothing about
+        which agents exist and answers somebody iterating on a file without
+        opening a transaction against a row they were never going to write.
+
+        Raises:
+            BadRequestError: If the document does not parse, is not a mapping, or
+                breaks a field rule.
+        """
+        return await self.save_draft(ctx, agent_id, _parse_spec_yaml(text))
 
     async def validate_spec(
         self, ctx: AuthContext, spec: AgentSpec, *, agent_id: UUID | None = None

@@ -79,6 +79,13 @@ type rather than as data access.
 - Input validation via Pydantic schemas
 - Authentication and authorization checks
 - **Never** contains direct DB calls — always delegates to a service
+- **Never** parses untrusted input in the route expression. A `ValidationError`
+  raised there is a `ValueError` but not a `RequestValidationError`, so no
+  handler maps it and the caller is answered 500 with `details: null` — which is
+  how every mistake in a hand-edited spec YAML was reported as a crash (#873).
+  Parsing is the owning service's job, and so is the refusal: `import_spec` on
+  `AgentRegistryService` answers a broken document with a 400 that names the
+  field, and never quotes what was submitted back at the caller.
 
 ### Services (`services/`)
 - Business logic and validation

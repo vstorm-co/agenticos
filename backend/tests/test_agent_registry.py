@@ -886,6 +886,49 @@ class TestSaveDraft:
         }
 
 
+class TestImportSpec:
+    """The round trip the export feature exists for: a spec committed to a
+    client's own repository, edited there, and posted back (#873)."""
+
+    @pytest.mark.anyio
+    async def test_a_valid_document_replaces_the_draft(self):
+        ctx = _ctx()
+        agent = _agent(ctx)
+        spec = _spec("Support", description="Answers billing questions")
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock(return_value=agent)
+            ) as update,
+        ):
+            await AgentRegistryService(_db()).import_spec(ctx, agent.id, spec.to_yaml())
+
+        assert update.call_args.kwargs["update_data"] == {
+            "draft_spec": spec.model_dump(mode="json"),
+            "name": "Support",
+            "description": "Answers billing questions",
+        }
+
+    @pytest.mark.anyio
+    async def test_a_document_that_does_not_parse_never_reaches_the_row(self):
+        """The refusal is a `BadRequestError`, not the `ValidationError` nothing
+        in `app/api/exception_handlers.py` maps - and it is raised before the
+        agent is read, so a spec nobody could have saved opens no transaction."""
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock()) as fetched,
+            patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock()) as update,
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).import_spec(
+                _ctx(), uuid.uuid4(), "name: x\ninstrucitons: typo\n"
+            )
+
+        assert refused.value.details["errors"][0]["loc"] == ("instrucitons",)
+        fetched.assert_not_called()
+        update.assert_not_called()
+
+
 class TestValidateSpec:
     @pytest.mark.anyio
     async def test_a_broken_spec_reports_every_problem_at_once(self, ungranted_capability):
