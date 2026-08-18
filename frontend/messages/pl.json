@@ -364,8 +364,7 @@
       "connectorsFailedDescription": "Żądanie listy konektorów nie powiodło się, więc nie wiadomo, czy któryś jest włączony."
     },
     "runs": {
-      "scheduled": "Zaplanowane",
-      "portals": "Portale"
+      "scheduled": "Zaplanowane"
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "Katalog jest wkompilowany w backend, a nikt nie dodał własnego serwera. Pusta lista oznacza tutaj, że ten deployment nie dostarcza żadnego.",
@@ -1150,13 +1149,10 @@
     "runningNow": "Uruchamiam teraz",
     "removed": "Wyzwalacz usunięty",
     "newSchedule": "Nowy harmonogram",
-    "newTrigger": "Nowy wyzwalacz",
     "newEvent": "Nowy wyzwalacz",
     "editTitle": "Edytuj wyzwalacz",
     "createDescription": "Agent uruchamia się sam, bez nikogo przy klawiaturze.",
     "editDescription": "Zmień wiadomość lub środowisko. Aby zmienić kadencję lub zdarzenie, usuń ten i utwórz nowy.",
-    "typeSchedule": "Harmonogram",
-    "typeEvent": "Wyzwalacz",
     "prompt": "Wiadomość",
     "promptHelp": "Co agent dostaje przy każdym uruchomieniu.",
     "promptPlaceholder": "Podsumuj, co zmieniło się od wczoraj.",

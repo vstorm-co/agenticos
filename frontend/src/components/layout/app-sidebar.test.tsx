@@ -77,7 +77,7 @@ describe("SidebarNav", () => {
 
     renderNav();
 
-    for (const label of ["dashboard", "chat", "agents", "skills", "activity"]) {
+    for (const label of ["dashboard", "chat", "agents", "skills", "activity", "routines"]) {
       expect(screen.getByRole("link", { name: label })).toBeInTheDocument();
     }
   });

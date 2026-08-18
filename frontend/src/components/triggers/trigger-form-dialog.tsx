@@ -228,7 +228,12 @@ export function TriggerFormDialog({
   const { environments } = useAgentEnvironments(effectiveAgentId);
   const namedEnvironments = environments.filter((environment) => !environment.is_default);
 
-  const [type, setType] = useState<TriggerType>(trigger?.trigger_type ?? initialType);
+  // A trigger's kind is fixed once the dialog opens: editing keeps the row's type,
+  // and creating takes whichever kind the entry point chose - "New schedule" opens
+  // this on a schedule, the portal grid's "Advanced: custom webhook" hatch on an
+  // event. There is no in-dialog switch, because event triggers are created from
+  // the portal grid by default, not this raw form.
+  const type = trigger?.trigger_type ?? initialType;
   const [prompt, setPrompt] = useState(trigger?.prompt ?? "");
   const [name, setName] = useState(trigger?.name ?? "");
   const [environmentId, setEnvironmentId] = useState(trigger?.environment_id ?? DEFAULT_ENV);
@@ -463,15 +468,6 @@ export function TriggerFormDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {!editing && (
-            <Tabs value={type} onValueChange={(next) => setType(next as TriggerType)}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="schedule">{t("typeSchedule")}</TabsTrigger>
-                <TabsTrigger value="event">{t("typeEvent")}</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          )}
-
           {agentId === null && !editing && (
             <FormField label={t("agent")} htmlFor="trigger-agent">
               <Select

@@ -38,6 +38,7 @@ import {
   LayoutDashboard,
   MessageSquare,
   Plug,
+  Repeat,
   ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
@@ -82,6 +83,10 @@ export const NAV_GROUPS: NavGroup[] = [
       { labelKey: "skills", href: ROUTES.SKILLS, icon: BookOpen, permission: Perm.skillsView },
       { labelKey: "context", href: ROUTES.CONTEXT, icon: FileText, permission: Perm.contextView },
       { labelKey: "activity", href: ROUTES.RUNS, icon: Activity, permission: Perm.runsView },
+      // The org-wide create-and-manage home for triggers. Gated on `agents:view`,
+      // the floor for seeing an agent's schedule; the create controls inside gate
+      // further on `agents:run`, so a viewer sees the list without the buttons.
+      { labelKey: "routines", href: ROUTES.ROUTINES, icon: Repeat, permission: Perm.agentsView },
     ],
   },
   {

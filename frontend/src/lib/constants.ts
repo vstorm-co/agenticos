@@ -30,6 +30,7 @@ export const ROUTES = {
   AGENTS: "/agents",
   AGENT_DETAIL: (id: string) => `/agents/${id}`,
   RUNS: "/runs",
+  ROUTINES: "/routines",
   VAULT: "/vault",
   SANDBOXES: "/sandboxes",
   WORKSPACES: "/workspaces",

@@ -38,6 +38,12 @@ vi.mock("@/components/agents/agent-avatar", () => ({
 vi.mock("@/components/agents/conversation-agents", () => ({
   ConversationAgents: () => null,
 }));
+// The event path is the portal grid, covered by the portal tests; stubbed here so
+// the sidebar menu's own job - opening it - is what this suite checks.
+vi.mock("@/components/triggers/new-event-trigger-dialog", () => ({
+  NewEventTriggerDialog: ({ open }: { open: boolean }) =>
+    open ? <div role="dialog" aria-label="New event trigger" /> : null,
+}));
 
 let urlParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
@@ -338,14 +344,15 @@ describe("the New Chat split button", () => {
     expect(within(dialog).getByRole("combobox", { name: "Agent" })).toBeVisible();
   });
 
-  it("opens the event-trigger dialog from the chevron menu", async () => {
+  it("opens the portal grid for a new event trigger from the chevron menu", async () => {
     mount();
     await screen.findAllByText("Quarterly numbers");
 
     await userEvent.click(within(list()).getByRole("button", { name: "New schedule or trigger" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "New trigger" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "New event trigger" }));
 
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByLabelText("Signing secret")).toBeVisible();
+    // Portals are the default event path, so the menu opens the grid, not the
+    // raw source-and-secret form.
+    expect(await screen.findByRole("dialog", { name: "New event trigger" })).toBeVisible();
   });
 });

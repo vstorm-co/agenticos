@@ -17,6 +17,7 @@ import { useDebounced } from "@/components/ui/list-controls";
 import { ConversationAgents } from "@/components/agents/conversation-agents";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { SidebarTriggers } from "@/components/chat/sidebar-triggers";
+import { NewEventTriggerDialog } from "@/components/triggers/new-event-trigger-dialog";
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { cn, setUrlParam } from "@/lib/utils";
 import { useChatSidebarStore } from "@/stores";
@@ -36,7 +37,6 @@ import {
   Trash2,
 } from "lucide-react";
 import type { Conversation } from "@/types";
-import type { TriggerType } from "@/types/triggers";
 import {
   ConversationFilters,
   DEFAULT_SORT,
@@ -270,7 +270,8 @@ function ConversationList({
   // the caller may in fact manage.
   const canManageTriggers = can(Perm.agentsRun);
   const [shareConversationId, setShareConversationId] = useState<string | null>(null);
-  const [creatingTrigger, setCreatingTrigger] = useState<TriggerType | null>(null);
+  const [creatingSchedule, setCreatingSchedule] = useState(false);
+  const [creatingEvent, setCreatingEvent] = useState(false);
 
   const handleSelect = (id: string) => {
     onSelect(id);
@@ -310,11 +311,11 @@ function ConversationList({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => setCreatingTrigger("schedule")}>
+              <DropdownMenuItem onSelect={() => setCreatingSchedule(true)}>
                 {tt("newSchedule")}
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setCreatingTrigger("event")}>
-                {tt("newTrigger")}
+              <DropdownMenuItem onSelect={() => setCreatingEvent(true)}>
+                {tt("newEvent")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -428,15 +429,18 @@ function ConversationList({
           }}
         />
       )}
-      {creatingTrigger && (
+      {creatingSchedule && (
         <TriggerFormDialog
           // No agent in context here - the dialog offers its picker, seeded
           // with the user's default agent.
           agentId={null}
           open
-          initialType={creatingTrigger}
-          onOpenChange={(next) => !next && setCreatingTrigger(null)}
+          initialType="schedule"
+          onOpenChange={(next) => !next && setCreatingSchedule(false)}
         />
+      )}
+      {creatingEvent && (
+        <NewEventTriggerDialog open onOpenChange={(next) => !next && setCreatingEvent(false)} />
       )}
     </>
   );
