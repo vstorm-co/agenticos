@@ -17,9 +17,47 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.190] - 2026-08-18
+
+### Fixed
+
+- **An ingestion override the pipeline cannot use is refused, not crashed on.**
+  An upload whose `chunk_overlap` is not smaller than its `chunk_size` was
+  rejected by a validator whose own docstring said "the form is what says so" —
+  and the form got a 500 with `details: null`, while the log took a traceback for
+  a number somebody typed. Both upload routes answer 400 naming both settings,
+  before the file is stored, and the submitted values are not echoed back. A
+  collection's own settings were already correct: they arrive as a schema field,
+  so FastAPI refuses the same pair with a 422 before the route is entered, which
+  is now pinned by a test rather than asserted in prose. (#874)
+
 ## [0.0.189] - 2026-08-18
 
 ### Fixed
+
+- **A blocked MCP server URL names the refusal instead of answering 500.**
+  `SSRFBlockedError` is a `ValueError` and nothing mapped it, so an operator
+  pasting an address that resolves to a private host got "an unexpected error
+  occurred" and left a traceback in the log as though the platform had broken.
+  All five call sites — personal and organization, create, update and the OAuth
+  start — answer 400 naming the `url` field. (#861)
+- **A URL with an unusable port is refused rather than validated.**
+  `http://8.8.8.8:not-a-port/x` used to come back as checked, to a client that
+  could not dial it — the IP-literal branch swallowed the parse error. (#861)
+- **The validator stopped calling an MCP address a webhook.** Its messages said
+  "Webhook URL blocked" to somebody who had just typed a server URL, and the same
+  text reached the browser-automation publish problem. `validate_webhook_url` has
+  had no webhook caller for some time. (#861)
+
+  Caught in review of the same change, and never released: an intermediate
+  version of the refusal caught `ValueError` broadly, which would have put the
+  caller's own text — `urlsplit` parses the port at attribute access, so
+  `http://example.com:client_secret=abc123/mcp` produces a message carrying that
+  secret — into the 400 body. `UrlRefusedError` is the base for refusals written
+  here, the catch is narrowed to it, and a parametrised test asserts that
+  invariant so the next bare `ValueError` fails a test rather than reaching a
+  response. Before any of this the malformed port answered a generic 500, so no
+  released version put that text in a body.
 
 - **The frontend suite has deadlines it can actually meet.** `test-frontend`
   went red on specs that pass in about a second alone, and the diagnosis in the
