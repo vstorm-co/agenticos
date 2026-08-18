@@ -79,6 +79,34 @@ def _now_epoch() -> float:
     return datetime.now(UTC).timestamp()
 
 
+async def _checked_url(url: str) -> str:
+    """SSRF-check a submitted URL, refusing it as a 400 rather than a crash.
+
+    `validate_mcp_url` raises `SSRFBlockedError`, which subclasses `ValueError`
+    and which no handler in `app/api/exception_handlers.py` maps - so pasting a
+    `localhost` server URL into the connection dialog answered 500 "An
+    unexpected error occurred" with `details: null`, and left a traceback in the
+    log, for a guard doing exactly what it is there for. The operator who could
+    have fixed it in five seconds was told the platform had broken (#861).
+
+    `details` names the field rather than repeating the address, and the reason
+    is the validator's own message, which names a host and never a URL - a URL
+    carries a key in its query string (#840).
+
+    Raises:
+        BadRequestError: If the URL is malformed or points inside the
+            deployment's network.
+    """
+    try:
+        return await validate_mcp_url(url)
+    except ValueError as exc:
+        logger.warning("MCP server URL refused: %s", exc)
+        raise BadRequestError(
+            message=f"This MCP server URL cannot be used: {exc}",
+            details={"field": "url"},
+        ) from exc
+
+
 def _apply_token(payload: McpOAuthPayload, token: OAuthToken) -> McpOAuthPayload:
     """Fold a fresh token grant/refresh into the stored payload."""
     return payload.model_copy(
@@ -285,7 +313,7 @@ class McpConnectionService:
         return await mcp_connection_repo.list_for_user(self.db, user_id=user_id)
 
     async def create(self, *, user_id: UUID, data: McpConnectionCreate) -> McpConnection:
-        url = await validate_mcp_url(data.url)
+        url = await _checked_url(data.url)
         existing = await mcp_connection_repo.get_by_name(self.db, user_id=user_id, name=data.name)
         if existing is not None:
             raise AlreadyExistsError(
@@ -320,7 +348,7 @@ class McpConnectionService:
         )
 
         if "url" in update_data:
-            update_data["url"] = await validate_mcp_url(update_data["url"])
+            update_data["url"] = await _checked_url(update_data["url"])
 
         if "name" in update_data and update_data["name"] != db_connection.name:
             collision = await mcp_connection_repo.get_by_name(
@@ -472,7 +500,7 @@ class McpConnectionService:
         once. Two copies of an OAuth handshake is two places for a PKCE verifier
         to be dropped.
         """
-        url = await validate_mcp_url(url)
+        url = await _checked_url(url)
         server = await mcp_oauth.discover(url)  # raises OAuthError if unsupported
         redirect_uri = _oauth_redirect_uri()
         client_id, client_secret = await mcp_oauth.register_client(server, redirect_uri)
@@ -612,7 +640,7 @@ class McpConnectionService:
                 message=f"Unknown catalog server: {data.catalog_key}",
                 details={"catalog_key": data.catalog_key},
             )
-        url = await validate_mcp_url(data.url)
+        url = await _checked_url(data.url)
         existing = await mcp_connection_repo.get_org_scoped_by_name(
             self.db, organization_id=ctx.organization_id, name=data.name
         )
@@ -663,7 +691,7 @@ class McpConnectionService:
         )
 
         if "url" in update_data:
-            update_data["url"] = await validate_mcp_url(update_data["url"])
+            update_data["url"] = await _checked_url(update_data["url"])
 
         if "name" in update_data and update_data["name"] != db_connection.name:
             collision = await mcp_connection_repo.get_org_scoped_by_name(

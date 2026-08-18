@@ -1,6 +1,6 @@
 """Input sanitization utilities.
 
-Webhook URL validation to prevent SSRF attacks.
+URL validation to prevent SSRF attacks.
 """
 
 import ipaddress
@@ -88,10 +88,13 @@ def validate_webhook_url(
     Because of that, the refusals below name the **host**, or nothing, but never
     the URL. A URL carries a key in its query string, and the one being refused
     may have been written by the party being refused
-    (`.claude/rules/exceptions-security.md`).
+    (`.claude/rules/exceptions-security.md`). They name no *caller* either: this
+    function has had no webhook caller for some time, and every message it
+    raises is read by somebody who typed an MCP server URL or a `cdp_url`
+    (#861).
 
     Args:
-        url: The webhook URL to validate.
+        url: The URL to validate.
         allowed_schemes: Allowed URL schemes. Defaults to {"http", "https"}.
 
     Returns:
@@ -113,7 +116,7 @@ def validate_webhook_url(
     try:
         parsed = urlparse(url)
     except Exception as err:
-        raise ValueError("Webhook URL could not be parsed") from err
+        raise ValueError("The URL could not be parsed") from err
 
     if parsed.scheme not in allowed_schemes:
         raise SSRFBlockedError(
@@ -123,13 +126,13 @@ def validate_webhook_url(
 
     hostname = parsed.hostname
     if not hostname:
-        raise ValueError("Webhook URL has no hostname")
+        raise ValueError("The URL has no hostname")
 
     # Reject URLs with userinfo (credentials) to prevent URL parsing ambiguities
     # e.g. http://user:pass@host/ or http://foo@169.254.169.254%00@public.com/
     if parsed.username is not None or parsed.password is not None:
         raise SSRFBlockedError(
-            "Webhook URL must not contain credentials (userinfo). "
+            "The URL must not contain credentials (userinfo). "
             "Remove the user:password@ portion from the URL."
         )
 
@@ -137,7 +140,7 @@ def validate_webhook_url(
         addr = ipaddress.ip_address(hostname)
         if _is_ip_blocked(str(addr)):
             raise SSRFBlockedError(
-                f"Webhook URL blocked: {hostname!r} resolves to a private/internal "
+                f"Blocked: {hostname!r} resolves to a private/internal "
                 f"address. SSRF protection does not allow requests to internal networks."
             )
         return url
@@ -153,20 +156,16 @@ def validate_webhook_url(
     try:
         addr_infos = socket.getaddrinfo(hostname, port, proto=socket.IPPROTO_TCP)
     except socket.gaierror as err:
-        raise SSRFBlockedError(
-            f"Webhook URL blocked: unable to resolve hostname {hostname!r}"
-        ) from err
+        raise SSRFBlockedError(f"Blocked: unable to resolve hostname {hostname!r}") from err
 
     if not addr_infos:
-        raise SSRFBlockedError(
-            f"Webhook URL blocked: hostname {hostname!r} did not resolve to any address"
-        )
+        raise SSRFBlockedError(f"Blocked: hostname {hostname!r} did not resolve to any address")
 
     for _family, _type, _proto, _canonname, sockaddr in addr_infos:
         ip_str = str(sockaddr[0])
         if _is_ip_blocked(ip_str):
             raise SSRFBlockedError(
-                f"Webhook URL blocked: {hostname!r} resolves to private/internal "
+                f"Blocked: {hostname!r} resolves to private/internal "
                 f"address {ip_str!r}. SSRF protection does not allow requests to "
                 f"internal networks."
             )
