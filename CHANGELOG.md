@@ -17,6 +17,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.186] - 2026-08-18
+
+### Fixed
+
+- **The Builder says up front when a draft can never get a model.** A member with
+  `agents:edit` but not `connections:manage`, in an organization that has stored
+  no model profile, could build an agent they cannot publish: the picker's "add"
+  control is gated on a permission they do not hold, and publish is refused
+  without a model. Nothing said so until publish failed, and then it pointed at
+  the permission rather than at what to do. The panel now says it where the
+  missing control would be. (#591)
+- **A failed profile query is no longer read as an empty organization.** The hook
+  degrades a refused `/providers/model-profiles` to `[]`, and its loading flag
+  goes false when retries are exhausted as well as when an answer arrives — so a
+  502 told somebody with a dozen models to go and ask an admin for one. The
+  notice waits on the query's own success now, not on the absence of loading.
+  (#591)
+- **The notice waits for the permission set before claiming the caller cannot add
+  a model.** `can()` answering false while the set is still loading is right for
+  *hiding* a control and wrong for a sentence that tells somebody what they may
+  not do: false there means "not known yet". (#591)
+
 ## [0.0.185] - 2026-08-18
 
 Three places where the code said something about itself that was not true.
