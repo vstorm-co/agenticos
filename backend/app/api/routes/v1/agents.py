@@ -193,6 +193,7 @@ async def get_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> Any
         current_version_id=agent.current_version_id,
         has_avatar=agent.has_avatar,
         avatar_color=agent.avatar_color,
+        can_run=await service.may_run(ctx, agent),
         created_at=agent.created_at,
         updated_at=agent.updated_at,
         draft_spec=AgentSpec.model_validate(agent.draft_spec),

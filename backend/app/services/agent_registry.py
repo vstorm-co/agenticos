@@ -64,6 +64,7 @@ from app.services.access import (
     CONTEXT,
     SECRET,
     SKILL,
+    accessible_ids,
     resolve_access,
     visible_resource_ids,
 )
@@ -502,6 +503,18 @@ class AgentRegistryService:
             raise NotFoundError(message="Agent not found", details={"agent_id": str(agent_id)})
         return agent
 
+    async def may_run(self, ctx: AuthContext, agent: Agent) -> bool:
+        """Whether this caller may run this agent - the floor to create a trigger on it.
+
+        The per-resource counterpart to the `can_run` the listing fills in batch:
+        the detail route reads it for one agent it already loaded. It resolves the
+        run access the same way, through `resolve_access`, so a Viewer holding an
+        explicit run grant reads true here where the role-level check would refuse
+        them. The access call stays in the service rather than the route, which is
+        the layering every other per-resource decision here already follows.
+        """
+        return await resolve_access(self.db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT)
+
     async def list_agents(
         self,
         ctx: AuthContext,
@@ -562,6 +575,10 @@ class AgentRegistryService:
         version_ids = [agent.current_version_id for agent in agents if agent.current_version_id]
         budget_caps = await agent_repo.published_budget_caps(self.db, version_ids=version_ids)
         windows = await self._context_windows(ctx, version_ids)
+        # Which of these the caller may run, in one grant query for the page - the
+        # floor for offering "new trigger" on a card. A grant widens it per row, so
+        # a Viewer shared run on one agent sees the control there and nowhere else.
+        runnable = await accessible_ids(self.db, ctx, agents, Perm.AGENTS_RUN, resource_type=AGENT)
         rows = [
             AgentRead(
                 id=agent.id,
@@ -574,6 +591,7 @@ class AgentRegistryService:
                 current_version_id=agent.current_version_id,
                 has_avatar=agent.has_avatar,
                 avatar_color=agent.avatar_color,
+                can_run=agent.id in runnable,
                 shared_user_count=shared_counts.get(agent.id, 0),
                 channels=surfaces.get(agent.id, []),
                 budget_monthly_usd=(
