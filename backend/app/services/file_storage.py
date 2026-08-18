@@ -5,6 +5,7 @@ Files are organized per-user: {storage_root}/{user_id}/{uuid}_{filename}
 """
 
 import logging
+import os
 import re
 import uuid
 from abc import ABC, abstractmethod
@@ -118,12 +119,21 @@ class LocalFileStorage(BaseFileStorage):
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
     def _resolve_safe_path(self, storage_path: str) -> Path:
-        """Resolve a storage path under base_dir, rejecting traversal attempts."""
-        base = self.base_dir.resolve()
-        candidate = (base / storage_path).resolve()
-        if base != candidate and base not in candidate.parents:
+        """Resolve a storage path under base_dir, rejecting traversal attempts.
+
+        The containment check is a `startswith` against the realpath of the root
+        rather than a `Path.parents` membership test: both refuse the same paths,
+        but only the first is a barrier static analysis recognises, so the second
+        read as an unguarded path expression (CodeQL `py/path-injection`).
+        """
+        base = os.path.realpath(self.base_dir)
+        # A filesystem root already ends in the separator, and `/` + `/` is a prefix
+        # no descendant of it has.
+        prefix = base if base.endswith(os.sep) else base + os.sep
+        candidate = os.path.realpath(Path(base) / storage_path)
+        if candidate != base and not candidate.startswith(prefix):
             raise ValueError(f"Path escapes storage root: {storage_path}")
-        return candidate
+        return Path(candidate)
 
     async def save(self, user_id: str, filename: str, data: bytes) -> str:
         safe_user = _sanitize_filename(user_id)

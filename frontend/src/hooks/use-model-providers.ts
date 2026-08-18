@@ -86,6 +86,13 @@ export function useModelProviders() {
   return {
     catalog: catalog.data?.items ?? [],
     profiles: profiles.data?.items ?? [],
+    /**
+     * Whether `profiles` is the organization's answer rather than a placeholder.
+     * `!isLoading` is not that question: a read that exhausted its retries also
+     * stops loading, and `?? []` then makes a failed request indistinguishable
+     * from an organization that has stored no model.
+     */
+    profilesLoaded: profiles.isSuccess,
     isLoading: catalog.isLoading || profiles.isLoading,
     isFetching: catalog.isFetching || profiles.isFetching,
     createProfile,

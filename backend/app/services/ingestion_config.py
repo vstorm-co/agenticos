@@ -279,12 +279,14 @@ class IngestionConfig(BaseModel):
 
     @model_validator(mode="after")
     def overlap_fits_inside_a_chunk(self) -> IngestionConfig:
-        """An overlap at least as large as the chunk never terminates.
+        """An overlap as large as the chunk advances by almost nothing.
 
-        `RecursiveCharacterTextSplitter` warns and then produces chunks that
-        each start where the previous one did, so a document either grows
-        without bound or is silently cut wrong. Refusing the pair here means the
-        form is what says so.
+        :class:`app.services.rag._splitters.RecursiveCharacterSplitter` carries
+        as much of the previous chunk as still fits, so an overlap equal to the
+        chunk size leaves room for roughly one new piece each time: 200 words at
+        `chunk_size=100` come out as 174 chunks holding nineteen times the
+        source text. It terminates, and it is not chunking. Refusing the pair
+        here means the form is what says so.
         """
         if self.chunk_overlap >= self.chunk_size:
             raise ValueError(

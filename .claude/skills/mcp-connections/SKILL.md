@@ -68,6 +68,14 @@ discovery means the remote server picks most of the addresses we call. Same poli
 webhooks (`app/core/sanitize.validate_webhook_url`), run in a thread because it
 resolves DNS. Do not add a request path that skips it.
 
+**And do not read that check as more than it is.** It resolves the name and refuses a
+private answer *at that moment*, then returns the URL string — so the client resolves
+again when it connects and a rebinding name reaches the address the check refused
+(#840). Do not reach for "but an operator typed it" here: only the first hop was typed,
+and the authorization server, token endpoint and redirects all come from the remote
+server's discovery documents, so one hostile server aims the gap without help (#860).
+A URL a *model* chose needs `safe_download`, which dials the address it checked.
+
 An organization's OAuth connection is still the consenting person's grant at the
 provider. Revoking their access there breaks the organization's server.
 

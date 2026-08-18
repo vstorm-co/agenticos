@@ -17,6 +17,190 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.186] - 2026-08-18
+
+### Fixed
+
+- **The Builder says up front when a draft can never get a model.** A member with
+  `agents:edit` but not `connections:manage`, in an organization that has stored
+  no model profile, could build an agent they cannot publish: the picker's "add"
+  control is gated on a permission they do not hold, and publish is refused
+  without a model. Nothing said so until publish failed, and then it pointed at
+  the permission rather than at what to do. The panel now says it where the
+  missing control would be. (#591)
+- **A failed profile query is no longer read as an empty organization.** The hook
+  degrades a refused `/providers/model-profiles` to `[]`, and its loading flag
+  goes false when retries are exhausted as well as when an answer arrives — so a
+  502 told somebody with a dozen models to go and ask an admin for one. The
+  notice waits on the query's own success now, not on the absence of loading.
+  (#591)
+- **The notice waits for the permission set before claiming the caller cannot add
+  a model.** `can()` answering false while the set is still loading is right for
+  *hiding* a control and wrong for a sentence that tells somebody what they may
+  not do: false there means "not known yet". (#591)
+
+## [0.0.185] - 2026-08-18
+
+Three places where the code said something about itself that was not true.
+
+### Fixed
+
+- **`EMAIL_PROVIDER=resend` silently sent nothing.** `get_email_provider` had no
+  `case "resend"` and the match ended `case "log" | _`, so a deployment setting
+  the value its own module docstring advertised got the *development* provider:
+  every invitation, password reset and approval notice was written to a log line
+  and returned `accepted=True`. Nobody found out, because every call site catches
+  and logs. An unknown value is refused now, with the supported set in `details`,
+  and `ResendProvider` — never reachable — is deleted rather than wired up.
+  `LOG_PROVIDER_WRITE_TO_DISK` is passed through, which it never had been. (#829)
+- **The OAuth refusals no longer say where the server keeps its files.** Two of
+  them quoted the whole URL back, query string included, on a path whose
+  endpoints are reached with credentials. They name the host now, or nothing
+  where there is no host. (#840)
+- **A claim about who chooses an MCP OAuth URL is corrected in all four places
+  that made it.** "Bearable because an operator types the address" holds for a
+  connection URL and a `cdp_url`, but not for the OAuth flow, where the
+  authorization server, token endpoint, registration endpoint and every redirect
+  hop come from the remote server's discovery documents — one hostile server is
+  enough, with no operator complicity. Pinning the validated address is a
+  transport change and is tracked in #860; what shipped here is the code and the
+  documentation saying what is actually true. (#840)
+- **The written-to-disk log filename is safe by construction and unique**:
+  `{timestamp}_{msg_id}.html`, with the subject moved to the log line beside the
+  path. Two messages in the same second no longer overwrite each other either.
+  Not a traversal, despite appearances — the timestamp prefix means the first
+  path component is never `..` — and the docstring now says so rather than
+  leaving the next reader to re-derive it. (#840)
+- **The `ty` relaxations name libraries this project actually has.** They were
+  justified by langgraph and deepagents, which never were dependencies, and by
+  langchain, which stopped being one. (#833)
+
+## [0.0.184] - 2026-08-18
+
+### Fixed
+
+- **The storage-root check is written so a static analyser can follow it**, which
+  is what closes three CodeQL `py/path-injection` alerts — a `Path.parents`
+  membership test is correct and invisible to the query, and an alert nobody can
+  close is an alert everybody learns to ignore. (#841)
+- **A filesystem root can be the storage root again.** The rewritten check built
+  its prefix as `base + os.sep` unconditionally, so with `MEDIA_DIR=/` the prefix
+  was `//` — which nothing under `/` starts with. `load`, `delete` and
+  `get_full_path` all refused with "Path escapes storage root" while `save`
+  carried on writing, leaving the store handing back paths it could no longer
+  read. The separator is appended only when the root lacks one, and the
+  comparison stays a `startswith` on a `realpath` result rather than moving to
+  `commonpath` or `is_relative_to`: both are correct, and neither is a barrier
+  the query models. (#841)
+
+## [0.0.183] - 2026-08-18
+
+Chunking is ours, and `langsmith` is out of the image.
+
+### Changed
+
+- **The RAG pipeline splits text with its own splitters.** Two classes and one
+  method replace the LangChain tree — ten megabytes and eight transitive
+  packages, of which the notable one was not the size: `langsmith`, LangChain's
+  hosted-observability client, sat in every image built for a platform that
+  standardised on Logfire. It was never configured and never imported by us; it
+  arrived behind a text splitter. `RecursiveCharacterSplitter` is a port of the
+  library's at 1.1.2, narrowed to the one configuration the pipeline built, and
+  `MarkdownHeaderSplitter` finds the same sections and then runs the recursive
+  splitter over each. Golden tests pin the chunk boundaries so the port cannot
+  drift. (#158)
+- **The `markdown` strategy honours `chunk_size` again** — it had been silently
+  ignoring it. (#158)
+
+### Fixed
+
+- **A document's chunk count is recorded**, where the only stored count was a
+  constant 0 — which is also what made a chunking change unmeasurable, and why
+  it had to land with the splitters rather than after them. (#147)
+- **Re-ingesting a document no longer counts it twice.** A replacement deletes
+  one vector document and inserts one, but every dispatch created a fresh
+  tracking row, so the superseded row outlived its vectors and kept its
+  `chunk_count` in the collection's total. The replaced row and its stored file
+  are retired now. (#158)
+- **The over-size warning no longer fires at exactly the limit.** A chunk of
+  exactly `chunk_size` is within it. The comparison that decides the split is
+  untouched — widening that would move every boundary in every collection
+  already ingested, which is what the golden tests exist to prevent. (#158)
+
+## [0.0.182] - 2026-08-18
+
+An agent can read the page its search found, and cannot be gated by a gate that
+would not hold.
+
+### Added
+
+- **`web_fetch` — a capability that reads one URL and returns the page as
+  Markdown.** `web_research` returns titles, URLs and snippets and nothing
+  fetched a page, so an agent answered from the snippet and cited a page it had
+  never opened. Its own capability rather than a second tool on `web_research`,
+  because it composes with every search method — including `native`, where the
+  builder returns Pydantic AI's own `WebSearch` and contributes no toolset of
+  ours, so a tool added there would be missing for exactly the agents most
+  likely to want it. "May this agent dereference whatever URL it likes" is also
+  a different grant from "may it search": `web:fetch` is its own scope. (#51)
+- **The Builder can edit a list of strings.** The generated form fell back to a
+  text input for an array-valued property, so typing a hostname into an
+  allowlist stored a scalar string that Pydantic then refused — leaving the
+  field blank was the only publishable path. Arrays of strings now render as one
+  comma-separated input; arrays of anything else still fall through. (#51)
+
+### Fixed
+
+- **A fetch the model provider runs cannot be sold as approval-gated.**
+  `ApprovalGate` wraps tool execution, which is the only place a call can be
+  held, so a provider-native fetch never reaches it: under `method: native`
+  there is no local tool at all, and under `auto` there is one only on a model
+  with no native fetch. A binding that asked for approval and chose either got a
+  gate that never fired — the queue stayed empty and the agent read pages nobody
+  approved, silently. It is refused at publish now, rather than repaired by
+  forcing the local tool: which of the two an author wants is their decision,
+  and `auto` is refused alongside `native` because which one runs is a property
+  of the model profile and changes without republishing. (#51)
+- **A domain filter matched one spelling of a name that has several.** A
+  denylist holding `xn--exmple-cua.com` did not stop `https://exämple.com/`, and
+  `getaddrinfo` resolves the two identically — so the miss was a fetch rather
+  than a failure, and the validator's ASCII-only pattern left no way to write
+  the alias by hand. Entries are stored as the single name DNS would be asked
+  for (lower case, no root label, IDNA-encoded with the same codec
+  `getaddrinfo` uses), and every equivalent spelling reaches both the native and
+  the local filter. (#51)
+- **An empty `blocked_domains` is no longer refused with the allowlist's
+  error.** The two fields do not mean the same thing by `[]`: an empty allowlist
+  allows nothing, an empty denylist denies nothing — which is exactly what
+  `null` says. A spec imported from YAML or posted by an API client spelling "no
+  denied hosts" that way was refused for saying something true. (#51)
+
+## [0.0.181] - 2026-08-18
+
+### Changed
+
+- **jsdom moves to 30.0.1** in the frontend test environment. The bump arrived
+  without a regenerated `bun.lock`, so `test-frontend` and `e2e` both failed at
+  the install step — `lockfile had changes, but lockfile is frozen` — before
+  either had run a single test, which is why the red read like the major version
+  breaking the suite. With the lock regenerated the suite is green on jsdom 30:
+  308 files, 4704 tests. (#850)
+
+## [0.0.180] - 2026-08-18
+
+### Fixed
+
+- **Every `backendFetch` route says `no-store`.** The 44 route files under
+  `orgs/**`, `me/**`, `admin/**`, `sessions/**` and `auth/**` answered with no
+  `Cache-Control` at all, so the members, invitations and integrations lists
+  refetched right after a create, invite or revoke could be served from cache —
+  the same staleness class as #230, on the one surface the shared proxy does not
+  cover. `platformProxy` already stamps the header on anything the backend left
+  unmarked; a hand-rolled route owes the same, and now cannot forget it: every
+  `NextResponse.json` goes through `bffJson`, which stamps `no-store` and leaves
+  an explicit policy alone. The binary routes that set their own `max-age` keep
+  it. (#553)
+
 ## [0.0.179] - 2026-08-18
 
 ### Changed

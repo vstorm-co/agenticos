@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { BackendApiError, backendFetch, bffRefusal } from "@/lib/server-api";
+import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
 
 interface RouteParams {
   params: Promise<{ id: string; invitationId: string }>;
@@ -25,7 +25,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     if (error instanceof BackendApiError)
-      return NextResponse.json({ detail: error.message }, { status: error.status });
+      return bffJson({ detail: error.message }, { status: error.status });
     return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
 }

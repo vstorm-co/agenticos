@@ -139,6 +139,30 @@ async def update_status(
     return doc
 
 
+async def get_superseded(
+    db: AsyncSession,
+    *,
+    collection_name: str,
+    vector_document_id: str,
+    keep_id: UUID,
+) -> list[RAGDocument]:
+    """Rows tracking a vector document that a replacement has just deleted.
+
+    Scoped to one collection because that is what the caller was authorized on.
+    `keep_id` is the row doing the replacing, excluded so that this can never
+    delete the row whose ingest it is completing - which depends on that row
+    already carrying its *new* `vector_document_id` by the time this runs.
+    """
+    result = await db.execute(
+        select(RAGDocument).where(
+            RAGDocument.collection_name == collection_name,
+            RAGDocument.vector_document_id == vector_document_id,
+            RAGDocument.id != keep_id,
+        )
+    )
+    return list(result.scalars().all())
+
+
 async def delete(db: AsyncSession, doc_id: UUID) -> bool:
     """Delete a RAG document by ID."""
     doc = await db.get(RAGDocument, doc_id)

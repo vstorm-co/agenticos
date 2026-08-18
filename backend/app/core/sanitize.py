@@ -54,13 +54,41 @@ def validate_webhook_url(
     url: str,
     allowed_schemes: frozenset[str] | None = None,
 ) -> str:
-    """Validate a webhook URL to prevent SSRF attacks.
+    """Refuse a URL that points inside the deployment's network.
 
     Checks that the URL:
     - Uses an allowed scheme (http/https only by default)
     - Does not contain userinfo (credentials in the URL)
     - Does not point to private, reserved, loopback, or link-local IP addresses
-    - Resolves via DNS to a public IP (prevents DNS rebinding attacks)
+    - Resolves, *at the moment of this call*, only to public addresses
+
+    **This is not DNS-rebinding protection, and it cannot be.** The validated URL
+    is returned as the string it came in as, so every caller resolves the
+    hostname a second time when it connects - the MCP client through
+    :func:`app.agents.mcp.validate_mcp_url`, and the browser through
+    :func:`app.agents.capabilities.browser_use.validate_cdp_url`, where the
+    attach happens however long after publish the agent is first run. A name
+    answering a public address here and a private one there passes this check
+    and reaches the private address. Closing that means pinning the resolved
+    address into the request - dial the IP, send the original host in the `Host`
+    header, the way `pydantic_ai._ssrf` does - and this function has no way to
+    express that to its callers (#840).
+
+    How much that gap costs depends on **who chose the URL**, and there are two
+    answers, not one. Where it was typed by an operator - a connection's own
+    URL, a `cdp_url` - rebinding needs the person typing it to be the attacker,
+    which is narrow. But :func:`app.agents.mcp_oauth._send` validates every hop
+    of an OAuth flow whose authorization server, token endpoint and redirects
+    are all named by the *remote* MCP server's discovery documents. Connecting
+    one hostile server is enough there; no operator has to be complicit, and
+    that half is open until #860 pins the address. A URL that came from a
+    *model*, or from anyone unprivileged, does not belong here at all - fetch it
+    through Pydantic AI's `safe_download`, which pins the address it checked.
+
+    Because of that, the refusals below name the **host**, or nothing, but never
+    the URL. A URL carries a key in its query string, and the one being refused
+    may have been written by the party being refused
+    (`.claude/rules/exceptions-security.md`).
 
     Args:
         url: The webhook URL to validate.
@@ -85,7 +113,7 @@ def validate_webhook_url(
     try:
         parsed = urlparse(url)
     except Exception as err:
-        raise ValueError(f"Invalid webhook URL: {url!r}") from err
+        raise ValueError("Webhook URL could not be parsed") from err
 
     if parsed.scheme not in allowed_schemes:
         raise SSRFBlockedError(
@@ -95,7 +123,7 @@ def validate_webhook_url(
 
     hostname = parsed.hostname
     if not hostname:
-        raise ValueError(f"Invalid webhook URL: no hostname found in {url!r}")
+        raise ValueError("Webhook URL has no hostname")
 
     # Reject URLs with userinfo (credentials) to prevent URL parsing ambiguities
     # e.g. http://user:pass@host/ or http://foo@169.254.169.254%00@public.com/
@@ -122,8 +150,6 @@ def validate_webhook_url(
     default_port = 443 if parsed.scheme == "https" else 80
     port = parsed.port or default_port
 
-    # TODO: socket.getaddrinfo() is blocking I/O - in async code paths
-    # (PostgreSQL, MongoDB) consider using loop.getaddrinfo() or run_in_executor.
     try:
         addr_infos = socket.getaddrinfo(hostname, port, proto=socket.IPPROTO_TCP)
     except socket.gaierror as err:

@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.179"
+version = "0.0.186"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -68,7 +68,6 @@ dependencies = [
     # all three were written against.
     "pydantic-ai-harness>=0.21.0",
     "websockets>=15.0",
-    "langchain-text-splitters>=0.4.0",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason
     # `numpy` (24 MB) is installed - a real cost, taken deliberately (#155).
@@ -435,9 +434,6 @@ unused-type-ignore-comment = "warn"
 unused-ignore-comment = "ignore"
 # Operations on Unknown types from untyped libraries (pymupdf, etc.)
 unsupported-operator = "warn"
-# Third-party libs (langchain, redis-py) ship without complete type stubs;
-# kwargs that work at runtime are flagged as unknown.
-unknown-argument = "warn"
 # redis-py / asyncio overloads return Awaitable[T] | T which ty rejects as awaitable
 invalid-await = "warn"
 # sessionmaker(class_=AsyncSession) returns sync sessionmaker per overloads
@@ -445,13 +441,6 @@ invalid-await = "warn"
 invalid-context-manager = "warn"
 # Helpers like get_agent accept **kwargs but their stubs only list specific params
 missing-argument = "warn"
-# LangChain BaseMessage subclasses (AIMessage etc.) carry tool_calls only on
-# specific subclasses; ty cannot narrow via hasattr().
-not-iterable = "warn"
-# Return-type widening for langgraph .compile() (StateGraph vs CompiledStateGraph)
-invalid-return-type = "warn"
-# LangGraph/DeepAgents runtime classes use kwargs that ty stubs don't enumerate
-invalid-type-form = "warn"
 
 # Every rule above is downgraded because of a library we did not choose and do
 # not own. None of those reasons apply to the code we wrote, so the platform
@@ -542,6 +531,11 @@ include = [
     # remote file may be written, and what may reach a Drive query - so the
     # branch that is never taken in normal operation is the whole point of it.
     "app/services/rag/remote_names.py",
+    # What a chunk is, and therefore what a search can find. Written here rather
+    # than imported (#158), and the rest of the pipeline can only retrieve what
+    # this module decided to store - so it is held to the bar the code it
+    # replaced never was.
+    "app/services/rag/_splitters.py",
     "app/services/sharing.py",
     "app/services/skills.py",
     "app/services/run_export.py",
@@ -591,13 +585,9 @@ deprecated = "error"
 no-matching-overload = "error"
 unused-type-ignore-comment = "error"
 unsupported-operator = "error"
-unknown-argument = "error"
 invalid-await = "error"
 invalid-context-manager = "error"
 missing-argument = "error"
-not-iterable = "error"
-invalid-return-type = "error"
-invalid-type-form = "error"
 # An ignore comment that has stopped suppressing anything is the failure mode
 # this whole section exists to prevent, one line wide. In our own code it is an
 # error, so a fixed stub or a rewritten call forces the comment out with it.
@@ -735,6 +725,11 @@ include = [
     # remote file may be written, and what may reach a Drive query - so the
     # branch that is never taken in normal operation is the whole point of it.
     "app/services/rag/remote_names.py",
+    # What a chunk is, and therefore what a search can find. Written here rather
+    # than imported (#158), and the rest of the pipeline can only retrieve what
+    # this module decided to store - so it is held to the bar the code it
+    # replaced never was.
+    "app/services/rag/_splitters.py",
     "app/services/sharing.py",
     "app/services/skills.py",
     "app/services/run_export.py",
