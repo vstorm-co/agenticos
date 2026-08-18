@@ -21,7 +21,6 @@ raised it had to hand - most often the `UUID` it could not find.
 """
 
 import logging
-from collections.abc import Sequence
 from typing import Any
 
 from fastapi import FastAPI
@@ -32,12 +31,9 @@ from starlette.requests import HTTPConnection
 
 from app.agents.capabilities.budget import BudgetExceeded
 from app.core.exceptions import AppException, ValidationError
+from app.core.field_errors import request_field_problems
 
 logger = logging.getLogger(__name__)
-
-# Where a validation error came from, as Pydantic reports it in the first
-# element of `loc`. Nothing a form can act on, so it is dropped from the path.
-_LOCATIONS = frozenset({"body", "query", "path", "header", "cookie"})
 
 
 def _envelope(
@@ -155,20 +151,6 @@ async def app_exception_handler(request: HTTPConnection, exc: AppException) -> J
     )
 
 
-def _field_path(location: Sequence[str | int]) -> str:
-    """The dotted path of the field a validation error is about.
-
-    Pydantic reports where the value came from as well as where it sits -
-    `("body", "spec", "name")`. A form can do nothing with "body", so it is
-    dropped and the rest joined: `spec.name`. List indices stay in the path,
-    because "the third capability" is exactly what the reader needs to know.
-    """
-    parts = list(location)
-    if parts and parts[0] in _LOCATIONS:
-        parts = parts[1:]
-    return ".".join(str(part) for part in parts) or "request"
-
-
 def _summarize(fields: list[dict[str, str]]) -> str:
     """One line for a client with nowhere better to put it than a toast.
 
@@ -189,9 +171,7 @@ async def validation_exception_handler(
     field it belongs to - that is what lets the UI mark the offending input
     instead of showing a sentence about a form the reader has to re-scan.
     """
-    fields = [
-        {"field": _field_path(error["loc"]), "message": error["msg"]} for error in exc.errors()
-    ]
+    fields = request_field_problems(exc.errors())
     return await app_exception_handler(
         request,
         ValidationError(message=_summarize(fields), details={"fields": fields}),

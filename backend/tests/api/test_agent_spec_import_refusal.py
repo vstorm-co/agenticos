@@ -81,9 +81,9 @@ class TestTheRefusalNamesTheField:
         assert response.status_code == 400
         error = response.json()["error"]
         assert error["code"] == "BAD_REQUEST"
-        assert [entry["loc"] for entry in error["details"]["errors"]] == [
-            ["name"],
-            ["capabilities", 0],
+        assert [problem["field"] for problem in error["details"]["fields"]] == [
+            "yaml.name",
+            "yaml.capabilities.0",
         ]
 
     async def test_a_typo_in_a_field_name_names_the_key_it_could_not_place(
@@ -94,9 +94,28 @@ class TestTheRefusalNamesTheField:
         response = await _import(client, "name: Support\ninstrucitons: be helpful\n")
 
         assert response.status_code == 400
-        errors = response.json()["error"]["details"]["errors"]
-        assert errors[0]["loc"] == ["instrucitons"]
-        assert errors[0]["type"] == "extra_forbidden"
+        problems = response.json()["error"]["details"]["fields"]
+        assert problems == [
+            {"field": "yaml.instrucitons", "message": "Extra inputs are not permitted"}
+        ]
+
+    async def test_a_key_named_like_a_request_origin_is_named_as_the_key_it_is(
+        self, client: Any
+    ) -> None:
+        """`loc` here is the path inside the document, not inside the request.
+
+        FastAPI puts `body` in front of the path it reports and a form can do
+        nothing with that segment, so the 422 handler drops it. A spec is
+        `extra="forbid"`, so a top-level key called `body` is reported as
+        `loc: ("body",)` about that key - and a helper that decided by the
+        string dropped it too, blaming the editor for a key somebody has to
+        delete (found reviewing #892).
+        """
+        response = await _import(client, "name: Support\nbody: nope\n")
+
+        assert response.status_code == 400
+        problems = response.json()["error"]["details"]["fields"]
+        assert problems == [{"field": "yaml.body", "message": "Extra inputs are not permitted"}]
 
     async def test_a_document_that_is_a_list_is_refused_with_the_reason(self, client: Any) -> None:
         """Pydantic reports a list as an unhelpful type error, which is why
@@ -151,10 +170,12 @@ class TestTheRefusalQuotesNothingSubmitted:
         response = await _import(client, "name: Support\ninstructions: 12\ndescription: 34\n")
 
         assert response.status_code == 400
-        errors = response.json()["error"]["details"]["errors"]
-        assert sorted(entry["loc"] for entry in errors) == [["description"], ["instructions"]]
-        assert all("input" not in entry for entry in errors)
-        assert all("url" not in entry for entry in errors)
+        problems = response.json()["error"]["details"]["fields"]
+        assert sorted(problem["field"] for problem in problems) == [
+            "yaml.description",
+            "yaml.instructions",
+        ]
+        assert all(set(problem) == {"field", "message"} for problem in problems)
 
 
 class TestTheRefusalStopsBeforeTheRow:

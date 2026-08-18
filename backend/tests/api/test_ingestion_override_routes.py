@@ -136,19 +136,30 @@ class TestAnOverlapThatDoesNotFitInsideTheChunk:
         """`details` was `null`, so the form was told nothing at all."""
         response = await client.post(path, files=_upload(), data={"ingestion": _TOO_MUCH_OVERLAP})
 
-        errors = _error(response)["details"]["errors"]
-        assert "chunk_overlap" in errors[0]["msg"]
-        assert "chunk_size" in errors[0]["msg"]
+        problems = _error(response)["details"]["fields"]
+        assert "chunk_overlap" in problems[0]["message"]
+        assert "chunk_size" in problems[0]["message"]
+
+    async def test_the_refusal_names_a_field_the_form_can_mark_it_under(
+        self, client: AsyncClient, store: MagicMock, path: str
+    ) -> None:
+        """`fieldProblems` reads `details["fields"]` and nothing else, so a
+        refusal answered under `errors` showed a sentence and marked no input -
+        the half of the answer that says which box to fix (#882)."""
+        response = await client.post(path, files=_upload(), data={"ingestion": _TOO_MUCH_OVERLAP})
+
+        problems = _error(response)["details"]["fields"]
+        assert [problem["field"] for problem in problems] == ["ingestion_config"]
 
     async def test_no_copy_of_the_submitted_override_comes_back(
         self, client: AsyncClient, store: MagicMock, path: str
     ) -> None:
         """A refusal names the field that is wrong, not what was posted."""
-        errors = _error(
+        problems = _error(
             await client.post(path, files=_upload(), data={"ingestion": _TOO_MUCH_OVERLAP})
-        )["details"]["errors"]
+        )["details"]["fields"]
 
-        assert all("input" not in error and "url" not in error for error in errors)
+        assert all(set(problem) == {"field", "message"} for problem in problems)
 
 
 class TestTheSameRuleOnTheCollectionsOwnSettings:
@@ -158,7 +169,8 @@ class TestTheSameRuleOnTheCollectionsOwnSettings:
     FastAPI validates it before the handler and `validation_exception_handler`
     answers - the pair was already refused here, named and in the envelope.
     Only the multipart override skipped that, because a form field holding JSON
-    is a string until something parses it.
+    is a string until something parses it. Both name `ingestion_config` now, so
+    the form marks one place whichever entry point refused (#882).
     """
 
     async def test_an_impossible_pair_is_named_in_the_envelope(self, client: AsyncClient) -> None:

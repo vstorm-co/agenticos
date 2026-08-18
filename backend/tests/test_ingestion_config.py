@@ -131,9 +131,25 @@ class TestAConfigurationThatWouldNotTerminate:
         with pytest.raises(BadRequestError) as refusal:
             IngestionOverride(chunk_overlap=4096).applied_to(base)
 
-        errors = refusal.value.details["errors"]
-        assert "chunk_overlap" in errors[0]["msg"]
-        assert "chunk_size" in errors[0]["msg"]
+        problems = refusal.value.details["fields"]
+        assert "chunk_overlap" in problems[0]["message"]
+        assert "chunk_size" in problems[0]["message"]
+
+    def test_the_pair_rule_is_attributed_to_the_field_the_override_arrived_in(self) -> None:
+        """A `model_validator` names no field, and a form cannot mark nothing.
+
+        `details["fields"]` is the only shape the frontend marks an input from,
+        so a refusal that answered `details["errors"]` showed its sentence in a
+        toast and highlighted nothing (#882).
+        """
+        base = IngestionConfig(chunk_size=512)
+
+        with pytest.raises(BadRequestError) as refusal:
+            IngestionOverride(chunk_overlap=4096).applied_to(base)
+
+        assert [problem["field"] for problem in refusal.value.details["fields"]] == [
+            "ingestion_config"
+        ]
 
     def test_the_refusal_carries_no_copy_of_what_was_submitted(self) -> None:
         """`details` names the fields that are wrong, never the document sent."""
@@ -143,7 +159,7 @@ class TestAConfigurationThatWouldNotTerminate:
             IngestionOverride(chunk_overlap=4096).applied_to(base)
 
         assert all(
-            "input" not in error and "url" not in error for error in refusal.value.details["errors"]
+            set(problem) == {"field", "message"} for problem in refusal.value.details["fields"]
         )
 
 
@@ -224,6 +240,29 @@ class TestReadingAnOverrideOffTheForm:
         """A misspelled setting must not look like it was applied."""
         with pytest.raises(BadRequestError):
             parse_override('{"chunk_sizes": 1024}')
+
+    def test_the_setting_that_broke_a_rule_is_named_as_a_field_the_form_marks(self) -> None:
+        """`details["fields"]` is what `fieldProblems` reads; `errors` was read
+        nowhere, so this refusal marked no input at all (#882)."""
+        with pytest.raises(BadRequestError) as refusal:
+            parse_override('{"chunk_size": 1}')
+
+        assert refusal.value.details["fields"] == [
+            {
+                "field": "ingestion_config.chunk_size",
+                "message": "Input should be greater than or equal to 64",
+            }
+        ]
+
+    def test_a_field_that_is_not_json_at_all_is_attributed_to_the_form_field(self) -> None:
+        """Pydantic names no field for a document it could not read, so the
+        refusal falls back to the multipart field the JSON arrived in."""
+        with pytest.raises(BadRequestError) as refusal:
+            parse_override("{not json")
+
+        assert [problem["field"] for problem in refusal.value.details["fields"]] == [
+            "ingestion_config"
+        ]
 
 
 class TestWhatTheDeploymentSeedsANewCollectionWith:

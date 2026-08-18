@@ -7,6 +7,7 @@
  * binding the server validates slightly differently.
  */
 
+import type { FieldProblem } from "@/lib/api-error";
 import type {
   AgentSpec,
   AgentVersion,
@@ -288,4 +289,33 @@ export function pinStatus(
     latest: current.version,
     by: current.version - pinned.version,
   };
+}
+
+/**
+ * What publish validation said about one capability's configuration form.
+ *
+ * `validate_spec` reports every problem in a spec at once, so its `fields`
+ * arrive as one flat list of paths, and the path is what says which of the
+ * forms on the page a field name belongs to. Two things follow from matching
+ * the whole prefix rather than the leaf. A `default_top_k` refused on one
+ * capability is not marked on every other card that has one. And a capability
+ * configured inside a delegate is reported under
+ * `specialists.researcher.capabilities.…`, which is not this card either - the
+ * Builder renders one form per specialist, and they configure the same
+ * capabilities as their parent.
+ *
+ * Empty for a capability nothing was said about, which is the ordinary case -
+ * most publish problems are broken references with no input to mark at all.
+ */
+export function capabilityConfigErrors(
+  problems: readonly FieldProblem[],
+  capabilityId: string,
+): Readonly<Record<string, string>> {
+  const prefix = `capabilities.${capabilityId}.config.`;
+  const errors: Record<string, string> = {};
+  for (const problem of problems) {
+    if (!problem.field.startsWith(prefix)) continue;
+    errors[problem.field.slice(prefix.length)] = problem.message;
+  }
+  return errors;
 }

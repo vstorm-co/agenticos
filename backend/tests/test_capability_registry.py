@@ -525,11 +525,28 @@ class TestConfigValidation:
         assert config.default_top_k == 8
 
     def test_invalid_config_reports_field_errors(self):
-        """The Builder needs field-level errors to point at the right input."""
+        """The Builder needs field-level errors to point at the right input.
+
+        In `details["fields"]`, which is the only shape `fieldProblems` reads:
+        under `errors` this refusal marked nothing, and the capability it is
+        about was the only part of it a form could act on (#882).
+        """
         with pytest.raises(BadRequestError) as exc:
             get("knowledge").validate_config({"default_top_k": 999})
         assert exc.value.details is not None
-        assert exc.value.details["errors"]
+        assert exc.value.details["capability_id"] == "knowledge"
+        assert [problem["field"] for problem in exc.value.details["fields"]] == [
+            "config.default_top_k"
+        ]
+
+    def test_a_rule_about_two_settings_is_attributed_to_the_config_itself(self):
+        """A `model_validator(mode="after")` names no field, so the refusal
+        falls back to the blob it was about - `browser_use` refusing a
+        `cdp_url` in the mode that launches its own browser is about the pair."""
+        with pytest.raises(BadRequestError) as exc:
+            get("browser_use").validate_config({"mode": "playwright", "cdp_url": "ws://host:9222"})
+        assert exc.value.details is not None
+        assert [problem["field"] for problem in exc.value.details["fields"]] == ["config"]
 
     def test_the_rejected_value_is_not_echoed_back(self):
         """`details` reaches the caller verbatim, so it carries the diagnosis
@@ -537,7 +554,7 @@ class TestConfigValidation:
         with pytest.raises(BadRequestError) as exc:
             get("knowledge").validate_config({"default_top_k": 999})
         assert exc.value.details is not None
-        assert all("input" not in error for error in exc.value.details["errors"])
+        assert all(set(problem) == {"field", "message"} for problem in exc.value.details["fields"])
 
     def test_capabilities_without_a_schema_accept_nothing(self):
         assert get("charts").validate_config({}) is None

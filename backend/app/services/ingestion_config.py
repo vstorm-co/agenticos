@@ -53,6 +53,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import BadRequestError
+from app.core.field_errors import field_problems
 from app.core.secret_kinds import ApiKeySecret, SecretKind, unseal_secret
 from app.core.vault import VaultScope
 from app.repositories import organization_secret_repo
@@ -368,7 +369,11 @@ class IngestionOverride(BaseModel):
                 leaves as the same refusal :func:`parse_override` raises for a
                 field the override could not be read from at all - a raw
                 `ValidationError` reaches no handler, so the upload answered a
-                500 for a number the caller typed (#874).
+                500 for a number the caller typed (#874). The pair rule names
+                neither field in `loc`, so the refusal falls back to
+                `ingestion_config` - the same field the 422 names when the pair
+                arrives as a collection's own settings, so the form marks one
+                place whichever entry point refused.
         """
         changes = self.model_dump(exclude_unset=True, exclude={"image_description"})
         if self.image_description is not None:
@@ -378,7 +383,7 @@ class IngestionOverride(BaseModel):
         except ValidationError as exc:
             raise BadRequestError(
                 message="The 'ingestion' field is not a valid override for this collection",
-                details={"errors": exc.errors(include_url=False, include_input=False)},
+                details={"fields": field_problems(exc.errors(), root="ingestion_config")},
             ) from exc
 
 
@@ -403,7 +408,7 @@ def parse_override(raw: str | None) -> IngestionOverride | None:
     except ValidationError as exc:
         raise BadRequestError(
             message="The 'ingestion' field is not a valid ingestion override",
-            details={"errors": exc.errors(include_url=False, include_input=False)},
+            details={"fields": field_problems(exc.errors(), root="ingestion_config")},
         ) from exc
 
 

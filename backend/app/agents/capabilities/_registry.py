@@ -63,6 +63,7 @@ from pydantic_ai.capabilities import AbstractCapability
 
 from app.agents.capabilities._overrides import ToolOverrides
 from app.core.exceptions import BadRequestError
+from app.core.field_errors import field_problems
 from app.core.secret_kinds import SecretRequirement, StorableSecret
 
 logger = logging.getLogger(__name__)
@@ -361,13 +362,9 @@ class CapabilityDef:
         except ValidationError as exc:
             raise BadRequestError(
                 message=f"Invalid configuration for capability '{self.id}'",
-                # `include_input=False` for the same reason `ingestion_config`
-                # sets it: the rejected value is the caller's own submission and
-                # echoing it back adds nothing a form can act on, while putting
-                # whatever was posted into a response body and an error log.
                 details={
                     "capability_id": self.id,
-                    "errors": exc.errors(include_url=False, include_input=False),
+                    "fields": field_problems(exc.errors(), root="config"),
                 },
             ) from exc
 
