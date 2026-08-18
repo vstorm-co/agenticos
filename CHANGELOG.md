@@ -17,6 +17,61 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.187] - 2026-08-18
+
+The product teaches itself: a first-run tour, and guided flows that build the
+first of each thing.
+
+### Added
+
+- **A passive walkthrough on every dashboard page, replayed by its "?".**
+  `TOUR_STEPS` is a registry keyed on the page, each step gated on the
+  permission its control carries, so a walk never waits on an element a refusal
+  never mounted. Where the completion is stored is the point: `PATCH /users/me`
+  rather than a `localStorage` flag, so somebody who signs in on a second
+  machine is not walked through it again. (#53)
+- **Guided creation flows.** At the end of a walk the product offers to build
+  the thing the page is for — an agent, a collection, a skill, an MCP
+  connection — with a coach that spotlights one control at a time and waits for
+  the signal that the step actually happened rather than for a click. The
+  organization's state is frozen when a flow starts, so the steps cannot morph
+  under the reader mid-walk. (#53)
+- **Three e2e specs for the tour itself**, which the feature had shipped
+  without. (#53)
+
+### Fixed
+
+- **The seeded e2e owner is marked as having finished onboarding.** Without it
+  the tour auto-opened over every spec that landed on the dashboard and, with
+  `allowClose: false`, swallowed the clicks — six specs red for a reason that
+  had nothing to do with what they were testing. (#53)
+- **A "?" pressed where nothing is walkable closes itself.** A page that renders
+  the header but has no steps — or whose steps a permission filters to nothing —
+  froze the anchor with an empty list and no popover, so there was no close
+  button and nothing ever called `close()`: every later "?" on any page
+  recomputed from the stale anchor and stayed empty, leaving the button dead
+  app-wide until a reload. (#53)
+- **Skip cannot loop on an answered question.** With `agents:edit` and
+  `collections:edit` but no `agents:publish`, the agent flow ends on the
+  knowledge fork; stepping past the end bounced back onto the answered question
+  and re-answered it forever. The step index is resolved against the list the
+  flow actually produces rather than guessed at. (#53)
+- **Enter and Space no longer walk through the coach's guard.** The freeze
+  blocked pointer events only, so Enter in a dialog's name field submitted the
+  form three steps early — the collection was created, the later step baselined
+  its count after the fact, and the signal it waited for could never fire. Both
+  keys are blocked on the guarded control, with Enter keeping its input-wide
+  block. (#53)
+- **A keyboard user can finish a step.** The coach card is a real dialog now —
+  `aria-modal`, focus moved to it on each step, Escape to leave — and the trap
+  cycles the card *and* the spotlit control, because a step that waits for a
+  signal renders no Next button and confining Tab to the card alone would make
+  it uncompletable. (#53)
+- **The coach does not offer to build what the organization already has.** While
+  the live state was still null it fell back to "this organization has
+  nothing", so the "no published agent — build one first?" fork could appear for
+  an organization with one and then swap away underneath the reader. (#53)
+
 ## [0.0.186] - 2026-08-18
 
 ### Fixed
