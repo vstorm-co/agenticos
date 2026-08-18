@@ -332,13 +332,20 @@ per-upload `ingestion` field carries only what it changes, so `chunk_overlap:
 4096` sent to a collection chunking at 512 is two individually legal numbers and
 one configuration that repeats almost everything it advances past. The merge
 re-validates, and the upload is refused with a **400** naming both settings in
-`details.errors` — before the file is stored and before a document row exists,
+`details.fields` — before the file is stored and before a document row exists,
 so there is nothing to retry or clean up. It answered 500 with an empty
 `details` until [#874](https://github.com/vstorm-co/agenticos/issues/874): the
 merge raised a raw Pydantic error, which reaches no handler. The same pair sent
 as a collection's own configuration was always refused with a 422, because there
 it is a field of a JSON body and FastAPI validates it before the route is
 entered.
+
+Both refusals name the same field, `ingestion_config`, because a rule about two
+settings at once is attributed by Pydantic to neither of them — so the form
+marks one place whichever entry point refused. The 400 named its fields under
+`details.errors` until [#882](https://github.com/vstorm-co/agenticos/issues/882),
+in Pydantic's own error format, which nothing on the frontend read: the sentence
+reached a toast and no input was ever highlighted.
 
 ### Embeddings — the model, and whose key pays
 

@@ -43,6 +43,7 @@ from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
 )
+from app.core.field_errors import field_problems
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.credential import ModelProfile
@@ -515,14 +516,17 @@ def _parse_spec_yaml(text: str) -> AgentSpec:
     Raises:
         BadRequestError: If the document does not parse, is not a mapping, or
             breaks a field rule - carrying the field path a form can mark, and
-            no copy of what was submitted.
+            no copy of what was submitted. A field rule answers in the shape a
+            form marks an input from, `details["fields"]`; a document that never
+            parsed has no field of its own to name, so it is about the editor it
+            was typed into.
     """
     try:
         return AgentSpec.from_yaml(text)
     except ValidationError as exc:
         raise BadRequestError(
             message="This spec does not match the agent spec format",
-            details={"errors": exc.errors(include_url=False, include_input=False)},
+            details={"fields": field_problems(exc.errors(), root="yaml")},
         ) from exc
     except yaml.YAMLError as exc:
         raise BadRequestError(

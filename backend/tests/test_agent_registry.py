@@ -924,7 +924,7 @@ class TestImportSpec:
                 _ctx(), uuid.uuid4(), "name: x\ninstrucitons: typo\n"
             )
 
-        assert refused.value.details["errors"][0]["loc"] == ("instrucitons",)
+        assert refused.value.details["fields"][0]["field"] == "instrucitons"
         fetched.assert_not_called()
         update.assert_not_called()
 

@@ -267,6 +267,32 @@ table in the schema. The index on `parent_run_id` serves
 [Governance](governance.md#what-run-history-shows) for why run history never lists
 the two kinds of row together.
 
+## A refusal that names a field
+
+Every refusal leaves in one envelope, `{"error": {"code", "message", "details"}}`,
+and a refusal about a *field* names it in one shape:
+
+```json
+{"details": {"fields": [{"field": "spec.name", "message": "String should have at most 128 characters"}]}}
+```
+
+`fieldProblems` in `frontend/src/lib/api-error.ts` reads that and nothing else,
+which is what lets a form mark the offending input rather than showing a sentence
+the reader has to re-scan the page for. `app/core/field_errors.py` is the only
+place it is built — by `validation_exception_handler` for every
+`RequestValidationError`, and by the services that validate a document a route's
+own schema cannot (a per-upload ingestion override, a hand-edited spec YAML, a
+capability's config blob).
+
+Two properties are worth knowing before adding a call site. It reads `loc` and
+`msg` only, so the rejected value cannot come back beside the field it broke —
+which is why those call sites hand it `exc.errors()` unfiltered. And it takes a
+`root`: a `model_validator(mode="after")` reports `loc: ()`, because the rule it
+broke is about two fields at once, and a form still has to be told where to put
+that sentence. Handing pydantic's own `exc.errors()` through instead was
+[#882](https://github.com/vstorm-co/agenticos/issues/882) — a second shape,
+carrying `input`, `ctx` and `url`, that nothing on the frontend read.
+
 ## Key Files
 
 - Entry point: `app/main.py`
@@ -274,6 +300,7 @@ the two kinds of row together.
 - Dependencies: `app/api/deps.py`
 - Auth utilities: `app/core/security.py`
 - Exception handlers: `app/api/exception_handlers.py`
+- Field-level refusals: `app/core/field_errors.py`
 
 ## Authentication & Authorization
 
