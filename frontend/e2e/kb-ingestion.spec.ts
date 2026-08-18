@@ -107,7 +107,9 @@ test.describe("Ingestion settings", () => {
     // And it can be changed afterwards. The API replaces the object wholesale,
     // so this is also the only assertion that the dialog sent the nine fields
     // nobody touched alongside the one that was.
-    await page.getByRole("button", { name: "Edit" }).click();
+    // Scoped to this panel: the page also carries a Reranking section with its
+    // own Edit, so a page-wide "Edit" is now two buttons.
+    await howItReads(page).getByRole("button", { name: "Edit" }).click();
     const settings = page.getByRole("dialog");
     await settings.getByLabel("Chunk size").fill("2048");
     await settings.getByRole("button", { name: "Save" }).click();
