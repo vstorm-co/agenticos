@@ -68,7 +68,6 @@ dependencies = [
     # all three were written against.
     "pydantic-ai-harness>=0.21.0",
     "websockets>=15.0",
-    "langchain-text-splitters>=0.4.0",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason
     # `numpy` (24 MB) is installed - a real cost, taken deliberately (#155).
@@ -542,6 +541,11 @@ include = [
     # remote file may be written, and what may reach a Drive query - so the
     # branch that is never taken in normal operation is the whole point of it.
     "app/services/rag/remote_names.py",
+    # What a chunk is, and therefore what a search can find. Written here rather
+    # than imported (#158), and the rest of the pipeline can only retrieve what
+    # this module decided to store - so it is held to the bar the code it
+    # replaced never was.
+    "app/services/rag/_splitters.py",
     "app/services/sharing.py",
     "app/services/skills.py",
     "app/services/run_export.py",
@@ -735,6 +739,11 @@ include = [
     # remote file may be written, and what may reach a Drive query - so the
     # branch that is never taken in normal operation is the whole point of it.
     "app/services/rag/remote_names.py",
+    # What a chunk is, and therefore what a search can find. Written here rather
+    # than imported (#158), and the rest of the pipeline can only retrieve what
+    # this module decided to store - so it is held to the bar the code it
+    # replaced never was.
+    "app/services/rag/_splitters.py",
     "app/services/sharing.py",
     "app/services/skills.py",
     "app/services/run_export.py",

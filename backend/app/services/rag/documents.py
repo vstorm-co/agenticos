@@ -9,8 +9,12 @@ from typing import Any
 
 import pymupdf
 from docx import Document as DOCXDocument
-from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 
+from app.services.rag._splitters import (
+    MarkdownHeaderSplitter,
+    RecursiveCharacterSplitter,
+    TextSplitter,
+)
 from app.services.rag.config import (
     LITEPARSE_OFFICE_FORMATS,
     LITEPARSE_PDF_FORMATS,
@@ -601,33 +605,24 @@ class DocumentProcessor:
         )
 
     @staticmethod
-    def _create_splitter(settings: RAGSettings) -> Any:
-        """Create text splitter based on chunking strategy."""
-        strategy = settings.chunking_strategy
-
-        if strategy == "markdown":
-            return MarkdownHeaderTextSplitter(
-                headers_to_split_on=[
-                    ("#", "h1"),
-                    ("##", "h2"),
-                    ("###", "h3"),
-                ],
-                strip_headers=False,
-            )
-
-        if strategy == "fixed":
-            return RecursiveCharacterTextSplitter(
+    def _create_splitter(settings: RAGSettings) -> TextSplitter:
+        """Build the splitter this collection's chunking strategy asks for."""
+        if settings.chunking_strategy == "markdown":
+            return MarkdownHeaderSplitter(
                 chunk_size=settings.chunk_size,
                 chunk_overlap=settings.chunk_overlap,
-                length_function=len,
+            )
+
+        if settings.chunking_strategy == "fixed":
+            return RecursiveCharacterSplitter(
+                chunk_size=settings.chunk_size,
+                chunk_overlap=settings.chunk_overlap,
                 separators=["\n"],
             )
 
-        return RecursiveCharacterTextSplitter(
+        return RecursiveCharacterSplitter(
             chunk_size=settings.chunk_size,
             chunk_overlap=settings.chunk_overlap,
-            length_function=len,
-            is_separator_regex=False,
         )
 
     async def _describe_images(self, document: Document) -> None:
@@ -681,15 +676,8 @@ class DocumentProcessor:
         pages = document.pages
 
         chunked_pages: list[DocumentPageChunk] = []
-        is_markdown_splitter = self.settings.chunking_strategy == "markdown"
         for page in pages:
-            if is_markdown_splitter:
-                # MarkdownHeaderTextSplitter returns Document objects
-                md_docs = self.splitter.split_text(page.content)
-                chunks = [doc.page_content for doc in md_docs]
-            else:
-                chunks = self.splitter.split_text(page.content)
-            for chunk_num, chunk in enumerate(chunks):
+            for chunk_num, chunk in enumerate(self.splitter.split_text(page.content)):
                 chunked_pages.append(
                     DocumentPageChunk(
                         chunk_content=chunk,
