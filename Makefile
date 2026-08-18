@@ -391,8 +391,13 @@ test-cov:
 # Everything, including template-inherited subsystems. Informational: those are
 # not held to the platform bar, because mock-heavy tests over code we did not
 # design buy a number rather than confidence.
+#
+# It runs across workers like every other suite here. It was the one that did not,
+# which made it the longest step in the `test` job - 14m46s of the 25 that job is
+# allowed, against 8m39s for the gated suite beside it - so a runner about three
+# times slower than usual took the whole job past its bound (#879).
 coverage-all:
-	uv run --directory backend pytest tests/ -q --cov=app --cov-report=term-missing --cov-fail-under=0
+	uv run --directory backend pytest tests/ -q --cov=app --cov-report=term-missing --cov-fail-under=0 -n auto --maxprocesses 4
 
 test-frontend:
 	cd frontend && bun run test:run
