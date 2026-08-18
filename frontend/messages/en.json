@@ -2641,6 +2641,7 @@
       "noLimit": "No limit",
       "noMcpServersAttached": "No MCP servers attached",
       "noModel": "No model",
+      "noModelNeedsConnections": "Your organization has no model yet, and an agent needs one to publish. Adding a model needs the \"Manage connections\" permission — ask an admin to add one.",
       "noSkillsAttached": "No skills attached",
       "nobodyHasSharedAgent": "Nobody has shared an agent with you yet.",
       "nothingMatches": "Nothing matches",

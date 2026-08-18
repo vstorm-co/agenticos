@@ -56,6 +56,29 @@ describe("useModelProviders", () => {
     expect(toast.error).toHaveBeenCalledWith("A published agent uses this model");
   });
 
+  it("does not call an empty list of models the organization's answer when the read failed", async () => {
+    // `profiles` degrades to `[]` either way, so a caller reading it as "this
+    // organization has no model" would say that about a 502. `profilesLoaded`
+    // is the difference, and only the successful read carries it.
+    vi.mocked(apiClient.get).mockImplementation((path: string) =>
+      path === "/providers/model-profiles"
+        ? Promise.reject(new Error("upstream timed out"))
+        : Promise.resolve({ items: [], total: 0 }),
+    );
+    const { result } = renderHook(() => useModelProviders(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.profiles).toEqual([]);
+    expect(result.current.profilesLoaded).toBe(false);
+  });
+
+  it("calls an empty list the organization's answer when the read succeeded", async () => {
+    const { result } = renderHook(() => useModelProviders(), { wrapper });
+    await waitFor(() => expect(result.current.profilesLoaded).toBe(true));
+
+    expect(result.current.profiles).toEqual([]);
+  });
+
   it("removes a model", async () => {
     vi.mocked(apiClient.delete).mockResolvedValue(undefined);
     const { result } = renderHook(() => useModelProviders(), { wrapper });
