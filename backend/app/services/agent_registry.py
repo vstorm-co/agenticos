@@ -43,7 +43,7 @@ from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
 )
-from app.core.field_errors import field_problems
+from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.credential import ModelProfile
@@ -555,7 +555,7 @@ def _window_of(profile: ModelProfile | None) -> int | None:
     return resolve_context_window(f"{profile.provider}:{profile.model}")
 
 
-def _yaml_location(exc: yaml.YAMLError) -> dict[str, Any]:
+def _yaml_refusal(exc: yaml.YAMLError) -> str:
     """Where the document stopped parsing, without quoting any of it.
 
     `str()` on a marked YAML error includes the offending source line, and the
@@ -565,11 +565,16 @@ def _yaml_location(exc: yaml.YAMLError) -> dict[str, Any]:
     (`.claude/rules/exceptions-security.md`). A `ReaderError` - a control
     character in the file - carries a byte offset and no mark, which is why the
     line is optional rather than assumed.
+
+    In the sentence rather than beside it: the position used to be `details`
+    keys of its own, which nothing has ever read (#891), and a line number is
+    only worth reporting to the reader who has the document open.
     """
+    refusal = "This spec is not valid YAML"
     mark = getattr(exc, "problem_mark", None)
     if mark is None:
-        return {"field": "yaml"}
-    return {"field": "yaml", "line": mark.line + 1, "column": mark.column + 1}
+        return refusal
+    return f"{refusal} - line {mark.line + 1}, column {mark.column + 1}"
 
 
 def _parse_spec_yaml(text: str) -> AgentSpec:
@@ -586,10 +591,10 @@ def _parse_spec_yaml(text: str) -> AgentSpec:
     Raises:
         BadRequestError: If the document does not parse, is not a mapping, or
             breaks a field rule - carrying the field path a form can mark, and
-            no copy of what was submitted. A field rule answers in the shape a
-            form marks an input from, `details["fields"]`; a document that never
-            parsed has no field of its own to name, so it is about the editor it
-            was typed into.
+            no copy of what was submitted. All three answer in the one shape,
+            `details["fields"]`: a field rule below `yaml`, and a document that
+            never parsed against `yaml` itself, since the editor it was typed
+            into is the only input there is to blame.
     """
     try:
         return AgentSpec.from_yaml(text)
@@ -599,11 +604,9 @@ def _parse_spec_yaml(text: str) -> AgentSpec:
             details={"fields": field_problems(exc.errors(), root="yaml")},
         ) from exc
     except yaml.YAMLError as exc:
-        raise BadRequestError(
-            message="This spec is not valid YAML", details=_yaml_location(exc)
-        ) from exc
+        raise refused_field("yaml", _yaml_refusal(exc)) from exc
     except ValueError as exc:
-        raise BadRequestError(message=str(exc), details={"field": "yaml"}) from exc
+        raise refused_field("yaml", str(exc)) from exc
 
 
 class AgentRegistryService:
@@ -781,11 +784,11 @@ class AgentRegistryService:
                     "is what an @mention resolves to, so it has to be unique and cannot be "
                     "changed later - give this agent a name that produces a different handle."
                 ),
-                # `field` names the input a person is looking at, which is not
-                # what the server calls it: they typed a *name*, and the thing
-                # that collided is the handle derived from it. Without this the
-                # form has to guess where to put the message.
-                details={"slug": slug, "field": "name"},
+                # The handle, not the input that produced it: a conflict is a
+                # fact about a row, and which of its own fields derived the
+                # taken value is the form's to say - `submitFailure`'s
+                # `identifiedBy`, in `frontend/src/lib/api-error.ts` (#891).
+                details={"slug": slug},
             )
 
         agent = await agent_repo.create(
