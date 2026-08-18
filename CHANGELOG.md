@@ -17,6 +17,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.193] - 2026-08-18
+
+### Fixed
+
+- **The model picker stops telling an organization it has no models when the
+  request failed.** It made that claim from an array a refused or failed read
+  degrades to `[]` — the ambiguity 0.0.186 fixed one element above it, on the
+  page — and it made it in both of the picker's shapes, so an `allowAdd` panel
+  also dropped its saved-model disclosure silently. A failed read now says so and
+  offers a retry. (#863)
+- **And it says nothing at all while the answer is still coming.** The flag
+  behind the distinction is the query's success, which is equally false before
+  the first answer as after a failure, so the first version of this fix showed a
+  destructive failure panel on **every cold render of the Builder** — a false
+  alarm on the ordinary path, which is worse than the wrong sentence it replaced.
+  The hook answers with three states now, not two, and 0.0.186's page-level
+  consumer reads the same one, so there is no second vocabulary to drift. (#863)
+
 ## [0.0.192] - 2026-08-18
 
 ### Fixed
