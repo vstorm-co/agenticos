@@ -34,6 +34,11 @@ const MODEL_PROFILE = {
 const state = {
   permissions: [] as Permission[],
   profiles: [MODEL_PROFILE] as (typeof MODEL_PROFILE)[],
+  // Both queries settle successfully by default; a case that wants the failed
+  // or still-pending read says so, because that is where an empty list stops
+  // meaning "the organization has none".
+  profilesLoaded: true,
+  permissionsLoaded: true,
 };
 
 vi.mock("@/hooks", () => ({
@@ -82,6 +87,7 @@ vi.mock("@/hooks", () => ({
   useMcpCatalog: () => ({ servers: [] }),
   useModelProviders: () => ({
     profiles: state.profiles,
+    profilesLoaded: state.profilesLoaded,
     isLoading: false,
     deleteProfile: { mutate: vi.fn() },
     createProfile: { mutateAsync: vi.fn(), isPending: false },
@@ -90,6 +96,7 @@ vi.mock("@/hooks", () => ({
   useOrgMcpConnections: () => ({ connections: [] }),
   usePermissions: () => ({
     can: (permission: Permission) => state.permissions.includes(permission),
+    isLoaded: state.permissionsLoaded,
   }),
   useProviderModels: () => ({ models: [], source: null, isLoading: false }),
   useRuns: () => ({ runs: [] }),
@@ -135,6 +142,8 @@ async function mount() {
 beforeEach(() => {
   state.permissions = [Perm.agentsEdit];
   state.profiles = [MODEL_PROFILE];
+  state.profilesLoaded = true;
+  state.permissionsLoaded = true;
 });
 
 describe("the Builder's model panel", () => {
@@ -190,6 +199,31 @@ describe("the Builder's model panel", () => {
     await mount();
 
     expect(await screen.findByRole("button", { name: "Add model" })).toBeInTheDocument();
+    expect(screen.queryByText(/no model yet/)).toBeNull();
+  });
+
+  it("stays quiet when the model profiles could not be read", async () => {
+    // The empty-page trap: a request that failed and an organization with no
+    // model are the same empty list, and only one of them is a dead end. An
+    // organization with a dozen models must not be told it has none because
+    // `/providers/model-profiles` answered 502.
+    state.profiles = [];
+    state.profilesLoaded = false;
+    await mount();
+
+    expect(await screen.findByText(/organization has no models/)).toBeInTheDocument();
+    expect(screen.queryByText(/no model yet/)).toBeNull();
+  });
+
+  it("stays quiet until the caller's permissions are known", async () => {
+    // `can()` answers false while the set is in flight and after it fails, so
+    // claiming the caller cannot add a model before then is a claim about a
+    // request rather than about them.
+    state.profiles = [];
+    state.permissionsLoaded = false;
+    await mount();
+
+    expect(await screen.findByText(/organization has no models/)).toBeInTheDocument();
     expect(screen.queryByText(/no model yet/)).toBeNull();
   });
 });

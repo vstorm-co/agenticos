@@ -27,7 +27,7 @@ import type { MyPermissions, Permission, PermissionScope, RoleCatalog } from "@/
 export function usePermissions() {
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isSuccess, error } = useQuery({
     queryKey: qk.organizations.permissions(activeOrgId ?? "current"),
     queryFn: () => apiClient.get<MyPermissions>("/me/permissions"),
     // A refused organization is refused again the same way; the retry only
@@ -60,6 +60,14 @@ export function usePermissions() {
     scopeOf,
     role: data?.role ?? "",
     isAppAdmin: data?.is_app_admin ?? false,
+    /**
+     * Whether the set is in. A `false` from `can()` means "not granted" only
+     * once this is true - before it, and after a failed read, it means "not
+     * known", which is the same value and a different claim. Anything that
+     * *tells the caller* what they may not do has to wait for this; hiding a
+     * control does not, because hiding one that is theirs costs a render.
+     */
+    isLoaded: isSuccess,
     isLoading,
     error,
   };
