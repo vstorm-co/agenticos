@@ -95,9 +95,9 @@ class MySourceConnector(BaseSyncConnector):
             return None
         except Exception:
             logger.exception("MySource credential check failed")
-            # One field to blame: `ConfigRefusal.about("api_key", "...")`, which
-            # is what makes the wizard mark that input rather than announce a
-            # sentence over every input on the step.
+            # One field to blame: `field="api_key"`, which is what makes the
+            # wizard mark that input rather than announce a sentence over every
+            # input on the step.
             return ConfigRefusal(message="Could not reach MySource with these credentials.")
 ```
 

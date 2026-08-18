@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
@@ -145,18 +145,22 @@ function refusal(details: Record<string, unknown>): ApiError {
   });
 }
 
-/** Fill the configure step in full and press Create source on the step after it. */
-async function submitConfigured(onSubmit: (data: SyncSourceCreate) => Promise<void>) {
-  render(
+function wizard(onSubmit: (data: SyncSourceCreate) => Promise<void>, open = true) {
+  return (
     <SyncSourceWizard
-      open
+      open={open}
       onOpenChange={vi.fn()}
       connectors={[GDRIVE]}
       collections={[{ name: "handbook" }]}
       defaultCollection="handbook"
       onSubmit={onSubmit}
-    />,
+    />
   );
+}
+
+/** Fill the configure step in full and press Create source on the step after it. */
+async function submitConfigured(onSubmit: (data: SyncSourceCreate) => Promise<void>) {
+  const view = render(wizard(onSubmit));
   await userEvent.type(screen.getByLabelText("Source name"), "Engineering docs");
   await userEvent.click(screen.getByRole("button", { name: /Google Drive/ }));
   await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
@@ -164,6 +168,7 @@ async function submitConfigured(onSubmit: (data: SyncSourceCreate) => Promise<vo
   await userEvent.type(screen.getByLabelText(/Google Drive Folder ID/), "x' in parents");
   await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
   await userEvent.click(screen.getByRole("button", { name: /Create source/ }));
+  return view;
 }
 
 describe("a config the connector refuses", () => {
@@ -226,5 +231,47 @@ describe("a config the connector refuses", () => {
     );
     expect(screen.getByLabelText(/Google Drive Folder ID/)).not.toHaveAttribute("aria-invalid");
     expect(screen.queryByText(FOLDER_ID_REFUSED)).toBeNull();
+  });
+
+  it("stops marking an input the moment it is edited", async () => {
+    // A refusal about a value that has since been changed is a refusal about
+    // nothing, and the rest of this product's forms drop it here too.
+    const onSubmit = vi
+      .fn()
+      .mockRejectedValue(
+        refusal({ fields: [{ field: "config.folder_id", message: FOLDER_ID_REFUSED }] }),
+      );
+
+    await submitConfigured(onSubmit);
+    await userEvent.type(await screen.findByLabelText(/Google Drive Folder ID/), "1");
+
+    expect(screen.getByLabelText(/Google Drive Folder ID/)).not.toHaveAttribute("aria-invalid");
+    expect(screen.queryByText(FOLDER_ID_REFUSED)).toBeNull();
+  });
+
+  it("does not act on a submission the reader walked away from", async () => {
+    // The X and Escape stay live while a create is pending, so the dialog can
+    // be dismissed and reopened before the answer arrives. Marking an input on
+    // the strength of that answer would send somebody to fix a field they never
+    // filled in - and the step it jumps to has no connector chosen, so it draws
+    // nothing at all.
+    let refuse!: (reason: unknown) => void;
+    const pending = new Promise<void>((_resolve, reject) => {
+      refuse = reject;
+    });
+    const view = await submitConfigured(vi.fn().mockReturnValue(pending));
+
+    view.rerender(wizard(vi.fn(), false));
+    view.rerender(wizard(vi.fn(), true));
+
+    await act(async () => {
+      refuse(refusal({ fields: [{ field: "config.folder_id", message: FOLDER_ID_REFUSED }] }));
+      await pending.catch(() => undefined);
+    });
+
+    expect(screen.getByLabelText("Source name")).toBeVisible();
+    expect(screen.queryByText(FOLDER_ID_REFUSED)).toBeNull();
+    // Said rather than swallowed: a create that failed is not nothing.
+    expect(toast.error).toHaveBeenCalledWith("Invalid connector config");
   });
 });

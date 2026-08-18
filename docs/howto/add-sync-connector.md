@@ -13,7 +13,7 @@ Sync connectors are pluggable adapters that fetch files from external systems
 | `BaseSyncConnector` | `app/services/rag/connectors/__init__.py` | Abstract base class for all connectors |
 | `remote_names` | `app/services/rag/remote_names.py` | Where a remote name may be written, and what may reach a query |
 | `RemoteFile` | `app/services/rag/connectors/__init__.py` | Pydantic model describing a remote file |
-| `ConfigRefusal` | `app/services/rag/connectors/__init__.py` | Why a config is not acceptable, and which of its fields |
+| `ConfigRefusal` | `app/services/rag/connectors/__init__.py` | Why a config is not acceptable, and which field of it |
 | `CONNECTOR_REGISTRY` | `app/services/rag/connectors/__init__.py` | Dict mapping connector type strings to classes |
 | `SyncSource` | `app/db/models/sync_source.py` | Database model storing source configurations |
 | `SyncLog` | `app/db/models/sync_log.py` | Database model tracking sync operations |
@@ -171,16 +171,18 @@ class NotionConnector(BaseSyncConnector):
             return None
         except Exception:
             logger.exception("Notion credential check failed")
-            # `ConfigRefusal.about(field, message)` when one field is to blame -
-            # the sync-source wizard marks that input. Here it is the token or
-            # the workspace it was issued for, and guessing between them would
-            # send somebody to change the wrong one.
+            # `field="api_token"` when one field is to blame - the
+            # sync-source wizard marks that input. Here it is the token or the
+            # workspace it was issued for, and guessing between them would send
+            # somebody to change the wrong one.
             return ConfigRefusal(message="Could not reach Notion with these credentials.")
 ```
 
 `validate_config` answers *why not*, or `None` when the config is acceptable.
-`ConfigRefusal.about("api_token", "…")` is the one-field form: the sentence
-travels to the caller as `details["fields"]` and the wizard marks that input.
+`ConfigRefusal(message="…", field="api_token")` names one: `SyncSourceService`
+roots it against the payload (`config.api_token`), raises it with `refused_field`,
+and the wizard marks that input. Name the field as `CONFIG_SCHEMA` does - where
+it sits in the request body is not a connector's to know.
 Never put the client's own exception text in the message — an SDK puts the
 request it was making in there, and that routinely carries a URL with a key in
 it. Log it instead, as above.
@@ -293,7 +295,7 @@ CONFIG_SCHEMA: ClassVar[dict[str, dict[str, Any]]] = {
 
 - Set `RemoteFile.source_path` to a unique URI (e.g., `notion://page_id`) — this is used for deduplication across syncs
 - Use `asyncio.to_thread()` to wrap blocking SDK calls so they don't block the event loop
-- Implement `validate_config()` to test connectivity when users create sync sources — it prevents misconfigured sources, and `ConfigRefusal.about(field, message)` is what makes the wizard mark the input rather than show a sentence over four of them
+- Implement `validate_config()` to test connectivity when users create sync sources — it prevents misconfigured sources, and a `ConfigRefusal` naming a `field` is what makes the wizard mark that input rather than show a sentence over four of them
 - Server-level credentials (shared across all sources) go in `app/core/config.py` and `.env`
 - Per-source credentials go in `CONFIG_SCHEMA` and are stored in the database per sync source
 - `_fetch()` writes to the `dest_path` it is handed and returns nothing — the base class answers where that is, and the ingestion pipeline handles everything from there

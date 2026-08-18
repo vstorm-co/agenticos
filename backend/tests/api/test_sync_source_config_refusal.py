@@ -53,6 +53,22 @@ class _OpinionatedConnector(BaseSyncConnector):
         return ConfigRefusal(message="These two credentials are not for the same account.")
 
 
+class _PickyConnector(BaseSyncConnector):
+    """A connector that blames a field, to pin what the service does with one."""
+
+    CONNECTOR_TYPE = "picky"
+    DISPLAY_NAME = "Picky"
+
+    async def list_files(self, config: dict) -> list:  # pragma: no cover - never reached
+        return []
+
+    async def _fetch(self, file: Any, dest_path: Any, config: dict) -> None:
+        """Never reached: every request in this file is refused at validation."""
+
+    async def validate_config(self, config: dict) -> ConfigRefusal | None:
+        return ConfigRefusal(message="That region does not exist.", field="region")
+
+
 @pytest.fixture
 def client(mock_db_session: Any, mock_redis: MagicMock) -> Iterator[Any]:
     user = MagicMock()
@@ -101,10 +117,27 @@ class TestTheRefusalNamesTheInput:
             {
                 "field": "config.folder_id",
                 "message": (
-                    "A Google Drive folder ID may contain only letters, digits, '-' and '_'."
+                    "Invalid connector config: A Google Drive folder ID may contain "
+                    "only letters, digits, '-' and '_'."
                 ),
             }
         ]
+        # One sentence, in both places - a shorter one written for the field is
+        # the copy that goes stale (`app/core/field_errors.py`).
+        assert error["details"]["fields"][0]["message"] == error["message"]
+
+    async def test_the_field_is_rooted_where_the_wizard_posted_it(
+        self, client, monkeypatch
+    ) -> None:
+        """`config` is the key the payload carries; the connector names only its own field."""
+        monkeypatch.setitem(CONNECTOR_REGISTRY, "picky", _PickyConnector)
+
+        async with client() as opened:
+            response = await _create(opened, "picky", {})
+
+        assert response.status_code == 400
+        fields = response.json()["error"]["details"]["fields"]
+        assert [problem["field"] for problem in fields] == ["config.region"]
 
     async def test_a_missing_required_field_is_blamed_on_that_field(self, client) -> None:
         async with client() as opened:
@@ -128,4 +161,4 @@ class TestTheRefusalNamesTheInput:
         assert error["message"] == (
             "Invalid connector config: These two credentials are not for the same account."
         )
-        assert error["details"]["fields"] == []
+        assert error["details"] == {"connector_type": "opinionated"}

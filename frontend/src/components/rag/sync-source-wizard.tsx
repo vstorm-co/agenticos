@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Calendar, Check, Cog, Copy, Plus, Plug } from "lucide-react";
 import { toast } from "sonner";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, Spinner } from "@/components/ui";
-import { submitFailure } from "@/lib/api-error";
+import { getErrorMessage, submitFailure } from "@/lib/api-error";
 import { CloneStep } from "@/components/rag/sync-source-clone-step";
 import { ConfigureStep } from "@/components/rag/sync-source-configure-step";
 import { ConnectorStep } from "@/components/rag/sync-source-connector-step";
@@ -49,6 +49,9 @@ const STEPS: { id: Step; words: string; icon: typeof Plug }[] = [
   { id: "schedule", words: "stepSchedule", icon: Calendar },
 ];
 
+/** One spelling of "nothing is wrong with this config", for all three places. */
+const NO_ERRORS: Readonly<Record<string, string>> = {};
+
 const EMPTY_FORM: SyncSourceCreate = {
   name: "",
   connector_type: "",
@@ -81,7 +84,21 @@ export function SyncSourceWizard({
   });
   const [cloneSourceId, setCloneSourceId] = useState<string>("");
   const [cloneName, setCloneName] = useState<string>("");
-  const [configErrors, setConfigErrors] = useState<Readonly<Record<string, string>>>({});
+  const [configErrors, setConfigErrors] = useState<Readonly<Record<string, string>>>(NO_ERRORS);
+  /**
+   * Which filling-in of this wizard is on screen, counted from the first.
+   *
+   * A submission is answered after an `await`, by which time the dialog may
+   * have been dismissed and reopened - the X and Escape stay live while a
+   * create is pending. A ref rather than state because the answer has to read
+   * what is true *now*, not the value its closure captured when it was sent;
+   * an effect rather than the reset below because a ref may not be written
+   * during render, and nothing renders from this one anyway.
+   */
+  const session = useRef(0);
+  useEffect(() => {
+    if (open) session.current += 1;
+  }, [open]);
 
   // Reopening starts from the beginning, during render - an effect would show
   // the last wizard's answers for a frame before clearing them.
@@ -97,7 +114,7 @@ export function SyncSourceWizard({
     setForm({ ...EMPTY_FORM, collection_name: defaultCollection ?? null });
     setCloneSourceId("");
     setCloneName("");
-    setConfigErrors({});
+    setConfigErrors(NO_ERRORS);
   }
 
   const selectedConnector = useMemo(
@@ -155,15 +172,27 @@ export function SyncSourceWizard({
    * and the reader is looking at the schedule step when it answers. So the
    * problems the server attributed to config fields go back to that step, with
    * it, and only what belongs to no input is announced.
+   *
+   * Unless the reader left. Dismissing the dialog mid-flight and reopening it
+   * starts a new session, and the abandoned request's refusal is about a form
+   * that no longer exists: marking an input or moving a step on the strength of
+   * it would send somebody to fix a field they never filled in, on a wizard
+   * whose connector is not even chosen yet. It is still said - a create that
+   * failed is not nothing - and nothing else is touched.
    */
   const handleSubmit = async () => {
-    setConfigErrors({});
+    const submittedIn = session.current;
+    setConfigErrors(NO_ERRORS);
     try {
       await onSubmit({
         ...form,
         collection_name: form.collection_name ?? defaultCollection ?? null,
       });
     } catch (error) {
+      if (session.current !== submittedIn) {
+        toast.error(getErrorMessage(error, tErrors));
+        return;
+      }
       const failure = submitFailure(error, { fields: configFields }, tErrors);
       setConfigErrors(failure.fields);
       if (Object.keys(failure.fields).length > 0) setStep("configure");
@@ -297,7 +326,13 @@ export function SyncSourceWizard({
                 <ConfigureStep
                   connector={selectedConnector}
                   form={form}
-                  setForm={setForm}
+                  // Editing an input drops its mark, the way every other form
+                  // here does: a refusal about a value that has since been
+                  // changed is a refusal about nothing.
+                  setForm={(update) => {
+                    setConfigErrors(NO_ERRORS);
+                    setForm(update);
+                  }}
                   errors={configErrors}
                 />
               )}

@@ -11,6 +11,7 @@ from app.db.updates import writable
 from app.core.config import settings
 from app.core.crypto import decrypt_value, encrypt_value, is_encrypted
 from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.field_errors import refused_field
 from app.db.models.sync_source import SyncSource
 from app.services.rag.connectors import CONNECTOR_REGISTRY
 from app.repositories import sync_log as sync_log_repo
@@ -72,20 +73,22 @@ async def _refuse_an_invalid_config(config: dict, connector_type: str) -> None:
     correct, but it answers in a background sync log rather than to the caller
     who sent the value, and only once somebody triggers a run.
 
-    Whichever fields the connector named travel on as `details["fields"]`, in
-    the one shape a form reads (`app/core/field_errors.py`). Flattening them
-    into the sentence is what left the wizard with four inputs and a line of
-    prose saying one of them was wrong (#897).
+    A field the connector named travels on as `details["fields"]`, rooted here
+    because this is the layer that knows the shape of what was posted: the
+    wizard sends its answers under `config`, so `folder_id` is `config.folder_id`
+    to the form. Flattening it into the sentence is what left the wizard with
+    four inputs and a line of prose saying one of them was wrong (#897).
     """
     connector_cls = CONNECTOR_REGISTRY.get(connector_type)
     if connector_cls is None:  # pragma: no cover - a stored row names a live connector
         return
     refusal = await connector_cls().validate_config(config)
-    if refusal is not None:
-        raise BadRequestError(
-            message=f"Invalid connector config: {refusal.message}",
-            details={"connector_type": connector_type, "fields": refusal.fields},
-        )
+    if refusal is None:
+        return
+    sentence = f"Invalid connector config: {refusal.message}"
+    if refusal.field is None:
+        raise BadRequestError(message=sentence, details={"connector_type": connector_type})
+    raise refused_field(f"config.{refusal.field}", sentence, connector_type=connector_type)
 
 
 def _raw_config(source: SyncSource) -> dict:

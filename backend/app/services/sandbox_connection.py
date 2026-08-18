@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.field_errors import field_details, refused_field
 from app.core.permissions import AuthContext
 from app.core.secret_kinds import ApiKeySecret
 from app.db.models.sandbox_connection import SandboxConnection
@@ -360,9 +361,8 @@ class SandboxConnectionService:
                 missing, is not an API key, or is refused.
         """
         if data.secret_id is None:
-            raise BadRequestError(
-                message="Pick the key this service was started with before testing it",
-                details={"field": "secret_id"},
+            raise refused_field(
+                "secret_id", "Pick the key this service was started with before testing it"
             )
         secrets = await self.secrets.resolve_for_bindings(ctx, [data.secret_id])
         secret = secrets.get(data.secret_id)
@@ -375,10 +375,9 @@ class SandboxConnectionService:
             base_url=data.base_url,
             token=secret.api_key.get_secret_value(),
             path="/policy",
-            # The field, not the address it was given - the same answer
-            # `_check_shape` gives sixteen lines down, and for the reason in
-            # agenticos#342: `details` is logged as well as serialized.
-            details={"field": "base_url"},
+            field="base_url",
+            not_found="No sandbox service answers at this address - check the address and the port",
+            context={},
         )
         payload["kind"] = "docker"
         return payload
@@ -407,9 +406,9 @@ class SandboxConnectionService:
                 details={"kind": kind, "expected": list(CONNECTION_KINDS)},
             )
         if kind == "docker" and not base_url:
-            raise BadRequestError(
-                message="A container connection needs the address its sandbox service answers on",
-                details={"field": "base_url"},
+            raise refused_field(
+                "base_url",
+                "A container connection needs the address its sandbox service answers on",
             )
 
     async def resolve(self, ctx: AuthContext, connection_id: UUID | None) -> ResolvedConnection:
@@ -664,12 +663,20 @@ class SandboxConnectionService:
             base_url=resolved.row.base_url,
             token=resolved.token,
             path=path,
-            details={"connection_id": str(connection_id)},
+            field=None,
+            not_found="Sandbox session not found",
+            context={"connection_id": str(connection_id)},
         )
 
     @staticmethod
     async def _get_json(
-        *, base_url: str | None, token: str, path: str, details: dict[str, str]
+        *,
+        base_url: str | None,
+        token: str,
+        path: str,
+        field: str | None,
+        not_found: str,
+        context: dict[str, str],
     ) -> dict[str, Any]:
         """One authenticated GET against a sandbox service.
 
@@ -677,31 +684,44 @@ class SandboxConnectionService:
         three failures have to be described the same way for an address nobody has
         saved yet - a form testing one before it exists is exactly when a clear
         answer is worth most.
+
+        Args:
+            field: The input to blame, for the caller that has a form open -
+                every one of these failures is something the address it was given
+                explains. `None` for a read against a saved connection, where the
+                reader is looking at a session rather than at a field.
+            not_found: What a 404 means to this caller, which is the one failure
+                the two do not share: a session that has ended, against a service
+                with no such endpoint. Marking a form's address with the first
+                would tell an operator their port is wrong about a session they
+                never asked for.
+            context: What else the refusal is about. The address is not withheld
+                from it - the sentence carries it and `field_details` copies the
+                sentence - because a `user:pass@` one is refused at the schema
+                (`SandboxConnectionCreate`), which is what keeps agenticos#342
+                shut here.
         """
         import httpx
+
+        def refusal(message: str) -> dict[str, Any]:
+            return context if field is None else field_details(field, message, **context)
 
         base = (base_url or "").rstrip("/")
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 response = await client.get(f"{base}{path}", headers={"X-Sandbox-Token": token})
         except Exception as exc:
-            raise BadRequestError(
-                message=f"The sandbox service at {base} did not answer",
-                details=details,
-            ) from exc
+            unanswered = f"The sandbox service at {base} did not answer"
+            raise BadRequestError(message=unanswered, details=refusal(unanswered)) from exc
 
         if response.status_code == 401:
-            raise BadRequestError(
-                message="The sandbox service refused this connection's credential",
-                details=details,
-            )
+            refused = "The sandbox service refused this connection's credential"
+            raise BadRequestError(message=refused, details=refusal(refused))
         if response.status_code == 404:
-            raise NotFoundError(message="Sandbox session not found", details=details)
+            raise NotFoundError(message=not_found, details=refusal(not_found))
         if response.status_code != 200:
-            raise BadRequestError(
-                message=f"The sandbox service answered {response.status_code}",
-                details=details,
-            )
+            answered = f"The sandbox service answered {response.status_code}"
+            raise BadRequestError(message=answered, details=refusal(answered))
         # Inside a guard, because a 200 is not a promise of JSON. The commonest
         # way to reach this is an address pointing at the wrong port: plenty of
         # things answer 200 with HTML, and an uncaught `JSONDecodeError` would
@@ -710,12 +730,10 @@ class SandboxConnectionService:
         try:
             payload: dict[str, Any] = response.json()
         except ValueError as exc:
-            raise BadRequestError(
-                message=(
-                    f"The service at {base} answered, but not with JSON. Check the "
-                    "address and the port - this is what a web server rather than a "
-                    "sandbox service looks like."
-                ),
-                details=details,
-            ) from exc
+            not_json = (
+                f"The service at {base} answered, but not with JSON. Check the "
+                "address and the port - this is what a web server rather than a "
+                "sandbox service looks like."
+            )
+            raise BadRequestError(message=not_json, details=refusal(not_json)) from exc
         return payload

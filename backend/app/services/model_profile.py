@@ -21,6 +21,7 @@ from app.agents.model_resolver import (
 )
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.core.secret_kinds import (
     NoSecret,
@@ -86,21 +87,14 @@ async def validate_endpoint_url(url: str) -> str:
     """
     parsed = urlparse(url)
     if parsed.scheme not in _ALLOWED_ENDPOINT_SCHEMES:
-        raise BadRequestError(
-            message="A model endpoint must be an http or https URL",
-            details={"field": "base_url"},
-        )
+        raise refused_field("base_url", "A model endpoint must be an http or https URL")
     if not parsed.hostname:
-        raise BadRequestError(
-            message="A model endpoint must include a host", details={"field": "base_url"}
-        )
+        raise refused_field("base_url", "A model endpoint must include a host")
     if parsed.username is not None or parsed.password is not None:
-        raise BadRequestError(
-            message=(
-                "A model endpoint must not carry credentials in the URL - store the key "
-                "on the credential instead"
-            ),
-            details={"field": "base_url"},
+        raise refused_field(
+            "base_url",
+            "A model endpoint must not carry credentials in the URL - store the key "
+            "on the credential instead",
         )
     return url
 
@@ -166,12 +160,11 @@ class ModelProfileService:
 
         if base_url is not None:
             if not spec.supports_base_url:
-                raise BadRequestError(
-                    message=(
-                        f"{spec.name} has no endpoint setting - its SDK always talks to the "
-                        "provider's own API, so a custom URL here would be ignored"
-                    ),
-                    details={"provider": provider, "field": "base_url"},
+                raise refused_field(
+                    "base_url",
+                    f"{spec.name} has no endpoint setting - its SDK always talks to the "
+                    "provider's own API, so a custom URL here would be ignored",
+                    provider=provider,
                 )
             base_url = await validate_endpoint_url(base_url)
         elif spec.keyless and secret_id is None:

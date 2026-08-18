@@ -92,12 +92,13 @@ class GoogleDriveConnector(BaseSyncConnector):
         """
         sa_json = config.get("service_account_json")
         if not sa_json:
+            # No field: nothing was submitted here - the row is stored and a
+            # sync is reading it back. `CONFIG_SCHEMA` refuses it at the route.
             raise BadRequestError(
                 message=(
                     "This Google Drive source has no service account credential. "
                     "Add the service account JSON to the source configuration."
-                ),
-                details={"field": "service_account_json"},
+                )
             )
         info = _json.loads(sa_json) if isinstance(sa_json, str) else sa_json
         creds = Credentials.from_service_account_info(info, scopes=SCOPES)
@@ -111,10 +112,10 @@ class GoogleDriveConnector(BaseSyncConnector):
         by the route that accepted it rather than by a sync log an hour later.
         The two cannot disagree - both ask `checked_drive_folder_id`.
 
-        The field is named here rather than read out of the refusal's own
-        `details`: this is the call site that chose which value to check, and
-        `remote_names` answers three sinks that address the same value
-        differently.
+        The field is named here rather than by `checked_drive_folder_id`, which
+        names none: it answers three sinks and only this one was sent a form to
+        mark - the other two are a worker reading a stored row and a sub-folder
+        id that was never typed anywhere.
         """
         refusal = await super().validate_config(config)
         if refusal is not None:
@@ -122,7 +123,7 @@ class GoogleDriveConnector(BaseSyncConnector):
         try:
             checked_drive_folder_id(config["folder_id"])
         except BadRequestError as exc:
-            return ConfigRefusal.about("folder_id", exc.message)
+            return ConfigRefusal(message=exc.message, field="folder_id")
         return None
 
     def _list_folder(

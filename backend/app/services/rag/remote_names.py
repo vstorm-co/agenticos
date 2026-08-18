@@ -9,6 +9,14 @@ and this module is the one place that promotion is refused.
 
 Kept outside `connectors/` because `sources/` needs the same two answers and
 must not import from its sibling.
+
+**Neither refusal names a field**, and that is the point of the paragraph above:
+what they refuse is not something a caller sent. A remote file's name is chosen
+by whoever can drop a file in the folder, and both checks run inside a sync,
+where the reader is a log rather than a form. The folder id *is* configured, but
+`SyncSourceConnector.validate_config` answers `(False, message)` - the details
+never reach the wire, and the route re-raises about the connector (#897). So
+these carry no `details["fields"]`, which the one shape is for (#891).
 """
 
 import re
@@ -42,8 +50,7 @@ def checked_drive_folder_id(folder_id: object) -> str:
     """
     if not isinstance(folder_id, str) or not _DRIVE_ID.fullmatch(folder_id):
         raise BadRequestError(
-            message="A Google Drive folder ID may contain only letters, digits, '-' and '_'.",
-            details={"field": "folder_id"},
+            message="A Google Drive folder ID may contain only letters, digits, '-' and '_'."
         )
     return folder_id
 
@@ -68,16 +75,12 @@ def destination_within(directory: Path, remote_name: str) -> Path:
         BadRequestError: the name does not name a file inside `directory`.
     """
     if "\x00" in remote_name:
-        raise BadRequestError(
-            message="A remote file name may not contain a NULL byte.",
-            details={"field": "name"},
-        )
+        raise BadRequestError(message="A remote file name may not contain a NULL byte.")
 
     base = directory.resolve()
     destination = (base / Path(remote_name).name).resolve()
     if destination.parent != base:
         raise BadRequestError(
-            message="A remote file name must name one file inside the sync directory.",
-            details={"field": "name"},
+            message="A remote file name must name one file inside the sync directory."
         )
     return destination

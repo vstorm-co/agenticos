@@ -6,14 +6,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, ClassVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-from app.core.field_errors import field_details
 from app.services.rag.remote_names import destination_within
 
 logger = logging.getLogger(__name__)
-
-CONFIG_ROOT = "config"
 
 
 class RemoteFile(BaseModel):
@@ -28,26 +25,29 @@ class RemoteFile(BaseModel):
 
 
 class ConfigRefusal(BaseModel):
-    """Why a connector will not accept a config, in a shape the wizard can act on.
+    """Why a connector will not accept a config, and which of its fields.
 
     `validate_config` used to answer `tuple[bool, str | None]`, so a refusal
     that knew exactly which field was wrong could not say so: the sentence
     reached the wire and the sync-source wizard, which draws one input per
     `CONFIG_SCHEMA` entry, marked none of them (#897).
 
-    `fields` is optional because a connector is entitled to refuse a config
-    without blaming one field of it - connectivity that fails, two credentials
-    that do not go together - and forcing the folder-id case's shape onto that
-    would only produce an invented field name.
+    `field` is a key of `CONFIG_SCHEMA`, as the connector names it. Where that
+    sits in the document the wizard posted is not a connector's to know:
+    `SyncSourceService` roots it and builds the refusal with `refused_field`,
+    which is the only thing that decides what reaches the wire. Singular here
+    and plural there on purpose - a connector refuses on the first thing it
+    finds wrong, and `details["fields"]` is a list because a *pydantic* refusal
+    reports every field at once (#891).
+
+    It is optional because a connector is entitled to refuse a config without
+    blaming one field of it - connectivity that fails, two credentials that do
+    not belong to the same account - and forcing the folder-id case's shape onto
+    that would only produce an invented field name.
     """
 
     message: str
-    fields: list[dict[str, str]] = Field(default_factory=list)
-
-    @classmethod
-    def about(cls, field: str, message: str) -> "ConfigRefusal":
-        """A refusal of one named field of the config, said once."""
-        return cls(message=message, fields=field_details(field, message, root=CONFIG_ROOT))
+    field: str | None = None
 
 
 class BaseSyncConnector(ABC):
@@ -100,7 +100,7 @@ class BaseSyncConnector(ABC):
         for field_name, field_spec in self.CONFIG_SCHEMA.items():
             if field_spec.get("required") and not config.get(field_name):
                 label = field_spec.get("label", field_name)
-                return ConfigRefusal.about(field_name, f"Missing required field: {label}")
+                return ConfigRefusal(message=f"Missing required field: {label}", field=field_name)
         return None
 
 
