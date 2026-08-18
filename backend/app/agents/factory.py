@@ -28,7 +28,11 @@ from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.usage import UsageLimits
 
 from app.agents.capabilities import build as build_capabilities
-from app.agents.capabilities.approval import ApprovalGate, approval_required_tools
+from app.agents.capabilities.approval import (
+    ApprovalGate,
+    approval_required_tools,
+    refuse_ungateable_approvals,
+)
 from app.agents.capabilities.budget import (
     BudgetGuard,
     BudgetScope,
@@ -172,9 +176,11 @@ def build_agent(
 
     Raises:
         BadRequestError: If the spec references an unknown tool, an invalid tool
-            configuration, a scope the organization has not granted, or a secret
-            the organization no longer has.
+            configuration, a scope the organization has not granted, a secret
+            the organization no longer has, or an approval the gate could not
+            enforce because the model provider executes the tool.
     """
+    refuse_ungateable_approvals(spec)
     bindings = spec.bindings()
     # Built before the capabilities, not after: compaction reads it to decide
     # whether this window has room for a summary at all, and the reading is

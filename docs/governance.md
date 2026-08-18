@@ -791,6 +791,13 @@ Four properties worth knowing:
   this deployment runs itself, or drop the approval requirement; both are
   legitimate agents, and which one is wanted is not a decision to make on the
   author's behalf.
+- **And a version published before that refusal existed does not run.** Nothing
+  re-validates a frozen version — a run loads its stored spec and assembles it —
+  so the same check runs again when the agent is built, and refuses rather than
+  quietly swapping the method to make the gate work. The cost is real and
+  deliberate: an agent that has been running like this stops, with a message
+  saying what to change. What stops is an agent whose operator asked for an
+  approval nobody was ever being asked for.
 - **One model step can park several calls.** A model that answers with two
   side-effecting calls at once - "email the customer and the account manager" -
   parks both, each its own approval row decided on its own. The rows are written

@@ -442,6 +442,73 @@ class TestBudgetComposition:
         assert self._lookups(built)[BudgetScope.AGENT] is None
 
 
+class TestAnApprovalTheGateCouldNotEnforce:
+    """A stored version whose approval the provider's own execution walks past.
+
+    Publish validation refuses the combination, but a version published before
+    that refusal existed never passes through it again: a run loads the frozen
+    `AgentVersion` and hands its spec straight here. So without a refusal at
+    assembly, every agent #839 and #857 were written for goes on fetching and
+    searching unapproved (#871). These drive the stored spec, never
+    `validate_spec`.
+    """
+
+    @staticmethod
+    def _stored(capability: dict[str, Any]) -> AgentSpec:
+        """A spec as a published version holds it: JSON, read back untouched."""
+        return AgentSpec.model_validate({"name": "Researcher", "capabilities": [capability]})
+
+    def _build(self, capability: dict[str, Any], scope: str) -> BuiltAgent:
+        return build_agent(
+            self._stored(capability),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            granted_scopes=frozenset({scope}),
+        )
+
+    def test_a_stored_native_search_with_approval_does_not_assemble(self):
+        with pytest.raises(BadRequestError) as refused:
+            self._build(
+                {"id": "web_research", "config": {"method": "native"}, "approval": "required"},
+                "web:read",
+            )
+
+        assert any("no call to hold" in problem for problem in refused.value.details["problems"])
+
+    def test_a_stored_native_fetch_with_approval_does_not_assemble(self):
+        """#839 refused this at publish and left every version published before it."""
+        with pytest.raises(BadRequestError) as refused:
+            self._build(
+                {
+                    "id": "web_fetch",
+                    "config": {"method": "auto"},
+                    "tool_approval": {"web_fetch": "required"},
+                },
+                "web:fetch",
+            )
+
+        assert any("no call to hold" in problem for problem in refused.value.details["problems"])
+
+    def test_a_native_search_nobody_asked_to_approve_still_runs(self):
+        """The refusal is about the approval, not about the provider searching."""
+        built = self._build({"id": "web_research", "config": {"method": "native"}}, "web:read")
+
+        assert len(built.capabilities) == 1
+
+    def test_a_disabled_binding_is_not_a_reason_to_refuse(self):
+        built = self._build(
+            {
+                "id": "web_research",
+                "config": {"method": "native"},
+                "approval": "required",
+                "enabled": False,
+            },
+            "web:read",
+        )
+
+        assert built.capabilities == []
+
+
 class TestMaxSteps:
     """A cap on model requests - what stops a tool loop that a budget only bills for."""
 

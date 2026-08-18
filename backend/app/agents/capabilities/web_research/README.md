@@ -13,4 +13,7 @@ publish, from the `provider_executed` declared in `__init__.py`, rather than
 given a gate that silently never fires. `web_fetch` was fixed for this first and
 this capability was not, which is how a spec asking for approval searched
 unapproved with an empty queue and nothing reporting it
-([#857](https://github.com/vstorm-co/agenticos/issues/857)).
+([#857](https://github.com/vstorm-co/agenticos/issues/857)). A version published
+before either refusal existed is refused again when it is assembled, because
+nothing re-validates a frozen version
+([#871](https://github.com/vstorm-co/agenticos/pull/871)).

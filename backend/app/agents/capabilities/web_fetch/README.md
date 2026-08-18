@@ -36,11 +36,13 @@ spellings is a filter with a hole in it: `a_label` in `_capability.py` has that.
 **It does not make a native fetch approvable.** `ApprovalGate` wraps tool
 execution, so a fetch the model provider runs never passes through it. A binding
 that requires approval and sets `method` to `native` or `auto` is refused at
-publish - by `agent_registry._ungateable_tool_problems`, reading the
-`provider_executed` this capability declares in `__init__.py` - rather than
-quietly switched to `local` to make the gate work. Which of the two an author
-wanted is not something this can guess, and guessing wrong in the other direction
-is an agent reading pages nobody approved.
+publish - by `approval.ungateable_tool_problems`, reading the `provider_executed`
+this capability declares in `__init__.py` - rather than quietly switched to
+`local` to make the gate work. Which of the two an author wanted is not something
+this can guess, and guessing wrong in the other direction is an agent reading
+pages nobody approved. A version published before that refusal existed is refused
+again when it is assembled, because nothing re-validates a frozen version
+(`approval.refuse_ungateable_approvals`, #871).
 
 **It does not summarise.** The page arrives as Markdown, truncated at
 `max_content_chars`, and what to do with it is the model's problem. A summarising

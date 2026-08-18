@@ -217,7 +217,10 @@ for `web_fetch` and sets `method` to `native` — or to `auto`, where which of t
 two runs is a property of the model profile and changes without republishing — is
 refused at publish rather than given a gate that silently never fires. Set `method`
 to `local`, or drop the approval requirement; both are legitimate agents, and which
-one is wanted is not a decision to make on the author's behalf.
+one is wanted is not a decision to make on the author's behalf. A version published
+before that refusal existed is refused again when it is assembled, because nothing
+re-validates a frozen version — so such an agent stops running until it is edited,
+rather than going on fetching unapproved.
 
 A page arrives as Markdown, truncated at `max_content_chars`; a PDF or an image
 arrives as binary content the model reads natively. Nothing summarises it — what
