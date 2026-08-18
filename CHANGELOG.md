@@ -17,6 +17,54 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.182] - 2026-08-18
+
+An agent can read the page its search found, and cannot be gated by a gate that
+would not hold.
+
+### Added
+
+- **`web_fetch` — a capability that reads one URL and returns the page as
+  Markdown.** `web_research` returns titles, URLs and snippets and nothing
+  fetched a page, so an agent answered from the snippet and cited a page it had
+  never opened. Its own capability rather than a second tool on `web_research`,
+  because it composes with every search method — including `native`, where the
+  builder returns Pydantic AI's own `WebSearch` and contributes no toolset of
+  ours, so a tool added there would be missing for exactly the agents most
+  likely to want it. "May this agent dereference whatever URL it likes" is also
+  a different grant from "may it search": `web:fetch` is its own scope. (#51)
+- **The Builder can edit a list of strings.** The generated form fell back to a
+  text input for an array-valued property, so typing a hostname into an
+  allowlist stored a scalar string that Pydantic then refused — leaving the
+  field blank was the only publishable path. Arrays of strings now render as one
+  comma-separated input; arrays of anything else still fall through. (#51)
+
+### Fixed
+
+- **A fetch the model provider runs cannot be sold as approval-gated.**
+  `ApprovalGate` wraps tool execution, which is the only place a call can be
+  held, so a provider-native fetch never reaches it: under `method: native`
+  there is no local tool at all, and under `auto` there is one only on a model
+  with no native fetch. A binding that asked for approval and chose either got a
+  gate that never fired — the queue stayed empty and the agent read pages nobody
+  approved, silently. It is refused at publish now, rather than repaired by
+  forcing the local tool: which of the two an author wants is their decision,
+  and `auto` is refused alongside `native` because which one runs is a property
+  of the model profile and changes without republishing. (#51)
+- **A domain filter matched one spelling of a name that has several.** A
+  denylist holding `xn--exmple-cua.com` did not stop `https://exämple.com/`, and
+  `getaddrinfo` resolves the two identically — so the miss was a fetch rather
+  than a failure, and the validator's ASCII-only pattern left no way to write
+  the alias by hand. Entries are stored as the single name DNS would be asked
+  for (lower case, no root label, IDNA-encoded with the same codec
+  `getaddrinfo` uses), and every equivalent spelling reaches both the native and
+  the local filter. (#51)
+- **An empty `blocked_domains` is no longer refused with the allowlist's
+  error.** The two fields do not mean the same thing by `[]`: an empty allowlist
+  allows nothing, an empty denylist denies nothing — which is exactly what
+  `null` says. A spec imported from YAML or posted by an API client spelling "no
+  denied hosts" that way was refused for saying something true. (#51)
+
 ## [0.0.181] - 2026-08-18
 
 ### Changed
