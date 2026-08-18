@@ -17,6 +17,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.191] - 2026-08-18
+
+### Fixed
+
+- **A hand-edited agent spec says which field is wrong.** `AgentSpec.from_yaml`
+  was called inline in the route expression, and a pydantic `ValidationError` is
+  a `ValueError` but not a `RequestValidationError` — so every mistake in an
+  imported spec answered 500 with no field path and left a traceback in the log,
+  on an endpoint whose ordinary case *is* somebody iterating on YAML by hand. The
+  parse moved into the service that owns the refusal: a rule broken answers 400
+  with the field path, YAML that will not parse answers 400 with the line and
+  column, and
+  a document that is not a mapping says so. (#873)
+- **A syntax error reports its position, never the line it read.** `str()` on a
+  marked YAML error includes the offending source, and the document being refused
+  is somebody's spec — instructions, a `secret_id`. Neither the failing text nor
+  the submitted values come back; a reader error with only a byte offset gets no
+  invented position. (#873)
+- **Nothing is read or written before the document is judged.** The parse runs
+  first, so a refusal depends only on the caller's own text: it opens no
+  transaction and says nothing about which agents exist. (#873)
+
 ## [0.0.190] - 2026-08-18
 
 ### Fixed
