@@ -45,6 +45,7 @@ decides which fields exist.
 | `azure_openai` | Key, endpoint, pinned API version |
 | `aws_credentials` | Access key id, secret access key, region, optional session token |
 | `gcp_service_account` | The service account JSON, validated on the way in |
+| `github_oauth_app` | A GitHub OAuth App's public client id and its secret |
 | `none` | Not a secret — the marker for an endpoint needing no credential |
 
 `aws_credentials` is the clearest case for kinds existing at all: the access key id

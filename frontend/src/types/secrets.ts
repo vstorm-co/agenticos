@@ -11,7 +11,12 @@ import type { JsonSchema } from "./agents";
 
 /** Which shape a secret has. Mirrors `SecretKind` in `app/core/secret_kinds.py`. */
 export type SecretKind =
-  "none" | "api_key" | "azure_openai" | "aws_credentials" | "gcp_service_account";
+  | "none"
+  | "api_key"
+  | "azure_openai"
+  | "aws_credentials"
+  | "gcp_service_account"
+  | "github_oauth_app";
 
 /**
  * Every kind a person can save. `none` is not one of them: it says "there is no

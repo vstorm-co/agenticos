@@ -31,6 +31,7 @@ from app.core.secret_kinds import (
     AwsCredentialsSecret,
     AzureOpenAISecret,
     GcpServiceAccountSecret,
+    GithubOAuthAppSecret,
     NoSecret,
     SecretKind,
     seal_secret,
@@ -217,6 +218,22 @@ class TestProviderCatalog:
             build_model(credential, "some-model")
         assert exc.value.details is not None
         assert "supported" in exc.value.details
+
+    def test_a_secret_that_is_not_a_provider_credential_is_refused(self):
+        """A GitHub OAuth App credential cannot authenticate a model provider.
+
+        Its kind is storable but is not any provider's `secret_kind`, so it can
+        only reach the resolver through a mis-wired profile - and coercing its
+        client secret into an `api_key` argument would fail far from the cause.
+        """
+        credential = ResolvedCredential(
+            provider="openai",
+            secret=GithubOAuthAppSecret(
+                client_id="Iv1.0123456789abcdef", client_secret="ghs-live-4242"
+            ),
+        )
+        with pytest.raises(BadRequestError, match="cannot authenticate"):
+            build_model(credential, "some-model")
 
     def test_out_of_scope_provider_names_are_not_offered(self):
         """Three names Pydantic AI knows that a model profile cannot point at.

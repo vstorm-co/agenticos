@@ -47,6 +47,7 @@ from pydantic_ai.providers import Provider, infer_provider_class
 
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import (
+    ApiKeySecret,
     AwsCredentialsSecret,
     AzureOpenAISecret,
     GcpServiceAccountSecret,
@@ -239,6 +240,15 @@ def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provi
     provider_class = infer_provider_class(spec.prefix)
     if isinstance(secret, NoSecret):
         return provider_class(**endpoint)
+    if not isinstance(secret, ApiKeySecret):
+        # Every remaining shape is a bearer key; a secret whose kind does not
+        # authenticate a model provider at all (a GitHub OAuth App, say) can only
+        # reach here through a mis-wired profile, and must fail loudly rather than
+        # be coerced into an `api_key` argument.
+        raise BadRequestError(
+            message="This secret cannot authenticate a model provider",
+            details={"kind": secret.kind.value, "provider": spec.id},
+        )
     return provider_class(
         # Every provider reached here takes `api_key`, but the inferred class is
         # the abstract `Provider`, whose only `__init__` is `object`'s.

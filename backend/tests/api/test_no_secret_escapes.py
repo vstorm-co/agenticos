@@ -32,6 +32,7 @@ _SECRET_MODELS = frozenset(
         "AzureOpenAISecret",
         "AwsCredentialsSecret",
         "GcpServiceAccountSecret",
+        "GithubOAuthAppSecret",
         # `NoSecret` is deliberately absent. It said "this provider needs no
         # key", and the only thing that ever accepted it was the credential
         # store that the vault replaced - the vault has no such shape, because a

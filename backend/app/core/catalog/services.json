@@ -53,5 +53,13 @@
     "kind": "api_key",
     "help_url": "https://app.daytona.io/dashboard/keys",
     "description": "Cloud sandboxes an agent works in, billed to this organization's own Daytona account."
+  },
+  {
+    "id": "github_oauth_app",
+    "label": "GitHub OAuth App",
+    "category": "other",
+    "kind": "github_oauth_app",
+    "help_url": "https://github.com/settings/developers",
+    "description": "A GitHub OAuth App's client id and secret, used to connect a GitHub account for repository webhooks."
   }
 ]

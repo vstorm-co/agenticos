@@ -22,6 +22,7 @@ from app.core.secret_kinds import (
     AwsCredentialsSecret,
     AzureOpenAISecret,
     GcpServiceAccountSecret,
+    GithubOAuthAppSecret,
     NoSecret,
     SecretKind,
     SecretRequirement,
@@ -96,6 +97,30 @@ class TestSecretKinds:
         value = ApiKeySecret(api_key="sk-live-1234")
         assert "sk-live-1234" in value.model_dump_json()
 
+    def test_a_github_oauth_app_needs_both_halves(self):
+        """The id says which app, the secret authenticates it; neither may be blank."""
+        with pytest.raises(ValidationError):
+            GithubOAuthAppSecret(client_id="", client_secret="ghs-abcd")
+        with pytest.raises(ValidationError):
+            GithubOAuthAppSecret(client_id="Iv1.0123abcd", client_secret="")
+
+    def test_a_github_oauth_app_secret_masks_itself_in_a_repr(self):
+        """Only the client_secret is confidential; the client_id is public."""
+        value = GithubOAuthAppSecret(
+            client_id="Iv1.0123456789abcdef", client_secret="ghs-do-not-print-me"
+        )
+        assert "ghs-do-not-print-me" not in repr(value)
+        assert "ghs-do-not-print-me" not in str(value.model_dump())
+        # The id is not a secret, so it is fine for it to appear.
+        assert "Iv1.0123456789abcdef" in repr(value)
+
+    def test_a_github_oauth_app_is_hinted_by_its_public_client_id(self):
+        """The client id names the app in GitHub's settings and is not confidential."""
+        value = GithubOAuthAppSecret(
+            client_id="Iv1.0123456789wxyz", client_secret="ghs-never-shown"
+        )
+        assert value.hint == "wxyz"
+
     def test_an_unknown_field_is_refused_rather_than_ignored(self):
         with pytest.raises(ValidationError):
             ApiKeySecret(api_key="sk", region_name="eu-west-1")
@@ -161,6 +186,21 @@ class TestSealAndOpen:
         opened = unseal_secret(sealed.ciphertext, kind=SecretKind.AZURE_OPENAI, scope=scope)
 
         assert opened == value
+
+    def test_a_github_oauth_app_survives_the_envelope_whole(self):
+        scope = VaultScope.organization(uuid.uuid4())
+        value = GithubOAuthAppSecret(
+            client_id="Iv1.0123456789abcdef", client_secret="ghs-live-4242"
+        )
+        sealed = seal_secret(value, scope=scope)
+
+        opened = unseal_secret(sealed.ciphertext, kind=SecretKind.GITHUB_OAUTH_APP, scope=scope)
+
+        assert isinstance(opened, GithubOAuthAppSecret)
+        assert opened.client_id == "Iv1.0123456789abcdef"
+        assert opened.client_secret.get_secret_value() == "ghs-live-4242"
+        # The identifying id becomes the hint, not the punctuation of the JSON.
+        assert sealed.hint == "cdef"
 
     def test_an_envelope_whose_kind_disagrees_with_the_row_is_refused(self):
         """A swapped column would otherwise hand the wrong shape to a caller."""
