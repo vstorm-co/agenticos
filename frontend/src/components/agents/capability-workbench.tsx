@@ -8,6 +8,7 @@ import { SubagentsSection } from "@/components/agents/subagents-section";
 import { WorkspaceSection } from "@/components/agents/workspace-section";
 import { SearchInput, Switch } from "@/components/ui";
 import { readSubagentsConfig, SANDBOX_ID, SUBAGENTS_ID } from "@/lib/agent-spec";
+import type { FieldProblem } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry, SubagentRef } from "@/types/agents";
 import { useTranslations } from "next-intl";
@@ -33,6 +34,14 @@ interface CapabilityWorkbenchProps {
    */
   modelProfileId: string | null;
   disabled?: boolean;
+  /**
+   * What the last publish attempt said about the inputs on these forms.
+   *
+   * A capability's configuration is generated from its schema, so a refusal
+   * about one of its settings has an input to be shown on - which is the whole
+   * reason `validate_spec` reports fields as well as sentences (#882).
+   */
+  configProblems?: readonly FieldProblem[];
 }
 
 /**
@@ -87,6 +96,7 @@ export function CapabilityWorkbench({
   onSubagentsChange,
   modelProfileId,
   disabled,
+  configProblems,
 }: CapabilityWorkbenchProps) {
   const t = useTranslations("agents");
   const enabled = new Set(selected.filter((binding) => binding.enabled).map((b) => b.id));
@@ -262,6 +272,7 @@ export function CapabilityWorkbench({
                 binding={bound ?? unboundBinding(focused.id)}
                 definition={focused}
                 onChange={onChange}
+                configProblems={configProblems}
                 // A capability nobody granted has nothing to configure yet, so
                 // its controls are shown at their real values and left inert.
                 // The alternative - live controls writing to a binding that does

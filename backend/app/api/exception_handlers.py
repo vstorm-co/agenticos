@@ -31,7 +31,7 @@ from starlette.requests import HTTPConnection
 
 from app.agents.capabilities.budget import BudgetExceeded
 from app.core.exceptions import AppException, ValidationError
-from app.core.field_errors import field_problems
+from app.core.field_errors import request_field_problems
 
 logger = logging.getLogger(__name__)
 
@@ -171,7 +171,7 @@ async def validation_exception_handler(
     field it belongs to - that is what lets the UI mark the offending input
     instead of showing a sentence about a form the reader has to re-scan.
     """
-    fields = field_problems(exc.errors(), root="request")
+    fields = request_field_problems(exc.errors())
     return await app_exception_handler(
         request,
         ValidationError(message=_summarize(fields), details={"fields": fields}),

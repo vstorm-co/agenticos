@@ -248,7 +248,10 @@ class TestReadingAnOverrideOffTheForm:
             parse_override('{"chunk_size": 1}')
 
         assert refusal.value.details["fields"] == [
-            {"field": "chunk_size", "message": "Input should be greater than or equal to 64"}
+            {
+                "field": "ingestion_config.chunk_size",
+                "message": "Input should be greater than or equal to 64",
+            }
         ]
 
     def test_a_field_that_is_not_json_at_all_is_attributed_to_the_form_field(self) -> None:

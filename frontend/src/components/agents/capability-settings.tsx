@@ -4,7 +4,9 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { ChevronRight, ShieldAlert } from "lucide-react";
 
+import { capabilityConfigErrors } from "@/lib/agent-spec";
 import { getErrorMessage } from "@/lib/api-error";
+import type { FieldProblem } from "@/lib/api-error";
 import { SchemaForm } from "@/components/agents/schema-form";
 import {
   Badge,
@@ -44,6 +46,15 @@ interface CapabilitySettingsProps {
   selected: CapabilityBindingSpec[];
   onChange: (binding: CapabilityBindingSpec) => void;
   disabled?: boolean;
+  /**
+   * What publish validation said about the inputs on these forms.
+   *
+   * The whole flat list from `validate_spec`; each card takes the paths that
+   * name its own capability. Passed down rather than resolved here because a
+   * specialist's copy of a capability is a different form from the parent's,
+   * and only the component rendering one knows which it is.
+   */
+  configProblems?: readonly FieldProblem[];
 }
 
 /** The three modes, in order. Their words live in the catalog under `approval*`. */
@@ -133,6 +144,7 @@ export function CapabilitySettings({
   selected,
   onChange,
   disabled,
+  configProblems,
 }: CapabilitySettingsProps) {
   const configurable = selected
     .filter((binding) => binding.enabled)
@@ -156,6 +168,7 @@ export function CapabilitySettings({
           definition={definition}
           onChange={onChange}
           disabled={disabled}
+          configProblems={configProblems}
         />
       ))}
     </div>
@@ -177,6 +190,15 @@ interface CapabilityDetailProps {
    * the same for every capability and is not worth a second implementation.
    */
   hideConfigForm?: boolean;
+  /**
+   * What publish validation said about the inputs on these forms.
+   *
+   * The whole flat list from `validate_spec`; each card takes the paths that
+   * name its own capability. Passed down rather than resolved here because a
+   * specialist's copy of a capability is a different form from the parent's,
+   * and only the component rendering one knows which it is.
+   */
+  configProblems?: readonly FieldProblem[];
 }
 
 /**
@@ -192,8 +214,10 @@ export function CapabilityDetail({
   onChange,
   disabled,
   hideConfigForm,
+  configProblems,
 }: CapabilityDetailProps) {
   const t = useTranslations("agents");
+  const configErrors = capabilityConfigErrors(configProblems ?? [], binding.id);
   return (
     // Grouped and named, so the tool rows below are read as belonging to
     // this capability rather than to the page.
@@ -218,6 +242,7 @@ export function CapabilityDetail({
             schema={definition.config_schema}
             value={binding.config}
             disabled={disabled}
+            errors={configErrors}
             onChange={(config) => onChange({ ...binding, config })}
           />
         )}

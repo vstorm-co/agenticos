@@ -924,7 +924,7 @@ class TestImportSpec:
                 _ctx(), uuid.uuid4(), "name: x\ninstrucitons: typo\n"
             )
 
-        assert refused.value.details["fields"][0]["field"] == "instrucitons"
+        assert refused.value.details["fields"][0]["field"] == "yaml.instrucitons"
         fetched.assert_not_called()
         update.assert_not_called()
 
@@ -963,6 +963,81 @@ class TestValidateSpec:
         assert any("Invalid configuration" in problem for problem in problems)
         assert "The selected model profile no longer exists" in problems
         assert any(problem.startswith("Collection not found:") for problem in problems)
+
+    @pytest.mark.anyio
+    async def test_a_refused_capability_config_names_the_input_as_well_as_the_capability(self):
+        """This is the path a Builder submission takes, and it discarded the field.
+
+        `validate_config` names each setting that broke a rule, and the
+        aggregator kept only `exc.message` - so `default_top_k: 999` reached the
+        form as one sentence about the capability and marked no box. Saving a
+        draft does not validate a config schema at all, which leaves publish
+        validation as the only place a mistyped setting is ever refused (found
+        reviewing #892).
+        """
+        spec = _spec(
+            capabilities=[{"id": "knowledge", "config": {"default_top_k": 999}}],
+            model_profile_id=None,
+        )
+
+        with pytest.raises(BadRequestError) as refused:
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert refused.value.details["fields"] == [
+            {
+                "field": "capabilities.knowledge.config.default_top_k",
+                "message": "Input should be less than or equal to 50",
+            }
+        ]
+        # And still as a line, because a form that does not render this field
+        # has to say something.
+        assert any(
+            "Invalid configuration" in problem for problem in refused.value.details["problems"]
+        )
+
+    @pytest.mark.anyio
+    async def test_a_specialists_config_is_marked_on_the_specialists_own_form(self):
+        """One form per specialist, configuring the same capabilities as the
+        parent - so an unscoped path would mark the parent's `knowledge` card
+        for a mistake in a copy of it that lives inside a delegate."""
+        spec = _spec(
+            capabilities=[
+                {
+                    "id": "subagents",
+                    "config": {
+                        "inline": [
+                            {
+                                "name": "researcher",
+                                "description": "Looks things up in the handbook.",
+                                "instructions": "Research things.",
+                                "capabilities": [
+                                    {"id": "knowledge", "config": {"default_top_k": 999}}
+                                ],
+                            }
+                        ]
+                    },
+                }
+            ],
+            model_profile_id=None,
+        )
+
+        with pytest.raises(BadRequestError) as refused:
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert [problem["field"] for problem in refused.value.details["fields"]] == [
+            "specialists.researcher.capabilities.knowledge.config.default_top_k"
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_spec_whose_problems_name_no_field_carries_no_fields_key(self):
+        """An empty list would be a claim that nothing can be marked, which a
+        reader has to tell apart from a refusal that never names one."""
+        with pytest.raises(BadRequestError) as refused:
+            await AgentRegistryService(_db()).validate_spec(_ctx(), _spec(model_profile_id=None))
+
+        assert refused.value.details == {
+            "problems": ["No model selected - pick one before publishing"]
+        }
 
     @pytest.mark.anyio
     async def test_an_agent_with_no_model_cannot_publish(self):

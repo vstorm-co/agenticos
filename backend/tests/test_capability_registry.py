@@ -535,7 +535,9 @@ class TestConfigValidation:
             get("knowledge").validate_config({"default_top_k": 999})
         assert exc.value.details is not None
         assert exc.value.details["capability_id"] == "knowledge"
-        assert [problem["field"] for problem in exc.value.details["fields"]] == ["default_top_k"]
+        assert [problem["field"] for problem in exc.value.details["fields"]] == [
+            "config.default_top_k"
+        ]
 
     def test_a_rule_about_two_settings_is_attributed_to_the_config_itself(self):
         """A `model_validator(mode="after")` names no field, so the refusal

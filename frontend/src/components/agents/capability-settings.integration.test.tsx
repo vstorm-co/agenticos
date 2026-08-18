@@ -472,3 +472,97 @@ describe("SecretField · narrowing by what a key is for", () => {
     expect(screen.getByRole("option", { name: /OpenAI/ })).toBeInTheDocument();
   });
 });
+/** A capability whose configuration is a generated form, which is where a
+ *  refused setting has an input to be marked on. */
+const KNOWLEDGE: CapabilityCatalogEntry = {
+  ...WEATHER,
+  id: "knowledge",
+  name: "Knowledge",
+  requires_secret: null,
+  config_schema: {
+    type: "object",
+    properties: {
+      default_top_k: {
+        type: "integer",
+        title: "Default top k",
+        description: "How many chunks a search returns.",
+      },
+    },
+  },
+};
+
+/**
+ * A capability's configuration refused at publish, on the input that broke.
+ *
+ * `validate_spec` aggregates every problem in a spec into sentences, and it
+ * used to keep only the sentence for a refused config - so this reached the
+ * Builder as "Capability 'knowledge': Invalid configuration for capability
+ * 'knowledge'" and no box was ever marked. Saving a draft does not validate a
+ * config schema at all, so publish validation is the only place a mistyped
+ * setting is refused, which made it the only place it could be shown (#882).
+ */
+describe("a capability configuration refused at publish", () => {
+  const refusal = (field: string) => [
+    { field, message: "Input should be less than or equal to 50" },
+  ];
+
+  beforeEach(() => serve([]));
+
+  it("marks the setting the server named", async () => {
+    render(
+      <CapabilitySettings
+        catalog={[KNOWLEDGE]}
+        selected={[binding({ id: "knowledge", config: { default_top_k: 999 } })]}
+        onChange={vi.fn()}
+        configProblems={refusal("capabilities.knowledge.config.default_top_k")}
+      />,
+      { wrapper },
+    );
+
+    const input = await screen.findByLabelText(/Default top k/);
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAccessibleDescription(
+      expect.stringContaining("Input should be less than or equal to 50"),
+    );
+  });
+
+  it("does not mark a field of the same name on another capability", async () => {
+    // Every capability's problems arrive in one flat list, so the path is what
+    // keeps two forms apart - both of these could hold a `default_top_k`.
+    render(
+      <CapabilitySettings
+        catalog={[KNOWLEDGE]}
+        selected={[binding({ id: "knowledge", config: { default_top_k: 8 } })]}
+        onChange={vi.fn()}
+        configProblems={refusal("capabilities.web_search.config.default_top_k")}
+      />,
+      { wrapper },
+    );
+
+    expect(await screen.findByLabelText(/Default top k/)).not.toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+  });
+
+  it("does not mark the parent's form for a mistake inside a specialist", async () => {
+    // One form per specialist, configuring the same capabilities. The parent's
+    // card renders without a specialist name, so a scoped path is not its own.
+    render(
+      <CapabilitySettings
+        catalog={[KNOWLEDGE]}
+        selected={[binding({ id: "knowledge", config: { default_top_k: 8 } })]}
+        onChange={vi.fn()}
+        configProblems={refusal(
+          "specialists.researcher.capabilities.knowledge.config.default_top_k",
+        )}
+      />,
+      { wrapper },
+    );
+
+    expect(await screen.findByLabelText(/Default top k/)).not.toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+  });
+});

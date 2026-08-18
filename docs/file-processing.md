@@ -340,12 +340,14 @@ as a collection's own configuration was always refused with a 422, because there
 it is a field of a JSON body and FastAPI validates it before the route is
 entered.
 
-Both refusals name the same field, `ingestion_config`, because a rule about two
-settings at once is attributed by Pydantic to neither of them — so the form
-marks one place whichever entry point refused. The 400 named its fields under
-`details.errors` until [#882](https://github.com/vstorm-co/agenticos/issues/882),
-in Pydantic's own error format, which nothing on the frontend read: the sentence
-reached a toast and no input was ever highlighted.
+Both refusals name the same fields, `ingestion_config` for the pair rule and
+`ingestion_config.chunk_size` for a setting of its own — so the form marks one
+place whichever entry point refused. (The pair rule names the object because
+Pydantic attributes a `model_validator(mode="after")` to neither of the two
+fields it is about.) The 400 named its fields under `details.errors` until
+[#882](https://github.com/vstorm-co/agenticos/issues/882), in Pydantic's own
+error format, which nothing on the frontend read: the sentence reached a toast
+and no input was ever highlighted.
 
 ### Embeddings — the model, and whose key pays
 

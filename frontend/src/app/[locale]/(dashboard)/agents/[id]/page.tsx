@@ -101,6 +101,7 @@ import {
   withSkills,
 } from "@/lib/agent-spec";
 import { useContextFiles } from "@/hooks/use-context";
+import type { FieldProblem } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn } from "@/lib/utils";
@@ -146,6 +147,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const [spec, setSpec] = useState<AgentSpec | null>(null);
   const [problems, setProblems] = useState<string[]>([]);
+  // The subset of them that names an input, so the capability whose
+  // configuration was refused marks the box rather than only saying so in
+  // the list above the form (#882).
+  const [configProblems, setConfigProblems] = useState<FieldProblem[]>([]);
   const [confirming, setConfirming] = useState<"archive" | "delete" | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
@@ -493,8 +498,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
   async function handlePublish() {
     if (!(await persist())) return;
     const found = await validate();
-    setProblems(found);
-    if (found.length === 0) setPublishOpen(true);
+    setProblems(found.problems);
+    setConfigProblems(found.fields);
+    if (found.problems.length === 0) setPublishOpen(true);
   }
 
   // What the next publish will be called. The server owns the number; this
@@ -901,6 +907,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 // resolve one for the standalone agent it becomes.
                 modelProfileId={spec.model_profile_id ?? null}
                 disabled={!canEdit}
+                configProblems={configProblems}
               />
             </CardContent>
           </Card>
