@@ -229,6 +229,44 @@ class CapabilityToolInfo(BaseModel):
         return data
 
 
+class ProviderExecuted(BaseModel):
+    """Which of a capability's tools the model provider runs itself, and when.
+
+    Approval is enforced by wrapping tool *execution*, which is the only place a
+    call can be held - so a tool the provider runs on its own side has no call
+    to hold, and a binding that gates one gets a gate that never fires. The
+    failure is silent: the queue stays empty and the agent acts unapproved.
+    Publish validation refuses that combination, and this is what tells it which
+    combinations they are.
+
+    The capability declares it because the answer is a fact about its own build:
+    `web_fetch` hands the fetch over under `native`, `web_research` the search.
+    A validator holding one branch per capability instead is a table of
+    capability internals living outside the capabilities, and it goes stale the
+    first time one of them grows a provider-executed method - which is how
+    `web_research` shipped `native` unrefused while `web_fetch` was fixed.
+
+    Data rather than a predicate, for the reason
+    :class:`app.core.secret_kinds.SecretCondition` is one: a config field, the
+    values of it that hand execution over, and the tools that go. A value that
+    only *may* hand it over belongs in `equals` too - `web_fetch`'s `auto` is
+    native on a model that has a native fetch, and which model an agent runs on
+    is a property of the model profile that changes without republishing.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    tools: tuple[str, ...] = Field(description="Tool ids the provider may execute")
+    field: str = Field(description="Which config field decides")
+    equals: tuple[str, ...] = Field(description="Values of that field that hand execution over")
+
+    def tools_for(self, config: BaseModel | None) -> frozenset[str]:
+        """The declared tools, when this configuration hands them to the provider."""
+        if config is None or str(getattr(config, self.field, None)) not in self.equals:
+            return frozenset()
+        return frozenset(self.tools)
+
+
 @dataclass(frozen=True)
 class CapabilityDef:
     """A registered capability and everything needed to expose and build it."""
@@ -262,6 +300,7 @@ class CapabilityDef:
     # The credential this capability needs, declared as a *kind* - never as an
     # instance. Code says "I need an API key"; configuration says which one.
     secret: SecretRequirement | None = None
+    provider_executed: ProviderExecuted | None = None
 
     def needs_secret(self, config: BaseModel | None) -> bool:
         """Whether a binding with this configuration must name a secret.
@@ -358,6 +397,7 @@ def register(
     selectable: bool = True,
     scopes: Iterable[str] = (),
     secret: SecretRequirement | None = None,
+    provider_executed: ProviderExecuted | None = None,
 ) -> Callable[[CapabilityBuilder], CapabilityBuilder]:
     """Register a capability builder.
 
@@ -376,6 +416,12 @@ def register(
     provider and a paid one has to choose which of the two to break. It is data
     rather than a predicate because the Builder has to ask for a key at exactly
     the moments this server will demand one, and only a value can cross the wire.
+
+    `provider_executed` declares which tools stop being this deployment's to run
+    under which configurations - a native fetch, a native search. Approval can
+    only hold a call this deployment executes, so a binding that gates one of
+    those is refused at publish rather than given a gate that never fires; see
+    :class:`ProviderExecuted` for why the capability owns that statement.
 
     `tools` has no default on purpose. It is what the Builder offers per-tool
     approval for and what the approval gate matches on, so a capability that
@@ -406,6 +452,7 @@ def register(
             selectable=selectable,
             scopes=frozenset(scopes),
             secret=secret,
+            provider_executed=provider_executed,
         )
         existing = REGISTRY.get(definition.id)
         if existing is not None and existing is not definition:

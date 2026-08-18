@@ -147,6 +147,13 @@ conditional rather than flat: a flat one would either lock the free default behi
 an account, or let a Tavily agent publish with nothing to authenticate with and
 fail on its first search.
 
+Approval and `native` do not combine, for the reason
+[Web fetch](#web-fetch) gives below: the [approval](../governance.md) gate wraps
+*tool execution*, and a native search is executed by the model provider, so a
+binding that requires approval for `web_search` and sets `method` to `native` is
+refused at publish rather than given a gate that never fires. Choose a method
+this deployment runs itself, or drop the approval requirement.
+
 Search finds a page; it does not read one. Reading is
 [Web fetch](#web-fetch) below, and it is a separate capability with a separate
 scope.

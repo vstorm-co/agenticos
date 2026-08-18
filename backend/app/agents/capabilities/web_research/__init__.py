@@ -8,6 +8,7 @@ from pydantic_ai.capabilities import AbstractCapability, WebSearch
 from app.agents.capabilities._registry import (
     CapabilityBuildContext,
     CapabilityToolInfo,
+    ProviderExecuted,
     register,
 )
 from app.agents.capabilities.web_research._capability import WebResearch
@@ -73,6 +74,7 @@ class WebResearchConfig(BaseModel):
         # nothing to authenticate with and fail on its first search.
         required_when=SecretCondition(field="method", equals=tuple(sorted(KEYED_METHODS))),
     ),
+    provider_executed=ProviderExecuted(tools=("web_search",), field="method", equals=("native",)),
 )
 def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
     config = ctx.config if isinstance(ctx.config, WebResearchConfig) else WebResearchConfig()

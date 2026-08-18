@@ -51,6 +51,14 @@ server tools are discovered at run time, so nothing declared them and nothing ga
 them. Do not assume otherwise when reviewing a change that adds an MCP connection to
 a published agent.
 
+**A tool the model provider executes** — a native fetch, a native search. There is
+no local execution to wrap, so the gate never sees the call. A capability declares
+those with `provider_executed` in its `register(...)`, and
+`agent_registry._ungateable_tool_problems` refuses the binding at publish rather
+than letting it run behind a gate that never fires. A new capability whose config
+can hand a tool to the provider **must** declare it; nothing infers it, and the
+failure without it is silent (#857).
+
 ## Presentation overrides
 
 ```python

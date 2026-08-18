@@ -32,7 +32,6 @@ from app.agents.capabilities import get as get_capability
 from app.agents.capabilities.approval import tool_needs_approval
 from app.agents.capabilities.browser_use import BrowserUseConfig, validate_cdp_url
 from app.agents.capabilities.subagents import SubagentsConfig
-from app.agents.capabilities.web_fetch import PROVIDER_EXECUTED_METHODS, WebFetchConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, SpecialistSpec, SubagentRef
 from app.core.audit import record_audit
@@ -212,18 +211,18 @@ async def _browser_use_problems(config: BaseModel | None) -> list[str]:
     return []
 
 
-def _ungateable_fetch_problems(
+def _ungateable_tool_problems(
     binding: CapabilityBindingSpec, definition: CapabilityDef, config: BaseModel | None
 ) -> list[str]:
-    """Approval on a fetch the model provider, not this deployment, would run.
+    """Approval on a tool the model provider, not this deployment, would run.
 
     `ApprovalGate` wraps *tool execution*, which is the only place a call can be
     held - so a tool the provider executes on its own side never reaches it. Under
     `web_fetch`'s `native` method there is no local tool at all, and under `auto`
-    there is one only on a model with no native fetch of its own. Either way a
-    binding that asks for approval and then hands the fetch to the provider gets a
-    gate that never fires, and the failure is silent: the queue stays empty and
-    the agent reads pages nobody approved.
+    there is one only on a model with no native fetch of its own; a `native` search
+    is the same shape. Either way a binding that asks for approval and then hands
+    the call to the provider gets a gate that never fires, and the failure is
+    silent: the queue stays empty and the agent acts unapproved.
 
     Refused rather than repaired. "Ask before this agent reads a page" and "let
     the provider fetch, with its own egress and citations" are both legitimate,
@@ -231,21 +230,33 @@ def _ungateable_fetch_problems(
     question that is the author's - while quietly dropping the gate is the bug.
     `auto` is refused with `native`, because which of the two an `auto` binding
     gets is a property of the model profile and that changes without republishing.
+
+    Which configurations hand which tools over is
+    :class:`~app.agents.capabilities.ProviderExecuted` on the capability itself,
+    not a branch per capability here: the first version of this function knew
+    `web_fetch`'s methods by name and `web_research`'s identical `native` was
+    published unrefused for as long as that lasted (#857).
     """
-    if not isinstance(config, WebFetchConfig) or config.method not in PROVIDER_EXECUTED_METHODS:
+    declared = definition.provider_executed
+    if declared is None:
         return []
+    handed_over = declared.tools_for(config)
     gated = sorted(
         tool.id
         for tool in definition.tools
-        if tool_needs_approval(tool=tool, binding=binding, side_effecting=definition.side_effecting)
+        if tool.id in handed_over
+        and tool_needs_approval(
+            tool=tool, binding=binding, side_effecting=definition.side_effecting
+        )
     )
     if not gated:
         return []
+    chosen = str(getattr(config, declared.field, ""))
     return [
         f"Capability '{binding.id}' requires approval for {', '.join(gated)}, but "
-        f"method '{config.method}' can hand the fetch to the model provider, where "
-        "this deployment has no call to hold. Set method to 'local', or drop the "
-        "approval requirement."
+        f"{declared.field} '{chosen}' can hand the call to the model provider, where "
+        f"this deployment has no call to hold. Choose a {declared.field} this "
+        "deployment runs itself, or drop the approval requirement."
     ]
 
 
@@ -943,7 +954,7 @@ class AgentRegistryService:
             problems.append(f"Capability '{binding.id}': {exc.message}")
         else:
             problems.extend(await _browser_use_problems(config))
-            problems.extend(_ungateable_fetch_problems(binding, definition, config))
+            problems.extend(_ungateable_tool_problems(binding, definition, config))
         # A tool_approval key that matches nothing is the dangerous kind of
         # typo: it is not an error at run time, it is silence - the tool the
         # author meant to gate runs unapproved and nobody is told.
