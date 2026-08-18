@@ -35,7 +35,8 @@ from app.schemas.portal import (
     PortalTargetList,
     PortalTargetRead,
 )
-from app.services import portal_catalog
+from app.schemas.schedule_template import ScheduleTemplateList, ScheduleTemplateRead
+from app.services import portal_catalog, schedule_templates
 
 router = APIRouter()
 
@@ -84,6 +85,24 @@ async def list_trigger_portals() -> Any:
         for portal in portal_catalog.CATALOG
     ]
     return PortalCatalog(items=items, total=len(items))
+
+
+@org_router.get(
+    "/schedule-templates",
+    response_model=ScheduleTemplateList,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_schedule_templates() -> Any:
+    """Ready-made schedules, so a schedule starts from a template, not a blank box.
+
+    Hand-curated data, gated like `GET /trigger-portals` on the coarse
+    `agents:view` first door - browsing what can be set up, not acting on one
+    agent. Each carries a prompt and a cadence the create form pre-fills.
+    """
+    items = [
+        ScheduleTemplateRead.model_validate(template) for template in schedule_templates.CATALOG
+    ]
+    return ScheduleTemplateList(items=items, total=len(items))
 
 
 @org_router.get(
@@ -163,6 +182,25 @@ async def run_trigger_now(
     names the previous run (#658).
     """
     return await service.run_now(ctx, agent_id, trigger_id)
+
+
+@router.post(
+    "/{agent_id}/triggers/{trigger_id}/rotate-secret",
+    response_model=TriggerCreateRead,
+)
+async def rotate_trigger_secret(
+    agent_id: UUID, trigger_id: UUID, ctx: Auth, service: AgentTriggerSvc
+) -> Any:
+    """Re-seal an event trigger's signing secret, revealing the new one once.
+
+    The URL is the trigger's identity and never changes; only the secret rotates.
+    Answers with `TriggerCreateRead`, which carries the new plaintext once for a
+    trigger the platform does not hold the secret for (a manual delivery, or an
+    auto one that fell back) - every other read uses `TriggerRead`, which has no
+    such field. A schedule has no secret and is refused; management is gated on the
+    creator-or-`agents:edit` rule the service resolves per row.
+    """
+    return await service.rotate_secret(ctx, agent_id, trigger_id)
 
 
 @router.patch("/{agent_id}/triggers/{trigger_id}", response_model=TriggerRead)

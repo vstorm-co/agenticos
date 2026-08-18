@@ -21,14 +21,16 @@ from app.api.routes.v1.agent_triggers import (
     delete_trigger,
     list_org_triggers,
     list_portal_targets,
+    list_schedule_templates,
     list_trigger_portals,
     list_triggers,
+    rotate_trigger_secret,
     run_trigger_now,
     update_trigger,
 )
 from app.api.routes.v1.trigger_webhooks import ingest_trigger_event
 from app.core.permissions import AuthContext, OrgRoleName
-from app.schemas.agent_trigger import TriggerCreate, TriggerRead, TriggerUpdate
+from app.schemas.agent_trigger import TriggerCreate, TriggerCreateRead, TriggerRead, TriggerUpdate
 from app.services.agent_trigger import EventFireDecision
 
 pytestmark = pytest.mark.anyio
@@ -66,6 +68,34 @@ async def test_the_portal_catalog_maps_every_portal_and_its_presets():
     assert "admin:repo_hook" in github.webhook_admin_scopes
     opened = next(preset for preset in github.presets if preset.key == "issue_opened")
     assert opened.target_required is True
+
+
+async def test_the_schedule_template_catalog_carries_a_prompt_and_a_cadence():
+    result = await list_schedule_templates()
+    assert result.total == len(result.items) > 0
+    digest = next(t for t in result.items if t.key == "pr_digest_weekday_mornings")
+    assert digest.prompt
+    assert digest.suggested_cadence.schedule_kind == "cron"
+    assert digest.suggested_cadence.cron_expression == "0 8 * * 1-5"
+
+
+async def test_rotating_answers_with_what_the_service_returned():
+    rotated = TriggerCreateRead(
+        id=uuid.uuid4(),
+        agent_id=uuid.uuid4(),
+        is_active=True,
+        trigger_type="event",
+        schedule_kind="interval",
+        event_source="github",
+        prompt="triage",
+        reveal_secret="the-new-plaintext-secret",
+        created_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    service = MagicMock(rotate_secret=AsyncMock(return_value=rotated))
+    agent_id, trigger_id = uuid.uuid4(), uuid.uuid4()
+    result = await rotate_trigger_secret(agent_id, trigger_id, _CTX, service)
+    assert result is rotated
+    service.rotate_secret.assert_awaited_once_with(_CTX, agent_id, trigger_id)
 
 
 async def test_the_org_listing_reports_its_own_total():

@@ -8,8 +8,10 @@ page is what you do next: how to point a real provider at the webhook, what the
 delivery has to contain, and how to test the whole thing from a laptop.
 
 If you only need the agent to run on the clock, you want a **schedule**, not an event
-trigger - no webhook, no secret, no provider to configure. Everything below is for the
-event case.
+trigger - no webhook, no secret, no provider to configure. A schedule can start from a
+seeded **template** (`GET /schedule-templates`) - "summarise my open pull requests every
+weekday morning", "triage new issues each morning" - which pre-fills the prompt and a
+sane cadence rather than a blank box. Everything below is for the event case.
 
 ## The mechanism, once
 
@@ -53,6 +55,26 @@ A verified delivery that has nothing to do - an inactive trigger, or a payload t
 filter does not match - answers `202` exactly as a fired one does, so holding the secret
 tells you nothing about which triggers exist. A body that is not a JSON object is a
 `400`.
+
+## Rotating the secret, and editing the filter
+
+The URL is the trigger's identity and never changes; the secret is a credential, and
+like every other key in this product it can be **rotated** - a re-seal and a fresh
+plaintext shown exactly once. `POST /agents/{agent_id}/triggers/{trigger_id}/rotate-secret`
+mints a new secret, seals it, and returns the trigger with `reveal_secret` set once (the
+same field create uses). Rotate the moment a secret might have leaked; the old one stops
+verifying immediately. For a hook the platform registered itself (`auto_webhook`), the
+rotation re-registers it with the new secret so its deliveries keep verifying and there
+is nothing to reveal - unless the account can no longer register it, in which case the
+trigger falls back to `manual` and the revealed secret is what you re-paste. A schedule
+has no secret, so rotating one is refused.
+
+Which issue actions fire is a **filter**, not a different trigger, so it is editable in
+place: `PATCH` the trigger with a new `event_config` and it is re-validated against the
+source's rules exactly as create validates it - an unknown key is refused rather than
+stored to match nothing. The source and the secret are not editable this way; repointing
+an event trigger at a different source is a new trigger, made by deleting this one and
+creating that.
 
 ## A GitHub recipe (~5 minutes)
 

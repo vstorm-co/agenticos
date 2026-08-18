@@ -19,7 +19,12 @@ import pytest
 from pydantic import ValidationError as PydanticValidationError
 
 from app.core.config import settings
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+    ValidationError,
+)
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.schemas.agent_trigger import TriggerCreate, TriggerRead, TriggerUpdate
@@ -1523,6 +1528,229 @@ class TestEventTriggerRestrictions:
                     TriggerUpdate(cron_expression="not a cron"),
                 )
             repo.update.assert_not_called()
+
+
+class TestEditingTheEventConfig:
+    """An event trigger's filter is editable in place - changing which issue actions
+    fire is a filter edit, not a delete-and-recreate. The source and secret stay
+    immutable; a schedule has no filter, so one sent for it is refused (DEENUU #537)."""
+
+    async def test_editing_a_github_filter_persists_the_normalized_config(self):
+        agent = _agent()
+        service = _service(agent)
+        trigger = _event_trigger(agent_id=agent.id)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock(return_value=trigger)
+            await service.update(
+                _ctx(),
+                agent.id,
+                trigger.id,
+                TriggerUpdate(event_config={"actions": ["closed", "reopened"]}),
+            )
+        changes = repo.update.call_args.kwargs["update_data"]
+        # Normalised through the source's typed model, the same path create uses.
+        assert changes["event_config"] == {"actions": ["closed", "reopened"]}
+
+    async def test_an_unknown_event_config_key_is_a_422(self):
+        """A key the source refuses is the same 422 create gives, not a config
+        stored to match nothing."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _event_trigger(agent_id=agent.id)
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock()
+            with pytest.raises(ValidationError):
+                await service.update(
+                    _ctx(),
+                    agent.id,
+                    trigger.id,
+                    TriggerUpdate(event_config={"unknown_filter": 1}),
+                )
+            repo.update.assert_not_called()
+
+    async def test_an_event_config_on_a_schedule_is_refused(self):
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id)  # a schedule has no filter
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock()
+            with pytest.raises(BadRequestError, match="event_config"):
+                await service.update(_ctx(), agent.id, trigger.id, TriggerUpdate(event_config={}))
+            repo.update.assert_not_called()
+
+
+class TestRotatingTheSecret:
+    """The URL is the trigger's identity and immutable; the secret is a credential
+    and replaceable - a re-seal and a new plaintext shown once. An auto-registered
+    hook is re-registered so its deliveries keep verifying (DEENUU #537)."""
+
+    async def test_rotation_reseals_and_reveals_the_new_plaintext_for_a_manual_trigger(self):
+        agent = _agent()
+        service = _service(agent)
+        trigger = _event_trigger(
+            agent_id=agent.id,
+            delivery_mode="manual",
+            event_secret_encrypted="old-ct",
+            secret_key_version=1,
+        )
+        sealed = MagicMock(ciphertext="NEW-CT", key_version=7)
+        audit = AsyncMock()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.seal", return_value=sealed) as seal_fn,
+            patch("app.services.agent_trigger.record_audit", new=audit),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock(return_value=trigger)
+            result = await service.rotate_secret(_ctx(), agent.id, trigger.id)
+        # A fresh secret is minted and sealed - not the old ciphertext, not its seal.
+        minted = seal_fn.call_args.args[0]
+        assert minted not in ("old-ct", "NEW-CT")
+        changes = repo.update.call_args.kwargs["update_data"]
+        assert changes["event_secret_encrypted"] == "NEW-CT"
+        assert changes["secret_key_version"] == 7
+        # A manual trigger reveals the plaintext once so the relay can be updated.
+        assert result.reveal_secret == minted
+        assert result.can_manage is True
+        assert audit.call_args.kwargs["action"] == "agent.trigger_secret_rotated"
+        # Neither the plaintext nor its ciphertext reaches the trail.
+        assert minted not in str(audit.call_args.kwargs["details"])
+        assert "NEW-CT" not in str(audit.call_args.kwargs["details"])
+
+    async def test_rotating_a_schedule_is_refused(self):
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id)  # a schedule has no secret
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock()
+            with pytest.raises(BadRequestError, match="secret to rotate"):
+                await service.rotate_secret(_ctx(), agent.id, trigger.id)
+            repo.update.assert_not_called()
+
+    async def test_a_non_creator_without_agents_edit_cannot_rotate(self):
+        """Management-gated exactly like edit/delete: someone else's trigger needs
+        `agents:edit`, refused as 'not found' so ids stay unprobeable."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _event_trigger(agent_id=agent.id, created_by_user_id=uuid.uuid4())
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.resolve_access", new=AsyncMock(return_value=False)),
+            patch("app.services.agent_trigger.seal") as seal_fn,
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock()
+            with pytest.raises(NotFoundError):
+                await service.rotate_secret(_ctx(), agent.id, trigger.id)
+            seal_fn.assert_not_called()
+            repo.update.assert_not_called()
+
+    async def test_rotating_an_auto_webhook_trigger_reregisters_the_hook(self):
+        agent = _agent()
+        service = _service(agent)
+        service.connections.webhook_access_token = AsyncMock(return_value="tok")
+        adapter = MagicMock()
+        adapter.delete_webhook = AsyncMock()
+        adapter.register_webhook = AsyncMock(
+            return_value=RegisteredWebhook(provider_webhook_id="hook-2")
+        )
+        trigger = _event_trigger(
+            agent_id=agent.id,
+            delivery_mode="auto_webhook",
+            provider_webhook_id="hook-1",
+            connection_id=uuid.uuid4(),
+            portal_key="github",
+            provider_target="acme/api",
+        )
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch(
+                "app.services.agent_trigger.seal",
+                return_value=MagicMock(ciphertext="CT", key_version=2),
+            ),
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock(return_value=trigger)
+            result = await service.rotate_secret(_ctx(), agent.id, trigger.id)
+        # The old hook is deleted and a fresh one registered at the same URL.
+        adapter.delete_webhook.assert_awaited_once()
+        adapter.register_webhook.assert_awaited_once()
+        assert result.provider_webhook_id == "hook-2"
+        assert result.provider_target == "acme/api"
+        assert result.delivery_mode == "auto_webhook"
+        # The provider is signed with the freshly minted plaintext, not the sealed one.
+        assert adapter.register_webhook.await_args.kwargs["secret"] != "CT"
+        # The platform holds the new secret, so nothing is revealed.
+        assert result.reveal_secret is None
+
+    async def test_an_auto_rotation_the_provider_refuses_falls_back_to_manual(self):
+        agent = _agent()
+        service = _service(agent)
+        service.connections.webhook_access_token = AsyncMock(return_value="tok")
+        adapter = MagicMock()
+        adapter.delete_webhook = AsyncMock()
+        adapter.register_webhook = AsyncMock(side_effect=WebhookRegistrationForbidden())
+        trigger = _event_trigger(
+            agent_id=agent.id,
+            delivery_mode="auto_webhook",
+            provider_webhook_id="hook-1",
+            connection_id=uuid.uuid4(),
+            portal_key="github",
+            provider_target="acme/api",
+        )
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch(
+                "app.services.agent_trigger.seal",
+                return_value=MagicMock(ciphertext="CT", key_version=1),
+            ),
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock(return_value=trigger)
+            result = await service.rotate_secret(_ctx(), agent.id, trigger.id)
+        # The re-register was refused, so the trigger falls back to manual and the
+        # new secret is revealed for a re-paste rather than the rotate failing.
+        assert result.delivery_mode == "manual"
+        assert result.provider_webhook_id is None
+        assert result.reveal_secret
+
+    async def test_rotating_when_the_portal_left_the_catalog_falls_back_to_manual(self):
+        agent = _agent()
+        service = _service(agent)
+        trigger = _event_trigger(
+            agent_id=agent.id,
+            delivery_mode="auto_webhook",
+            provider_webhook_id="hook-1",
+            connection_id=uuid.uuid4(),
+            portal_key="ghost-portal",
+            provider_target="acme/api",
+        )
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch(
+                "app.services.agent_trigger.seal",
+                return_value=MagicMock(ciphertext="CT", key_version=1),
+            ),
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.portals.get_adapter"),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock(return_value=trigger)
+            result = await service.rotate_secret(_ctx(), agent.id, trigger.id)
+        assert result.delivery_mode == "manual"
+        assert result.provider_webhook_id is None
+        assert result.reveal_secret
 
 
 def _preset_create(**overrides: object) -> TriggerCreate:

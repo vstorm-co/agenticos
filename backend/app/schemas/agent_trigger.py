@@ -261,10 +261,13 @@ class TriggerUpdate(BaseSchema):
     A schedule's cadence can change in place: a new interval, a new cron, or a
     switch between the two (`schedule_kind` with its cadence field). The service
     resolves the pair, re-validates a cron and recomputes the next fire, so the
-    columns the shape CHECK depends on stay consistent. What still cannot change is
-    a trigger's *type* - a schedule never becomes an event - nor an event's source,
-    filter or secret: repointing an event is a different trigger, made by deleting
-    this one and creating that, so a cadence field on an event is refused.
+    columns the shape CHECK depends on stay consistent. An event trigger's *filter*
+    can change in place too: `event_config` is re-validated against the source's
+    typed model, so refiltering which issue actions fire is an edit rather than a
+    delete-and-recreate. What still cannot change is a trigger's *type* - a
+    schedule never becomes an event - nor an event's source or secret: repointing
+    an event is a different trigger, made by deleting this one and creating that,
+    so a cadence field on an event, or an `event_config` on a schedule, is refused.
 
     `None` means "not sent" for every field except `environment_id` and `name`,
     whose null is the deliberate "back to the default" - the default environment,
@@ -283,6 +286,11 @@ class TriggerUpdate(BaseSchema):
     cron_expression: str | None = Field(default=None, max_length=255)
     is_active: bool | None = None
     environment_id: UUID | None = None
+    # An event trigger's filter. Re-validated against its source's typed model in
+    # the service (which owns `event_source`), so an unknown key is refused there
+    # rather than stored to match nothing; a schedule has no filter and one sent
+    # for it is refused. The source and the secret are not editable here.
+    event_config: dict[str, Any] | None = None
 
     @model_validator(mode="before")
     @classmethod

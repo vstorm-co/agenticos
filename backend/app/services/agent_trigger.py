@@ -42,12 +42,18 @@ from uuid import UUID
 
 from croniter import croniter
 from fastapi.encoders import jsonable_encoder
+from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+    ValidationError,
+)
 from app.core.permissions import AuthContext, Perm
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.agent_run import RunSurface
@@ -191,6 +197,18 @@ def _update_action(changes: dict[str, Any]) -> str:
     if changes.get("is_active") is False:
         return "agent.trigger_paused"
     return "agent.trigger_updated"
+
+
+def _is_auto_webhook(trigger: AgentTrigger) -> bool:
+    """Whether the platform registered this trigger's webhook at its provider.
+
+    The three fields the registration recorded, all present together or not at
+    all: a manual event trigger and a schedule carry none of them. Named once so
+    the rotate path and the delete path agree on what an auto-registered hook is -
+    a hook the platform holds the secret for, and must teach a new secret to when
+    it rotates.
+    """
+    return bool(trigger.provider_webhook_id and trigger.connection_id and trigger.portal_key)
 
 
 def _parse_json(body: bytes) -> dict[str, Any]:
@@ -513,22 +531,26 @@ class AgentTriggerService:
         harmless, but a delete that fails because the provider is down is not. A
         manual or schedule trigger has no hook and this is a no-op.
         """
-        if not (trigger.provider_webhook_id and trigger.connection_id and trigger.portal_key):
+        if not _is_auto_webhook(trigger):
             return
-        portal = portal_catalog.get_portal(trigger.portal_key)
-        adapter = portals.get_adapter(trigger.portal_key)
+        # `_is_auto_webhook` guarantees these three are set together; the casts
+        # annotate what the guard already proved, the same idiom `_unseal_event_secret`
+        # uses for a field the shape CHECK guarantees.
+        portal_key = cast(str, trigger.portal_key)
+        portal = portal_catalog.get_portal(portal_key)
+        adapter = portals.get_adapter(portal_key)
         if portal is None or adapter is None:
             return
         try:
             token = await self.connections.webhook_access_token(
-                ctx, trigger.connection_id, required_scopes=portal.webhook_admin_scopes
+                ctx, cast(UUID, trigger.connection_id), required_scopes=portal.webhook_admin_scopes
             )
             if token is None:
                 return
             await adapter.delete_webhook(
                 access_token=token,
                 target=trigger.provider_target,
-                provider_webhook_id=trigger.provider_webhook_id,
+                provider_webhook_id=cast(str, trigger.provider_webhook_id),
             )
         except Exception:
             logger.warning(
@@ -539,13 +561,26 @@ class AgentTriggerService:
     async def update(
         self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID, data: TriggerUpdate
     ) -> AgentTrigger:
-        """Pause, resume, retime, repoint, or reword a schedule.
+        """Pause, resume, retime, repoint, reword, or refilter a trigger.
 
         Only the fields the caller actually sent are applied, so pausing a trigger
         cannot silently move it back to the default environment.
+
+        An event trigger's *filter* is editable in place too: changing which issue
+        actions fire is a filter edit, not a different trigger, so `event_config`
+        is re-validated against the source's typed model and written - while the
+        source and the secret stay immutable (repointing an event is a different
+        trigger, made by deleting this one and creating that).
         """
         trigger = await self._owned(ctx, agent_id, trigger_id)
         changes = writable(data, over=AgentTrigger)
+
+        # A filter edit, the event mirror of a cadence edit: an event trigger's
+        # `event_config` is re-normalised against its source, and one sent for a
+        # schedule (which has no filter) is refused rather than stored to mean
+        # nothing - the same shape the cadence-on-event refusal below has.
+        if "event_config" in changes:
+            changes["event_config"] = self._validated_event_config(trigger, changes["event_config"])
 
         # Cadence edits: a schedule may be retimed in place - a new interval, a new
         # cron, or a switch between the two - rather than deleted and recreated. An
@@ -607,6 +642,118 @@ class AgentTriggerService:
             target_type="agent",
             target_id=str(agent_id),
             details={"trigger_id": str(trigger_id)},
+        )
+
+    def _validated_event_config(
+        self, trigger: AgentTrigger, config: dict[str, Any]
+    ) -> dict[str, Any]:
+        """The edited filter, normalised against the trigger's source, or a refusal.
+
+        Only an event trigger's filter is editable, so the source is read off the
+        row and the new config validated against exactly the typed model create
+        used - filling defaults and refusing an unknown key. A schedule has no
+        filter, so one sent for it is a 400; a key the source refuses is the same
+        422 create gives, not a config stored to match nothing.
+        """
+        if trigger.trigger_type != TriggerType.EVENT.value:
+            raise BadRequestError(
+                message="only an event trigger has an event_config to change",
+                details={"trigger_id": str(trigger.id)},
+            )
+        model = _EVENT_CONFIG_MODELS[cast(str, trigger.event_source)]
+        try:
+            return cast(dict[str, Any], model.model_validate(config).model_dump())
+        except PydanticValidationError as exc:
+            raise ValidationError(
+                message="event_config is not valid for this trigger's source",
+                details={"errors": exc.errors(include_url=False, include_input=False)},
+            ) from exc
+
+    async def rotate_secret(
+        self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID
+    ) -> AgentTrigger:
+        """Re-seal an event trigger's signing secret, revealing the new one once.
+
+        The URL is the trigger's identity and never changes; the secret is a
+        credential and is replaceable - a re-seal and a fresh plaintext shown
+        exactly once, the same shape as every other key in this product. A schedule
+        has no secret, so rotating one is refused. Management-gated through `_owned`:
+        the creator, or the holder of `agents:edit` on the agent.
+
+        An auto-registered hook signs its deliveries with the old secret, so a
+        rotation must teach the provider the new one or every delivery would 403
+        after it. The hook is re-registered at the same URL with the new secret; if
+        the account can no longer register it - a revoked scope, a provider refusal,
+        the portal gone from the catalog - the trigger falls back to manual and the
+        revealed secret is what the person re-pastes, exactly as create's fallback.
+        """
+        trigger = await self._owned(ctx, agent_id, trigger_id)
+        if trigger.trigger_type != TriggerType.EVENT.value:
+            raise BadRequestError(
+                message="only an event trigger has a secret to rotate",
+                details={"trigger_id": str(trigger.id)},
+            )
+        plaintext = secrets.token_urlsafe(32)
+        sealed = seal(plaintext, scope=VaultScope.organization(ctx.organization_id))
+        if _is_auto_webhook(trigger):
+            await self._reregister_hook(ctx, trigger, secret=plaintext)
+        updated = await agent_trigger_repo.update(
+            self.db,
+            trigger=trigger,
+            update_data={
+                "event_secret_encrypted": sealed.ciphertext,
+                "secret_key_version": sealed.key_version,
+            },
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="agent.trigger_secret_rotated",
+            target_type="agent",
+            target_id=str(agent_id),
+            # The new secret never reaches the trail - only that it was rotated and
+            # how the trigger delivers now.
+            details={"trigger_id": str(updated.id), "delivery_mode": updated.delivery_mode},
+        )
+        # An auto-registered hook now holds the new secret, so nothing is revealed;
+        # a manual trigger (or an auto one that fell back) needs the plaintext to
+        # update its provider, shown once here and never again - `TriggerRead`, what
+        # every other read serializes, has no such field.
+        reveal = updated.delivery_mode != "auto_webhook"
+        setattr(updated, "reveal_secret", plaintext if reveal else None)  # noqa: B010
+        # `_owned` let this caller through, so they manage it - say so on the read.
+        setattr(updated, "can_manage", True)  # noqa: B010
+        return updated
+
+    async def _reregister_hook(
+        self, ctx: AuthContext, trigger: AgentTrigger, *, secret: str
+    ) -> None:
+        """Move an auto-registered hook onto a new secret, or fall back to manual.
+
+        Deletes the provider's old hook and registers a fresh one at the same URL
+        signed with `secret`. `_is_auto_webhook` guarantees the `portal_key`, so a
+        portal that has since left the catalog is the one miss handled here; every
+        other miss - no adapter, a revoked scope, a provider refusal - is
+        `_auto_register_webhook`'s own manual fallback, reached by leaving the
+        trigger manual before it runs so a failed re-register does not keep a
+        provider_webhook_id whose hook was just deleted.
+        """
+        portal = portal_catalog.get_portal(cast(str, trigger.portal_key))
+        target = trigger.provider_target
+        await self._deregister_webhook(ctx, trigger)
+        trigger.provider_webhook_id = None
+        trigger.provider_target = None
+        trigger.delivery_mode = "manual"
+        if portal is None:
+            return
+        await self._auto_register_webhook(
+            ctx,
+            trigger,
+            portal=portal,
+            connection_id=cast(UUID, trigger.connection_id),
+            target=target,
+            secret=secret,
         )
 
     async def run_now(self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID) -> AgentTrigger:
