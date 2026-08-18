@@ -17,6 +17,42 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.185] - 2026-08-18
+
+Three places where the code said something about itself that was not true.
+
+### Fixed
+
+- **`EMAIL_PROVIDER=resend` silently sent nothing.** `get_email_provider` had no
+  `case "resend"` and the match ended `case "log" | _`, so a deployment setting
+  the value its own module docstring advertised got the *development* provider:
+  every invitation, password reset and approval notice was written to a log line
+  and returned `accepted=True`. Nobody found out, because every call site catches
+  and logs. An unknown value is refused now, with the supported set in `details`,
+  and `ResendProvider` — never reachable — is deleted rather than wired up.
+  `LOG_PROVIDER_WRITE_TO_DISK` is passed through, which it never had been. (#829)
+- **The OAuth refusals no longer say where the server keeps its files.** Two of
+  them quoted the whole URL back, query string included, on a path whose
+  endpoints are reached with credentials. They name the host now, or nothing
+  where there is no host. (#840)
+- **A claim about who chooses an MCP OAuth URL is corrected in all four places
+  that made it.** "Bearable because an operator types the address" holds for a
+  connection URL and a `cdp_url`, but not for the OAuth flow, where the
+  authorization server, token endpoint, registration endpoint and every redirect
+  hop come from the remote server's discovery documents — one hostile server is
+  enough, with no operator complicity. Pinning the validated address is a
+  transport change and is tracked in #860; what shipped here is the code and the
+  documentation saying what is actually true. (#840)
+- **The written-to-disk log filename is safe by construction and unique**:
+  `{timestamp}_{msg_id}.html`, with the subject moved to the log line beside the
+  path. Two messages in the same second no longer overwrite each other either.
+  Not a traversal, despite appearances — the timestamp prefix means the first
+  path component is never `..` — and the docstring now says so rather than
+  leaving the next reader to re-derive it. (#840)
+- **The `ty` relaxations name libraries this project actually has.** They were
+  justified by langgraph and deepagents, which never were dependencies, and by
+  langchain, which stopped being one. (#833)
+
 ## [0.0.184] - 2026-08-18
 
 ### Fixed
