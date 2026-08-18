@@ -465,8 +465,8 @@ Three places where the code said something about itself that was not true.
   alert nobody can close is an alert everybody learns to ignore. (#841)
   **Correction:** this said it closed three CodeQL `py/path-injection` alerts. It
   closed one. #14 and #15 stayed open on `main` because the check was written as
-  a conjunction, which is not a shape the query accepts as a barrier; see
-  Unreleased and (#903).
+  a conjunction, which is not a shape the query accepts as a barrier; fixed in
+  0.0.199 (#903).
 - **A filesystem root can be the storage root again.** The rewritten check built
   its prefix as `base + os.sep` unconditionally, so with `MEDIA_DIR=/` the prefix
   was `//` — which nothing under `/` starts with. `load`, `delete` and
