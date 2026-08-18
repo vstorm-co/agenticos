@@ -93,6 +93,8 @@ async def create(
     organization_id: UUID | None = None,
     is_default: bool = False,
     embedding_secret_id: UUID | None = None,
+    rerank_model: str | None = None,
+    rerank_secret_id: UUID | None = None,
     visibility: str | None = None,
 ) -> KnowledgeBase:
     """Create a knowledge base.
@@ -115,6 +117,8 @@ async def create(
         embedding_model=embedding_model,
         embedding_dim=embedding_dim,
         embedding_secret_id=embedding_secret_id,
+        rerank_model=rerank_model,
+        rerank_secret_id=rerank_secret_id,
         **({"visibility": visibility} if visibility is not None else {}),
     )
     db.add(kb)
@@ -130,6 +134,9 @@ async def update(
     name: str | None = None,
     description: str | None = None,
     ingestion_config: dict[str, object] | None = None,
+    set_rerank: bool = False,
+    rerank_model: str | None = None,
+    rerank_secret_id: UUID | None = None,
 ) -> KnowledgeBase:
     if name is not None:
         db_kb.name = name
@@ -137,6 +144,12 @@ async def update(
         db_kb.description = description
     if ingestion_config is not None:
         db_kb.ingestion_config = ingestion_config
+    # A pair set together, and the only field here that can be set back to null:
+    # `set_rerank` is what tells "turn reranking off" from "leave it alone",
+    # which the None-means-skip convention above cannot express.
+    if set_rerank:
+        db_kb.rerank_model = rerank_model
+        db_kb.rerank_secret_id = rerank_secret_id
     await db.flush()
     await db.refresh(db_kb)
     return db_kb

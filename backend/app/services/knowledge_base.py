@@ -33,6 +33,7 @@ from app.services.ingestion_config import (
     deployment_defaults,
     deployment_embedding,
 )
+from app.services.rerank_resolution import RERANK_KEY_PURPOSES
 
 logger = logging.getLogger(__name__)
 
@@ -304,6 +305,9 @@ class KnowledgeBaseService:
         embedding_model, embedding_dim = chosen_embedding(data.embedding_model)
         if data.embedding_secret_id is not None:
             await self._check_embedding_secret(data.embedding_secret_id, organization_id=org_id)
+        self._check_rerank_pair(data.rerank_model, data.rerank_secret_id)
+        if data.rerank_secret_id is not None:
+            await self._check_rerank_secret(data.rerank_secret_id, organization_id=org_id)
         return await knowledge_base_repo.create(
             self.db,
             name=data.name,
@@ -316,6 +320,8 @@ class KnowledgeBaseService:
             embedding_model=embedding_model,
             embedding_dim=embedding_dim,
             embedding_secret_id=data.embedding_secret_id,
+            rerank_model=data.rerank_model,
+            rerank_secret_id=data.rerank_secret_id,
         )
 
     async def _check_embedding_secret(
@@ -349,6 +355,50 @@ class KnowledgeBaseService:
                 details={"purpose": row.purpose},
             )
 
+    @staticmethod
+    def _check_rerank_pair(model: str | None, secret_id: UUID | None) -> None:
+        """A reranker is a model *and* a key, or neither.
+
+        Reranking runs only when both are set (`rerank_resolution`), so a lone
+        half is a setting that reads as configured and does nothing. Refused
+        here, where the person setting it can see why, rather than silently
+        ignored at search time.
+        """
+        if (model is None) != (secret_id is None):
+            raise BadRequestError(
+                message="Reranking needs both a model and a key, or neither",
+                details={"rerank_model": model, "rerank_secret_id": str(secret_id)},
+            )
+
+    async def _check_rerank_secret(self, secret_id: UUID, *, organization_id: UUID | None) -> None:
+        """Refuse a rerank key the organization does not hold, or the wrong kind.
+
+        The mirror of :meth:`_check_embedding_secret`, and checked at the same
+        moment and for the same reason: resolution degrades a bad key to no
+        reranking, so creation is the one place a wrong choice is visible.
+        """
+        if organization_id is None:
+            raise BadRequestError(
+                message="Only an organization collection can carry a vault key",
+                details={"rerank_secret_id": str(secret_id)},
+            )
+        row = await organization_secret_repo.get(
+            self.db, secret_id, organization_id=organization_id
+        )
+        if row is None:
+            raise BadRequestError(
+                message="That key is not in this organization's vault",
+                details={"rerank_secret_id": str(secret_id)},
+            )
+        if row.purpose not in RERANK_KEY_PURPOSES:
+            raise BadRequestError(
+                message=(
+                    f"That key is for {row.purpose}; reranking runs through "
+                    f"{', '.join(RERANK_KEY_PURPOSES)}"
+                ),
+                details={"purpose": row.purpose},
+            )
+
     async def update(
         self,
         kb_id: UUID,
@@ -362,12 +412,26 @@ class KnowledgeBaseService:
             if data.ingestion_config is None
             else await self._usable_config(ctx, data.ingestion_config)
         )
+        # The rerank pair is set only when the caller actually sent it, so an
+        # update about something else leaves reranking untouched; sending both
+        # as null is how it is turned off, which is why the trigger is "was the
+        # field present" rather than "is it not None".
+        sets_rerank = bool({"rerank_model", "rerank_secret_id"} & data.model_fields_set)
+        if sets_rerank:
+            self._check_rerank_pair(data.rerank_model, data.rerank_secret_id)
+            if data.rerank_secret_id is not None:
+                await self._check_rerank_secret(
+                    data.rerank_secret_id, organization_id=kb.organization_id
+                )
         return await knowledge_base_repo.update(
             self.db,
             db_kb=kb,
             name=data.name,
             description=data.description,
             ingestion_config=None if config is None else config.model_dump(mode="json"),
+            set_rerank=sets_rerank,
+            rerank_model=data.rerank_model,
+            rerank_secret_id=data.rerank_secret_id,
         )
 
     async def _usable_config(

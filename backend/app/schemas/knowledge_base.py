@@ -38,6 +38,22 @@ class KnowledgeBaseCreate(BaseSchema):
             "embeddings. Omit to use the deployment's key."
         ),
     )
+    rerank_model: str | None = Field(
+        default=None,
+        max_length=128,
+        description=(
+            "Which reranker reorders this collection's search results. Reranking "
+            "runs only when this and rerank_secret_id are both set; omit both to "
+            "leave it off. Unlike the embedding model this can be changed later."
+        ),
+    )
+    rerank_secret_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The organization vault key (a Cohere key) that pays for reranking. "
+            "Set together with rerank_model."
+        ),
+    )
     ingestion_config: IngestionConfig | None = Field(
         default=None,
         description=(
@@ -61,6 +77,11 @@ class KnowledgeBaseUpdate(BaseSchema):
             "documents ingested afterwards; nothing already indexed is re-parsed."
         ),
     )
+    # Sent as a pair: both to turn reranking on or change it, both null to turn
+    # it off. Whether the caller meant to touch reranking at all is read from
+    # the fields they actually sent, so an update that omits both leaves it be.
+    rerank_model: str | None = Field(default=None, max_length=128)
+    rerank_secret_id: UUID | None = Field(default=None)
 
 
 class KnowledgeBaseRead(BaseSchema, TimestampSchema):
@@ -81,6 +102,10 @@ class KnowledgeBaseRead(BaseSchema, TimestampSchema):
     embedding_model: str
     embedding_dim: int
     embedding_secret_id: UUID | None = None
+    # Both null unless reranking is configured; the secret id is safe to expose,
+    # it names a vault row rather than carrying its value.
+    rerank_model: str | None = None
+    rerank_secret_id: UUID | None = None
     # Derived per request from `rag_documents`, not stored. Defaulted rather than
     # required so the single-row responses - create, read, update - stay
     # constructible straight from the ORM row, which is what they are: a
