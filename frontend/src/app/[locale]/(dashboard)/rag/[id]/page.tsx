@@ -244,9 +244,14 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
       </div>
 
       {/* After ingestion: reranking is the other per-collection retrieval knob,
-          and the only one changeable after creation. */}
+          and the only one changeable after creation. No Edit on an app-scoped
+          collection - it carries no organization_id, so it can hold no vault key
+          and the backend would refuse one; the panel stays as a read-only fact. */}
       <div className="mb-8" data-tour="kb-rerank">
-        <RerankPanel kb={kb} onEdit={mayEdit ? () => setRerankOpen(true) : undefined} />
+        <RerankPanel
+          kb={kb}
+          onEdit={mayEdit && kb.scope !== "app" ? () => setRerankOpen(true) : undefined}
+        />
       </div>
 
       <SyncSourcesSection
