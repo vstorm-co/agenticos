@@ -620,6 +620,10 @@ class TestRerankConfig:
                 new=AsyncMock(return_value=self._cohere_secret()),
             ),
             patch(
+                "app.services.knowledge_base.resolve_access",
+                new=AsyncMock(return_value=True),
+            ),
+            patch(
                 "app.repositories.knowledge_base_repo.create",
                 new=AsyncMock(return_value=MagicMock()),
             ) as created,
@@ -628,6 +632,33 @@ class TestRerankConfig:
 
         assert created.call_args.kwargs["rerank_model"] == "rerank-v3.5"
         assert created.call_args.kwargs["rerank_secret_id"] == secret_id
+
+    @pytest.mark.anyio
+    async def test_a_key_the_caller_cannot_reach_is_refused_as_missing(
+        self, mock_db, unclaimed_collection_name
+    ):
+        # In the organization's vault, but private to another member: binding it
+        # would lend a key `secrets:view` refuses the caller. Refused as a miss,
+        # so the refusal cannot be told from "no such key" and used to enumerate.
+        data = KnowledgeBaseCreate(
+            name="KB",
+            scope="org",
+            collection_name="c",
+            rerank_model="rerank-v3.5",
+            rerank_secret_id=uuid.uuid4(),
+        )
+        with (
+            patch(
+                "app.repositories.organization_secret_repo.get",
+                new=AsyncMock(return_value=self._cohere_secret()),
+            ),
+            patch(
+                "app.services.knowledge_base.resolve_access",
+                new=AsyncMock(return_value=False),
+            ),
+            pytest.raises(BadRequestError, match="not in this organization's vault"),
+        ):
+            await KnowledgeBaseService(mock_db).create(data, ctx=_ctx())
 
     @pytest.mark.anyio
     async def test_a_key_of_the_wrong_purpose_is_refused(self, mock_db, unclaimed_collection_name):
@@ -642,6 +673,10 @@ class TestRerankConfig:
             patch(
                 "app.repositories.organization_secret_repo.get",
                 new=AsyncMock(return_value=self._cohere_secret(purpose="openrouter")),
+            ),
+            patch(
+                "app.services.knowledge_base.resolve_access",
+                new=AsyncMock(return_value=True),
             ),
             pytest.raises(BadRequestError, match="reranking runs through"),
         ):

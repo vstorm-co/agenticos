@@ -23,7 +23,7 @@ from app.schemas.knowledge_base import (
     KnowledgeBaseRead,
     KnowledgeBaseUpdate,
 )
-from app.services.access import COLLECTION, visible_resource_ids
+from app.services.access import COLLECTION, SECRET, resolve_access, visible_resource_ids
 from app.services.collection_access import CollectionAccessService, readable_kb, writable_kb
 from app.services.embedding_resolution import EMBEDDING_KEY_PURPOSES
 from app.services.ingestion_config import (
@@ -307,7 +307,7 @@ class KnowledgeBaseService:
             await self._check_embedding_secret(data.embedding_secret_id, organization_id=org_id)
         self._check_rerank_pair(data.rerank_model, data.rerank_secret_id)
         if data.rerank_secret_id is not None:
-            await self._check_rerank_secret(data.rerank_secret_id, organization_id=org_id)
+            await self._check_rerank_secret(ctx, data.rerank_secret_id, organization_id=org_id)
         return await knowledge_base_repo.create(
             self.db,
             name=data.name,
@@ -370,12 +370,24 @@ class KnowledgeBaseService:
                 details={"rerank_model": model, "rerank_secret_id": str(secret_id)},
             )
 
-    async def _check_rerank_secret(self, secret_id: UUID, *, organization_id: UUID | None) -> None:
-        """Refuse a rerank key the organization does not hold, or the wrong kind.
+    async def _check_rerank_secret(
+        self, ctx: AuthContext, secret_id: UUID, *, organization_id: UUID | None
+    ) -> None:
+        """Refuse a rerank key the caller may not use, or one of the wrong kind.
 
-        The mirror of :meth:`_check_embedding_secret`, and checked at the same
-        moment and for the same reason: resolution degrades a bad key to no
-        reranking, so creation is the one place a wrong choice is visible.
+        Checked at creation and on update, where the person choosing can fix it -
+        resolution degrades a bad key to no reranking, so this is the one moment
+        a wrong choice is visible.
+
+        Binding a key is lending it: reranking spends it for everyone who can
+        search the collection, so whoever sets it has to be able to reach the key
+        themselves. The picker only ever offers what they can see, but the API
+        took an id, and a private key another member owns is in the organization's
+        vault yet not theirs to use - so an org-scoped lookup alone would let a
+        `collections:edit` holder bind a key `secrets:view` would refuse them.
+        Refused as "not in the vault", the same as a genuine miss, so a refusal
+        cannot be told apart and used to enumerate it - exactly as agent secret
+        bindings are checked (`agent_registry`).
         """
         if organization_id is None:
             raise BadRequestError(
@@ -385,7 +397,9 @@ class KnowledgeBaseService:
         row = await organization_secret_repo.get(
             self.db, secret_id, organization_id=organization_id
         )
-        if row is None:
+        if row is None or not await resolve_access(
+            self.db, ctx, row, Perm.SECRETS_VIEW, resource_type=SECRET
+        ):
             raise BadRequestError(
                 message="That key is not in this organization's vault",
                 details={"rerank_secret_id": str(secret_id)},
@@ -421,7 +435,7 @@ class KnowledgeBaseService:
             self._check_rerank_pair(data.rerank_model, data.rerank_secret_id)
             if data.rerank_secret_id is not None:
                 await self._check_rerank_secret(
-                    data.rerank_secret_id, organization_id=kb.organization_id
+                    ctx, data.rerank_secret_id, organization_id=kb.organization_id
                 )
         return await knowledge_base_repo.update(
             self.db,
