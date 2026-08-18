@@ -189,6 +189,11 @@ class RetrievalService(BaseRetrievalService):
         apart from `retrieve` so a multi-collection search can gather candidates
         from several collections and rerank the union once, rather than reranking
         each collection and merging the winners.
+
+        `min_score` gates this recall on the vector-distance score the store
+        returns. It is not re-applied after reranking, where `score` carries the
+        reranker's relevance judgement on a different scale - so a caller must not
+        threshold on a reranked result's `score` as if it were the recall score.
         """
         logger.info(
             "[RETRIEVAL] Query: '%.50s...', collection: %s, limit: %d, filter: '%s'",
@@ -290,11 +295,17 @@ class RetrievalService(BaseRetrievalService):
         not exist yet, and the store reports that as no results.
 
         When a reranker is configured it runs once over the union of every
-        collection's candidates, not per collection: the bound collections of
-        one agent share one organization and so one reranker, and reranking each
-        collection separately then merging the winners would rank against the
-        wrong pool. Absent a reranker this is byte-for-byte the previous merge -
-        each collection's top `limit`, fused, sorted, deduplicated, truncated.
+        collection's candidates, not per collection: reranking each collection
+        separately then merging the winners would rank against the wrong pool.
+        The *first* collection's configuration decides which reranker, if any.
+        On the agent-run path that is unambiguous - an agent's bound collections
+        share one organization and one configuration - but `/rag/search` may pass
+        any readable set of one organization, and there the first collection
+        governs the whole union: a set led by a reranking collection pays for and
+        reorders all of them, one led by a plain collection leaves them in
+        distance order. Absent a reranker this is byte-for-byte the previous
+        merge - each collection's top `limit`, fused, sorted, deduplicated,
+        truncated.
         """
         reranker = await self._reranker_for(collection_names[0]) if collection_names else None
         multiplier = _RERANK_FETCH_MULTIPLIER if reranker else _DEFAULT_FETCH_MULTIPLIER

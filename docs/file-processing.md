@@ -383,8 +383,11 @@ model scores each candidate against the query directly and reorders them, so a
 better answer sitting well below the top by distance can surface. Retrieval
 overfetches a wider candidate net (four times the limit rather than two),
 reranks, then truncates — for a multi-collection search, once over the union of
-every collection's candidates, because an agent's bound collections share one
-organization and so one reranker.
+every collection's candidates. Which reranker is the *first* collection's: an
+agent's bound collections share one organization and one configuration, so the
+choice is unambiguous there, but `POST /rag/search` may pass any readable set of
+one organization, and a union led by a plain collection is left in distance
+order even if a later one reranks.
 
 Configured **per knowledge base**, mirroring embeddings, by
 `app/services/rerank_resolution.py`:
