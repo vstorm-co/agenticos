@@ -132,7 +132,7 @@ async def test_a_webhook_hands_the_raw_body_and_headers_to_the_service():
 
 async def test_a_webhook_with_nothing_to_do_accepts_without_firing():
     service = MagicMock(prepare_event_fire=AsyncMock(return_value=None))
-    with patch("app.api.routes.v1.trigger_webhooks.dispatch_trigger_fire") as fired:
+    with patch("app.worker.tasks.trigger_tasks.dispatch_trigger_fire") as fired:
         response = await ingest_trigger_event("github", uuid.uuid4(), _request(b"{}", {}), service)
     assert response.status_code == 202
     fired.assert_not_called()
@@ -145,7 +145,7 @@ async def test_a_webhook_that_matches_submits_the_fire_as_a_capped_flow():
     decision = EventFireDecision(trigger_id=uuid.uuid4(), event_context="ISSUE #7")
     service = MagicMock(prepare_event_fire=AsyncMock(return_value=decision))
     fired = AsyncMock()
-    with patch("app.api.routes.v1.trigger_webhooks.dispatch_trigger_fire", fired):
+    with patch("app.worker.tasks.trigger_tasks.dispatch_trigger_fire", fired):
         response = await ingest_trigger_event(
             "github", decision.trigger_id, _request(b'{"action": "opened"}', {}), service
         )
@@ -164,7 +164,7 @@ async def test_a_dispatch_failure_releases_the_dedupe_claim_and_surfaces():
     )
     boom = AsyncMock(side_effect=RuntimeError("prefect unreachable"))
     with (
-        patch("app.api.routes.v1.trigger_webhooks.dispatch_trigger_fire", boom),
+        patch("app.worker.tasks.trigger_tasks.dispatch_trigger_fire", boom),
         pytest.raises(RuntimeError),
     ):
         await ingest_trigger_event(

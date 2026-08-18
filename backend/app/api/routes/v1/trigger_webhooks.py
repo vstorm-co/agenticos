@@ -15,7 +15,6 @@ from uuid import UUID
 from fastapi import APIRouter, Request, Response, status
 
 from app.api.deps import AgentTriggerSvc
-from app.worker.tasks.trigger_tasks import dispatch_trigger_fire
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +56,11 @@ async def ingest_trigger_event(
     decision = await service.prepare_event_fire(source, trigger_id, body=body, headers=headers)
     if decision is None:
         return Response(status_code=status.HTTP_202_ACCEPTED)
+
+    # Imported here, not at module scope: `trigger_tasks` pulls in Prefect, and the
+    # API import must stay free of it (`test_main`, #520). The webhook path is the
+    # one place in the API that submits a flow, so it pays that cost on first use.
+    from app.worker.tasks.trigger_tasks import dispatch_trigger_fire
 
     try:
         await dispatch_trigger_fire(str(decision.trigger_id), event_context=decision.event_context)
