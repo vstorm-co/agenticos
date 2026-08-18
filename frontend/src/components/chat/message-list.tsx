@@ -47,15 +47,27 @@ export function lastToolTurnIndex(messages: ChatMessage[]): number {
  * optimisation: a user message between two segments means the person said
  * something in between, and the turn genuinely restarts there.
  *
- * No run id never groups. It is "not recorded", not "its own run", and guessing
- * from adjacency would fold two unrelated answers into one turn.
+ * Two ids answer "same turn", and both are needed. `runId` is the stored one,
+ * which every row of a reloaded transcript carries. A turn still streaming has
+ * none - the row does not exist yet - and the client stamps `groupId` instead,
+ * cleared when the turn ends. Grouping on `runId` alone therefore worked after a
+ * reload and never while anybody was watching it happen, which is when a run that
+ * segments looks like three agents answering: measured on a four-segment turn,
+ * 32px of padding between each pair and an avatar on every one.
+ *
+ * The stored id wins where both have it. Neither recorded never groups: it is
+ * "not recorded", not "its own run", and guessing from adjacency would fold two
+ * unrelated answers into one turn.
  */
 export function continuesTurn(messages: ChatMessage[], index: number): boolean {
   const message = messages[index];
   const previous = messages[index - 1];
   if (message === undefined || previous === undefined) return false;
   if (message.role !== "assistant" || previous.role !== "assistant") return false;
-  return message.runId !== undefined && message.runId === previous.runId;
+  if (message.runId !== undefined && previous.runId !== undefined) {
+    return message.runId === previous.runId;
+  }
+  return message.groupId !== undefined && message.groupId === previous.groupId;
 }
 
 /** Whether the turn ends here, so the time and the cost belong under this message. */
