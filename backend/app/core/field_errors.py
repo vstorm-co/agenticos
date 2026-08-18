@@ -19,27 +19,39 @@ object itself under `ctx` - and `details` is serialized into the response body
 and logged on the same line, so passing one through posts the caller's own
 submission back to them (`.claude/rules/exceptions-security.md`).
 
-A refusal a service wrote by hand has no pydantic error to narrow, and takes
-:func:`refused_field` - the same list under the same key, so the form marks its
-input whichever way the refusal was reached. That is the whole reason it lives
-here rather than beside its raiser: a second shape for one job is what #882
-argued against.
+Two of the three entry points read pydantic, and **which one you are decides
+what the first element of `loc` means**. FastAPI puts where the value came from
+in front of the path - `("body", "spec", "name")` - and a form can do nothing
+with "body". A service validating a model itself gets no such segment: the first
+element is already a field name, and a spec whose forbidden top-level key is
+literally called `body` reports `loc: ("body",)` about that key. Deciding by the
+string would report it against the editor instead, which is one shape standing
+in for two - the mistake this module exists to end.
 
-There are two entry points for a pydantic error because there are two callers,
-and **which one you are decides what the first element of `loc` means**. FastAPI puts where the
-value came from in front of the path - `("body", "spec", "name")` - and a form
-can do nothing with "body". A service validating a model itself gets no such
-segment: the first element is already a field name, and a spec whose forbidden
-top-level key is literally called `body` reports `loc: ("body",)` about that
-key. Deciding by the string would report it against the editor instead, which
-is one shape standing in for two - the mistake this module exists to end.
+The third is :func:`refused_field`, for a rule a service states in prose rather
+than in a model - an endpoint that carries a password, a Mattermost bot losing
+the server it is hosted on, a YAML document that never parsed. Eighteen of those
+answered `details={"field": "<name>"}`, singular, with the sentence on the
+envelope, and no form has ever read it (#891). They take the same shape as the
+rest now, and there is no other: a service that wants to name an input calls
+this, and one that cannot say which input is wrong names none.
+
+**A conflict is not a field refusal.** `AlreadyExistsError` reports a fact about
+a row that already exists, not about the shape of what was sent, and which input
+produced the taken value is a thing only the form knows - an agent's handle is
+derived from a name nobody typed as a handle. `submitFailure`'s `identifiedBy`
+in `frontend/src/lib/api-error.ts` is where that is claimed, which is why a 409
+carries the taken value and no field.
 """
 
 from collections.abc import Sequence
+from typing import Any
 
 from pydantic_core import ErrorDetails
 
-__all__ = ["field_problems", "refused_field", "request_field_problems"]
+from app.core.exceptions import BadRequestError
+
+__all__ = ["field_details", "field_problems", "refused_field", "request_field_problems"]
 
 # Where a validation error came from, as FastAPI reports it in the first element
 # of `loc`. Nothing a form can act on, so it is dropped from the path - but only
@@ -88,29 +100,6 @@ def field_problems(errors: Sequence[ErrorDetails], *, root: str) -> list[dict[st
     ]
 
 
-def refused_field(field: str, message: str) -> list[dict[str, str]]:
-    """One refusal a service wrote itself, in the shape a form marks its input from.
-
-    For a rule expressed in Python rather than by a pydantic model - a bare
-    OpenRouter model id, a keyless provider with no endpoint to reach. There is
-    no `loc` to trim and no `input` to leave behind, so the narrowing is the
-    signature itself: a field name and the sentence, with nothing else it could
-    be handed. `details` is serialized into the response body and logged on the
-    same line, so what was submitted stays out of both
-    (`.claude/rules/exceptions-security.md`).
-
-    Args:
-        field: What the request schema calls the input - `model`, `base_url`,
-            `secret_id`. Dotted where the document nests, as
-            :func:`field_problems` reports it.
-        message: The refusal, repeated from the envelope's own `message`.
-            `fieldProblems` in `frontend/src/lib/api-error.ts` reads this list
-            and never the envelope, so a problem carrying no sentence marks an
-            input and says nothing about it.
-    """
-    return [{"field": field, "message": message}]
-
-
 def request_field_problems(errors: Sequence[ErrorDetails]) -> list[dict[str, str]]:
     """The same, for the `RequestValidationError` FastAPI raises about a request.
 
@@ -123,3 +112,38 @@ def request_field_problems(errors: Sequence[ErrorDetails]) -> list[dict[str, str
         {"field": _path(_without_origin(error["loc"])) or "request", "message": error["msg"]}
         for error in errors
     ]
+
+
+def field_details(field: str, message: str, **context: Any) -> dict[str, Any]:
+    """`details` for a refusal a service states itself, about one named input.
+
+    The sentence is the refusal's *and* the field's, because they are the same
+    sentence: the envelope's `message` is what a caller with no form to mark
+    reads, and `fields[0]["message"]` is what the form puts under the input. A
+    second, shorter one written for the field would be the copy that goes stale.
+
+    `context` is anything else the refusal is about - the platform, the provider
+    - and takes the rule in `.claude/rules/exceptions-security.md`: a value that
+    explains the refusal, never the caller's own submission and never a row.
+
+    :func:`refused_field` is the shape to reach for. This one is for the raiser
+    that cannot: one needing a status other than 400, or one deciding at run
+    time whether it has a field to name at all - `_get_json` describes the same
+    five failures for a form testing an address and for a page reading a saved
+    connection, and only the first has an input to blame.
+    """
+    return {**context, "fields": [{"field": field, "message": message}]}
+
+
+def refused_field(field: str, message: str, **context: Any) -> BadRequestError:
+    """A 400 about one input, in the shape the form that sent it marks from.
+
+    Args:
+        field: What the form calls the input, as it addresses it - `base_url`,
+            `api_base_url`, `yaml`. A dotted path where the document has a root,
+            the same way :func:`field_problems` reports one.
+        message: Why it is refused, as the reader sees it. Named in one place so
+            the envelope and the field cannot come to disagree.
+        context: Anything else the refusal is about.
+    """
+    return BadRequestError(message=message, details=field_details(field, message, **context))

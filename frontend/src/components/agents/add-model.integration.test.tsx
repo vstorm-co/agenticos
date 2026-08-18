@@ -371,10 +371,9 @@ describe("the add-model form", () => {
     expect(onCreated).toHaveBeenCalledWith({ id: "p-1" });
   });
 
-  it("shows a failure that belongs to no field rather than swallowing it", async () => {
-    // An unhandled rejection here is Next's full-screen overlay for what is a
-    // typo. A plain `Error` names nothing the form can mark, so it lands in the
-    // line above the button - visible, which is the whole requirement.
+  it("puts a refusal under the field that caused it", async () => {
+    // Every refusal this endpoint gives is about the model id, and an unhandled
+    // rejection here is Next's full-screen overlay for what is a typo.
     state.secrets = [secret()];
     state.createProfile = {
       mutateAsync: vi.fn().mockRejectedValue(new Error("model not found")),
@@ -635,6 +634,232 @@ describe("pointing a model somewhere other than the provider's own API", () => {
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
   });
+
+  /**
+   * The half of the refusal that says *which box to fix*.
+   *
+   * `validate_endpoint_url` answers `details.fields` against `base_url` (#891),
+   * and this is where that stops being a sentence floating under the model id -
+   * an operator who mistyped a gateway address is looking at the field that
+   * holds it.
+   */
+  function refusedEndpoint(message: string) {
+    return new ApiError(400, message, {
+      error: {
+        code: "BAD_REQUEST",
+        message,
+        details: { fields: [{ field: "base_url", message }] },
+      },
+    });
+  }
+
+  async function submitWithEndpoint(url: string) {
+    state.secrets = [secret()];
+    mount();
+    await pickProvider("OpenAI");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.type(screen.getByLabelText("Endpoint"), url);
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+  }
+
+  it("marks the endpoint the server refused, and says why on it", async () => {
+    const message = "A model endpoint must be an http or https URL";
+    state.createProfile = {
+      mutateAsync: vi.fn().mockRejectedValue(refusedEndpoint(message)),
+      isPending: false,
+    };
+
+    await submitWithEndpoint("ftp://models.example");
+
+    const endpoint = screen.getByLabelText("Endpoint");
+    expect(endpoint).toHaveAttribute("aria-invalid", "true");
+    expect(endpoint).toHaveAccessibleDescription(message);
+  });
+
+  it("clears the mark as soon as the endpoint changes", async () => {
+    // The verdict was about the value that was sent; leaving it on a field
+    // somebody has since corrected is a form arguing with itself.
+    state.createProfile = {
+      mutateAsync: vi
+        .fn()
+        .mockRejectedValue(refusedEndpoint("A model endpoint must include a host")),
+      isPending: false,
+    };
+
+    await submitWithEndpoint("http://");
+    await userEvent.type(screen.getByLabelText("Endpoint"), "gateway.acme/v1");
+
+    expect(screen.getByLabelText("Endpoint")).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("leaves a refusal about no field of this form where it can still be read", async () => {
+    // A permission is not a typo in a box. `submitFailure` hands back what it
+    // could not place rather than guessing at one, and the line above the
+    // button is where that lands.
+    const message = "Missing required permission: connections:manage";
+    state.createProfile = {
+      mutateAsync: vi.fn().mockRejectedValue(
+        new ApiError(403, message, {
+          error: {
+            code: "AUTHORIZATION_ERROR",
+            message,
+            details: { permission: "connections:manage" },
+          },
+        }),
+      ),
+      isPending: false,
+    };
+
+    await submitWithEndpoint("https://gateway.acme/v1");
+
+    expect(screen.getByText(message)).toBeInTheDocument();
+    expect(screen.getByLabelText("Endpoint")).not.toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Model")).not.toHaveAttribute("aria-invalid", "true");
+  });
+});
+
+/**
+ * The other two refusals this endpoint gives, and the one that used to post the
+ * caller's own submission back.
+ *
+ * A bare OpenRouter id answered `details={"model": model}` - the rejected id in
+ * a response body and in the log line beside it - and "this provider is keyless
+ * so it needs an endpoint" and "this provider needs a key" both answered
+ * `details={"provider": provider}`, which names neither of the fields they are
+ * about. All three name one now, so all three mark something (#898).
+ */
+describe("the two refusals that named a provider and the one that named a value", () => {
+  function refused(field: string, message: string): ApiError {
+    return new ApiError(400, message, {
+      error: { code: "BAD_REQUEST", message, details: { fields: [{ field, message }] } },
+    });
+  }
+
+  function refusedWith(error: ApiError) {
+    state.createProfile = { mutateAsync: vi.fn().mockRejectedValue(error), isPending: false };
+  }
+
+  /** OpenRouter, with a key stored and an id the form's own check allows. */
+  async function submitOpenRouterId(id: string) {
+    state.secrets = [secret({ purpose: "openrouter" })];
+    state.models = [];
+    mount();
+    await pickProvider("OpenRouter");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.type(screen.getByPlaceholderText("Search models…"), id);
+    await userEvent.click(screen.getByText("not in the list"));
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+  }
+
+  it("marks the model id, and says why on it", async () => {
+    // The form's own check copies this rule and only catches the missing slash;
+    // the server's is the one that decides. Where they disagree the answer still
+    // has to reach the box somebody can fix - and a mark with no reason attached
+    // announces "invalid" to a screen reader and nothing else.
+    const message = "OpenRouter model ids are namespaced, e.g. 'openai/gpt-4.1'";
+    refusedWith(refused("model", message));
+
+    await submitOpenRouterId("openai/gpt-5");
+
+    const field = screen.getByLabelText("Model");
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAccessibleDescription(message);
+  });
+
+  it("clears that mark as soon as the id changes", async () => {
+    refusedWith(refused("model", "OpenRouter model ids are namespaced, e.g. 'openai/gpt-4.1'"));
+
+    await submitOpenRouterId("openai/gpt-5");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.type(screen.getByPlaceholderText("Search models…"), "anthropic/claude-opus-5");
+    await userEvent.click(screen.getByText("not in the list"));
+
+    expect(screen.getByLabelText("Model")).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("marks the endpoint when a keyless provider has nothing to reach", async () => {
+    // `keyless` alone does not make a model runnable, and this is the refusal
+    // that says so. Under the model id it reads as a problem with the model,
+    // which is the one thing it is not.
+    const message = "Ollama runs without a key, so it needs an endpoint to reach";
+    state.purposes = [...state.purposes, purpose("ollama", "Ollama")];
+    state.catalog = [
+      ...state.catalog,
+      capabilities("ollama", "Ollama", { supports_base_url: true, keyless: true }),
+    ];
+    refusedWith(refused("base_url", message));
+    mount();
+    await pickProvider("Ollama");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.type(screen.getByLabelText("Endpoint"), "http://localhost:11434/v1");
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+
+    expect(screen.getByLabelText("Endpoint")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Model")).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("says the key is what is missing, beside the key", async () => {
+    // There is no control to mark: the server refuses `secret_id` for being
+    // null, which is the state in which that block is a sentence rather than a
+    // select.
+    const message = "OpenAI needs a key. Store one in the vault, then add the model";
+    state.secrets = [secret()];
+    refusedWith(refused("secret_id", message));
+    mount();
+    await pickProvider("OpenAI");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+
+    expect(screen.getByText(message)).toBeInTheDocument();
+    expect(screen.getByLabelText("Model")).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("forgets that refusal once another key is chosen", async () => {
+    // A sentence saying the key is missing, still there under the key somebody
+    // has just picked, accuses the current value. The key is chosen in two
+    // places and both have to forget it.
+    const message = "OpenAI needs a key. Store one in the vault, then add the model";
+    state.secrets = [secret(), secret({ id: "s-2", name: "OpenAI staging", hint: "9999" })];
+    refusedWith(refused("secret_id", message));
+    mount();
+    await pickProvider("OpenAI");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(screen.getByText(message)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByLabelText("Key"));
+    await userEvent.click(screen.getByRole("option", { name: /OpenAI staging/ }));
+
+    expect(screen.queryByText(message)).toBeNull();
+  });
+
+  it("forgets it for a key stored inline, too", async () => {
+    // The other way in, and the one the panel exists for: `InlineSecret` hands
+    // back a new id and nothing else on the form changes, so a refusal cleared
+    // only by the selector would survive storing the very key it asked for.
+    // There is no selector here at all - the form offers one only once a key
+    // exists, which is exactly when this refusal cannot happen.
+    const message = "OpenAI needs a key. Store one in the vault, then add the model";
+    state.secrets = [];
+    refusedWith(refused("secret_id", message));
+    mount();
+    await pickProvider("OpenAI");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.type(screen.getByLabelText("Endpoint"), "http://localhost:11434/v1");
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(screen.getByText(message)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Store a key" }));
+
+    expect(screen.queryByText(message)).toBeNull();
+  });
 });
 
 describe("the model the agent is already on", () => {
@@ -730,110 +955,5 @@ describe("the model the agent is already on", () => {
     await userEvent.click(screen.getByRole("option", { name: /Router key two/ }));
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeInTheDocument();
-  });
-});
-
-/**
- * Three refusals, three fields.
- *
- * `POST /model-profiles` refuses a bare OpenRouter id, a keyless provider with
- * no endpoint and a keyed provider with no key - about the model, the endpoint
- * and the key respectively. All three used to arrive as `details={"model": ...}`
- * or `details={"provider": ...}`, which `fieldProblems` reads nowhere, so all
- * three showed one sentence under the model id whatever they were about - and
- * the first of them posted the rejected id back into the body it was refused in
- * (#898).
- */
-describe("a refusal the server attributed to a field", () => {
-  /** The envelope `platform-proxy.ts` passes through byte for byte. */
-  function refusal(field: string, message: string): ApiError {
-    return new ApiError(400, message, {
-      error: { code: "BAD_REQUEST", message, details: { fields: [{ field, message }] } },
-    });
-  }
-
-  function refusedWith(error: ApiError) {
-    state.createProfile = { mutateAsync: vi.fn().mockRejectedValue(error), isPending: false };
-  }
-
-  it("marks the model id when that is what was refused", async () => {
-    // The form's own check is a copy of this rule and only catches the missing
-    // slash; the server's is the one that decides. When they disagree the
-    // answer still has to reach the field somebody can fix.
-    state.secrets = [secret({ purpose: "openrouter" })];
-    state.models = [];
-    refusedWith(refusal("model", "OpenRouter model ids are namespaced, e.g. 'openai/gpt-4.1'"));
-    mount();
-    await pickProvider("OpenRouter");
-    await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.type(screen.getByPlaceholderText("Search models…"), "openai/gpt-5");
-    await userEvent.click(screen.getByText("not in the list"));
-
-    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
-
-    expect(screen.getByLabelText("Model")).toHaveAttribute("aria-invalid", "true");
-    expect(screen.getByText(/namespaced/)).toBeInTheDocument();
-  });
-
-  it("marks the endpoint when the refusal is about the endpoint", async () => {
-    // A keyless provider with neither a key nor an endpoint. Under the model id
-    // this reads as a problem with the model, which is the one thing it is not.
-    state.purposes = [...state.purposes, purpose("ollama", "Ollama")];
-    state.catalog = [
-      ...state.catalog,
-      capabilities("ollama", "Ollama", { supports_base_url: true, keyless: true }),
-    ];
-    refusedWith(refusal("base_url", "Ollama runs without a key, so it needs an endpoint to reach"));
-    mount();
-    await pickProvider("Ollama");
-    await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
-    await userEvent.type(screen.getByLabelText("Endpoint"), "http://localhost:11434/v1");
-
-    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
-
-    expect(screen.getByLabelText("Endpoint")).toHaveAttribute("aria-invalid", "true");
-    expect(screen.getByText(/needs an endpoint/)).toBeInTheDocument();
-    expect(screen.getByLabelText("Model")).not.toHaveAttribute("aria-invalid", "true");
-  });
-
-  it("says the key is what is missing, beside the key", async () => {
-    // There is no control to mark: the refusal is about `secret_id` being null,
-    // which is exactly the state in which that block is a sentence rather than
-    // a select.
-    state.secrets = [secret()];
-    refusedWith(
-      refusal("secret_id", "OpenAI needs a key. Store one in the vault, then add the model"),
-    );
-    mount();
-    await pickProvider("OpenAI");
-    await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
-
-    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
-
-    expect(screen.getByText(/needs a key/)).toBeInTheDocument();
-    expect(screen.getByLabelText("Model")).not.toHaveAttribute("aria-invalid", "true");
-  });
-
-  it("stops marking the field once the value it named changes", async () => {
-    // A mark that outlives the value it was about says the form is wrong when
-    // it is not, and the submit beside it is enabled.
-    state.secrets = [secret({ purpose: "openrouter" })];
-    state.models = [];
-    refusedWith(refusal("model", "OpenRouter model ids are namespaced, e.g. 'openai/gpt-4.1'"));
-    mount();
-    await pickProvider("OpenRouter");
-    await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.type(screen.getByPlaceholderText("Search models…"), "openai/gpt-5");
-    await userEvent.click(screen.getByText("not in the list"));
-    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
-
-    await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.type(screen.getByPlaceholderText("Search models…"), "anthropic/claude-opus-5");
-    await userEvent.click(screen.getByText("not in the list"));
-
-    expect(screen.getByLabelText("Model")).not.toHaveAttribute("aria-invalid", "true");
-    expect(screen.queryByText(/namespaced/)).toBeNull();
   });
 });

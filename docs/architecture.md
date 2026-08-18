@@ -279,17 +279,25 @@ and a refusal about a *field* names it in one shape:
 `fieldProblems` in `frontend/src/lib/api-error.ts` reads that and nothing else,
 which is what lets a form mark the offending input rather than showing a sentence
 the reader has to re-scan the page for. `app/core/field_errors.py` is the only
-place it is built. A rule expressed in Python rather than by a model — a bare
-OpenRouter model id, a keyless provider with no endpoint to reach — takes
-`refused_field(field, message)`, and that signature is the whole of the case: a
-field name and the sentence, with nothing else it could be handed. A Pydantic
-error takes one of two entry points instead, because **which caller you are
-decides what the first element of `loc` means**:
+place it is built, and it has three entry points. Two of them read Pydantic, and
+**which caller you are decides what the first element of `loc` means**:
 
 | | For | `loc` starts with |
 |---|---|---|
 | `request_field_problems` | `validation_exception_handler`, every `RequestValidationError` | where the value came from (`body`, `query`, …), which is dropped |
 | `field_problems(…, root=…)` | a service validating a document a route's schema cannot — a per-upload ingestion override, a hand-edited spec YAML, a capability's config blob | a field of that document, reported below `root` |
+| `refused_field(field, message, **context)` | a rule a service states in prose rather than in a model — an endpoint carrying a password, a Mattermost bot losing its server, a YAML document that never parsed | — it answers with the `BadRequestError` for the caller to raise |
+
+`refused_field` names the sentence once, because the envelope's `message` and the
+field's are the same sentence; a raiser needing another status builds the same
+`details` with `field_details`. Eighteen call sites answered
+`details={"field": "<name>"}` instead, singular, with the sentence on the
+envelope, and no form has ever read it — the same defect in a third shape
+([#891](https://github.com/vstorm-co/agenticos/issues/891)). A fourth spelling
+was `details={"<field>": <value>}`, where the key was the field name and the
+value was what the caller had just sent: `model_profile.py` answered a refused
+model id with the id, in a body and in the log line beside it
+([#898](https://github.com/vstorm-co/agenticos/issues/898)).
 
 Deciding by the string instead would misread a spec whose forbidden top-level
 key is literally called `body`, which is one shape standing in for two — the
@@ -306,13 +314,7 @@ names when the same pair arrives as a collection's own settings.
 
 Handing Pydantic's own `exc.errors()` through instead was
 [#882](https://github.com/vstorm-co/agenticos/issues/882) — a second shape,
-carrying `input`, `ctx` and `url`, that nothing on the frontend read. Naming the
-field with a key of its own was
-[#898](https://github.com/vstorm-co/agenticos/issues/898): a refusal about a
-model id answered `details={"model": model}` and two about an endpoint and a key
-answered `details={"provider": provider}`, so the key was the field name, the
-value was the caller's own submission — in a response body and in the log line
-the handler writes beside it — and `fieldProblems` read none of the three.
+carrying `input`, `ctx` and `url`, that nothing on the frontend read.
 
 **An aggregated refusal carries both halves.** `validate_spec` reports every
 problem in a spec at once and most of them are broken references with no input to
@@ -325,6 +327,22 @@ delegate, because the Builder renders one form per specialist. Keeping only the
 sentence was the other half of #882: saving a draft does not validate a config
 schema at all, so publish validation is the only place a mistyped setting is ever
 refused.
+
+**Two kinds of refusal deliberately name no field**, and the line between them
+and the rest is what stops the one shape from meaning two things again:
+
+- **A refusal about a value no caller sent.** A remote file's name is chosen by
+  whoever can drop a file in the synced folder, and both checks in
+  `app/services/rag/remote_names.py` run inside a background sync, where the
+  reader is a log rather than a form. Same for a Google Drive source read back
+  without its credential: the row is stored, and `CONFIG_SCHEMA` is what refuses
+  it at the route.
+- **A conflict.** `AlreadyExistsError` reports a fact about a row that already
+  exists, not about the shape of what was sent — and which of a form's own
+  inputs produced the taken value is a thing only the form knows, since an
+  agent's handle is derived from a name nobody typed as a handle. That is
+  claimed by `submitFailure`'s `identifiedBy` on the client, so a 409 carries the
+  taken value and no field.
 
 ## Key Files
 

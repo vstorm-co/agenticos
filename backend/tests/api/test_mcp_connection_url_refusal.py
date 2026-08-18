@@ -79,7 +79,7 @@ class TestTheRefusalReachesTheOperator:
         assert response.status_code == 400
         error = response.json()["error"]
         assert error["code"] == "BAD_REQUEST"
-        assert error["details"] == {"field": "url"}
+        assert [problem["field"] for problem in error["details"]["fields"]] == ["url"]
 
     async def test_an_organization_connection_to_a_loopback_url_is_refused_with_a_400(
         self, client
@@ -93,7 +93,7 @@ class TestTheRefusalReachesTheOperator:
         assert response.status_code == 400
         error = response.json()["error"]
         assert error["code"] == "BAD_REQUEST"
-        assert error["details"] == {"field": "url"}
+        assert [problem["field"] for problem in error["details"]["fields"]] == ["url"]
 
     async def test_starting_oauth_against_a_loopback_url_is_refused_with_a_400(
         self, client
@@ -140,7 +140,8 @@ class TestTheRefusalQuotesNoSecret:
         assert response.status_code == 400
         assert "hunter2" not in response.text
         assert "sh-secret-value" not in response.text
-        assert response.json()["error"]["details"] == {"field": "url"}
+        error = response.json()["error"]
+        assert error["details"]["fields"] == [{"field": "url", "message": error["message"]}]
 
     async def test_a_secret_parked_where_the_port_belongs_is_not_read_back(self, client) -> None:
         """The refusal for this one is written by `urlsplit`, not by us.
@@ -158,4 +159,5 @@ class TestTheRefusalQuotesNoSecret:
 
         assert response.status_code == 400
         assert "sh-port-secret" not in response.text
-        assert response.json()["error"]["details"] == {"field": "url"}
+        error = response.json()["error"]
+        assert error["details"]["fields"] == [{"field": "url", "message": error["message"]}]

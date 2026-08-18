@@ -25,8 +25,13 @@ interface ModelComboboxProps {
   disabled?: boolean;
   placeholder: string;
   id?: string;
-  /** The server refused this value, so the control says so as an input would. */
-  invalid?: boolean;
+  /**
+   * Injected by `FormField`, which is how every other control in this form is
+   * marked. A combobox is a button rather than an input, so it carries them
+   * itself instead of getting them from the primitive.
+   */
+  "aria-invalid"?: boolean;
+  "aria-describedby"?: string;
 }
 
 /** `1048576` is not a context window anybody reads. `1M` is. */
@@ -66,7 +71,8 @@ export function ModelCombobox({
   disabled,
   placeholder,
   id,
-  invalid,
+  "aria-invalid": invalid,
+  "aria-describedby": describedBy,
 }: ModelComboboxProps) {
   const t = useTranslations("agents");
   const [open, setOpen] = useState(false);
@@ -98,6 +104,7 @@ export function ModelCombobox({
           aria-expanded={open}
           aria-controls={listId}
           aria-invalid={invalid}
+          aria-describedby={describedBy}
           disabled={disabled}
           className={cn(
             "border-input bg-background flex h-9 w-full items-center gap-2 rounded-md border px-3 text-left text-sm",

@@ -1,10 +1,11 @@
 """The one shape a per-field refusal takes, and what it refuses to carry.
 
-Every refusal that names a field builds it here - the validation handler and the
-four services that used to hand pydantic's `exc.errors()` through untouched. The
-two properties worth pinning are the ones a call site cannot restate for itself:
-what the path looks like, and that nothing but the path and the sentence leaves
-the process (#882).
+Every refusal that names a field builds it here - the validation handler, the
+four services that used to hand pydantic's `exc.errors()` through untouched
+(#882), and the eighteen that used to answer a singular `details["field"]` no
+form has ever read (#891). The two properties worth pinning are the ones a call
+site cannot restate for itself: what the path looks like, and that nothing but
+the path and the sentence leaves the process.
 """
 
 from __future__ import annotations
@@ -13,7 +14,13 @@ import pytest
 from pydantic import BaseModel, Field, ValidationError, model_validator
 from pydantic_core import ErrorDetails
 
-from app.core.field_errors import field_problems, refused_field, request_field_problems
+from app.core.exceptions import BadRequestError
+from app.core.field_errors import (
+    field_details,
+    field_problems,
+    refused_field,
+    request_field_problems,
+)
 
 
 class Chunking(BaseModel):
@@ -172,25 +179,50 @@ class TestNothingElseLeaves:
         assert field_problems([], root="ingestion_config") == []
 
 
-class TestARefusalWrittenByHand:
-    """`refused_field`, for a rule expressed in Python rather than by a model.
+class TestARuleStatedInProse:
+    """A refusal a service writes itself, rather than one pydantic reported.
 
-    It exists so that a service naming one field does not invent a second shape
-    to say it in - the defect #891 found in eighteen call sites and #898 in
-    three more, where the key *was* the field name and the value was the
-    caller's own submission."""
+    Eighteen of them answered `details={"field": "<name>"}` with the sentence on
+    the envelope, which `fieldProblems` reads nowhere - so each showed a toast
+    and marked nothing (#891). They take the same shape as everything else now,
+    and this is what keeps a nineteenth from inventing a second one.
+    """
 
-    def test_it_answers_the_same_shape_field_problems_does(self) -> None:
-        """One reader on the frontend, so one shape here. A list of
-        `{field, message}` under `details["fields"]` is what `fieldProblems`
-        reads; anything else marks no input."""
-        assert refused_field("base_url", "A model endpoint must include a host") == [
-            {"field": "base_url", "message": "A model endpoint must include a host"}
-        ]
+    def test_it_is_the_same_shape_the_validation_handler_answers_in(self) -> None:
+        refusal = refused_field("base_url", "A model endpoint must include a host")
 
-    def test_a_field_and_a_sentence_are_the_only_things_it_can_carry(self) -> None:
-        """The narrowing is the signature. There is no `input` to forget to
-        strip, because there is nowhere to put one."""
-        problem = refused_field("model", "OpenRouter model ids are namespaced")[0]
+        assert refusal.details == {
+            "fields": [{"field": "base_url", "message": "A model endpoint must include a host"}]
+        }
 
-        assert set(problem) == {"field", "message"}
+    def test_it_is_a_bad_request_carrying_the_sentence_it_names_the_field_with(self) -> None:
+        """One sentence, in both places. A shorter one written for the field is
+        the copy that goes stale."""
+        refusal = refused_field("yaml", "This spec is not valid YAML - line 2, column 14")
+
+        assert isinstance(refusal, BadRequestError)
+        assert refusal.details is not None
+        assert refusal.details["fields"][0]["message"] == refusal.message
+
+    def test_what_else_the_refusal_is_about_sits_beside_the_fields_rather_than_in_one(
+        self,
+    ) -> None:
+        """`platform` explains the refusal; it is not an input to mark."""
+        refusal = refused_field(
+            "api_base_url", "A server URL is for a self-hosted platform", platform="telegram"
+        )
+
+        assert refusal.details == {
+            "platform": "telegram",
+            "fields": [
+                {"field": "api_base_url", "message": "A server URL is for a self-hosted platform"}
+            ],
+        }
+
+    def test_a_raiser_deciding_its_field_at_run_time_builds_the_same_details(self) -> None:
+        """`_get_json` describes the same five failures for a form testing an
+        address and for a page reading a saved connection, so whether there is
+        an input to blame is not known where the sentence is written."""
+        assert field_details("base_url", "The sandbox service answered 502") == {
+            "fields": [{"field": "base_url", "message": "The sandbox service answered 502"}]
+        }

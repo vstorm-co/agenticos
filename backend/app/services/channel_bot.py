@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.background import spawn_after_commit
 from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.field_errors import refused_field
 from app.core.vault import SealedSecret, VaultScope, seal, unseal
 from app.db.models.channel_bot import ChannelBot
 from app.db.updates import writable
@@ -249,20 +250,18 @@ class ChannelBotService:
         field existed.
         """
         if platform == "mattermost" and api_base_url is None:
-            raise BadRequestError(
-                message=(
-                    "A Mattermost bot cannot lose its server URL - it is self-hosted, "
-                    "so there is no default address to fall back to"
-                ),
-                details={"field": "api_base_url", "platform": platform},
+            raise refused_field(
+                "api_base_url",
+                "A Mattermost bot cannot lose its server URL - it is self-hosted, "
+                "so there is no default address to fall back to",
+                platform=platform,
             )
         if platform != "mattermost" and api_base_url is not None:
-            raise BadRequestError(
-                message=(
-                    f"A server URL is for a self-hosted platform - a {platform} bot "
-                    "has one address for everybody"
-                ),
-                details={"field": "api_base_url", "platform": platform},
+            raise refused_field(
+                "api_base_url",
+                f"A server URL is for a self-hosted platform - a {platform} bot "
+                "has one address for everybody",
+                platform=platform,
             )
 
     @staticmethod

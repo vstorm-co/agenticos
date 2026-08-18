@@ -126,7 +126,7 @@ class TestTheRefusalNamesTheField:
         error = response.json()["error"]
         assert error["code"] == "BAD_REQUEST"
         assert error["message"] == "An agent spec must be a YAML mapping"
-        assert error["details"] == {"field": "yaml"}
+        assert error["details"]["fields"] == [{"field": "yaml", "message": error["message"]}]
 
     async def test_yaml_that_does_not_parse_is_refused_with_the_position(self, client: Any) -> None:
         response = await _import(client, "name: Support\n  description: adrift\n")
@@ -134,7 +134,10 @@ class TestTheRefusalNamesTheField:
         assert response.status_code == 400
         error = response.json()["error"]
         assert error["code"] == "BAD_REQUEST"
-        assert error["details"] == {"field": "yaml", "line": 2, "column": 14}
+        # The position is in the sentence the editor shows, not in keys of its
+        # own that nothing has ever read (#891).
+        assert error["message"] == "This spec is not valid YAML - line 2, column 14"
+        assert error["details"]["fields"] == [{"field": "yaml", "message": error["message"]}]
 
     async def test_a_character_yaml_cannot_read_has_no_position_to_report(
         self, client: Any
@@ -144,7 +147,9 @@ class TestTheRefusalNamesTheField:
         response = await _import(client, "name: Sup\x00port\n")
 
         assert response.status_code == 400
-        assert response.json()["error"]["details"] == {"field": "yaml"}
+        error = response.json()["error"]
+        assert error["message"] == "This spec is not valid YAML"
+        assert error["details"]["fields"] == [{"field": "yaml", "message": error["message"]}]
 
 
 class TestTheRefusalQuotesNothingSubmitted:

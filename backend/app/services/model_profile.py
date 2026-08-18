@@ -56,8 +56,7 @@ def _validate_model_id(provider: str, model: str) -> None:
     submission back into a body and a log line and marked nothing (#898).
     """
     if provider == "openrouter" and "/" not in model:
-        message = "OpenRouter model ids are namespaced, e.g. 'openai/gpt-4.1'"
-        raise BadRequestError(message=message, details={"fields": refused_field("model", message)})
+        raise refused_field("model", "OpenRouter model ids are namespaced, e.g. 'openai/gpt-4.1'")
 
 
 async def validate_endpoint_url(url: str) -> str:
@@ -89,21 +88,14 @@ async def validate_endpoint_url(url: str) -> str:
     """
     parsed = urlparse(url)
     if parsed.scheme not in _ALLOWED_ENDPOINT_SCHEMES:
-        raise BadRequestError(
-            message="A model endpoint must be an http or https URL",
-            details={"field": "base_url"},
-        )
+        raise refused_field("base_url", "A model endpoint must be an http or https URL")
     if not parsed.hostname:
-        raise BadRequestError(
-            message="A model endpoint must include a host", details={"field": "base_url"}
-        )
+        raise refused_field("base_url", "A model endpoint must include a host")
     if parsed.username is not None or parsed.password is not None:
-        raise BadRequestError(
-            message=(
-                "A model endpoint must not carry credentials in the URL - store the key "
-                "on the credential instead"
-            ),
-            details={"field": "base_url"},
+        raise refused_field(
+            "base_url",
+            "A model endpoint must not carry credentials in the URL - store the key "
+            "on the credential instead",
         )
     return url
 
@@ -169,27 +161,26 @@ class ModelProfileService:
 
         if base_url is not None:
             if not spec.supports_base_url:
-                raise BadRequestError(
-                    message=(
-                        f"{spec.name} has no endpoint setting - its SDK always talks to the "
-                        "provider's own API, so a custom URL here would be ignored"
-                    ),
-                    details={"provider": provider, "field": "base_url"},
+                raise refused_field(
+                    "base_url",
+                    f"{spec.name} has no endpoint setting - its SDK always talks to the "
+                    "provider's own API, so a custom URL here would be ignored",
+                    provider=provider,
                 )
             base_url = await validate_endpoint_url(base_url)
         elif spec.keyless and secret_id is None:
-            message = (
+            raise refused_field(
+                "base_url",
                 f"{spec.name} runs without a key, so it needs an endpoint to reach - "
-                "there is no public API to fall back on"
-            )
-            raise BadRequestError(
-                message=message, details={"fields": refused_field("base_url", message)}
+                "there is no public API to fall back on",
+                provider=provider,
             )
 
         if secret_id is None and not spec.keyless:
-            message = f"{spec.name} needs a key. Store one in the vault, then add the model"
-            raise BadRequestError(
-                message=message, details={"fields": refused_field("secret_id", message)}
+            raise refused_field(
+                "secret_id",
+                f"{spec.name} needs a key. Store one in the vault, then add the model",
+                provider=provider,
             )
 
         if await credential_repo.get_profile_by_label(

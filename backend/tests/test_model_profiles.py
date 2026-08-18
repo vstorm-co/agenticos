@@ -831,10 +831,11 @@ class TestAnEndpointOfItsOwn:
 
     @pytest.mark.anyio
     async def test_a_keyless_provider_with_no_endpoint_names_the_endpoint_field(self):
-        """The refusal is about `base_url`, and it used to name `provider`.
+        """The refusal is about `base_url`, and it named only `provider`.
 
-        Which is a fact the caller already knows - they picked it - in the one
-        place the form looks to find out which box to fix (#898)."""
+        Which is a fact rather than a field, so the form had nothing to mark
+        (#898). The provider stays beside the field, the way the "no endpoint
+        setting" refusal above carries it."""
         with pytest.raises(BadRequestError) as exc:
             await ModelProfileService(_db()).create_profile(
                 _ctx(),
@@ -845,7 +846,8 @@ class TestAnEndpointOfItsOwn:
             )
 
         assert exc.value.details == {
-            "fields": [{"field": "base_url", "message": exc.value.message}]
+            "provider": "ollama",
+            "fields": [{"field": "base_url", "message": exc.value.message}],
         }
 
     @pytest.mark.anyio
@@ -874,7 +876,8 @@ class TestAnEndpointOfItsOwn:
             )
 
         assert exc.value.details == {
-            "fields": [{"field": "secret_id", "message": exc.value.message}]
+            "provider": "anthropic",
+            "fields": [{"field": "secret_id", "message": exc.value.message}],
         }
 
     @pytest.mark.anyio
