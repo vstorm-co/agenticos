@@ -124,8 +124,15 @@ async def _resolve_reranker(
     model = kb.rerank_model
     secret_id = kb.rerank_secret_id
     organization_id = kb.organization_id
-    if model is None or secret_id is None or organization_id is None:
+    if model is None and secret_id is None:
         return None, RerankKeySource.NOT_CONFIGURED
+    if model is None or secret_id is None or organization_id is None:
+        # A half-configured reranker, not the off state. The pair is written
+        # together - create and update enforce it - but deleting the chosen
+        # secret nulls rerank_secret_id through the foreign key while leaving
+        # rerank_model set, and that stopped reranking with no signal at all
+        # until this told the half state apart from the null/null off state.
+        return None, RerankKeySource.SECRET_MISSING
 
     row = await organization_secret_repo.get(db, secret_id, organization_id=organization_id)
     if row is None:

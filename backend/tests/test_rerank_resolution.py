@@ -87,10 +87,16 @@ class TestResolution:
         assert resolved is None
         secrets.get.assert_not_called()
 
-    async def test_a_model_with_no_key_is_off(self):
-        resolved, secrets = await _resolve(_kb(model="rerank-v3.5", secret_id=None))
+    async def test_a_model_with_no_key_warns_that_a_configured_reranker_lost_its_key(self, caplog):
+        # Deleting the chosen secret nulls rerank_secret_id through the foreign
+        # key while leaving rerank_model set. That half state is a
+        # misconfiguration an operator should see, not the silent null/null off
+        # state - so it warns, and never reaches the vault (no key id to look up).
+        with caplog.at_level(logging.WARNING, logger=_MODULE):
+            resolved, secrets = await _resolve(_kb(model="rerank-v3.5", secret_id=None))
         assert resolved is None
         secrets.get.assert_not_called()
+        assert "rerank_secret_missing" in caplog.text
 
     async def test_a_configured_collection_unseals_and_returns_its_reranker(self):
         resolved, _ = await _resolve(_kb(secret_id=uuid.uuid4()), _sealed_key_row("co-org-own-key"))
