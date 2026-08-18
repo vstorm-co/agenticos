@@ -29,8 +29,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import TOOL_NAME_PATTERN, CapabilityDef, all_capabilities
 from app.agents.capabilities import get as get_capability
+from app.agents.capabilities.approval import tool_needs_approval
 from app.agents.capabilities.browser_use import BrowserUseConfig, validate_cdp_url
 from app.agents.capabilities.subagents import SubagentsConfig
+from app.agents.capabilities.web_fetch import PROVIDER_EXECUTED_METHODS, WebFetchConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, SpecialistSpec, SubagentRef
 from app.core.audit import record_audit
@@ -91,6 +93,7 @@ DEFAULT_GRANTED_SCOPES = frozenset(
     {
         "knowledge:read",
         "web:read",
+        "web:fetch",
         "web:browse",
         "code:execute",
         "sandbox:execute",
@@ -207,6 +210,43 @@ async def _browser_use_problems(config: BaseModel | None) -> list[str]:
             "Point it at a public browser service, not a loopback or internal address."
         ]
     return []
+
+
+def _ungateable_fetch_problems(
+    binding: CapabilityBindingSpec, definition: CapabilityDef, config: BaseModel | None
+) -> list[str]:
+    """Approval on a fetch the model provider, not this deployment, would run.
+
+    `ApprovalGate` wraps *tool execution*, which is the only place a call can be
+    held - so a tool the provider executes on its own side never reaches it. Under
+    `web_fetch`'s `native` method there is no local tool at all, and under `auto`
+    there is one only on a model with no native fetch of its own. Either way a
+    binding that asks for approval and then hands the fetch to the provider gets a
+    gate that never fires, and the failure is silent: the queue stays empty and
+    the agent reads pages nobody approved.
+
+    Refused rather than repaired. "Ask before this agent reads a page" and "let
+    the provider fetch, with its own egress and citations" are both legitimate,
+    and quietly forcing the local tool to make the gate work would answer a
+    question that is the author's - while quietly dropping the gate is the bug.
+    `auto` is refused with `native`, because which of the two an `auto` binding
+    gets is a property of the model profile and that changes without republishing.
+    """
+    if not isinstance(config, WebFetchConfig) or config.method not in PROVIDER_EXECUTED_METHODS:
+        return []
+    gated = sorted(
+        tool.id
+        for tool in definition.tools
+        if tool_needs_approval(tool=tool, binding=binding, side_effecting=definition.side_effecting)
+    )
+    if not gated:
+        return []
+    return [
+        f"Capability '{binding.id}' requires approval for {', '.join(gated)}, but "
+        f"method '{config.method}' can hand the fetch to the model provider, where "
+        "this deployment has no call to hold. Set method to 'local', or drop the "
+        "approval requirement."
+    ]
 
 
 def _tool_override_problems(binding: CapabilityBindingSpec, definition: CapabilityDef) -> list[str]:
@@ -903,6 +943,7 @@ class AgentRegistryService:
             problems.append(f"Capability '{binding.id}': {exc.message}")
         else:
             problems.extend(await _browser_use_problems(config))
+            problems.extend(_ungateable_fetch_problems(binding, definition, config))
         # A tool_approval key that matches nothing is the dangerous kind of
         # typo: it is not an error at run time, it is silence - the tool the
         # author meant to gate runs unapproved and nobody is told.

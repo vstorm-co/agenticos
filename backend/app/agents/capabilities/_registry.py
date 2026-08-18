@@ -610,6 +610,7 @@ def load_builtins() -> None:
         thinking,
         tool_output_limits,
         tool_search,
+        web_fetch,
         web_research,
     )
 
