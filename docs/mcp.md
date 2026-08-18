@@ -80,7 +80,21 @@ metadata, and the flow runs from there:
 
 Every URL reached in that flow is SSRF-checked, not just the one somebody typed:
 discovery means the *remote server* chooses most of the addresses we call, and
-those deserve the same policy as a webhook.
+those deserve the same policy as a webhook. The check resolves the name and
+refuses a private answer at that moment; the client then resolves it again to
+connect, so a name that changes its answer in between is not covered.
+
+**That gap is open on this flow**, and it is worth being plain about why. The
+address an operator types is only the first hop — the authorization server, the
+token endpoint and every redirect after it are named by the remote server's own
+discovery documents. So connecting a single hostile server is enough to aim the
+gap: nobody in your organization has to be the attacker for a name to answer a
+public address to the check and a private one to the request that follows.
+Closing it means dialling the address that was validated rather than the name,
+which is [#860](https://github.com/vstorm-co/agenticos/issues/860). Nothing a
+*model* chooses reaches this check today, and nothing should: a URL an agent
+picked wants Pydantic AI's `safe_download`, which dials what it resolved rather
+than handing a string back to be resolved again.
 
 A step that fails says **which step gave up and what class of thing raised**,
 never what the upstream client wrote. `httpx` puts the failing request in its

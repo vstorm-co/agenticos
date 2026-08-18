@@ -89,6 +89,13 @@ async def _send(client: httpx.AsyncClient, request: httpx.Request) -> httpx.Resp
     redirects turned off and we follow them here, one validated hop at a time -
     otherwise a server could answer with `302 http://169.254.169.254/` and we
     would fetch it from inside the network.
+
+    The check is point-in-time and this loop is the one caller for which that
+    matters most: `validate_mcp_url` resolves the name, approves it, and hands
+    back the string, which `client.send` resolves again. Every hop here was
+    named by the remote server, so it can answer public to the check and private
+    to the send without anyone on this side being complicit - the redirect half
+    of that attack is closed above, the rebinding half is #860.
     """
     for _ in range(_MAX_REDIRECTS + 1):
         try:

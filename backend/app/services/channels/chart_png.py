@@ -54,7 +54,7 @@ _PALETTE = (
 )
 
 
-def _font(size: int) -> ImageFont.ImageFont:
+def _font(size: int) -> ImageFont.ImageFont | ImageFont.FreeTypeFont:
     """A font that exists everywhere this runs.
 
     Pillow's bundled bitmap font is not pretty, but it is present in every

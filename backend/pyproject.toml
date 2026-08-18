@@ -434,9 +434,6 @@ unused-type-ignore-comment = "warn"
 unused-ignore-comment = "ignore"
 # Operations on Unknown types from untyped libraries (pymupdf, etc.)
 unsupported-operator = "warn"
-# Third-party libs (langchain, redis-py) ship without complete type stubs;
-# kwargs that work at runtime are flagged as unknown.
-unknown-argument = "warn"
 # redis-py / asyncio overloads return Awaitable[T] | T which ty rejects as awaitable
 invalid-await = "warn"
 # sessionmaker(class_=AsyncSession) returns sync sessionmaker per overloads
@@ -444,13 +441,6 @@ invalid-await = "warn"
 invalid-context-manager = "warn"
 # Helpers like get_agent accept **kwargs but their stubs only list specific params
 missing-argument = "warn"
-# LangChain BaseMessage subclasses (AIMessage etc.) carry tool_calls only on
-# specific subclasses; ty cannot narrow via hasattr().
-not-iterable = "warn"
-# Return-type widening for langgraph .compile() (StateGraph vs CompiledStateGraph)
-invalid-return-type = "warn"
-# LangGraph/DeepAgents runtime classes use kwargs that ty stubs don't enumerate
-invalid-type-form = "warn"
 
 # Every rule above is downgraded because of a library we did not choose and do
 # not own. None of those reasons apply to the code we wrote, so the platform
@@ -595,13 +585,9 @@ deprecated = "error"
 no-matching-overload = "error"
 unused-type-ignore-comment = "error"
 unsupported-operator = "error"
-unknown-argument = "error"
 invalid-await = "error"
 invalid-context-manager = "error"
 missing-argument = "error"
-not-iterable = "error"
-invalid-return-type = "error"
-invalid-type-form = "error"
 # An ignore comment that has stopped suppressing anything is the failure mode
 # this whole section exists to prevent, one line wide. In our own code it is an
 # error, so a fixed stub or a rewritten call forces the comment out with it.

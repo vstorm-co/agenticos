@@ -180,6 +180,48 @@ class TestEdgeCases:
             assert result == "http://example.com/webhook"
 
 
+# validate_webhook_url - what a refusal is allowed to say
+
+
+class TestRefusalText:
+    """A refusal names the host it refused, never the URL.
+
+    Not every URL through here was typed by an operator: `mcp_oauth._send`
+    validates each hop of a flow whose endpoints the *remote* server named, and
+    a URL carries a key in its query string. The messages reach a user - the
+    publish problem `agent_registry._browser_use_problems` builds is one - and
+    a log line in every case, so what they may quote is the same question
+    `.claude/rules/exceptions-security.md` answers for `details`.
+    """
+
+    def test_a_malformed_url_is_refused_without_being_quoted(self):
+        with pytest.raises(ValueError) as excinfo:
+            validate_webhook_url("https:///reset?token=sh-secret-value")
+
+        assert "sh-secret-value" not in str(excinfo.value)
+
+    def test_an_unparseable_url_is_refused_without_being_quoted(self):
+        with pytest.raises(ValueError) as excinfo:
+            validate_webhook_url("http://[::1?token=sh-secret-value")
+
+        assert "sh-secret-value" not in str(excinfo.value)
+
+    def test_a_blocked_address_is_refused_by_host_not_by_url(self):
+        """The host is what a reader acts on, and carries no query string."""
+        with (
+            patch(
+                "app.core.sanitize.socket.getaddrinfo",
+                return_value=[(2, 1, 6, "", ("127.0.0.1", 443))],
+            ),
+            pytest.raises(SSRFBlockedError) as excinfo,
+        ):
+            validate_webhook_url("https://oauth.attacker.test/token?client_secret=sh-secret")
+
+        message = str(excinfo.value)
+        assert "oauth.attacker.test" in message
+        assert "sh-secret" not in message
+
+
 # SSRFBlockedError is a subclass of ValueError
 
 
