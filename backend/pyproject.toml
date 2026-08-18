@@ -432,6 +432,7 @@ include = [
     "app/services/agent_exposure.py",
     "app/services/agent_trigger.py",
     "app/services/trigger_events.py",
+    "app/services/trigger_dedupe.py",
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",
     "app/services/agent_session.py",
@@ -608,6 +609,7 @@ include = [
     "app/services/agent_exposure.py",
     "app/services/agent_trigger.py",
     "app/services/trigger_events.py",
+    "app/services/trigger_dedupe.py",
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",
     # The whole dashboard chat wire format: every frame the WebSocket sends and

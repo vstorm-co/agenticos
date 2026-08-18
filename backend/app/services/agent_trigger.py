@@ -66,7 +66,7 @@ from app.schemas.agent_trigger import (
     TriggerUpdate,
     _cron_has_next,
 )
-from app.services import portal_catalog, portals, trigger_events
+from app.services import portal_catalog, portals, trigger_dedupe, trigger_events
 from app.services.access import AGENT, resolve_access, visible_resource_ids
 from app.services.agent_registry import AgentRegistryService
 from app.services.mcp_connection import McpConnectionService
@@ -667,8 +667,33 @@ class AgentTriggerService:
             source, headers=headers, payload=payload, config=trigger.event_config
         ):
             return None
+        # At-least-once delivery: a redelivery of an event already dispatched must
+        # not fire a second run and a second spend. Claim the provider's delivery
+        # id; a delivery that carries none, or a Redis that cannot be reached, fails
+        # open and fires, and a duplicate answers the same nothing-to-do `None` an
+        # unmatched delivery does, so it stays unprobeable. The claim is released by
+        # the route if the fire's hand-off then fails (`release_event_claim`).
+        delivery = trigger_events.delivery_id(source, headers)
+        if delivery is not None and not await trigger_dedupe.claim_event_delivery(
+            trigger_id=trigger.id, delivery_id=delivery
+        ):
+            return None
         context = trigger_events.render_context(source, payload=payload)
         return EventFireDecision(trigger_id=trigger.id, event_context=context)
+
+    async def release_event_claim(
+        self, source: str, trigger_id: UUID, headers: Mapping[str, str]
+    ) -> None:
+        """Give back the dedupe claim on a delivery whose fire was not dispatched.
+
+        `prepare_event_fire` claims before returning the decision, so a hand-off
+        that then raises - Prefect unreachable - must release the claim or the
+        provider's resend is dropped and the event lost. A delivery with no provider
+        id was never claimed, so this is a no-op for it.
+        """
+        delivery = trigger_events.delivery_id(source, headers)
+        if delivery is not None:
+            await trigger_dedupe.release_event_delivery(trigger_id=trigger_id, delivery_id=delivery)
 
     def _unseal_event_secret(self, trigger: AgentTrigger) -> str:
         """The trigger's signing secret, unsealed for its organization.

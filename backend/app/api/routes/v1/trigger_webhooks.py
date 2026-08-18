@@ -52,12 +52,18 @@ async def ingest_trigger_event(
     the API's event loop. The submit is one fast Prefect call, well inside a
     provider's delivery timeout.
     """
+    headers = dict(request.headers)
     body = await request.body()
-    decision = await service.prepare_event_fire(
-        source, trigger_id, body=body, headers=dict(request.headers)
-    )
+    decision = await service.prepare_event_fire(source, trigger_id, body=body, headers=headers)
     if decision is None:
         return Response(status_code=status.HTTP_202_ACCEPTED)
 
-    await dispatch_trigger_fire(str(decision.trigger_id), event_context=decision.event_context)
+    try:
+        await dispatch_trigger_fire(str(decision.trigger_id), event_context=decision.event_context)
+    except Exception:
+        # The fire was deduplicated-claimed in `prepare_event_fire`; a hand-off that
+        # failed got no 2xx and the provider will resend, so give the claim back or
+        # that resend is dropped as a duplicate. Then let the 500 surface the failure.
+        await service.release_event_claim(source, trigger_id, headers)
+        raise
     return Response(status_code=status.HTTP_202_ACCEPTED)

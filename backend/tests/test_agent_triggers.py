@@ -1227,6 +1227,103 @@ class TestPreparingAnEventFire:
             )
         assert decision == EventFireDecision(trigger_id=trigger.id, event_context="ISSUE #7 opened")
 
+    async def test_a_first_delivery_is_claimed_and_fires(self):
+        service = _service()
+        trigger = _event_trigger()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.unseal", return_value="secret"),
+            patch("app.services.agent_trigger.trigger_events") as events,
+            patch("app.services.agent_trigger.trigger_dedupe") as dedupe,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            events.verify_signature = MagicMock(return_value=True)
+            events.event_matches = MagicMock(return_value=True)
+            events.delivery_id = MagicMock(return_value="delivery-1")
+            events.render_context = MagicMock(return_value="ISSUE #7")
+            dedupe.claim_event_delivery = AsyncMock(return_value=True)
+            decision = await service.prepare_event_fire(
+                "github",
+                trigger.id,
+                body=b'{"action": "opened"}',
+                headers={"x-github-delivery": "delivery-1"},
+            )
+        assert decision == EventFireDecision(trigger_id=trigger.id, event_context="ISSUE #7")
+        dedupe.claim_event_delivery.assert_awaited_once()
+
+    async def test_a_redelivered_event_already_claimed_does_not_fire_again(self):
+        """At-least-once: a redelivery carrying the same provider delivery id is
+        deduplicated to the same nothing-to-do None a mismatch gets, so it fires no
+        second run and no second spend."""
+        service = _service()
+        trigger = _event_trigger()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.unseal", return_value="secret"),
+            patch("app.services.agent_trigger.trigger_events") as events,
+            patch("app.services.agent_trigger.trigger_dedupe") as dedupe,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            events.verify_signature = MagicMock(return_value=True)
+            events.event_matches = MagicMock(return_value=True)
+            events.delivery_id = MagicMock(return_value="delivery-1")
+            dedupe.claim_event_delivery = AsyncMock(return_value=False)
+            decision = await service.prepare_event_fire(
+                "github",
+                trigger.id,
+                body=b'{"action": "opened"}',
+                headers={"x-github-delivery": "delivery-1"},
+            )
+        assert decision is None
+
+    async def test_a_delivery_with_no_provider_id_fires_without_a_claim(self):
+        """A source that sends no delivery id cannot be deduplicated, so it fires
+        every time rather than being dropped, and no claim is taken."""
+        service = _service()
+        trigger = _event_trigger()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.unseal", return_value="secret"),
+            patch("app.services.agent_trigger.trigger_events") as events,
+            patch("app.services.agent_trigger.trigger_dedupe") as dedupe,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            events.verify_signature = MagicMock(return_value=True)
+            events.event_matches = MagicMock(return_value=True)
+            events.delivery_id = MagicMock(return_value=None)
+            events.render_context = MagicMock(return_value="a delivery")
+            dedupe.claim_event_delivery = AsyncMock()
+            decision = await service.prepare_event_fire(
+                "github", trigger.id, body=b'{"action": "opened"}', headers={}
+            )
+        assert decision is not None
+        dedupe.claim_event_delivery.assert_not_called()
+
+    async def test_release_event_claim_gives_back_a_claimed_delivery(self):
+        service = _service()
+        trigger_id = uuid.uuid4()
+        with (
+            patch("app.services.agent_trigger.trigger_events") as events,
+            patch("app.services.agent_trigger.trigger_dedupe") as dedupe,
+        ):
+            events.delivery_id = MagicMock(return_value="delivery-1")
+            dedupe.release_event_delivery = AsyncMock()
+            await service.release_event_claim("github", trigger_id, {"x-github-delivery": "d"})
+        dedupe.release_event_delivery.assert_awaited_once_with(
+            trigger_id=trigger_id, delivery_id="delivery-1"
+        )
+
+    async def test_release_event_claim_is_a_noop_without_a_provider_id(self):
+        service = _service()
+        with (
+            patch("app.services.agent_trigger.trigger_events") as events,
+            patch("app.services.agent_trigger.trigger_dedupe") as dedupe,
+        ):
+            events.delivery_id = MagicMock(return_value=None)
+            dedupe.release_event_delivery = AsyncMock()
+            await service.release_event_claim("webhook", uuid.uuid4(), {})
+        dedupe.release_event_delivery.assert_not_called()
+
     async def test_a_body_that_is_not_json_is_a_400(self):
         service = _service()
         trigger = _event_trigger()

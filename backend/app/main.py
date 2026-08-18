@@ -35,6 +35,7 @@ from app.repositories.channel_bot import get_active_polling_bots
 from app.services.channel_bot import unseal_bot_token, unseal_slack_app_token
 from app.services.channels import register_adapter
 from app.services import rate_limit
+from app.services import trigger_dedupe
 from app.services.channels import dedupe as channel_dedupe
 from app.services.channels import membership as channel_membership
 from app.services.channels.supervisor import open_inbound_stream
@@ -106,6 +107,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # conversation service consults from inside a request but caches in the
     # Redis every worker shares (#641).
     channel_membership.configure(redis_client)
+    # And an event trigger's delivery dedupe, so a provider's redelivery of one
+    # webhook does not fire a second run - the fire runs in a dispatched flow,
+    # outside any request the claim could read `request.state` from.
+    trigger_dedupe.configure(redis_client)
     embedder: EmbeddingService | None = None
     try:
         embedder = EmbeddingService(settings=settings.rag)
@@ -174,6 +179,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     channel_dedupe.configure(None)
     rate_limit.configure(None)
     channel_membership.configure(None)
+    trigger_dedupe.configure(None)
     if "redis" in state:
         await state["redis"].close()
 
