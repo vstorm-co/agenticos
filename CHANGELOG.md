@@ -17,6 +17,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.189] - 2026-08-18
+
+### Fixed
+
+- **The frontend suite has deadlines it can actually meet.** `test-frontend`
+  went red on specs that pass in about a second alone, and the diagnosis in the
+  issue was half right: measured over four whole-suite runs, coverage
+  instrumentation is a 1.6x multiplier on an idle machine but 3.6x on a busy
+  one, and **the bare run failed under load too** — so this was never a coverage
+  defect, and a deadline that differed between the fast loop and the gate could
+  not have reproduced the gate. `testTimeout` moves to 15s, which is 2.5x the
+  worst duration measured under load and the figure `playwright.config.ts`
+  already justifies for the same class of problem. (#862)
+- **The second deadline nobody had noticed.** Two of the three failures in each
+  loaded run were Testing Library's own 1s `asyncUtilTimeout`, not
+  `testTimeout` — including one of the two specs the issue named, so raising
+  `testTimeout` alone would have left the reported symptom reproducible. It goes
+  to 5s, deliberately well under `testTimeout`, so an element that is never
+  coming loses the race and the failure names it rather than blaming the test.
+  (#862)
+
 ## [0.0.188] - 2026-08-18
 
 An approval nobody was ever asked for is refused rather than assumed.
