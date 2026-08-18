@@ -117,8 +117,34 @@ class TestAConfigurationThatWouldNotTerminate:
         """Two individually legal numbers, one configuration that does not terminate."""
         base = IngestionConfig(chunk_size=4096, chunk_overlap=2048)
 
-        with pytest.raises(ValueError, match="chunk_overlap"):
+        with pytest.raises(BadRequestError, match="ingestion"):
             IngestionOverride(chunk_size=1024).applied_to(base)
+
+    def test_the_merged_pair_is_refused_as_a_form_error_and_names_both_numbers(self) -> None:
+        """It was a raw `ValidationError`, which reaches no handler and is a 500.
+
+        The rule's own docstring says the form is what refuses this pair, and
+        the form was being told the server had broken (#874).
+        """
+        base = IngestionConfig(chunk_size=512)
+
+        with pytest.raises(BadRequestError) as refusal:
+            IngestionOverride(chunk_overlap=4096).applied_to(base)
+
+        errors = refusal.value.details["errors"]
+        assert "chunk_overlap" in errors[0]["msg"]
+        assert "chunk_size" in errors[0]["msg"]
+
+    def test_the_refusal_carries_no_copy_of_what_was_submitted(self) -> None:
+        """`details` names the fields that are wrong, never the document sent."""
+        base = IngestionConfig(chunk_size=512)
+
+        with pytest.raises(BadRequestError) as refusal:
+            IngestionOverride(chunk_overlap=4096).applied_to(base)
+
+        assert all(
+            "input" not in error and "url" not in error for error in refusal.value.details["errors"]
+        )
 
 
 class TestWhatAnOverrideChanges:

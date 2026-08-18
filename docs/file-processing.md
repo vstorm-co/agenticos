@@ -327,6 +327,19 @@ Chunk boundaries are what a search matches against, so a collection ingested
 before that change keeps the chunks it was ingested with. Re-upload a document,
 or re-run `uv run agenticos cmd rag-ingest`, to re-chunk it.
 
+**An override is checked against the merged pair, not against its own value.** A
+per-upload `ingestion` field carries only what it changes, so `chunk_overlap:
+4096` sent to a collection chunking at 512 is two individually legal numbers and
+one configuration that repeats almost everything it advances past. The merge
+re-validates, and the upload is refused with a **400** naming both settings in
+`details.errors` — before the file is stored and before a document row exists,
+so there is nothing to retry or clean up. It answered 500 with an empty
+`details` until [#874](https://github.com/vstorm-co/agenticos/issues/874): the
+merge raised a raw Pydantic error, which reaches no handler. The same pair sent
+as a collection's own configuration was always refused with a 422, because there
+it is a field of a JSON body and FastAPI validates it before the route is
+entered.
+
 ### Embeddings — the model, and whose key pays
 
 Embeddings go out through OpenRouter to an OpenAI embedding model. Both halves
