@@ -129,6 +129,69 @@ describe("PortalTriggerDialog", () => {
     // The server mints and seals the secret from the preset; the client sends none.
     expect(payload).not.toHaveProperty("event_secret");
     expect(payload).not.toHaveProperty("event_source");
+    // A non-email portal shows no filter inputs and sends no event_config.
+    expect(within(dialog).queryByLabelText("Subject contains")).toBeNull();
+    expect(within(dialog).queryByLabelText("Sender contains")).toBeNull();
+    expect(payload).not.toHaveProperty("event_config");
+  });
+
+  it("sends the email subject and sender filters as event_config", async () => {
+    const user = userEvent.setup();
+    serve();
+    vi.mocked(apiClient.post).mockResolvedValue({
+      id: "t1",
+      trigger_type: "event",
+      delivery_mode: "manual",
+      webhook_url: "https://api.example.com/api/v1/webhooks/triggers/email/t1",
+      reveal_secret: null,
+    });
+    render(<PortalTriggerDialog portal={EMAIL} connection={null} open onOpenChange={vi.fn()} />, {
+      wrapper,
+    });
+
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: /Any incoming email/ }));
+    await user.type(within(dialog).getByLabelText("Subject contains"), "invoice");
+    await user.type(within(dialog).getByLabelText("Sender contains"), "billing@acme.com");
+    await user.type(within(dialog).getByLabelText("Message"), "Read it");
+    await user.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    const [, payload] = vi.mocked(apiClient.post).mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
+    expect(payload).toMatchObject({
+      portal_key: "email",
+      preset_key: "any_email",
+      event_config: { subject_contains: "invoice", sender_contains: "billing@acme.com" },
+    });
+  });
+
+  it("omits event_config when both email filters are left blank", async () => {
+    const user = userEvent.setup();
+    serve();
+    vi.mocked(apiClient.post).mockResolvedValue({
+      id: "t1",
+      trigger_type: "event",
+      delivery_mode: "manual",
+      webhook_url: "https://api.example.com/api/v1/webhooks/triggers/email/t1",
+      reveal_secret: null,
+    });
+    render(<PortalTriggerDialog portal={EMAIL} connection={null} open onOpenChange={vi.fn()} />, {
+      wrapper,
+    });
+
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: /Any incoming email/ }));
+    await user.type(within(dialog).getByLabelText("Message"), "Read it");
+    await user.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    const [, payload] = vi.mocked(apiClient.post).mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
     expect(payload).not.toHaveProperty("event_config");
   });
 

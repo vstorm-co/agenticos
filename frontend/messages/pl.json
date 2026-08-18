@@ -1263,7 +1263,12 @@
     "registeredDescription": "Webhook został zarejestrowany. Agent uruchomi się, gdy nadejdzie zdarzenie.",
     "manualResultDescription": "Dodaj ten adres webhooka u swojego dostawcy. Nic się nie uruchomi, dopóki nie nadejdzie zdarzenie.",
     "secretLabel": "Sekret podpisujący",
-    "secretRevealNote": "Skopiuj go teraz - nie zostanie pokazany ponownie. Skonfiguruj przekaźnik, aby podpisywał nim każde dostarczenie."
+    "secretRevealNote": "Skopiuj go teraz - nie zostanie pokazany ponownie. Skonfiguruj przekaźnik, aby podpisywał nim każde dostarczenie.",
+    "filterHelp": "Opcjonalne. Pozostaw puste, aby uruchamiać przy każdym przychodzącym e-mailu.",
+    "subjectFilterLabel": "Temat zawiera",
+    "subjectFilterPlaceholder": "np. faktura",
+    "senderFilterLabel": "Nadawca zawiera",
+    "senderFilterPlaceholder": "np. billing@acme.com"
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",

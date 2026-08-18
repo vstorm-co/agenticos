@@ -122,7 +122,11 @@ you why. Match these names exactly.
 ```
 
 Both filters are optional substrings, matched case-insensitively; with neither set, any
-signed delivery fires.
+signed delivery fires. When you build an Email trigger from its portal preset, the setup
+dialog offers **Subject contains** and **Sender contains** fields - fill either or both to
+narrow the trigger at create time, or leave them blank to fire on every incoming email.
+They map to the `subject_contains` and `sender_contains` filter above, and either one can
+still be changed later by editing the trigger's filter.
 
 **LinkedIn** (`source = linkedin`):
 

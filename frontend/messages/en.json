@@ -4102,7 +4102,12 @@
     "registeredDescription": "The webhook was registered for you. The agent runs when the event arrives.",
     "manualResultDescription": "Add this webhook URL to your provider. Nothing fires until it delivers.",
     "secretLabel": "Signing secret",
-    "secretRevealNote": "Copy it now - it won't be shown again. Configure your relay to sign each delivery with it."
+    "secretRevealNote": "Copy it now - it won't be shown again. Configure your relay to sign each delivery with it.",
+    "filterHelp": "Optional. Leave blank to fire on every incoming email.",
+    "subjectFilterLabel": "Subject contains",
+    "subjectFilterPlaceholder": "e.g. invoice",
+    "senderFilterLabel": "Sender contains",
+    "senderFilterPlaceholder": "e.g. billing@acme.com"
   },
   "context": {
     "created": "Created {name}",

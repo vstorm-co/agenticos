@@ -362,8 +362,12 @@ class AgentTriggerService:
 
         if data.trigger_type == TriggerType.EVENT.value:
             if data.portal_key is not None:
-                # A preset: the source and filter come from the catalog and the
-                # secret is minted here, so the caller handles neither.
+                # A preset: the source comes from the catalog and the secret is
+                # minted here, so the caller handles neither. The filter is the
+                # preset's defaults with the caller's optional `event_config`
+                # override merged over, then validated against the source the
+                # catalog resolves - so a bad override key is a 422 naming it
+                # rather than a 500 or a filter stored to match nothing.
                 resolved = portal_catalog.get_preset(data.portal_key, cast(str, data.preset_key))
                 if resolved is None:
                     raise BadRequestError(
@@ -372,11 +376,7 @@ class AgentTriggerService:
                     )
                 portal, preset = resolved
                 event_source = portal.event_source
-                event_config = (
-                    _EVENT_CONFIG_MODELS[event_source]
-                    .model_validate(dict(preset.event_config))
-                    .model_dump()
-                )
+                event_config = self._merged_preset_config(event_source, preset, data.event_config)
                 plaintext_secret = secrets.token_urlsafe(32)
                 portal_key = portal.key
                 connection_id = data.connection_id
@@ -643,6 +643,35 @@ class AgentTriggerService:
             target_id=str(agent_id),
             details={"trigger_id": str(trigger_id)},
         )
+
+    def _merged_preset_config(
+        self,
+        event_source: str,
+        preset: portal_catalog.PortalPreset,
+        override: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """The preset's filter with the caller's override merged over, validated.
+
+        A preset carries a filter template for its source (a GitHub `issue_opened`
+        fires on the `opened` action); the caller may narrow it further per source
+        - an email preset filtered to a subject or sender. The override is merged
+        key-by-key over the preset's defaults and the result validated against the
+        source's typed model, filling defaults and refusing an unknown key. A bad
+        override is the same 422 a hand-typed config gives, not a 500 from the raw
+        pydantic error nor a filter stored to match nothing.
+        """
+        try:
+            return cast(
+                dict[str, Any],
+                _EVENT_CONFIG_MODELS[event_source]
+                .model_validate({**dict(preset.event_config), **(override or {})})
+                .model_dump(),
+            )
+        except PydanticValidationError as exc:
+            raise ValidationError(
+                message="event_config is not valid for this preset's source",
+                details={"errors": exc.errors(include_url=False, include_input=False)},
+            ) from exc
 
     def _validated_event_config(
         self, trigger: AgentTrigger, config: dict[str, Any]

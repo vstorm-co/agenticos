@@ -162,10 +162,12 @@ class TriggerCreate(BaseSchema):
     event_secret: str | None = Field(default=None, min_length=16, max_length=255)
 
     # Portal preset path. When `portal_key`/`preset_key` are given, the service
-    # resolves the preset for its `event_source` and filter and mints the signing
-    # secret, so the caller sends none of the event_* fields above - only which
+    # resolves the preset for its `event_source` and mints the signing secret, so
+    # the caller sends neither `event_source` nor `event_secret` - only which
     # portal and preset, the connected account whose token registers the webhook,
-    # and the target (which repository) it points at.
+    # and the target (which repository) it points at. An `event_config` *is*
+    # allowed here: it is the caller's per-source filter, merged over the preset's
+    # defaults and validated server-side against the source the catalog resolves.
     portal_key: str | None = Field(default=None, max_length=64)
     preset_key: str | None = Field(default=None, max_length=64)
     connection_id: UUID | None = None
@@ -208,18 +210,16 @@ class TriggerCreate(BaseSchema):
                 )
 
     def _validate_event(self) -> None:
-        # The preset path carries none of the event_* fields - the service fills
-        # them from the preset and mints the secret - so its shape is checked here
-        # and the rest is left to the service, which owns the catalog.
+        # The preset path fills `event_source` and mints the secret from the
+        # catalog, so those two are refused here; an `event_config` is allowed as
+        # the caller's filter override and left for the service to merge and
+        # validate against the source, which is unknown here until the catalog is
+        # read. So its shape is checked here and the rest left to the service.
         if self.portal_key is not None or self.preset_key is not None:
             if self.portal_key is None or self.preset_key is None:
                 raise ValueError("portal_key and preset_key must be given together")
-            if (
-                self.event_source is not None
-                or self.event_secret is not None
-                or self.event_config is not None
-            ):
-                raise ValueError("event_source, event_secret and event_config come from the preset")
+            if self.event_source is not None or self.event_secret is not None:
+                raise ValueError("event_source and event_secret come from the preset")
             return
         if self.event_source is None:
             raise ValueError("event_source is required for an event trigger")

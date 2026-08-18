@@ -258,6 +258,19 @@ class TestCreate:
                 event_source="github",
             )
 
+    def test_a_preset_alongside_an_event_config_override_validates(self):
+        """The filter override is the caller's, so a preset carrying one is allowed
+        at the schema - the source it is checked against is resolved server-side."""
+        create = TriggerCreate(
+            prompt="triage",
+            trigger_type="event",
+            portal_key="email",
+            preset_key="any_email",
+            event_config={"subject_contains": "invoice"},
+        )
+        assert create.event_config == {"subject_contains": "invoice"}
+        assert create.event_source is None
+
     def test_a_preset_on_a_schedule_is_refused(self):
         with pytest.raises(PydanticValidationError, match="not valid for a schedule"):
             TriggerCreate(prompt="x", portal_key="github", preset_key="issue_opened")
@@ -1882,6 +1895,100 @@ class TestCreatingFromAPortalPreset:
             repo.create = AsyncMock()
             with pytest.raises(BadRequestError):
                 await service.create(_ctx(), agent.id, _preset_create(preset_key="no-such-preset"))
+        repo.create.assert_not_called()
+
+    async def test_an_event_config_override_narrows_the_presets_filter(self):
+        """A subject filter the caller supplies is merged over the email preset's
+        defaults and persisted; the filter it does not set stays its default None."""
+        agent = _agent()
+        service = _service(agent)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.create = AsyncMock(
+                return_value=_event_trigger(
+                    event_source="email", conversation_id=uuid.uuid4(), delivery_mode="manual"
+                )
+            )
+            await service.create(
+                _ctx(),
+                agent.id,
+                _preset_create(
+                    portal_key="email",
+                    preset_key="any_email",
+                    target=None,
+                    event_config={"subject_contains": "invoice"},
+                ),
+            )
+        assert repo.create.await_args.kwargs["event_config"] == {
+            "subject_contains": "invoice",
+            "sender_contains": None,
+        }
+
+    async def test_an_event_config_override_can_set_both_filters(self):
+        agent = _agent()
+        service = _service(agent)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.create = AsyncMock(
+                return_value=_event_trigger(
+                    event_source="email", conversation_id=uuid.uuid4(), delivery_mode="manual"
+                )
+            )
+            await service.create(
+                _ctx(),
+                agent.id,
+                _preset_create(
+                    portal_key="email",
+                    preset_key="any_email",
+                    target=None,
+                    event_config={"subject_contains": "invoice", "sender_contains": "@acme.com"},
+                ),
+            )
+        assert repo.create.await_args.kwargs["event_config"] == {
+            "subject_contains": "invoice",
+            "sender_contains": "@acme.com",
+        }
+
+    async def test_a_malformed_override_is_a_422_not_a_500(self):
+        """An override violating the source's model is refused before a row is
+        written - the wrapped pydantic error is a 422, never an unhandled 500."""
+        agent = _agent()
+        service = _service(agent)
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.create = AsyncMock()
+            with pytest.raises(ValidationError):
+                await service.create(
+                    _ctx(),
+                    agent.id,
+                    _preset_create(
+                        portal_key="email",
+                        preset_key="any_email",
+                        target=None,
+                        event_config={"subject_contains": "x" * 300},
+                    ),
+                )
+        repo.create.assert_not_called()
+
+    async def test_an_unknown_override_key_is_refused(self):
+        agent = _agent()
+        service = _service(agent)
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.create = AsyncMock()
+            with pytest.raises(ValidationError):
+                await service.create(
+                    _ctx(),
+                    agent.id,
+                    _preset_create(
+                        portal_key="email",
+                        preset_key="any_email",
+                        target=None,
+                        event_config={"not_a_filter": "x"},
+                    ),
+                )
         repo.create.assert_not_called()
 
 

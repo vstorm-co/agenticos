@@ -98,7 +98,13 @@ export function PortalTriggerDialog({
   const [name, setName] = useState("");
   const [environmentId, setEnvironmentId] = useState(DEFAULT_ENV);
   const [target, setTarget] = useState("");
+  const [subjectContains, setSubjectContains] = useState("");
+  const [senderContains, setSenderContains] = useState("");
   const [created, setCreated] = useState<TriggerCreated | null>(null);
+
+  // Email is the one source with per-source filters worth surfacing here; both
+  // are optional substrings and an empty one is simply not sent.
+  const isEmail = portal.event_source === "email";
 
   const preset = portal.presets.find((entry) => entry.key === presetKey) ?? null;
   const needsTarget = portal.target_kind !== null && (preset?.target_required ?? false);
@@ -114,6 +120,9 @@ export function PortalTriggerDialog({
 
   async function submit() {
     if (preset === null || effectiveAgentId === "") return;
+    const eventConfig: Record<string, string> = {};
+    if (isEmail && subjectContains.trim()) eventConfig.subject_contains = subjectContains.trim();
+    if (isEmail && senderContains.trim()) eventConfig.sender_contains = senderContains.trim();
     const payload: TriggerCreate = {
       prompt,
       name: name.trim() || null,
@@ -123,6 +132,7 @@ export function PortalTriggerDialog({
       environment_id: environmentId === DEFAULT_ENV ? null : environmentId,
       ...(connection ? { connection_id: connection.id } : {}),
       ...(needsTarget && target.trim() ? { target: target.trim() } : {}),
+      ...(Object.keys(eventConfig).length > 0 ? { event_config: eventConfig } : {}),
     };
     try {
       const result = await create.mutateAsync(payload);
@@ -236,6 +246,33 @@ export function PortalTriggerDialog({
                   />
                 )}
               </FormField>
+            )}
+
+            {isEmail && (
+              <>
+                <FormField
+                  label={t("subjectFilterLabel")}
+                  htmlFor="portal-subject-filter"
+                  description={t("filterHelp")}
+                >
+                  <Input
+                    id="portal-subject-filter"
+                    value={subjectContains}
+                    onChange={(event) => setSubjectContains(event.target.value)}
+                    placeholder={t("subjectFilterPlaceholder")}
+                    maxLength={255}
+                  />
+                </FormField>
+                <FormField label={t("senderFilterLabel")} htmlFor="portal-sender-filter">
+                  <Input
+                    id="portal-sender-filter"
+                    value={senderContains}
+                    onChange={(event) => setSenderContains(event.target.value)}
+                    placeholder={t("senderFilterPlaceholder")}
+                    maxLength={255}
+                  />
+                </FormField>
+              </>
             )}
 
             <FormField label={tt("agent")} htmlFor="portal-agent">
