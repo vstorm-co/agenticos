@@ -125,3 +125,44 @@ class TestMetering:
         assert record.await_count == 2
         models = {call.kwargs["model"] for call in record.await_args_list}
         assert models == {"text-embedding-3-large", "rerank-v3.5"}
+
+
+class TestSpendSurvivesAFailedSearch:
+    """The query embedding is booked before the vector query it pays for, so a
+    search that fails mid-flight has already spent. That spend is booked through
+    a session of its own, because the request's own is about to roll back."""
+
+    async def test_spend_before_a_failure_is_persisted_out_of_band(self):
+        org = uuid.uuid4()
+
+        async def _book_then_fail(*args, **kwargs) -> list[SearchResult]:
+            book_ambient_spend(SpendEntry("text-embedding-3-large", 100, 0, Decimal("0.001"), True))
+            raise RuntimeError("vector store down")
+
+        service, _ = _service(readable=[_kb("c1")], retrieve=_book_then_fail)
+        fresh_db = MagicMock()
+        fresh_session = MagicMock()
+        fresh_session.__aenter__ = AsyncMock(return_value=fresh_db)
+        fresh_session.__aexit__ = AsyncMock(return_value=False)
+        with (
+            patch(f"{_MODULE}.get_db_context", return_value=fresh_session),
+            patch(f"{_MODULE}.ingestion_spend_repo.record", new=AsyncMock()) as record,
+            pytest.raises(RuntimeError, match="vector store down"),
+        ):
+            await service.search(_ctx(org), RAGSearchRequest(query="q"))
+
+        record.assert_awaited_once()
+        assert record.await_args.args[0] is fresh_db
+        assert record.await_args.kwargs["organization_id"] == org
+
+    async def test_a_failure_that_spent_nothing_opens_no_session(self):
+        async def _fail(*args, **kwargs) -> list[SearchResult]:
+            raise RuntimeError("down before the embedding")
+
+        service, _ = _service(readable=[_kb("c1")], retrieve=_fail)
+        with (
+            patch(f"{_MODULE}.get_db_context") as db_ctx,
+            pytest.raises(RuntimeError),
+        ):
+            await service.search(_ctx(), RAGSearchRequest(query="q"))
+        db_ctx.assert_not_called()

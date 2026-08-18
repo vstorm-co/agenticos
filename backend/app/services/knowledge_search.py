@@ -23,6 +23,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from app.agents.capabilities.budget import SpendLedger, metered_by
+from app.db.session import get_db_context
 from app.repositories import ingestion_spend_repo
 
 if TYPE_CHECKING:
@@ -59,27 +60,49 @@ class KnowledgeSearchService:
         collections = [kb.collection_name for kb in await self.access.readable_all(ctx, names)]
 
         ledger = SpendLedger(organization_id=ctx.organization_id)
-        with metered_by(ledger):
-            if len(collections) > 1:
-                results = await self.retrieval.retrieve_multi(
-                    query=request.query,
-                    collection_names=collections,
-                    limit=request.limit,
-                    min_score=request.min_score,
-                )
-            else:
-                results = await self.retrieval.retrieve(
-                    query=request.query,
-                    collection_name=collections[0],
-                    limit=request.limit,
-                    min_score=request.min_score,
-                    filter=request.filter or "",
-                )
+        try:
+            with metered_by(ledger):
+                if len(collections) > 1:
+                    results = await self.retrieval.retrieve_multi(
+                        query=request.query,
+                        collection_names=collections,
+                        limit=request.limit,
+                        min_score=request.min_score,
+                    )
+                else:
+                    results = await self.retrieval.retrieve(
+                        query=request.query,
+                        collection_name=collections[0],
+                        limit=request.limit,
+                        min_score=request.min_score,
+                        filter=request.filter or "",
+                    )
+        except Exception:
+            # The query embedding is booked before the vector query it pays for,
+            # so a search that fails mid-flight has already spent. Recording that
+            # on the request session would be undone with the failed request's
+            # rollback, so the failure path books through a session of its own
+            # that commits: the platform records spend even when the run fails.
+            await self._book_failed_spend(ledger)
+            raise
 
-        await self._record_spend(ledger)
+        await self._record_spend(self.db, ledger)
         return results
 
-    async def _record_spend(self, ledger: SpendLedger) -> None:
+    async def _book_failed_spend(self, ledger: SpendLedger) -> None:
+        """Persist a failed search's spend in a transaction of its own.
+
+        The request that raised is about to roll back, taking `self.db` with it,
+        so what was already spent is written through a fresh session that commits
+        independently. Skips opening one when nothing was spent.
+        """
+        if not ledger.entries:
+            return
+        async with get_db_context() as db:
+            await self._record_spend(db, ledger)
+
+    @staticmethod
+    async def _record_spend(db: AsyncSession, ledger: SpendLedger) -> None:
         """Persist what the search spent, one row per model, if it spent anything.
 
         A null `rag_document_id` because a search indexes no document; the
@@ -92,7 +115,7 @@ class KnowledgeSearchService:
         for model in dict.fromkeys(entry.model_name for entry in ledger.entries):
             entries = [entry for entry in ledger.entries if entry.model_name == model]
             await ingestion_spend_repo.record(
-                self.db,
+                db,
                 organization_id=ledger.organization_id,
                 rag_document_id=None,
                 model=model,
