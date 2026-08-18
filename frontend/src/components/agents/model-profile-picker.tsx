@@ -5,9 +5,10 @@ import { Check, ChevronRight, KeyRound, Trash2 } from "lucide-react";
 
 import { AddModel } from "@/components/agents/add-model";
 import { ProviderIcon } from "@/components/vault/provider-icon";
-import { ErrorState } from "@/components/states";
+import { ErrorState, LoadingState } from "@/components/states";
 import { Badge, Button } from "@/components/ui";
 import { useModelProviders } from "@/hooks";
+import type { ProfilesStatus } from "@/hooks/use-model-providers";
 import { modelDetail } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
 import type { ModelProfile } from "@/types/providers";
@@ -16,16 +17,16 @@ import { useTranslations } from "next-intl";
 interface ModelProfilePickerProps {
   profiles: ModelProfile[];
   /**
-   * Whether `profiles` is the organization's answer rather than a placeholder.
+   * What `profiles` is: the organization's answer, a read still in flight, or
+   * one that failed.
    *
-   * The list arrives as `?? []`, so a refused or failed read of
-   * `/providers/model-profiles` reaches this panel as the same empty array an
-   * organization with no model does - and this panel turns an empty array into a
-   * sentence. Its callers hold the query and this is `profilesLoaded` from
-   * `useModelProviders`, the same distinction the Builder's own notice is gated
-   * on (#846).
+   * The list arrives as `?? []`, so all three reach this panel as the same empty
+   * array - and this panel turns an empty array into a sentence. Its callers
+   * hold the query and this is `profilesStatus` from `useModelProviders`, the
+   * same value the Builder's own dead-end notice is gated on, so the two
+   * surfaces cannot drift.
    */
-  profilesLoaded: boolean;
+  profilesStatus: ProfilesStatus;
   /** `null` means "whatever the organization's default is". */
   value: string | null;
   onChange: (profileId: string | null) => void;
@@ -81,12 +82,15 @@ interface ModelProfilePickerProps {
  * model can be deleted from here. They were the same flag until the
  * knowledge-base dialog needed one without the other.
  *
- * An empty list is two different facts and the panel says which. "This
+ * An empty list is three different facts and the panel says which. "This
  * organization has no models yet. An agent cannot run without one" is a claim
  * about an organization, and it used to be made from an array that a 502 on
  * `/providers/model-profiles` degrades to `[]` - so a builder with a dozen
  * models was told it had none and that its agents could not run, because one
- * request failed (#863). `profilesLoaded` is what separates them.
+ * request failed (#863). The third is the ordinary one: the read is still in
+ * flight on every cold load, and a failure panel there would be a false alarm
+ * on the path everybody takes, which is how a warning stops being read at all.
+ * `profilesStatus` is what separates them.
  *
  * The current-model line renders in both shapes. It says whether the profile
  * that will actually be used has a key, which is the fact that decides whether
@@ -95,7 +99,7 @@ interface ModelProfilePickerProps {
  */
 export function ModelProfilePicker({
   profiles,
-  profilesLoaded,
+  profilesStatus,
   value,
   onChange,
   allowAdd = false,
@@ -161,10 +165,10 @@ export function ModelProfilePicker({
     </div>
   ) : null;
 
-  // An empty list nobody has answered for. Every sentence below about what this
-  // organization has is a claim the list cannot support until then, so the panel
-  // says what is actually known - the read did not land - and offers it again.
-  const unanswered = (
+  // An empty list the read failed on. Every sentence below about what this
+  // organization has is a claim that list cannot support, so the panel says what
+  // is actually known - the read did not land - and offers it again.
+  const failed = (
     <ErrorState
       title={t("modelsCouldNotBeListed")}
       description={t("modelsCouldNotBeListedHint")}
@@ -176,7 +180,11 @@ export function ModelProfilePicker({
   // saying which of them is in use.
   if (!allowAdd) {
     if (profiles.length === 0) {
-      if (!profilesLoaded) return unanswered;
+      if (profilesStatus === "failed") return failed;
+      // Still in flight, which is every cold load of this panel: a wait shaped
+      // like the rows it is waiting for, rather than a claim about the
+      // organization or a failure that has not happened.
+      if (profilesStatus === "pending") return <LoadingState variant="skeleton-list" rows={2} />;
       // No models, and this caller cannot add one — the Builder hid the form
       // above. Say why and where the fix is, rather than leave them to discover it
       // at publish: an agent with no model is refused there, and the only ways to
@@ -232,11 +240,13 @@ export function ModelProfilePicker({
         }}
       />
 
-      {/* The disclosure is absent either because the organization has saved no
-          model or because nobody knows - and a control that quietly is not there
-          reads as the product not having it. The form above is unaffected: adding
-          a model is a write, and this failed at listing what exists. */}
-      {profiles.length === 0 && !profilesLoaded && unanswered}
+      {/* The disclosure below is absent either because the organization has saved
+          no model or because the read that would have said so failed - and a
+          control that quietly is not there reads as the product not having it.
+          Nothing is said while that read is still in flight: the form above is
+          the panel here and it already works, so a wait would stand in for a
+          disclosure that may well have nothing to disclose. */}
+      {profiles.length === 0 && profilesStatus === "failed" && failed}
 
       {profiles.length > 0 && (
         <details className="group">

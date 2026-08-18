@@ -546,7 +546,7 @@ function ImageModelField({
   disabled?: boolean;
 }) {
   const t = useTranslations("kb");
-  const { profiles, profilesLoaded } = useModelProviders();
+  const { profiles, profilesStatus } = useModelProviders();
   const { can } = usePermissions();
 
   return (
@@ -568,7 +568,7 @@ function ImageModelField({
         <ModelProfilePicker
           allowAdd={can(Perm.connectionsManage)}
           profiles={profiles}
-          profilesLoaded={profilesLoaded}
+          profilesStatus={profilesStatus}
           value={value}
           onChange={onChange}
           disabled={disabled}

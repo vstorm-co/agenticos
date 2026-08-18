@@ -123,7 +123,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const { environments, promote } = useAgentEnvironments(id);
   const { agents, clone, archive, unarchive, remove } = useAgents();
   const { capabilities } = useCapabilityCatalog();
-  const { profiles, profilesLoaded } = useModelProviders();
+  const { profiles, profilesStatus } = useModelProviders();
   // The Builder holds the set rather than paging it: the gallery has to know
   // which selected skills still exist, and it can only tell that from what it
   // has. 100 is the endpoint's ceiling; `total` says when that is not all.
@@ -180,10 +180,14 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // A builder who cannot add a model, in an organization that has none, can
   // create a draft they can never make work. Both halves are read from a
   // *settled* query rather than from "no longer loading": a profiles read that
-  // failed also answers `[]`, and `can()` answers false until the set is in, so
+  // failed or is still in flight also answers `[]` - hence `"loaded"` rather
+  // than "not pending" - and `can()` answers false until the set is in, so
   // either alone tells a caller who has models, or who may add one, they are stuck.
   const modelDeadEnd =
-    profilesLoaded && profiles.length === 0 && permissionsLoaded && !can(Perm.connectionsManage);
+    profilesStatus === "loaded" &&
+    profiles.length === 0 &&
+    permissionsLoaded &&
+    !can(Perm.connectionsManage);
 
   // A draft differs from what is live the moment anything is edited. Showing
   // that difference is what stops someone testing a change that never shipped.
@@ -840,7 +844,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   // so it is the one panel that also takes one away.
                   allowRemove={can(Perm.connectionsManage)}
                   profiles={profiles}
-                  profilesLoaded={profilesLoaded}
+                  profilesStatus={profilesStatus}
                   value={spec.model_profile_id ?? null}
                   onChange={(model_profile_id) => update({ model_profile_id })}
                   disabled={!canEdit}

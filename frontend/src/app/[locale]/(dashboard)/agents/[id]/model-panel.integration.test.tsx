@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AgentBuilderPage from "./page";
 import type { AgentSpec } from "@/types/agents";
+import type { ProfilesStatus } from "@/hooks/use-model-providers";
 import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
 
@@ -39,7 +40,7 @@ const state = {
   // Both queries settle successfully by default; a case that wants the failed
   // or still-pending read says so, because that is where an empty list stops
   // meaning "the organization has none".
-  profilesLoaded: true,
+  profilesStatus: "loaded" as ProfilesStatus,
   permissionsLoaded: true,
 };
 
@@ -89,7 +90,7 @@ vi.mock("@/hooks", () => ({
   useMcpCatalog: () => ({ servers: [] }),
   useModelProviders: () => ({
     profiles: state.profiles,
-    profilesLoaded: state.profilesLoaded,
+    profilesStatus: state.profilesStatus,
     refetchProfiles,
     isLoading: false,
     deleteProfile: { mutate: vi.fn() },
@@ -145,7 +146,7 @@ async function mount() {
 beforeEach(() => {
   state.permissions = [Perm.agentsEdit];
   state.profiles = [MODEL_PROFILE];
-  state.profilesLoaded = true;
+  state.profilesStatus = "loaded";
   state.permissionsLoaded = true;
 });
 
@@ -213,10 +214,25 @@ describe("the Builder's model panel", () => {
     // because `/providers/model-profiles` answered 502. The panel says what is
     // actually known, which is that the read did not land (#863).
     state.profiles = [];
-    state.profilesLoaded = false;
+    state.profilesStatus = "failed";
     await mount();
 
     expect(await screen.findByText("Models could not be listed")).toBeInTheDocument();
+    expect(screen.queryByText(/organization has no models/)).toBeNull();
+    expect(screen.queryByText(/no model yet/)).toBeNull();
+  });
+
+  it("raises nothing at all while the model profiles are still being read", async () => {
+    // The cold load of the Builder, which is the ordinary path rather than an
+    // event: an empty list nobody has answered for yet is neither a dead end
+    // nor a failure, and a destructive panel here would fire on every first
+    // paint until it stopped being read.
+    state.profiles = [];
+    state.profilesStatus = "pending";
+    await mount();
+
+    expect(await screen.findByRole("status", { name: "Loading" })).toBeInTheDocument();
+    expect(screen.queryByText("Models could not be listed")).toBeNull();
     expect(screen.queryByText(/organization has no models/)).toBeNull();
     expect(screen.queryByText(/no model yet/)).toBeNull();
   });

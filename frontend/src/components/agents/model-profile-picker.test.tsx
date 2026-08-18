@@ -77,7 +77,7 @@ function mount(props: Partial<Parameters<typeof ModelProfilePicker>[0]> = {}) {
     // what the organization has is one the list cannot support before then.
     <ModelProfilePicker
       profiles={[profile()]}
-      profilesLoaded
+      profilesStatus="loaded"
       value={null}
       onChange={vi.fn()}
       {...props}
@@ -147,7 +147,13 @@ describe("ModelProfilePicker", () => {
     // fields kept the nothing they mounted with. "Choose a provider" over an agent
     // that plainly has one - which passed on a warm laptop and failed in CI.
     const { rerender } = render(
-      <ModelProfilePicker profiles={[]} profilesLoaded value="p1" allowAdd onChange={vi.fn()} />,
+      <ModelProfilePicker
+        profiles={[]}
+        profilesStatus="loaded"
+        value="p1"
+        allowAdd
+        onChange={vi.fn()}
+      />,
       { wrapper },
     );
     expect(screen.getByTestId("form-starts-on")).toHaveTextContent("nothing");
@@ -155,7 +161,7 @@ describe("ModelProfilePicker", () => {
     rerender(
       <ModelProfilePicker
         profiles={[profile()]}
-        profilesLoaded
+        profilesStatus="loaded"
         value="p1"
         allowAdd
         onChange={vi.fn()}
@@ -203,7 +209,7 @@ describe("ModelProfilePicker", () => {
     // the same `[]` an organization with no model does, so this panel told a
     // builder with a dozen models that it had none and that its agents could not
     // run - on a 502 (#863).
-    mount({ profiles: [], profilesLoaded: false });
+    mount({ profiles: [], profilesStatus: "failed" });
 
     expect(screen.queryByText(/no models yet/)).toBeNull();
     expect(screen.getByText("Models could not be listed")).toBeInTheDocument();
@@ -220,17 +226,41 @@ describe("ModelProfilePicker", () => {
     // failed: a control that quietly is not there reads as the product not
     // having it. The form above is untouched - this failed at listing what
     // exists, not at writing.
-    mount({ allowAdd: true, profiles: [], profilesLoaded: false });
+    mount({ allowAdd: true, profiles: [], profilesStatus: "failed" });
 
     expect(screen.getByText("Models could not be listed")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add model" })).toBeInTheDocument();
+  });
+
+  it("neither claims nor blames while the read is still in flight", () => {
+    // Every cold load of this panel starts here, with `[]` and nothing settled.
+    // Saying the organization has no models would be the defect this file
+    // exists for; a destructive failure panel on the ordinary path would be
+    // worse - a false alarm often enough to teach people to ignore the one that
+    // is real. It waits instead.
+    mount({ profiles: [], profilesStatus: "pending" });
+
+    expect(screen.queryByText(/no models yet/)).toBeNull();
+    expect(screen.queryByText("Models could not be listed")).toBeNull();
+    expect(screen.getByRole("status", { name: "Loading" })).toBeInTheDocument();
+  });
+
+  it("says nothing about saved models while the read is still in flight either", () => {
+    // The add-capable shape has no gap to fill: the form is the panel and it
+    // already works, so a wait would stand in for a disclosure that may have
+    // nothing to disclose.
+    mount({ allowAdd: true, profiles: [], profilesStatus: "pending" });
+
+    expect(screen.getByRole("button", { name: "Add model" })).toBeInTheDocument();
+    expect(screen.queryByText("Models could not be listed")).toBeNull();
+    expect(screen.queryByRole("status", { name: "Loading" })).toBeNull();
   });
 
   it("keeps the saved models it already has when a later read fails", () => {
     // A refetch that errors over a list already on screen leaves that list
     // standing: stale rows somebody can still choose from beat a red panel
     // instead of them.
-    mount({ allowAdd: true, profilesLoaded: false });
+    mount({ allowAdd: true, profilesStatus: "failed" });
 
     expect(screen.getByText("Use a saved model (1)")).toBeInTheDocument();
     expect(screen.queryByText("Models could not be listed")).toBeNull();
