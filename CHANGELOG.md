@@ -17,6 +17,40 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.183] - 2026-08-18
+
+Chunking is ours, and `langsmith` is out of the image.
+
+### Changed
+
+- **The RAG pipeline splits text with its own splitters.** Two classes and one
+  method replace the LangChain tree — ten megabytes and eight transitive
+  packages, of which the notable one was not the size: `langsmith`, LangChain's
+  hosted-observability client, sat in every image built for a platform that
+  standardised on Logfire. It was never configured and never imported by us; it
+  arrived behind a text splitter. `RecursiveCharacterSplitter` is a port of the
+  library's at 1.1.2, narrowed to the one configuration the pipeline built, and
+  `MarkdownHeaderSplitter` finds the same sections and then runs the recursive
+  splitter over each. Golden tests pin the chunk boundaries so the port cannot
+  drift. (#158)
+- **The `markdown` strategy honours `chunk_size` again** — it had been silently
+  ignoring it. (#158)
+
+### Fixed
+
+- **A document's chunk count is recorded**, where the only stored count was a
+  constant 0 — which is also what made a chunking change unmeasurable, and why
+  it had to land with the splitters rather than after them. (#147)
+- **Re-ingesting a document no longer counts it twice.** A replacement deletes
+  one vector document and inserts one, but every dispatch created a fresh
+  tracking row, so the superseded row outlived its vectors and kept its
+  `chunk_count` in the collection's total. The replaced row and its stored file
+  are retired now. (#158)
+- **The over-size warning no longer fires at exactly the limit.** A chunk of
+  exactly `chunk_size` is within it. The comparison that decides the split is
+  untouched — widening that would move every boundary in every collection
+  already ingested, which is what the golden tests exist to prevent. (#158)
+
 ## [0.0.182] - 2026-08-18
 
 An agent can read the page its search found, and cannot be gated by a gate that
