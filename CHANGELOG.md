@@ -17,6 +17,44 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.194] - 2026-08-18
+
+MCP OAuth connects to the address it checked, at every hop.
+
+### Fixed
+
+- **The addresses an MCP OAuth flow reaches are pinned to what passed the
+  check.** The authorization server, token endpoint, registration endpoint and
+  every redirect after them come from the *remote server's* discovery documents,
+  not from an operator — and the validator returned a string, so the name was
+  resolved a second time to connect and whoever controlled it decided what the
+  second answer was. One hostile server was enough, with no operator
+  complicity. Every request now goes to an address that passed, with the
+  original host in the `Host` header and in TLS SNI, so certificate
+  verification is unchanged. (#860)
+- **A redirect to a new host is re-checked rather than followed on trust**, and
+  the flow walks the hops itself so it can count them. Substitution happens
+  inside the transport on a copy of the request, which is also what keeps a
+  relative `Location` resolving against the name rather than against the pinned
+  address. (#860)
+- **Every validated address is tried, not only the first.** A name with several
+  public records used to lose the rest, so an unreachable first answer — an
+  IPv6 record in an IPv4-only network — failed the flow where an ordinary
+  client would have moved on. Only a refused connection moves on, because that
+  proves nothing was sent; a failure after the connection is raised, since a
+  token grant may already have been processed. A mixed answer is still refused
+  whole. (#860)
+- **An outbound proxy still works, and the notes say where the pin ends.**
+  `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` behave as they did — refusing to
+  run when proxied would have cost a proxy-only deployment MCP OAuth entirely,
+  in exchange for an egress control it already has. What is pinned is the
+  address the proxy is *asked* to reach; TLS stays end to end either way. (#860)
+- **A refused hop says so without quoting the URL.** The OAuth error is a fixed
+  sentence; the address goes to the log. The catches were narrowed from
+  `ValueError` to the refusal type this repository raises, so an unrelated
+  library failure is no longer reported as "this server pointed us at a blocked
+  address" — a confident claim about whose fault a failure was. (#860)
+
 ## [0.0.193] - 2026-08-18
 
 ### Fixed
