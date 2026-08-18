@@ -1571,11 +1571,20 @@
    paint: soft neutral shading on a light page, soft neutral blooms on a dark
    one. The frosted sidebars still have something to pull through; the page
    stays the page's own colour. Same two-selector shape as the theme blocks
-   above. */
+   above.
+
+   The two are NOT the same percentage, because the same percentage is not the
+   same wash. Compositing happens in linear light, where white is far more
+   potent over a dark page than ink is over a near-white one: at 7% the dark
+   blooms measure 2.32:1 against their page and the light shading 1.07:1 - a
+   gradient in one theme and nothing at all in the other, which is exactly how
+   it looked. Light is doubled to 1.15:1, and no further: past about 1.2 the
+   shading stops reading as light and starts reading as a dirty page, which is
+   the failure the paragraph above records under a different cause. */
 :root {
-  --ambient-a: color-mix(in oklab, var(--color-foreground) 7%, transparent);
-  --ambient-b: color-mix(in oklab, var(--color-foreground) 5%, transparent);
-  --ambient-c: color-mix(in oklab, var(--color-foreground) 6%, transparent);
+  --ambient-a: color-mix(in oklab, var(--color-foreground) 14%, transparent);
+  --ambient-b: color-mix(in oklab, var(--color-foreground) 10%, transparent);
+  --ambient-c: color-mix(in oklab, var(--color-foreground) 12%, transparent);
 }
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
