@@ -143,7 +143,12 @@ export function CapabilityWorkbench({
     // inside the page beside the page's own, which is what a picker in a panel now
     // meets every time, and 400px of dead card under a short panel.
     <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
-      <div className="flex flex-col gap-3 lg:sticky lg:top-4 lg:max-h-[36rem]">
+      {/* Capped to the viewport rather than to 36rem. Sticky and 36rem tall left
+          a void beside a long panel - measured 532px of empty gutter next to the
+          image capability's 1108px panel - where a column the height of the
+          screen is filled by the catalog itself. On a tall screen the whole list
+          fits, so its own scrollbar stops appearing too. */}
+      <div className="flex flex-col gap-3 lg:sticky lg:top-4 lg:max-h-[calc(100vh-8rem)]">
         {catalog.length > 8 && (
           <SearchInput
             value={query}

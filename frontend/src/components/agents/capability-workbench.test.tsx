@@ -277,6 +277,19 @@ describe("the frame the two panes sit in", () => {
 
     expect(container.querySelectorAll('[class*="overflow-y-auto"]').length).toBe(1);
   });
+
+  it("caps the list at the viewport, not at a fixed 36rem", () => {
+    // Sticky and 36rem tall left a void beside a long panel - measured 532px of
+    // empty gutter next to the image capability's 1108px panel. A column the
+    // height of the screen is filled by the catalog instead, and on a tall screen
+    // the whole list fits, so its own scrollbar stops appearing too.
+    const { container } = renderWorkbench({ catalog: [CHARTS] });
+    const list = container.querySelector(".grid")?.firstElementChild;
+
+    expect(list?.className).toContain("lg:sticky");
+    expect(list?.className).toContain("lg:max-h-[calc(100vh-8rem)]");
+    expect(list?.className).not.toContain("lg:max-h-[36rem]");
+  });
 });
 
 describe("jsonSchemaType", () => {

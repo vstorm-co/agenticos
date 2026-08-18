@@ -406,10 +406,10 @@ function choiceMark(choice: string) {
   }
   const [head] = choice.split(":");
   const provider = (head ?? "").replace(/-(responses|chat|vertex|gla)$/, "");
-  if (provider !== "" && provider !== choice) {
-    return <ProviderIcon provider={provider} className="h-3.5 w-3.5" />;
-  }
-  return null;
+  // Unequal only when there was a colon to split on: a value with none is a
+  // plain choice and wears nothing.
+  if (provider === choice) return null;
+  return <ProviderIcon provider={provider} className="h-3.5 w-3.5" />;
 }
 
 /**

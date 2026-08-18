@@ -687,6 +687,37 @@ describe("a choice that names a service", () => {
     expect(option.querySelector("svg")).not.toBeNull();
   });
 
+  it("wears the provider's mark for a provider:model choice", async () => {
+    // The image capability's shape. The mark comes off the segment before the
+    // colon, with the SDK's transport suffix trimmed - `openai-responses` is
+    // OpenAI to a reader, and the provider table is keyed the way the model
+    // catalog is.
+    render(
+      <SchemaForm
+        idPrefix="img"
+        schema={{
+          type: "object",
+          properties: {
+            model: {
+              type: "string",
+              enum: ["openai-responses:gpt-5.4", "google:gemini-3-pro-image"],
+              "x-enum-labels": {
+                "openai-responses:gpt-5.4": "OpenAI · GPT-5.4 (Responses)",
+                "google:gemini-3-pro-image": "Google · Nano Banana Pro",
+              },
+            },
+          },
+        }}
+        value={{ model: "openai-responses:gpt-5.4" }}
+        onChange={vi.fn()}
+      />,
+    );
+
+    await userEvent.click(screen.getByLabelText("Model"));
+    const option = await screen.findByRole("option", { name: "Google · Nano Banana Pro" });
+    expect(option.querySelector("svg")).not.toBeNull();
+  });
+
   it("leaves a choice that names no service unmarked", async () => {
     render(
       <SchemaForm
