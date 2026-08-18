@@ -21,18 +21,19 @@ import re
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import Any
 from uuid import UUID
 
+import yaml
 from pydantic import BaseModel, ValidationError
 from pydantic_ai_harness.compaction import resolve_context_window
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import TOOL_NAME_PATTERN, CapabilityDef, all_capabilities
 from app.agents.capabilities import get as get_capability
-from app.agents.capabilities.approval import tool_needs_approval
+from app.agents.capabilities.approval import ungateable_tool_problems
 from app.agents.capabilities.browser_use import BrowserUseConfig, validate_cdp_url
 from app.agents.capabilities.subagents import SubagentsConfig
-from app.agents.capabilities.web_fetch import PROVIDER_EXECUTED_METHODS, WebFetchConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, SpecialistSpec, SubagentRef
 from app.core.audit import record_audit
@@ -210,43 +211,6 @@ async def _browser_use_problems(config: BaseModel | None) -> list[str]:
             "Point it at a public browser service, not a loopback or internal address."
         ]
     return []
-
-
-def _ungateable_fetch_problems(
-    binding: CapabilityBindingSpec, definition: CapabilityDef, config: BaseModel | None
-) -> list[str]:
-    """Approval on a fetch the model provider, not this deployment, would run.
-
-    `ApprovalGate` wraps *tool execution*, which is the only place a call can be
-    held - so a tool the provider executes on its own side never reaches it. Under
-    `web_fetch`'s `native` method there is no local tool at all, and under `auto`
-    there is one only on a model with no native fetch of its own. Either way a
-    binding that asks for approval and then hands the fetch to the provider gets a
-    gate that never fires, and the failure is silent: the queue stays empty and
-    the agent reads pages nobody approved.
-
-    Refused rather than repaired. "Ask before this agent reads a page" and "let
-    the provider fetch, with its own egress and citations" are both legitimate,
-    and quietly forcing the local tool to make the gate work would answer a
-    question that is the author's - while quietly dropping the gate is the bug.
-    `auto` is refused with `native`, because which of the two an `auto` binding
-    gets is a property of the model profile and that changes without republishing.
-    """
-    if not isinstance(config, WebFetchConfig) or config.method not in PROVIDER_EXECUTED_METHODS:
-        return []
-    gated = sorted(
-        tool.id
-        for tool in definition.tools
-        if tool_needs_approval(tool=tool, binding=binding, side_effecting=definition.side_effecting)
-    )
-    if not gated:
-        return []
-    return [
-        f"Capability '{binding.id}' requires approval for {', '.join(gated)}, but "
-        f"method '{config.method}' can hand the fetch to the model provider, where "
-        "this deployment has no call to hold. Set method to 'local', or drop the "
-        "approval requirement."
-    ]
 
 
 def _tool_override_problems(binding: CapabilityBindingSpec, definition: CapabilityDef) -> list[str]:
@@ -518,6 +482,54 @@ def _window_of(profile: ModelProfile | None) -> int | None:
     if profile.context_length is not None:
         return profile.context_length
     return resolve_context_window(f"{profile.provider}:{profile.model}")
+
+
+def _yaml_location(exc: yaml.YAMLError) -> dict[str, Any]:
+    """Where the document stopped parsing, without quoting any of it.
+
+    `str()` on a marked YAML error includes the offending source line, and the
+    document is somebody's spec - instructions, a `secret_id`, whatever they
+    were editing when it broke. So the position is reported and the text is not:
+    it is already in front of the person who wrote it
+    (`.claude/rules/exceptions-security.md`). A `ReaderError` - a control
+    character in the file - carries a byte offset and no mark, which is why the
+    line is optional rather than assumed.
+    """
+    mark = getattr(exc, "problem_mark", None)
+    if mark is None:
+        return {"field": "yaml"}
+    return {"field": "yaml", "line": mark.line + 1, "column": mark.column + 1}
+
+
+def _parse_spec_yaml(text: str) -> AgentSpec:
+    """Read a spec written or edited outside the Builder.
+
+    Every field rule in `AgentSpec` exists to explain what is wrong with a spec,
+    and none of those explanations used to reach the person who wrote one: a
+    pydantic `ValidationError` is a `ValueError` but not a
+    `RequestValidationError`, so nothing between the parse and the ASGI boundary
+    mapped it and a typo answered 500 with a traceback in the log, as though the
+    platform had broken rather than the file (#873). Bad input is this path's
+    ordinary case - somebody is editing YAML by hand and iterating.
+
+    Raises:
+        BadRequestError: If the document does not parse, is not a mapping, or
+            breaks a field rule - carrying the field path a form can mark, and
+            no copy of what was submitted.
+    """
+    try:
+        return AgentSpec.from_yaml(text)
+    except ValidationError as exc:
+        raise BadRequestError(
+            message="This spec does not match the agent spec format",
+            details={"errors": exc.errors(include_url=False, include_input=False)},
+        ) from exc
+    except yaml.YAMLError as exc:
+        raise BadRequestError(
+            message="This spec is not valid YAML", details=_yaml_location(exc)
+        ) from exc
+    except ValueError as exc:
+        raise BadRequestError(message=str(exc), details={"field": "yaml"}) from exc
 
 
 class AgentRegistryService:
@@ -841,6 +853,20 @@ class AgentRegistryService:
             },
         )
 
+    async def import_spec(self, ctx: AuthContext, agent_id: UUID, text: str) -> Agent:
+        """Replace the draft with a spec exported into a client's own repository.
+
+        The parse happens before the agent is read. What it refuses depends only
+        on the document the caller sent, so putting it first leaks nothing about
+        which agents exist and answers somebody iterating on a file without
+        opening a transaction against a row they were never going to write.
+
+        Raises:
+            BadRequestError: If the document does not parse, is not a mapping, or
+                breaks a field rule.
+        """
+        return await self.save_draft(ctx, agent_id, _parse_spec_yaml(text))
+
     async def validate_spec(
         self, ctx: AuthContext, spec: AgentSpec, *, agent_id: UUID | None = None
     ) -> None:
@@ -943,7 +969,7 @@ class AgentRegistryService:
             problems.append(f"Capability '{binding.id}': {exc.message}")
         else:
             problems.extend(await _browser_use_problems(config))
-            problems.extend(_ungateable_fetch_problems(binding, definition, config))
+            problems.extend(ungateable_tool_problems(binding, definition, config))
         # A tool_approval key that matches nothing is the dangerous kind of
         # typo: it is not an error at run time, it is silence - the tool the
         # author meant to gate runs unapproved and nobody is told.

@@ -361,11 +361,25 @@ class IngestionOverride(BaseModel):
         be legal: a collection with `chunk_size=512` and an override setting
         `chunk_overlap=600` is two individually valid numbers and one
         configuration that does not terminate.
+
+        Raises:
+            BadRequestError: If the merged configuration is not legal. The
+                refusal is about the form field the override arrived in, so it
+                leaves as the same refusal :func:`parse_override` raises for a
+                field the override could not be read from at all - a raw
+                `ValidationError` reaches no handler, so the upload answered a
+                500 for a number the caller typed (#874).
         """
         changes = self.model_dump(exclude_unset=True, exclude={"image_description"})
         if self.image_description is not None:
             changes["image_description"] = self.image_description.applied_to(base.image_description)
-        return IngestionConfig.model_validate({**base.model_dump(), **changes})
+        try:
+            return IngestionConfig.model_validate({**base.model_dump(), **changes})
+        except ValidationError as exc:
+            raise BadRequestError(
+                message="The 'ingestion' field is not a valid override for this collection",
+                details={"errors": exc.errors(include_url=False, include_input=False)},
+            ) from exc
 
 
 def parse_override(raw: str | None) -> IngestionOverride | None:

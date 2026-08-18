@@ -50,6 +50,7 @@ from pydantic import AnyUrl, BaseModel
 from app.agents.mcp import CONNECT_TIMEOUT_SECS, validate_mcp_url
 from app.core.config import settings
 from app.core.pinned_http import PinnedAsyncClient
+from app.core.sanitize import UrlRefusedError
 
 logger = logging.getLogger(__name__)
 
@@ -111,11 +112,17 @@ async def _send(client: PinnedAsyncClient, request: httpx.Request) -> httpx.Resp
     `response.next_request` resolves a relative `Location` against the request
     *we* built, which is the one naming the host; the substitution to the pinned
     address happens inside the transport and never reaches this loop.
+
+    The refusal is caught as `UrlRefusedError` rather than as `ValueError`, the
+    same narrowing `mcp_connection._checked_url` makes and for the same reason
+    (#861): only that type is a refusal written here, and reporting some other
+    library's `ValueError` as "this server pointed us at a blocked address"
+    would be a confident lie about whose fault a failure was.
     """
     for _ in range(_MAX_REDIRECTS + 1):
         try:
             response = await client.send(request)
-        except ValueError as exc:
+        except UrlRefusedError as exc:
             logger.warning("Blocked MCP OAuth request to %s: %s", request.url, exc)
             raise OAuthError("This server pointed the OAuth flow at a blocked address.") from exc
         if response.next_request is None:
@@ -252,7 +259,7 @@ async def discover(server_url: str) -> DiscoveredServer:
         # browser resolves it itself. A point-in-time check is all there is.
         try:
             await validate_mcp_url(str(asm.authorization_endpoint))
-        except ValueError as exc:
+        except UrlRefusedError as exc:
             logger.warning(
                 "Blocked MCP OAuth authorization endpoint %s: %s", asm.authorization_endpoint, exc
             )

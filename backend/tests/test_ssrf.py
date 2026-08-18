@@ -10,6 +10,7 @@ import pytest
 from app.core.sanitize import (
     PinnedAddress,
     SSRFBlockedError,
+    UrlRefusedError,
     _is_ip_blocked,
     resolve_pinned_url,
     validate_webhook_url,
@@ -223,6 +224,59 @@ class TestRefusalText:
         assert "oauth.attacker.test" in message
         assert "sh-secret" not in message
 
+    def test_a_malformed_port_is_refused_without_quoting_what_was_sent(self):
+        """The one refusal the standard library used to write for us.
+
+        `urlsplit` parses the port at attribute access and answers a bad one
+        with `Port could not be cast to integer value as '<what you sent>'` -
+        so a secret parked where a port belongs came back out through every
+        caller that quotes the message (#861).
+        """
+        with pytest.raises(UrlRefusedError) as excinfo:
+            validate_webhook_url("http://example.com:client_secret=sh-secret-value/mcp")
+
+        assert "sh-secret-value" not in str(excinfo.value)
+
+
+class TestEveryRefusalIsWrittenHere:
+    """The type is what makes a message safe to quote to a person.
+
+    `mcp_connection._checked_url` puts it in a 400 and
+    `agent_registry._browser_use_problems` puts it in a publish problem, and
+    both may do that only because the message was written in this repository
+    (`.claude/rules/exceptions-security.md`). A bare `ValueError` from here
+    would be the standard library describing what the caller sent.
+
+    Both entry points are held to it. `validate_webhook_url` is
+    :func:`resolve_pinned_url` with the answer discarded, so the invariant is
+    really the pinned function's - and the pinned one has the caller that
+    matters most, since `PinnedTransport` raises it from inside an OAuth
+    request nobody in the organization addressed (#860).
+    """
+
+    _REFUSED = [
+        "ftp://example.com/hook",
+        "https:///reset",
+        "http://[::1",
+        "http://user:pass@example.com/hook",
+        "http://127.0.0.1/hook",
+        "http://example.com:not-a-port/hook",
+        # A public IP literal, so the port is the only thing wrong with it -
+        # and it is read before the IP-literal branch, which used to return
+        # this URL as validated for a client that cannot dial it.
+        "http://8.8.8.8:not-a-port/hook",
+    ]
+
+    @pytest.mark.parametrize("url", _REFUSED)
+    def test_a_refused_url_raises_our_own_type(self, url: str):
+        with pytest.raises(UrlRefusedError):
+            validate_webhook_url(url)
+
+    @pytest.mark.parametrize("url", _REFUSED)
+    def test_the_pinned_resolver_refuses_in_the_same_type(self, url: str):
+        with pytest.raises(UrlRefusedError):
+            resolve_pinned_url(url)
+
 
 # SSRFBlockedError is a subclass of ValueError
 
@@ -298,6 +352,11 @@ class TestSSRFBlockedError:
 
     def test_is_value_error_subclass(self):
         assert issubclass(SSRFBlockedError, ValueError)
+
+    def test_is_a_refusal_written_here(self):
+        """What lets `_checked_url` catch the narrow type and still cover
+        blocks."""
+        assert issubclass(SSRFBlockedError, UrlRefusedError)
 
     def test_catchable_as_value_error(self):
         with pytest.raises(ValueError):

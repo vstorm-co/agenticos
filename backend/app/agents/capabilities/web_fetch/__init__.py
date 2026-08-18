@@ -8,6 +8,7 @@ from pydantic_ai.capabilities import AbstractCapability
 from app.agents.capabilities._registry import (
     CapabilityBuildContext,
     CapabilityToolInfo,
+    ProviderExecuted,
     register,
 )
 from app.agents.capabilities.web_fetch._capability import (
@@ -136,6 +137,11 @@ class WebFetchConfig(BaseModel):
     # for, from inside the container - so an operator who allows the first and not
     # the second has somewhere to say so.
     scopes=("web:fetch",),
+    provider_executed=ProviderExecuted(
+        tools=("web_fetch",),
+        field="method",
+        equals=tuple(sorted(PROVIDER_EXECUTED_METHODS)),
+    ),
 )
 def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
     config = ctx.config if isinstance(ctx.config, WebFetchConfig) else WebFetchConfig()

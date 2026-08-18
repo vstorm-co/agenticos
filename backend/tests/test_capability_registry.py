@@ -25,6 +25,7 @@ from app.agents.capabilities import (
     CapabilityBinding,
     CapabilityBuildContext,
     CapabilityToolInfo,
+    ProviderExecuted,
     ToolOverride,
     all_capabilities,
     build,
@@ -38,7 +39,7 @@ from app.agents.capabilities.clock import Clock
 from app.agents.capabilities.code_execution import CodeExecution, CodeExecutionConfig
 from app.agents.capabilities.knowledge import Knowledge, KnowledgeConfig
 from app.agents.capabilities.skills import SAFE_SKILL_TOOLS, Skills
-from app.agents.capabilities.web_research import WebResearch
+from app.agents.capabilities.web_research import WebResearch, WebResearchConfig
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
     DynamicSpecialists,
@@ -438,6 +439,51 @@ class TestEffectiveTools:
             get("knowledge").effective_tools({"search_docuemnts": ToolOverride(name="typo")})
             == get("knowledge").tools
         )
+
+
+class TestProviderExecutedDeclarations:
+    """What a capability says the model provider runs on its own side.
+
+    Publish validation refuses approval on those tools, because `ApprovalGate`
+    wraps tool execution and there is no call of ours to hold (#857). Both halves
+    of a declaration are silent when they are wrong: a tool id nobody registers
+    refuses nothing, and a config field the schema does not have reads as `None`,
+    matches no value, and refuses nothing either - which is the same silent
+    ungated tool the declaration exists to prevent.
+    """
+
+    @staticmethod
+    def _declaring():
+        return [d for d in all_capabilities() if d.provider_executed is not None]
+
+    def test_every_declaration_names_tools_and_a_config_field_that_exist(self):
+        for definition in self._declaring():
+            declared = definition.provider_executed
+            assert declared is not None
+            assert frozenset(declared.tools) <= definition.tool_ids, definition.id
+            assert definition.config_schema is not None, definition.id
+            assert declared.field in definition.config_schema.model_fields, definition.id
+
+    def test_the_capabilities_that_declare_one_are_the_ones_with_a_native_method(self):
+        assert sorted(d.id for d in self._declaring()) == ["web_fetch", "web_research"]
+
+    @staticmethod
+    def _declared(capability_id: str) -> ProviderExecuted:
+        declared = get(capability_id).provider_executed
+        assert declared is not None
+        return declared
+
+    def test_a_binding_with_no_config_at_all_hands_nothing_over(self):
+        """A capability with no config schema validates to `None`, not to a default."""
+        assert self._declared("web_fetch").tools_for(None) == frozenset()
+
+    def test_a_method_this_deployment_runs_hands_nothing_over(self):
+        declared = self._declared("web_research")
+        assert declared.tools_for(WebResearchConfig(method="duckduckgo")) == frozenset()
+
+    def test_a_native_method_hands_the_declared_tools_over(self):
+        declared = self._declared("web_research")
+        assert declared.tools_for(WebResearchConfig(method="native")) == frozenset({"web_search"})
 
 
 class TestRegistration:

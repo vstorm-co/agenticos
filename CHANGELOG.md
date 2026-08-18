@@ -17,6 +17,161 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.193] - 2026-08-18
+
+### Fixed
+
+- **The model picker stops telling an organization it has no models when the
+  request failed.** It made that claim from an array a refused or failed read
+  degrades to `[]` — the ambiguity 0.0.186 fixed one element above it, on the
+  page — and it made it in both of the picker's shapes, so an `allowAdd` panel
+  also dropped its saved-model disclosure silently. A failed read now says so and
+  offers a retry. (#863)
+- **And it says nothing at all while the answer is still coming.** The flag
+  behind the distinction is the query's success, which is equally false before
+  the first answer as after a failure, so the first version of this fix showed a
+  destructive failure panel on **every cold render of the Builder** — a false
+  alarm on the ordinary path, which is worse than the wrong sentence it replaced.
+  The hook answers with three states now, not two, and 0.0.186's page-level
+  consumer reads the same one, so there is no second vocabulary to drift. (#863)
+
+## [0.0.192] - 2026-08-18
+
+### Fixed
+
+- **A network blip no longer fails the dependency audit.** `pip-audit` asks
+  pypi.org once per locked distribution with no retry, so one slow answer ended
+  the run and turned `Security Scan` — a required check — red on a pull request
+  whose dependencies were fine. Every run that reaches no verdict is retried now,
+  unconditionally: re-running a deterministic failure costs seconds and the same
+  answer, while not re-running a transient one is the false red this fixes. (#855)
+- **The audit says which of four things happened, in a line a job can read.**
+  `make audit` ends on `AUDIT: CLEAN|VULNERABLE|NETWORK|FAILED — detail`, mirrored
+  into the job summary. The exit code cannot carry that: GNU Make turns any failed
+  recipe status into its own 2, and GitHub Actions never surfaces a step's exit
+  code anyway — so a code was the wrong place for a verdict, whether or not `make`
+  was in the way. The script keeps 0/1/75 for a human at a terminal, and
+  `docs/commands.md` now says which interface delivers which. (#855)
+- **An audit that did not happen is never green.** The verdict comes from the JSON
+  report, which `pip-audit` writes on both the clean and the vulnerable path and
+  only after every distribution has been queried — so its presence means the audit
+  finished, whatever the process exited with. (#855)
+
+## [0.0.191] - 2026-08-18
+
+### Fixed
+
+- **A hand-edited agent spec says which field is wrong.** `AgentSpec.from_yaml`
+  was called inline in the route expression, and a pydantic `ValidationError` is
+  a `ValueError` but not a `RequestValidationError` — so every mistake in an
+  imported spec answered 500 with no field path and left a traceback in the log,
+  on an endpoint whose ordinary case *is* somebody iterating on YAML by hand. The
+  parse moved into the service that owns the refusal: a rule broken answers 400
+  with the field path, YAML that will not parse answers 400 with the line and
+  column, and
+  a document that is not a mapping says so. (#873)
+- **A syntax error reports its position, never the line it read.** `str()` on a
+  marked YAML error includes the offending source, and the document being refused
+  is somebody's spec — instructions, a `secret_id`. Neither the failing text nor
+  the submitted values come back; a reader error with only a byte offset gets no
+  invented position. (#873)
+- **Nothing is read or written before the document is judged.** The parse runs
+  first, so a refusal depends only on the caller's own text: it opens no
+  transaction and says nothing about which agents exist. (#873)
+
+## [0.0.190] - 2026-08-18
+
+### Fixed
+
+- **An ingestion override the pipeline cannot use is refused, not crashed on.**
+  An upload whose `chunk_overlap` is not smaller than its `chunk_size` was
+  rejected by a validator whose own docstring said "the form is what says so" —
+  and the form got a 500 with `details: null`, while the log took a traceback for
+  a number somebody typed. Both upload routes answer 400 naming both settings,
+  before the file is stored, and the submitted values are not echoed back. A
+  collection's own settings were already correct: they arrive as a schema field,
+  so FastAPI refuses the same pair with a 422 before the route is entered, which
+  is now pinned by a test rather than asserted in prose. (#874)
+
+## [0.0.189] - 2026-08-18
+
+### Fixed
+
+- **A blocked MCP server URL names the refusal instead of answering 500.**
+  `SSRFBlockedError` is a `ValueError` and nothing mapped it, so an operator
+  pasting an address that resolves to a private host got "an unexpected error
+  occurred" and left a traceback in the log as though the platform had broken.
+  All five call sites — personal and organization, create, update and the OAuth
+  start — answer 400 naming the `url` field. (#861)
+- **A URL with an unusable port is refused rather than validated.**
+  `http://8.8.8.8:not-a-port/x` used to come back as checked, to a client that
+  could not dial it — the IP-literal branch swallowed the parse error. (#861)
+- **The validator stopped calling an MCP address a webhook.** Its messages said
+  "Webhook URL blocked" to somebody who had just typed a server URL, and the same
+  text reached the browser-automation publish problem. `validate_webhook_url` has
+  had no webhook caller for some time. (#861)
+
+  Caught in review of the same change, and never released: an intermediate
+  version of the refusal caught `ValueError` broadly, which would have put the
+  caller's own text — `urlsplit` parses the port at attribute access, so
+  `http://example.com:client_secret=abc123/mcp` produces a message carrying that
+  secret — into the 400 body. `UrlRefusedError` is the base for refusals written
+  here, the catch is narrowed to it, and a parametrised test asserts that
+  invariant so the next bare `ValueError` fails a test rather than reaching a
+  response. Before any of this the malformed port answered a generic 500, so no
+  released version put that text in a body.
+
+- **The frontend suite has deadlines it can actually meet.** `test-frontend`
+  went red on specs that pass in about a second alone, and the diagnosis in the
+  issue was half right: measured over four whole-suite runs, coverage
+  instrumentation is a 1.6x multiplier on an idle machine but 3.6x on a busy
+  one, and **the bare run failed under load too** — so this was never a coverage
+  defect, and a deadline that differed between the fast loop and the gate could
+  not have reproduced the gate. `testTimeout` moves to 15s, which is 2.5x the
+  worst duration measured under load and the figure `playwright.config.ts`
+  already justifies for the same class of problem. (#862)
+- **The second deadline nobody had noticed.** Two of the three failures in each
+  loaded run were Testing Library's own 1s `asyncUtilTimeout`, not
+  `testTimeout` — including one of the two specs the issue named, so raising
+  `testTimeout` alone would have left the reported symptom reproducible. It goes
+  to 5s, deliberately well under `testTimeout`, so an element that is never
+  coming loses the race and the failure names it rather than blaming the test.
+  (#862)
+
+## [0.0.188] - 2026-08-18
+
+An approval nobody was ever asked for is refused rather than assumed.
+
+**Upgrading:** an agent published with `approval: required` on a search or fetch
+its model provider executes **stops running** on this version, with the same
+sentence publish would have shown. It is deliberate. Such an agent has been
+running without the approval its author asked for — `ApprovalGate` wraps tool
+execution, and a provider-executed tool never reaches it — so keeping it running
+means keeping the bypass. Set the capability's method to a locally-run one, or
+drop the approval requirement, and republish.
+
+### Fixed
+
+- **A provider-executed search cannot be sold as approval-gated.** `web_fetch`
+  got this refusal in 0.0.182; `web_research` had the same shape and the same
+  silence, with the queue staying empty while the agent searched unapproved.
+  (#857)
+- **The refusal now also covers agents published before it existed.** Execution
+  loads a frozen `AgentVersion` and hands its spec straight to `build_agent`
+  without going near `validate_spec`, so a publish-time check alone left every
+  already-published agent — including every `web_fetch` one from 0.0.182 —
+  bypassing indefinitely. `build_agent` refuses before it assembles anything,
+  the way it already refuses an ungranted scope or a deleted secret. (#857)
+
+### Changed
+
+- **A capability declares which of its tools the provider may execute**, through
+  `provider_executed` on its registration, and the publish and assembly checks
+  read that. The knowledge was a table of capability internals in the service
+  layer, which had already gone stale once — and that staleness is exactly what
+  #857 was. Tests now assert the declarations name tools and config fields that
+  exist, because both halves are silent when wrong: they refuse nothing. (#857)
+
 ## [0.0.187] - 2026-08-18
 
 The product teaches itself: a first-run tour, and guided flows that build the

@@ -321,7 +321,7 @@ async def import_spec(
     agent_id: UUID, data: AgentSpecImport, service: AgentRegistrySvc, ctx: Auth
 ) -> Any:
     """Replace the draft with a hand-written or externally-managed spec."""
-    return await service.save_draft(ctx, agent_id, AgentSpec.from_yaml(data.yaml))
+    return await service.import_spec(ctx, agent_id, data.yaml)
 
 
 @router.post(

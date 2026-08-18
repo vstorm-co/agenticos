@@ -87,9 +87,10 @@ function document_(index: number, chunks: number): KBDocument {
  * Deliberately not the twenty `DOCS_PAGE_SIZE` really asks for
  * (`src/hooks/use-knowledge-bases.ts` - it is the frontend's constant, and the
  * route itself caps `limit` at 100). What the assertions need is a page
- * *shorter than the total*, and forty table rows to mount twice was 39% of the
- * 5s `testTimeout` for one test - which is how a spec starts flaking under
- * coverage instrumentation.
+ * *shorter than the total*, and forty table rows to mount twice cost about two
+ * seconds for one test - a spec that does more work than its assertions need is
+ * the first to flake under coverage instrumentation, whatever `testTimeout` is
+ * (#862).
  */
 const FIRST_PAGE = Array.from({ length: 3 }, (_, i) => document_(i, 4));
 const SECOND_PAGE = Array.from({ length: 3 }, (_, i) => document_(3 + i, 4));

@@ -21,7 +21,11 @@
 #   falied     The misspelling is the subject of a test: `?status=falied` must
 #              be refused rather than answered with an empty 200 that reads as
 #              "no failures". Correcting it would delete what it proves.
-ignore-words-list = dependant,nam,adres,ue,couldn,re-use,re-declaring,selectin,ans,oraz,jest,informacji,falied
+#   instrucitons
+#              The same: a typo'd key in an imported spec must come back named
+#              in `loc` rather than as a 500 (#873), so the tests assert on the
+#              misspelling. Correcting it would assert nothing.
+ignore-words-list = dependant,nam,adres,ue,couldn,re-use,re-declaring,selectin,ans,oraz,jest,informacji,falied,instrucitons
 
 # Lockfiles, generated code, uploaded media and the Polish message catalog are
 # not English prose. `messages/pl.json` in particular is a translation file:

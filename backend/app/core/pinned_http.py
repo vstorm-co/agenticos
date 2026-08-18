@@ -102,7 +102,12 @@ class PinnedTransport(httpx.AsyncBaseTransport):
         self._inner = inner
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
-        """Raises `SSRFBlockedError` (a `ValueError`) rather than connecting."""
+        """Raises a `UrlRefusedError` out of `client.send` rather than connecting.
+
+        The refusal crosses `httpx` untouched, so the caller catches the same
+        type it would from a direct call and quotes what it is allowed to
+        quote - a host, never a URL (#861).
+        """
         pinned = await asyncio.to_thread(resolve_pinned_url, str(request.url))
         body = await request.aread()
         *rest, final = pinned.ips

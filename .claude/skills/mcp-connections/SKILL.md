@@ -72,6 +72,12 @@ in `Host` and in TLS SNI. Nothing resolves the name twice, so there is no window
 rebind (#860). Do not add a request path that builds a plain `httpx.AsyncClient` —
 `_send` takes a `PinnedAsyncClient` so that mistake does not type-check.
 
+A refused hop crosses `httpx` out of the transport as a `UrlRefusedError`, and `_send`
+answers it with a fixed `OAuthError` sentence. Catch the narrow type, never
+`ValueError`: only the narrow one is a refusal written here, and every other
+`ValueError` reported as "this server pointed us at a blocked address" is a confident
+lie about whose fault a failure was (#861).
+
 Behind `HTTP_PROXY`/`HTTPS_PROXY` the proxy does the connecting, so there the pinned
 address is what the proxy is *asked* to reach. Honoured deliberately — a proxy-only
 deployment would otherwise lose OAuth entirely, and the proxy is its own egress
