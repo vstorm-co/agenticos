@@ -17,6 +17,51 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.205] - 2026-08-20
+
+Ingesting a large batch of documents exhausted the worker's database
+connections, and the failure that followed could not be recorded.
+
+### Fixed
+
+- **Every vector store the ingestion worker builds is disposed with the work
+  that built it.** `PgVectorStore.__init__` creates a pooled SQLAlchemy engine,
+  and the three flows in `app/worker/tasks/rag_tasks.py` each built one and
+  disposed none. One flow runs per uploaded document, so two hundred uploads
+  meant two hundred pooled engines abandoned in one worker process, each holding
+  its checked-in connections until the process exited - and somewhere short of a
+  hundred documents the worker reached `max_connections`, after which every
+  query raised, including the ones that would have marked a document failed. The
+  symptom was an upload stuck at `processing` with a connection error in a log
+  nobody reads, indistinguishable from four other failure modes. Two further
+  paths went with it: `_run_sync` built its store *before* validating the path,
+  so the cheapest refusal - "path not found" - leaked a pool, and
+  `_ingestion_service_for` built the store *before* the processor, so a
+  collection asking for a parser this build cannot provide left a pool no
+  `finally` could reach. (#948)
+- **A store built for one request is closed when the request ends.**
+  `get_vectorstore` reads the store the lifespan built and, when there is none,
+  builds one - and there is none whenever that construction failed, because the
+  lifespan logs "Vector store will not be available" and carries on serving. A
+  degraded deployment therefore answered every knowledge-base request by building
+  a pooled engine and abandoning it, at request rate. The lifespan's own store is
+  passed through untouched: it belongs to the process. (#948)
+- **The knowledge capability's store is released at shutdown**, and the channel
+  consumers stop before either store is disposed. The capability holds a
+  process-wide store built on the first search an agent runs, reachable from no
+  request, so the lifespan's `aclose` never saw it. Disposing it while the
+  Telegram, Slack and Mattermost polling loops were still turning raced a search
+  in flight and let the next one rebuild a pool nothing was left to close, so the
+  three stop loops now run first. (#948)
+
+### Changed
+
+- **`docs/file-processing.md` states the rule for all three stores** - the
+  worker's per flow, the request's, and the capability's per process - and says
+  what to look for when ingestion starts failing part-way through a large batch.
+  Pooling *within* one flow is kept deliberately: a document's chunks are written
+  over that connection, and a flow runs in one event loop. (#948)
+
 ## [0.0.204] - 2026-08-20
 
 Every knowledge base in the product reported nothing indexed, however many
