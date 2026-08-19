@@ -438,6 +438,25 @@ class TestReservingAUse:
                 invitation_token="tok",
             )
 
+    async def test_a_token_that_lost_the_last_use_still_asks_about_the_address(
+        self, mock_db_session, repos, admits
+    ):
+        """A token whose link lost the race may belong to somebody who was also
+        invited by name. Refusing there would be an error about something they
+        cannot fix - the same reason a stale token falls through."""
+        repos.settings.get.return_value = a_row(signup_mode="invite_only")
+        repos.invitations.get_by_token.return_value = a_link(max_uses=1)
+        repos.invitations.first_pending_admitting.return_value = a_link(
+            email="me@acme.com", max_uses=None
+        )
+        repos.invitations.reserve_use.return_value = False
+
+        await check_may_register(
+            mock_db_session, email="me@acme.com", is_first_user=False, invitation_token="tok"
+        )
+
+        repos.invitations.first_pending_admitting.assert_awaited_once()
+
     async def test_the_domain_allow_list_is_not_overridden_by_a_refused_reservation(
         self, mock_db_session, repos
     ):

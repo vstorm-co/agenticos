@@ -121,6 +121,11 @@ async def _is_invited(db: AsyncSession, *, email: str, invitation_token: str | N
     does not turn a registration that would otherwise be allowed into an error about
     something the person cannot fix.
 
+    A token whose link lost the last use to a concurrent registration falls through
+    to the address question as well, for the same reason a stale one does: the
+    person may also have been invited by name, and refusing without asking would be
+    an error about something they cannot fix.
+
     Either way, an admitting **link with a `max_uses`** has a use reserved before
     this answers yes. That is the whole of #914's finding: `used_count` counts
     acceptances, acceptance needs a session, and registration does not - so a
@@ -134,8 +139,12 @@ async def _is_invited(db: AsyncSession, *, email: str, invitation_token: str | N
     """
     if invitation_token is not None:
         invite = await invitation_repo.get_by_token(db, invitation_token)
-        if invite is not None and admits(invite, email=email):
-            return await _reserved(db, invite, email=email)
+        if (
+            invite is not None
+            and admits(invite, email=email)
+            and await _reserved(db, invite, email=email)
+        ):
+            return True
     found = await invitation_repo.first_pending_admitting(db, email=email)
     return found is not None and await _reserved(db, found, email=email)
 

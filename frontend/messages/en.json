@@ -3460,6 +3460,7 @@
       "uploadFailed": "Upload failed",
       "uploadFailed2": "Upload failed",
       "usedOfMax": "{used} of {max} used",
+      "awaitingSignup": "{count, plural, =1 {1 registered, not joined yet} other {# registered, not joined yet}}",
       "usersRoles": "Users & Roles",
       "waitingOnResponse": "{count, plural, =1 {1 waiting on a response} other {# waiting on a response}}",
       "whatEachRoleMay": "What each role may do. Permissions are defined in code and bundled into roles - a role can never hold a permission the platform does not define.",
