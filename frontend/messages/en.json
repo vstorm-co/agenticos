@@ -608,7 +608,8 @@
     "imageModelUnknownProvider": "This binding names {provider}, which cannot draw. Pick a provider above.",
     "imageProvidersUnavailable": "The list of providers could not be read. The model above is still what will be used.",
     "imageProvidersLoading": "Reading what each provider offers…",
-    "imageModelDetail": "Every model this provider can be asked to draw with."
+    "imageModelDetail": "Every model this provider can be asked to draw with.",
+    "restoreVersion": "Restore v{version}"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",

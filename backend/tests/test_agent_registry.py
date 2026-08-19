@@ -1774,14 +1774,18 @@ class TestListVersions:
                 f"{REGISTRY_PATH}.agent_repo.list_versions",
                 new=AsyncMock(return_value=versions),
             ) as list_versions,
+            patch(f"{REGISTRY_PATH}.agent_repo.count_versions", new=AsyncMock(return_value=17)),
             patch(
                 f"{REGISTRY_PATH}.member_repo.get_emails_for_users",
                 new=AsyncMock(return_value={publisher: "builder@acme.test"}),
             ),
         ):
-            listed = await AgentRegistryService(_db()).list_versions(ctx, agent.id)
+            listed, total = await AgentRegistryService(_db()).list_versions(ctx, agent.id)
 
         assert [row.version for row in listed] == [v.version for v in versions]
+        # Counted, not measured off the page: a capped listing reporting its own
+        # length is how ten versions became unreachable and nobody could tell.
+        assert total == 17
         assert list_versions.call_args.kwargs["organization_id"] == ctx.organization_id
         # "Who changed this" is the reason a history is read; a uuid answers it
         # with another question.

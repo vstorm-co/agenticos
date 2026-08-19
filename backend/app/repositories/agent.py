@@ -428,8 +428,9 @@ async def get_version(
 
 
 async def list_versions(
-    db: AsyncSession, *, agent_id: UUID, organization_id: UUID, limit: int = 50
+    db: AsyncSession, *, agent_id: UUID, organization_id: UUID, skip: int = 0, limit: int = 25
 ) -> list[AgentVersion]:
+    """One page of an agent's publication history, newest first."""
     result = await db.execute(
         select(AgentVersion)
         .where(
@@ -437,6 +438,26 @@ async def list_versions(
             AgentVersion.organization_id == organization_id,
         )
         .order_by(AgentVersion.version.desc())
+        .offset(skip)
         .limit(limit)
     )
     return list(result.scalars().all())
+
+
+async def count_versions(db: AsyncSession, *, agent_id: UUID, organization_id: UUID) -> int:
+    """How many versions there are, which is not how many were returned.
+
+    The listing used to cap at fifty with no offset and report `total` as the
+    length of what it returned, so an agent published sixty times said it had
+    fifty versions and the ten oldest were unreachable - including whichever one
+    an environment is still pinned to.
+    """
+    result = await db.execute(
+        select(func.count())
+        .select_from(AgentVersion)
+        .where(
+            AgentVersion.agent_id == agent_id,
+            AgentVersion.organization_id == organization_id,
+        )
+    )
+    return int(result.scalar_one())

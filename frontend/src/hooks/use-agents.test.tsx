@@ -589,8 +589,30 @@ describe("an agent's versions", () => {
     const { result } = renderHook(() => useAgentVersions("a1"), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/versions");
+    // Fifty by default, because two of the three callers are pickers - which
+    // version to pin an environment or a delegate to - and a picker that offers
+    // ten of sixty hides the one somebody is looking for.
+    expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/versions", {
+      params: { skip: "0", limit: "50" },
+    });
     expect(result.current.versions).toHaveLength(1);
+    expect(result.current.total).toBe(1);
+  });
+
+  it("asks for the page the history card is showing", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 60 });
+
+    const { result } = renderHook(() => useAgentVersions("a1", { skip: 10, limit: 10 }), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/versions", {
+      params: { skip: "10", limit: "10" },
+    });
+    // Every version, not the length of this page: the listing used to report
+    // its own cap, so ten versions were unreachable and nothing said so.
+    expect(result.current.total).toBe(60);
   });
 
   it("does not fetch a timeline before an agent is chosen", () => {

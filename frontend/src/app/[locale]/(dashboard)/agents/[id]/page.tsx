@@ -127,7 +127,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const { skills, total: skillCount } = useSkills({ limit: 100 });
   const { files: contextFiles, total: contextCount } = useContextFiles({ limit: 100 });
   const { kbs: collections } = useKnowledgeBases();
-  const { versions } = useAgentVersions(id);
+  // Only the newest, and only for the number below: the history card pages the
+  // rest itself, so a page that fetched fifty to read one would be fetching a
+  // list nothing on it renders.
+  const { versions } = useAgentVersions(id, { limit: 1 });
   const { runs } = useRuns(id);
   const { can, isLoaded: permissionsLoaded } = usePermissions();
   // The organization's servers, never the author's own: a personal connection
@@ -1088,7 +1091,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <CardContent className="space-y-2">
               <VersionHistory
                 agentId={id}
-                versions={versions}
                 currentVersionId={agent.current_version_id}
                 draftSpec={spec}
                 canRestore={canPublish}

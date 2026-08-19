@@ -25,7 +25,10 @@ export const qk = {
     /** `includeArchived` is part of the key: the two lists are different rows. */
     list: (includeArchived = false) => ["agents", "list", includeArchived] as const,
     detail: (id: string) => ["agents", id] as const,
-    versions: (id: string) => ["agents", id, "versions"] as const,
+    // The page is part of the key: a history past its page size is several
+    // answers, and caching one as another shows the wrong decade of the timeline.
+    versions: (id: string, skip = 0, limit = 50) =>
+      ["agents", id, "versions", skip, limit] as const,
     delegationTree: (id: string) => ["agents", id, "delegation-tree"] as const,
     version: (id: string, versionId: string) => ["agents", id, "versions", versionId] as const,
     capabilityCatalog: () => ["agents", "capability-catalog"] as const,

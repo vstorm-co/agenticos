@@ -1766,15 +1766,27 @@ class AgentRegistryService:
             )
         return version
 
-    async def list_versions(self, ctx: AuthContext, agent_id: UUID) -> list[AgentVersionRead]:
-        """The timeline, with who published each entry.
+    async def list_versions(
+        self, ctx: AuthContext, agent_id: UUID, *, skip: int = 0, limit: int = 25
+    ) -> tuple[list[AgentVersionRead], int]:
+        """One page of the timeline, with who published each entry, and the total.
 
-        Resolved here rather than left as ids: "who changed this" is the whole
-        reason a history is read, and a column of uuids answers it with another
-        question. One lookup for the page, not one per row.
+        The author is resolved here rather than left as an id: "who changed
+        this" is the whole reason a history is read, and a column of uuids
+        answers it with another question. One lookup for the page, not one per
+        row.
+
+        The total is counted rather than taken from the page. It used to be the
+        page's own length against a listing capped at fifty, so an agent
+        published sixty times reported fifty versions and the ten oldest could
+        not be reached at all - including whichever one an environment was still
+        pinned to.
         """
         agent = await self.get(ctx, agent_id)
         versions = await agent_repo.list_versions(
+            self.db, agent_id=agent.id, organization_id=ctx.organization_id, skip=skip, limit=limit
+        )
+        total = await agent_repo.count_versions(
             self.db, agent_id=agent.id, organization_id=ctx.organization_id
         )
         emails = await member_repo.get_emails_for_users(
@@ -1794,7 +1806,7 @@ class AgentRegistryService:
                 created_at=version.created_at,
             )
             for version in versions
-        ]
+        ], total
 
     async def delegation_tree(self, ctx: AuthContext, agent_id: UUID) -> DelegationTree:
         """The delegation tree under this agent's draft, in one response (#276).

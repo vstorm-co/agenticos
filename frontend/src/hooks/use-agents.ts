@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
@@ -292,13 +292,39 @@ export function useAgent(agentId: string | null) {
   return { agent: data, isLoading, saveDraft, validate, publish, rollback, setAvatar, setColor };
 }
 
-export function useAgentVersions(agentId: string | null) {
+/** What the history card shows at once - a page a reader can take in. */
+export const VERSIONS_PAGE_SIZE = 10;
+
+/**
+ * An agent's publication history, newest first.
+ *
+ * `limit` defaults to what the server used to cap at, because two of the three
+ * callers are *pickers* - which version to pin an environment to, which version
+ * to pin a delegate to - and a picker that offers ten of sixty is a picker that
+ * hides the one somebody is looking for. The history card is the caller that
+ * pages, and it passes its own page size.
+ *
+ * `total` is every version rather than the length of this page, so a pager can
+ * say how much history there is.
+ */
+export function useAgentVersions(
+  agentId: string | null,
+  options?: { skip?: number; limit?: number },
+) {
+  const skip = options?.skip ?? 0;
+  const limit = options?.limit ?? 50;
   const { data, isLoading } = useQuery({
-    queryKey: qk.agents.versions(agentId ?? ""),
-    queryFn: () => apiClient.get<AgentVersionList>(`/agents/${agentId}/versions`),
+    queryKey: qk.agents.versions(agentId ?? "", skip, limit),
+    queryFn: () =>
+      apiClient.get<AgentVersionList>(`/agents/${agentId}/versions`, {
+        params: { skip: String(skip), limit: String(limit) },
+      }),
     enabled: !!agentId,
+    // The page being read stays on screen while the next one loads, so paging a
+    // history does not blank the card it is in.
+    placeholderData: keepPreviousData,
   });
-  return { versions: data?.items ?? [], isLoading };
+  return { versions: data?.items ?? [], total: data?.total ?? 0, isLoading };
 }
 
 /**

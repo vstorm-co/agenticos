@@ -1908,13 +1908,42 @@ class TestPublishAndRollback:
 
         third = await registry.rollback(tenant.ctx, agent.id, to_version_id=first.id)
 
-        versions = await registry.list_versions(tenant.ctx, agent.id)
+        versions, total = await registry.list_versions(tenant.ctx, agent.id)
         assert sorted(row.version for row in versions) == [1, 2, 3]
+        assert total == 3
         assert third.id not in (first.id, second.id)
         assert agent.current_version_id == third.id
         restored = await db.get(AgentVersion, third.id)
         original = await db.get(AgentVersion, first.id)
         assert restored.spec == original.spec
+
+    async def test_the_oldest_versions_stay_reachable_a_page_at_a_time(self, db) -> None:
+        """The listing was capped at fifty with no offset, and reported the cap
+        as the total. An agent published past that had versions no page could
+        reach - including whichever one an environment is still pinned to."""
+        tenant = await _tenant(db, name="Prolific")
+        model = await _default_model(db, tenant)
+        registry = AgentRegistryService(db)
+        agent = await registry.create(
+            tenant.ctx, AgentSpec(name="Support", model_profile_id=model.id)
+        )
+        for turn in range(6):
+            await registry.save_draft(
+                tenant.ctx,
+                agent.id,
+                AgentSpec(
+                    name="Support", model_profile_id=model.id, instructions=f"attempt {turn}"
+                ),
+            )
+            await registry.publish(tenant.ctx, agent.id)
+
+        first, total = await registry.list_versions(tenant.ctx, agent.id, limit=4)
+        last, _ = await registry.list_versions(tenant.ctx, agent.id, skip=4, limit=4)
+
+        # Newest first, and the total is every version rather than this page's.
+        assert [row.version for row in first] == [6, 5, 4, 3]
+        assert [row.version for row in last] == [2, 1]
+        assert total == 6
 
     async def test_an_agent_that_was_never_published_cannot_be_run(self, db) -> None:
         tenant = await _tenant(db, name="Hasty")
