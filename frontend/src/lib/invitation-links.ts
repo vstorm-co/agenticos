@@ -39,11 +39,12 @@ export function invitationTokenFrom(returnTo: string | null | undefined): string
  * land back on the invitation page afterwards.
  */
 export function registerHref(search: string): string {
-  const params = new URLSearchParams(search);
-  const returnTo = params.get("returnTo");
+  const returnTo = new URLSearchParams(search).get("returnTo");
+  if (!returnTo) return ROUTES.REGISTER;
+
   const token = invitationTokenFrom(returnTo);
   if (!token) return ROUTES.REGISTER;
 
-  const next = new URLSearchParams({ invitation: token, returnTo: returnTo as string });
+  const next = new URLSearchParams({ invitation: token, returnTo });
   return `${ROUTES.REGISTER}?${next.toString()}`;
 }
