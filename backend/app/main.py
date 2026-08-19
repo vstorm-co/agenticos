@@ -166,6 +166,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # watched; app/core/watchdog.py says why.
     watchdog.start()
     yield state
+    # The channel consumers stop first, and the stores go after them. Serving is
+    # already drained by the time this runs, but a polling task is work this
+    # process owns: an inbound Telegram or Slack message can start a run, and a
+    # run can search, so disposing a store while one is still turning both races
+    # a search in flight and lets the next one build a replacement pool that
+    # nothing is left to close.
+    for _bid in list(_telegram_adapter._polling_tasks.keys()):
+        await _telegram_adapter.stop_polling(_bid)
+    for _sbid in list(_slack_adapter._socket_tasks.keys()):
+        await _slack_adapter.stop_polling(_sbid)
+    for _mbid in list(_mattermost_adapter._socket_tasks.keys()):
+        await _mattermost_adapter.stop_polling(_mbid)
     if "vector_store" in state:
         with suppress(Exception):
             await state["vector_store"].aclose()
@@ -173,12 +185,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # search and reachable from no request, so the line above never saw it (#948).
     with suppress(Exception):
         await aclose_retrieval_service()
-    for _bid in list(_telegram_adapter._polling_tasks.keys()):
-        await _telegram_adapter.stop_polling(_bid)
-    for _sbid in list(_slack_adapter._socket_tasks.keys()):
-        await _slack_adapter.stop_polling(_sbid)
-    for _mbid in list(_mattermost_adapter._socket_tasks.keys()):
-        await _mattermost_adapter.stop_polling(_mbid)
     channel_dedupe.configure(None)
     rate_limit.configure(None)
     channel_membership.configure(None)
