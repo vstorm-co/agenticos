@@ -18,8 +18,8 @@ the most-listed in the product - run history, the spend tab, the dashboard
 figures, the CSV export - and a JSONB document holding every tool's JSON schema
 would be read by all of them to answer a question none of them asks.
 
-Revision ID: 0037_run_manifest
-Revises: 0036_conversation_reminder_state
+Revision ID: 0038_run_manifest
+Revises: 0037_deployment_settings
 Create Date: 2026-08-19
 
 """
@@ -31,8 +31,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0037_run_manifest"
-down_revision: str | None = "0036_conversation_reminder_state"
+revision: str = "0038_run_manifest"
+down_revision: str | None = "0037_deployment_settings"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
