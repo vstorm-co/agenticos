@@ -163,7 +163,7 @@ not define.
 
 ### Size Limits
 
-- Maximum file size: `MAX_UPLOAD_SIZE_MB` environment variable (default: **50 MB**)
+- Maximum file size: `MAX_UPLOAD_SIZE_MB` environment variable (default: **50 MB**). A chat attachment is a different surface with a ceiling of its own, `CHAT_MAX_UPLOAD_SIZE_MB` (default **10 MB**)
 - The limit is enforced server-side after reading the file content.
 
 ### Storage

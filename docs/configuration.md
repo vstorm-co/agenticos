@@ -43,8 +43,9 @@ explicitly is also what lets stored secrets survive a `SECRET_KEY` rotation.
 | `TIMEZONE` | `UTC` | IANA timezone (e.g. `UTC`, `Europe/Warsaw`, `America/New_York`) |
 | `MODELS_CACHE_DIR` | `./models_cache` | Directory for cached ML models |
 | `MEDIA_DIR` | `./media` | Directory for uploaded files |
-| `MAX_UPLOAD_SIZE_MB` | `50` | Knowledge-base document cap, and the number the whole-request ceiling below is derived from. Chat and embed uploads are bounded by the hardcoded `MAX_UPLOAD_SIZE` (10 MiB in `file_storage.py`), not by this |
-| `EMBED_MAX_UPLOAD_SIZE_MB` | `5` | What a **stranger** may upload to a hosted page. A ceiling on top of the chat path's `MAX_UPLOAD_SIZE`, never a way past it |
+| `MAX_UPLOAD_SIZE_MB` | `50` | Knowledge-base document cap, and the number the whole-request ceiling below is derived from. A document at this size is chunked and embedded, not held in one piece |
+| `CHAT_MAX_UPLOAD_SIZE_MB` | `10` | What may be attached in chat. Its own setting rather than the one above, because an attachment to an agent with no workspace is pasted whole into the prompt — so the two surfaces fail differently at the same size. Was a hardcoded 10 MiB no operator could raise ([#498](https://github.com/vstorm-co/agenticos/issues/498)); set the frontend's `NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB` to match, or the composer refuses a file the server would take |
+| `EMBED_MAX_UPLOAD_SIZE_MB` | `5` | What a **stranger** may upload to a hosted page. A ceiling on top of `CHAT_MAX_UPLOAD_SIZE_MB`, never a way past it |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | The monthly spend ceiling a **new** organization starts with, in USD, so it is not one runaway agent away from a surprise bill. Applies at creation only; existing organizations are untouched and any organization can be cleared back to no cap afterwards. Must be positive; leave **empty** to start organizations uncapped (the older opt-in posture) |
 
 ### The size of a request, as opposed to the size of a file

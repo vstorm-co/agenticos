@@ -20,7 +20,7 @@ services:
         - NEXT_PUBLIC_API_URL=${PUBLIC_API_URL:?PUBLIC_API_URL is required, e.g. https://dev-api.example.com}
         - NEXT_PUBLIC_WS_URL=${PUBLIC_WS_URL:?PUBLIC_WS_URL is required, e.g. wss://dev-api.example.com}
         - NEXT_PUBLIC_SITE_URL=${PUBLIC_SITE_URL:?PUBLIC_SITE_URL is required, e.g. https://dev.example.com}
-        - NEXT_PUBLIC_MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB:-50}
+        - NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB=${CHAT_MAX_UPLOAD_SIZE_MB:-10}
         - NEXT_PUBLIC_OAUTH_PROVIDERS=${OAUTH_PROVIDERS:-google}
         - NEXT_PUBLIC_RAG_ENABLED=${RAG_ENABLED:-true}
     image: agenticos_frontend:dev-server
