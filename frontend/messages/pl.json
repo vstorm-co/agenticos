@@ -31,7 +31,8 @@
     "rangeOfTotal": "{start, number}–{end, number} z {total, number}",
     "removeNamed": "Usuń {name}",
     "removeNamedConfirm": "Usunąć {name}?",
-    "renameNamed": "Zmień nazwę {name}"
+    "renameNamed": "Zmień nazwę {name}",
+    "dismiss": "Odrzuć"
   },
   "navigation": {
     "home": "Strona główna",
@@ -92,7 +93,8 @@
     "searchJump": "Szukaj lub przejdź do…",
     "startNewChat": "Zacznij nowy czat",
     "untitledConversation": "Rozmowa bez tytułu",
-    "allOrganizations": "Wszystkie organizacje"
+    "allOrganizations": "Wszystkie organizacje",
+    "deploymentSettings": "Instalacja"
   },
   "auth": {
     "login": "Zaloguj się",
@@ -181,7 +183,11 @@
     "signUpWithGithub": "Załóż konto przez GitHub",
     "signUpWithMicrosoft": "Załóż konto przez Microsoft",
     "somethingWentWrongPlease": "Coś poszło nie tak. Spróbuj ponownie.",
-    "workspace": "workspace."
+    "workspace": "workspace.",
+    "signupInviteOnly": "Ta instalacja przyjmuje tylko zaproszone osoby. Zarejestrujesz adres, który ktoś zaprosił.",
+    "signupDomainsAllowed": "Zarejestrować się mogą tylko adresy w domenach {domains}.",
+    "signupClosedHeading": "Rejestracja jest zamknięta",
+    "signupClosedBody": "{app} nie przyjmuje nowych kont. Poproś administratora, żeby utworzył konto dla Ciebie."
   },
   "profile": {
     "title": "Profil",

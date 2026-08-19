@@ -1,3 +1,4 @@
+import { DeploymentGate } from "@/components/branding/deployment-gate";
 import { CustomIconsProvider } from "@/components/icons/custom-icons";
 import { MobileHeader, Sidebar } from "@/components/layout";
 import { ActiveOrgGuard } from "@/components/layout/active-org-guard";
@@ -53,7 +54,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               tabIndex={-1}
               className="relative flex min-h-0 flex-1 flex-col overflow-auto px-3 pt-4 pb-20 sm:px-6 sm:pt-8 lg:pb-16"
             >
-              <PageTransition>{children}</PageTransition>
+              {/* Inside `main` rather than around the whole shell: a
+                  maintenance window still leaves the navigation and the account
+                  menu, because the administrator who has to end it reaches the
+                  settings page through them. */}
+              <DeploymentGate>
+                <PageTransition>{children}</PageTransition>
+              </DeploymentGate>
             </main>
           </div>
           <Sidebar />

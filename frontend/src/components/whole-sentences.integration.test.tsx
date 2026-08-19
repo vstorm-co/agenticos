@@ -58,12 +58,18 @@ describe("a heading is one message", () => {
 
 describe("a contact line is one message", () => {
   it.each([
-    [TermsBodyEn, "Questions? Email legal@example.com. We respond within five business days"],
-    [TermsBodyPl, "Pytania? Napisz na legal@example.com. Odpowiadamy w ciągu pięciu dni"],
-    [PrivacyBodyEn, "Questions or requests: privacy@example.com"],
-    [PrivacyBodyPl, "Pytania lub żądania: privacy@example.com"],
-    [CookiesBodyEn, "Questions: privacy@example.com"],
-    [CookiesBodyPl, "Pytania: privacy@example.com"],
+    [
+      () => <TermsBodyEn appName="agenticos" />,
+      "Questions? Email legal@example.com. We respond within five business days",
+    ],
+    [
+      () => <TermsBodyPl appName="agenticos" />,
+      "Pytania? Napisz na legal@example.com. Odpowiadamy w ciągu pięciu dni",
+    ],
+    [() => <PrivacyBodyEn appName="agenticos" />, "Questions or requests: privacy@example.com"],
+    [() => <PrivacyBodyPl appName="agenticos" />, "Pytania lub żądania: privacy@example.com"],
+    [() => <CookiesBodyEn />, "Questions: privacy@example.com"],
+    [() => <CookiesBodyPl />, "Pytania: privacy@example.com"],
   ])("keeps the words and the link in one sentence", (Body, sentence) => {
     const { container } = render(<Body />);
 

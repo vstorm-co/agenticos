@@ -705,7 +705,11 @@
     "signUpWithMicrosoft": "Sign up with Microsoft",
     "somethingWentWrongPlease": "Something went wrong. Please try again.",
     "welcomeBack": "Welcome back",
-    "workspace": "workspace."
+    "workspace": "workspace.",
+    "signupInviteOnly": "This deployment is invite-only. You can register with an address somebody has invited.",
+    "signupDomainsAllowed": "Only addresses at {domains} can register here.",
+    "signupClosedHeading": "Sign-up is closed",
+    "signupClosedBody": "{app} is not accepting new accounts. Ask an administrator to create one for you."
   },
   "billing": {
     "description": "Manage your subscription for {org}.",
@@ -1140,7 +1144,8 @@
     "skipToContent": "Skip to content",
     "submit": "Submit",
     "success": "Success",
-    "yes": "Yes"
+    "yes": "Yes",
+    "dismiss": "Dismiss"
   },
   "dashboard": {
     "actions": {
@@ -2486,7 +2491,8 @@
     "workspace": "Workspace",
     "workspaces": "Workspaces",
     "allOrganizations": "All organizations",
-    "context": "Context"
+    "context": "Context",
+    "deploymentSettings": "Deployment"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3028,7 +3034,58 @@
       "workspaceAdministration": "Workspace administration",
       "usersCard": "Users",
       "conversationsCard": "Conversations",
-      "organizationsCouldNotBeRead": "The organizations could not be read."
+      "organizationsCouldNotBeRead": "The organizations could not be read.",
+      "settingsSaved": "Deployment settings saved.",
+      "imageUploaded": "Image uploaded.",
+      "imageCleared": "Back to the built-in mark.",
+      "settingsUnreadable": "Could not read the deployment settings",
+      "settingsUnreadableBody": "The request failed. Nothing has been changed.",
+      "brandingIdentity": "Identity",
+      "brandingIdentityHint": "What this deployment calls itself, everywhere it says so.",
+      "brandingName": "Name",
+      "brandingNameHint": "Leave empty to keep the built-in name. Shown in the sidebar, on the sign-in page, in the browser tab and in every email this deployment sends.",
+      "brandingTagline": "Tagline",
+      "brandingTaglineHint": "One line, shown beside the name in the browser tab and on a shared link.",
+      "brandingDescription": "Description",
+      "brandingDescriptionHint": "Used as the page description and on link previews.",
+      "brandingLogo": "Logo",
+      "brandingLogoHint": "PNG, JPEG, WebP or GIF, up to 2MB. Drawn wherever the name appears.",
+      "brandingFavicon": "Favicon",
+      "brandingFaviconHint": "The browser-tab icon. A square image reads best at 32 pixels.",
+      "brandingUpload": "Upload",
+      "brandingReset": "Reset",
+      "brandingLegal": "Footer and legal",
+      "brandingLegalHint": "Whose terms this deployment links to.",
+      "brandingFooter": "Footer text",
+      "brandingTerms": "Terms URL",
+      "brandingPrivacy": "Privacy URL",
+      "brandingLinkHint": "An absolute https address. Leave empty to keep the built-in pages.",
+      "accessSignup": "Who may register",
+      "accessSignupHint": "Applied to the sign-up form and to signing in with a provider for the first time.",
+      "accessMode": "Sign-up",
+      "accessModeLabel_open": "Open",
+      "accessModeLabel_invite_only": "Invite only",
+      "accessModeLabel_closed": "Closed",
+      "accessMode_open": "Anybody can create an account.",
+      "accessMode_invite_only": "Only an address somebody has invited, by email or through a link scoped to its domain.",
+      "accessMode_closed": "Nobody can register. You create accounts yourself. The first account on a new deployment is always allowed.",
+      "accessDomains": "Allowed email domains",
+      "accessDomainsHint": "Leave empty to allow every domain. An invitation overrides this list.",
+      "domainsPlaceholder": "acme.com",
+      "domainsAdd": "Add",
+      "domainsRemove": "Remove {domain}",
+      "noticesTitle": "Notices and maintenance",
+      "noticesHint": "What everybody using this deployment is told, and whether it is open.",
+      "noticeAnnouncement": "Announcement",
+      "noticeAnnouncementHint": "Shown above every page to signed-in users, until they dismiss it. Leave empty to take it down.",
+      "noticeLevel": "Announcement style",
+      "noticeLevelLabel_info": "Information",
+      "noticeLevelLabel_warning": "Warning",
+      "noticeLevelLabel_critical": "Critical",
+      "maintenanceToggle": "Maintenance mode",
+      "maintenanceToggleHint": "The API refuses every request except signing in and this section, so you can still turn it off.",
+      "maintenanceMessage": "Maintenance message",
+      "maintenanceMessageHint": "What people see instead of the product. Leave empty for the default wording."
     },
     "agentDetail": {
       "perMonth": "${amount} per month"
@@ -3801,6 +3858,11 @@
       "nameHowItIsReferred": "The name is how this file is referred to, and it cannot change. Everything else here can.",
       "agentsBoundContextWill": "Agents bound to this file will run without it from their next run. This cannot be undone.",
       "delete": "Delete"
+    },
+    "maintenance": {
+      "heading": "{app} is under maintenance",
+      "body": "The deployment is temporarily closed. Try again shortly.",
+      "adminStrip": "Maintenance mode is on. Everybody but you is locked out."
     }
   },
   "profile": {

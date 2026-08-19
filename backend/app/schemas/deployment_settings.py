@@ -75,17 +75,23 @@ class BrandingRead(BaseSchema):
     tagline: str | None = None
     description: str | None = None
 
-    logo_url: str | None = None
-    """Where to fetch the uploaded wordmark, carrying a version token.
+    logo_version: int | None = None
+    """When the stored wordmark was last written, or null when there is none.
 
-    A path on this API rather than the storage key: the key is an implementation
-    detail of whichever backend is configured, and publishing it would let a
-    caller address the store directly. The `?v=` is the row's `updated_at`, and it
-    is what makes a replaced logo appear - without it a browser holding the old
-    bytes at the same URL has no reason to ask again.
+    A version rather than a URL, and neither is the storage key - which is an
+    implementation detail of whichever backend is configured, and would let a caller
+    address the store directly. The address itself is `GET /branding/logo` beside
+    this, so what a client actually needs from the row is *whether* there is an image
+    and *when it changed*: the address is constant, the bytes are served `immutable`
+    for a year, and without a token that moves, a browser holding the previous logo
+    has no reason to ask again.
+
+    It is also the honest half to publish. A browser cannot use this API's own
+    address in any deployment where the API is not on the same origin as the pages,
+    so a URL here would be one every client had to rewrite.
     """
 
-    favicon_url: str | None = None
+    favicon_version: int | None = None
 
     footer_text: str | None = None
     terms_url: str | None = None

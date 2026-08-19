@@ -34,6 +34,8 @@ export { useMcpCatalog, useMcpServers, type McpServerRow } from "./use-mcp-serve
 export { useMcpOAuthOutcome } from "./use-mcp-oauth-outcome";
 export { useUrlSort, type UrlSort } from "./use-url-sort";
 export { useModelProviders, useProviderModels } from "./use-model-providers";
+export { useDeploymentSettings } from "./use-deployment-settings";
+export { useBrandingNotice } from "./use-branding-notice";
 export {
   useLocalSandboxService,
   useSandboxConnections,

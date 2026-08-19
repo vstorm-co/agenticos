@@ -368,5 +368,16 @@ export const qk = {
     // last one's chart.
     ratings: (params: { from?: string; to?: string }) => ["admin", "ratings", params] as const,
     organizations: () => ["admin", "organizations"] as const,
+    // This deployment's own identity and access policy, as its administrator
+    // edits it. Distinct from `branding.notice()` below, which is the same row
+    // read by everybody: invalidating one must not refetch the other, since the
+    // form and the banner answer different questions about it.
+    settings: () => ["admin", "settings"] as const,
+  },
+  branding: {
+    // The announcement banner. Not the public branding read - that one is
+    // resolved on the server above `[locale]` and handed down through a context,
+    // so it never enters the query cache at all.
+    notice: () => ["branding", "notice"] as const,
   },
 } as const;

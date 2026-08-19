@@ -282,6 +282,7 @@ Trigger map — what changed → which page:
 | `app/services/spend.py`, `approvals.py`, `notifications.py` | `docs/governance.md` |
 | `app/services/channels/**`, `agent_exposure.py`, `agent_embed.py` | `docs/channels.md` |
 | `app/services/rag/**`, `file_upload.py`, `ingestion_config.py` | `docs/file-processing.md` |
+| `app/services/deployment_settings.py`, `signup_policy.py`, `app/core/maintenance.py` | `docs/deployment.md` |
 | `app/core/config.py` | `docs/configuration.md` |
 | `app/commands/**`, a new `make` target | `docs/commands.md` |
 | A new route, service or layering change | `docs/architecture.md` |
@@ -364,6 +365,7 @@ say so and move on. Run it yourself any time with
 | The automated pull request reviewer | `docs/code-review.md` |
 | Branches, rulesets and what protects `main` | `docs/branching.md` |
 | Recurring patterns | `docs/patterns.md` |
+| The deployment's identity, sign-up policy, notices | `docs/deployment.md` |
 | Settings and the production checklist | `docs/configuration.md` |
 
 Two things about the reference pages. They are generated from docstrings by

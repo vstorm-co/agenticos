@@ -71,7 +71,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
-        sa.CheckConstraint("singleton", name="deployment_settings_singleton_true_check"),
+        sa.CheckConstraint("singleton", name="singleton_true"),
         sa.PrimaryKeyConstraint("id", name="deployment_settings_pkey"),
         sa.UniqueConstraint("singleton", name="deployment_settings_singleton_key"),
     )

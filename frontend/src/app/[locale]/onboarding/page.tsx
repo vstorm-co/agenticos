@@ -6,7 +6,8 @@ import { Construction } from "lucide-react";
 import { AuthGuard } from "@/components/layout/auth-guard";
 import { EmptyState } from "@/components/states";
 import type { Locale } from "@/i18n";
-import { APP_NAME, ROUTES } from "@/lib/constants";
+import { useBranding } from "@/components/branding/branding-provider";
+import { ROUTES } from "@/lib/constants";
 import { pageMetadata } from "@/lib/seo";
 
 export async function generateMetadata({
@@ -27,6 +28,7 @@ export async function generateMetadata({
 
 export default function OnboardingPage() {
   const t = useTranslations("pages.root");
+  const { appName } = useBranding();
   return (
     <AuthGuard>
       <div className="bg-background text-foreground flex min-h-screen flex-col">
@@ -34,7 +36,7 @@ export default function OnboardingPage() {
           <div className="mx-auto flex max-w-3xl items-center px-6 py-4">
             <span className="text-foreground inline-flex items-center gap-2 text-base font-semibold tracking-tight">
               <span aria-hidden className="bg-brand inline-block h-2.5 w-2.5 rounded-full" />
-              {APP_NAME}
+              {appName}
             </span>
           </div>
         </header>

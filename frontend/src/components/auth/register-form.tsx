@@ -8,11 +8,16 @@ import { toast } from "sonner";
 import { ArrowRight, Check, X } from "lucide-react";
 
 import { getErrorMessage } from "@/lib/api-error";
+import { useBranding } from "@/components/branding/branding-provider";
 import { OAuthBlock } from "@/components/auth/oauth-buttons";
+import { SignupClosed } from "@/components/auth/signup-closed";
+import { SignupPolicyNotice } from "@/components/auth/signup-policy-notice";
+import { LegalAnchor } from "@/components/legal/legal-anchor";
 import { Button, Input, Label } from "@/components/ui";
 import { useAuth } from "@/hooks";
 import { ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
+import { privacyLink, termsLink } from "@/lib/legal-links";
 import { EMAIL_RE, getPasswordStrength } from "@/lib/utils";
 
 export function RegisterForm() {
@@ -21,6 +26,9 @@ export function RegisterForm() {
   const t = useTranslations("auth");
   const router = useRouter();
   const { register } = useAuth();
+  const branding = useBranding();
+  const terms = termsLink(branding);
+  const privacy = privacyLink(branding);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -67,6 +75,13 @@ export function RegisterForm() {
     }
   };
 
+  // Before the heading, not inside the form: on a closed deployment there is no
+  // form to show, and every hook above has already run so the early return is
+  // still the same component.
+  if (branding.signupMode === "closed") {
+    return <SignupClosed />;
+  }
+
   return (
     <div className="space-y-8">
       <div className="space-y-2">
@@ -84,6 +99,8 @@ export function RegisterForm() {
           </Link>
         </p>
       </div>
+
+      <SignupPolicyNotice />
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-1.5">
@@ -230,22 +247,8 @@ export function RegisterForm() {
 
         <p className="text-foreground/50 text-center text-xs">
           {t.rich("agreeToTerms", {
-            terms: (chunks) => (
-              <Link
-                href={ROUTES.LEGAL_TERMS}
-                className="text-foreground/70 hover:text-foreground underline-offset-4 hover:underline"
-              >
-                {chunks}
-              </Link>
-            ),
-            privacy: (chunks) => (
-              <Link
-                href={ROUTES.LEGAL_PRIVACY}
-                className="text-foreground/70 hover:text-foreground underline-offset-4 hover:underline"
-              >
-                {chunks}
-              </Link>
-            ),
+            terms: (chunks) => <LegalAnchor link={terms}>{chunks}</LegalAnchor>,
+            privacy: (chunks) => <LegalAnchor link={privacy}>{chunks}</LegalAnchor>,
           })}
         </p>
       </form>

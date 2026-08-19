@@ -23,6 +23,7 @@ export const ROUTES = {
   ADMIN_ORGANIZATIONS: "/admin/organizations",
   ADMIN_CONVERSATIONS: "/admin/conversations",
   ADMIN_SYSTEM: "/admin/system",
+  ADMIN_SETTINGS: "/admin/settings",
   ORGS: "/orgs",
   ORGS_CREATE: "/orgs?create=1",
   ORG_MEMBERS: (id: string) => `/orgs/${id}/members`,

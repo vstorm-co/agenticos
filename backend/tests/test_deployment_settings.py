@@ -154,51 +154,48 @@ class TestWhatAStrangerMayRead:
         assert (await DeploymentSettingsService(mock_db_session).branding()).signup_mode == "open"
 
 
-class TestTheImageAddress:
-    async def test_no_upload_means_no_url_at_all(self, mock_db_session, repo):
+class TestTheImageVersion:
+    async def test_no_upload_means_no_version_at_all(self, mock_db_session, repo):
         """Which is what the frontend reads as "draw your own mark"."""
         repo.get.return_value = a_row()
 
         branding = await DeploymentSettingsService(mock_db_session).branding()
 
-        assert branding.logo_url is None
-        assert branding.favicon_url is None
+        assert branding.logo_version is None
+        assert branding.favicon_version is None
 
-    async def test_the_url_is_this_api_and_never_the_storage_key(self, mock_db_session, repo):
+    async def test_the_storage_key_never_reaches_the_wire(self, mock_db_session, repo):
         """The key is an implementation detail of whichever backend is configured, and
         publishing it would let a caller address the store directly."""
         repo.get.return_value = a_row(logo_path="deployment/abc_logo.png")
 
         branding = await DeploymentSettingsService(mock_db_session).branding()
 
-        assert branding.logo_url is not None
-        assert branding.logo_url.startswith("/api/v1/branding/logo?v=")
-        assert "deployment/abc_logo.png" not in branding.logo_url
+        assert branding.logo_version is not None
+        assert "deployment/abc_logo.png" not in branding.model_dump_json()
 
-    async def test_a_replaced_image_changes_the_version_token(self, mock_db_session, repo):
-        """The address is constant, so without this a browser holding the previous
-        bytes has no reason to ask again and a replaced logo looks like an upload
-        that silently failed."""
-        first = a_row(logo_path="deployment/one.png")
-        repo.get.return_value = first
-        before = (await DeploymentSettingsService(mock_db_session).branding()).logo_url
+    async def test_a_replaced_image_changes_the_version(self, mock_db_session, repo):
+        """The address is constant and the bytes carry a year of `immutable`, so
+        without this a browser holding the previous logo has no reason to ask again
+        and the upload looks like it silently failed."""
+        repo.get.return_value = a_row(logo_path="deployment/one.png")
+        before = (await DeploymentSettingsService(mock_db_session).branding()).logo_version
 
         second = a_row(logo_path="deployment/two.png")
         second.updated_at = datetime(2026, 8, 20, 9, 0, tzinfo=UTC)
         repo.get.return_value = second
-        after = (await DeploymentSettingsService(mock_db_session).branding()).logo_url
+        after = (await DeploymentSettingsService(mock_db_session).branding()).logo_version
 
         assert before != after
 
     async def test_a_freshly_created_row_still_gets_a_real_stamp(self, mock_db_session, repo):
         """A Core upsert that inserts leaves `updated_at` null, so `created_at` is the
-        write time - and every image would otherwise be served under `v=0`."""
+        write time - and every image would otherwise be served under the same token."""
         repo.get.return_value = a_row(favicon_path="deployment/abc_favicon.png")
 
-        url = (await DeploymentSettingsService(mock_db_session).branding()).favicon_url
+        version = (await DeploymentSettingsService(mock_db_session).branding()).favicon_version
 
-        assert url == f"/api/v1/branding/favicon?v={int(WRITTEN.timestamp())}"
-        assert re.fullmatch(r"/api/v1/branding/favicon\?v=[1-9]\d+", url)
+        assert version == int(WRITTEN.timestamp())
 
 
 class TestTheBanner:

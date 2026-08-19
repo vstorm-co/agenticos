@@ -244,8 +244,8 @@ def _branding(row: DeploymentSettings | None) -> BrandingRead:
         app_name=row.app_name,
         tagline=row.tagline,
         description=row.description,
-        logo_url=_image_url("logo", row),
-        favicon_url=_image_url("favicon", row),
+        logo_version=_image_version("logo", row),
+        favicon_version=_image_version("favicon", row),
         footer_text=row.footer_text,
         terms_url=row.terms_url,
         privacy_url=row.privacy_url,
@@ -256,18 +256,19 @@ def _branding(row: DeploymentSettings | None) -> BrandingRead:
     )
 
 
-def _image_url(kind: ImageKind, row: DeploymentSettings) -> str | None:
-    """Where a browser fetches the stored image, with a token that changes on write.
+def _image_version(kind: ImageKind, row: DeploymentSettings) -> int | None:
+    """When the stored image was last written, or `None` when there is none.
 
-    A path on this API rather than the storage key, which is an implementation
-    detail of whichever backend is configured. The `?v=` is the row's `updated_at`:
-    the address is constant, so without it a browser holding the previous bytes has
-    no reason to ask again and a replaced logo looks like an upload that failed.
+    The row's `updated_at`, falling back to `created_at`: a Core upsert that inserts
+    leaves `updated_at` null, so without the fallback every image on a freshly
+    created row would be served under the same token. That token is the only reason
+    a replaced image ever appears - the address is constant and the bytes carry a
+    year of `immutable` - so one that does not move is an upload that looks failed.
     """
     if getattr(row, _IMAGE_COLUMN[kind]) is None:
         return None
     written = row.updated_at or row.created_at
-    return f"/api/v1/branding/{kind}?v={int(written.timestamp())}"
+    return int(written.timestamp())
 
 
 _SIGNUP_MODES: dict[str, SignupMode] = {

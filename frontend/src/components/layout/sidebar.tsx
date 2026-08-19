@@ -16,17 +16,18 @@
 import { SidebarNav } from "@/components/layout/app-sidebar";
 import { SidebarShell } from "@/components/layout/sidebar-shell";
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from "@/components/ui";
-import { APP_NAME } from "@/lib/constants";
+import { useBranding } from "@/components/branding/branding-provider";
 import { useSidebarStore } from "@/stores";
 
 export function Sidebar() {
+  const { appName } = useBranding();
   const { isOpen, close } = useSidebarStore();
 
   return (
     <Sheet open={isOpen} onOpenChange={close}>
       <SheetContent side="left" className="w-72 p-0">
         <SheetHeader className="h-14 shrink-0 px-4">
-          <SheetTitle>{APP_NAME}</SheetTitle>
+          <SheetTitle>{appName}</SheetTitle>
           <SheetClose onClick={close} />
         </SheetHeader>
         <SidebarShell>
