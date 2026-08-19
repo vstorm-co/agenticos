@@ -588,7 +588,9 @@ test.describe("Agents", () => {
     // choice reaches the stored draft, and the spec publishes with it — which
     // it could not do while the only connectable servers were personal.
     await openAgent(page, DRAFT_AGENT_NAME);
-    await openBuilderTab(page, "Toolbox");
+    // Its own tab since the servers left the Toolbox: the picker embeds the
+    // whole catalog, and it was pushing the capability workbench off screen.
+    await openBuilderTab(page, "MCP servers");
 
     const server = await findServer(page, SEEDED_ORG_MCP_NAME);
 
@@ -599,7 +601,7 @@ test.describe("Agents", () => {
     }
 
     await page.reload();
-    await openBuilderTab(page, "Toolbox");
+    await openBuilderTab(page, "MCP servers");
     await expect(await findServer(page, SEEDED_ORG_MCP_NAME)).toHaveAttribute(
       "aria-checked",
       "true",

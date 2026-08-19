@@ -798,6 +798,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
           <TabsTrigger value="toolbox" data-tour="agent-tab-toolbox">
             {t("toolbox")}
           </TabsTrigger>
+          <TabsTrigger value="mcp" data-tour="agent-tab-mcp">
+            {t("mcpServers")}
+          </TabsTrigger>
           <TabsTrigger value="limits" data-tour="agent-tab-limits">
             {t("limits")}
           </TabsTrigger>
@@ -921,7 +924,14 @@ export default function AgentBuilderPage({ params }: PageProps) {
               />
             </CardContent>
           </Card>
+        </TabsContent>
 
+        {/* Its own tab rather than the tail of the Toolbox. The two answer
+            different questions - what this agent can do, and what it reaches
+            outside the deployment for - and the picker embeds the whole server
+            catalog, so it pushed the capability workbench off the top of the
+            screen on any organization with more than a handful of servers. */}
+        <TabsContent value="mcp" className="mt-4 space-y-6">
           <Card data-tour="agent-mcp">
             {/* The passive tour points here rather than at the card: the picker
                 below embeds the whole server catalog, so the card runs well past
