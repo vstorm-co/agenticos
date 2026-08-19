@@ -89,6 +89,7 @@ describe("TriggerFormDialog with no agent in context", () => {
     // offers a target the create would refuse.
     expect(screen.queryByRole("option", { name: "Restricted" })).toBeNull();
     await user.click(await screen.findByRole("option", { name: "Nightly" }));
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Do it");
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.click(within(dialog).getByRole("button", { name: "Create" }));

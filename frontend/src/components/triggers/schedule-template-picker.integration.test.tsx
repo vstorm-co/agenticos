@@ -58,7 +58,10 @@ beforeEach(() => {
 
 async function open() {
   render(<TriggerFormDialog agentId="a1" open onOpenChange={vi.fn()} />, { wrapper });
-  return within(await screen.findByRole("dialog"));
+  const dialog = within(await screen.findByRole("dialog"));
+  // Past the configure step - the templates live with the message they prefill.
+  await userEvent.click(dialog.getByRole("button", { name: "Continue" }));
+  return dialog;
 }
 
 describe("New-schedule template picker", () => {

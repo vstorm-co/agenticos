@@ -196,8 +196,11 @@ describe("TriggersPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Do the thing");
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    // The schedule step opens on "daily at 09:00"; an interval is the other tab.
+    await user.click(within(dialog).getByRole("tab", { name: "Every so often" }));
     const count = within(dialog).getByLabelText("Run every");
     await user.clear(count);
     await user.type(count, "2");
@@ -243,6 +246,7 @@ describe("TriggersPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     // The message field is the same MarkdownEditor the agent's instructions use,
     // so it carries that field's source/preview toggle rather than a bare box.
     expect(within(dialog).getByRole("button", { name: "Source" })).toBeInTheDocument();
@@ -266,6 +270,7 @@ describe("TriggersPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Every couple of days");
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.click(within(dialog).getByRole("tab", { name: "At a set time" }));
@@ -314,6 +319,7 @@ describe("TriggersPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Daily digest");
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.click(within(dialog).getByRole("tab", { name: "At a set time" }));
@@ -339,6 +345,7 @@ describe("TriggersPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Morning digest");
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     const pill = within(dialog).getByRole("button", { name: "Weekdays 09:00" });
@@ -365,6 +372,7 @@ describe("TriggersPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Sweep the queue");
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     const pill = within(dialog).getByRole("button", { name: "Every 6h" });
@@ -449,9 +457,11 @@ describe("TriggersPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
-    await user.type(within(dialog).getByLabelText("Message"), "x");
+    // The environment lives on the configure step, before the message.
     await user.click(within(dialog).getByRole("combobox", { name: "Environment" }));
     await user.click(await screen.findByRole("option", { name: /staging/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    await user.type(within(dialog).getByLabelText("Message"), "x");
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
@@ -469,6 +479,7 @@ describe("TriggersPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Do it");
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
@@ -486,7 +497,8 @@ describe("TriggersPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
-    // The task step will not even advance without a message, so nothing
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    // The message step will not even advance without a message, so nothing
     // downstream can create one.
     expect(within(dialog).getByRole("button", { name: "Continue" })).toBeDisabled();
   });

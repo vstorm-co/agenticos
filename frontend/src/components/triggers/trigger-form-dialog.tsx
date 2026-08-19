@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarClock, Cog, Zap } from "lucide-react";
+import { CalendarClock, Cog, MessageSquare, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -74,10 +74,12 @@ function generateSecret(): string {
 type CronFrequency = "daily" | "everyNDays" | "weekly" | "monthly" | "advanced";
 
 /**
- * The create wizard's steps. A schedule walks task → schedule; an event walks
- * event → task. "task" is shared - it is the same fields either way.
+ * The create wizard's steps. A schedule walks configure → message → schedule;
+ * an event walks event → configure → message. "configure" carries the short
+ * fields (agent, name, environment) and "message" only the prompt - a message
+ * is often long, and sharing a step would push everything else off screen.
  */
-type WizardStepId = "event" | "task" | "schedule";
+type WizardStepId = "event" | "configure" | "message" | "schedule";
 
 /** The repeat options, as translation keys so the catalog check can see them. */
 const CRON_FREQUENCIES: readonly { value: CronFrequency; key: string }[] = [
@@ -233,10 +235,9 @@ export function TriggerFormDialog({
   // event. There is no in-dialog switch, because event triggers are created from
   // the portal grid by default, not this raw form.
   const type = trigger?.trigger_type ?? initialType;
-  // Creating walks the KB-wizard steps: a schedule defines the task then its
-  // cadence, an event picks what fires it then the task. Editing has no steps -
-  // the shape is fixed, so its few live fields fit one panel.
-  const [step, setStep] = useState<WizardStepId>(type === "event" ? "event" : "task");
+  // Creating walks the KB-wizard steps; editing has no steps - the shape is
+  // fixed, so its few live fields fit one panel.
+  const [step, setStep] = useState<WizardStepId>(type === "event" ? "event" : "configure");
   const [prompt, setPrompt] = useState(trigger?.prompt ?? "");
   const [name, setName] = useState(trigger?.name ?? "");
   const [environmentId, setEnvironmentId] = useState(trigger?.environment_id ?? DEFAULT_ENV);
@@ -244,9 +245,10 @@ export function TriggerFormDialog({
   const seed = trigger?.interval_seconds
     ? intervalToUnit(trigger.interval_seconds)
     : { unit: "minutes" as IntervalUnit, count: 15 };
-  const [scheduleKind, setScheduleKind] = useState<ScheduleKind>(
-    trigger?.schedule_kind ?? "interval",
-  );
+  // A new schedule opens on "daily at 09:00" - the cadence most schedules
+  // actually want, and the one the DAILY 09:00 preset pill names - so Create
+  // is one step away with nothing touched. Editing keeps the row's own kind.
+  const [scheduleKind, setScheduleKind] = useState<ScheduleKind>(trigger?.schedule_kind ?? "cron");
   const [intervalCount, setIntervalCount] = useState(String(seed.count));
   const [intervalUnit, setIntervalUnit] = useState<IntervalUnit>(seed.unit);
 
@@ -455,19 +457,28 @@ export function TriggerFormDialog({
   const steps: WizardStep[] =
     type === "schedule"
       ? [
-          { id: "task", label: t("stepTask"), icon: Cog },
+          { id: "configure", label: t("stepConfigure"), icon: Cog },
+          { id: "message", label: t("stepMessage"), icon: MessageSquare },
           { id: "schedule", label: t("stepSchedule"), icon: CalendarClock },
         ]
       : [
           { id: "event", label: t("stepEvent"), icon: Zap },
-          { id: "task", label: t("stepTask"), icon: Cog },
+          { id: "configure", label: t("stepConfigure"), icon: Cog },
+          { id: "message", label: t("stepMessage"), icon: MessageSquare },
         ];
-  const isLastStep = type === "schedule" ? step === "schedule" : step === "task";
+  const stepIdx = steps.findIndex((entry) => entry.id === step);
+  const isLastStep = stepIdx === steps.length - 1;
   // Each step gates on its own concern, so a Continue can never outrun what the
   // final Create would refuse.
   const canAdvance =
-    step === "task" ? taskValid : step === "schedule" ? scheduleValid : secret.length >= MIN_SECRET;
-  const onFirstStep = step === steps[0]!.id;
+    step === "configure"
+      ? effectiveAgentId !== null
+      : step === "message"
+        ? prompt.trim().length > 0
+        : step === "schedule"
+          ? scheduleValid
+          : secret.length >= MIN_SECRET;
+  const onFirstStep = stepIdx === 0;
 
   function handleNext() {
     if (!canAdvance || pending) return;
@@ -475,11 +486,11 @@ export function TriggerFormDialog({
       void submit();
       return;
     }
-    setStep(type === "schedule" ? "schedule" : "task");
+    setStep(steps[stepIdx + 1]!.id as WizardStepId);
   }
 
   function handleBack() {
-    setStep(type === "schedule" ? "task" : "event");
+    if (stepIdx > 0) setStep(steps[stepIdx - 1]!.id as WizardStepId);
   }
 
   if (created !== null) {
@@ -603,7 +614,7 @@ export function TriggerFormDialog({
             />
           )}
 
-          {step === "task" && (
+          {step === "configure" && (
             <div className="space-y-4">
               {agentId === null && (
                 <FormField label={t("agent")} htmlFor="trigger-agent">
@@ -632,6 +643,18 @@ export function TriggerFormDialog({
 
               <NameField value={name} onChange={setName} />
 
+              {namedEnvironments.length > 0 && (
+                <EnvironmentField
+                  value={environmentId}
+                  onChange={setEnvironmentId}
+                  environments={namedEnvironments}
+                />
+              )}
+            </div>
+          )}
+
+          {step === "message" && (
+            <div className="space-y-4">
               {type === "schedule" && (
                 <ScheduleTemplatePicker
                   selectedKey={templateKey}
@@ -640,15 +663,9 @@ export function TriggerFormDialog({
                 />
               )}
 
-              <PromptField value={prompt} onChange={setPrompt} />
-
-              {namedEnvironments.length > 0 && (
-                <EnvironmentField
-                  value={environmentId}
-                  onChange={setEnvironmentId}
-                  environments={namedEnvironments}
-                />
-              )}
+              {/* The step is the message's own, so the editor gets the room a
+                  long prompt needs. */}
+              <PromptField value={prompt} onChange={setPrompt} rows={12} />
             </div>
           )}
 
@@ -699,7 +716,16 @@ function NameField({ value, onChange }: { value: string; onChange: (value: strin
   );
 }
 
-function PromptField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function PromptField({
+  value,
+  onChange,
+  rows = 6,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  /** The wizard's message step passes more - a prompt is often long. */
+  rows?: number;
+}) {
   const t = useTranslations("triggers");
   return (
     <div className="space-y-1.5">
@@ -710,7 +736,7 @@ function PromptField({ value, onChange }: { value: string; onChange: (value: str
         value={value}
         onChange={onChange}
         placeholder={t("promptPlaceholder")}
-        rows={6}
+        rows={rows}
         describedBy="trigger-prompt-desc"
       />
       <p id="trigger-prompt-desc" className="text-muted-foreground text-xs leading-relaxed">
@@ -997,16 +1023,22 @@ function CronBuilder({
                 {WEEKDAYS.map((day) => {
                   const active = weekdays.includes(day.value);
                   return (
-                    <Button
+                    <button
                       key={day.value}
                       type="button"
-                      variant={active ? "default" : "outline"}
                       aria-pressed={active}
                       onClick={() => onToggleWeekday(day.value)}
-                      className="h-8 flex-1 px-2 text-xs"
+                      className={cn(
+                        // The same pill the quick presets wear, so the two rows
+                        // of toggles in this dialog read as one control family.
+                        "border-foreground/15 flex-1 rounded-full border px-2 py-1.5 font-mono text-[11px] tracking-wider uppercase transition-colors",
+                        active
+                          ? "bg-foreground text-background border-foreground"
+                          : "text-foreground/65 hover:text-foreground hover:border-foreground/40",
+                      )}
                     >
                       {t(day.key)}
-                    </Button>
+                    </button>
                   );
                 })}
               </div>

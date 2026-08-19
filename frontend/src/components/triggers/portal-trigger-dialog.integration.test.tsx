@@ -123,6 +123,7 @@ describe("PortalTriggerDialog", () => {
     // The target Select is populated from the connected account.
     await user.click(await within(dialog).findByRole("combobox", { name: "Repository" }));
     await user.click(await screen.findByRole("option", { name: "acme/repo" }));
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Triage it");
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
@@ -167,6 +168,7 @@ describe("PortalTriggerDialog", () => {
     await user.click(within(dialog).getByRole("button", { name: /Any incoming email/ }));
     await user.type(within(dialog).getByLabelText("Subject contains"), "invoice");
     await user.type(within(dialog).getByLabelText("Sender contains"), "billing@acme.com");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Read it");
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
@@ -204,6 +206,7 @@ describe("PortalTriggerDialog", () => {
     expect(within(dialog).queryByLabelText("Subject contains")).toBeNull();
     await user.type(within(dialog).getByLabelText("Author contains"), "Jane");
     await user.type(within(dialog).getByLabelText("Text contains"), "hiring");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Draft a reply");
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
@@ -235,6 +238,7 @@ describe("PortalTriggerDialog", () => {
 
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: /Any incoming email/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Read it");
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
@@ -272,6 +276,7 @@ describe("PortalTriggerDialog", () => {
     });
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: /Any incoming email/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Read it");
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
     return user;

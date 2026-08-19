@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Cog, Zap } from "lucide-react";
+import { Check, Cog, MessageSquare, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -74,9 +74,10 @@ interface PortalTriggerDialogProps {
 /**
  * Building an event trigger from a portal preset, the friendly path.
  *
- * Two wizard steps rather than a raw source-and-secret form: **Event** picks a
- * ready-made preset, **Configure** points it at a target, an agent and a message -
- * the same stepper chrome as the KB sync-source wizard. The server
+ * Three wizard steps rather than a raw source-and-secret form: **Event** picks a
+ * ready-made preset, **Configure** points it at a target, an agent and the
+ * filters, and **Message** carries the prompt alone (it is often long) - the
+ * same stepper chrome as the KB sync-source wizard. The server
  * fills the source, the filter and the signing secret from the preset - the
  * payload carries only which portal, which preset, the connected account and the
  * target - so nothing here mints or shows a secret. On a manual-delivery result
@@ -108,7 +109,7 @@ export function PortalTriggerDialog({
   const { environments } = useAgentEnvironments(effectiveAgentId || null);
   const namedEnvironments = environments.filter((environment) => !environment.is_default);
 
-  const [step, setStep] = useState<"preset" | "configure">("preset");
+  const [step, setStep] = useState<"preset" | "configure" | "message">("preset");
   const [presetKey, setPresetKey] = useState<string>("");
   const [prompt, setPrompt] = useState("");
   const [name, setName] = useState("");
@@ -206,6 +207,7 @@ export function PortalTriggerDialog({
             steps={[
               { id: "preset", label: t("presetTab"), icon: Zap },
               { id: "configure", label: t("configureTab"), icon: Cog },
+              { id: "message", label: tt("stepMessage"), icon: MessageSquare },
             ]}
             current={step}
           />
@@ -324,25 +326,6 @@ export function PortalTriggerDialog({
                 );
               })}
 
-              <div className="space-y-1.5">
-                <Label htmlFor="portal-prompt">{tt("prompt")}</Label>
-                <MarkdownEditor
-                  id="portal-prompt"
-                  label={tt("prompt")}
-                  value={prompt}
-                  onChange={setPrompt}
-                  placeholder={tt("promptPlaceholder")}
-                  rows={6}
-                  describedBy="portal-prompt-desc"
-                />
-                <p
-                  id="portal-prompt-desc"
-                  className="text-muted-foreground text-xs leading-relaxed"
-                >
-                  {tt("promptHelp")}
-                </p>
-              </div>
-
               {namedEnvironments.length > 0 && (
                 <FormField label={tt("environment")} htmlFor="portal-environment">
                   <Select value={environmentId} onValueChange={setEnvironmentId}>
@@ -362,16 +345,52 @@ export function PortalTriggerDialog({
               )}
             </div>
           )}
+
+          {step === "message" && (
+            <div className="space-y-1.5">
+              <Label htmlFor="portal-prompt">{tt("prompt")}</Label>
+              <MarkdownEditor
+                id="portal-prompt"
+                label={tt("prompt")}
+                value={prompt}
+                onChange={setPrompt}
+                placeholder={tt("promptPlaceholder")}
+                rows={12}
+                describedBy="portal-prompt-desc"
+              />
+              <p id="portal-prompt-desc" className="text-muted-foreground text-xs leading-relaxed">
+                {tt("promptHelp")}
+              </p>
+            </div>
+          )}
         </div>
 
         <WizardNav
-          backIsStep={step === "configure"}
-          backLabel={step === "configure" ? tt("back") : tt("cancel")}
-          onBack={step === "configure" ? () => setStep("preset") : () => onOpenChange(false)}
-          nextLabel={step === "preset" ? tt("continue") : tt("create")}
-          onNext={step === "preset" ? () => setStep("configure") : submit}
-          nextDisabled={step === "preset" ? preset === null : !canSubmit}
-          isLast={step === "configure"}
+          backIsStep={step !== "preset"}
+          backLabel={step !== "preset" ? tt("back") : tt("cancel")}
+          onBack={
+            step === "message"
+              ? () => setStep("configure")
+              : step === "configure"
+                ? () => setStep("preset")
+                : () => onOpenChange(false)
+          }
+          nextLabel={step === "message" ? tt("create") : tt("continue")}
+          onNext={
+            step === "preset"
+              ? () => setStep("configure")
+              : step === "configure"
+                ? () => setStep("message")
+                : submit
+          }
+          nextDisabled={
+            step === "preset"
+              ? preset === null
+              : step === "configure"
+                ? effectiveAgentId === "" || (needsTarget && target.trim().length === 0)
+                : !canSubmit
+          }
+          isLast={step === "message"}
           busy={create.isPending}
           busyLabel={tt("creating")}
         />

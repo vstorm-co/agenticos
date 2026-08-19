@@ -4527,7 +4527,6 @@
     "templatesLabel": "Start from a template",
     "templateScratch": "Start from scratch",
     "templateScratchHelp": "Write your own message and cadence.",
-    "stepTask": "Task",
     "stepSchedule": "Schedule",
     "stepEvent": "Event",
     "back": "Back",
@@ -4538,7 +4537,9 @@
     "presetHourly": "Hourly",
     "presetEvery6h": "Every 6h",
     "presetDaily9": "Daily 09:00",
-    "presetWeekdays9": "Weekdays 09:00"
+    "presetWeekdays9": "Weekdays 09:00",
+    "stepConfigure": "Configure",
+    "stepMessage": "Message"
   },
   "portals": {
     "title": "Portals",

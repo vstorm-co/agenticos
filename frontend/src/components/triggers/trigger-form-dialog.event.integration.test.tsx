@@ -99,6 +99,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
 
     await user.type(dialog.getByLabelText("Signing secret"), "a-strong-shared-secret");
     await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
     await user.type(dialog.getByLabelText("Message"), "Triage it");
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
@@ -125,6 +126,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
 
     await user.type(dialog.getByLabelText("Signing secret"), "a-strong-shared-secret");
     await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
     await user.type(dialog.getByLabelText("Message"), "Triage");
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
@@ -149,6 +151,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     await user.click(await screen.findByRole("option", { name: "A LinkedIn post" }));
     await user.type(dialog.getByLabelText("Signing secret"), "a-strong-shared-secret");
     await user.type(dialog.getByLabelText("Author contains"), "Jane");
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
     await user.click(dialog.getByRole("button", { name: "Continue" }));
     await user.type(dialog.getByLabelText("Message"), "Draft a reply");
     await user.click(dialog.getByRole("button", { name: "Create" }));
@@ -175,6 +178,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     // No filter inputs for the generic webhook - filtering is the sender's job.
     expect(dialog.queryByLabelText("Subject contains")).toBeNull();
     await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
     await user.type(dialog.getByLabelText("Message"), "Handle it");
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
@@ -199,6 +203,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     await user.type(dialog.getByLabelText("Signing secret"), "another-strong-secret");
     await user.type(dialog.getByLabelText("Subject contains"), "urgent");
     await user.type(dialog.getByLabelText("Sender contains"), "boss");
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
     await user.click(dialog.getByRole("button", { name: "Continue" }));
     await user.type(dialog.getByLabelText("Message"), "Reply to it");
     await user.click(dialog.getByRole("button", { name: "Create" }));
