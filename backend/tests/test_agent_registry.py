@@ -33,6 +33,7 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import AgentStatus
 from app.db.models.resource_grant import GrantLevel, Visibility
+from app.schemas.deployment_settings import DeploymentLimits
 from app.services.agent_registry import AgentRegistryService, slugify
 
 REGISTRY_PATH = "app.services.agent_registry"
@@ -1901,6 +1902,18 @@ class TestGetRunnableSpec:
             pytest.raises(BadRequestError, match="points at a missing version"),
         ):
             await AgentRegistryService(_db()).get_runnable_spec(ctx, agent.id)
+
+
+@pytest.fixture(autouse=True)
+def _uncapped():
+    """No deployment ceiling on agents, which is what an installation that never
+    set one has. Creating one reads it now, and these tests mock the repository
+    layer rather than the session it would be read through."""
+    with patch(
+        f"{REGISTRY_PATH}.DeploymentSettingsService.limits",
+        new=AsyncMock(return_value=DeploymentLimits()),
+    ):
+        yield
 
 
 class TestClone:

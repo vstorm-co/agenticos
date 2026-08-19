@@ -43,6 +43,7 @@ from app.db.updates import writable
 from app.repositories import deployment_settings_repo
 from app.schemas.deployment_settings import (
     BrandingRead,
+    DeploymentLimits,
     DeploymentSettingsRead,
     DeploymentSettingsUpdate,
     NoticeLevel,
@@ -110,7 +111,22 @@ class DeploymentSettingsService:
             **_branding(row).model_dump(),
             announcement=row.announcement if row else None,
             announcement_level=_notice_level(row.announcement_level) if row else "info",
+            max_organizations_per_user=row.max_organizations_per_user if row else None,
+            max_agents_per_organization=row.max_agents_per_organization if row else None,
             updated_at=row.updated_at if row else None,
+        )
+
+    async def limits(self) -> DeploymentLimits:
+        """The two ceilings, as whatever creates the thing they bound reads them.
+
+        Null for either is no ceiling, and an installation with no row at all is
+        uncapped on both - which is what a self-hosted deployment for one company
+        wants without opening the page.
+        """
+        row = await deployment_settings_repo.get(self.db)
+        return DeploymentLimits(
+            organizations_per_user=row.max_organizations_per_user if row else None,
+            agents_per_organization=row.max_agents_per_organization if row else None,
         )
 
     async def update(

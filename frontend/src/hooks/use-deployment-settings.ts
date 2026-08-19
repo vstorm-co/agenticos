@@ -28,6 +28,14 @@ import { qk } from "@/lib/query-keys";
 export interface DeploymentSettings extends BrandingResponse {
   announcement: string | null;
   announcement_level: NoticeLevel;
+  /**
+   * The two ceilings, or null for none - which is what an installation that has
+   * never set one has. Deliberately absent from the public branding read: a
+   * ceiling is operational, and a stranger on the sign-in page has no part in
+   * it.
+   */
+  max_organizations_per_user: number | null;
+  max_agents_per_organization: number | null;
   updated_at: string | null;
 }
 
@@ -44,6 +52,8 @@ export interface DeploymentSettingsPatch {
   announcement_level?: NoticeLevel;
   maintenance_mode?: boolean;
   maintenance_message?: string | null;
+  max_organizations_per_user?: number | null;
+  max_agents_per_organization?: number | null;
 }
 
 /** Which of the two marks an upload replaces. */

@@ -183,6 +183,34 @@ In the console, the administrator sees a strip rather than the closed page. They
 are the only person who can end the window, and a maintenance mode that also hides
 the switch is an outage.
 
+## How much one account may take up
+
+Two ceilings, both on the same row and both **null by default — and null is no
+limit rather than "not configured"**. A self-hosted deployment for one company
+wants neither; a deployment open to sign-ups wants both, because one account can
+otherwise mint tenants without bound.
+
+| Setting | Counts | Does not count |
+|---|---|---|
+| Organizations per account | The organizations an account **owns**, personal one included | Ones somebody else invited them into |
+| Agents per organization | Agents the organization holds | Archived agents |
+
+Both exclusions are the point of the design rather than details of it. Being
+invited into ten organizations is somebody else's decision, and a ceiling one
+person cannot control is a ceiling that locks them out of creating their own. And
+archiving is how an agent is retired — a ceiling a retired agent went on
+occupying would make the only way back under it a delete, which takes the version
+history and the run attribution with it.
+
+The refusal names the ceiling and the count it was measured against
+(`{"limit": 5, "held": 5}`), so "why can I not" is answered by the response
+rather than by an administrator's memory. It is raised in the service that
+creates the thing, not at the route, because the route is not the only way in.
+
+Zero is refused by the schema: an account that may own no organizations is an
+account that cannot be created, since sign-up gives every one of them a personal
+organization.
+
 ## The row
 
 One row for the whole installation, guarded by the database rather than by a

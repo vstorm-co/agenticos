@@ -77,6 +77,8 @@ export default function DeploymentSettingsPage() {
     announcement_level: settings.announcement_level,
     maintenance_mode: settings.maintenance_mode,
     maintenance_message: settings.maintenance_message,
+    max_organizations_per_user: settings.max_organizations_per_user,
+    max_agents_per_organization: settings.max_agents_per_organization,
     ...edits,
   };
 
@@ -84,6 +86,21 @@ export default function DeploymentSettingsPage() {
     key: K,
     value: DeploymentSettingsPatch[K],
   ) => setEdits({ ...edits, [key]: value });
+
+  /**
+   * A ceiling's value, sent as `null` when emptied - which is how "no limit" is
+   * said. Empty rather than `0`, because zero is not a limit anybody means: it
+   * would leave an account that cannot own the personal organization sign-up
+   * creates for it, and the schema refuses it.
+   */
+  const ceiling = (key: "max_organizations_per_user" | "max_agents_per_organization") => ({
+    type: "number",
+    min: 1,
+    value: draft[key] === null || draft[key] === undefined ? "" : String(draft[key]),
+    onChange: (event: { target: { value: string } }) =>
+      set(key, event.target.value === "" ? null : Number(event.target.value)),
+    disabled: save.isPending,
+  });
 
   /** A text input's value, sent as `null` when emptied so the built-in returns. */
   const text = (key: keyof DeploymentSettingsPatch) => ({
@@ -230,6 +247,36 @@ export default function DeploymentSettingsPage() {
               domains={draft.allowed_email_domains ?? []}
               onChange={(next) => set("allowed_email_domains", next)}
               disabled={save.isPending}
+            />
+          </FormField>
+        </div>
+      </ListCard>
+
+      {/* Beside sign-up rather than under branding: a ceiling is about who may
+          use this deployment and how much of it, which is the question the card
+          above answers for the door. */}
+      <ListCard title={t("limitsTitle")} counted={t("limitsHint")}>
+        <div className="space-y-5">
+          <FormField
+            label={t("limitsOrganizations")}
+            htmlFor="max-organizations"
+            description={t("limitsOrganizationsHint")}
+          >
+            <Input
+              id="max-organizations"
+              placeholder={t("limitsUnlimited")}
+              {...ceiling("max_organizations_per_user")}
+            />
+          </FormField>
+          <FormField
+            label={t("limitsAgents")}
+            htmlFor="max-agents"
+            description={t("limitsAgentsHint")}
+          >
+            <Input
+              id="max-agents"
+              placeholder={t("limitsUnlimited")}
+              {...ceiling("max_agents_per_organization")}
             />
           </FormField>
         </div>

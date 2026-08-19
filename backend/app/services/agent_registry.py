@@ -72,6 +72,7 @@ from app.services.access import (
     visible_resource_ids,
 )
 from app.services.channels.base import ROOM_HANDLES
+from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import IMAGE_MIME_TYPES, MAX_AVATAR_SIZE, get_file_storage
 from app.services.sandbox_workspace import sandbox_config
 
@@ -766,7 +767,12 @@ class AgentRegistryService:
             AlreadyExistsError: If the derived slug is taken. Slugs are how agents are
                 mentioned in Slack, so silently disambiguating one would route
                 messages to the wrong agent.
+            BadRequestError: If the organization already holds as many agents as
+                the deployment allows. Null is no ceiling, which is what a
+                deployment that has never set one has - see
+                `DeploymentSettings.max_agents_per_organization`.
         """
+        await self._refuse_past_the_ceiling(ctx)
         # A new agent opens with a prompt rather than an empty box. An agent with
         # no instructions still answers - as whatever the underlying model is by
         # default, which is a different product on every provider and changes when
@@ -1983,6 +1989,28 @@ class AgentRegistryService:
         if cache_key not in walk.pins:
             walk.pins[cache_key] = await self._resolve_pin(ctx, ref)
         return walk.pins[cache_key]
+
+    async def _refuse_past_the_ceiling(self, ctx: AuthContext) -> None:
+        """Refuse a create that would put this organization over the deployment's limit.
+
+        Archived agents are not counted: archiving is how an agent is retired,
+        and a ceiling a retired agent went on occupying would make the only way
+        back under it a delete - which takes the version history and the run
+        attribution with it.
+        """
+        limit = (await DeploymentSettingsService(self.db).limits()).agents_per_organization
+        if limit is None:
+            return
+        held = await agent_repo.count_for_organization(self.db, organization_id=ctx.organization_id)
+        if held >= limit:
+            raise BadRequestError(
+                message=(
+                    f"This deployment allows {limit} agents per organization, and this one "
+                    f"has {held}. Ask an administrator to raise the limit, or archive an "
+                    "agent you no longer run."
+                ),
+                details={"limit": limit, "held": held},
+            )
 
     async def get_runnable_spec(
         self, ctx: AuthContext, agent_id: UUID, *, environment_id: UUID | None = None

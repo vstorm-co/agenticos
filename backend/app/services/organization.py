@@ -21,6 +21,7 @@ from app.schemas.organization import (
     OrganizationUpdate,
 )
 from app.services import skill_library
+from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import get_file_storage
 from app.services.skills import SkillService
 
@@ -109,7 +110,16 @@ class OrganizationService:
         return result
 
     async def create(self, data: OrganizationCreate, owner_id: UUID) -> Organization:
-        """Create a new team organization (non-personal)."""
+        """Create a new team organization (non-personal).
+
+        Raises:
+            AlreadyExistsError: If the slug is taken.
+            BadRequestError: If this account already owns as many organizations
+                as the deployment allows. Null is no ceiling, which is what a
+                deployment that has never set one has - see
+                `DeploymentSettings.max_organizations_per_user`.
+        """
+        await self._refuse_past_the_ceiling(owner_id)
         slug = data.slug
         if slug:
             if await organization_repo.slug_exists(self.db, slug):
@@ -168,6 +178,31 @@ class OrganizationService:
                 # mistake from refusing every registration on the deployment;
                 # the seed-skills command tolerates the same collision.
                 logger.warning("Bundled skill %r shares a name with another; skipped", bundled.key)
+
+    async def _refuse_past_the_ceiling(self, owner_id: UUID) -> None:
+        """Refuse a create that would put this account over the deployment's limit.
+
+        Checked here rather than at the route, because the route is not the only
+        way in - and the refusal names the ceiling, so the answer to "why can I
+        not" is in the response rather than in an administrator's memory.
+
+        The personal organization sign-up creates counts, which is why the
+        schema refuses a ceiling of zero: an account that cannot own its own
+        personal organization is an account that cannot be created.
+        """
+        limit = (await DeploymentSettingsService(self.db).limits()).organizations_per_user
+        if limit is None:
+            return
+        owned = await organization_repo.count_owned_by(self.db, owner_id)
+        if owned >= limit:
+            raise BadRequestError(
+                message=(
+                    f"This deployment allows {limit} organizations per account, and you own "
+                    f"{owned}. Ask an administrator to raise the limit, or leave one you no "
+                    "longer need."
+                ),
+                details={"limit": limit, "owned": owned},
+            )
 
     async def create_personal_org(self, user_id: UUID, email: str) -> Organization:
         """Create the Personal Organization for a newly registered user.

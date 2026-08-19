@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Boolean, CheckConstraint, String
+from sqlalchemy import Boolean, CheckConstraint, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import text
@@ -77,6 +77,29 @@ class DeploymentSettings(Base, TimestampMixin):
     Null keeps the built-in `/legal/*` pages. Set, and every link that pointed at
     them points outward instead — which is what a deployment under somebody
     else's name needs, since our pages describe our terms and not theirs.
+    """
+
+    max_organizations_per_user: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """How many organizations one account may own, or null for no ceiling.
+
+    Null is "no limit" rather than "not configured", and the two are the same
+    thing here: an installation that has never opened the page is uncapped, which
+    is what a self-hosted deployment for one company wants. A number is what a
+    deployment open to sign-ups wants, where one account can otherwise mint
+    tenants without bound.
+
+    Owned, not joined: being invited into ten organizations is somebody else's
+    decision and cannot be spent by the person invited. The personal organization
+    counts, because it is one.
+    """
+
+    max_agents_per_organization: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """How many agents one organization may hold, or null for no ceiling.
+
+    Archived agents do not count: archiving is how an agent is retired, and a
+    ceiling that a retired agent went on occupying would make the only way back
+    under it a delete - which takes its version history and its run attribution
+    with it.
     """
 
     signup_mode: Mapped[str] = mapped_column(

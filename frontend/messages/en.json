@@ -3079,7 +3079,14 @@
       "maintenanceToggle": "Maintenance mode",
       "maintenanceToggleHint": "The API refuses every request except signing in and this section, so you can still turn it off.",
       "maintenanceMessage": "Maintenance message",
-      "maintenanceMessageHint": "What people see instead of the product. Leave empty for the default wording."
+      "maintenanceMessageHint": "What people see instead of the product. Leave empty for the default wording.",
+      "limitsTitle": "Limits",
+      "limitsHint": "How much of this deployment one account, and one organization, may take up.",
+      "limitsOrganizations": "Organizations per account",
+      "limitsOrganizationsHint": "Counts the organizations an account owns, including the personal one it is given at sign-up. Being invited into somebody else's does not count. Leave empty for no limit.",
+      "limitsAgents": "Agents per organization",
+      "limitsAgentsHint": "Archived agents do not count, so retiring one frees its place. Leave empty for no limit.",
+      "limitsUnlimited": "No limit"
     },
     "agentDetail": {
       "perMonth": "${amount} per month"

@@ -115,11 +115,24 @@ class NoticeRead(BaseSchema):
     level: NoticeLevel = "info"
 
 
+class DeploymentLimits(BaseSchema):
+    """What one account and one organization may hold, or nothing for no ceiling.
+
+    Deliberately absent from `BrandingRead`, which is served without a session: a
+    ceiling is operational, and a stranger on the sign-in page has no part in it.
+    """
+
+    organizations_per_user: int | None = None
+    agents_per_organization: int | None = None
+
+
 class DeploymentSettingsRead(BrandingRead):
     """The administrator's view: everything, in one request."""
 
     announcement: str | None = None
     announcement_level: NoticeLevel = "info"
+    max_organizations_per_user: int | None = None
+    max_agents_per_organization: int | None = None
     updated_at: datetime | None = None
 
 
@@ -149,6 +162,12 @@ class DeploymentSettingsUpdate(BaseSchema):
 
     maintenance_mode: bool | None = None
     maintenance_message: str | None = Field(default=None, max_length=500)
+
+    # Null clears the ceiling, which is the same as never having set one. `ge=1`
+    # because zero is not a limit anybody means: it would leave an account that
+    # cannot own the personal organization sign-up creates for it.
+    max_organizations_per_user: int | None = Field(default=None, ge=1, le=10_000)
+    max_agents_per_organization: int | None = Field(default=None, ge=1, le=10_000)
 
     @field_validator("app_name", "tagline", "description", "footer_text", mode="after")
     @classmethod

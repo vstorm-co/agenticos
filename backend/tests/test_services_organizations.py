@@ -15,6 +15,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.db.models.organization import Organization, OrgRole
+from app.schemas.deployment_settings import DeploymentLimits
 from app.schemas.organization import OrganizationCreate, OrganizationUpdate
 from app.schemas.user import UserCreate
 from app.services.organization import OrganizationService
@@ -53,6 +54,17 @@ class TestOrganizationService:
         db.refresh = AsyncMock()
         db.delete = AsyncMock()
         return db
+
+    @pytest.fixture(autouse=True)
+    def _uncapped(self):
+        """No deployment ceiling, which is what an installation that never set
+        one has. Creating an organization reads it now, and a mocked session
+        answers a `MagicMock` rather than a row."""
+        with patch(
+            "app.services.organization.DeploymentSettingsService.limits",
+            new=AsyncMock(return_value=DeploymentLimits()),
+        ):
+            yield
 
     @pytest.fixture
     def service(self, mock_db):

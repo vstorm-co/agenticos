@@ -444,6 +444,22 @@ async def list_versions(
     return list(result.scalars().all())
 
 
+async def count_for_organization(db: AsyncSession, *, organization_id: UUID) -> int:
+    """How many agents this organization holds, archived ones excluded.
+
+    Archiving is how an agent is retired, so a ceiling a retired agent went on
+    occupying would make the only way back under it a delete - and a delete takes
+    the version history and the run attribution with it.
+    """
+    result = await db.execute(
+        select(func.count(Agent.id)).where(
+            Agent.organization_id == organization_id,
+            Agent.status != AgentStatus.ARCHIVED.value,
+        )
+    )
+    return int(result.scalar_one())
+
+
 async def count_versions(db: AsyncSession, *, agent_id: UUID, organization_id: UUID) -> int:
     """How many versions there are, which is not how many were returned.
 
