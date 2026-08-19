@@ -17,6 +17,33 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.206] - 2026-08-20
+
+Storing a long document's chunks cost one database round trip per chunk.
+
+### Changed
+
+- **A document's chunks are written a batch of rows to a statement, not one
+  statement each.** `insert_document` issued one `INSERT` per chunk in a Python
+  loop inside one open transaction, so at the default `chunk_size` of 512 a
+  200-page PDF was one to three thousand *sequential* asyncpg round trips: a
+  second or two on a local socket, five to fifteen seconds against a managed
+  Postgres at 3-5ms - spent holding a connection while it waited. The rows now go
+  200 at a time through an `executemany`, which asyncpg pipelines. The statement
+  itself is unchanged, `ON CONFLICT (id) DO UPDATE` included, and it still behaves
+  per row: a re-ingest of an unchanged document updates its rows rather than
+  duplicating them. (#950)
+- **Each batch's rows are built where its statement runs.** Batching the
+  statements alone would have bounded what asyncpg receives while leaving the
+  worker's memory where it was: the embedding is rendered as text in these rows,
+  tens of kilobytes each at 3072 dimensions, so materialising a
+  three-thousand-chunk document first meant better than 100MB of live strings on
+  top of the float vectors already in hand - an OOM kill rather than a slow
+  ingest. 200 rather than one statement per document is the same reason. (#950)
+- **`docs/file-processing.md`** says how many round trips storing a document costs
+  and why the batch is bounded, in the chunking section where `chunk_size` is set.
+  (#950)
+
 ## [0.0.205] - 2026-08-20
 
 Ingesting a large batch of documents exhausted the worker's database
