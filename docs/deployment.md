@@ -89,12 +89,39 @@ registration happens before an organization is chosen — and answers a boolean
 rather than a row, so a stranger probing the sign-up form cannot enumerate tenants
 with it.
 
-Two shapes of invitation admit and one deliberately does not: an email invitation
-for exactly that address, and a link scoped to the address's domain. A link with
-neither an address nor a domain does not, even though anybody holding it may join
-once they have an account — the register request carries no token, so honouring it
-would turn one open link anywhere in the deployment back into `open` for the whole
-internet.
+**How an invitation is recognised depends on whether the registration carries its
+token**, and the two answers cover different shapes:
+
+| Arrives with | Recognised by | Which shapes it admits |
+|---|---|---|
+| A token (`invitation_token` on the sign-up body) | `invitation_admission.admits` | Any live invitation that admits the address — including a link constraining **no** address, which is the shape nothing else can see |
+| No token | `invitation_repo.any_pending_admitting` | An email invitation for that address, or a link scoped to its domain |
+
+The token is the only proof available for a shareable link with neither an address
+nor a domain on it. A query over the submitted address cannot recognise one, so
+honouring it *without* proof of possession would turn a single open link anywhere in
+the deployment into open registration for the whole internet. Holding the token is
+that proof.
+
+A token that names nothing live falls through to the address question rather than
+refusing: a stale link in a bookmark should not turn a registration that would
+otherwise be allowed into an error about something the person cannot fix.
+
+**Registering with a token does not accept the invitation.** It admits the account
+and nothing else; joining the organization is still `InvitationService.accept`, which
+the client calls once it has a session. A token in an unauthenticated sign-up body
+that also granted membership would be a membership grant on a public route.
+
+The console carries it across the redirect that used to lose it. An invitee with no
+account opens `/invitations/<token>`, `AuthGuard` bounces them to
+`/login?returnTo=/invitations/<token>`, and `src/lib/invitation-links.ts` reads the
+token back out of that `returnTo` so "create an account" points at
+`/register?invitation=<token>`. Before that, the only route onward was a plain link
+to `/register`, and the form then refused somebody holding a valid invitation.
+
+One shape it still does not reach: **signing in with a provider**. An OAuth callback
+carries no invitation, so an invited person arriving through Google is admitted by
+the address-based question or not at all.
 
 **Signing in with a provider is a registration too.** `get_or_create_oauth_user`
 is the second path that creates an account, and nothing about a Google callback
@@ -173,3 +200,21 @@ that created a row would let a stranger provoke an `INSERT`.
 Every write is audited into `app_admin_audit_logs`, naming the **fields** and never
 their values: an announcement and a domain list are both operator text, and an
 audit row outlives the request body it came from.
+
+## A refusal from this deployment always looks the same
+
+Worth saying here because closing a deployment is the feature most likely to produce
+one a person has never seen. `app/api/exception_handlers.py` puts **every** refusal in
+`{"error": {"code", "message", "details"}}` — domain exceptions, schema validation,
+and since #917 `HTTPException` too, which covers a 405, an unmatched path and the
+twenty-two routes that raise one directly. Two shapes on the wire means every caller
+either handles both or silently mishandles one.
+
+A wrong-method request used to answer **500** rather than 405, on every route.
+OpenTelemetry's FastAPI instrumentation derives a span name by walking `app.routes`,
+and its `Match.PARTIAL` branch — which is exactly "the path matches and the method
+does not" — reads `.path` unguarded; FastAPI 0.141 puts `_IncludedRouter` objects in
+that list and they have none. `app/core/otel_compat.py` supplies, for that branch,
+the same fallback upstream already uses in the branch it did guard. Still unfixed
+upstream as of 0.65b0, and `tests/test_otel_route_details.py` fails when it is fixed,
+which is when the module goes away.

@@ -15,7 +15,10 @@ registration - so a deployment with `closed` and a Google button was wide open.
 
 *Closing registration breaks invitations.* `InvitationService.accept` requires an
 existing signed-in user, so an invited person has to register first. `invite_only`
-is what keeps that flow working, and `any_pending_admitting` is what it asks.
+is what keeps that flow working, and it has two ways to recognise an invitation: a
+**token** the registration carries, which is the only proof that can admit a
+shareable link constraining no address, and otherwise `any_pending_admitting` over
+the submitted address (#916).
 """
 
 from __future__ import annotations
@@ -37,17 +40,27 @@ pytestmark = pytest.mark.anyio
 
 @pytest.fixture
 def repos(monkeypatch) -> MagicMock:
-    """The settings row and the invitation lookup, both stubbed."""
+    """The settings row and both invitation lookups, stubbed."""
     settings_repo = MagicMock()
     settings_repo.get = AsyncMock(return_value=None)
     invitations = MagicMock()
     invitations.any_pending_admitting = AsyncMock(return_value=False)
+    invitations.get_by_token = AsyncMock(return_value=None)
     monkeypatch.setattr(module, "deployment_settings_repo", settings_repo)
     monkeypatch.setattr(module, "invitation_repo", invitations)
     holder = MagicMock()
     holder.settings = settings_repo
     holder.invitations = invitations
     return holder
+
+
+@pytest.fixture
+def admits(monkeypatch) -> MagicMock:
+    """`invitation_admission.admits`, as the policy sees it. Its own rules are
+    `tests/test_invitation_admission.py`; here it is a yes or a no."""
+    stub = MagicMock(return_value=True)
+    monkeypatch.setattr(module, "admits", stub)
+    return stub
 
 
 class TestTheBootstrapInvariant:
@@ -323,7 +336,9 @@ class TestBothPathsThatMintAnAccountAreGated:
 
             await service.register(UserCreate(email="new@acme.com", password="password123"))
 
-        assert checked == [{"email": "new@acme.com", "is_first_user": False}]
+        assert checked == [
+            {"email": "new@acme.com", "is_first_user": False, "invitation_token": None}
+        ]
 
     async def test_a_refused_registration_creates_no_account(self, monkeypatch):
         from app.schemas.user import UserCreate
@@ -370,6 +385,9 @@ class TestBothPathsThatMintAnAccountAreGated:
                 provider="google", provider_id="g1", email="new@acme.com"
             )
 
+        # No token: a provider callback carries no invitation, so an invited person
+        # arriving through Google is admitted by the address-based question or not at
+        # all. A real limit, and the one #916's fix deliberately does not reach.
         assert checked == [{"email": "new@acme.com", "is_first_user": False}]
 
     async def test_a_closed_deployment_refuses_a_new_oauth_account(self, monkeypatch):
@@ -414,3 +432,178 @@ class TestBothPathsThatMintAnAccountAreGated:
             )
 
         assert checked == []
+
+
+class TestATokenTheRegistrationCarries:
+    """The half `any_pending_admitting` cannot answer.
+
+    A shareable link with neither an address nor a domain admits anybody holding it,
+    and no query over the submitted address can see that. Holding the token is the
+    proof, which is why it is the only thing that unlocks this case - and why a
+    stranger who has one is not a stranger.
+    """
+
+    async def test_it_admits_an_address_no_invitation_names(self, mock_db_session, repos, admits):
+        repos.settings.get.return_value = a_row(signup_mode="invite_only")
+        repos.invitations.get_by_token.return_value = MagicMock()
+
+        await check_may_register(
+            mock_db_session,
+            email="stranger@example.com",
+            is_first_user=False,
+            invitation_token="tok",
+        )
+
+        repos.invitations.get_by_token.assert_awaited_once_with(mock_db_session, "tok")
+
+    async def test_a_token_naming_no_invitation_falls_back_rather_than_refusing(
+        self, mock_db_session, repos, admits
+    ):
+        """A stale link in a bookmark must not turn a registration that would
+        otherwise be allowed into an error about something the person cannot fix."""
+        repos.settings.get.return_value = a_row(signup_mode="invite_only")
+        repos.invitations.get_by_token.return_value = None
+        repos.invitations.any_pending_admitting.return_value = True
+
+        await check_may_register(
+            mock_db_session, email="invited@acme.com", is_first_user=False, invitation_token="gone"
+        )
+
+        repos.invitations.any_pending_admitting.assert_awaited_once()
+
+    async def test_a_token_for_an_invitation_that_does_not_admit_them_falls_back_too(
+        self, mock_db_session, repos, admits
+    ):
+        repos.settings.get.return_value = a_row(signup_mode="invite_only")
+        repos.invitations.get_by_token.return_value = MagicMock()
+        admits.return_value = False
+
+        with pytest.raises(AuthorizationError):
+            await check_may_register(
+                mock_db_session,
+                email="stranger@example.com",
+                is_first_user=False,
+                invitation_token="tok",
+            )
+
+    async def test_it_overrides_the_domain_allow_list(self, mock_db_session, repos, admits):
+        """Somebody holding `members:invite` named this person on purpose, and a
+        domain list is deployment policy for strangers."""
+        repos.settings.get.return_value = a_row(
+            signup_mode="open", allowed_email_domains=["acme.com"]
+        )
+        repos.invitations.get_by_token.return_value = MagicMock()
+
+        await check_may_register(
+            mock_db_session,
+            email="contractor@gmail.com",
+            is_first_user=False,
+            invitation_token="tok",
+        )
+
+    async def test_it_does_not_reopen_a_closed_deployment(self, mock_db_session, repos, admits):
+        """ "Closed" that lets some registrations through is not closed - and an
+        operator who wants invitations honoured has `invite_only` for it."""
+        repos.settings.get.return_value = a_row(signup_mode="closed")
+        repos.invitations.get_by_token.return_value = MagicMock()
+
+        with pytest.raises(AuthorizationError):
+            await check_may_register(
+                mock_db_session,
+                email="invited@acme.com",
+                is_first_user=False,
+                invitation_token="tok",
+            )
+
+    async def test_an_open_deployment_never_looks_a_token_up(self, mock_db_session, repos, admits):
+        """The token grants nothing where nothing is being refused, so the query only
+        runs where the answer changes the outcome."""
+        repos.settings.get.return_value = a_row(signup_mode="open")
+
+        await check_may_register(
+            mock_db_session, email="anyone@example.com", is_first_user=False, invitation_token="tok"
+        )
+
+        repos.invitations.get_by_token.assert_not_called()
+
+    async def test_registering_with_a_token_does_not_join_the_organization(
+        self, mock_db_session, repos, admits
+    ):
+        """It admits the account and nothing else. Joining is
+        `InvitationService.accept`, which the client calls once it has a session -
+        otherwise a token in a sign-up body would be a membership grant on an
+        unauthenticated route."""
+        repos.settings.get.return_value = a_row(signup_mode="invite_only")
+        repos.invitations.get_by_token.return_value = MagicMock()
+
+        await check_may_register(
+            mock_db_session, email="invited@acme.com", is_first_user=False, invitation_token="tok"
+        )
+
+        repos.invitations.accept.assert_not_called()
+
+
+class TestTheTokenReachesThePolicyFromTheRequest:
+    async def test_register_passes_what_the_body_carried(self, monkeypatch):
+        from unittest.mock import patch
+
+        from app.schemas.user import UserCreate
+        from app.services.user import UserService
+
+        seen: list[dict] = []
+
+        async def _check(_db, **kwargs):
+            seen.append(kwargs)
+
+        db = MagicMock()
+        db.execute = AsyncMock(return_value=MagicMock(scalar_one=MagicMock(return_value=3)))
+        monkeypatch.setattr("app.services.user.check_may_register", _check)
+        service = UserService(db)
+
+        with (
+            patch("app.services.user.user_repo") as repo,
+            patch("app.services.user.OrganizationService") as orgs,
+            patch("app.services.user.get_email_service"),
+            patch("app.services.user.DeploymentSettingsService"),
+        ):
+            repo.get_by_email = AsyncMock(return_value=None)
+            repo.create = AsyncMock(return_value=MagicMock(id=uuid4(), email="new@acme.com"))
+            orgs.return_value.create_personal_org = AsyncMock()
+
+            await service.register(
+                UserCreate(email="new@acme.com", password="password123", invitation_token="tok")
+            )
+
+        assert seen == [
+            {"email": "new@acme.com", "is_first_user": False, "invitation_token": "tok"}
+        ]
+
+    async def test_a_registration_with_no_token_passes_none(self, monkeypatch):
+        from unittest.mock import patch
+
+        from app.schemas.user import UserCreate
+        from app.services.user import UserService
+
+        seen: list[dict] = []
+
+        async def _check(_db, **kwargs):
+            seen.append(kwargs)
+
+        db = MagicMock()
+        db.execute = AsyncMock(return_value=MagicMock(scalar_one=MagicMock(return_value=3)))
+        monkeypatch.setattr("app.services.user.check_may_register", _check)
+        service = UserService(db)
+
+        with (
+            patch("app.services.user.user_repo") as repo,
+            patch("app.services.user.OrganizationService") as orgs,
+            patch("app.services.user.get_email_service"),
+            patch("app.services.user.DeploymentSettingsService"),
+        ):
+            repo.get_by_email = AsyncMock(return_value=None)
+            repo.create = AsyncMock(return_value=MagicMock(id=uuid4(), email="new@acme.com"))
+            orgs.return_value.create_personal_org = AsyncMock()
+
+            await service.register(UserCreate(email="new@acme.com", password="password123"))
+
+        assert seen[0]["invitation_token"] is None

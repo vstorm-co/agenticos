@@ -595,6 +595,14 @@ include = [
     "app/api/routes/v1/branding.py",
     "app/api/routes/v1/_branding_bytes.py",
     "app/api/routes/v1/admin_deployment_settings.py",
+    "app/services/invitation_admission.py",
+    # One unguarded attribute in a dependency made every wrong-method request a 500
+    # on every route. Gated because it is a refusal path nobody exercises on purpose
+    # and because it goes away the moment upstream guards it.
+    "app/core/otel_compat.py",
+    # Where `HTTPException` joins the one error envelope. It answers a 405, an
+    # unmatched path, and twenty-two direct raises, none of which a happy path sees.
+    "app/api/exception_handlers.py",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
 # by tests/test_coverage_gate.py.
@@ -815,6 +823,14 @@ include = [
     "app/api/routes/v1/branding.py",
     "app/api/routes/v1/_branding_bytes.py",
     "app/api/routes/v1/admin_deployment_settings.py",
+    "app/services/invitation_admission.py",
+    # One unguarded attribute in a dependency made every wrong-method request a 500
+    # on every route. Gated because it is a refusal path nobody exercises on purpose
+    # and because it goes away the moment upstream guards it.
+    "app/core/otel_compat.py",
+    # Where `HTTPException` joins the one error envelope. It answers a 405, an
+    # unmatched path, and twenty-two direct raises, none of which a happy path sees.
+    "app/api/exception_handlers.py",
 ]
 branch = true
 omit = [

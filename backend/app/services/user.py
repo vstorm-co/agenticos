@@ -100,6 +100,11 @@ class UserService:
         the duplicate-address one: an address that already has an account is told
         so whatever the policy says, and a closed deployment is not a way to find
         out who is registered.
+
+        `invitation_token` is passed through and nothing here reads it: it admits an
+        address the policy would otherwise refuse, and joining the organization is
+        still a separate `InvitationService.accept` the client makes once it has a
+        session. Registering with a token does *not* accept the invitation.
         """
         existing = await user_repo.get_by_email(self.db, user_in.email)
         if existing:
@@ -109,7 +114,12 @@ class UserService:
             )
 
         is_first_user = await self._is_first_user()
-        await check_may_register(self.db, email=user_in.email, is_first_user=is_first_user)
+        await check_may_register(
+            self.db,
+            email=user_in.email,
+            is_first_user=is_first_user,
+            invitation_token=user_in.invitation_token,
+        )
 
         hashed_password = get_password_hash(user_in.password)
         user = await user_repo.create(
