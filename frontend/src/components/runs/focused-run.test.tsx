@@ -129,6 +129,24 @@ describe("stepping to a neighbour", () => {
     expect(onFocusRun).not.toHaveBeenCalled();
   });
 
+  it("offers a way out only to a surface that has one", async () => {
+    // The panel passes a dismissal; a page that *is* the run detail does not,
+    // and a close button that closes nothing is worse than none.
+    serve({ run: run() });
+    renderRun();
+    expect(screen.queryByLabelText("Close the run detail")).toBeNull();
+
+    const closed = vi.fn();
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <FocusedRun runId="run-2" onFocusRun={vi.fn()} onClose={closed} />
+      </NextIntlClientProvider>,
+    );
+    await userEvent.click(screen.getByLabelText("Close the run detail"));
+
+    expect(closed).toHaveBeenCalled();
+  });
+
   it("disables both arrows at the edges of the thread", () => {
     serve({ run: run({ prev_run_id: null, next_run_id: null }) });
 

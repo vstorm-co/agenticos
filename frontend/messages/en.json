@@ -3654,6 +3654,8 @@
       "attachedFiles": "{count, plural, =1 {1 file attached} other {# files attached}}",
       "contextCarried": "{tokens} ctx",
       "contextCarriedHint": "Tokens the history sent with this turn occupied, after any compaction",
+      "resizeRunDetail": "Resize the run detail",
+      "closeRunDetail": "Close the run detail",
       "whatWentIn": "What went in",
       "systemPrompt": "System prompt",
       "noInstructionsSent": "No instructions were sent with this run.",

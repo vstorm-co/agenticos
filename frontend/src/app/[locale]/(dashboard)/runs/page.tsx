@@ -7,26 +7,15 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { PeriodControl } from "@/components/dashboard/period-control";
 import { ActivityFigures } from "@/components/runs/activity-figures";
 import { ApprovalsTab } from "@/components/runs/approvals-tab";
-import { FocusedRun } from "@/components/runs/focused-run";
+import { RunDetailPanel } from "@/components/runs/run-detail-panel";
 import { RunHistoryTab } from "@/components/runs/run-history-tab";
 import { SpendTab } from "@/components/runs/spend-tab";
 import { LoadingState } from "@/components/states";
-import {
-  Badge,
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui";
+import { Badge, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { useApprovals, usePermissions, useUrlState } from "@/hooks";
 import { formatPeriodParam, parsePeriodParam, type Period } from "@/lib/dashboard/period";
 import { parseRunFilters, writeRunFilters, type RunFilters } from "@/lib/runs/filter-params";
-import { setUrlParam } from "@/lib/utils";
+import { cn, setUrlParam } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
@@ -123,8 +112,8 @@ export default function RunsPage() {
           <Tabs defaultValue="runs">
             <TabsList>
               {/* Runs first: the page's main question is what ran. The queue
-                keeps its count badge, so what is waiting is visible from the
-                strip without opening it. */}
+                  keeps its count badge, so what is waiting is visible from the
+                  strip without opening it. */}
               <TabsTrigger value="runs" data-tour="activity-tab-runs">
                 {t("runs2")}
               </TabsTrigger>
@@ -143,53 +132,50 @@ export default function RunsPage() {
               </TabsTrigger>
             </TabsList>
 
-            {canDecide && (
-              <TabsContent value="approvals" data-tour="activity-approvals">
-                <ApprovalsTab period={period} onFocusRun={focusRun} />
-              </TabsContent>
-            )}
+            {/* Two columns above `lg`: the tab's own panel narrows and the run
+                detail takes the right-hand side, tops aligned. Inside the tabs
+                rather than around them, so the panel starts level with the card
+                beside it rather than level with the strip above it. Below `lg`
+                there is room for one column, so the focused run replaces the
+                list rather than squeezing beside it. */}
+            <div className="flex items-start gap-4">
+              <div className={cn("min-w-0 flex-1", focusedRunId !== null && "hidden lg:block")}>
+                {canDecide && (
+                  <TabsContent value="approvals" data-tour="activity-approvals">
+                    <ApprovalsTab period={period} onFocusRun={focusRun} />
+                  </TabsContent>
+                )}
 
-            <TabsContent value="runs" data-tour="activity-runs">
-              {/* The export lives on the tab's control row, beside the filters it
-                exports the result of - see RunHistoryTab. */}
-              <RunHistoryTab
-                agentId={agentId}
-                period={period}
-                filters={filters}
-                onFiltersChange={changeFilters}
-                onAgentChange={changeAgent}
-                onFocusRun={focusRun}
-                initialDurationSort={sortParam === "duration"}
-              />
-            </TabsContent>
+                <TabsContent value="runs" data-tour="activity-runs">
+                  {/* The export lives on the tab's control row, beside the
+                      filters it exports the result of - see RunHistoryTab. */}
+                  <RunHistoryTab
+                    agentId={agentId}
+                    period={period}
+                    filters={filters}
+                    onFiltersChange={changeFilters}
+                    onAgentChange={changeAgent}
+                    onFocusRun={focusRun}
+                    focusedRunId={focusedRunId}
+                    initialDurationSort={sortParam === "duration"}
+                  />
+                </TabsContent>
 
-            <TabsContent value="spend" data-tour="activity-spend">
-              <SpendTab period={period} />
-            </TabsContent>
+                <TabsContent value="spend" data-tour="activity-spend">
+                  <SpendTab period={period} />
+                </TabsContent>
+              </div>
+
+              {/* The panel belongs to the page rather than to one tab: a run row
+                  and an approval row are both doors to the same view. `?run=`
+                  still deep-links here - the page opens with it already out. */}
+              {focusedRunId !== null && (
+                <RunDetailPanel runId={focusedRunId} onFocusRun={focusRun} />
+              )}
+            </div>
           </Tabs>
         </>
       )}
-
-      {/* The run detail, in a drawer over whichever tab opened it: a run row
-          and an approval row are both doors to the same view, so the drawer
-          belongs to the page rather than to one tab. `?run=` still deep-links
-          here - the page opens with the drawer already out. */}
-      <Sheet
-        open={focusedRunId !== null}
-        onOpenChange={(open) => {
-          if (!open) focusRun(null);
-        }}
-      >
-        <SheetContent side="right" className="w-full sm:max-w-3xl">
-          <SheetHeader className="px-5">
-            <SheetTitle className="text-sm">{t("runDetail")}</SheetTitle>
-            <SheetClose onClick={() => focusRun(null)} />
-          </SheetHeader>
-          <div className="flex-1 overflow-y-auto p-5">
-            {focusedRunId !== null && <FocusedRun runId={focusedRunId} onFocusRun={focusRun} />}
-          </div>
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }

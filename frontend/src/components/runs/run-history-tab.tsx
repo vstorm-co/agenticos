@@ -77,6 +77,7 @@ export function RunHistoryTab({
   onFiltersChange,
   onAgentChange,
   onFocusRun,
+  focusedRunId = null,
   initialDurationSort = false,
 }: {
   agentId: string | null;
@@ -86,6 +87,8 @@ export function RunHistoryTab({
   onFiltersChange: (filters: RunFilters) => void;
   onAgentChange: (agentId: string | null) => void;
   onFocusRun: (runId: string | null) => void;
+  /** Which run the detail panel is showing, so its row reads as the open one. */
+  focusedRunId?: string | null;
   initialDurationSort?: boolean;
 }) {
   const tErrors = useTranslations("errors");
@@ -338,7 +341,11 @@ export function RunHistoryTab({
                     runs={runs}
                     sort={sort}
                     onSort={changeSort}
-                    onOpen={(run) => onFocusRun(run.id)}
+                    // The open row closes rather than reopening itself: a row
+                    // that is already the panel's subject is the one somebody
+                    // clicks to put the panel away.
+                    onOpen={(run) => onFocusRun(run.id === focusedRunId ? null : run.id)}
+                    openRunId={focusedRunId}
                     agentsById={canAgents ? agentsById : undefined}
                     membersById={membersById}
                   />

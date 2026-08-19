@@ -46,6 +46,7 @@ export function RunTable({
   sort,
   onSort,
   onOpen,
+  openRunId,
   agentsById,
   membersById,
 }: {
@@ -55,6 +56,8 @@ export function RunTable({
   /** Opens a row's detail. Given, every row becomes clickable; a delegations
    * table and a focused run pass nothing - the detail is already on screen. */
   onOpen?: (run: AgentRun) => void;
+  /** Which run the detail panel beside this table is showing, when one is. */
+  openRunId?: string | null;
   /** Names for the Agent column, keyed by id. Given only by a caller whose
    * reader holds agents:view - the column is withheld, not dashed out, when
    * the names cannot be resolved. */
@@ -277,6 +280,7 @@ export function RunTable({
       // widening to `string` on the way through the primitive is undone here.
       onSort={onSort ? (next) => onSort({ by: next.by as RunSortKey, dir: next.dir }) : undefined}
       onRowClick={onOpen}
+      isRowActive={openRunId == null ? undefined : (run) => run.id === openRunId}
       className="rounded-none border-0 bg-transparent [&_table]:min-w-[46rem]"
     />
   );

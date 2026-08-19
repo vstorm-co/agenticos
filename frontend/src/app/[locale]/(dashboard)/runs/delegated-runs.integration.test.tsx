@@ -31,6 +31,21 @@ vi.mock("@/lib/api-client", async () => {
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => true }) }));
 
+/**
+ * The run detail, which is a column beside the list rather than a dialog over it
+ * (#920's panel rework). Found by its label: an `aside` is `complementary`, and
+ * the label is what tells it from any other one on the page.
+ */
+function findPanel() {
+  return screen.findByRole("complementary", { name: "Run detail" });
+}
+function panel() {
+  return screen.getByRole("complementary", { name: "Run detail" });
+}
+function queryPanel() {
+  return screen.queryByRole("complementary", { name: "Run detail" });
+}
+
 const params = new URLSearchParams();
 vi.mock("next/navigation", () => ({
   useSearchParams: () => params,
@@ -231,7 +246,7 @@ describe("one run and what it delegated", () => {
     // Three rows: the run somebody started and the two it delegated - reached by
     // the delegation handle each carries, which is what ties a row here to a
     // panel in the transcript.
-    const drawer = await screen.findByRole("dialog");
+    const drawer = await findPanel();
     const table = await within(drawer).findByRole("table");
     expect(within(table).getByText("Delegated · 4f2a1b8c")).toBeVisible();
     expect(within(table).getByText("Delegated · 9abbab49")).toBeVisible();
@@ -271,20 +286,35 @@ describe("one run and what it delegated", () => {
     expect(await screen.findByText("Delegated · 4f2a1b8c")).toBeVisible();
   });
 
-  it("keeps the list on screen behind the drawer", async () => {
-    // The detail is a drawer over the list, not a replacement for it - the
-    // list is the context the run is read against, and closing the drawer
-    // must land the reader exactly where they were.
+  it("keeps the list on screen beside the panel", async () => {
+    // The detail is a column next to the list, not a replacement for it: the
+    // list is the context a run is read against - the row before it, the ones at
+    // the same minute - and an overlay hid exactly that.
     params.set("run", "run-parent");
     backend();
 
     render(<RunsPage />, { wrapper });
     await openRunsTab();
 
-    const drawer = await screen.findByRole("dialog");
-    expect(within(drawer).getByText("Run detail")).toBeVisible();
-    // Two tables: the drawer's delegations and the list still behind it.
+    await findPanel();
+    // Two tables: the panel's delegations and the list beside it.
     expect(screen.getAllByRole("table").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("marks the open run's row in the list beside it", async () => {
+    // Without it the list gives no answer to "which of these am I looking at",
+    // and stepping with the arrows moves a selection nothing on screen shows.
+    params.set("run", "run-parent");
+    backend();
+
+    render(<RunsPage />, { wrapper });
+    await openRunsTab();
+    await findPanel();
+
+    const selected = screen
+      .getAllByRole("row")
+      .filter((row) => row.getAttribute("aria-selected") === "true");
+    expect(selected).toHaveLength(1);
   });
 
   it("says a run could not be read instead of drawing an empty table", async () => {
@@ -297,8 +327,8 @@ describe("one run and what it delegated", () => {
     await openRunsTab();
 
     expect(await screen.findByText("That run could not be read")).toBeVisible();
-    // No table in the drawer - the list's own table behind it is not the run.
-    expect(within(screen.getByRole("dialog")).queryByRole("table")).toBeNull();
+    // No table in the panel - the list's own table beside it is not the run.
+    expect(within(panel()).queryByRole("table")).toBeNull();
   });
 
   it("calls a run that is not there a run that is not there", async () => {
@@ -350,24 +380,24 @@ describe("walking the run's conversation from the detail", () => {
     await openRunsTab();
 
     await userEvent.click(
-      within(await screen.findByRole("dialog")).getByRole("button", { name: "Close" }),
+      within(await findPanel()).getByRole("button", { name: "Close the run detail" }),
     );
 
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(queryPanel()).toBeNull();
     expect(screen.getByRole("button", { name: "All runs" })).toBeVisible();
   });
 
-  it("clicking the backdrop closes the drawer too", async () => {
+  it("Escape closes it too, which the dialog used to do for free", async () => {
     params.set("run", "run-parent");
     backend();
 
-    const { baseElement } = render(<RunsPage />, { wrapper });
+    render(<RunsPage />, { wrapper });
     await openRunsTab();
-    await screen.findByRole("dialog");
+    await findPanel();
 
-    await userEvent.click(baseElement.querySelector('[aria-hidden="true"].fixed') as HTMLElement);
+    await userEvent.keyboard("{Escape}");
 
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(queryPanel()).toBeNull();
   });
 
   it("steps back to the previous run with the other arrow", async () => {
@@ -433,7 +463,7 @@ describe("resuming a parked run from its detail", () => {
     render(<RunsPage />, { wrapper });
     await openRunsTab();
 
-    await within(await screen.findByRole("dialog")).findByRole("table");
+    await within(await findPanel()).findByRole("table");
     expect(screen.queryByRole("button", { name: "Resume" })).toBeNull();
   });
 });
@@ -460,7 +490,7 @@ describe("the trace behind a run", () => {
     render(<RunsPage />, { wrapper });
     await openRunsTab();
 
-    const drawer = await screen.findByRole("dialog");
+    const drawer = await findPanel();
     await within(drawer).findByRole("table");
     expect(within(drawer).queryByRole("link", { name: /Open the trace in Logfire/ })).toBeNull();
   });

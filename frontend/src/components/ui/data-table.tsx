@@ -66,6 +66,15 @@ interface DataTableProps<T> {
    */
   error?: ReactNode;
   onRowClick?: (row: T) => void;
+  /**
+   * Which row is the one currently open somewhere else - a detail panel beside
+   * the table, usually.
+   *
+   * Without it a list that opens a panel gives no answer to "which of these am I
+   * looking at", and stepping through rows from inside the panel moves a
+   * selection nothing on screen shows.
+   */
+  isRowActive?: (row: T) => boolean;
   /** Number of skeleton rows while loading. */
   skeletonRows?: number;
   className?: string;
@@ -110,6 +119,7 @@ export function DataTable<T>({
   empty,
   error,
   onRowClick,
+  isRowActive,
   skeletonRows = 6,
   className,
   sort,
@@ -210,9 +220,14 @@ export function DataTable<T>({
                 <tr
                   key={getRowKey(row, i)}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  // `aria-selected` as well as the tint, because "which row is
+                  // open" is an answer a screen reader needs too, and a colour
+                  // is not one.
+                  aria-selected={isRowActive ? isRowActive(row) : undefined}
                   className={cn(
                     "border-border/60 border-b transition-colors last:border-0",
                     onRowClick && "hover:bg-accent cursor-pointer",
+                    isRowActive?.(row) && "bg-accent/60 hover:bg-accent/60",
                   )}
                 >
                   {columns.map((col) => (

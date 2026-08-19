@@ -294,3 +294,29 @@ describe("who ran it, and which agent", () => {
     expect(screen.queryByRole("columnheader", { name: "Agent" })).toBeNull();
   });
 });
+
+describe("the run the panel beside the table is showing", () => {
+  it("marks that row and no other", () => {
+    render(
+      <RunTable
+        runs={[run({ id: "run-1" }), run({ id: "run-2" })]}
+        onOpen={() => {}}
+        openRunId="run-2"
+      />,
+    );
+
+    const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+    expect(rows[0]).not.toHaveAttribute("aria-selected", "true");
+    expect(rows[1]).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("marks nothing when no run is open", () => {
+    // A delegations table and the focused run's own table pass none: the detail
+    // is already on screen, so there is nothing for a row to point at.
+    render(<RunTable runs={[run()]} />);
+
+    expect(within(screen.getByRole("table")).getAllByRole("row")[1]).not.toHaveAttribute(
+      "aria-selected",
+    );
+  });
+});
