@@ -524,7 +524,7 @@ Ingested documents are tracked in the SQL database via the `RAGDocument` model:
 | `filename` | Original filename |
 | `filesize` | File size in bytes |
 | `filetype` | File extension (without dot) |
-| `status` | `processing`, `done`, or `error` |
+| `status` | `processing`, `done`, or `error` — the `DocumentStatus` members, and the only three values the column holds. A collection's *indexed* count filters on `done`; it filtered on a fourth value nothing has ever written until [#148](https://github.com/vstorm-co/agenticos/issues/148), so every knowledge base reported `indexed_count: 0` however many documents had finished |
 | `error_message` | What failed, if `status` is `error` — see below |
 | `vector_document_id` | ID in the vector store |
 | `chunk_count` | Number of chunks created. Recorded since [#147](https://github.com/vstorm-co/agenticos/issues/147); a document ingested before it holds `0` and its collection's card under-reports until it is re-ingested |

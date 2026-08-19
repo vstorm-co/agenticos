@@ -55,7 +55,7 @@ from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
-from app.db.models.rag_document import RAGDocument
+from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.skill import Skill
 from app.db.models.sync_log import SyncLog
@@ -533,7 +533,7 @@ async def _rag_document(db, *, collection_name: str, filename: str) -> RAGDocume
         filename=filename,
         filesize=12,
         filetype="txt",
-        status="done",
+        status=DocumentStatus.DONE,
         vector_document_id=str(uuid.uuid4()),
     )
     db.add(doc)
@@ -1739,24 +1739,30 @@ class TestWhatACollectionReportsItHolds:
 
         assert collection.collection_name not in counts
 
-    async def test_only_completed_documents_count_as_indexed(self, db) -> None:
+    async def test_only_finished_documents_count_as_indexed(self, db) -> None:
         """A failed upload stays in `documents` and drops out of `indexed`.
 
         This is what makes a half-broken collection legible on a listing: the
         two numbers disagreeing is the only signal that something died, since
         the vectors it never wrote leave no trace anywhere else.
+
+        The statuses are `DocumentStatus` members rather than strings, and that
+        is the whole of #148: this test used to set `"completed"` and
+        `"failed"`, neither of which anything in the product writes, so it
+        agreed with the query instead of with the pipeline and passed while
+        every knowledge base reported `indexed_count: 0`.
         """
         tenant = await _tenant(db, name="Partial")
         collection = await _collection_with(db, tenant, name="partial", config=IngestionConfig())
         done = await _rag_document(
             db, collection_name=collection.collection_name, filename="ok.txt"
         )
-        done.status = "completed"
+        done.status = DocumentStatus.DONE
         done.chunk_count = 7
         broken = await _rag_document(
             db, collection_name=collection.collection_name, filename="dead.txt"
         )
-        broken.status = "failed"
+        broken.status = DocumentStatus.ERROR
         broken.chunk_count = 0
         await db.flush()
 
@@ -1767,6 +1773,38 @@ class TestWhatACollectionReportsItHolds:
         assert counts[collection.collection_name].documents == 2
         assert counts[collection.collection_name].indexed == 1
         assert counts[collection.collection_name].chunks == 7
+
+    async def test_the_pipeline_marking_a_document_done_makes_it_count_as_indexed(self, db) -> None:
+        """The writer and the reader, in one test, with no status written by hand.
+
+        `complete_ingestion` is the only thing that finishes a document, and
+        `counts_by_collection` is what the listing reads - so a filter on a
+        value the pipeline does not write can only be caught by running both.
+        Nothing here names a status literal, which is the point: the two agree
+        or this fails.
+        """
+        tenant = await _tenant(db, name="Finished")
+        collection = await _collection_with(db, tenant, name="finished", config=IngestionConfig())
+        doc = await _rag_document(
+            db, collection_name=collection.collection_name, filename="handbook.md"
+        )
+        doc.status = DocumentStatus.PROCESSING
+        await db.flush()
+
+        await RAGDocumentService(db).complete_ingestion(
+            str(doc.id),
+            vector_document_id=doc.vector_document_id,
+            chunk_count=4,
+            replaced_document_id=None,
+        )
+
+        counts = await rag_document_repo.counts_by_collection(
+            db, collections=[collection.collection_name]
+        )
+
+        assert counts[collection.collection_name].documents == 1
+        assert counts[collection.collection_name].indexed == 1
+        assert counts[collection.collection_name].chunks == 4
 
     async def test_re_ingesting_a_document_does_not_count_it_twice(self, db) -> None:
         """The vector store keeps one document; `rag_documents` gained a second row.
