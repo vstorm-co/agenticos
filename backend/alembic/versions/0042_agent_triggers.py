@@ -1,7 +1,7 @@
 """Agent triggers - a schedule that fires an agent with no one at the keyboard
 
-Revision ID: 0037_agent_triggers
-Revises: 0036_conversation_reminder_state
+Revision ID: 0042_agent_triggers
+Revises: 0041_invitation_reservations
 Create Date: 2026-08-10
 
 One table, `agent_triggers`, behind agenticos#44. A trigger is operational state
@@ -33,8 +33,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision = "0037_agent_triggers"
-down_revision = "0036_conversation_reminder_state"
+revision = "0042_agent_triggers"
+down_revision = "0041_invitation_reservations"
 branch_labels = None
 depends_on = None
 
