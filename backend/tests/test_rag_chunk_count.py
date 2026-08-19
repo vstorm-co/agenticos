@@ -104,7 +104,10 @@ class TestWhatTheUploadPathRecords:
                     chunk_count=42,
                     replaced_document_id=None,
                 )
-            )
+            ),
+            # The flow disposes the store it built when the work ends (#948), so
+            # a stand-in service has to own one that can be closed.
+            store=MagicMock(aclose=AsyncMock()),
         )
 
         with (

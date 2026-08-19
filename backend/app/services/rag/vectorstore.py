@@ -33,11 +33,12 @@ logger = logging.getLogger(__name__)
 class BaseVectorStore(ABC):
     @abstractmethod
     async def aclose(self) -> None:
-        """Release any resources held for the process's lifetime.
+        """Release whatever this store holds, when the work that built it ends.
 
-        Called once on application shutdown. A store that owns nothing to
-        release implements this as a no-op; `PgVectorStore` disposes its
-        connection pool.
+        Whoever constructs a store closes it: at shutdown for one that lives as
+        long as the process, in a `finally` for one built for a single flow. A
+        store that owns nothing to release implements this as a no-op;
+        `PgVectorStore` disposes its connection pool.
         """
 
     @abstractmethod
@@ -197,10 +198,19 @@ class PgVectorStore(BaseVectorStore):
     Uses the existing PostgreSQL database with pgvector extension.
     No additional Docker services needed.
 
-    NOTE: This class creates its own SQLAlchemy engine per instance. In
-    production, prefer injecting a shared engine from app.db.session to
-    avoid multiple connection pools. Call `await self.aclose()` on shutdown
-    to release pool connections.
+    **Each instance owns a pooled SQLAlchemy engine, so whoever builds one
+    closes it.** `aclose()` is not a shutdown hook: the API's lifespan happens
+    to build a store that lives as long as the process, but the ingestion worker
+    builds one per flow, and one abandoned there keeps its checked-in
+    connections until the process exits - two hundred uploads reached
+    `max_connections` and then every query failed, including the ones that would
+    have marked a document failed (#948). A caller whose store is bounded by a
+    piece of work disposes it in a `finally`.
+
+    The pool is worth having *within* that work: `insert_document` writes a
+    document's chunks over one connection each, and a flow runs in one event
+    loop. Across flows it is not shared, for the reason
+    `get_worker_db_context` gives about cross-loop connections.
     """
 
     def __init__(
@@ -225,7 +235,7 @@ class PgVectorStore(BaseVectorStore):
         self.async_session = sessionmaker(self.engine, class_=AsyncSession, expire_on_commit=False)
 
     async def aclose(self) -> None:
-        """Dispose the connection pool. Call during application shutdown."""
+        """Dispose the connection pool. Called by whoever built this store."""
         await self.engine.dispose()
 
     def _table(self, name: str) -> str:
