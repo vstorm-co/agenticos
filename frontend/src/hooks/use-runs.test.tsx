@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   useApprovals,
   useDelegatedRuns,
+  usePrefetchRuns,
   useResumeRun,
   useRun,
   useRuns,
@@ -499,5 +500,30 @@ describe("dashboard freshness", () => {
     focusManager.setFocused(true);
 
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe("usePrefetchRuns", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("warms both queries the detail view makes, for each neighbour named", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({});
+
+    renderHook(() => usePrefetchRuns(["run-1", null, "run-3", undefined]), { wrapper });
+
+    // The row and its transcript, per neighbour - the two requests a step would
+    // otherwise make while somebody watches a skeleton.
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(4));
+    expect(apiClient.get).toHaveBeenCalledWith("/runs/run-1");
+    expect(apiClient.get).toHaveBeenCalledWith("/runs/run-1/transcript", {
+      params: { scope: "conversation" },
+    });
+    expect(apiClient.get).toHaveBeenCalledWith("/runs/run-3");
+  });
+
+  it("asks for nothing at the edge of a thread", () => {
+    renderHook(() => usePrefetchRuns([null, null]), { wrapper });
+
+    expect(apiClient.get).not.toHaveBeenCalled();
   });
 });

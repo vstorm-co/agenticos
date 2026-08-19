@@ -136,6 +136,34 @@ export interface RunTranscriptMessage {
         status: string;
       }[]
     | null;
+  /**
+   * The files that arrived with this turn, as `MessageRead.files` carries them.
+   *
+   * Declared here because they were being dropped: the wire has sent them since
+   * attachments existed - the repository eager-loads them on every transcript
+   * read - and the run detail rendered a question whose document was invisible,
+   * which is the one thing an operator asking "what did the model actually get"
+   * most needs to see.
+   */
+  files?: { id: string; filename: string; mime_type: string; file_type: string }[] | null;
+  /** Which model answered this turn. A thread can change model between turns. */
+  model_name?: string | null;
+  /** The frozen spec's version number, where a published agent answered. */
+  agent_version?: number | null;
+  /**
+   * How the run behind this turn ended, so a half-written answer from a
+   * cancelled run does not read as a complete one.
+   */
+  run_status?: string | null;
+  /** What this turn cost. Absent means not recorded, never free. */
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  /** Serialised Decimal - a string on the wire, because money is `Numeric`. */
+  cost_usd?: string | null;
+  /** True when a model in this turn had no price entry: the figure is a floor. */
+  cost_is_partial?: boolean | null;
+  /** Tokens the history sent with this turn occupied, after any compaction. */
+  context_used_tokens?: number | null;
   /** The current reader's own rating: 1 (up), -1 (down), or absent for none. */
   user_rating?: number | null;
   /** Aggregate counts across everyone who rated this answer. */

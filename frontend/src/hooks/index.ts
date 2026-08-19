@@ -48,6 +48,7 @@ export {
   useApprovalHistory,
   useApprovals,
   useDelegatedRuns,
+  usePrefetchRuns,
   useRun,
   useRuns,
   useResumeRun,

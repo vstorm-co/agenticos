@@ -1,7 +1,8 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { ApiError, apiClient } from "@/lib/api-client";
@@ -143,8 +144,48 @@ export function useRun(runId: string) {
   const { data, isLoading, error } = useQuery({
     queryKey: qk.runs.detail(runId),
     queryFn: () => apiClient.get<AgentRun>(`/runs/${runId}`),
+    // Hold the run being read while the next one is in flight. Stepping through
+    // a conversation is a new query key per run, so without this every arrow
+    // press drops the whole detail to a skeleton and rebuilds it - the page
+    // blanks, reflows and comes back, on a surface whose entire purpose is
+    // reading several runs in a row. The caller can tell what it is holding:
+    // `data.id` is the run this answer is about, not the one asked for.
+    placeholderData: keepPreviousData,
   });
   return { run: data, isLoading, error };
+}
+
+/**
+ * Warm the neighbours of the run being read, so an arrow press is a cache hit.
+ *
+ * Both queries the detail view makes, for both directions, at the moment the
+ * reader arrives - which is the moment they are least likely to be waiting on
+ * anything. Stepping then renders from cache with no request in flight at all,
+ * where holding the previous answer only hides a wait that still happens.
+ *
+ * `staleTime` is what makes it worth doing: prefetched with the app-wide
+ * default of five minutes, the step reuses the row rather than re-asking for it
+ * the moment it is rendered.
+ */
+export function usePrefetchRuns(runIds: (string | null | undefined)[]) {
+  const queryClient = useQueryClient();
+  const ids = runIds.filter((id): id is string => typeof id === "string");
+  const key = ids.join(",");
+  useEffect(() => {
+    for (const id of key === "" ? [] : key.split(",")) {
+      void queryClient.prefetchQuery({
+        queryKey: qk.runs.detail(id),
+        queryFn: () => apiClient.get<AgentRun>(`/runs/${id}`),
+      });
+      void queryClient.prefetchQuery({
+        queryKey: qk.runs.transcript(id, "conversation"),
+        queryFn: () =>
+          apiClient.get<RunTranscript>(`/runs/${id}/transcript`, {
+            params: { scope: "conversation" },
+          }),
+      });
+    }
+  }, [key, queryClient]);
 }
 
 /**
@@ -165,6 +206,12 @@ export function useRunTranscript(runId: string, scope: "run" | "conversation" = 
         `/runs/${runId}/transcript`,
         scope === "run" ? undefined : { params: { scope } },
       ),
+    // Held across a step for the reason `useRun` holds its row, and it matters
+    // more here: read `scope=conversation`, two runs of one thread answer with
+    // the *same* turns, so dropping the timeline to a skeleton between them
+    // rebuilds a list that was already correct. `data.run_id` says which run
+    // the answer being held is anchored on.
+    placeholderData: keepPreviousData,
   });
   return { transcript: data, isLoading, error };
 }
