@@ -24,6 +24,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from opentelemetry import trace
 
+from app.agents.manifest import RunRecorder
 from app.agents.observability import current_trace_id
 from app.agents.spec import AgentSpec, ObservabilitySpec
 from app.core.permissions import AuthContext, OrgRoleName
@@ -72,6 +73,10 @@ class TestTheIdIsWrittenHoweverTheRunEnded:
         )
         prepared.approvals.requested = []
         prepared.delegations = []
+        # A real recorder rather than a mock's attribute: `finish` reads it to
+        # store what the run handed its model, and an empty one is what a run
+        # that never reached a model has.
+        prepared.built.recorder = RunRecorder()
         return prepared
 
     @pytest.mark.parametrize(
