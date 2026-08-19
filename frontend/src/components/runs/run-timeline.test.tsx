@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
@@ -11,11 +12,15 @@ import type { RunTranscript, RunTranscriptMessage } from "@/types/runs";
  * The trace view's claims: the whole thread is asked for and the focused run's
  * turns are the marked ones; a tool call reads raw - name, status, input JSON,
  * recorded output - not through the chat's renderers; and a run with no
- * conversation says so rather than drawing an empty page.
+ * conversation says so rather than drawing an empty page. And what the model was
+ * actually handed: the files attached to a turn, and what that turn cost.
  */
 
 const useRunTranscriptMock = vi.fn();
-vi.mock("@/hooks", () => ({
+// Partial, because opening an attachment mounts the shared file viewer and that
+// reaches for several hooks of its own. Only the transcript is stood in for.
+vi.mock("@/hooks", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks")>()),
   useRunTranscript: (runId: string, scope?: string) => useRunTranscriptMock(runId, scope),
 }));
 
@@ -39,10 +44,13 @@ function serve(transcript: Partial<RunTranscript>) {
 }
 
 function renderTimeline(runId = "run-1") {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <NextIntlClientProvider locale="en" messages={messages}>
-      <RunTimeline runId={runId} />
-    </NextIntlClientProvider>,
+    <QueryClientProvider client={client}>
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <RunTimeline runId={runId} />
+      </NextIntlClientProvider>
+    </QueryClientProvider>,
   );
 }
 
@@ -198,5 +206,88 @@ describe("a run outside any conversation", () => {
     renderTimeline();
 
     expect(screen.getByText("The transcript could not be read")).toBeVisible();
+  });
+});
+
+describe("what the model was actually handed", () => {
+  it("shows the files attached to a turn, and opens one", async () => {
+    serve({
+      items: [
+        turn({
+          id: "m-1",
+          role: "user",
+          content: "summarise this",
+          files: [
+            {
+              id: "file-1",
+              filename: "q3-report.pdf",
+              mime_type: "application/pdf",
+              file_type: "pdf",
+            },
+          ],
+        }),
+      ],
+    });
+
+    renderTimeline();
+
+    expect(screen.getByText("1 file attached")).toBeVisible();
+    await userEvent.click(screen.getByText("q3-report.pdf"));
+    // The shared viewer, not a byte count: the question "was the agent handed a
+    // scan with no text in it" is only answerable by looking at the file.
+    expect(within(screen.getByRole("dialog")).getByText("q3-report.pdf")).toBeVisible();
+
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("puts the model, the cost and the context carried on the turn", () => {
+    serve({
+      items: [
+        turn({
+          id: "m-1",
+          model_name: "claude-sonnet-4-5",
+          input_tokens: 1200,
+          output_tokens: 340,
+          cost_usd: "0.0182",
+          context_used_tokens: 8600,
+        }),
+      ],
+    });
+
+    renderTimeline();
+
+    expect(screen.getByText("claude-sonnet-4-5")).toBeVisible();
+    expect(screen.getByText(/1,200/)).toBeVisible();
+    expect(screen.getByText(/\$0\.0182/)).toBeVisible();
+    expect(screen.getByText("8600 ctx")).toBeVisible();
+  });
+
+  it("draws no cost at all for a turn nobody measured", () => {
+    serve({ items: [turn({ id: "m-1", model_name: null })] });
+
+    renderTimeline();
+
+    // Absent means not recorded, and "$0.0000" under an answer that cost money
+    // is the number that lies.
+    expect(screen.queryByText(/\$/)).toBeNull();
+  });
+
+  it("marks the turns of the run the answer is anchored on, not the one asked for", () => {
+    // What a step through a thread renders while the next answer is in flight:
+    // the transcript being held is the neighbour's, and marking it against the
+    // requested id would blank every marker until the request came back.
+    serve({
+      run_id: "run-0",
+      items: [
+        turn({ id: "m-a", run_id: "run-0", content: "the held answer" }),
+        turn({ id: "m-b", run_id: "run-1", content: "the answer asked for" }),
+      ],
+    });
+
+    renderTimeline("run-1");
+
+    expect(screen.getAllByText("This run")).toHaveLength(1);
+    expect(screen.getByText("the held answer").closest("li")?.textContent).toContain("This run");
   });
 });

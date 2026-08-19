@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { Activity, ArrowLeft, ArrowRight, ExternalLink, MessageSquare, Play } from "lucide-react";
@@ -11,11 +12,18 @@ import { RunTimeline } from "@/components/runs/run-timeline";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui";
-import { useAgent, useDelegatedRuns, usePermissions, useResumeRun, useRun } from "@/hooks";
+import {
+  useAgent,
+  useDelegatedRuns,
+  usePermissions,
+  usePrefetchRuns,
+  useResumeRun,
+  useRun,
+} from "@/hooks";
 import { useAuthStore } from "@/stores";
 import { ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
-import { formatDateTime, formatRunDuration } from "@/lib/utils";
+import { cn, formatDateTime, formatRunDuration } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import type { AgentRun } from "@/types/runs";
 import { RunTable } from "./run-table";
@@ -36,8 +44,16 @@ import { RunTable } from "./run-table";
  *
  * `prev`/`next` walk the run's own conversation by start time, the ids resolved
  * server-side on this read - so stepping through a bad afternoon is arrows, not
- * trips back to the list. A run with no conversation behind it - an API call -
- * has no neighbours, so its arrows stay disabled.
+ * trips back to the list, and the arrow keys do it without the mouse. A run with
+ * no conversation behind it - an API call - has no neighbours, so its arrows
+ * stay disabled.
+ *
+ * **A step holds what is on screen.** Each run is a query key of its own, so
+ * without that an arrow press drops the whole view to a skeleton and rebuilds
+ * it - on a surface whose purpose is reading several runs in a row. The
+ * neighbours are prefetched on arrival, the header fades in on the new row, and
+ * the timeline is left standing: two runs of one conversation are the same
+ * turns, so what moves is the anchor, which glides.
  *
  * A refusal is said out loud rather than drawn as an empty table. Every other
  * page here renders its empty state when a query fails, which makes "this run
@@ -57,24 +73,75 @@ export function FocusedRun({
   const { run, isLoading, error } = useRun(runId);
   const { runs: delegated } = useDelegatedRuns(runId);
   const resume = useResumeRun();
+  // What is on screen is the answer being held, which during a step is the run
+  // stepped away from. Nothing that navigates may act on it: its neighbours are
+  // its own, so an arrow pressed twice quickly would otherwise walk back to
+  // where it started.
+  const settling = run !== undefined && run.id !== runId;
+  const prevRunId = settling ? null : (run?.prev_run_id ?? null);
+  const nextRunId = settling ? null : (run?.next_run_id ?? null);
+  // Warmed on arrival, so the step itself is a cache hit rather than a request.
+  usePrefetchRuns([prevRunId, nextRunId]);
 
-  if (isLoading) return <LoadingState variant="skeleton-table" columns={6} rows={2} />;
-  if (run === undefined) {
-    // Absent once the wait is over means the request did not answer, and the two
-    // reasons do not read the same. A run that is gone - or in another tenant,
-    // which the API answers identically and on purpose - is a fact about the
-    // link. Anything else is a fact about the request, and saying "no such run"
-    // for a refused permission sends somebody looking for a run that is there.
+  useEffect(() => {
+    // The arrows on the keyboard, doing what the arrows on screen do. Reading a
+    // bad afternoon is a sequence of runs, and reaching for the mouse between
+    // each of them is the whole friction this view exists to remove.
+    //
+    // Ignored where the key means something else: a modifier is a browser
+    // shortcut, and a caret in a field is somebody typing rather than stepping.
+    function step(event: KeyboardEvent) {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+      ) {
+        return;
+      }
+      const to = event.key === "ArrowLeft" ? prevRunId : nextRunId;
+      if (to === null) return;
+      event.preventDefault();
+      onFocusRun(to);
+    }
+    window.addEventListener("keydown", step);
+    return () => window.removeEventListener("keydown", step);
+  }, [prevRunId, nextRunId, onFocusRun]);
+
+  // Before the wait, because holding the previous run's row means `isLoading` is
+  // false while a failure for *this* one is already known - and the held row
+  // would otherwise be drawn as though it were the answer to the id in the URL.
+  if (error) {
+    // The two reasons do not read the same. A run that is gone - or in another
+    // tenant, which the API answers identically and on purpose - is a fact about
+    // the link. Anything else is a fact about the request, and saying "no such
+    // run" for a refused permission sends somebody looking for a run that is
+    // there.
     return error instanceof ApiError && error.status === 404 ? (
       <EmptyState icon={Activity} title={t("noSuchRun")} description={t("theRunNamedIn")} />
     ) : (
       <ErrorState title={t("runCouldNotBeRead")} />
     );
   }
+  if (isLoading || run === undefined) {
+    return <LoadingState variant="skeleton-table" columns={6} rows={2} />;
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="space-y-6" aria-busy={settling}>
+      {/* Keyed on the run, so the header and its figures fade in on a step
+          rather than mutating field by field. The timeline below is deliberately
+          *not* keyed: two runs of one conversation share their turns, so
+          remounting it would rebuild a list that was already correct and throw
+          away the scroll position the anchor is about to glide to. */}
+      <div
+        key={run.id}
+        className={cn(
+          "run-detail-in flex flex-wrap items-start justify-between gap-3",
+          settling && "opacity-60",
+        )}
+      >
         <div className="flex flex-wrap items-center gap-3">
           {/* The agent's identity needs agents:view to resolve; without it the
               header simply starts at the status - never a request that 403s. */}
@@ -115,25 +182,31 @@ export function FocusedRun({
           <Button
             variant="outline"
             size="sm"
-            disabled={run.prev_run_id == null}
+            disabled={prevRunId === null}
             aria-label={t("previousRun")}
-            onClick={() => run.prev_run_id != null && onFocusRun(run.prev_run_id)}
+            onClick={() => prevRunId !== null && onFocusRun(prevRunId)}
           >
             <ArrowLeft className="h-4 w-4" aria-hidden />
           </Button>
           <Button
             variant="outline"
             size="sm"
-            disabled={run.next_run_id == null}
+            disabled={nextRunId === null}
             aria-label={t("nextRun")}
-            onClick={() => run.next_run_id != null && onFocusRun(run.next_run_id)}
+            onClick={() => nextRunId !== null && onFocusRun(nextRunId)}
           >
             <ArrowRight className="h-4 w-4" aria-hidden />
           </Button>
         </div>
       </div>
 
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <dl
+        key={`facts-${run.id}`}
+        className={cn(
+          "run-detail-in grid grid-cols-2 gap-3 sm:grid-cols-4",
+          settling && "opacity-60",
+        )}
+      >
         <Fact label={t("tokens")}>
           <span className="font-mono tabular-nums">
             {run.input_tokens} → {run.output_tokens}
