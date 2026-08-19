@@ -11,6 +11,8 @@ type Environment = {
   version_id: string;
   version: number;
   is_default: boolean;
+  tracks_latest: boolean;
+  behind_by: number;
 };
 
 const state = {
@@ -18,6 +20,7 @@ const state = {
   isLoading: false,
   create: { mutateAsync: vi.fn(), isPending: false },
   promote: { mutate: vi.fn(), isPending: false },
+  setReleaseMode: { mutate: vi.fn(), isPending: false },
   rename: { mutateAsync: vi.fn(), isPending: false },
   remove: { mutate: vi.fn(), isPending: false },
 };
@@ -32,8 +35,22 @@ vi.mock("@/hooks", () => ({
   useAgentVersions: () => versionsState,
 }));
 
-function environment(name: string, version: number, is_default = false): Environment {
-  return { id: `${name}-id`, name, version_id: `v${version}-id`, version, is_default };
+function environment(
+  name: string,
+  version: number,
+  is_default = false,
+  extra: Partial<Environment> = {},
+): Environment {
+  return {
+    id: `${name}-id`,
+    name,
+    version_id: `v${version}-id`,
+    version,
+    is_default,
+    tracks_latest: false,
+    behind_by: 0,
+    ...extra,
+  };
 }
 
 beforeEach(() => {
@@ -41,6 +58,7 @@ beforeEach(() => {
   state.isLoading = false;
   state.create = { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false };
   state.promote = { mutate: vi.fn(), isPending: false };
+  state.setReleaseMode = { mutate: vi.fn(), isPending: false };
   state.rename = { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false };
   state.remove = { mutate: vi.fn(), isPending: false };
   versionsState.versions = [
@@ -77,13 +95,42 @@ describe("the environments panel", () => {
     expect(screen.getByText(/serves v2/)).toBeInTheDocument();
   });
 
-  it("marks the default, and says what being the default means", () => {
-    // Publish moves only this one. Somebody who does not know that publishes and
-    // wonders why staging did not change.
+  it("marks the default, and says which mode each environment is in", () => {
+    // Publish moves the ones that asked to be moved and no others. Somebody who
+    // does not know which is which publishes and wonders what changed.
     render(<EnvironmentsPanel agentId="a1" canManage />);
 
     expect(screen.getByText("default")).toBeInTheDocument();
-    expect(screen.getByText(/what publish repoints/)).toBeInTheDocument();
+    expect(screen.getAllByText("Pinned")).toHaveLength(2);
+  });
+
+  it("says how far behind a pinned environment has fallen", () => {
+    // Pinned on purpose and forgotten are the same row without the number.
+    state.environments = [environment("production", 3, true, { behind_by: 4 })];
+
+    render(<EnvironmentsPanel agentId="a1" canManage />);
+
+    expect(screen.getByText("4 versions behind")).toBeInTheDocument();
+  });
+
+  it("says nothing about being behind on an environment that follows publishes", () => {
+    state.environments = [environment("dev", 3, false, { tracks_latest: true, behind_by: 0 })];
+
+    render(<EnvironmentsPanel agentId="a1" canManage />);
+
+    expect(screen.getByText("Follows latest")).toBeInTheDocument();
+    expect(screen.queryByText(/behind/)).toBeNull();
+  });
+
+  it("switches an environment between waiting and following", async () => {
+    render(<EnvironmentsPanel agentId="a1" canManage />);
+
+    await userEvent.click(screen.getByLabelText("production follows every publish"));
+
+    expect(state.setReleaseMode.mutate).toHaveBeenCalledWith({
+      environmentId: "production-id",
+      tracksLatest: true,
+    });
   });
 
   it("refuses to offer removal of the default", () => {
@@ -147,7 +194,15 @@ describe("the environments panel", () => {
     // answering; an empty select would hide exactly that.
     state.environments = [
       environment("production", 3, true),
-      { id: "dev-id", name: "dev", version_id: "gone-id", version: 9, is_default: false },
+      {
+        id: "dev-id",
+        name: "dev",
+        version_id: "gone-id",
+        version: 9,
+        is_default: false,
+        tracks_latest: false,
+        behind_by: 0,
+      },
     ];
     render(<EnvironmentsPanel agentId="a1" canManage />);
 
@@ -161,9 +216,7 @@ describe("the environments panel", () => {
     // a request in flight, and reading it as "removed" would flash the worst
     // verdict this panel has onto every row on every load - the reading
     // `pinStatus` already refused.
-    state.environments = [
-      { id: "dev-id", name: "dev", version_id: "v9-id", version: 9, is_default: false },
-    ];
+    state.environments = [environment("dev", 9, false, { version_id: "v9-id" })];
     versionsState.versions = [];
     render(<EnvironmentsPanel agentId="a1" canManage />);
 
@@ -175,9 +228,7 @@ describe("the environments panel", () => {
   it("does not call a pin removed when the history may be truncated", () => {
     // The backend caps the history at fifty; a pin older than fifty publishes
     // is off the end of the page, which is not the same fact as deleted.
-    state.environments = [
-      { id: "dev-id", name: "dev", version_id: "v9-id", version: 9, is_default: false },
-    ];
+    state.environments = [environment("dev", 9, false, { version_id: "v9-id" })];
     versionsState.versions = Array.from({ length: VERSION_HISTORY_LIMIT }, (_, index) => ({
       id: `v${index + 10}-id`,
       version: index + 10,

@@ -42,9 +42,25 @@ edits, and it is why a rollback publishes a *new* version copied from the old on
 rather than deleting history - the timeline shows that a rollback happened
 instead of pretending the bad version never existed.
 
-**Environments** are named pointers at versions. Publishing moves only the
-default; every other environment stays pinned until a version is promoted onto
-it. A channel bot bound to an environment serves its version.
+**Environments** are named pointers at versions, and each says whether a publish
+may move it.
+
+*Publishing mints a version; putting it somewhere is a separate decision.* An
+environment either **waits to be promoted onto** - which is what `production`,
+the default, does - or **follows every publish**, which is what a `dev`
+somebody is iterating in usually wants. Publish used to repoint the default
+whatever it was, so fixing a prompt changed what the live bot answered with, in
+the same click, with nothing on screen saying so.
+
+Two consequences worth stating. The **first** publish creates `production` on
+the version it just minted, because an agent with no environment has nowhere to
+run at all. And a **rollback lands the same way** as a publish - it is a publish
+of an older spec - so putting an old version back in front of people is one
+click on its history row (promote), not a side effect of restoring the draft.
+
+A channel bot bound to an environment serves its version. `Agent.current_version_id`
+is the default environment's pointer, which is what a surface naming no
+environment resolves through - so it moves when that environment moves.
 
 ## Exposure
 

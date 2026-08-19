@@ -1487,14 +1487,11 @@ class AgentRegistryService:
             published_by_user_id=ctx.user_id,
         )
         await agent_repo.update(
-            self.db,
-            agent=agent,
-            update_data={
-                "current_version_id": version.id,
-                "status": AgentStatus.PUBLISHED.value,
-            },
+            self.db, agent=agent, update_data={"status": AgentStatus.PUBLISHED.value}
         )
-        await self._repoint_default_environment(ctx, agent=agent, version=version)
+        # `current_version_id` is the default environment's pointer, so the step
+        # that moves environments is the step that moves it - see below.
+        await self._move_environments_that_follow(ctx, agent=agent, version=version)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -1536,21 +1533,33 @@ class AgentRegistryService:
             },
         )
 
-    async def _repoint_default_environment(
+    async def _move_environments_that_follow(
         self, ctx: AuthContext, *, agent: Agent, version: AgentVersion
     ) -> None:
-        """Keep the default environment on the version that was just published.
+        """Repoint the environments that asked to follow publishes, and no others.
 
-        Publish moves exactly one pointer: the default. Named environments
-        somebody pinned - dev on v12, a client's env held back on v9 - stay
-        where they were put; promotion is `AgentEnvironmentService.update`,
-        on purpose and audited. An agent published for the first time gets its
-        `production` default here, so every published agent has one without a
-        backfill ever being anyone's job again.
+        **Publishing mints a version; putting it somewhere is a separate
+        decision.** This used to repoint the default whatever it was, so
+        "publish" and "deploy to production" were one click with nothing on
+        screen saying so - an author fixing a prompt changed what the live Slack
+        bot answered with, in the same action.
+
+        An environment in `tracks_latest` mode is the exception it asked to be:
+        a `dev` somebody is iterating in follows every publish, which is the
+        whole reason that mode exists.
+
+        The **first** publish is different, and has to be: an agent with no
+        environment has nowhere to run at all, so it gets its `production`
+        default here, pinned to the version that just appeared. Every publish
+        after that leaves it where it is until somebody promotes.
+
+        `Agent.current_version_id` mirrors the default environment, which is what
+        a surface naming no environment resolves through - so it moves when that
+        environment moves, and a publish that moves nothing moves it neither.
         """
         default = await agent_environment_repo.get_default_for_agent(self.db, agent_id=agent.id)
         if default is None:
-            await agent_environment_repo.create(
+            default = await agent_environment_repo.create(
                 self.db,
                 organization_id=ctx.organization_id,
                 agent_id=agent.id,
@@ -1559,9 +1568,17 @@ class AgentRegistryService:
                 is_default=True,
                 created_by_user_id=ctx.user_id,
             )
-            return
-        await agent_environment_repo.update(
-            self.db, environment=default, update_data={"version_id": version.id}
+        else:
+            for environment in await agent_environment_repo.following_latest(
+                self.db, agent_id=agent.id, organization_id=ctx.organization_id
+            ):
+                await agent_environment_repo.update(
+                    self.db, environment=environment, update_data={"version_id": version.id}
+                )
+                if environment.id == default.id:
+                    default = environment
+        await agent_repo.update(
+            self.db, agent=agent, update_data={"current_version_id": default.version_id}
         )
 
     async def rollback(
@@ -1598,12 +1615,15 @@ class AgentRegistryService:
             self.db,
             agent=agent,
             update_data={
-                "current_version_id": version.id,
                 "status": AgentStatus.PUBLISHED.value,
                 "draft_spec": source.spec,
             },
         )
-        await self._repoint_default_environment(ctx, agent=agent, version=version)
+        # A rollback is a publish of an older spec, so it lands the same way: the
+        # version exists, and what serves it is a promotion. Putting the old
+        # version back in front of people directly is one click on the history
+        # row - promote - rather than two here.
+        await self._move_environments_that_follow(ctx, agent=agent, version=version)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,

@@ -85,6 +85,8 @@ function environment(name: string, versionId: string, versionNumber: number): Ag
     version_id: versionId,
     version: versionNumber,
     is_default: name === "production",
+    tracks_latest: false,
+    behind_by: 0,
   } as AgentEnvironment;
 }
 

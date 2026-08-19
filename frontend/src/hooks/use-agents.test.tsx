@@ -526,6 +526,39 @@ describe("useAgent mutations", () => {
     await waitFor(() => expect(fetches()).toBeGreaterThan(before));
   });
 
+  it("switches an environment between waiting and following publishes", async () => {
+    // The mode is what decides whether a publish moves this pointer at all, so
+    // it is a PATCH of that one field - never bundled with a promotion, which
+    // is a different decision with a different audit entry.
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.patch).mockResolvedValue({ id: "e1" });
+    const { result } = renderHook(() => useAgentEnvironments("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.setReleaseMode.mutateAsync({
+      environmentId: "e1",
+      tracksLatest: true,
+    });
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/environments/e1", {
+      tracks_latest: true,
+    });
+    expect(toast.success).toHaveBeenCalledWith("Release mode saved");
+  });
+
+  it("reports a refused release-mode change", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("nope"));
+    const { result } = renderHook(() => useAgentEnvironments("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await expect(
+      result.current.setReleaseMode.mutateAsync({ environmentId: "e1", tracksLatest: false }),
+    ).rejects.toThrow();
+
+    expect(toast.error).toHaveBeenCalledWith("nope");
+  });
+
   it("reports a refused publish", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ id: "a1" });
     vi.mocked(apiClient.post).mockRejectedValue(new Error("spec invalid"));

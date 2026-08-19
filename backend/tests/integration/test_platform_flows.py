@@ -75,10 +75,12 @@ from app.repositories import (
     rag_document_repo,
 )
 from app.repositories.agent_run import RunFilters
+from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
 from app.schemas.mcp_connection import OrgMcpConnectionCreate, OrgMcpConnectionUpdate
 from app.services.access import AGENT, COLLECTION, SKILL, resolve_access
 from app.services.agent_chat import ChatAgentRunner
+from app.services.agent_environment import AgentEnvironmentService
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService, month_start
 from app.services.approvals import ApprovalService
@@ -1912,7 +1914,11 @@ class TestPublishAndRollback:
         assert sorted(row.version for row in versions) == [1, 2, 3]
         assert total == 3
         assert third.id not in (first.id, second.id)
-        assert agent.current_version_id == third.id
+        # And the pointer stays where the default environment is: a rollback is a
+        # publish of an older spec, so it lands the same way. Putting the old
+        # version back in front of people is a promotion, one click on its
+        # history row - not a side effect of restoring the draft.
+        assert agent.current_version_id == first.id
         restored = await db.get(AgentVersion, third.id)
         original = await db.get(AgentVersion, first.id)
         assert restored.spec == original.spec
@@ -4339,3 +4345,93 @@ class TestOneAgentPerBot:
         taken = await agent_exposure_repo.bound_agent_by_bot(db, channel_bot_ids=[bot.id])
 
         assert taken == {bot.id: estate.home_agent.id}
+
+
+class TestPublishingIsNotDeploying:
+    """Publishing mints a version; putting it somewhere is a separate decision.
+
+    It used to be one action: publish repointed the default environment, so an
+    author fixing a prompt changed what the live bot answered with, in the same
+    click, with nothing on screen saying so.
+    """
+
+    async def test_a_publish_leaves_a_pinned_environment_where_it_is(self, db) -> None:
+        tenant = await _tenant(db, name="Careful")
+        model = await _default_model(db, tenant)
+        registry = AgentRegistryService(db)
+        agent = await registry.create(
+            tenant.ctx, AgentSpec(name="Support", model_profile_id=model.id)
+        )
+        first = await registry.publish(tenant.ctx, agent.id)
+
+        second = await registry.publish(tenant.ctx, agent.id)
+
+        environments = await AgentEnvironmentService(db).list_for_agent(tenant.ctx, agent.id)
+        production = next(row for row in environments if row.is_default)
+        assert production.version_id == first.id
+        assert production.version_id != second.id
+        # And what a surface naming no environment gets is that environment's
+        # version, not the newest publish.
+        assert agent.current_version_id == first.id
+        assert production.behind_by == 1
+
+    async def test_an_environment_that_follows_latest_moves_with_every_publish(self, db) -> None:
+        tenant = await _tenant(db, name="Iterating")
+        model = await _default_model(db, tenant)
+        registry = AgentRegistryService(db)
+        environments = AgentEnvironmentService(db)
+        agent = await registry.create(
+            tenant.ctx, AgentSpec(name="Support", model_profile_id=model.id)
+        )
+        await registry.publish(tenant.ctx, agent.id)
+        await environments.create(
+            tenant.ctx, agent.id, EnvironmentCreate(name="dev", tracks_latest=True)
+        )
+
+        second = await registry.publish(tenant.ctx, agent.id)
+
+        listed = await environments.list_for_agent(tenant.ctx, agent.id)
+        dev = next(row for row in listed if row.name == "dev")
+        assert dev.version_id == second.id
+        assert dev.behind_by == 0
+
+    async def test_the_first_publish_has_somewhere_to_land(self, db) -> None:
+        """An agent with no environment has nowhere to run at all, so the first
+        publish creates the default rather than leaving it unreachable."""
+        tenant = await _tenant(db, name="Fresh")
+        model = await _default_model(db, tenant)
+        registry = AgentRegistryService(db)
+        agent = await registry.create(
+            tenant.ctx, AgentSpec(name="Support", model_profile_id=model.id)
+        )
+
+        version = await registry.publish(tenant.ctx, agent.id)
+
+        listed = await AgentEnvironmentService(db).list_for_agent(tenant.ctx, agent.id)
+        assert [(row.name, row.version_id, row.is_default) for row in listed] == [
+            ("production", version.id, True)
+        ]
+        assert agent.current_version_id == version.id
+
+    async def test_switching_an_environment_to_follow_adopts_the_newest_now(self, db) -> None:
+        """A mode that claims to follow and does not until something else
+        happens is the half-true state this setting exists to remove."""
+        tenant = await _tenant(db, name="Switcher")
+        model = await _default_model(db, tenant)
+        registry = AgentRegistryService(db)
+        environments = AgentEnvironmentService(db)
+        agent = await registry.create(
+            tenant.ctx, AgentSpec(name="Support", model_profile_id=model.id)
+        )
+        await registry.publish(tenant.ctx, agent.id)
+        newest = await registry.publish(tenant.ctx, agent.id)
+        listed = await environments.list_for_agent(tenant.ctx, agent.id)
+        production = next(row for row in listed if row.is_default)
+
+        await environments.update(
+            tenant.ctx, agent.id, production.id, EnvironmentUpdate(tracks_latest=True)
+        )
+
+        after = await environments.list_for_agent(tenant.ctx, agent.id)
+        assert next(row for row in after if row.is_default).version_id == newest.id
+        assert agent.current_version_id == newest.id

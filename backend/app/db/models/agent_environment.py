@@ -7,13 +7,18 @@ no way to let a dev bot exercise v12 while production kept answering with v11.
 An environment is a named pointer at one published version. It belongs beside
 :class:`app.db.models.agent_exposure.AgentExposure` conceptually: where an
 agent runs, and which build of it, are operational state - deliberately outside
-the spec, which describes what the agent *is*. A version is always pinned
-explicitly; promotion repoints the row, and nothing ever "tracks latest",
-because a pointer that moves on its own is a deploy nobody decided.
+the spec, which describes what the agent *is*.
+
+**Publishing mints a version; putting it somewhere is a separate decision.**
+Each environment says whether it follows publishes (`tracks_latest`) or waits to
+be promoted onto, and the default is to wait. Publish used to repoint the
+default silently, which made "publish" and "deploy to production" one click with
+nothing on screen saying so.
 
 `Agent.current_version_id` stays as the denormalized pointer of the *default*
-environment, kept in sync at publish - every existing read keeps working, and
-the default environment is what a surface that names no environment gets.
+environment, kept in sync with it - every existing read keeps working, and the
+default environment is what a surface that names no environment gets. It moves
+when that environment moves, which is now a promotion rather than a publish.
 """
 
 import uuid
@@ -59,9 +64,23 @@ class AgentEnvironment(Base, TimestampMixin):
     )
 
     # What a surface that names no environment gets. Managed by publish, which
-    # repoints (or creates) the default - never toggled directly, so an agent
-    # always has exactly one.
+    # creates the default on the first publish - never toggled directly, so an
+    # agent always has exactly one.
     is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    # Whether a publish moves this pointer on its own.
+    #
+    # False - pinned - is the default and the safe reading: publishing mints a
+    # version, and putting that version somewhere is a separate decision that
+    # somebody makes and the audit trail records. It used to be neither: publish
+    # silently repointed the default, so "publish" and "deploy to production"
+    # were the same click and nothing on screen said so.
+    #
+    # True is that behaviour, kept and made visible: an environment in this mode
+    # follows every publish, which is what a `dev` an author is iterating in
+    # wants. What it must never be is invisible - the environments panel says
+    # which mode each one is in, beside the version it is serving.
+    tracks_latest: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # Where this environment's traces go, overriding the spec's own
     # observability block. Per environment because that is what the block's

@@ -1502,27 +1502,32 @@ class TestPublish:
             patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()) as audit,
         ):
             environments.get_default_for_agent = AsyncMock(return_value=None)
-            environments.create = AsyncMock()
+            environments.create = AsyncMock(
+                return_value=MagicMock(id=uuid.uuid4(), version_id=version.id)
+            )
             published = await AgentRegistryService(_db()).publish(ctx, agent.id, note="first cut")
 
         frozen = create_version.call_args.kwargs
         assert frozen["version"] == 3
         assert frozen["spec"] == spec.model_dump(mode="json")
         assert frozen["note"] == "first cut"
-        assert update.call_args.kwargs["update_data"] == {
-            "current_version_id": version.id,
-            "status": AgentStatus.PUBLISHED.value,
-        }
         assert audit.call_args.kwargs["details"] == {"version": 3, "note": "first cut"}
         assert published is version
         # A first publish mints the default environment, pinned to the version
-        # that just went live - so every published agent has one.
+        # that just went live - so every published agent has one, and has
+        # somewhere to run at all.
         created = environments.create.call_args.kwargs
         assert (created["name"], created["is_default"], created["version_id"]) == (
             "production",
             True,
             version.id,
         )
+        # Two writes to the agent row, and only one of them names a version: the
+        # status is publish's, the pointer is the default environment's.
+        assert [call.kwargs["update_data"] for call in update.await_args_list] == [
+            {"status": AgentStatus.PUBLISHED.value},
+            {"current_version_id": version.id},
+        ]
 
     @pytest.mark.anyio
     async def test_a_draft_that_does_not_validate_freezes_nothing(self):
@@ -1576,8 +1581,9 @@ class TestRollback:
             patch(f"{REGISTRY_PATH}.agent_environment_repo") as environments,
             patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()) as audit,
         ):
-            default = MagicMock()
+            default = MagicMock(tracks_latest=False)
             environments.get_default_for_agent = AsyncMock(return_value=default)
+            environments.following_latest = AsyncMock(return_value=[])
             environments.update = AsyncMock()
             restored = await AgentRegistryService(_db()).rollback(
                 ctx, agent.id, to_version_id=source.id
@@ -1587,16 +1593,17 @@ class TestRollback:
         assert written["version"] == 5
         assert written["spec"] == source.spec
         assert written["note"] == "Rollback to v1"
-        assert update.call_args.kwargs["update_data"] == {
-            "current_version_id": fresh.id,
-            "status": AgentStatus.PUBLISHED.value,
-            "draft_spec": source.spec,
-        }
         assert audit.call_args.kwargs["details"] == {"from_version": 1, "new_version": 5}
         assert restored is fresh
-        # A rollback moves the default environment with the pointer - the new
-        # version is what the default audience now gets.
-        assert environments.update.call_args.kwargs["update_data"] == {"version_id": fresh.id}
+        # A rollback is a publish of an older spec, so it lands the same way: the
+        # version exists and a pinned environment stays where it is. Putting the
+        # old version back in front of people is a promotion - one click on its
+        # history row - rather than a side effect of restoring the draft.
+        environments.update.assert_not_awaited()
+        assert [call.kwargs["update_data"] for call in update.await_args_list] == [
+            {"status": AgentStatus.PUBLISHED.value, "draft_spec": source.spec},
+            {"current_version_id": default.version_id},
+        ]
 
     @pytest.mark.anyio
     async def test_a_version_belonging_to_another_agent_cannot_be_rolled_into_this_one(self):
@@ -2690,7 +2697,7 @@ class TestASharedWorkspaceIsAnswerableAfterwards:
         with (
             patch.object(service, "get", new=AsyncMock(return_value=agent)),
             patch.object(service, "validate_spec", new=AsyncMock()),
-            patch.object(service, "_repoint_default_environment", new=AsyncMock()),
+            patch.object(service, "_move_environments_that_follow", new=AsyncMock()),
             patch(f"{REGISTRY_PATH}.agent_repo.next_version_number", new=AsyncMock(return_value=3)),
             patch(
                 f"{REGISTRY_PATH}.agent_repo.create_version",
