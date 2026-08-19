@@ -2,14 +2,26 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { AgentMap, MAP_ICONS, type MapDelegate, type MapNode } from "./agent-map";
+import {
+  AgentMap,
+  capabilityMark,
+  MAP_ICONS,
+  surfaceMark,
+  type MapDelegate,
+  type MapNode,
+} from "./agent-map";
+
+/** A tile, named the way the map names one - a label is all these tests read. */
+function tile(label: string) {
+  return { key: label, label };
+}
 
 function node(overrides: Partial<MapNode> = {}): MapNode {
   return {
     key: "skills",
     title: "Skills",
     icon: MAP_ICONS.skills,
-    items: ["refund-policy"],
+    items: [tile("refund-policy")],
     empty: "No skills attached",
     side: "right",
     ...overrides,
@@ -26,6 +38,101 @@ function delegate(overrides: Partial<MapDelegate> = {}): MapDelegate {
     ...overrides,
   };
 }
+
+describe("which mark a thing wears", () => {
+  it("draws an MCP server's own brand mark, not a generic plug", () => {
+    // One generic plug repeated down a list removes the only reason to have
+    // icons in it - the same argument `McpServerIcon` is built on.
+    const { container } = render(
+      <AgentMap
+        agentName="Support"
+        instructions="Be brief."
+        nodes={[
+          node({
+            items: [{ key: "gh", label: "GitHub", mcp: { icon: "github", name: "GitHub" } }],
+          }),
+        ]}
+      />,
+    );
+
+    expect(container.querySelectorAll("li svg")).toHaveLength(1);
+  });
+
+  it("takes a capability's mark from what its first tool does", () => {
+    // From the table the chat's own step list reads, so a capability wears one
+    // face whether it is being configured or watched running.
+    expect(capabilityMark(undefined)).toBe(MAP_ICONS.capabilities);
+    expect(capabilityMark({ tools: [{ id: "never-heard-of-it" }] } as never)).toBe(
+      MAP_ICONS.capabilities,
+    );
+    expect(capabilityMark({ tools: [{ id: "search_documents" }] } as never)).not.toBe(
+      MAP_ICONS.capabilities,
+    );
+  });
+
+  it("has no mark for a surface this build does not know", () => {
+    // The honest answer, and the same one `SurfaceIcon` gives by rendering
+    // nothing rather than guessing.
+    expect(surfaceMark("carrier-pigeon")).toBeUndefined();
+    expect(surfaceMark("slack")).toBeDefined();
+  });
+});
+
+describe("a group's tiles", () => {
+  it("draws one tile per thing rather than a paragraph of names", () => {
+    // A list of names is read as one shape: a reader looking for "is Slack on
+    // here" was scanning text. Each thing is its own tile with its own mark.
+    render(
+      <AgentMap
+        agentName="Support"
+        instructions="Be brief."
+        nodes={[node({ items: [tile("Dashboard chat"), tile("HTTP API"), tile("Slack")] })]}
+      />,
+    );
+
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+    expect(screen.getByText("Slack")).toBeVisible();
+  });
+
+  it("draws a mark beside a tile that has one", () => {
+    const { container } = render(
+      <AgentMap
+        agentName="Support"
+        instructions="Be brief."
+        nodes={[node({ items: [{ key: "chat", label: "Dashboard chat", icon: MAP_ICONS.model }] })]}
+      />,
+    );
+
+    expect(container.querySelectorAll("li svg")).toHaveLength(1);
+  });
+
+  it("dims a binding that is bound but not answering", () => {
+    // A paused channel is still a place this agent is published to, so it is
+    // drawn rather than dropped - and dimmed rather than annotated.
+    render(
+      <AgentMap
+        agentName="Support"
+        instructions="Be brief."
+        nodes={[node({ items: [{ key: "s", label: "Support bot", muted: true }] })]}
+      />,
+    );
+
+    expect(screen.getByText("Support bot").closest("li")?.className).toContain("opacity-55");
+  });
+
+  it("still says what is missing rather than drawing an empty box", () => {
+    render(
+      <AgentMap
+        agentName="Support"
+        instructions="Be brief."
+        nodes={[node({ items: [], empty: "No skills attached" })]}
+      />,
+    );
+
+    expect(screen.getByText("No skills attached")).toBeVisible();
+    expect(screen.queryAllByRole("listitem")).toHaveLength(0);
+  });
+});
 
 describe("AgentMap", () => {
   it("says what is attached, by name", () => {
@@ -61,10 +168,10 @@ describe("AgentMap", () => {
         agentName="Support"
         instructions="Be brief."
         nodes={[
-          node({ key: "surfaces", title: "Surfaces", side: "left", items: ["chat"] }),
+          node({ key: "surfaces", title: "Surfaces", side: "left", items: [tile("chat")] }),
           node({ key: "skills", title: "Skills", side: "right" }),
-          node({ key: "model", title: "Model", side: "top", items: ["gpt-5"] }),
-          node({ key: "delegation", title: "Delegation", side: "bottom", items: ["Sync"] }),
+          node({ key: "model", title: "Model", side: "top", items: [tile("gpt-5")] }),
+          node({ key: "delegation", title: "Delegation", side: "bottom", items: [tile("Sync")] }),
         ]}
       />,
     );
@@ -81,7 +188,7 @@ describe("AgentMap", () => {
       <AgentMap
         agentName="Support"
         instructions="Be brief."
-        nodes={[node({ items: ["a", "b", "c"] })]}
+        nodes={[node({ items: [tile("a"), tile("b"), tile("c")] })]}
       />,
     );
 
@@ -184,7 +291,7 @@ describe("AgentMap focus", () => {
       <AgentMap
         agentName="Support"
         instructions="Be brief."
-        nodes={[node({ key: "surfaces", title: "Surfaces", side: "left", items: ["chat"] })]}
+        nodes={[node({ key: "surfaces", title: "Surfaces", side: "left", items: [tile("chat")] })]}
       />,
     );
 
@@ -199,8 +306,8 @@ describe("AgentMap focus", () => {
         agentName="Support"
         instructions="Be brief."
         nodes={[
-          node({ key: "model", title: "Model", side: "top", items: ["gpt-5"] }),
-          node({ key: "delegation", title: "Delegation", side: "bottom", items: ["Sync"] }),
+          node({ key: "model", title: "Model", side: "top", items: [tile("gpt-5")] }),
+          node({ key: "delegation", title: "Delegation", side: "bottom", items: [tile("Sync")] }),
         ]}
       />,
     );

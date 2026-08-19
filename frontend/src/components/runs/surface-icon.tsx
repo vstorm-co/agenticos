@@ -63,7 +63,20 @@ export function surfaceLabel(surface: string, t: Translate): string {
  * announcement of the same word.
  */
 export function SurfaceIcon({ surface, className }: { surface: string; className?: string }) {
+  // The table directly rather than through the accessor below: a lookup that
+  // goes via a function reads to the compiler's rules as a component *created*
+  // during render, and the two are the same table either way.
   const Mark = MARKS[surface as keyof typeof MARKS];
   if (Mark === undefined) return null;
   return <Mark className={cn("h-3.5 w-3.5 shrink-0", className)} aria-hidden />;
+}
+
+/**
+ * The mark itself, for a caller that needs the component rather than an element.
+ *
+ * The agent map's tiles take an icon as a prop, and reading `MARKS` there would
+ * be a second table - which is the thing this module exists to prevent.
+ */
+export function surfaceIconComponent(surface: string) {
+  return MARKS[surface as keyof typeof MARKS];
 }
