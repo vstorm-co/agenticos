@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 
+import * as adminSettings from "./admin/settings/[[...path]]/route";
 import * as agent from "./agent/[[...path]]/route";
 import * as agents from "./agents/[[...path]]/route";
 import * as approvals from "./approvals/[[...path]]/route";
@@ -44,6 +45,7 @@ import * as users from "./users/[userId]/route";
  * nothing, on one page only.
  */
 const MOUNTED: [string, Record<string, unknown>][] = [
+  ["admin/settings", adminSettings],
   ["agent", agent],
   ["agents", agents],
   ["approvals", approvals],

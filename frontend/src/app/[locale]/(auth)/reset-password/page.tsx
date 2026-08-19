@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ResetPasswordForm } from "@/components/auth/reset-password-form";
 import type { Locale } from "@/i18n";
 import { ROUTES } from "@/lib/constants";
+import { readBranding } from "@/lib/branding-server";
 import { pageMetadata } from "@/lib/seo";
 
 import { getTranslations } from "next-intl/server";
@@ -14,7 +15,9 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations("pages.meta");
+  const { appName } = await readBranding();
   return pageMetadata({
+    brand: appName,
     title: t("resetPasswordTitle"),
     description: t("resetPasswordDescription"),
     path: "/reset-password",

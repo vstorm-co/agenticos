@@ -8,6 +8,7 @@ import {
   useAgent,
   useAgentVersion,
   useAgentVersions,
+  useAllAgentVersions,
   useAgents,
   useCapabilityCatalog,
   useDelegationTree,
@@ -526,6 +527,39 @@ describe("useAgent mutations", () => {
     await waitFor(() => expect(fetches()).toBeGreaterThan(before));
   });
 
+  it("switches an environment between waiting and following publishes", async () => {
+    // The mode is what decides whether a publish moves this pointer at all, so
+    // it is a PATCH of that one field - never bundled with a promotion, which
+    // is a different decision with a different audit entry.
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.patch).mockResolvedValue({ id: "e1" });
+    const { result } = renderHook(() => useAgentEnvironments("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.setReleaseMode.mutateAsync({
+      environmentId: "e1",
+      tracksLatest: true,
+    });
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/environments/e1", {
+      tracks_latest: true,
+    });
+    expect(toast.success).toHaveBeenCalledWith("Release mode saved");
+  });
+
+  it("reports a refused release-mode change", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("nope"));
+    const { result } = renderHook(() => useAgentEnvironments("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await expect(
+      result.current.setReleaseMode.mutateAsync({ environmentId: "e1", tracksLatest: false }),
+    ).rejects.toThrow();
+
+    expect(toast.error).toHaveBeenCalledWith("nope");
+  });
+
   it("reports a refused publish", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ id: "a1" });
     vi.mocked(apiClient.post).mockRejectedValue(new Error("spec invalid"));
@@ -589,12 +623,95 @@ describe("an agent's versions", () => {
     const { result } = renderHook(() => useAgentVersions("a1"), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/versions");
+    // One page, the size the history card reads. A caller needing every version
+    // uses `useAllAgentVersions`, which walks the pages.
+    expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/versions", {
+      params: { skip: "0", limit: "10" },
+    });
     expect(result.current.versions).toHaveLength(1);
+    expect(result.current.total).toBe(1);
+  });
+
+  it("asks for the page the history card is showing", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 60 });
+
+    const { result } = renderHook(() => useAgentVersions("a1", { skip: 10, limit: 10 }), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/versions", {
+      params: { skip: "10", limit: "10" },
+    });
+    // Every version, not the length of this page: the listing used to report
+    // its own cap, so ten versions were unreachable and nothing said so.
+    expect(result.current.total).toBe(60);
   });
 
   it("does not fetch a timeline before an agent is chosen", () => {
     renderHook(() => useAgentVersions(null), { wrapper });
+
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("walks every page for a picker, because one request is capped", async () => {
+    // The defect: the pickers read one request of fifty and the route reports a
+    // larger `total`, so an agent published more than fifty times offered its
+    // newest fifty - and the version an environment is pinned to could be missing
+    // from the picker that repins it. A `<Select>` with no matching option renders
+    // a blank trigger, so it reads as "no version" rather than as a hidden one.
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({
+        items: Array.from({ length: 100 }, (_, i) => ({ id: `v${230 - i}`, version: 230 - i })),
+        total: 230,
+      })
+      .mockResolvedValueOnce({
+        items: Array.from({ length: 100 }, (_, i) => ({ id: `v${130 - i}`, version: 130 - i })),
+        total: 230,
+      })
+      .mockResolvedValueOnce({
+        items: Array.from({ length: 30 }, (_, i) => ({ id: `v${30 - i}`, version: 30 - i })),
+        total: 230,
+      });
+
+    const { result } = renderHook(() => useAllAgentVersions("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.versions).toHaveLength(230);
+    expect(result.current.total).toBe(230);
+    expect(vi.mocked(apiClient.get).mock.calls.map(([, options]) => options)).toEqual([
+      { params: { skip: "0", limit: "100" } },
+      { params: { skip: "100", limit: "100" } },
+      { params: { skip: "200", limit: "100" } },
+    ]);
+  });
+
+  it("stops walking when a page answers nothing, rather than looping", async () => {
+    // A publication deleted between two requests leaves `total` larger than what
+    // is there to read, and a `while` trusting the count alone would spin.
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ items: [{ id: "v2", version: 2 }], total: 9 })
+      .mockResolvedValueOnce({ items: [], total: 9 });
+
+    const { result } = renderHook(() => useAllAgentVersions("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.versions).toHaveLength(1);
+    expect(apiClient.get).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops walking when the first page is empty", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 4 });
+
+    const { result } = renderHook(() => useAllAgentVersions("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.versions).toEqual([]);
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks for nothing before an agent is chosen", () => {
+    renderHook(() => useAllAgentVersions(null), { wrapper });
 
     expect(apiClient.get).not.toHaveBeenCalled();
   });

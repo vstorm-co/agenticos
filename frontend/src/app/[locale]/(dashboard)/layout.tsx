@@ -1,3 +1,4 @@
+import { DeploymentGate } from "@/components/branding/deployment-gate";
 import { CustomIconsProvider } from "@/components/icons/custom-icons";
 import { MobileHeader, Sidebar } from "@/components/layout";
 import { ActiveOrgGuard } from "@/components/layout/active-org-guard";
@@ -32,12 +33,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             moves under it. */}
           <div className="flex min-h-0 flex-1">
             <AppSidebar />
+            {/* `relative` is load-bearing, and not for anything it positions.
+                An absolutely positioned descendant with no positioned ancestor
+                resolves against the initial containing block, and its layout
+                overflow then inflates the *document's* scrollable rect: measured
+                on the agent Builder, `documentElement.scrollHeight` read 3130
+                against a 1290 viewport while the document could not be scrolled
+                by a pixel. Chrome draws a scrollbar track for that - inert, with
+                a full-height thumb - so anybody whose macOS shows scrollbars
+                always saw two bars side by side and one of them did nothing. The
+                offenders are the hidden inputs Radix's Select renders. Contained
+                here, `scrollHeight` is the viewport's own 1290.
+
+                `relative` rather than `contain: paint`, which fixes it equally
+                and would also make this the containing block for every `fixed`
+                descendant - the chat's sources panel and two drop overlays are
+                `fixed` and rendered inline, so containment would move them. */}
             <main
               id="main"
               tabIndex={-1}
-              className="flex min-h-0 flex-1 flex-col overflow-auto px-3 pt-4 pb-20 sm:px-6 sm:pt-8 lg:pb-16"
+              className="relative flex min-h-0 flex-1 flex-col overflow-auto px-3 pt-4 pb-20 sm:px-6 sm:pt-8 lg:pb-16"
             >
-              <PageTransition>{children}</PageTransition>
+              {/* Inside `main` rather than around the whole shell: a
+                  maintenance window still leaves the navigation and the account
+                  menu, because the administrator who has to end it reaches the
+                  settings page through them. */}
+              <DeploymentGate>
+                <PageTransition>{children}</PageTransition>
+              </DeploymentGate>
             </main>
           </div>
           <Sidebar />

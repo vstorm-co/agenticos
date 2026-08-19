@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import {
@@ -109,8 +109,31 @@ const binding = (
   ...overrides,
 });
 
-/** A tool's row, found by the stable id it is labelled with - a rename cannot move it. */
-const toolRow = (id: string) => screen.getByRole("listitem", { name: id });
+/**
+ * A tool's row, found by the stable id it is labelled with - a rename cannot move it.
+ *
+ * The rows sit in the panel's Tools tab now, so this opens it first. `fireEvent`
+ * rather than `userEvent` so the helper stays synchronous: which of two tabs is
+ * showing is chrome, and making every assertion below `await` a tab click would
+ * bury what each test is actually about.
+ */
+const toolRow = (id: string) => {
+  openTools();
+  return screen.getByRole("listitem", { name: id });
+};
+
+/**
+ * Show the panel's Tools tab.
+ *
+ * `mouseDown`, which is what Radix's trigger listens on - a bare `click` leaves
+ * the tab unselected and its panel unmounted. Synchronous on purpose: which of
+ * two tabs is showing is chrome, and making every assertion below `await` a tab
+ * click would bury what each test is about.
+ */
+const openTools = () => {
+  const tab = screen.queryAllByRole("tab", { name: "Tools" })[0];
+  if (tab && tab.getAttribute("aria-selected") !== "true") fireEvent.mouseDown(tab);
+};
 
 /** One control inside that row. Every row names its fields the same way. */
 const toolField = (id: string, label: "Name" | "Description the model reads" | "Approval") =>
@@ -423,6 +446,7 @@ describe("CapabilitySettings tools", () => {
       />,
     );
 
+    openTools();
     const rows = screen.getAllByRole("listitem");
     const overridden = rows.filter((row) => within(row).queryByText("overridden") !== null);
 
@@ -463,6 +487,7 @@ describe("CapabilitySettings tools", () => {
       />,
     );
 
+    openTools();
     await userEvent.click(screen.getByRole("button", { name: "Clear 2 overrides" }));
 
     expect(onChange).toHaveBeenCalledWith(
@@ -524,6 +549,7 @@ describe("CapabilitySettings tools", () => {
       />,
     );
 
+    openTools();
     await userEvent.click(screen.getByRole("button", { name: "Clear 1 override" }));
     expect(onChange).not.toHaveBeenCalled();
   });

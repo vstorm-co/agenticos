@@ -579,9 +579,8 @@ different question and none of these orders answers it.
 
 Activity surfaces that duration three ways, and all three lead to the same query.
 The **Took** column header is a sort control — like the Started header beside it,
-matching the sortable-header pattern `admin/conversations` already uses — so a
-click reorders history by `duration` rather than by the twenty-five rows on
-screen. A **"slow runs"** canned view is that sort plus a `took_over_ms` threshold
+and like every sortable header in the product — so a click reorders history by
+`duration` rather than by the twenty-five rows on screen. A **"slow runs"** canned view is that sort plus a `took_over_ms` threshold
 (30s) as one click, and **"all runs"** drops both, back to newest-first — within
 whatever window is in view, since the window is a separate axis the p95 link and
 the date range set. And the

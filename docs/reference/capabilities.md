@@ -134,6 +134,12 @@ same way `knowledge` bound to no collections is not. Files are managed under
 | `method` | `duckduckgo` | `duckduckgo`, `native`, `tavily`, `brave`, `exa` |
 | `max_results` | 5 | 1–10, ignored by `native` |
 
+The console names each method rather than printing the value it stores, and draws
+the service's own mark beside it: the field carries `x-enum-labels`, which is what
+the generated form reads for a label. Without them the picker offered
+`duckduckgo` and `exa` in the case they are stored in, which reads as a config key
+to recognise rather than a product to choose.
+
 - **`duckduckgo`** — free, no account, results rendered as clickable sources.
 - **`native`** — the model provider searches with its own index and returns its
   own citations. Only on models that support it.
@@ -445,12 +451,50 @@ draws pictures.
 
 | Config | Default | Values |
 |---|---|---|
-| `model` | `openai-responses:gpt-5.4` | `openai-responses:gpt-5.4`, `google:gemini-3-pro-image` |
+| `provider` | `openai` | The providers whose model class honours the image tool *and* takes an API key - two today |
+| `model` | `gpt-image-2` | That provider's models, from `app/core/catalog/image_models.json` |
 | `quality` | provider default | `low`, `medium`, `high`, `auto` |
 | `size` | provider default | `auto`, `1024x1024`, `1024x1536`, `1536x1024`, `512`, `1K`, `2K`, `4K` |
 | `background` | provider default | `transparent`, `opaque`, `auto` |
 | `output_format` | provider default | `png`, `webp`, `jpeg` |
 | `aspect_ratio` | provider default | `16:9`, `1:1`, `9:16`, … |
+
+**Which providers can draw is the SDK's answer, not a list.**
+`Model.supported_native_tools()` is a classmethod on every model class Pydantic AI
+ships, so the platform asks it: `OpenAIResponsesModel`, `GoogleModel` and
+`GoogleModel` through Vertex honour `ImageGenerationTool`, nobody else does, and an
+upgrade that teaches a fourth needs no code here. Together's and Fireworks' image
+models are real and would fail on their first call with "not supported by this
+model", which is why they are not offered.
+
+**Being able to draw and being configurable are two questions**, and Vertex AI is
+where they part. The capability seals one API key and builds every provider with
+it, where Vertex wants a service account — so a Vertex entry would be a picker
+choice nobody can supply a credential for, and it is dropped alongside the
+undrawable ones. Offering it means teaching the capability provider-specific
+credential shapes, which is a capability change rather than a catalog one.
+
+**Which models each provider offers is data**, in
+`app/core/catalog/image_models.json`: an id, a name and a sentence saying when to
+reach for it. No listing endpoint answers this question - `/v1/models` returns chat
+models - so a model released this morning is one catalog entry rather than a
+release. A provider entry the SDK cannot drive, or whose credential this
+capability cannot build, is dropped when the file is read - the guard against the
+file growing something undrawable or unconfigurable.
+
+The two providers name the image model in different places, and the catalog carries
+that too. For **Google** the chosen model *is* the image model. For **OpenAI** the
+tool is called by a Responses model and draws with the chosen one, so the entry
+names that caller and the choice travels as the tool's own `model`. Neither is a
+question the author is asked.
+
+**A spec published before the pair existed still runs.** This used to be one
+enumerated string carrying the SDK prefix (`openai-responses:gpt-5.4`), and a
+stored spec still holds it. Read against the two fields that is an unknown model,
+so the config normalises the old shape on the way in: the prefix names the
+provider, and a name that is the *caller* rather than a drawing model resolves to
+that provider's first image model. Only where no `provider` was stored — a binding
+that names one is stating both halves.
 
 `model` also decides which provider the API key belongs to. The key is required —
 publishing an agent that binds this without one is refused — and comes from the

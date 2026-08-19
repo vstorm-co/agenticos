@@ -69,6 +69,14 @@ interface PageMetaInput {
   noindex?: boolean;
   /** Override OG image. Defaults to dynamic /opengraph-image. */
   ogImage?: string;
+  /**
+   * What this deployment calls itself, for the titles no template touches.
+   *
+   * Defaults to the built-in. A caller that has read the settings row - every
+   * `generateMetadata` in the app - passes the effective name, so a renamed
+   * deployment is not still `agenticos` on a shared link.
+   */
+  brand?: string;
 }
 
 /** Build a fully-formed Next.js Metadata object for a public page. */
@@ -77,7 +85,15 @@ export function pageMetadata(input: PageMetaInput): Metadata {
   const path = normalizePath(input.path ?? "/");
   const localizedPath = path === "/" ? `/${locale}` : `/${locale}${path}`;
   const canonical = `${SITE.url}${localizedPath}`;
-  const title = input.title === SITE.name ? SITE.name : `${input.title} | ${SITE.name}`;
+  const brand = input.brand ?? SITE.name;
+  // Bare, because the root layout's `title.template` is `%s | <brand>` and Next
+  // applies it to whatever a page returns. Appending the brand here as well is how
+  // every page title read `Sign in | agenticos | Acme AI` - the template's half
+  // current, this half frozen at build time. A page whose title *is* the brand
+  // opts out of the template rather than saying it twice.
+  const title = input.title === brand ? { absolute: brand } : input.title;
+  // OG and Twitter titles go through no template, so they carry the brand here.
+  const socialTitle = input.title === brand ? brand : `${input.title} | ${brand}`;
   const ogImageUrl = input.ogImage ?? `${SITE.url}/opengraph-image`;
 
   return {
@@ -94,10 +110,10 @@ export function pageMetadata(input: PageMetaInput): Metadata {
       ),
     },
     openGraph: {
-      title,
+      title: socialTitle,
       description: input.description,
       url: canonical,
-      siteName: SITE.name,
+      siteName: brand,
       type: "website",
       locale: OG_LOCALE[locale],
       alternateLocale: SITE.locales.filter((l) => l !== locale).map((l) => OG_LOCALE[l]),
@@ -106,13 +122,13 @@ export function pageMetadata(input: PageMetaInput): Metadata {
           url: ogImageUrl,
           width: 1200,
           height: 630,
-          alt: `${SITE.name} - ${SITE.tagline}`,
+          alt: `${brand} - ${SITE.tagline}`,
         },
       ],
     },
     twitter: {
       card: "summary_large_image",
-      title,
+      title: socialTitle,
       description: input.description,
       images: [ogImageUrl],
       ...(SITE.twitter ? { site: SITE.twitter, creator: SITE.twitter } : {}),

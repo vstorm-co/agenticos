@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { getErrorMessage } from "@/lib/api-error";
 import { useChanged } from "@/hooks/use-changed";
-import { ArrowUpRight, Copy, KeyRound, Mail, Shield, ShieldOff, Trash2, UserX } from "lucide-react";
+import { Copy, KeyRound, Mail, Shield, ShieldOff, Trash2, UserX } from "lucide-react";
 import { toast } from "sonner";
 
 import { LoadingState } from "@/components/states";
@@ -29,7 +29,6 @@ import {
 } from "@/components/ui";
 import type { AdminUser } from "@/types";
 import { apiClient } from "@/lib/api-client";
-import { ROUTES } from "@/lib/constants";
 import { formatDateTime } from "@/lib/utils";
 import { qk } from "@/lib/query-keys";
 import { useLocale, useTranslations } from "next-intl";
@@ -194,13 +193,6 @@ export function UserDetailDrawer({
                           ` · ${t("messageCountShort", { count: c.message_count })}`}
                       </p>
                     </div>
-                    <a
-                      href={`${ROUTES.ADMIN_CONVERSATIONS}?id=${c.id}`}
-                      className="text-muted-foreground hover:text-foreground inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors"
-                      title={t("openConversation")}
-                    >
-                      <ArrowUpRight className="h-3.5 w-3.5" />
-                    </a>
                   </li>
                 ))}
               </ul>

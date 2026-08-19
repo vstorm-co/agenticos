@@ -31,7 +31,7 @@ export function useAgentEnvironments(agentId: string | null) {
     queryClient.invalidateQueries({ queryKey: qk.environments.list(agentId ?? "") });
 
   const create = useMutation({
-    mutationFn: (input: { name: string; version_id?: string }) =>
+    mutationFn: (input: { name: string; version_id?: string; tracks_latest?: boolean }) =>
       apiClient.post<AgentEnvironment>(base, input),
     onSuccess: invalidate,
     onError: (error) => toast.error(getErrorMessage(error, tErrors, t("failedCreateEnvironment"))),
@@ -45,6 +45,32 @@ export function useAgentEnvironments(agentId: string | null) {
       toast.success(t("promoted"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors, t("failedPromote"))),
+  });
+
+  /**
+   * Switch an environment between waiting to be promoted onto and following
+   * every publish.
+   *
+   * Turning it on adopts the newest version now rather than at the next
+   * publish - a mode that claims to follow and does not until something else
+   * happens is the half-true state the setting exists to remove.
+   */
+  const setReleaseMode = useMutation({
+    mutationFn: ({
+      environmentId,
+      tracksLatest,
+    }: {
+      environmentId: string;
+      tracksLatest: boolean;
+    }) =>
+      apiClient.patch<AgentEnvironment>(`${base}/${environmentId}`, {
+        tracks_latest: tracksLatest,
+      }),
+    onSuccess: () => {
+      invalidate();
+      toast.success(t("releaseModeSaved"));
+    },
+    onError: (error) => toast.error(getErrorMessage(error, tErrors, t("failedReleaseMode"))),
   });
 
   const rename = useMutation({
@@ -68,6 +94,7 @@ export function useAgentEnvironments(agentId: string | null) {
     isLoading,
     create,
     promote,
+    setReleaseMode,
     rename,
     remove,
   };

@@ -57,6 +57,15 @@ export interface Invitation {
   /** Links only: how many people it admits, null being unlimited. */
   max_uses?: number | null;
   used_count?: number;
+  /**
+   * Links only: how many people registered through it and have not joined yet.
+   *
+   * `max_uses` is compared against this *plus* `used_count` - registering spends a
+   * use, because acceptance needs a session and a ceiling that ignored the gap let
+   * one link mint accounts without bound. So the number shown against the maximum
+   * is the sum, or the page says a spent link has a place left.
+   */
+  reserved_count?: number;
   /** Links only: restrict to addresses at this domain. */
   email_domain?: string | null;
   expires_at: string | null;

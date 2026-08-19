@@ -58,9 +58,10 @@ vi.mock("next/navigation", () => ({
   permanentRedirect: vi.fn(),
 }));
 
-// Node 22+ ships a built-in localStorage that is disabled (undefined) without
-// --localstorage-file and shadows jsdom's, breaking zustand persist. Provide one.
-class LocalStorageMock {
+// Node 22+ ships built-in localStorage and sessionStorage that are disabled
+// (undefined) without --localstorage-file and shadow jsdom's, breaking zustand
+// persist and the onboarding resume stash. Provide both.
+class StorageMock {
   private store = new Map<string, string>();
   get length(): number {
     return this.store.size;
@@ -81,16 +82,23 @@ class LocalStorageMock {
     return Array.from(this.store.keys())[index] ?? null;
   }
 }
-Object.defineProperty(globalThis, "localStorage", {
-  configurable: true,
-  writable: true,
-  value: new LocalStorageMock(),
-});
+for (const name of ["localStorage", "sessionStorage"] as const) {
+  Object.defineProperty(globalThis, name, {
+    configurable: true,
+    writable: true,
+    value: new StorageMock(),
+  });
+}
 if (inBrowser) {
   Object.defineProperty(window, "localStorage", {
     configurable: true,
     writable: true,
     value: globalThis.localStorage,
+  });
+  Object.defineProperty(window, "sessionStorage", {
+    configurable: true,
+    writable: true,
+    value: globalThis.sessionStorage,
   });
 
   // Mock matchMedia for responsive components

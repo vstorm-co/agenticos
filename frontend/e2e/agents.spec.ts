@@ -66,6 +66,10 @@ async function toolRow(page: Page): Promise<Locator> {
   // mounted at all.
   await openBuilderTab(page, "Toolbox");
   const panel = await capabilityPanel(page, CAPABILITY_WITH_TOOLS);
+  // Settings and Tools are two tabs inside the panel: a capability's own form
+  // and approval on one, the prompt text of each tool on the other, because a
+  // rich capability made one scroll of two unrelated jobs.
+  await panel.getByRole("tab", { name: "Tools", exact: true }).click();
   const row = panel.getByRole("listitem", { name: CAPABILITY_TOOL });
   await expect(row).toBeVisible();
   return row;
@@ -349,16 +353,20 @@ test.describe("Agents", () => {
     await expect(saved.getByRole("combobox")).toContainText("Always ask");
     await expect(saved.getByText("overridden")).toBeVisible();
 
-    // And the capability it belongs to was left alone — an override that
-    // quietly gated everything would look identical on the row that was clicked.
-    // The capability's own control is the first in its panel; the tool rows'
-    // are below it.
-    await expect(
-      page
-        .getByRole("group", { name: CAPABILITY_WITH_TOOLS, exact: true })
-        .getByRole("combobox")
-        .first(),
-    ).toContainText("Follow the capability");
+    // And the capability it belongs to was left alone — an override that quietly
+    // gated everything would look identical on the row that was clicked.
+    //
+    // Read off the Settings tab, by the label of the capability's own control.
+    // It used to be `.first()` combobox in the panel, which was true when the
+    // panel was one flat body and stopped being true when #914 gave it tabs:
+    // Radix unmounts the inactive tab, so on Tools the only comboboxes in the
+    // group are the tool rows' — and `.first()` was `search_documents`, the very
+    // row this test had just set to "Always ask". The assertion passed for a
+    // year and then failed for being right about the wrong element.
+    const panel = page.getByRole("group", { name: CAPABILITY_WITH_TOOLS, exact: true });
+    await panel.getByRole("tab", { name: "Settings", exact: true }).click();
+
+    await expect(panel.getByLabel("Human approval")).toContainText("Follow the capability");
   });
 
   test("a tool renamed for one agent sticks, and the code default can be had back", async ({
@@ -580,7 +588,9 @@ test.describe("Agents", () => {
     // choice reaches the stored draft, and the spec publishes with it — which
     // it could not do while the only connectable servers were personal.
     await openAgent(page, DRAFT_AGENT_NAME);
-    await openBuilderTab(page, "Toolbox");
+    // Its own tab since the servers left the Toolbox: the picker embeds the
+    // whole catalog, and it was pushing the capability workbench off screen.
+    await openBuilderTab(page, "MCP servers");
 
     const server = await findServer(page, SEEDED_ORG_MCP_NAME);
 
@@ -591,7 +601,7 @@ test.describe("Agents", () => {
     }
 
     await page.reload();
-    await openBuilderTab(page, "Toolbox");
+    await openBuilderTab(page, "MCP servers");
     await expect(await findServer(page, SEEDED_ORG_MCP_NAME)).toHaveAttribute(
       "aria-checked",
       "true",

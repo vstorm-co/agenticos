@@ -13,6 +13,7 @@ import {
   Switch,
 } from "@/components/ui";
 import { useSandboxConnections, useSandboxPolicy } from "@/hooks";
+import { unboundBinding } from "@/lib/agent-spec";
 import { cn } from "@/lib/utils";
 import type { SandboxConnectionRecord } from "@/lib/sandbox-connections-api";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agents";
@@ -25,6 +26,10 @@ interface WorkspaceSectionProps {
   definition: CapabilityCatalogEntry | undefined;
   binding: CapabilityBindingSpec | undefined;
   onChange: (binding: CapabilityBindingSpec) => void;
+  /** Forwarded to the panel, where the switch now lives - see `CapabilityDetail`. */
+  onToggleEnabled?: () => void;
+  /** Whether the caller may edit the spec at all - see `CapabilityDetail`. */
+  readOnly?: boolean;
   disabled?: boolean;
 }
 
@@ -83,6 +88,8 @@ export function WorkspaceSection({
   definition,
   binding,
   onChange,
+  onToggleEnabled,
+  readOnly,
   disabled,
 }: WorkspaceSectionProps) {
   const t = useTranslations("agents");
@@ -125,7 +132,11 @@ export function WorkspaceSection({
     });
   };
 
-  return (
+  // Inside the panel's Settings tab rather than above the card: these *are* this
+  // capability's configuration, and above it they sat outside the card that names
+  // the capability they configure - which left that card holding an approval
+  // select and nothing else.
+  const controls = (
     <div className="space-y-4">
       <fieldset disabled={disabled} className="space-y-2">
         <legend className="sr-only">{t("workspace")}</legend>
@@ -226,21 +237,24 @@ export function WorkspaceSection({
               onCheckedChange={(checked) => setConfig({ include_execute: checked })}
             />
           </div>
-
-          {binding && (
-            <CapabilityDetail
-              binding={binding}
-              definition={definition}
-              onChange={onChange}
-              disabled={disabled}
-              // The choices above *are* this capability's configuration; the
-              // generated form would render the same fields again.
-              hideConfigForm
-            />
-          )}
         </div>
       )}
     </div>
+  );
+
+  return (
+    <CapabilityDetail
+      binding={binding ?? unboundBinding(definition.id)}
+      definition={definition}
+      onChange={onChange}
+      onToggleEnabled={onToggleEnabled}
+      readOnly={readOnly}
+      disabled={disabled}
+      settingsExtra={controls}
+      // The choices above *are* this capability's configuration; the generated
+      // form would render the same fields again.
+      hideConfigForm
+    />
   );
 }
 

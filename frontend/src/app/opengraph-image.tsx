@@ -1,18 +1,27 @@
 import { getTranslations } from "next-intl/server";
 import { ImageResponse } from "next/og";
 
+import { readBranding } from "@/lib/branding-server";
 import { SITE } from "@/lib/seo";
 
 export const alt = `${SITE.name} - ${SITE.tagline}`;
+
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const dynamic = "force-static";
 
-/** Default Open Graph image - what a link to a deployment unfurls as. Black
- *  background, oversized title with a lime highlight on a key word, plus the
- *  brand mark and the tagline. */
+/**
+ * Default Open Graph image - what a link to a deployment unfurls as. Black
+ * background, oversized title with a lime highlight on a key word, plus the brand
+ * mark and the tagline.
+ *
+ * No longer `force-static`: the name, tagline and description are the settings
+ * row's, so a build-time render would freeze whatever they were when the image was
+ * generated. `alt` stays on the built-in, because a route segment export is
+ * evaluated at module load and has no request to read a row for.
+ */
 export default async function OpengraphImage() {
   const t = await getTranslations("pages.root");
+  const { appName, tagline, description } = await readBranding();
   return new ImageResponse(
     <div
       style={{
@@ -39,9 +48,7 @@ export default async function OpengraphImage() {
               background: "#C5F94A",
             }}
           />
-          <span style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.01em" }}>
-            {SITE.name}
-          </span>
+          <span style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.01em" }}>{appName}</span>
         </div>
         <span
           style={{
@@ -52,7 +59,7 @@ export default async function OpengraphImage() {
             letterSpacing: "0.1em",
           }}
         >
-          {SITE.tagline}
+          {tagline}
         </span>
       </div>
 
@@ -92,7 +99,7 @@ export default async function OpengraphImage() {
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span style={{ fontSize: 28, opacity: 0.7, maxWidth: 720, lineHeight: 1.4 }}>
-          {SITE.description}
+          {description}
         </span>
         <div
           style={{

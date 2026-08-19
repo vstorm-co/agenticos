@@ -18,8 +18,14 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Textarea,
 } from "@/components/ui";
+import { FileEditor } from "@/components/files";
+import {
+  DEFAULT_FORMAT,
+  FORMATS,
+  displayName,
+  type ContextDraft,
+} from "@/components/context/file-name";
 import { useContextFiles } from "@/hooks/use-context";
 import { submitFailure } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
@@ -29,33 +35,56 @@ import { useTranslations } from "next-intl";
 /** What the backend accepts, so an over-long value is refused before it is sent. */
 const MAX_NAME = 64;
 const MAX_DESCRIPTION = 500;
-const MAX_FORMAT = 16;
 
 type Field = "name" | "description" | "format" | "content";
 
 interface CreateContextDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * A file somebody dropped, as the fields it becomes.
+   *
+   * Seeded into the state once, so the caller mounts this keyed by draft: the
+   * name, format and body are then somebody's to edit like any other, and the
+   * one decision a drop must not make for them - `mode` - is still asked.
+   */
+  initial?: ContextDraft;
+  /** How many more dropped files follow this one, for the note in the footer. */
+  remaining?: number;
+  /**
+   * A file was created. The dialog does not close itself: whether that means
+   * "done" or "next one" is the caller's queue to answer.
+   */
+  onCreated: () => void;
 }
 
 /**
  * New context file.
  *
  * A stacked form rather than the skills workbench, because a context file is one
- * body and no attachments - there is no folder to lay out. The one decision that
- * is never implicit is `mode`: it is a select rather than a default, because
- * injecting into every run and reading on demand are different enough that the
- * author should choose rather than discover.
+ * body and no attachments - there is no folder to lay out. The body itself is the
+ * same pane a skill's is written in, so what somebody types here looks like what
+ * they will read afterwards.
+ *
+ * The one decision that is never implicit is `mode`: it is a select rather than a
+ * default, because injecting into every run and reading on demand are different
+ * enough that the author should choose rather than discover.
  */
-export function CreateContextDialog({ open, onOpenChange }: CreateContextDialogProps) {
+export function CreateContextDialog({
+  open,
+  onOpenChange,
+  initial,
+  remaining = 0,
+  onCreated,
+}: CreateContextDialogProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("context");
   const { create } = useContextFiles();
-  const [name, setName] = useState("");
+  const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState("");
-  const [format, setFormat] = useState("md");
+  const [format, setFormat] = useState<string>(initial?.format ?? DEFAULT_FORMAT);
   const [mode, setMode] = useState<ContextMode>("inject");
-  const [content, setContent] = useState("");
+  const [content, setContent] = useState(initial?.content ?? "");
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
 
   const setters: Record<Field, (value: string) => void> = {
@@ -78,16 +107,16 @@ export function CreateContextDialog({ open, onOpenChange }: CreateContextDialogP
         // blank one says nothing to a reader of the link list.
         description: description.trim() === "" ? null : description.trim(),
         content,
-        format: format.trim() || "md",
+        format: format.trim() || DEFAULT_FORMAT,
         mode,
       });
       setName("");
       setDescription("");
-      setFormat("md");
+      setFormat(DEFAULT_FORMAT);
       setMode("inject");
       setContent("");
       setErrors({});
-      onOpenChange(false);
+      onCreated();
     } catch (error) {
       const failure = submitFailure(
         error,
@@ -135,17 +164,20 @@ export function CreateContextDialog({ open, onOpenChange }: CreateContextDialogP
               </Select>
               <FieldNote>{t(mode === "inject" ? "modeInjectHint" : "modeLinkHint")}</FieldNote>
             </div>
-            <div className="w-28 shrink-0 space-y-1.5">
+            <div className="w-32 shrink-0 space-y-1.5">
               <Label htmlFor="new-context-format">{t("format")}</Label>
-              <Input
-                id="new-context-format"
-                value={format}
-                onChange={(event) => edit("format", event.target.value)}
-                placeholder={t("formatPlaceholder")}
-                maxLength={MAX_FORMAT}
-                className="font-mono"
-                aria-invalid={errors.format ? true : undefined}
-              />
+              <Select value={format} onValueChange={(value) => edit("format", value)}>
+                <SelectTrigger id="new-context-format" className="font-mono">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FORMATS.map((option) => (
+                    <SelectItem key={option} value={option} className="font-mono">
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <FieldNote error={errors.format}>{t("formatHint")}</FieldNote>
             </div>
           </div>
@@ -163,28 +195,38 @@ export function CreateContextDialog({ open, onOpenChange }: CreateContextDialogP
             <FieldNote error={errors.description}>{t("shownWhenLinked")}</FieldNote>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col space-y-1.5">
-            <Label htmlFor="new-context-content">{t("content")}</Label>
-            <Textarea
-              id="new-context-content"
-              value={content}
-              onChange={(event) => edit("content", event.target.value)}
-              placeholder={t("theBodyAsText")}
-              className="min-h-56 flex-1 font-mono text-sm"
-              aria-invalid={errors.content ? true : undefined}
-            />
-            <p
-              className={cn(
-                "text-xs",
-                errors.content ? "text-destructive" : "text-muted-foreground",
-              )}
-            >
-              {errors.content ?? t("textOnlyBinaryElsewhere")}
-            </p>
-          </div>
+          {/* The pane the file will be read in once it exists, rather than a
+              textarea that becomes one on save - the same one a skill's body is
+              written in. Named from what has been typed so far, so the preview
+              renders as the format the file is being given. */}
+          <FileEditor
+            // The placeholder until a name is typed, which is what the name
+            // field itself shows: `.md` alone reads as a broken filename, and
+            // the extension is what decides how the preview renders.
+            name={displayName(name.trim() || t("namePlaceholder"), format)}
+            content={content}
+            canEdit
+            className="min-h-72"
+            onChange={(next) => edit("content", next)}
+            footer={
+              <p
+                className={cn(
+                  "text-xs",
+                  errors.content ? "text-destructive" : "text-muted-foreground",
+                )}
+              >
+                {errors.content ?? t("textOnlyBinaryElsewhere")}
+              </p>
+            }
+          />
         </div>
 
         <DialogFooter>
+          {remaining > 0 && (
+            <p className="text-muted-foreground mr-auto self-center text-xs">
+              {t("moreFilesWaiting", { count: remaining })}
+            </p>
+          )}
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}
           </Button>

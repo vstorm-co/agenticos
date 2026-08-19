@@ -121,6 +121,7 @@ async def list_invitations(
             status=inv.status,
             max_uses=inv.max_uses,
             used_count=inv.used_count,
+            reserved_count=len(inv.reserved_emails),
             email_domain=inv.email_domain,
             expires_at=inv.expires_at,
             created_at=inv.created_at,

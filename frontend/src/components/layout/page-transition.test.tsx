@@ -30,7 +30,15 @@ describe("the page transition wrapper", () => {
     expect(rootClasses("/en/agents")).not.toContain("min-h-0");
   });
 
-  it("does not mistake a route that merely starts with 'chat' for the chat page", () => {
+  it("constrains Activity too, where the list and the run detail scroll apart", () => {
+    // Two columns, each with its own scroll: the table keeps its column headers
+    // and the run detail keeps its own header, which is only true while neither
+    // of them is scrolling the page.
+    expect(rootClasses("/en/runs")).toContain("min-h-0");
+  });
+
+  it("does not mistake a route that merely starts with a constrained one", () => {
     expect(rootClasses("/en/chatty")).not.toContain("min-h-0");
+    expect(rootClasses("/en/runsomething")).not.toContain("min-h-0");
   });
 });

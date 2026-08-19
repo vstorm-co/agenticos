@@ -76,6 +76,7 @@ async def create(
     name: str,
     version_id: UUID,
     is_default: bool = False,
+    tracks_latest: bool = False,
     created_by_user_id: UUID | None = None,
     logfire_token_secret_id: UUID | None = None,
     service_name: str | None = None,
@@ -83,6 +84,7 @@ async def create(
     environment = AgentEnvironment(
         organization_id=organization_id,
         agent_id=agent_id,
+        tracks_latest=tracks_latest,
         name=name,
         version_id=version_id,
         is_default=is_default,
@@ -104,6 +106,24 @@ async def update(
     await db.flush()
     await db.refresh(environment)
     return environment
+
+
+async def following_latest(
+    db: AsyncSession, *, agent_id: UUID, organization_id: UUID
+) -> list[AgentEnvironment]:
+    """The environments a publish moves - the ones that asked to be moved.
+
+    A publish repoints these and nothing else. It used to repoint the default
+    whatever mode it was in, which made "publish" and "deploy" one word.
+    """
+    result = await db.execute(
+        select(AgentEnvironment).where(
+            AgentEnvironment.agent_id == agent_id,
+            AgentEnvironment.organization_id == organization_id,
+            AgentEnvironment.tracks_latest.is_(True),
+        )
+    )
+    return list(result.scalars().all())
 
 
 async def delete(db: AsyncSession, *, environment: AgentEnvironment) -> None:

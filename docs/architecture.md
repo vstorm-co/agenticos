@@ -267,6 +267,53 @@ table in the schema. The index on `parent_run_id` serves
 [Governance](governance.md#what-run-history-shows) for why run history never lists
 the two kinds of row together.
 
+## What a run handed its model, and why it is a table
+
+`run_manifests` holds one row per run: the instructions as composed and sent,
+every tool definition as the provider was handed it, the settings, one entry per
+model request, and the last request's message list. It is written by
+`AgentRunnerService.finish` on every path out of a run, and read by
+`GET /runs/{id}/manifest` — see
+[Concepts](concepts.md#a-run-and-what-it-handed-the-model) for what is recorded
+and why it cannot be reconstructed from the spec.
+
+Three layering decisions are worth writing down, because each one is a place the
+obvious alternative is wrong.
+
+**A table, not a column on `agent_runs`.** That table is the most-listed in the
+product — run history, the spend tab, the dashboard figures, the CSV export — and
+a JSONB document holding every tool's JSON schema would be read by all of them to
+answer a question none of them asks. One row per run, `ON DELETE CASCADE` from
+both the run and the organization, read only by the detail view.
+
+**The recording happens in `app/agents/manifest.py`, not in the service.** The
+model the agent is built with is wrapped (`RecordingModel`, a `WrapperModel` —
+the same shape `MeteredModel` uses to book a sub-agent's spend), so what is
+written down is `ModelRequestParameters` as the provider received it: after every
+`prepare` hook, after tool search has hidden what it hides, after the output tool
+has been added. The service persists what the wrapper collected and decides
+nothing about its contents.
+
+**An attachment on the transcript is read through the run, not through its
+uploader.** `GET /files/{id}` is scoped to `ChatFile.user_id`, which is the right
+scope for the chat composer and the wrong one for a run review: reading a run is
+the organization's right rather than its starter's, so the attachment cards on a
+colleague's transcript rendered and every preview answered 404.
+`GET /runs/{run_id}/files/{file_id}` authorizes as the transcript does -
+organization, then `runs:view` - and then admits the file only where its
+`message_id` names a turn of the run's own conversation, which is the reach the
+transcript already grants and no wider. Both routes serve the bytes through
+`_chat_file_bytes.py`, so what a browser may *display* does not depend on which
+one authorized the read.
+
+**The write is guarded *and* nested.** It is reached from a `finally` block, so
+an exception raised while recording a failed run would replace the failure with
+itself. Swallowing it is not enough on its own: a failed flush leaves the session
+unusable, so the run's own terminal write would be lost to a record nobody asked
+for. It runs inside `begin_nested()` for the same reason
+`TranscriptService._attach` does — a SAVEPOINT is what makes "this write may fail
+harmlessly" true rather than aspirational.
+
 ## A refusal that names a field
 
 Every refusal leaves in one envelope, `{"error": {"code", "message", "details"}}`,
@@ -466,11 +513,19 @@ bounds a read; the user is what narrows it further.**
   silently applied.
 
 `ConversationService` makes the distinction impossible to omit: `organization_id`
-is a **required** keyword, and a caller that genuinely reads across tenants
-passes the `UNSCOPED` sentinel rather than leaving the argument out. There is one
-— `/admin/conversations/{id}`, gated on `CurrentAppAdmin` — and `rg UNSCOPED`
-finds it. The argument used to default to `None`, `None` meant unscoped, and an
-omission is indistinguishable from an intention.
+is a **required** `UUID` keyword on every read and write of a conversation. It
+used to default to `None`, `None` meant unscoped, and an omission is
+indistinguishable from an intention — two routes serving ordinary members simply
+left it out, and any signed-in user could read and append to any conversation in
+the deployment.
+
+There is **no way to read a conversation across tenants any more.** The sentinel
+that used to spell that out (`UNSCOPED`) had exactly one caller,
+`/admin/conversations/{id}`, and both went with the deployment-wide conversation
+browser — Activity answers "what happened" with the cost, the model, the trace
+and what the model was handed beside it, which is the question that screen was
+being used for. What is left of it is `GET /admin/conversations?user_id=`: one
+named account's threads, listed for the admin user drawer and never read.
 
 For full endpoint-level permissions, see `docs/permissions.md`.
 

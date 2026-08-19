@@ -38,6 +38,20 @@ export function getFileUrl(fileId: string): string {
 }
 
 /**
+ * The same attachment, addressed through the run whose turn it arrived with.
+ *
+ * `/files/{id}` is scoped to whoever uploaded it, which is the wrong scope for a
+ * run review: reading a run is the organization's right rather than its
+ * starter's, so a colleague holding `runs:view` saw the attachment cards on
+ * somebody else's transcript and every preview answered 404. The run route
+ * authorises through the run - organization, then `runs:view`, then the file has
+ * to hang on a turn of that run's own conversation.
+ */
+export function getRunFileUrl(runId: string, fileId: string): string {
+  return `/api/runs/${runId}/files/${fileId}`;
+}
+
+/**
  * One chat attachment, as the shared viewer reads it.
  *
  * A same-origin route handler rather than `apiClient`, which is what lets a plain
@@ -60,6 +74,40 @@ export function attachmentAccess(file: { id: string; filename: string }): FileAc
   return {
     textKey: qk.attachments.text(file.id),
     bytesKey: qk.attachments.bytes(file.id),
+    readText: async () => ({ content: await (await read()).text(), truncated: false }),
+    readBytes: async () => (await read()).blob(),
+    download: async () => {
+      const link = document.createElement("a");
+      link.href = `${url}?disposition=attachment`;
+      link.download = file.filename;
+      link.click();
+    },
+  };
+}
+
+/**
+ * One attachment on a run's transcript, as the shared viewer reads it.
+ *
+ * `attachmentAccess` with the other address and its own query keys - see
+ * `getRunFileUrl` for why there are two. Kept beside it rather than folded into
+ * one function taking an optional run: how a surface *reaches* the bytes is a
+ * `FileAccess` the caller builds, precisely so the viewer never branches on
+ * which authorisation answered.
+ */
+export function runAttachmentAccess(
+  runId: string,
+  file: { id: string; filename: string },
+): FileAccess {
+  const url = getRunFileUrl(runId, file.id);
+  const read = async () => {
+    const response = await fetch(url, { credentials: "include" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response;
+  };
+
+  return {
+    textKey: qk.attachments.runText(runId, file.id),
+    bytesKey: qk.attachments.runBytes(runId, file.id),
     readText: async () => ({ content: await (await read()).text(), truncated: false }),
     readBytes: async () => (await read()).blob(),
     download: async () => {

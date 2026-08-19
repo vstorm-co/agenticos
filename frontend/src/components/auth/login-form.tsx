@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { ArrowRight } from "lucide-react";
@@ -12,12 +13,19 @@ import { useAuth } from "@/hooks";
 import { ApiError } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
+import { registerHref } from "@/lib/invitation-links";
 import { EMAIL_RE } from "@/lib/utils";
 
 export function LoginForm() {
   const t = useTranslations("auth");
   const tErrors = useTranslations("errors");
+  const search = useSearchParams();
   const { login } = useAuth();
+  // Where "create an account" goes. An invitee with no account is bounced here by
+  // `AuthGuard` with the invitation in `returnTo`, and a plain link to /register
+  // would drop it - leaving an `invite_only` deployment refusing somebody who is
+  // holding a valid invitation (#916).
+  const signUpHref = registerHref(search.toString());
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -56,7 +64,7 @@ export function LoginForm() {
         <p className="text-foreground/65 text-sm">
           {t("noAccount")}{" "}
           <Link
-            href={ROUTES.REGISTER}
+            href={signUpHref}
             className="text-foreground hover:text-foreground/80 font-medium underline-offset-4 hover:underline"
           >
             {t("register")}

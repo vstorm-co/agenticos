@@ -23,6 +23,8 @@ from app.core.logfire_setup import instrument_httpx
 from app.core.logfire_setup import instrument_pydantic_ai
 from app.core.logging import setup_logging
 from app.core.body_limit import BodySizeLimitMiddleware
+from app.core import maintenance
+from app.core.maintenance import MaintenanceModeMiddleware
 from app.core.middleware import RequestIDMiddleware
 from app.core.watchdog import EventLoopWatchdog
 from app.clients.redis import RedisClient
@@ -104,6 +106,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # conversation service consults from inside a request but caches in the
     # Redis every worker shares (#641).
     channel_membership.configure(redis_client)
+    # And the maintenance gate, which runs above the dependency graph on every
+    # request and so has no `request.state` to read either.
+    maintenance.configure(redis_client)
     embedder: EmbeddingService | None = None
     try:
         embedder = EmbeddingService(settings=settings.rag)
@@ -172,6 +177,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     channel_dedupe.configure(None)
     rate_limit.configure(None)
     channel_membership.configure(None)
+    maintenance.configure(None)
     if "redis" in state:
         await state["redis"].close()
 
@@ -276,6 +282,11 @@ OS for your agents.
     # body - a middleware under CORS or the session would run after the request had
     # already been received.
     app.add_middleware(BodySizeLimitMiddleware)
+
+    # Under the body limit and above everything else: a refused request should
+    # still be refused for being too large first, and a window that is open has
+    # to close the routes rather than the layers around them.
+    app.add_middleware(MaintenanceModeMiddleware)
 
     app.add_middleware(RequestIDMiddleware)
 

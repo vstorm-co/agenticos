@@ -22,16 +22,18 @@ single source of truth; this page explains it.
 
     It was not quite inert, which is why removing it was a behaviour change:
     `GET /conversations/{id}` and its `/messages` sibling dropped the ownership
-    filter for anybody whose `role` said `admin`. Cross-user conversation reads
-    now live only on `/admin/conversations`, gated on `is_app_admin`.
+    filter for anybody whose `role` said `admin`. There is no cross-user
+    conversation *read* anywhere now: the deployment-wide browser was removed in
+    favour of Activity, and `/admin/conversations?user_id=` lists one account's
+    threads without opening any of them.
 
 ## Layer 1: `users.is_app_admin` - the deployment superadmin
 
 A boolean on the user, entirely outside organizations. Two effects:
 
 1. **A gate on deployment routes.** `CurrentAppAdmin` guards `/admin/users`,
-   `/admin/stats`, `/admin/conversations`, `/admin/ratings` and the bulk `/rag`
-   endpoints.
+   `/admin/stats`, `/admin/conversations` (a listing, never a transcript),
+   `/admin/ratings` and the bulk `/rag` endpoints.
 2. **A bypass in `AuthContext.permissions`**, which returns every permission at
    `Scope.ALL` - in every organization, including ones where they hold no
    membership.

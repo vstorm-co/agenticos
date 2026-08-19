@@ -7,10 +7,16 @@
  * `FileViewer` is the dialog every surface opens; `FileContent` is it without the
  * dialog, for a surface that has its own chrome; `FileTextView` is it without the
  * fetching, for content already in hand.
+ *
+ * `FileEditor` is the write side of the same idea - a named draft, rendered by
+ * default and editable behind a toggle. A skill's body, a skill's reference and a
+ * context file are one object to a reader, so they get one pane.
  */
 
 export { FileCard, PendingFileCard } from "./file-card";
 export { FileContent } from "./file-content";
+export { FileDropOverlay } from "./file-drop-overlay";
+export { FileEditor } from "./file-editor";
 export { FileIcon } from "./file-icon";
 export { FileBytesView, FileTextView, FileUnavailable } from "./file-render";
 export { FileViewer, type ViewerFile, type ViewerTab } from "./file-viewer";

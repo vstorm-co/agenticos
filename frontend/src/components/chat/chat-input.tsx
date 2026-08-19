@@ -16,7 +16,7 @@ import {
   type SlashCommandContext,
 } from "./slash-commands";
 import { SlashCommandPalette } from "./slash-command-palette";
-import { FileDropOverlay } from "./file-drop-overlay";
+import { FileDropOverlay } from "@/components/files";
 import { useChanged } from "@/hooks/use-changed";
 import { useFileDrop } from "@/hooks/use-file-drop";
 import { useTranslations } from "next-intl";
@@ -322,7 +322,11 @@ export function ChatInput({
 
   return (
     <form onSubmit={handleSubmit} className="relative">
-      <FileDropOverlay active={isDragging} maxSizeMb={MAX_UPLOAD_SIZE_MB} />
+      <FileDropOverlay
+        active={isDragging}
+        title={t("dropFilesAttach")}
+        hint={t("dropMaxSize", { max: MAX_UPLOAD_SIZE_MB })}
+      />
       {showPalette && (
         <SlashCommandPalette
           commands={filteredCommands}

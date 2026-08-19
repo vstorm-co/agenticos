@@ -60,14 +60,21 @@ describe("stashFlow / takeStashedFlow", () => {
   it("survives storage refusing to hold it", () => {
     // Private mode, or a full quota. Losing the walk is what already happened
     // without this; it must not also break the navigation that was under way.
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+    // Spy the instance, not `Storage.prototype`: on a Node that ships its own
+    // storage the two are different objects. Asserting nothing was stored fails
+    // a spy that missed, where asserting only "did not throw" would not.
+    vi.spyOn(sessionStorage, "setItem").mockImplementation(() => {
       throw new Error("QuotaExceededError");
     });
     expect(() => stashFlow(RUNNING)).not.toThrow();
+    expect(takeStashedFlow()).toBeNull();
   });
 
   it("survives storage refusing to be read", () => {
-    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+    // A real flow is present, so a missed spy would return it rather than null -
+    // which is what let this `catch` read as covered while never running (#915).
+    stashFlow(RUNNING);
+    vi.spyOn(sessionStorage, "getItem").mockImplementation(() => {
       throw new Error("SecurityError");
     });
     expect(takeStashedFlow()).toBeNull();

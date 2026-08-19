@@ -31,6 +31,10 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 import httpx
+from genai_prices.data_snapshot import get_snapshot
+from pydantic import TypeAdapter
+
+from app.core import catalog
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +51,11 @@ class CatalogModel:
     id: str
     name: str
     context_length: int | None = None
+    # What the model emits, where its provider says so - `("text",)`,
+    # `("text", "image")`. Empty when the listing carries no such field, which is
+    # most of them: absent means "not stated", never "text only", because a
+    # picker that filtered on a guess would hide models that do work.
+    output_modalities: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,151 +82,100 @@ class ListingSpec:
     # Stripped from every id. Gemini answers `models/gemini-3.6-flash` and
     # expects `gemini-3.6-flash` back.
     id_prefix: str = ""
+    # Dotted path to a list of what the model emits, where the listing says.
+    # OpenRouter and the Hugging Face router both answer
+    # `architecture.output_modalities`; nobody else states it at all.
+    modalities_path: str | None = None
 
 
-LISTINGS: dict[str, ListingSpec] = {
-    "openrouter": ListingSpec(
-        url="https://openrouter.ai/api/v1/models",
-        array_path="data",
-        id_field="id",
-        name_field="name",
-        context_field="context_length",
-    ),
-    "openai": ListingSpec(
-        url="https://api.openai.com/v1/models",
-        array_path="data",
-        id_field="id",
-        auth_header="Authorization",
-        auth_template="Bearer {key}",
-    ),
-    "anthropic": ListingSpec(
-        url="https://api.anthropic.com/v1/models?limit=100",
-        array_path="data",
-        id_field="id",
-        name_field="display_name",
-        context_field="max_input_tokens",
-        auth_header="x-api-key",
-        extra_headers={"anthropic-version": "2023-06-01"},
-    ),
-    "google": ListingSpec(
-        url="https://generativelanguage.googleapis.com/v1beta/models?pageSize=200",
-        array_path="models",
-        id_field="name",
-        name_field="displayName",
-        context_field="inputTokenLimit",
-        auth_header="x-goog-api-key",
-        id_prefix="models/",
-    ),
-    "mistral": ListingSpec(
-        url="https://api.mistral.ai/v1/models",
-        array_path="data",
-        id_field="id",
-        name_field="name",
-        context_field="max_context_length",
-        auth_header="Authorization",
-        auth_template="Bearer {key}",
-    ),
-    "groq": ListingSpec(
-        url="https://api.groq.com/openai/v1/models",
-        array_path="data",
-        id_field="id",
-        context_field="context_window",
-        auth_header="Authorization",
-        auth_template="Bearer {key}",
-    ),
-    "deepseek": ListingSpec(
-        url="https://api.deepseek.com/models",
-        array_path="data",
-        id_field="id",
-        auth_header="Authorization",
-        auth_template="Bearer {key}",
-    ),
-    "together": ListingSpec(
-        url="https://api.together.ai/v1/models",
-        array_path="",
-        id_field="id",
-        name_field="display_name",
-        context_field="context_length",
-        auth_header="Authorization",
-        auth_template="Bearer {key}",
-    ),
-    "xai": ListingSpec(
-        url="https://api.x.ai/v1/models",
-        array_path="data",
-        id_field="id",
-        context_field="context_length",
-        auth_header="Authorization",
-        auth_template="Bearer {key}",
-    ),
-    "cohere": ListingSpec(
-        url="https://api.cohere.com/v1/models?page_size=200",
-        array_path="models",
-        id_field="name",
-        context_field="context_length",
-        auth_header="Authorization",
-        auth_template="Bearer {key}",
-    ),
-}
+# Loaded from data rather than written out here. Every field is declarative - a
+# URL, three JSON paths, an auth header - so adding a provider that publishes a
+# list is a catalog entry, not a Python edit. Ten were added by hand before this,
+# which is nine more than the point at which that stops being reasonable.
+LISTINGS: dict[str, ListingSpec] = catalog.load(
+    "model_listings.json", TypeAdapter(dict[str, ListingSpec])
+)
 
 
-def _model(model_id: str, name: str, context: int | None = None) -> CatalogModel:
-    return CatalogModel(id=model_id, name=name, context_length=context)
+@dataclass(frozen=True, slots=True)
+class FallbackModel:
+    """One curated suggestion: an id and what to call it, and no more.
+
+    Deliberately no context length. `genai-prices` carries one for every model it
+    prices and updates itself, so a number written here is a number that goes
+    stale silently - and two of them already had: this file said 1,048,576 for
+    `gemini-3.6-flash` where the snapshot says 1,000,000, and the same model was
+    written twice with two different figures under `google` and `openrouter`.
+    """
+
+    id: str
+    name: str
 
 
-# The handful somebody would actually pick, per provider, as of July 2026.
+# The handful somebody would actually pick, per provider - the fallback for when
+# the provider cannot be asked: no key stored yet, an endpoint that does not list,
+# a call that failed.
 #
-# Kept short on purpose. This is a fallback for when the provider cannot be
-# asked - no key stored yet, an endpoint that does not list, a call that failed -
-# and a mirror of a 339-model catalog would be a mirror that rots. Every id here
-# is the string the provider's own API expects, verbatim.
-CURATED: dict[str, tuple[CatalogModel, ...]] = {
-    "anthropic": (
-        _model("claude-opus-5", "Claude Opus 5", 1_000_000),
-        _model("claude-sonnet-5", "Claude Sonnet 5", 1_000_000),
-        _model("claude-fable-5", "Claude Fable 5", 1_000_000),
-        # Dateless and still a pinned snapshot, which is how Anthropic has
-        # spelled ids since the 4.6 generation - not an evergreen pointer.
-        _model("claude-haiku-4-5", "Claude Haiku 4.5", 200_000),
-    ),
-    "openai": (
-        _model("gpt-5.6-sol", "GPT-5.6 Sol", 1_050_000),
-        _model("gpt-5.6-terra", "GPT-5.6 Terra", 1_050_000),
-        _model("gpt-5.6-luna", "GPT-5.6 Luna", 1_050_000),
-        _model("gpt-5.3-codex", "GPT-5.3 Codex", 400_000),
-    ),
-    "google": (
-        _model("gemini-3.6-flash", "Gemini 3.6 Flash", 1_048_576),
-        _model("gemini-3.5-flash", "Gemini 3.5 Flash", 1_048_576),
-        _model("gemini-3.5-flash-lite", "Gemini 3.5 Flash Lite", 1_048_576),
-        _model("gemini-3.1-pro-preview", "Gemini 3.1 Pro (preview)", 1_048_576),
-    ),
-    "openrouter": (
-        # Namespaced, and not always the provider's own spelling: Anthropic
-        # writes `claude-haiku-4-5` and OpenRouter writes `claude-haiku-4.5`.
-        _model("anthropic/claude-opus-5", "Claude Opus 5", 1_000_000),
-        _model("anthropic/claude-sonnet-5", "Claude Sonnet 5", 1_000_000),
-        _model("openai/gpt-5.6-sol", "GPT-5.6 Sol", 1_050_000),
-        _model("openai/gpt-5.6-luna", "GPT-5.6 Luna", 1_050_000),
-        _model("google/gemini-3.6-flash", "Gemini 3.6 Flash", 1_000_000),
-    ),
-    "xai": (
-        _model("grok-4.5", "Grok 4.5", 500_000),
-        _model("grok-4.3", "Grok 4.3", 1_000_000),
-    ),
-    "deepseek": (
-        _model("deepseek-v4-pro", "DeepSeek V4 Pro", 1_000_000),
-        _model("deepseek-v4-flash", "DeepSeek V4 Flash", 1_000_000),
-    ),
-    "groq": (
-        _model("openai/gpt-oss-120b", "GPT-OSS 120B", 131_000),
-        _model("llama-3.3-70b-versatile", "Llama 3.3 70B", 131_000),
-    ),
-    # Cohere is deliberately absent: its listing is the only one that carries a
-    # real `is_deprecated` flag, so a live answer is strictly better than a
-    # hand-kept one - and the 2026 lineup could not be confirmed from Cohere's
-    # own docs, which is not a good enough basis for suggesting an id somebody
-    # will paste into a spec.
-}
+# Curated rather than taken from `genai-prices`, and that is a decision worth
+# recording, because the library is already a dependency and does list models. It
+# is a *price* dataset: it carries `ada` and `babbage` under OpenAI, `claude-2`
+# under Anthropic, 690 rows under OpenRouter, and almost nothing is marked
+# deprecated - sorted alphabetically, the first thing a picker would offer for
+# OpenAI is `ada`. A short current list beats a long misleading one.
+#
+# What the library *is* used for is the half that rots: every context length comes
+# from it at read time, and `test_model_catalog.py` fails when an id here is one
+# the snapshot has never heard of - which is how a typo or a retired model is
+# caught rather than shipped as a dropdown the provider refuses.
+CURATED: dict[str, tuple[FallbackModel, ...]] = catalog.load(
+    "model_fallbacks.json", TypeAdapter(dict[str, tuple[FallbackModel, ...]])
+)
+
+
+def priced_model(provider: str, model_id: str) -> Any | None:
+    """This model as `genai-prices` knows it, or None where it has no row for it.
+
+    Two questions come off this and they are not the same one: whether the model
+    exists at all, and whether anybody recorded how much context it takes. A
+    curated id the snapshot has never heard of is a typo or a retirement, which is
+    a build failure; a known model with no window is simply not recorded, and the
+    capability resolves one itself.
+
+    The provider ids differ in a handful of places - the snapshot writes `x-ai`
+    where the platform writes `xai` - so the alias table is part of the lookup
+    rather than a caller's problem. An OpenRouter id *is* `<provider>/<model>`, and
+    the snapshot prices those rows under the provider rather than under the
+    namespaced spelling.
+    """
+    if provider == "openrouter" and "/" in model_id:
+        upstream, _, bare = model_id.partition("/")
+        return priced_model(upstream, bare)
+
+    snapshot_provider = _PRICE_PROVIDER_ALIASES.get(provider, provider)
+    for entry in get_snapshot().providers:
+        if entry.id == snapshot_provider:
+            return entry.find_model(model_id)
+    return None
+
+
+def context_window(provider: str, model_id: str) -> int | None:
+    """What the price snapshot says this model accepts, where it says anything."""
+    model = priced_model(provider, model_id)
+    return None if model is None else model.context_window
+
+
+# Where the price snapshot spells a provider differently from the platform.
+_PRICE_PROVIDER_ALIASES = {"xai": "x-ai", "bedrock": "aws", "google_cloud": "google"}
+
+
+def curated_models(provider: str) -> tuple[CatalogModel, ...]:
+    """The fallback list for one provider, with the windows filled in."""
+    return tuple(
+        CatalogModel(
+            id=entry.id, name=entry.name, context_length=context_window(provider, entry.id)
+        )
+        for entry in CURATED.get(provider, ())
+    )
 
 
 @dataclass
@@ -251,9 +209,29 @@ def _read_listing(payload: Any, spec: ListingSpec) -> list[CatalogModel]:
                 id=model_id,
                 name=name if isinstance(name, str) and name else model_id,
                 context_length=context if isinstance(context, int) else None,
+                output_modalities=_modalities(row, spec.modalities_path),
             )
         )
     return sorted(models, key=lambda entry: entry.id)
+
+
+def _modalities(row: dict[str, Any], path: str | None) -> tuple[str, ...]:
+    """What one row says the model emits, or nothing when it does not say.
+
+    Only strings are kept: a listing that answers `[null]` or `[{...}]` for this
+    is a listing whose shape has moved, and a picker filtering on the wreckage
+    would be worse than one filtering on nothing.
+    """
+    if path is None:
+        return ()
+    node: Any = row
+    for step in path.split("."):
+        if not isinstance(node, dict):
+            return ()
+        node = node.get(step)
+    if not isinstance(node, list):
+        return ()
+    return tuple(entry for entry in node if isinstance(entry, str) and entry)
 
 
 async def _fetch(spec: ListingSpec, api_key: str | None) -> list[CatalogModel]:
@@ -284,7 +262,7 @@ async def models_for(
             OpenRouter's is public.
     """
     spec = LISTINGS.get(provider)
-    curated = list(CURATED.get(provider, ()))
+    curated = list(curated_models(provider))
 
     if spec is None or (spec.auth_header is not None and api_key is None):
         return curated, "curated"
