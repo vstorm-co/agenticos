@@ -21,6 +21,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.agent_trigger import AgentTrigger
+from app.db.models.conversation import Conversation
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
@@ -268,6 +269,121 @@ class TestTheClaimReturnsTheRightRows:
         await db.flush()
         claimed = await agent_trigger_repo.claim_due(db, now=datetime.now(UTC))
         assert [t.id for t in claimed] == [blocked.id]
+
+    async def test_a_trigger_with_a_fire_in_flight_marker_is_skipped_until_the_lease(self, db):
+        """The claim sets fire_in_flight_since, so a run slower than its interval is
+        not fired on top of itself - the guard `last_run_id` cannot be, since it is
+        only written when the run returns. Once the marker is older than the lease - a
+        child that died without clearing it - the schedule is freed again."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        now = datetime.now(UTC)
+        in_flight = _trigger(
+            org, agent, next_fire_at=now - timedelta(seconds=1), fire_in_flight_since=now
+        )
+        db.add(in_flight)
+        await db.flush()
+
+        assert await agent_trigger_repo.claim_due(db, now=now) == []
+
+        past_lease = now + timedelta(hours=1, minutes=1)
+        claimed = await agent_trigger_repo.claim_due(db, now=past_lease)
+        assert [t.id for t in claimed] == [in_flight.id]
+
+
+class TestAnUnlinkedInFlightRunBlocksAReclaim:
+    async def test_a_parked_run_never_linked_holds_the_schedule_past_the_lease(self, db):
+        """#589: a worker that dies after `_run` commits an `awaiting_approval` row but
+        before `fire` stamps `last_run_id` leaves a durable parked run the schedule
+        must wait behind - yet `last_run_id` still names the previous terminal run.
+        Once the marker lapses the `last_run_id` join alone would reclaim the trigger
+        and fire over the pending approval; the conversation reconcile catches the
+        unlinked in-flight run and holds it back until the run settles."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        convo = Conversation(id=uuid.uuid4(), organization_id=org.id, title="run log")
+        db.add(convo)
+        await db.flush()
+        now = datetime.now(UTC)
+        # The previous fire: terminal and linked. On its own this lets the claim through.
+        previous = AgentRun(
+            id=uuid.uuid4(),
+            organization_id=org.id,
+            agent_id=agent.id,
+            conversation_id=convo.id,
+            status=RunStatus.COMPLETED.value,
+        )
+        db.add(previous)
+        await db.flush()
+        # The parked run a crash left unlinked, with a lapsed marker so nothing but the
+        # conversation reconcile can keep the trigger out of the claim.
+        parked = AgentRun(
+            id=uuid.uuid4(),
+            organization_id=org.id,
+            agent_id=agent.id,
+            conversation_id=convo.id,
+            status=RunStatus.AWAITING_APPROVAL.value,
+        )
+        db.add(parked)
+        trigger = _trigger(
+            org,
+            agent,
+            conversation_id=convo.id,
+            last_run_id=previous.id,
+            next_fire_at=now - timedelta(seconds=1),
+            fire_in_flight_since=now - timedelta(hours=2),
+        )
+        db.add(trigger)
+        await db.flush()
+
+        assert await agent_trigger_repo.claim_due(db, now=now) == []
+
+        # Once the parked run settles, the schedule is free to fire again.
+        parked.status = RunStatus.COMPLETED.value
+        await db.flush()
+        claimed = await agent_trigger_repo.claim_due(db, now=now)
+        assert [t.id for t in claimed] == [trigger.id]
+
+    async def test_a_delegated_child_in_flight_does_not_block_the_claim(self, db):
+        """The reconcile is top-level only: a delegated child shares its parent's
+        conversation but is not the fire, so a running delegate under a settled parent
+        must not hold the schedule back."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        convo = Conversation(id=uuid.uuid4(), organization_id=org.id, title="run log")
+        db.add(convo)
+        await db.flush()
+        now = datetime.now(UTC)
+        parent = AgentRun(
+            id=uuid.uuid4(),
+            organization_id=org.id,
+            agent_id=agent.id,
+            conversation_id=convo.id,
+            status=RunStatus.COMPLETED.value,
+        )
+        db.add(parent)
+        await db.flush()
+        child = AgentRun(
+            id=uuid.uuid4(),
+            organization_id=org.id,
+            agent_id=agent.id,
+            conversation_id=convo.id,
+            parent_run_id=parent.id,
+            status=RunStatus.RUNNING.value,
+        )
+        db.add(child)
+        trigger = _trigger(
+            org,
+            agent,
+            conversation_id=convo.id,
+            last_run_id=parent.id,
+            next_fire_at=now - timedelta(seconds=1),
+        )
+        db.add(trigger)
+        await db.flush()
+
+        claimed = await agent_trigger_repo.claim_due(db, now=now)
+        assert [t.id for t in claimed] == [trigger.id]
 
 
 class TestTwoHeartbeatsDoNotDoubleFire:

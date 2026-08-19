@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus
@@ -17,6 +18,12 @@ from app.db.models.resource_grant import Visibility
 # A run in one of these has not finished, so its trigger must not fire again on
 # top of it. Every other status is terminal - the run settled, one way or another.
 _NON_TERMINAL_STATUSES = (RunStatus.RUNNING.value, RunStatus.AWAITING_APPROVAL.value)
+
+# How long a `fire_in_flight_since` marker holds a trigger out of the claim. A run
+# settles in seconds to minutes; past this lease the fired flow is assumed dead - a
+# worker crash that skipped its `finally` - and the schedule is freed rather than
+# parked for ever.
+_FIRE_LEASE = timedelta(hours=1)
 
 
 async def get(db: AsyncSession, trigger_id: UUID, *, organization_id: UUID) -> AgentTrigger | None:
@@ -195,7 +202,7 @@ async def claim_due(db: AsyncSession, *, now: datetime, limit: int = 100) -> lis
     seeing one due trigger. `of=AgentTrigger` keeps the lock off the joined
     `agent_runs` row, which this only reads.
 
-    Two filters decide "due":
+    Four filters decide "due":
 
     * `is_active` and `next_fire_at <= now` - the schedule says so. A null creator
       is deliberately *not* filtered out here: an orphaned schedule (its creator's
@@ -204,12 +211,42 @@ async def claim_due(db: AsyncSession, *, now: datetime, limit: int = 100) -> lis
       never reaching the one place that disables it. `claim_and_advance` now claims
       it and disables it instead, so the cleanup happens rather than being filtered
       away.
+    * no fire is in flight: `fire_in_flight_since` is null, or older than
+      `_FIRE_LEASE`. The claim sets this marker in the same UPDATE that advances
+      `next_fire_at`, and the fired run clears it in a `finally` - so a run slower
+      than its interval is not fired on top of itself, and a run that died without
+      clearing un-wedges once the lease lapses. This is the guard `last_run_id`
+      cannot be: `last_run_id` is written only when `execute` returns, so it names
+      the previous run for the whole time the current one executes.
     * the previous run, reached through `last_run_id`, has reached a terminal
-      status (or there is none). This is the no-overlap guard: a run that outlives
-      its own interval must finish before the next fire, or a slow agent would be
-      firing on top of itself. The caller advances `next_fire_at` under the same
+      status (or there is none). This still bites after the marker clears: a run
+      that parks `AWAITING_APPROVAL` returns from `execute` (clearing the marker)
+      yet is not terminal, so it keeps the schedule from piling runs behind an
+      undecided gate. The caller advances `next_fire_at` under the same
       transaction, so the common case never reaches this join.
+    * no non-terminal top-level run sits in the trigger's own run-log
+      conversation. The `last_run_id` join is a fast, indexed check on the *linked*
+      previous run, but the link and the run are written in two steps: `_run`
+      commits an `awaiting_approval` row, and only then does `fire` stamp
+      `last_run_id` against it. A worker that dies between those leaves a durable
+      parked run the schedule must still wait behind, with `last_run_id` still
+      naming the previous terminal run - so once the lease lapses the join alone
+      would reclaim the trigger and fire over the pending approval. This `EXISTS`
+      reconciles the conversation directly, catching an in-flight run whether or
+      not it was ever linked. Top-level only (`parent_run_id IS NULL`): a
+      delegated child shares the conversation but is not the fire.
     """
+    in_flight = aliased(AgentRun)
+    has_run_in_flight = (
+        select(in_flight.id)
+        .where(
+            in_flight.conversation_id == AgentTrigger.conversation_id,
+            in_flight.parent_run_id.is_(None),
+            in_flight.status.in_(_NON_TERMINAL_STATUSES),
+        )
+        .correlate(AgentTrigger)
+        .exists()
+    )
     result = await db.execute(
         select(AgentTrigger)
         .outerjoin(AgentRun, AgentRun.id == AgentTrigger.last_run_id)
@@ -217,6 +254,9 @@ async def claim_due(db: AsyncSession, *, now: datetime, limit: int = 100) -> lis
             AgentTrigger.is_active.is_(True),
             AgentTrigger.next_fire_at <= now,
             (AgentTrigger.last_run_id.is_(None)) | (AgentRun.status.not_in(_NON_TERMINAL_STATUSES)),
+            ~has_run_in_flight,
+            (AgentTrigger.fire_in_flight_since.is_(None))
+            | (AgentTrigger.fire_in_flight_since <= now - _FIRE_LEASE),
         )
         .order_by(AgentTrigger.next_fire_at.asc())
         .limit(limit)

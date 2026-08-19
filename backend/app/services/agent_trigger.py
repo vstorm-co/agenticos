@@ -56,11 +56,12 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, Perm
 from app.core.vault import VaultScope, seal, unseal
-from app.db.models.agent_run import RunSurface
+from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.agent_trigger import AgentTrigger, ScheduleKind, TriggerType
 from app.db.updates import writable
 from app.repositories import (
     agent_environment_repo,
+    agent_run_repo,
     agent_trigger_repo,
     conversation_repo,
     member_repo,
@@ -955,11 +956,27 @@ class AgentTriggerService:
                 await self._disable(trigger, reason="creator_not_active")
                 continue
             trigger.next_fire_at = _next_fire_from(trigger, now=now)
+            # Mark the fire in flight in the same committed UPDATE that advances the
+            # schedule, so no window opens in which a slow run's trigger looks
+            # claimable to the next tick. This timestamp is the claim's ticket: the
+            # scheduled fire this claim dispatches is handed it back as `claimed_at`
+            # and clears the marker only while it still matches (`fire`), so a fire
+            # that outran the lease cannot clear a newer claim's marker. A dispatch
+            # that never started a run leaves the marker for the lease to free rather
+            # than clearing it eagerly - the child flow may have started even when the
+            # submit call raised.
+            trigger.fire_in_flight_since = now
             live.append(trigger)
         await self.db.flush()
         return live
 
-    async def fire(self, trigger_id: UUID, *, event_context: str | None = None) -> None:
+    async def fire(
+        self,
+        trigger_id: UUID,
+        *,
+        event_context: str | None = None,
+        claimed_at: datetime | None = None,
+    ) -> None:
         """Run the agent this trigger fires, as the member who created it.
 
         Called by the worker with a bare id (a scheduled fire) or by the webhook's
@@ -978,12 +995,61 @@ class AgentTriggerService:
         trigger is disabled rather than retried (the "silently retried refusal"
         #44 guards against, reached through the authz door instead of the budget
         one).
+
+        A run that fails on something the runner re-raises rather than records - a
+        provider 5xx, a revoked key, a timeout - is neither a refusal nor a reason
+        to disable. `_run` has already committed the row as `failed`, so the fire
+        is in Activity; `fire` recovers that row from the trigger's conversation to
+        stamp `last_run_id` and returns, rather than letting the error fail the
+        Prefect flow and retry the same outage against the same money. The recovered
+        row is identified by *this* fire having advanced the conversation's tail past
+        the previous fire's run - an error before the run existed leaves the tail
+        where it was, and stamping it would name the wrong fire.
+
+        Only a durably recorded failure is swallowed. A run that reached a terminal
+        state whose write never committed - a finalization or persistence step
+        raising after the answer was in hand - is re-raised, so the half-written
+        state rolls back and the flow is marked failed rather than reporting a run
+        that no row records.
+
+        `claimed_at` is the `fire_in_flight_since` the heartbeat's claim stamped, and
+        it is this fire's claim ticket: passing it says "clear the marker when this
+        ends - however it ends: a completed run, a recorded failure, a disable, or a
+        skip - but only while the marker is still the one my claim set". Only the
+        scheduled worker path passes it. `run_now` and an event fire reach `fire`
+        with no claim behind them, and a marker they find belongs to a concurrent
+        scheduled fire still relying on it: clearing it would reopen the trigger to
+        the next tick mid-run, the self-overlap `0025` exists to close.
+
+        The identity check is what keeps a slow fire from clearing a *newer* claim's
+        marker. If this fire outran the lease, `claim_due` may have re-claimed the
+        trigger and stamped a fresh `fire_in_flight_since` for a second fire now in
+        flight; this one finishing must not clear that, or the trigger reopens under
+        the newer fire. So it clears only when the marker still equals the timestamp
+        it was dispatched with. The lease still frees a marker a crashed scheduled
+        fire never cleared, and a dispatch that never started a run leaves the marker
+        for the lease to free rather than clearing it eagerly - the child flow may
+        have started even when the submit call raised.
         """
         trigger = await agent_trigger_repo.get_by_id(self.db, trigger_id)
-        if trigger is None or not trigger.is_active:
+        if trigger is None:
             logger.info("trigger_fire_skipped", extra={"trigger_id": str(trigger_id)})
             return
+        try:
+            await self._fire_loaded(trigger, event_context=event_context)
+        finally:
+            if claimed_at is not None and trigger.fire_in_flight_since == claimed_at:
+                trigger.fire_in_flight_since = None
+                await self.db.flush()
 
+    async def _fire_loaded(
+        self, trigger: AgentTrigger, *, event_context: str | None = None
+    ) -> None:
+        """The fire itself, once the row is loaded - split out so `fire` can clear the
+        scheduled path's in-flight marker in a `finally` around every path through it."""
+        if not trigger.is_active:
+            logger.info("trigger_fire_skipped", extra={"trigger_id": str(trigger.id)})
+            return
         ctx = await self._creator_context(trigger)
         if ctx is None:
             # No *active* membership to take a role from - the creator left the
@@ -1011,6 +1077,14 @@ class AgentTriggerService:
         message = (
             trigger.prompt if event_context is None else f"{trigger.prompt}\n\n{event_context}"
         )
+        # This trigger's tail before the fire opens a run of its own. Every fire ends
+        # by stamping `last_run_id` against the run it created, so the run named here
+        # is exactly the newest row in the trigger's run-log conversation. It is how
+        # the failure path tells this fire's run apart from a previous fire's:
+        # `execute` creates the run row inside `prepare`, so an error before that
+        # leaves the tail unchanged, and stamping `last_run_id` against it would name
+        # the wrong fire - the trigger appends every fire to one conversation (#589).
+        previous_run_id = trigger.last_run_id
         runner = AgentRunnerService(self.db)
         try:
             _answer, run = await runner.execute(
@@ -1031,9 +1105,55 @@ class AgentTriggerService:
             # archived, or its version withdrawn - so `get_runnable_spec` refuses
             # inside execute. Left active, every cadence would dispatch another run
             # that fails exactly here; disable it instead of retrying a certainty,
-            # the same verdict the authz refusal gets for the same reason.
+            # the same verdict the authz refusal gets for the same reason. Caught
+            # before the blanket `Exception` below, which would otherwise find no run
+            # of this fire's to recover and simply return, leaving the schedule to
+            # dispatch the same doomed run every cadence.
             await self._disable(trigger, reason="agent_not_runnable")
             return
+        except Exception:
+            # The run failed on something the runner re-raises instead of recording
+            # as a terminal status - a provider 5xx, a revoked key, a timeout. `_run`
+            # commits the row as `failed` before re-raising, so the failure is in
+            # Activity; letting it propagate would only fail the Prefect flow for a
+            # run already accounted for and retry the same outage. Recover the row
+            # from the trigger's own conversation, stamp it, and return.
+            logger.exception("trigger_fire_run_errored", extra={"trigger_id": str(trigger.id)})
+            run = await agent_run_repo.latest_run_for_conversation(
+                self.db, conversation_id, organization_id=ctx.organization_id
+            )
+            if run is None or run.id == previous_run_id:
+                # No run row for *this* fire: the error struck before one was created
+                # - a spec that no longer builds, a model profile deleted since
+                # publish - or the tail is still the previous fire's run. Nothing of
+                # this fire's to stamp; the next interval tries again once the cause
+                # is fixed.
+                return
+            if run.status == RunStatus.RUNNING.value:
+                # The error struck after `create_run` flushed the row `running` but
+                # before `_run` could record it terminal - `workspaces.open`,
+                # `build_agent` and delegation setup all run after the row exists, and
+                # an error from any of them escapes `_run`'s `finally`. Nothing else
+                # will ever finish this run, and a non-terminal `last_run_id` makes
+                # `claim_due`'s no-overlap guard skip the trigger on every tick for
+                # ever. It can only be this fire's own orphan - `claim_due` proved the
+                # previous run terminal at claim time, and an in-flight run's row is
+                # invisible to other transactions until its own commit lands - so
+                # settle it before stamping.
+                run.status = RunStatus.FAILED.value
+                run.ended_at = datetime.now(UTC)
+                run.error = "fire failed before the runner could record the run"
+            elif run.status != RunStatus.FAILED.value:
+                # This fire produced a terminal or parked write that never durably
+                # committed: a finalization or persistence step - the transcript, the
+                # conversation state, the run's own commit - failed after the run had
+                # finished, so `_run` never reached its commit and the row is only
+                # flushed, not durable. Unlike a recorded failure this is not an
+                # outcome to leave for the next fire: swallowing it would let the
+                # worker context commit a completed run with no transcript behind it
+                # while Prefect sees success. Re-raise, so the half-written state rolls
+                # back and the flow is marked failed.
+                raise
 
         trigger.last_run_id = run.id
         # Stamp the fire on every path, not just the scheduled heartbeat: without

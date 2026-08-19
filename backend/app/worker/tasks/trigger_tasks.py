@@ -34,7 +34,12 @@ logger = logging.getLogger(__name__)
 _RUN_TRIGGER_DEPLOYMENT = "run-scheduled-trigger/run-scheduled-trigger"
 
 
-async def dispatch_trigger_fire(trigger_id: str, *, event_context: str | None = None) -> None:
+async def dispatch_trigger_fire(
+    trigger_id: str,
+    *,
+    event_context: str | None = None,
+    claimed_at: datetime | None = None,
+) -> None:
     """Submit one trigger's run as its own flow run, and return.
 
     `timeout=0` is what makes this submit-and-return: `run_deployment` enqueues
@@ -49,13 +54,24 @@ async def dispatch_trigger_fire(trigger_id: str, *, event_context: str | None = 
     why a burst of deliveries - five issues opened in a minute - starts capped
     worker flow runs rather than that many concurrent agent runs inside the API
     process, competing with request handling for its event loop.
+
+    `claimed_at` is the `fire_in_flight_since` the scheduled claim stamped, handed
+    to the fire as its claim ticket so it clears only the marker its own claim set -
+    the guard against a fire that outran the lease clearing a newer claim's marker.
+    Only the scheduled heartbeat sets it; an event delivery has no claim behind it.
+    It rides across the Prefect boundary as an ISO string, the shape a flow
+    parameter takes.
     """
     # `run_deployment` is sync-compatible: its stub unions the coroutine it
     # returns in an async context with the `FlowRun` a sync caller gets, and ty
     # cannot tell which applies. Awaiting it is correct here.
     await run_deployment(  # ty: ignore[invalid-await]
         name=_RUN_TRIGGER_DEPLOYMENT,
-        parameters={"trigger_id": trigger_id, "event_context": event_context},
+        parameters={
+            "trigger_id": trigger_id,
+            "event_context": event_context,
+            "claimed_at": None if claimed_at is None else claimed_at.isoformat(),
+        },
         timeout=0,
     )
 
@@ -65,39 +81,59 @@ async def check_agent_triggers_flow() -> None:
     """Heartbeat: claim the triggers due now and submit a run for each."""
     from app.services.agent_trigger import AgentTriggerService
 
+    # The one clock for the whole tick: `claim_and_advance` stamps every claimed
+    # trigger's `fire_in_flight_since` with exactly this `now`, so it is each fire's
+    # claim ticket - handed back as `claimed_at` so the fire clears only the marker
+    # its own claim set.
+    now = datetime.now(UTC)
     async with get_worker_db_context() as db:
-        triggers = await AgentTriggerService(db).claim_and_advance(now=datetime.now(UTC))
+        triggers = await AgentTriggerService(db).claim_and_advance(now=now)
     # Dispatched after the claim's transaction commits, so every submitted run
     # sees the advanced `next_fire_at` and the tick's own work is durable before
-    # any of it is handed on. Each dispatch is isolated: the batch already
-    # advanced every `next_fire_at`, so a trigger whose hand-off raises would not
-    # be re-claimed until its next cadence - and without this, that one failure
-    # would take the rest of the claimed batch down with it and strand them too.
+    # any of it is handed on.
     dispatched = 0
     for trigger in triggers:
         try:
-            await dispatch_trigger_fire(str(trigger.id))
+            await dispatch_trigger_fire(str(trigger.id), claimed_at=now)
         except Exception:
-            logger.warning(
-                "agent_trigger_dispatch_failed",
-                extra={"trigger_id": str(trigger.id)},
-                exc_info=True,
-            )
-            continue
-        dispatched += 1
-    logger.info("agent_triggers_check", extra={"claimed": len(triggers), "dispatched": dispatched})
+            # Isolate each dispatch so a single failed `run_deployment` (a transient
+            # Prefect API error) does not abort the loop and cost the rest of the
+            # batch their fire too. The marker is deliberately left set: a submit that
+            # raised may still have created the child flow - `run_deployment` can
+            # enqueue the run on the Prefect API and then lose or time out the
+            # response - so clearing it here would let the next tick submit a second
+            # fire on top of an accepted-but-queued one, duplicating the spend and its
+            # side effects (#589). Leaving it set means `_FIRE_LEASE`, not this loop,
+            # governs re-dispatch: a genuinely lost submit waits out the lease rather
+            # than risking a double fire.
+            logger.exception("agent_trigger_dispatch_failed", extra={"trigger_id": str(trigger.id)})
+        else:
+            dispatched += 1
+    logger.info("agent_triggers_check", extra={"dispatched": dispatched, "claimed": len(triggers)})
 
 
 @flow(name="run-scheduled-trigger", log_prints=True)
-async def run_scheduled_trigger_flow(trigger_id: str, event_context: str | None = None) -> None:
+async def run_scheduled_trigger_flow(
+    trigger_id: str, event_context: str | None = None, claimed_at: str | None = None
+) -> None:
     """One fired run: run the agent this trigger fires, as its creator.
 
     Reached by the heartbeat with no `event_context` (a scheduled fire) and by an
-    inbound event delivery with the rendered context (an event fire), so both
-    kinds run in this one capped, isolated flow rather than the event kind running
-    in the API process.
+    inbound event delivery with the rendered context (an event fire), so both kinds
+    run in this one capped, isolated flow rather than the event kind running in the
+    API process.
+
+    `claimed_at` is the `fire_in_flight_since` the scheduled claim stamped,
+    round-tripped as an ISO string and handed back to `fire` as this fire's claim
+    ticket, so the marker is cleared only while it still belongs to this claim - a
+    fire that outran the lease must not clear the marker a newer claim set. Only the
+    scheduled path sets it; an event or manually triggered fire has none and leaves
+    any marker for the lease.
     """
     from app.services.agent_trigger import AgentTriggerService
 
+    parsed = None if claimed_at is None else datetime.fromisoformat(claimed_at)
     async with get_worker_db_context() as db:
-        await AgentTriggerService(db).fire(UUID(trigger_id), event_context=event_context)
+        await AgentTriggerService(db).fire(
+            UUID(trigger_id), event_context=event_context, claimed_at=parsed
+        )
