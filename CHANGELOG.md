@@ -17,6 +17,177 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.201] - 2026-08-19
+
+An agent is configured in one place, a deployment can brand and close itself,
+and a run says what it actually handed its model. Twenty findings from the
+review round on the same pull request are in here too — the most serious of
+them a one-use invitation link that admitted accounts without bound.
+
+### Added
+
+- **The Toolbox is where an agent is configured.** Context files, collections
+  and skills are picked inside the capability that reads them, on the panel's own
+  first tab, which the panel opens on; the Knowledge and Skills tabs are gone and
+  Skills is a capability with a switch like every other. Settings and Tools are
+  two tabs, so a six-field form and a tool description that is a paragraph stop
+  sharing one scroll, and the workspace's and delegation's own controls moved
+  inside the card that names them. The "Charts is on" card is gone: its switch is
+  on the panel's title row, where it renders whether or not the capability is
+  granted. (#914)
+- **Image generation asks for a provider and a model**, both from the server:
+  whether a provider can draw is `supported_native_tools()` on the SDK's model
+  class, and which models it offers is `app/core/catalog/image_models.json`, with
+  a sentence per model. A model released this morning is one catalog entry.
+  (#914)
+- **A deployment has its own identity, access policy and notices**, edited from
+  `/admin/settings` by whoever holds `is_app_admin` — one row guarded by a unique
+  constraint on a column constrained to true, so a second identity is an
+  `IntegrityError` rather than a deployment that quietly has two. Name, tagline,
+  description, logo and favicon reach the sidebar, the sign-in header, the browser
+  tab, the OpenGraph card, the PWA manifest, the iOS touch icon and every email
+  the deployment sends; `signup_mode` (`open` / `invite_only` / `closed`) and an
+  email-domain allow-list decide who may register; an announcement and a
+  maintenance window that actually closes the API. `docs/deployment.md` is the
+  page. Migration `0037`.
+- **Two ceilings a deployment can set**: organizations per account and agents per
+  organization, both null by default, and null is no limit rather than "not
+  configured". Every transition into the counted state is checked, not only a
+  create, and the count is taken under a transaction-scoped advisory lock —
+  read and acted on without one, two requests both pass it and both write.
+  Migration `0039`.
+- **A run records what it handed its model.** None of it is derivable
+  afterwards: the prompt is the spec's instructions plus the platform's, plus a
+  channel binding's, plus the bound skills, plus whichever reminder fired, and
+  the tools are the registry plus the organization's MCP servers minus whatever
+  tool search hid. `RecordingModel` wraps the model the agent was built with and
+  writes down each request as it passes; `GET /runs/{id}/manifest` reads it back
+  under the transcript's authorization, and a second tab on the run drawer
+  renders it with the requests as bars. A table rather than a column on
+  `agent_runs`, provider passthrough never recorded, and the write guarded *and*
+  in a SAVEPOINT. Migration `0038`.
+- **A run is read beside the list rather than over it**, in two full-height
+  panes, with the thread folded by run and only the run being read open.
+  Stepping between runs is a cache hit and leaves the timeline standing, and the
+  arrow keys do what the buttons do.
+- **A turn's attachments are on the run timeline, openable.** `MessageRead` has
+  carried `files` since attachments existed; the timeline rebuilt its argument
+  field by field and lost them, along with the per-turn model, token split, cost
+  and context size. "The agent answered badly" and "the agent was handed a scan
+  with no text layer" are the same transcript until somebody can look at the
+  file. They open through the shared `FileViewer`, addressed through the run —
+  `GET /runs/{run_id}/files/{file_id}`, authorized as the transcript is — because
+  `/files/{id}` is scoped to the uploader and a run review is not. (#914)
+- **Publishing mints a version; deploying it is a separate decision.** An
+  environment says whether a publish moves it: `pinned` waits to be promoted onto
+  and `tracks_latest` follows, which is what a `dev` somebody is iterating in
+  wants. Existing environments become pinned, so an author fixing a prompt no
+  longer changes what the live Slack bot answers with in the same action.
+  Migration `0040`.
+- **The version history pages and reads as a timeline**, MCP servers have a tab
+  of their own, and a context file is created and edited the way a skill is.
+- **A registration can prove itself with an invitation token.** A shareable link
+  with neither an address nor a domain is a real, documented shape and an
+  address-based query cannot see one, so closing sign-up silently un-invited
+  everybody holding one. `UserCreate` takes an `invitation_token`, and holding it
+  *is* the proof; registering with one does not accept the invitation, which
+  still needs a session. The console carries it across the redirect that lost it,
+  and across the provider round trip in the session. A link with a `max_uses`
+  reserves capacity for the registering address, because acceptance happens
+  later. (#916, #914) Migration `0041`.
+
+### Fixed
+
+- **A new conversation showed no agent until a reload.** The listing was fetched
+  at the one moment the server is guaranteed to answer "nobody answered here
+  yet", and nothing asked again. (#909)
+- **Every wrong-method request answered 500 instead of 405**, on every route, so
+  an unauthenticated caller could make the server log a traceback on any path.
+  OpenTelemetry's FastAPI instrumentation reads `.path` unguarded in its
+  `Match.PARTIAL` branch — which *is* "path matches, method does not" — and the
+  latest published version has the same line, so `app/core/otel_compat.py`
+  supplies the fallback upstream missed and a test fails when they fix it. With
+  it, `HTTPException` stopped answering `{"detail": …}`: one
+  `StarletteHTTPException` registration, forwarding the exception's headers,
+  because `Allow` is what makes a 405 useful. (#917)
+- **A streaming turn drew as four turns** — the grouping written for exactly that
+  keyed on the stored `runId`, which a turn still streaming does not have.
+- **The double scrollbar was the document's, and it could not scroll.** An
+  absolutely positioned descendant with no positioned ancestor was inflating it;
+  `position: relative` on `main` contains them.
+- **The dark theme was darker than its numbers.** OKLCH lightness is perceptual,
+  so a 14% page renders `#07090c` — black on black, with a 1.05:1 step between a
+  page and its cards. Every contrast claim in `globals.css` was re-measured.
+- **Every avatar drew 12px initials whatever its size**, because the fallback
+  carried its own font-size and beat the one it inherited.
+- **A settings write was not readable in the request that made it.** Uploading a
+  logo answered `logo_version: null` for a logo it was already serving the bytes
+  of: the identity map returned the instance `set_image` had already loaded.
+- **A one-use invitation link admitted unlimited accounts.** `used_count` counts
+  acceptances and acceptance needs a session, so on an `invite_only` deployment
+  every registration read a ceiling nothing had yet moved. A use is reserved for
+  the registering address before the account exists, atomically; accepting moves
+  the address into the count, so somebody who registered through a one-use link
+  can still join. (#914)
+- **The provider button refused exactly the invitations that need a token.**
+  `invite_only` accepted somebody through the password form and refused the same
+  person through Google beside it. (#914)
+- **Three writes ran ahead of the transaction that authorised them**: the
+  maintenance verdict pushed to Redis before the commit, so a failed disable
+  reopened the deployment for up to the cache TTL, and a replaced or cleared
+  image's bytes deleted before it, so a rollback left the row pointing at a file
+  that was gone. (#914)
+- **A logo replaced twice in one second kept the first for a year** — the
+  cache-busting token was the row's timestamp truncated to a second, and the
+  address carries `immutable`. (#914)
+- **A maintenance window never reached an already-open tab**, in either
+  direction: the branding context is resolved once by the root server layout, so
+  a non-admin was left on a dashboard answering 503 to everything with nothing
+  saying why, and closing the window left a tab on the maintenance screen. The
+  notice endpoint carries the verdict now. (#914)
+- **The announcement banner could take the dashboard down.** `localStorage`
+  throws where site data is blocked, and it is read inside
+  `useSyncExternalStore` — during render, for every signed-in user. (#914)
+- **A run reviewer could see a colleague's attachments and open none of them**,
+  and **a streamed request that failed left no entry in the run manifest** — on
+  the path where a provider refusal usually surfaces. The manifest's advertised
+  512 KB ceiling was not one either: the last trimming stage returned without
+  measuring. (#914)
+- **Every version picker offered the newest fifty** of however many there are, so
+  an agent published more than fifty times could not be repinned to an older
+  version, and a row clicked on a later page of the history selected an id the
+  comparison dropdown did not hold. (#914)
+- **Arrow keys on the run detail's tab strip stepped between runs**, because the
+  window listener never asked whether the focused control had already answered
+  the key. (#914)
+- **A stored image spec stopped being constructible.**
+  `ImageGenerationConfig.model` used to be one prefixed string, so a version
+  published before this release failed at construction rather than at publish.
+  (#914)
+- **Vertex AI was offered for drawing and could not be configured** — its model
+  class draws, but the capability seals an API key where Vertex wants a service
+  account. Being able to draw and being configurable are two questions. (#914)
+- **An untouched image binding showed two blank pickers** for a configuration
+  that would draw with OpenAI's first model, and **a dropped `page.html` became a
+  Markdown file called `page`**. (#914)
+- **A read-only Builder could work the panel's capability switch** — the one
+  control `disabled` had to leave live, because that prop meant both "the
+  capability is off" and "you may not edit". (#914)
+
+### Changed
+
+- **`closed` says what it does.** There is deliberately no
+  administrator-creates-an-account path — an account needs a password its owner
+  chose, so adding somebody means opening registration to them, which is what
+  `invite_only` is. The setting text, the refusal and the page say so rather than
+  promising a flow that does not exist. (#914)
+- **The admin conversation browser is retired**, and the cross-tenant read with
+  it.
+- **The model fallbacks are data**, and their context windows are the library's.
+- **A chat attachment's bytes are served from one place**
+  (`_chat_file_bytes.py`), so what a browser may display does not depend on which
+  route authorized the read. (#914)
+
 ## [0.0.200] - 2026-08-18
 
 ### Fixed
