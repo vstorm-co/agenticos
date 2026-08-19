@@ -234,6 +234,13 @@ different pipeline handles parsing, chunking, and embedding.
 Over the API the order is the other way round: the `RAGDocument` row is written
 first and steps 2–5 run in a background task against a session of their own,
 which is why an upload answers `{"status": "processing"}` rather than waiting.
+There are two addresses an upload can arrive at — `POST /rag/collections/{name}/ingest`
+and `POST /kb/{kb_id}/documents` — and both answer **202** with the same
+`RAGIngestResponse`, every field of it, `"document_id": null` included: the vector
+store's id for the document does not exist until the worker has indexed it. One of
+the two used to omit the key rather than send it null, so a client normalising the
+answer got a different shape from each
+([#560](https://github.com/vstorm-co/agenticos/issues/560)).
 That task is started **after the request's transaction commits** — it is handed
 over with `spawn_after_commit`, not `spawn`, and started by the session itself
 once the row is durable. Dispatched any earlier it would look for the document

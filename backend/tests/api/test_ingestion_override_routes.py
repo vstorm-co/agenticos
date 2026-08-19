@@ -28,6 +28,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.resource_grant import Visibility
 from app.main import app
+from app.schemas.rag import RAGIngestResponse
 from app.services import rag_document
 
 pytestmark = pytest.mark.anyio
@@ -160,6 +161,69 @@ class TestAnOverlapThatDoesNotFitInsideTheChunk:
         )["details"]["fields"]
 
         assert all(set(problem) == {"field", "message"} for problem in problems)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        f"{settings.API_V1_STR}/rag/collections/handbook/ingest",
+        f"{settings.API_V1_STR}/kb/{_KB_ID}/documents",
+    ],
+)
+class TestWhatBothUploadRoutesSerialize:
+    """The same schema, the same operation, the same keys on the wire.
+
+    #560. `ingest_file` carried `response_model_exclude_none=True` and
+    `upload_kb_document` did not, so `document_id` - `str | None`, and `None` on
+    every accepted upload, because the id exists only once the worker has indexed
+    the file - was absent from one answer and present as `null` in the other. A
+    client normalising the response got a different shape from each, and the flag
+    was the only use of it in the tree.
+
+    The service is stubbed here because the question is what the *route*
+    serializes: the two differed in a decorator argument, not in what they
+    computed.
+    """
+
+    @pytest.fixture(autouse=True)
+    def accepted_upload(self) -> MagicMock:
+        service = MagicMock()
+        service.dispatch_upload = AsyncMock(
+            return_value=RAGIngestResponse(
+                id=str(uuid.uuid4()),
+                status="processing",
+                filename="handbook.pdf",
+                collection="handbook",
+                message="File accepted. Processing in background.",
+            )
+        )
+        app.dependency_overrides[deps.get_rag_document_service] = lambda: service
+        return service
+
+    async def test_an_accepted_upload_names_document_id_even_when_it_has_none(
+        self, client: AsyncClient, store: MagicMock, path: str
+    ) -> None:
+        """`null` is the honest answer: the id does not exist yet."""
+        response = await client.post(path, files=_upload())
+
+        assert response.status_code == 202
+        body = response.json()
+        assert "document_id" in body
+        assert body["document_id"] is None
+
+    async def test_the_two_routes_answer_with_the_same_keys(
+        self, client: AsyncClient, store: MagicMock, path: str
+    ) -> None:
+        """Every field of the schema, from either address.
+
+        Asserted against the schema rather than against the other route's answer,
+        so this fails at whichever address drifts rather than only when they
+        disagree - and so adding a field to `RAGIngestResponse` that one route
+        drops is caught here too.
+        """
+        response = await client.post(path, files=_upload())
+
+        assert set(response.json()) == set(RAGIngestResponse.model_fields)
 
 
 class TestTheSameRuleOnTheCollectionsOwnSettings:

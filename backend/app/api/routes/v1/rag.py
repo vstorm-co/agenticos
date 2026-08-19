@@ -299,7 +299,6 @@ async def delete_document(
 @router.post(
     "/collections/{name}/ingest",
     response_model=RAGIngestResponse,
-    response_model_exclude_none=True,
     status_code=status.HTTP_202_ACCEPTED,
     dependencies=[Depends(require(Perm.COLLECTIONS_EDIT))],
 )
