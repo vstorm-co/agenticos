@@ -353,16 +353,20 @@ test.describe("Agents", () => {
     await expect(saved.getByRole("combobox")).toContainText("Always ask");
     await expect(saved.getByText("overridden")).toBeVisible();
 
-    // And the capability it belongs to was left alone — an override that
-    // quietly gated everything would look identical on the row that was clicked.
-    // The capability's own control is the first in its panel; the tool rows'
-    // are below it.
-    await expect(
-      page
-        .getByRole("group", { name: CAPABILITY_WITH_TOOLS, exact: true })
-        .getByRole("combobox")
-        .first(),
-    ).toContainText("Follow the capability");
+    // And the capability it belongs to was left alone — an override that quietly
+    // gated everything would look identical on the row that was clicked.
+    //
+    // Read off the Settings tab, by the label of the capability's own control.
+    // It used to be `.first()` combobox in the panel, which was true when the
+    // panel was one flat body and stopped being true when #914 gave it tabs:
+    // Radix unmounts the inactive tab, so on Tools the only comboboxes in the
+    // group are the tool rows' — and `.first()` was `search_documents`, the very
+    // row this test had just set to "Always ask". The assertion passed for a
+    // year and then failed for being right about the wrong element.
+    const panel = page.getByRole("group", { name: CAPABILITY_WITH_TOOLS, exact: true });
+    await panel.getByRole("tab", { name: "Settings", exact: true }).click();
+
+    await expect(panel.getByLabel("Human approval")).toContainText("Follow the capability");
   });
 
   test("a tool renamed for one agent sticks, and the code default can be had back", async ({
