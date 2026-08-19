@@ -373,6 +373,14 @@ class PgVectorStore(BaseVectorStore):
         connection while it waited - and the number of them scaled with the
         document, so the worst case was a long PDF against the slowest database
         (#950).
+
+        **Each batch's rows are built inside the loop, not before it.** The
+        embedding is rendered as text here, and at 3072 dimensions that is tens
+        of kilobytes a row - so materialising every row first would hold a
+        three-thousand-chunk document's parameters, better than 100MB of live
+        strings, on top of the float vectors already in hand. Batching the
+        statements and not the rows would have bounded what asyncpg receives
+        while leaving the worker's memory exactly where it was.
         """
         table = self._table(collection_name)
         await self._ensure_collection(collection_name)
@@ -385,19 +393,21 @@ class PgVectorStore(BaseVectorStore):
             VALUES (:id, :parent_doc_id, :content, :embedding, :metadata)
             ON CONFLICT (id) DO UPDATE SET content = :content, embedding = :embedding, metadata = :metadata
         """)
-        rows = [
-            {
-                "id": chunk.chunk_id,
-                "parent_doc_id": chunk.parent_doc_id,
-                "content": chunk.chunk_content,
-                "embedding": str(vectors[i]),
-                "metadata": json.dumps(self._build_chunk_metadata(chunk, document)),
-            }
-            for i, chunk in enumerate(document.chunked_pages)
-        ]
         async with self.async_session() as session:
-            for batch in batched(rows, _CHUNK_INSERT_BATCH):
-                await session.execute(statement, list(batch))
+            for batch in batched(enumerate(document.chunked_pages), _CHUNK_INSERT_BATCH):
+                await session.execute(
+                    statement,
+                    [
+                        {
+                            "id": chunk.chunk_id,
+                            "parent_doc_id": chunk.parent_doc_id,
+                            "content": chunk.chunk_content,
+                            "embedding": str(vectors[i]),
+                            "metadata": json.dumps(self._build_chunk_metadata(chunk, document)),
+                        }
+                        for i, chunk in batch
+                    ],
+                )
             await session.commit()
 
     async def search(

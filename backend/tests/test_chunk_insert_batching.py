@@ -14,6 +14,7 @@ proves the `executemany` actually writes every row, which a counted mock cannot.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -56,6 +57,7 @@ class RecordingSession:
     def __init__(self) -> None:
         self.calls: list[object] = []
         self.commits = 0
+        self.on_execute: Callable[[], None] | None = None
 
     async def __aenter__(self) -> RecordingSession:
         return self
@@ -64,6 +66,8 @@ class RecordingSession:
         return None
 
     async def execute(self, statement: object, params: object = None) -> MagicMock:
+        if self.on_execute is not None:
+            self.on_execute()
         self.calls.append(params)
         return MagicMock()
 
@@ -147,6 +151,36 @@ class TestHowManyStatementsOneDocumentCosts:
         assert [json.loads(row["metadata"])["page_num"] for row in rows] == [1, 2, 3, 4]  # ty: ignore[invalid-argument-type]
         assert [json.loads(row["metadata"])["chunk_num"] for row in rows] == [0, 1, 2, 3]  # ty: ignore[invalid-argument-type]
         assert {row["embedding"] for row in rows} == {"[0.0, 0.0, 0.0]"}  # ty: ignore[invalid-argument-type]
+
+    async def test_each_batch_of_rows_is_built_when_its_statement_runs(self, monkeypatch):
+        """Batching the statements without batching the rows fixes nothing.
+
+        The embedding is rendered as text in these rows, tens of kilobytes each
+        at 3072 dimensions, so materialising all of them first would hold better
+        than 100MB of live strings for a long document - bounding what asyncpg
+        receives while leaving the worker's memory where it was. Counted through
+        `_build_chunk_metadata`, which runs once per row built: at each statement
+        only that batch's rows exist, so the counts step. Building the whole list
+        first reads as `[30, 30, 30]`.
+        """
+        monkeypatch.setattr(vectorstore_module, "_CHUNK_INSERT_BATCH", 10)
+        session = RecordingSession()
+        store = _store(session)
+        built = 0
+        original = store._build_chunk_metadata
+
+        def counting(chunk: object, document: object) -> dict[str, object]:
+            nonlocal built
+            built += 1
+            return original(chunk, document)  # ty: ignore[invalid-argument-type]
+
+        store._build_chunk_metadata = counting  # ty: ignore[invalid-assignment]
+        seen: list[int] = []
+        session.on_execute = lambda: seen.append(built)
+
+        await store.insert_document("docs", _document(chunks=30))
+
+        assert seen == [10, 20, 30]
 
     async def test_a_document_with_no_chunks_is_refused_before_any_statement(self):
         """Unchanged, and worth pinning: an empty parameter list would make
