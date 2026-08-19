@@ -17,6 +17,35 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.208] - 2026-08-20
+
+Ingesting one changed file read the whole collection four times.
+
+### Changed
+
+- **One document lookup, one scan, both answers.** Three lookups walked the same
+  document listing with three predicates - `source_path`-then-`filename`, content
+  hash, and two public methods each projecting one field from the first - and every
+  one of them read the whole collection. So ingesting a changed file in `new_only`
+  mode read it four times (the sync asked for an id, then a hash, and `ingest_file`
+  asked for both again) and an unchanged one twice; it is now once for the sync's
+  decision and once inside the ingest. Both sync callers, the worker flow and
+  `rag-sync` in the CLI, did the identical two-call dance and now do one. (#566)
+- **The id and the hash come back together, so they cannot disagree.**
+  `IngestionService.existing_document` answers with a frozen `StoredDocument`
+  carrying both, and `find_existing` / `get_existing_hash` are gone rather than
+  kept as wrappers. While the two were computed separately they *could* name
+  different documents - the id lookup checked every document for a `source_path`
+  match before falling back to `filename` while the hash lookup interleaved the
+  two - so a sync compared a live file's hash against a different document's and
+  either re-embedded an unchanged file every night or skipped a changed one as
+  current. That was fixed in #548; a caller that cannot ask for one answer without
+  the other cannot write it again. (#566)
+- **`docs/file-processing.md`** states the precedence, the read count, and that a
+  store which cannot answer the listing is treated as "no match" - a failed query
+  is not evidence a document is absent, and acting as though one were present
+  would delete it. (#566)
+
 ## [0.0.207] - 2026-08-20
 
 The two addresses an upload can arrive at answered with different shapes.
