@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarClock, Plus } from "lucide-react";
+import { CalendarClock, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -41,7 +41,7 @@ export default function RoutinesPage() {
             {tt("newSchedule")}
           </Button>
           <Button variant="outline" onClick={() => setCreatingEvent(true)}>
-            <Plus className="mr-2 h-4 w-4" />
+            <Zap className="mr-2 h-4 w-4" />
             {tt("newEvent")}
           </Button>
         </div>

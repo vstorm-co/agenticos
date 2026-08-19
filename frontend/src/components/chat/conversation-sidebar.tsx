@@ -23,6 +23,7 @@ import { useChatSidebarStore } from "@/stores";
 import {
   Archive,
   ArchiveRestore,
+  CalendarClock,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -34,6 +35,7 @@ import {
   Share2,
   SquarePen,
   Trash2,
+  Zap,
 } from "lucide-react";
 import type { Conversation } from "@/types";
 import {
@@ -312,9 +314,11 @@ function ConversationList({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onSelect={() => setCreatingSchedule(true)}>
+                <CalendarClock className="mr-2 h-4 w-4" />
                 {tt("newSchedule")}
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setCreatingEvent(true)}>
+                <Zap className="mr-2 h-4 w-4" />
                 {tt("newEvent")}
               </DropdownMenuItem>
             </DropdownMenuContent>
