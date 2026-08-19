@@ -51,26 +51,5 @@
         "description": "Gemini 2.5 Flash Image. The previous generation, still widely available."
       }
     ]
-  },
-  {
-    "provider": "google_cloud",
-    "prefix": "google-cloud",
-    "models": [
-      {
-        "id": "gemini-3-pro-image",
-        "name": "Nano Banana Pro",
-        "description": "Gemini 3 Pro Image, through Vertex AI on the organization's own GCP project."
-      },
-      {
-        "id": "gemini-3.1-flash-image",
-        "name": "Nano Banana 2",
-        "description": "Gemini 3.1 Flash Image, through Vertex AI."
-      },
-      {
-        "id": "gemini-2.5-flash-image",
-        "name": "Nano Banana",
-        "description": "Gemini 2.5 Flash Image, through Vertex AI."
-      }
-    ]
   }
 ]

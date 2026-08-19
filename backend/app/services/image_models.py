@@ -6,8 +6,11 @@ Two halves, deliberately from two places.
 `Model.supported_native_tools()` is a classmethod on every model class Pydantic AI
 ships, so this asks rather than remembers - and an upgrade that teaches, say,
 `XaiModel` the tool shows up in the console without anybody editing a list. Three
-answer today: OpenAI (through the Responses API), Google, and Google through
-Vertex.
+model classes answer today: OpenAI (through the Responses API), Google, and Google
+through Vertex - and Vertex is the one the platform still cannot *offer*, because
+the capability seals an API key and Vertex wants a service account. Being able to
+draw and being configurable are two questions, and :func:`image_providers` asks
+both.
 
 **Which models** is data, in `app/core/catalog/image_models.json`, because that is
 what it is: an id, a name and a sentence saying when to reach for it. No provider
@@ -17,8 +20,9 @@ beats both a hand-written enum in a schema and a substring match on a model name
 Adding a model released this morning is one entry, no code.
 
 The two are combined rather than trusted separately: a provider in the file that
-the SDK cannot drive is dropped. That is the guard against the file growing an
-entry that would fail on its first call.
+the SDK cannot drive, or whose credential the capability cannot build, is dropped.
+That is the guard against the file growing an entry that would fail on its first
+call.
 """
 
 from dataclasses import dataclass
@@ -30,6 +34,7 @@ from pydantic_ai.native_tools import ImageGenerationTool
 
 from app.agents.model_resolver import PROVIDERS
 from app.core import catalog
+from app.core.secret_kinds import SecretKind
 
 
 @dataclass(frozen=True)
@@ -120,6 +125,12 @@ def image_providers() -> tuple[ImageProvider, ...]:
         spec = PROVIDERS.get(entry.provider)
         if spec is None or not entry.models or not draws_images(entry.prefix):
             continue
+        # The capability seals one `ApiKeySecret` and builds every provider with
+        # `api_key=`, so a provider wanting a service account or an AWS pair has
+        # no credential to be configured with and would fail on its first call.
+        # Vertex AI is the one the SDK says can draw and this cannot yet reach.
+        if spec.secret_kind is not SecretKind.API_KEY:
+            continue
         providers.append(
             ImageProvider(
                 provider=spec.id,
@@ -171,6 +182,36 @@ def resolved_model_id(provider: str, model: str) -> str:
     if entry is None:
         return f"{provider}:{model}"
     return f"{entry.prefix}:{entry.caller or model}"
+
+
+def normalize_legacy(model: str) -> tuple[str, str] | None:
+    """A pre-catalog `prefix:model` value, as the provider and model it meant.
+
+    `ImageGenerationConfig.model` used to be one enumerated string carrying the
+    SDK prefix - `openai-responses:gpt-5.4`, `google:gemini-3-pro-image` - and
+    every agent published before this pair existed still stores that in its spec.
+    Read back against the new field it is a model no catalog lists, so without
+    this a spec nobody touched would be refused when the capability is built -
+    a run-time failure for a version that was valid when it was published.
+
+    The prefix names the provider. What follows it is a model id where the
+    provider's chosen model is the one that draws (Google), and the *caller*
+    where they are separate (OpenAI's `gpt-5.4` is what invokes the tool, not
+    what draws) - so a name the catalog does not list resolves to that provider's
+    first image model rather than being carried through as itself.
+
+    `None` for anything that is not one of those strings, including a bare model
+    id, which the validator then refuses as it would any other unknown model.
+    """
+    prefix, separator, name = model.partition(":")
+    if separator == "":
+        return None
+    entry = next((candidate for candidate in image_providers() if candidate.prefix == prefix), None)
+    if entry is None:
+        return None
+    if any(candidate.id == name for candidate in entry.models):
+        return entry.provider, name
+    return entry.provider, entry.models[0].id
 
 
 def tool_model(provider: str, model: str) -> str | None:

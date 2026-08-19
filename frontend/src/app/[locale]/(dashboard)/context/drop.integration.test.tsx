@@ -131,6 +131,29 @@ describe("dropping files on the context page", () => {
     );
   });
 
+  it("refuses text whose format a context file cannot declare", async () => {
+    // Being text is not enough. `resolveFileKind` reads HTML and source files as
+    // textual, and `format` holds five words - so an HTML page arrived as a file
+    // called `page` whose body was labelled Markdown, deciding on its own how it
+    // is fenced for the model and contradicting the overlay above it.
+    await mount();
+
+    act(
+      () =>
+        void window.dispatchEvent(
+          drop([textFile("page.html", "<p>hi</p>"), textFile("runbook.md", "steps")]),
+        ),
+    );
+
+    expect(await screen.findByDisplayValue("runbook")).toBeInTheDocument();
+    expect(screen.queryByText("1 more file waiting")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(error).toHaveBeenCalledWith(
+        "One file has a format a context file cannot declare and was skipped",
+      ),
+    );
+  });
+
   it("abandons the whole drop when the dialog is closed", async () => {
     await mount();
 

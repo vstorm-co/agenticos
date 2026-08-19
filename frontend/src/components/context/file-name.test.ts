@@ -63,6 +63,19 @@ describe("draftFromFilename", () => {
   });
 
   it("truncates to what the name column accepts", () => {
-    expect(draftFromFilename(`${"a".repeat(80)}.md`).name).toHaveLength(64);
+    expect(draftFromFilename(`${"a".repeat(80)}.md`)?.name).toHaveLength(64);
+  });
+
+  it("refuses a format a context file cannot declare", () => {
+    // `readsAsText` admits HTML and source files, and this field holds five
+    // words. `page.html` used to arrive as a file called `page` whose HTML body
+    // was labelled Markdown - silently deciding how it is fenced for the model.
+    expect(draftFromFilename("page.html")).toBeNull();
+    expect(draftFromFilename("client.ts")).toBeNull();
+  });
+
+  it("recognises the other spellings of a format it does hold", () => {
+    expect(draftFromFilename("notes.markdown")).toEqual({ name: "notes", format: "md" });
+    expect(draftFromFilename("compose.yml")).toEqual({ name: "compose", format: "yaml" });
   });
 });

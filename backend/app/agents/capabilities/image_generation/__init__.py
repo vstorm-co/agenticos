@@ -17,6 +17,7 @@ from app.services.image_models import (
     default_choice,
     image_providers,
     is_offered,
+    normalize_legacy,
     resolved_model_id,
     tool_model,
 )
@@ -50,6 +51,30 @@ class ImageGenerationConfig(BaseModel):
             "mid-run."
         ),
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _read_the_stored_shape(cls, data: Any) -> Any:
+        """Accept the single `prefix:model` string this field used to be.
+
+        Every agent published before the provider was split out stores
+        `model: "openai-responses:gpt-5.4"` and no `provider`, which the pair
+        below reads as an unknown model on the default provider - so a version
+        nobody touched would stop being constructible, and the failure would land
+        mid-run rather than at publish. Only when no provider was stored: a
+        binding that names one is stating both halves, and the string is then a
+        model id that may legitimately contain a colon.
+        """
+        if not isinstance(data, dict) or data.get("provider") is not None:
+            return data
+        stored = data.get("model")
+        if not isinstance(stored, str):
+            return data
+        legacy = normalize_legacy(stored)
+        if legacy is None:
+            return data
+        provider, model = legacy
+        return {**data, "provider": provider, "model": model}
 
     @model_validator(mode="after")
     def _must_be_offered(self) -> "ImageGenerationConfig":

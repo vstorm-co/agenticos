@@ -20,6 +20,21 @@ export type ContextFormat = (typeof FORMATS)[number];
 /** The default, matching the API's own. */
 export const DEFAULT_FORMAT: ContextFormat = "md";
 
+/** The other spellings of a format this platform stores under one name. */
+const ALIASES: Record<string, ContextFormat> = { markdown: "md", yml: "yaml", text: "txt" };
+
+/**
+ * The format this word names, or `null` where it names none of them.
+ *
+ * The strict half, for a caller that has to be able to *refuse*: a dropped
+ * `page.html` is text, and a context file has no format that means HTML.
+ */
+function recognized(word: string): ContextFormat | null {
+  const value = word.trim().toLowerCase();
+  if ((FORMATS as readonly string[]).includes(value)) return value as ContextFormat;
+  return ALIASES[value] ?? null;
+}
+
 /**
  * The format a stored file's value maps onto, for a select that must show one.
  *
@@ -30,12 +45,7 @@ export const DEFAULT_FORMAT: ContextFormat = "md";
  * blank control.
  */
 export function toFormat(stored: string): ContextFormat {
-  const value = stored.trim().toLowerCase();
-  if ((FORMATS as readonly string[]).includes(value)) return value as ContextFormat;
-  if (value === "markdown") return "md";
-  if (value === "yml") return "yaml";
-  if (value === "text") return "txt";
-  return DEFAULT_FORMAT;
+  return recognized(stored) ?? DEFAULT_FORMAT;
 }
 
 /**
@@ -54,6 +64,9 @@ export function displayName(name: string, format: string): string {
   return `${name}.${suffix}`;
 }
 
+/** What a filename decides on its own: the two fields, without the body. */
+export type ContextDraftFields = Pick<ContextDraft, "name" | "format">;
+
 /** A dropped file, as the fields a new context file would start from. */
 export interface ContextDraft {
   /** Distinguishes one queued draft from the next; the dialog is keyed on it. */
@@ -64,20 +77,28 @@ export interface ContextDraft {
 }
 
 /**
- * A dropped file, as the name and format a context file would take.
+ * A dropped file, as the name and format a context file would take - or `null`.
  *
  * The extension decides the format and then leaves the name, because it is
  * carried by the `format` column: `runbook.md` becomes `runbook` + `md`, and a
  * file with no extension keeps its whole name and the default format. Names are
  * lower-cased and spaces become hyphens - the name is a handle a tool call
  * quotes, not a title.
+ *
+ * `null` for an extension no format names. `readsAsText` admits every textual
+ * kind, HTML and source files included, and this field has five values - so a
+ * dropped `page.html` used to arrive as a file called `page` whose HTML body was
+ * labelled Markdown, silently changing how it is fenced for the model and
+ * contradicting the overlay that says which formats are taken. Refusing is the
+ * whole point of the return type: there is nothing to guess between an HTML
+ * document and a Markdown one.
  */
-export function draftFromFilename(filename: string): { name: string; format: ContextFormat } {
+export function draftFromFilename(
+  filename: string,
+): { name: string; format: ContextFormat } | null {
   const dot = filename.lastIndexOf(".");
   const stem = dot > 0 ? filename.slice(0, dot) : filename;
-  const extension = dot > 0 ? filename.slice(dot + 1) : "";
-  return {
-    name: stem.toLowerCase().replace(/\s+/g, "-").slice(0, 64),
-    format: toFormat(extension),
-  };
+  const format = dot > 0 ? recognized(filename.slice(dot + 1)) : DEFAULT_FORMAT;
+  if (format === null) return null;
+  return { name: stem.toLowerCase().replace(/\s+/g, "-").slice(0, 64), format };
 }

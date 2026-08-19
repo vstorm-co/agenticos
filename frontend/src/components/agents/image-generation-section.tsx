@@ -25,6 +25,8 @@ interface ImageGenerationSectionProps {
   binding: CapabilityBindingSpec;
   onChange: (binding: CapabilityBindingSpec) => void;
   onToggleEnabled?: () => void;
+  /** Whether the caller may edit the spec at all - see `CapabilityDetail`. */
+  readOnly?: boolean;
   disabled?: boolean;
   configProblems?: readonly FieldProblem[];
 }
@@ -49,6 +51,7 @@ export function ImageGenerationSection({
   binding,
   onChange,
   onToggleEnabled,
+  readOnly,
   disabled,
   configProblems,
 }: ImageGenerationSectionProps) {
@@ -58,9 +61,23 @@ export function ImageGenerationSection({
 
   if (!definition) return null;
 
-  const provider = typeof binding.config.provider === "string" ? binding.config.provider : "";
-  const model = typeof binding.config.model === "string" ? binding.config.model : "";
-  const current = providers.find((entry) => entry.provider === provider);
+  // What will actually run, which for an untouched binding is not what it stores.
+  // `config: {}` is the normal shape of a capability somebody has only switched
+  // on, and the server resolves both fields from the head of this same catalog
+  // through a `default_factory` - which Pydantic does not emit as a JSON Schema
+  // default, so nothing here could infer it. Showing two empty "Choose…" fields
+  // for a binding that will draw with OpenAI's first model is the panel lying
+  // about what it is configured to do. Resolved for display only: the config is
+  // written when somebody picks, so the server keeps deciding the default.
+  const stored = typeof binding.config.provider === "string" ? binding.config.provider : "";
+  const current =
+    providers.find((entry) => entry.provider === stored) ??
+    (stored === "" ? providers[0] : undefined);
+  const storedModel = typeof binding.config.model === "string" ? binding.config.model : "";
+  const model =
+    current?.models.some((entry) => entry.id === storedModel) === true
+      ? storedModel
+      : (current?.models[0]?.id ?? "");
 
   const setConfig = (patch: Record<string, unknown>) =>
     onChange({ ...binding, config: { ...binding.config, ...patch } });
@@ -125,8 +142,8 @@ export function ImageGenerationSection({
             </SelectContent>
           </Select>
           <p className="text-muted-foreground text-xs">
-            {current === undefined && provider !== ""
-              ? t("imageModelUnknownProvider", { provider })
+            {current === undefined && stored !== ""
+              ? t("imageModelUnknownProvider", { provider: stored })
               : t("imageModelDetail")}
           </p>
         </div>
@@ -157,6 +174,7 @@ export function ImageGenerationSection({
       definition={definition}
       onChange={onChange}
       onToggleEnabled={onToggleEnabled}
+      readOnly={readOnly}
       disabled={disabled}
       configProblems={configProblems}
       settingsExtra={controls}

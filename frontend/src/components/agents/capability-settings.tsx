@@ -218,6 +218,18 @@ interface CapabilityDetailProps {
    */
   onToggleEnabled?: () => void;
   /**
+   * Whether the caller may not edit this spec at all.
+   *
+   * Separate from `disabled`, which the workbench also raises for a capability
+   * that is merely *off* - and the panel's switch is the one control an off
+   * capability must leave live, since it is what turns it on. Reading both from
+   * one prop made that switch the one control a Viewer could still work (#914):
+   * `disabled && enabled === true` is false for an ungranted capability whatever
+   * the caller's permissions, so a read-only Builder could toggle it and enter a
+   * dirty state the rest of the page says they cannot reach.
+   */
+  readOnly?: boolean;
+  /**
    * What this capability was given - the files it reads, the collections it may
    * search, the skills it loads - and the word for them.
    *
@@ -264,6 +276,7 @@ export function CapabilityDetail({
   hideConfigForm,
   configProblems,
   onToggleEnabled,
+  readOnly,
   resources,
   settingsExtra,
 }: CapabilityDetailProps) {
@@ -359,10 +372,11 @@ export function CapabilityDetail({
             <Switch
               className="ml-auto"
               checked={binding.enabled === true}
-              // Never `disabled`: that prop means "this capability is off", and a
-              // switch disabled by its own state is a switch nobody can turn back
-              // on. Only a caller who may not edit the spec at all takes it away.
-              disabled={disabled && binding.enabled === true}
+              // `readOnly`, never `disabled`: the latter also means "this
+              // capability is off", and a switch disabled by its own state is a
+              // switch nobody can turn back on. Only a caller who may not edit
+              // the spec at all takes it away.
+              disabled={readOnly}
               // Named as the capability it grants, not as "enabled". Two switches
               // doing the same thing is fine; two announcing the same words is
               // not - the row in the list beside this carries the other one.

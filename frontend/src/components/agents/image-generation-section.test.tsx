@@ -150,6 +150,23 @@ describe("choosing what draws", () => {
     expect(screen.getByText(/names together, which cannot draw/)).toBeInTheDocument();
   });
 
+  it("shows what an untouched binding will actually draw with", () => {
+    // `config: {}` is the shape of a capability somebody has only switched on, and
+    // the server resolves both fields from the head of this catalog. Two blank
+    // "Choose..." fields for a binding that will draw with OpenAI's first model is
+    // the panel disagreeing with the run.
+    mount({});
+
+    expect(screen.getByLabelText("Provider")).toHaveTextContent("OpenAI");
+    expect(screen.getByLabelText("Model")).toHaveTextContent("GPT Image 2");
+  });
+
+  it("shows the provider's first model where only the provider was stored", () => {
+    mount({ provider: "google" });
+
+    expect(screen.getByLabelText("Model")).toHaveTextContent("Nano Banana Pro");
+  });
+
   it("still draws the rest of the capability's own fields", () => {
     // Subtracted rather than replaced: a field added to the config appears here
     // without anybody touching this component.

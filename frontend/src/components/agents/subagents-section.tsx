@@ -48,6 +48,8 @@ interface SubagentsSectionProps {
   onChange: (binding: CapabilityBindingSpec) => void;
   /** Forwarded to the panel, where the switch now lives - see `CapabilityDetail`. */
   onToggleEnabled?: () => void;
+  /** Whether the caller may edit the spec at all - see `CapabilityDetail`. */
+  readOnly?: boolean;
   onSubagentsChange: (subagents: SubagentRef[]) => void;
   disabled?: boolean;
 }
@@ -77,6 +79,7 @@ export function SubagentsSection({
   onChange,
   onSubagentsChange,
   onToggleEnabled,
+  readOnly,
   disabled,
 }: SubagentsSectionProps) {
   const t = useTranslations("agents");
@@ -181,6 +184,7 @@ export function SubagentsSection({
       definition={definition}
       onChange={onChange}
       onToggleEnabled={onToggleEnabled}
+      readOnly={readOnly}
       disabled={disabled}
       settingsExtra={controls}
       // The three sections above *are* this capability's configuration; the

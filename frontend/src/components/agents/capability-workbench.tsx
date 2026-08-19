@@ -240,6 +240,7 @@ export function CapabilityWorkbench({
                 onToggleEnabled={() => onToggle(focused.id)}
                 onChange={onChange}
                 disabled={disabled || !isOn}
+                readOnly={disabled}
               />
             ) : /* Delegation is three decisions, only one of which is a set of
                   fields: a list of other agents pinned to versions, a list of
@@ -258,6 +259,7 @@ export function CapabilityWorkbench({
                 onChange={onChange}
                 configProblems={configProblems}
                 disabled={disabled || !isOn}
+                readOnly={disabled}
               />
             ) : focused.id === SUBAGENTS_ID ? (
               <SubagentsSection
@@ -271,6 +273,7 @@ export function CapabilityWorkbench({
                 onChange={onChange}
                 onSubagentsChange={onSubagentsChange}
                 disabled={disabled || !isOn}
+                readOnly={disabled}
               />
             ) : (
               <CapabilityDetail
@@ -296,6 +299,7 @@ export function CapabilityWorkbench({
                 // not exist - would make reading a capability grant it by
                 // accident.
                 disabled={disabled || !isOn}
+                readOnly={disabled}
               />
             )}
           </div>

@@ -209,6 +209,32 @@ describe("the capability workbench", () => {
     expect(onToggle).toHaveBeenCalledWith("charts");
   });
 
+  it("takes the panel's switch away from a reader who may not edit", async () => {
+    // The one control `disabled` used to leave live for them: it means both "this
+    // capability is off" and "you may not edit", and an ungranted capability is
+    // off - so the switch stayed clickable for a Viewer whose list row beside it
+    // was already inert, and clicking it dirtied a spec they cannot save.
+    const onToggle = vi.fn();
+    renderWorkbench({ onToggle, disabled: true });
+
+    const panelSwitch = screen.getByRole("switch", { name: "Charts enabled" });
+    expect(panelSwitch).toBeDisabled();
+
+    await userEvent.click(panelSwitch);
+    expect(onToggle).not.toHaveBeenCalled();
+  });
+
+  it("keeps the panel's switch live for an editor, off capability and all", async () => {
+    // The reason the two are separate props: a switch disabled by its own state
+    // is a switch nobody can turn back on.
+    const onToggle = vi.fn();
+    renderWorkbench({ onToggle });
+
+    await userEvent.click(screen.getByRole("switch", { name: "Charts enabled" }));
+
+    expect(onToggle).toHaveBeenCalledWith("charts");
+  });
+
   it("reading a capability is not granting it", async () => {
     const onToggle = vi.fn();
     renderWorkbench({ onToggle });

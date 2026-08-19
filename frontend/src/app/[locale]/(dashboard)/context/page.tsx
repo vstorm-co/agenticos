@@ -10,7 +10,11 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { ContextCard } from "@/components/context/context-card";
 import { ContextEditor } from "@/components/context/context-editor";
 import { CreateContextDialog } from "@/components/context/create-context-dialog";
-import { draftFromFilename, type ContextDraft } from "@/components/context/file-name";
+import {
+  draftFromFilename,
+  type ContextDraft,
+  type ContextDraftFields,
+} from "@/components/context/file-name";
 import { FileDropOverlay } from "@/components/files";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import {
@@ -125,23 +129,35 @@ export default function ContextPage() {
    */
   async function acceptDropped(files: File[]) {
     const text = files.filter((entry) => readsAsText(resolveFileKind(entry.name, entry.type)));
-    const small = text.filter((entry) => entry.size <= MAX_DROP_BYTES);
+    // Text is not enough: `readsAsText` admits HTML and source files, and a
+    // context file's format is one of five words. `page.html` would otherwise
+    // become a file called `page` whose HTML body is labelled Markdown.
+    const declarable = text
+      .map((entry) => ({ entry, draft: draftFromFilename(entry.name) }))
+      .filter(
+        (candidate): candidate is { entry: File; draft: ContextDraftFields } =>
+          candidate.draft !== null,
+      );
+    const small = declarable.filter((candidate) => candidate.entry.size <= MAX_DROP_BYTES);
     if (text.length < files.length) {
       toast.error(tCtx("droppedNotText", { count: files.length - text.length }));
     }
-    if (small.length < text.length) {
+    if (declarable.length < text.length) {
+      toast.error(tCtx("droppedUnknownFormat", { count: text.length - declarable.length }));
+    }
+    if (small.length < declarable.length) {
       toast.error(
         tCtx("droppedTooLarge", {
-          count: text.length - small.length,
+          count: declarable.length - small.length,
           max: formatBytes(MAX_DROP_BYTES),
         }),
       );
     }
     if (small.length === 0) return;
     const drafts = await Promise.all(
-      small.map(async (entry) => ({
+      small.map(async ({ entry, draft }) => ({
         key: clientId(),
-        ...draftFromFilename(entry.name),
+        ...draft,
         content: await entry.text(),
       })),
     );

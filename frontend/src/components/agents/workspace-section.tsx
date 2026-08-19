@@ -28,6 +28,8 @@ interface WorkspaceSectionProps {
   onChange: (binding: CapabilityBindingSpec) => void;
   /** Forwarded to the panel, where the switch now lives - see `CapabilityDetail`. */
   onToggleEnabled?: () => void;
+  /** Whether the caller may edit the spec at all - see `CapabilityDetail`. */
+  readOnly?: boolean;
   disabled?: boolean;
 }
 
@@ -87,6 +89,7 @@ export function WorkspaceSection({
   binding,
   onChange,
   onToggleEnabled,
+  readOnly,
   disabled,
 }: WorkspaceSectionProps) {
   const t = useTranslations("agents");
@@ -245,6 +248,7 @@ export function WorkspaceSection({
       definition={definition}
       onChange={onChange}
       onToggleEnabled={onToggleEnabled}
+      readOnly={readOnly}
       disabled={disabled}
       settingsExtra={controls}
       // The choices above *are* this capability's configuration; the generated
