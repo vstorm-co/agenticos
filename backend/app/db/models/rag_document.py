@@ -1,5 +1,6 @@
 """RAGDocument model - tracks documents ingested into RAG collections."""
 
+import enum
 import uuid
 from datetime import datetime
 
@@ -9,6 +10,22 @@ from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
+
+
+class DocumentStatus(enum.StrEnum):
+    """Where a tracked document is in its ingestion.
+
+    Three values, and the column holds nothing else: a row is created
+    `PROCESSING` by the upload, and the pipeline moves it to `DONE` or `ERROR`.
+    It is an enum because it was not one - the listing's `indexed` count
+    filtered on a fourth value, `"completed"`, that nothing has ever written, so
+    every knowledge base in the product reported `indexed_count: 0` however many
+    documents had finished (#148).
+    """
+
+    PROCESSING = "processing"
+    DONE = "done"
+    ERROR = "error"
 
 
 class RAGDocument(TimestampMixin, Base):
@@ -24,7 +41,9 @@ class RAGDocument(TimestampMixin, Base):
     filesize: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     filetype: Mapped[str] = mapped_column(String(20), nullable=False)
     storage_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="processing")
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=DocumentStatus.PROCESSING
+    )
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     vector_document_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     chunk_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
