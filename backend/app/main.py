@@ -14,6 +14,7 @@ from app import __version__
 from app.api.exception_handlers import register_exception_handlers
 from app.api.router import api_router
 from app.agents.capabilities import load_builtins
+from app.agents.capabilities.knowledge import aclose_retrieval_service
 from app.core.config import settings
 from app.db.session import close_db, get_db_context
 from app.core.logfire_setup import instrument_app, setup_logfire
@@ -168,6 +169,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     if "vector_store" in state:
         with suppress(Exception):
             await state["vector_store"].aclose()
+    # The knowledge capability holds a store of its own, built on the first
+    # search and reachable from no request, so the line above never saw it (#948).
+    with suppress(Exception):
+        await aclose_retrieval_service()
     for _bid in list(_telegram_adapter._polling_tasks.keys()):
         await _telegram_adapter.stop_polling(_bid)
     for _sbid in list(_slack_adapter._socket_tasks.keys()):

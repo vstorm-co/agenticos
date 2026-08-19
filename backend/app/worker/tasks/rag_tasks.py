@@ -123,13 +123,14 @@ async def _ingestion_service_for(
     would fail in a worker with nothing on screen.
     """
     rag_settings = settings.rag
-    embed_service = EmbeddingService(settings=rag_settings)
+    # The processor first: it is the part that can fail, and a store built before
+    # it would be a pool nobody holds a reference to (#948).
+    processor = await IngestionConfigService(db).build_processor(organization_id, config)
     vector_store = VectorStore(
         settings=rag_settings,
-        embedding_service=embed_service,
+        embedding_service=EmbeddingService(settings=rag_settings),
         resolver=_announcing_resolver(),
     )
-    processor = await IngestionConfigService(db).build_processor(organization_id, config)
     return IngestionService(processor=processor, vector_store=vector_store)
 
 
@@ -301,6 +302,10 @@ async def _run_ingestion(
         )
         raise
     finally:
+        # The store owns a pooled engine, and one flow runs per uploaded
+        # document, so a store left behind leaves its pool open for the life of
+        # the worker process (#948).
+        await ingestion_service.store.aclose()
         await _record_embedding_spend(
             ledger, organization_id=organization_id, rag_document_id=UUID(rag_document_id)
         )
@@ -345,13 +350,6 @@ async def _run_sync(
     from app.services.rag_document import RAGDocumentService
     from app.services.rag_sync import RAGSyncService
 
-    async with get_worker_db_context() as db:
-        ingestion_service = await _ingestion_service_for(
-            db,
-            config=await _config_for_collection(db, collection_name, None),
-            organization_id=None,
-        )
-
     target_path = Path(path).resolve()
     if not target_path.exists():
         await _update_sync_log(sync_log_id, "error", error_message=f"Path not found: {path}")
@@ -372,26 +370,51 @@ async def _run_sync(
     # is worse than one holding rows nobody claims.
     ledger = SpendLedger()
 
-    for filepath in files:
-        async with get_worker_db_context() as db:
-            sync_log_check = await RAGSyncService(db).get_sync_log(sync_log_id)
-            if sync_log_check.status == "cancelled":
-                logger.info("Sync %s cancelled by user", sync_log_id)
-                await _record_embedding_spend(ledger, organization_id=None, rag_document_id=None)
-                return {
-                    "status": "cancelled",
-                    "ingested": ingested,
-                    "updated": updated,
-                    "skipped": skipped,
-                    "failed": failed,
-                }
+    # Built after the validations above, and disposed in the `finally` below: the
+    # store owns a pooled engine, so one built before an early return is a pool
+    # nothing ever closes (#948).
+    async with get_worker_db_context() as db:
+        ingestion_service = await _ingestion_service_for(
+            db,
+            config=await _config_for_collection(db, collection_name, None),
+            organization_id=None,
+        )
 
-        source_path = str(filepath.resolve())
-        if mode in ("new_only", "update_only"):
-            existing_id = await ingestion_service.find_existing(collection_name, source_path)
+    try:
+        for filepath in files:
+            async with get_worker_db_context() as db:
+                sync_log_check = await RAGSyncService(db).get_sync_log(sync_log_id)
+                if sync_log_check.status == "cancelled":
+                    logger.info("Sync %s cancelled by user", sync_log_id)
+                    await _record_embedding_spend(
+                        ledger, organization_id=None, rag_document_id=None
+                    )
+                    return {
+                        "status": "cancelled",
+                        "ingested": ingested,
+                        "updated": updated,
+                        "skipped": skipped,
+                        "failed": failed,
+                    }
 
-            if mode == "new_only":
-                if existing_id:
+            source_path = str(filepath.resolve())
+            if mode in ("new_only", "update_only"):
+                existing_id = await ingestion_service.find_existing(collection_name, source_path)
+
+                if mode == "new_only":
+                    if existing_id:
+                        file_hash = hashlib.sha256(filepath.read_bytes()).hexdigest()
+                        existing_hash = await ingestion_service.get_existing_hash(
+                            collection_name, source_path
+                        )
+                        if existing_hash and file_hash == existing_hash:
+                            skipped += 1
+                            continue
+
+                elif mode == "update_only":
+                    if not existing_id:
+                        skipped += 1
+                        continue
                     file_hash = hashlib.sha256(filepath.read_bytes()).hexdigest()
                     existing_hash = await ingestion_service.get_existing_hash(
                         collection_name, source_path
@@ -399,67 +422,57 @@ async def _run_sync(
                     if existing_hash and file_hash == existing_hash:
                         skipped += 1
                         continue
-
-            elif mode == "update_only":
-                if not existing_id:
-                    skipped += 1
-                    continue
-                file_hash = hashlib.sha256(filepath.read_bytes()).hexdigest()
-                existing_hash = await ingestion_service.get_existing_hash(
-                    collection_name, source_path
-                )
-                if existing_hash and file_hash == existing_hash:
-                    skipped += 1
-                    continue
-        try:
-            with metered_by(ledger):
-                result = await ingestion_service.ingest_file(
-                    filepath=filepath, collection_name=collection_name, replace=True
-                )
-            if result.status.value == "done":
-                if result.message and "replaced" in result.message:
-                    updated += 1
+            try:
+                with metered_by(ledger):
+                    result = await ingestion_service.ingest_file(
+                        filepath=filepath, collection_name=collection_name, replace=True
+                    )
+                if result.status.value == "done":
+                    if result.message and "replaced" in result.message:
+                        updated += 1
+                    else:
+                        ingested += 1
+                    async with get_worker_db_context() as db:
+                        doc = await RAGDocumentService(db).create_document(
+                            collection_name=collection_name,
+                            filename=filepath.name,
+                            filesize=filepath.stat().st_size,
+                            filetype=filepath.suffix.lstrip(".").lower(),
+                        )
+                        await RAGDocumentService(db).complete_ingestion(
+                            str(doc.id),
+                            vector_document_id=result.document_id,
+                            chunk_count=result.chunk_count,
+                            replaced_document_id=result.replaced_document_id,
+                        )
                 else:
-                    ingested += 1
-                async with get_worker_db_context() as db:
-                    doc = await RAGDocumentService(db).create_document(
-                        collection_name=collection_name,
-                        filename=filepath.name,
-                        filesize=filepath.stat().st_size,
-                        filetype=filepath.suffix.lstrip(".").lower(),
-                    )
-                    await RAGDocumentService(db).complete_ingestion(
-                        str(doc.id),
-                        vector_document_id=result.document_id,
-                        chunk_count=result.chunk_count,
-                        replaced_document_id=result.replaced_document_id,
-                    )
-            else:
+                    failed += 1
+            except Exception as e:
+                logger.warning("Sync file error %s: %s", filepath.name, e)
                 failed += 1
-        except Exception as e:
-            logger.warning("Sync file error %s: %s", filepath.name, e)
-            failed += 1
 
-    await _record_embedding_spend(ledger, organization_id=None, rag_document_id=None)
+        await _record_embedding_spend(ledger, organization_id=None, rag_document_id=None)
 
-    async with get_worker_db_context() as db:
-        await RAGSyncService(db).complete_sync(
-            sync_log_id,
-            status="done" if failed == 0 else "error",
-            total_files=len(files),
-            ingested=ingested,
-            updated=updated,
-            skipped=skipped,
-            failed=failed,
-        )
+        async with get_worker_db_context() as db:
+            await RAGSyncService(db).complete_sync(
+                sync_log_id,
+                status="done" if failed == 0 else "error",
+                total_files=len(files),
+                ingested=ingested,
+                updated=updated,
+                skipped=skipped,
+                failed=failed,
+            )
 
-    return {
-        "status": "done",
-        "ingested": ingested,
-        "updated": updated,
-        "skipped": skipped,
-        "failed": failed,
-    }
+        return {
+            "status": "done",
+            "ingested": ingested,
+            "updated": updated,
+            "skipped": skipped,
+            "failed": failed,
+        }
+    finally:
+        await ingestion_service.store.aclose()
 
 
 async def _update_status(
@@ -589,6 +602,10 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
     except Exception as e:
         logger.error("Source sync failed for %s: %s", source_id, e)
         failed = max(failed, 1)
+    finally:
+        # The store owns a pooled engine, and this flow runs once per scheduled
+        # source, so a store left behind is a pool nothing closes (#948).
+        await ingestion_svc.store.aclose()
 
     await _record_embedding_spend(ledger, organization_id=organization_id, rag_document_id=None)
 

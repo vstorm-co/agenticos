@@ -242,6 +242,20 @@ by id, find nothing, and stop, leaving the upload it had already acknowledged in
 The same applies to a sync: the `SyncLog` row exists before its flow does. See
 [Dispatching background work from a request](architecture.md#dispatching-background-work-from-a-request).
 
+**Each flow builds its own vector store, and closes it.** The store owns a
+pooled SQLAlchemy engine, so one built per uploaded document and left behind
+keeps its connections until the worker process exits: two hundred uploads used to
+mean two hundred abandoned pools, and somewhere short of a hundred documents the
+worker reached the database's `max_connections` and every query after that failed
+— including the one that would have marked the document failed, so the upload sat
+at `processing` with the reason only in a log
+([#948](https://github.com/vstorm-co/agenticos/issues/948)). Pooling *within* one
+flow is worth having, because a document's chunks are written over that
+connection; across flows it is not shared, for the same cross-event-loop reason
+`get_worker_db_context` creates a `NullPool` engine per call. **If ingestion
+starts failing part-way through a large batch with a connection error, this is
+the shape to look for.**
+
 ### Supported Formats
 
 `.txt`, `.md` and `.docx` are read by the built-in Python parsers whatever the

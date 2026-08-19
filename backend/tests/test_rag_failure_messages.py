@@ -228,6 +228,8 @@ class TestWhatTheWorkerWritesToTheRow:
         documents.return_value.fail_ingestion = AsyncMock()
         pipeline = MagicMock()
         pipeline.ingest_file = AsyncMock(side_effect=_vendor_failure())
+        # Disposed in the flow's `finally`, whether the ingest raised or not (#948).
+        pipeline.store = MagicMock(aclose=AsyncMock())
 
         with (
             patch("app.worker.tasks.rag_tasks.get_worker_db_context", self._db),
