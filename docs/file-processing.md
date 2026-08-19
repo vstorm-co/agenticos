@@ -360,11 +360,21 @@ of that call are decided **per collection**, not per deployment, by
 | **Model and width** | Recorded on the knowledge base at creation (`embedding_model`, `embedding_dim`) and never changed afterwards — `PgVectorStore` writes `embedding vector(N)` once, so a second model either cannot be written or is silently compared against vectors from another space. `EMBEDDING_MODEL` decides only what a *new* collection is built with. |
 | **Credential** | The vault key chosen on the collection (`embedding_secret_id`), which is what the organization is billed for. A collection that chose none embeds on the deployment's `OPENROUTER_API_KEY`. |
 
-The key is validated at creation — a key another organization holds, or one of
-the wrong purpose, is refused there, where the person choosing can fix it. At
-embed time nothing is refused: a chosen key that has since been deleted, cannot
-be unsealed, or does not hold an API key falls back to the deployment's, because
-*whose key pays* must never decide *whether documents can be found*.
+The key is validated at creation — a key another organization holds, one of the
+wrong purpose, or one the chooser cannot themselves see is refused there, where
+the person choosing can fix it. That last one is why binding needs
+`secrets:view` on the key and not only `collections:edit` on the collection:
+binding a key is lending it, since the collection's embeddings bill it for
+everyone who can write the collection. The picker only ever offered keys the
+chooser can see, but the API takes an id and an id is guessable, so until
+[#912](https://github.com/vstorm-co/agenticos/issues/912) a Member could bind
+another member's **private** key by supplying its UUID. A key they cannot view is
+refused as one the vault does not hold, so the refusal cannot enumerate somebody
+else's private secrets.
+
+At embed time nothing is refused: a chosen key that has since been deleted,
+cannot be unsealed, or does not hold an API key falls back to the deployment's,
+because *whose key pays* must never decide *whether documents can be found*.
 
 That fallback is announced rather than assumed. The resolution carries which of
 the five sources it landed on, ingestion writes the degraded ones into the
