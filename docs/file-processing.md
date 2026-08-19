@@ -634,6 +634,28 @@ Sync operations are tracked via the `SyncLog` model, recording source, mode,
 total files, ingested/updated/skipped/failed counts, and timing. View sync
 history via `GET /rag/sync/logs`.
 
+**Which stored document a file corresponds to is one question, asked once.**
+`IngestionService.existing_document` reads the collection's document listing a
+single time and answers with both the document's id and its stored
+`content_hash`, in one precedence: a `source_path` match beats a `filename`
+match, and a `content_hash` match is the last resort. The two answers come back
+together on purpose — they are facts about *one* document, and while they were
+computed by separate lookups they could disagree, so a sync compared a live
+file's hash against a different document's and either re-embedded an unchanged
+file every night or skipped a changed one as current
+([#548](https://github.com/vstorm-co/agenticos/issues/548)). That also made
+ingesting one changed file read the whole collection up to four times; it is now
+once for the decision and once inside the ingest
+([#566](https://github.com/vstorm-co/agenticos/issues/566)). Reading it at all is
+still a full scan — [#27](https://github.com/vstorm-co/agenticos/issues/27) is the
+pagination that would fix that.
+
+`new_only` skips a file whose stored hash matches, `update_only` skips one that
+is unchanged and ignores one that is new, and `full` replaces whatever it
+matches. A store that cannot answer the listing is treated as "no match" rather
+than as a match: a failed query is not evidence that a document is absent, but
+acting on it as though a document *were* present would delete one.
+
 One source's own history is `GET /kb/{kb_id}/sync-sources/{source_id}/logs`. The
 source is resolved against that knowledge base first, so a source belonging to
 another base answers **404** rather than an empty list — the two render the same
