@@ -30,6 +30,7 @@ from app.repositories import agent_environment as agent_environment_repo
 from app.repositories import agent_exposure as agent_exposure_repo
 from app.repositories import agent_run as agent_run_repo
 from app.repositories import agent_trigger as agent_trigger_repo
+from app.repositories import run_manifest as run_manifest_repo
 from app.repositories import agent_workspace as agent_workspace_repo
 from app.repositories import sandbox_connection as sandbox_connection_repo
 from app.repositories import skill_proposal as skill_proposal_repo
@@ -47,6 +48,7 @@ from app.repositories import organization as organization_repo
 from app.repositories import user_slash_command as user_slash_command_repo
 
 from app.repositories import dashboard_layout as dashboard_layout_repo
+from app.repositories import deployment_settings as deployment_settings_repo
 from app.repositories import dashboard_preset as dashboard_preset_repo
 
 from app.repositories import mcp_connection as mcp_connection_repo
@@ -72,6 +74,7 @@ __all__ = [
     "invitation_repo",
     "user_slash_command_repo",
     "dashboard_layout_repo",
+    "deployment_settings_repo",
     "dashboard_preset_repo",
     "mcp_connection_repo",
     "organization_secret_repo",
@@ -85,6 +88,7 @@ __all__ = [
     "embed_visitor_repo",
     "agent_run_repo",
     "agent_trigger_repo",
+    "run_manifest_repo",
     "agent_workspace_repo",
     "sandbox_connection_repo",
     "skill_proposal_repo",

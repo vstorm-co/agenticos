@@ -270,10 +270,21 @@ async def get_delegation_tree(agent_id: UUID, service: AgentRegistrySvc, ctx: Au
     "/{agent_id}/versions",
     response_model=AgentVersionList,
 )
-async def list_versions(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> Any:
-    """Publication history, newest first."""
-    items = await service.list_versions(ctx, agent_id)
-    return AgentVersionList(items=items, total=len(items))
+async def list_versions(
+    agent_id: UUID,
+    service: AgentRegistrySvc,
+    ctx: Auth,
+    skip: int = Query(0, ge=0, description="Items to skip"),
+    limit: int = Query(25, ge=1, le=100, description="Max items to return"),
+) -> Any:
+    """Publication history, newest first, one page at a time.
+
+    `total` is the count of every version, not the length of this page: the
+    listing was capped at fifty and reported the cap, so an agent published
+    sixty times said it had fifty and its ten oldest were unreachable.
+    """
+    items, total = await service.list_versions(ctx, agent_id, skip=skip, limit=limit)
+    return AgentVersionList(items=items, total=total)
 
 
 @router.get(

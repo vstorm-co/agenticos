@@ -428,8 +428,9 @@ async def get_version(
 
 
 async def list_versions(
-    db: AsyncSession, *, agent_id: UUID, organization_id: UUID, limit: int = 50
+    db: AsyncSession, *, agent_id: UUID, organization_id: UUID, skip: int = 0, limit: int = 25
 ) -> list[AgentVersion]:
+    """One page of an agent's publication history, newest first."""
     result = await db.execute(
         select(AgentVersion)
         .where(
@@ -437,6 +438,58 @@ async def list_versions(
             AgentVersion.organization_id == organization_id,
         )
         .order_by(AgentVersion.version.desc())
+        .offset(skip)
         .limit(limit)
     )
     return list(result.scalars().all())
+
+
+async def newest_version(
+    db: AsyncSession, *, agent_id: UUID, organization_id: UUID
+) -> AgentVersion | None:
+    """The highest-numbered version, or None for an agent never published."""
+    result = await db.execute(
+        select(AgentVersion)
+        .where(
+            AgentVersion.agent_id == agent_id,
+            AgentVersion.organization_id == organization_id,
+        )
+        .order_by(AgentVersion.version.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def count_for_organization(db: AsyncSession, *, organization_id: UUID) -> int:
+    """How many agents this organization holds, archived ones excluded.
+
+    Archiving is how an agent is retired, so a ceiling a retired agent went on
+    occupying would make the only way back under it a delete - and a delete takes
+    the version history and the run attribution with it.
+    """
+    result = await db.execute(
+        select(func.count(Agent.id)).where(
+            Agent.organization_id == organization_id,
+            Agent.status != AgentStatus.ARCHIVED.value,
+        )
+    )
+    return int(result.scalar_one())
+
+
+async def count_versions(db: AsyncSession, *, agent_id: UUID, organization_id: UUID) -> int:
+    """How many versions there are, which is not how many were returned.
+
+    The listing used to cap at fifty with no offset and report `total` as the
+    length of what it returned, so an agent published sixty times said it had
+    fifty versions and the ten oldest were unreachable - including whichever one
+    an environment is still pinned to.
+    """
+    result = await db.execute(
+        select(func.count())
+        .select_from(AgentVersion)
+        .where(
+            AgentVersion.agent_id == agent_id,
+            AgentVersion.organization_id == organization_id,
+        )
+    )
+    return int(result.scalar_one())

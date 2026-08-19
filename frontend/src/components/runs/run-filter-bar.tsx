@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { useAgents, useAgentVersions, useMembers, usePermissions, useUsageStats } from "@/hooks";
+import { useAgents, useAllAgentVersions, useMembers, usePermissions, useUsageStats } from "@/hooks";
 import type { Period } from "@/lib/dashboard/period";
 import { DEFAULT_RUN_FILTERS, type RunFilters } from "@/lib/runs/filter-params";
 import { useOrgStore } from "@/stores";
@@ -292,7 +292,7 @@ function VersionSelect({
   onVersionChange: (versionId: string) => void;
 }) {
   const t = useTranslations("pages.runs");
-  const { versions } = useAgentVersions(agentId);
+  const { versions } = useAllAgentVersions(agentId);
 
   return (
     <Select value={versionId} onValueChange={onVersionChange}>

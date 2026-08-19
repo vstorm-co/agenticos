@@ -1,0 +1,53 @@
+"""Serializing a check-then-write that no constraint can express.
+
+A ceiling read as `count(...) >= limit` and then acted on is two statements, and
+under the default isolation two requests can both pass the count before either
+inserts - so a deployment allowing five agents ends up with six, deterministically,
+by clicking twice. A unique constraint cannot say "at most five rows like this",
+and a table lock would serialize every organization against every other.
+
+So the subject of the ceiling is locked instead: an advisory lock keyed on the
+account or the organization the count is about. Two requests about the same subject
+queue; requests about different subjects do not meet. It is **transaction-scoped**,
+so it is released by the commit or the rollback and there is nothing to unlock -
+which matters here because these are held across a create that can raise.
+
+Advisory locks are Postgres-wide rather than per-table, which is why the key
+carries a namespace: two unrelated ceilings must not block each other because a
+UUID happened to hash the same way.
+"""
+
+from enum import IntEnum
+from uuid import UUID
+
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+
+class LockScope(IntEnum):
+    """What a lock is about. The value is half of the advisory key."""
+
+    #: How many organizations one account may own.
+    ORGANIZATIONS_PER_USER = 1
+    #: How many agents one organization may hold.
+    AGENTS_PER_ORGANIZATION = 2
+
+
+def _key(subject: UUID) -> int:
+    """A UUID as the signed 32-bit integer `pg_advisory_xact_lock` takes.
+
+    A hash, so a collision is possible: two subjects sharing a key serialize
+    against each other, which costs a moment of waiting and cannot produce a wrong
+    answer. The low bits of a v4 UUID are random, which is what makes that rare.
+    """
+    return (subject.int & 0xFFFFFFFF) - 0x80000000
+
+
+async def hold_subject(db: AsyncSession, scope: LockScope, subject: UUID) -> None:
+    """Take the lock for one subject, until this transaction ends.
+
+    Blocks while another transaction holds the same one. Call it *before* reading
+    the count it protects: taken afterwards it serializes nothing, because the
+    count both callers read is already stale.
+    """
+    await db.execute(select(func.pg_advisory_xact_lock(scope.value, _key(subject))))

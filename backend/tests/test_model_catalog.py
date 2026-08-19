@@ -13,7 +13,7 @@ import httpx
 import pytest
 
 from app.services import model_catalog
-from app.services.model_catalog import CURATED, LISTINGS, models_for
+from app.services.model_catalog import CURATED, LISTINGS, curated_models, models_for
 
 MODULE = "app.services.model_catalog"
 
@@ -116,7 +116,7 @@ class TestWhenTheProviderWillNotSay:
             models, source = await models_for("openrouter")
 
         assert source == "curated"
-        assert models == list(CURATED["openrouter"])
+        assert models == list(curated_models("openrouter"))
 
     @pytest.mark.anyio
     async def test_an_empty_listing_is_treated_as_no_answer(self):
@@ -179,3 +179,86 @@ class TestTheCuratedList:
         suggestions it makes - otherwise the form refuses its own dropdown."""
         assert all("/" in entry.id for entry in CURATED["openrouter"])
         assert all("/" not in entry.id for entry in CURATED["anthropic"])
+
+
+class TestCuratedFallbacksAreData:
+    """The suggestions are a catalog file, and the numbers are the library's.
+
+    Both halves were a Python literal with hand-typed context lengths, and both
+    rotted the way hand-typed data does: `gemini-3.6-flash` was written as
+    1,048,576 here and 1,000,000 by `genai-prices`, and the same model appeared
+    twice under two providers with two different figures.
+    """
+
+    def test_every_curated_id_is_one_the_price_snapshot_knows(self):
+        # This is what the library is for here. A typo or a model the provider has
+        # retired fails the build, rather than shipping a dropdown whose value the
+        # provider answers 404 to.
+        from app.services.model_catalog import CURATED, priced_model
+
+        unknown = [
+            f"{provider}:{entry.id}"
+            for provider, models in CURATED.items()
+            for entry in models
+            if priced_model(provider, entry.id) is None
+        ]
+
+        assert unknown == []
+
+    def test_a_model_the_snapshot_knows_without_a_window_is_not_a_failure(self):
+        # Two of the curated ids are exactly this today - `gemini-3.1-pro-preview`
+        # and `llama-3.3-70b-versatile`. "Known but unpriced" is not "unknown", and
+        # a null window is what the capability resolves for itself.
+        from app.services.model_catalog import context_window, priced_model
+
+        assert priced_model("google", "gemini-3.1-pro-preview") is not None
+        assert context_window("google", "gemini-3.1-pro-preview") is None
+
+    def test_a_window_comes_from_the_snapshot_rather_than_from_this_repo(self):
+        from app.services.model_catalog import curated_models
+
+        windows = {model.id: model.context_length for model in curated_models("anthropic")}
+
+        assert windows["claude-opus-5"] == 1_000_000
+        assert windows["claude-haiku-4-5"] == 200_000
+
+    def test_an_openrouter_id_takes_its_window_from_the_provider_it_names(self):
+        # An OpenRouter id is `<provider>/<model>`, and the snapshot prices those
+        # rows under the provider rather than under the namespaced spelling.
+        from app.services.model_catalog import context_window
+
+        assert context_window("openrouter", "anthropic/claude-opus-5") == 1_000_000
+
+    def test_a_provider_the_snapshot_spells_differently_still_resolves(self):
+        # It writes `x-ai`; the platform writes `xai`.
+        from app.services.model_catalog import context_window
+
+        assert context_window("xai", "grok-4.5") == 500_000
+
+    def test_a_model_nothing_prices_reads_as_not_recorded(self):
+        from app.services.model_catalog import context_window
+
+        assert context_window("anthropic", "claude-imaginary-9") is None
+        assert context_window("not-a-provider", "whatever") is None
+
+    def test_the_fallback_carries_no_numbers_of_its_own(self):
+        # A `FallbackModel` is an id and a name. Adding a context length back would
+        # be adding the field that went stale.
+        from app.services.model_catalog import FallbackModel
+
+        assert set(FallbackModel.__dataclass_fields__) == {"id", "name"}
+
+    def test_every_keyed_listing_says_how_to_authenticate(self):
+        from app.services.model_catalog import LISTINGS
+
+        for name, spec in LISTINGS.items():
+            if spec.auth_header is not None:
+                assert "{key}" in spec.auth_template, name
+
+    def test_the_listing_whose_body_is_the_array_survived_the_move_to_json(self):
+        # Together answers with the array as the whole body, which `array_path: ""`
+        # says - and an empty string is exactly what a generator writing this file
+        # is tempted to drop.
+        from app.services.model_catalog import LISTINGS
+
+        assert LISTINGS["together"].array_path == ""

@@ -44,7 +44,7 @@ vi.mock("@/hooks", () => ({
   // What the filter bar's selects offer. One agent and two versions are enough
   // to prove the narrowing each control asks for.
   useAgents: () => ({ agents: [{ id: "agent-1", name: "Support agent" }], isLoading: false }),
-  useAgentVersions: () => ({
+  useAllAgentVersions: () => ({
     versions: [
       { id: "ver-2", version: 2 },
       { id: "ver-1", version: 1 },

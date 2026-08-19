@@ -22,6 +22,14 @@ class EnvironmentCreate(BaseSchema):
 
     name: str = Field(pattern=_NAME_PATTERN, max_length=64)
     version_id: UUID | None = None
+    tracks_latest: bool = Field(
+        default=False,
+        description=(
+            "Whether a publish repoints this environment on its own. False - the "
+            "default - waits to be promoted onto, because publishing mints a "
+            "version and putting it somewhere is a separate decision."
+        ),
+    )
     logfire_token_secret_id: UUID | None = Field(
         default=None,
         description=(
@@ -42,6 +50,7 @@ class EnvironmentUpdate(BaseSchema):
 
     name: str | None = Field(default=None, pattern=_NAME_PATTERN, max_length=64)
     version_id: UUID | None = None
+    tracks_latest: bool | None = None
     logfire_token_secret_id: UUID | None = None
     service_name: str | None = Field(default=None, max_length=128)
 
@@ -51,8 +60,21 @@ class EnvironmentRead(BaseSchema):
     agent_id: UUID
     name: str
     version_id: UUID
-    version: int = Field(description="The pinned version's number, as the history names it")
+    version: int = Field(description="The version's number, as the history names it")
     is_default: bool
+    tracks_latest: bool = Field(
+        default=False,
+        description="Whether a publish repoints this environment on its own",
+    )
+    behind_by: int = Field(
+        default=0,
+        description=(
+            "How many published versions are newer than the one this environment "
+            "serves. Zero for an environment on the newest version, and for one "
+            "that follows publishes. It is what tells 'pinned on purpose' from "
+            "'forgotten' at a glance."
+        ),
+    )
     logfire_token_secret_id: UUID | None = None
     service_name: str | None = None
     created_at: datetime

@@ -105,6 +105,7 @@ from app.agents.capabilities.tool_output_limits import SPILL_LOG_RESOURCE
 from app.agents.deps import AgentDeps
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.failures import run_failure_summary
+from app.agents.manifest import as_payload, fit
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import current_trace_id
 from app.agents.spec import (
@@ -143,14 +144,17 @@ from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunOrder, RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Message
+from app.db.models.run_manifest import RunManifest
 from app.repositories import (
     agent_environment_repo,
     agent_exposure_repo,
     agent_repo,
     agent_run_repo,
+    chat_file_repo,
     conversation_repo,
     knowledge_base_repo,
     message_rating_repo,
+    run_manifest_repo,
 )
 from app.repositories.agent_run import AgentSpendRow, RunFilters
 from app.schemas.agent import ParkedCall
@@ -2648,6 +2652,7 @@ class AgentRunnerService:
         # the parent's row is written on every path: a delegation that spent money
         # and recorded nothing is the hole a cancellation would otherwise open.
         await self._write_delegations(prepared)
+        await self._record_manifest(prepared)
         # Guarded, because `finish` is called from a `finally` block: an
         # exception raised while telling somebody about a failed run would
         # replace the failure itself, and the operator would debug the mail
@@ -2664,6 +2669,46 @@ class AgentRunnerService:
         except Exception:
             logger.exception("run_notification_failed", extra={"run_id": str(finished.id)})
         return finished
+
+    async def _record_manifest(self, prepared: PreparedRun) -> None:
+        """Store what this run handed its model.
+
+        On every path out of the run, like the row itself: the run somebody most
+        wants to see the prompt and the tools for is the one that failed, and a
+        record written only on success would be missing exactly then.
+
+        Guarded for the reason `_notify` is guarded - this is reached from a
+        `finally` block, and an exception raised while *recording* a failed run
+        would replace the failure with itself, sending an operator to debug the
+        observability write instead of the agent. A run with no manifest reads as
+        one that recorded nothing, which is what happened.
+
+        **In a SAVEPOINT, and that half is not optional.** Swallowing the
+        exception is not enough on its own: a failed flush leaves the session
+        unusable, so the next statement on it raises and the run's own terminal
+        write is lost to a record nobody asked for. `TranscriptService._attach`
+        makes the same trade for the same reason - a nested transaction is what
+        makes "this write may fail harmlessly" true rather than aspirational.
+
+        Nothing is written for a run that never reached a model. That is a fact
+        about the run - refused by a budget, blocked by a guardrail on the way in
+        - and an empty row would read as a record that failed to capture.
+        """
+        recorder = prepared.built.recorder
+        if not recorder.requests and recorder.instructions is None:
+            return
+        try:
+            payload, truncated = fit(as_payload(recorder))
+            async with self.db.begin_nested():
+                await run_manifest_repo.record(
+                    self.db,
+                    run_id=prepared.run.id,
+                    organization_id=prepared.run.organization_id,
+                    payload=payload,
+                    truncated=truncated,
+                )
+        except Exception:
+            logger.exception("run_manifest_write_failed", extra={"run_id": str(prepared.run.id)})
 
     @staticmethod
     def _parked_tree(
@@ -3531,6 +3576,86 @@ class AgentRunnerService:
             )
             total = await conversation_repo.count_messages_by_run(self.db, run.id)
         return run, messages, total
+
+    async def get_run_attachment(self, ctx: AuthContext, run_id: UUID, file_id: UUID) -> ChatFile:
+        """One file that arrived with a turn of this run - authorized as the run is.
+
+        `/files/{id}` is scoped to the uploader, which is the wrong scope for a
+        run review: reading a run is the organization's right rather than its
+        starter's, so a colleague holding `runs:view` sees the attachment cards on
+        somebody else's transcript and every preview answered 404. This route
+        replaces ownership with the turn, and grants exactly what the transcript
+        already grants - the file has to hang on a message of the run's own
+        conversation.
+
+        The refusals are ordered as they are wherever a run is read: existence is
+        resolved against the caller's organization first, so a run in another
+        tenant reads as absent rather than as forbidden, and only a run known to
+        be this organization's turns a missing `runs:view` into a 403.
+
+        Raises:
+            NotFoundError: The run is not in the caller's organization, the run
+                has no conversation, or no turn of that conversation carries this
+                file. The last is deliberately the same answer as a file that does
+                not exist: this route must not confirm one to a caller who cannot
+                read the transcript it hangs on.
+            AuthorizationError: The caller's organization holds the run but the
+                caller does not hold `runs:view`.
+        """
+        run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        if run is None:
+            raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
+        if not ctx.has(Perm.RUNS_VIEW):
+            raise AuthorizationError(
+                message="Insufficient permissions",
+                details={"required": [Perm.RUNS_VIEW.value], "run_id": str(run_id)},
+            )
+        file = (
+            None
+            if run.conversation_id is None
+            else await chat_file_repo.get_in_conversation(
+                self.db, file_id, conversation_id=run.conversation_id
+            )
+        )
+        if file is None:
+            raise NotFoundError(message="File not found", details={"file_id": str(file_id)})
+        return file
+
+    async def get_run_manifest(self, ctx: AuthContext, run_id: UUID) -> RunManifest:
+        """What the run handed its model - authorized the way its transcript is.
+
+        The two refusals are ordered as they are everywhere a run is read:
+        existence is resolved against the caller's organization *first*, so a run
+        in another tenant reads as absent rather than as forbidden, and only a
+        run known to be this organization's turns a missing `runs:view` into a
+        403.
+
+        A run with no manifest raises rather than answering an empty record. The
+        two are different facts - "this run never reached a model" and "this
+        build recorded nothing" - and a panel drawn from an empty document says
+        the agent was given no tools and no prompt, which of the runs somebody
+        opens is the most misleading thing it could say.
+
+        Raises:
+            NotFoundError: The run is not in the caller's organization, or
+                nothing was recorded for it.
+            AuthorizationError: The caller's organization holds the run but the
+                caller does not hold `runs:view`.
+        """
+        run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        if run is None:
+            raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
+        if not ctx.has(Perm.RUNS_VIEW):
+            raise AuthorizationError(
+                message="Insufficient permissions",
+                details={"required": [Perm.RUNS_VIEW.value], "run_id": str(run_id)},
+            )
+        manifest = await run_manifest_repo.get_by_run(self.db, run.id, ctx.organization_id)
+        if manifest is None:
+            raise NotFoundError(
+                message="Nothing was recorded for this run", details={"run_id": str(run_id)}
+            )
+        return manifest
 
     async def transcript_ratings(
         self, ctx: AuthContext, message_ids: list[UUID]

@@ -77,6 +77,7 @@ export function RunHistoryTab({
   onFiltersChange,
   onAgentChange,
   onFocusRun,
+  focusedRunId = null,
   initialDurationSort = false,
 }: {
   agentId: string | null;
@@ -86,6 +87,8 @@ export function RunHistoryTab({
   onFiltersChange: (filters: RunFilters) => void;
   onAgentChange: (agentId: string | null) => void;
   onFocusRun: (runId: string | null) => void;
+  /** Which run the detail panel is showing, so its row reads as the open one. */
+  focusedRunId?: string | null;
   initialDurationSort?: boolean;
 }) {
   const tErrors = useTranslations("errors");
@@ -209,18 +212,22 @@ export function RunHistoryTab({
   if (minDurationMs !== null) exportParams.took_over_ms = String(minDurationMs);
 
   return (
-    <div className="space-y-4">
+    // A column that fills the height its caller gives it: the filters and the
+    // pager stay put and the rows scroll under pinned headers, because the
+    // alternative - scrolling the page - takes all three off screen and leaves a
+    // wall of unlabelled numbers beside the run detail.
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       {/* Narrowed to an agent, a per-version summary sits above the table - the
           builder's "did v4 behave better than v3" answered where the evidence
           is. Its completed share is the shared `completedShare`, so it reads as
           the same figure the dashboard's Outcomes donut shows (§8a.4). */}
       {agentId !== null && canView && <VersionStrip agentId={agentId} period={period} />}
-      <Card>
+      <Card className="flex min-h-0 flex-1 flex-col">
         {/* The shared list-card header dialect - border-b, px-5 py-4, text-sm
             title - so this card reads as the same container as the vault's or
             the workspaces'. The export sits in the header's right, where every
             list card keeps its primary control. */}
-        <CardHeader className="flex-row items-start justify-between space-y-0 border-b px-5 py-4">
+        <CardHeader className="shrink-0 flex-row items-start justify-between space-y-0 border-b px-5 py-4">
           <div className="space-y-1">
             <CardTitle className="text-sm">{t("runHistory2")}</CardTitle>
             <CardDescription className="text-xs">
@@ -255,7 +262,7 @@ export function RunHistoryTab({
             />
           )}
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="flex min-h-0 flex-1 flex-col p-0">
           {
             <>
               {/* The filters live inside the container they narrow, like every
@@ -263,7 +270,7 @@ export function RunHistoryTab({
                   filter over a list whose request would be refused is a
                   control with nothing to do. */}
               {canView && (
-                <ListCardControlsRow>
+                <ListCardControlsRow className="shrink-0">
                   <Button
                     variant={slowActive ? "outline" : "secondary"}
                     size="sm"
@@ -335,14 +342,19 @@ export function RunHistoryTab({
               ) : (
                 <>
                   <RunTable
+                    fillHeight
                     runs={runs}
                     sort={sort}
                     onSort={changeSort}
-                    onOpen={(run) => onFocusRun(run.id)}
+                    // The open row closes rather than reopening itself: a row
+                    // that is already the panel's subject is the one somebody
+                    // clicks to put the panel away.
+                    onOpen={(run) => onFocusRun(run.id === focusedRunId ? null : run.id)}
+                    openRunId={focusedRunId}
                     agentsById={canAgents ? agentsById : undefined}
                     membersById={membersById}
                   />
-                  <ListCardFootRow>
+                  <ListCardFootRow className="shrink-0">
                     <PaginationBar
                       page={page}
                       pageSize={PAGE_SIZE}

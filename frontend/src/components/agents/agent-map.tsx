@@ -1,16 +1,19 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ComponentType } from "react";
 import {
   BookOpen,
   Bot,
   Boxes,
   Cpu,
+  Gauge,
+  GitBranch,
   Library,
   Maximize,
   MessageSquare,
   Network,
   Plug,
+  Radio,
   UserCog,
   Wallet,
   ZoomIn,
@@ -28,8 +31,12 @@ import {
 import { MapDetail } from "./agent-map-detail";
 import { useMapView, type EdgeInput } from "./agent-map-view";
 import { useFocusedNode } from "./use-focused-node";
+import { surfaceIconComponent } from "@/components/runs/surface-icon";
 import { Button } from "@/components/ui";
+import { STEP_ICONS } from "@/lib/step-icons";
+import { toolEntry } from "@/lib/tool-catalog";
 import { cn } from "@/lib/utils";
+import type { CapabilityCatalogEntry } from "@/types/agents";
 import { useTranslations } from "next-intl";
 
 export type { MapNode, MapDelegate };
@@ -177,7 +184,7 @@ export function AgentMap({
       >
         <div
           ref={container}
-          className="relative origin-top-left p-4"
+          className="relative origin-top-left p-8"
           style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}
         >
           <svg className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden>
@@ -201,13 +208,17 @@ export function AgentMap({
             ))}
           </svg>
 
-          <div className="relative grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1fr)]">
+          {/* Wider gutters than a form's, because the gaps are where the edges
+              run: at 24px a dashed line crossed a box before it reached one, and
+              the picture read as boxes with lines behind them rather than as
+              boxes joined by lines. */}
+          <div className="relative grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,1fr)]">
             {/* Row above the hub: what the agent runs as. The flanking cells
                 keep the grid's auto-placement honest on large screens. */}
             {tops.length > 0 && (
               <>
                 <div className="hidden lg:block" />
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-5 sm:grid-cols-2">
                   {tops.map((node) => (
                     <CapabilityNode
                       key={node.key}
@@ -223,7 +234,7 @@ export function AgentMap({
               </>
             )}
 
-            <div className="space-y-4">
+            <div className="space-y-5">
               {lefts.map((node) => (
                 <CapabilityNode
                   key={node.key}
@@ -263,7 +274,7 @@ export function AgentMap({
               )}
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-5">
               {rights.map((node) => (
                 <CapabilityNode
                   key={node.key}
@@ -284,7 +295,7 @@ export function AgentMap({
             {(bottoms.length > 0 || delegates.length > 0) && (
               <>
                 <div className="hidden lg:block" />
-                <div className="space-y-4">
+                <div className="space-y-5">
                   {bottoms.map((node) => (
                     <CapabilityNode
                       key={node.key}
@@ -363,3 +374,45 @@ export const MAP_ICONS = {
   budget: Wallet,
   delegation: Network,
 } as const;
+
+/**
+ * Marks for the tiles *inside* a group, where the group's own icon would say
+ * nothing - four identical network glyphs down the delegation box is a column of
+ * decoration.
+ *
+ * Only what has no mark elsewhere. A surface's comes from `SurfaceIcon`, a
+ * server's from `McpServerIcon`, and a capability's from the step-kind table the
+ * chat reads: this is the short list of things that appear on the map and
+ * nowhere else.
+ */
+export const MAP_ITEM_ICONS = {
+  socket: Radio,
+  mode: GitBranch,
+  roster: UserCog,
+  limit: Gauge,
+} as const;
+
+/**
+ * The mark a surface wears, from the one table that owns surface marks.
+ *
+ * `SurfaceIcon` renders it directly everywhere else; the map needs the
+ * *component* because a tile's icon is a prop rather than an element. Both read
+ * the same table, so a surface cannot wear two faces here and in run history.
+ */
+export function surfaceMark(surface: string): ComponentType<{ className?: string }> | undefined {
+  return surfaceIconComponent(surface);
+}
+
+/**
+ * What a capability's tools do, as one mark.
+ *
+ * From the first tool the capability declares, because a capability is usually
+ * about one kind of work - `knowledge` searches, `sandbox` runs a shell - and
+ * the alternative is a second table naming a mark per capability id, which
+ * drifts the day somebody adds one.
+ */
+export function capabilityMark(entry: CapabilityCatalogEntry | undefined): LucideIcon {
+  const first = entry?.tools[0];
+  const kind = first === undefined ? null : toolEntry(first.id)?.kind;
+  return kind === undefined || kind === null ? MAP_ICONS.capabilities : STEP_ICONS[kind];
+}

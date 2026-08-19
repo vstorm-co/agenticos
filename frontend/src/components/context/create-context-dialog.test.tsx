@@ -30,23 +30,30 @@ const NAME_TAKEN = new ApiError(409, TAKEN, {
 const name = () => screen.getByLabelText("Name");
 const description = () => screen.getByLabelText("Description");
 const format = () => screen.getByLabelText("Format");
-const content = () => screen.getByLabelText("Content");
+// The body is the shared file pane, as the editor has it - editable only once
+// the pane is flipped to Source, and named from the file being created, so it is
+// asked for by role rather than by a name that moves as somebody types.
+const content = () => screen.getByRole("textbox", { name: /source$/ });
+const openSource = () => userEvent.click(screen.getByRole("button", { name: "Source" }));
 const create = () => screen.getByRole("button", { name: "Create" });
 
-function mount(onOpenChange = vi.fn()) {
-  render(<CreateContextDialog open onOpenChange={onOpenChange} />, { wrapper });
-  return onOpenChange;
+function mount(onOpenChange = vi.fn(), onCreated = vi.fn()) {
+  render(<CreateContextDialog open onOpenChange={onOpenChange} onCreated={onCreated} />, {
+    wrapper,
+  });
+  return { onOpenChange, onCreated };
 }
 
 describe("CreateContextDialog", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("creates an injected file by default and closes", async () => {
+  it("creates an injected file by default and reports it", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ id: "c1", name: "glossary" });
-    const onOpenChange = mount();
+    const { onCreated } = mount();
 
     await userEvent.type(name(), "glossary");
     await userEvent.type(description(), "terms");
+    await openSource();
     await userEvent.type(content(), "SLA: ...");
     await userEvent.click(create());
 
@@ -58,21 +65,36 @@ describe("CreateContextDialog", () => {
       format: "md",
       mode: "inject",
     });
-    expect(onOpenChange).toHaveBeenCalledWith(false);
+    // Reported rather than closed: whether one file created means "done" or
+    // "next of the four somebody dropped" is the page's queue to answer.
+    expect(onCreated).toHaveBeenCalled();
   });
 
-  it("sends a whitespace-only description as null and an empty format as md", async () => {
+  it("sends an untouched description as null and Markdown as the default format", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ id: "c1", name: "glossary" });
     mount();
 
     await userEvent.type(name(), "glossary");
-    await userEvent.clear(format());
+    await openSource();
     await userEvent.type(content(), "body");
     await userEvent.click(create());
 
     await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
     const [, payload] = vi.mocked(apiClient.post).mock.calls.at(-1)!;
     expect(payload).toMatchObject({ description: null, format: "md" });
+  });
+
+  it("takes the format from a closed list rather than from typing", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "c1", name: "notes" });
+    mount();
+
+    await userEvent.type(name(), "notes");
+    await userEvent.click(format());
+    await userEvent.click(await screen.findByRole("option", { name: "txt" }));
+    await userEvent.click(create());
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    expect(vi.mocked(apiClient.post).mock.calls.at(-1)![1]).toMatchObject({ format: "txt" });
   });
 
   it("lets the author choose to link a file instead of injecting it", async () => {
@@ -82,6 +104,7 @@ describe("CreateContextDialog", () => {
     await userEvent.type(name(), "runbook");
     await userEvent.click(screen.getByLabelText("Mode"));
     await userEvent.click(await screen.findByRole("option", { name: "linked" }));
+    await openSource();
     await userEvent.type(content(), "steps");
     await userEvent.click(create());
 
@@ -96,14 +119,15 @@ describe("CreateContextDialog", () => {
 
   it("shows a taken name against the field rather than losing the dialog", async () => {
     vi.mocked(apiClient.post).mockRejectedValue(NAME_TAKEN);
-    const onOpenChange = mount();
+    const { onCreated } = mount();
 
     await userEvent.type(name(), "glossary");
+    await openSource();
     await userEvent.type(content(), "body");
     await userEvent.click(create());
 
     await waitFor(() => expect(screen.getByText(TAKEN)).toBeInTheDocument());
-    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(onCreated).not.toHaveBeenCalled();
     // Editing the field clears the refusal it was about.
     await userEvent.type(name(), "2");
     expect(screen.queryByText(TAKEN)).not.toBeInTheDocument();
@@ -139,6 +163,7 @@ describe("CreateContextDialog", () => {
     mount();
 
     await userEvent.type(name(), "glossary");
+    await openSource();
     await userEvent.type(content(), "body");
     await userEvent.click(create());
 
@@ -146,7 +171,7 @@ describe("CreateContextDialog", () => {
   });
 
   it("closes without creating when cancelled", async () => {
-    const onOpenChange = mount();
+    const { onOpenChange } = mount();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(apiClient.post).not.toHaveBeenCalled();

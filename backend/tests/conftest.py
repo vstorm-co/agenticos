@@ -173,6 +173,11 @@ async def mock_db_session() -> AsyncGenerator[AsyncMock, None]:
     mock.commit = AsyncMock()
     mock.rollback = AsyncMock()
     mock.close = AsyncMock()
+    # A real session's `info` is a plain dict, and it is where `spawn_after_commit`
+    # queues work for after the commit. Left as an `AsyncMock`, `setdefault` answers
+    # a coroutine and any service deferring work raises inside the mock rather than
+    # in the code being tested.
+    mock.info = {}
     yield mock
 
 

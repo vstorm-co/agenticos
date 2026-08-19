@@ -44,9 +44,25 @@ edits, and it is why a rollback publishes a *new* version copied from the old on
 rather than deleting history - the timeline shows that a rollback happened
 instead of pretending the bad version never existed.
 
-**Environments** are named pointers at versions. Publishing moves only the
-default; every other environment stays pinned until a version is promoted onto
-it. A channel bot bound to an environment serves its version.
+**Environments** are named pointers at versions, and each says whether a publish
+may move it.
+
+*Publishing mints a version; putting it somewhere is a separate decision.* An
+environment either **waits to be promoted onto** - which is what `production`,
+the default, does - or **follows every publish**, which is what a `dev`
+somebody is iterating in usually wants. Publish used to repoint the default
+whatever it was, so fixing a prompt changed what the live bot answered with, in
+the same click, with nothing on screen saying so.
+
+Two consequences worth stating. The **first** publish creates `production` on
+the version it just minted, because an agent with no environment has nowhere to
+run at all. And a **rollback lands the same way** as a publish - it is a publish
+of an older spec - so putting an old version back in front of people is one
+click on its history row (promote), not a side effect of restoring the draft.
+
+A channel bot bound to an environment serves its version. `Agent.current_version_id`
+is the default environment's pointer, which is what a surface naming no
+environment resolves through - so it moves when that environment moves.
 
 ## Exposure
 
@@ -180,6 +196,48 @@ Run history filters on exactly this: `GET /runs` takes a comma-separated list of
 statuses (`?status=failed,budget_exceeded`), because the operator's question is
 a set of outcomes, not one status at a time. An unknown status is refused rather
 than silently matching nothing - an empty page must mean "no such runs".
+
+### A run and what it handed the model
+
+The transcript says what was asked and what came back. It does not say what the
+model was *given* - which prompt, which tools, described how, under which
+settings - and none of that is derivable afterwards. What the model was told is
+the spec's instructions plus the platform's, plus whatever a channel binding
+appended, plus the bound skills, plus whichever
+[system reminder](reference/capabilities.md) fired on that request; what it could
+call is the capability registry plus the organization's MCP servers minus
+whatever [tool search](mcp.md) hid. Reconstructing that from the stored spec
+would be a second implementation of the builder, and a second implementation is
+a thing that disagrees with the first.
+
+So it is recorded rather than reconstructed. The model the agent runs on is
+wrapped, and each request is written down as it passes: the instructions and
+system parts, every tool definition exactly as the provider was handed it, the
+settings that were sent, one entry per request with its duration, tokens and
+what it asked to call next, and the last request's whole message list. What is
+stored is therefore what was sent.
+
+`GET /runs/{id}/manifest` reads it back, authorized the way the transcript is -
+existence resolved against the caller's organization first, then `runs:view`.
+Two things it deliberately does not do. It never records provider passthrough
+(`extra_headers`, `extra_body`), because that is where a provider credential
+rides and [the vault](secrets.md) is the only place a secret is kept. And a run
+that never reached a model - stopped by a budget, blocked by a guardrail on the
+way in - records nothing and answers 404, because an empty document would claim
+the agent was given no prompt and no tools.
+
+A record too large to keep is trimmed rather than refused, and says so. Trimmed
+in stages, each one measured: the messages go first, then the tool argument
+schemas, then the tool descriptions, and last the prompt itself - each of those
+two cut to a recognisable length rather than dropped, because an agent's own
+instructions and a remote MCP tool's description are unbounded and are what makes
+a record oversized once the messages and the schemas are gone. What survives
+whatever happens is the settings and the request waterfall.
+
+A request that **failed** is an entry in that waterfall like any other, streamed
+or not: it carries the exception's class and never its message, since a provider
+SDK puts the failing URL - and therefore a key in its query string - in that
+string.
 
 ---
 

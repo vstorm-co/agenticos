@@ -17,6 +17,7 @@ service without authenticating first - the handler it exercises is global.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -27,13 +28,17 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi.exceptions import RequestValidationError
 from httpx import AsyncClient, Response
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
 from app.agents.capabilities.knowledge._search import search_knowledge_base
 from app.api import deps
 from app.api.exception_handlers import (
     _summarize,
+    app_exception_handler,
     budget_exceeded_handler,
+    http_exception_handler,
+    unhandled_exception_handler,
     validation_exception_handler,
 )
 from app.core.config import settings
@@ -42,6 +47,7 @@ from app.core.exceptions import (
     BadRequestError,
     ExternalServiceError,
     NotFoundError,
+    RateLimitError,
 )
 from app.main import app
 from app.repositories import user_repo
@@ -170,6 +176,138 @@ class TestValidationEnvelope:
 
         exc = RequestValidationError([{"type": "missing", "loc": ("body", "x"), "msg": "Required"}])
         assert await validation_exception_handler(_Connection(), exc) is None  # ty: ignore[invalid-argument-type]
+
+
+class TestHTTPExceptionJoinsTheEnvelope:
+    """The third shape this module's docstring said did not exist.
+
+    Starlette's router raises `HTTPException` for a 405 and an unmatched path, and
+    twenty-two routes raise one directly - all of them answered `{"detail": ...}`
+    until the handler below was registered. What a client receives end to end is
+    `tests/api/test_method_not_allowed.py`; these are the branches a request cannot
+    reach.
+    """
+
+    @pytest.mark.anyio
+    async def test_a_status_outside_the_registry_still_gets_a_code(self):
+        """A caller's own 499, or a vendor status a proxy invents. `HTTPStatus` raises
+        on one, and a handler that raises is a refusal nobody is told about."""
+        response = await http_exception_handler(
+            _HttpConnection(), StarletteHTTPException(status_code=499, detail="Closed")
+        )
+
+        assert response is not None
+        assert json.loads(bytes(response.body))["error"]["code"] == "HTTP_ERROR"
+
+    @pytest.mark.anyio
+    async def test_a_5xx_is_logged_as_an_error_and_a_4xx_as_a_warning(self, caplog):
+        with caplog.at_level(logging.WARNING):
+            await http_exception_handler(
+                _HttpConnection(), StarletteHTTPException(status_code=404, detail="Nope")
+            )
+            await http_exception_handler(
+                _HttpConnection(), StarletteHTTPException(status_code=502, detail="Upstream")
+            )
+
+        levels = {record.levelname for record in caplog.records}
+        assert {"WARNING", "ERROR"} <= levels
+
+    @pytest.mark.anyio
+    async def test_a_socket_gets_no_body_because_there_is_nowhere_to_put_one(self):
+        """Registered on the same app as the socket routes, so the branch exists."""
+        assert (
+            await http_exception_handler(
+                _WebsocketConnection(), StarletteHTTPException(status_code=403, detail="No")
+            )
+            is None
+        )
+
+    @pytest.mark.anyio
+    async def test_a_detail_that_is_not_a_sentence_is_carried_rather_than_stringified(self):
+        """Starlette's type allows anything. `message` has to stay something a client
+        can show, so a structure goes in `details` and the status names itself."""
+        response = await http_exception_handler(
+            _HttpConnection(),
+            StarletteHTTPException(status_code=422, detail=[{"loc": ["body"], "msg": "bad"}]),
+        )
+
+        assert response is not None
+        body = json.loads(bytes(response.body))
+        assert body["error"]["message"] == "Unprocessable entity"
+        assert body["error"]["details"] == {"detail": [{"loc": ["body"], "msg": "bad"}]}
+
+    @pytest.mark.anyio
+    async def test_an_empty_detail_falls_back_to_the_status_s_own_words(self):
+        response = await http_exception_handler(
+            _HttpConnection(), StarletteHTTPException(status_code=404, detail="")
+        )
+
+        assert response is not None
+        assert json.loads(bytes(response.body))["error"]["message"] == "Not found"
+
+    @pytest.mark.anyio
+    async def test_the_headers_the_exception_carried_are_forwarded(self):
+        """`Allow` on a 405, `WWW-Authenticate` on a 401: dropping them turns a
+        correct refusal into an uninformative one."""
+        response = await http_exception_handler(
+            _HttpConnection(),
+            StarletteHTTPException(status_code=405, detail="No", headers={"Allow": "POST"}),
+        )
+
+        assert response is not None
+        assert response.headers["allow"] == "POST"
+
+
+class TestAnUnhandledExceptionOnASocket:
+    @pytest.mark.anyio
+    async def test_it_gets_no_body_either(self):
+        """Same reason, and the same branch: there is no HTTP response to write into a
+        websocket scope, and Starlette closes it on its own."""
+        assert (
+            await unhandled_exception_handler(_WebsocketConnection(), RuntimeError("boom")) is None
+        )
+
+
+class TestARateLimitCarriesItsIntervalInAHeader:
+    @pytest.mark.anyio
+    async def test_retry_after_comes_from_the_refusal_s_own_details(self):
+        """Standard clients, fetch wrappers and CDNs back off on `Retry-After`, not on
+        a custom field they have no reason to read."""
+        response = await app_exception_handler(
+            _HttpConnection(),
+            RateLimitError(message="Slow down", details={"retry_after_seconds": 30}),
+        )
+
+        assert response is not None
+        assert response.headers["retry-after"] == "30"
+
+    @pytest.mark.anyio
+    async def test_a_limit_that_names_no_interval_gets_no_header(self):
+        """Not every 429 knows when to come back - a refusal built without the field,
+        or one carrying something that is not a number of seconds. A `Retry-After` a
+        client cannot parse is worse than none, so the header is only set when the
+        value is an integer."""
+        response = await app_exception_handler(
+            _HttpConnection(), RateLimitError(message="Slow down", details={})
+        )
+
+        assert response is not None
+        assert "retry-after" not in response.headers
+
+
+class _HttpConnection:
+    scope = {"type": "http"}
+    method = "GET"
+
+    class url:
+        path = "/api/v1/anything"
+
+
+class _WebsocketConnection:
+    scope = {"type": "websocket"}
+
+    class url:
+        path = "/ws"
 
 
 class TestDetailsSurviveSerialization:

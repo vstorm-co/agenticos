@@ -55,4 +55,18 @@ describe("EntityAvatar", () => {
 
     expect(container.firstElementChild).toHaveClass("h-20");
   });
+
+  it("scales the initials with the circle rather than against it", () => {
+    render(<EntityAvatar seed="u-1" name="Anna Nowak" size="xl" />);
+
+    // The scale sits on the root, beside the diameter the same token sets. A
+    // font-size of the fallback's own would win over the inherited one, which
+    // is how every avatar in the product drew 12px initials whatever its size:
+    // two letters overflowing a 20px circle, and two small ones lost in an 80px.
+    // A type scale, not a colour: the fallback names its ink as
+    // `text-[var(--avatar-ink)]` and always will.
+    const fallback = screen.getByText("AN");
+    expect(fallback.className).not.toMatch(/(^|\s)text-(xs|sm|base|lg|xl|\[\d)/);
+    expect(fallback.parentElement).toHaveClass("text-lg");
+  });
 });

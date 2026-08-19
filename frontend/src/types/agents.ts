@@ -373,9 +373,24 @@ export interface AgentEnvironment {
   agent_id: string;
   name: string;
   version_id: string;
-  /** The pinned version's number, as the history names it. */
+  /** The version's number, as the history names it. */
   version: number;
   is_default: boolean;
+  /**
+   * Whether a publish repoints this environment on its own.
+   *
+   * False - the default - waits to be promoted onto: publishing mints a version
+   * and putting it somewhere is a separate decision. True is what a `dev`
+   * somebody is iterating in wants, and it is the behaviour publish used to have
+   * for the default environment with nothing on screen saying so.
+   */
+  tracks_latest: boolean;
+  /**
+   * How many published versions are newer than the one this serves. Zero on the
+   * newest, and on one that follows publishes. It is what tells "pinned on
+   * purpose" from "forgotten" at a glance.
+   */
+  behind_by: number;
   /** Which vault key this environment's traces are written with; null = the spec's. */
   logfire_token_secret_id: string | null;
   service_name: string | null;

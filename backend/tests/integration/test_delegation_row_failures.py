@@ -25,6 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agents.capabilities.budget import SpendEntry, SpendLedger
+from app.agents.manifest import RunRecorder
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.organization import Organization, OrganizationMember
@@ -130,8 +131,10 @@ def _prepared(run: AgentRun, agent: Agent, delegations: list[RecordedDelegation]
         spec=MagicMock(),
         # An empty channel: this run parked no approvals, so `finish` has none to
         # write. A bare `MagicMock` would make `_write_approvals` try to iterate a
-        # mock and fail before the delegation write under test ran.
-        built=MagicMock(ledger=ledger),
+        # mock and fail before the delegation write under test ran. The recorder
+        # is real for the same reason - `finish` stores what the run handed its
+        # model, and an empty one is what a run that reached no model has.
+        built=MagicMock(ledger=ledger, recorder=RunRecorder()),
         approvals=MagicMock(requested=[]),
         delegations=delegations,
     )

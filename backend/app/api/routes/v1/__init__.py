@@ -47,6 +47,8 @@ from app.api.routes.v1 import knowledge_bases
 from app.api.routes.v1 import me_slash_commands
 from app.api.routes.v1 import me_dashboard_layout
 from app.api.routes.v1 import admin_stats
+from app.api.routes.v1 import admin_deployment_settings
+from app.api.routes.v1 import branding
 from app.api.routes.v1 import catalog_icons
 from app.api.routes.v1 import org_integrations
 
@@ -145,6 +147,10 @@ v1_router.include_router(
     me_dashboard_layout.router, prefix="/me/dashboard-layout", tags=["me:dashboard-layout"]
 )
 v1_router.include_router(admin_stats.router, prefix="/admin", tags=["admin:stats"])
+v1_router.include_router(branding.router, prefix="/branding", tags=["branding"])
+v1_router.include_router(
+    admin_deployment_settings.router, prefix="/admin/settings", tags=["admin:settings"]
+)
 v1_router.include_router(
     org_integrations.router, prefix="/org/integrations", tags=["org:integrations"]
 )

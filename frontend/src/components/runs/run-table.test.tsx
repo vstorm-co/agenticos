@@ -85,13 +85,19 @@ describe("a run history row", () => {
     // mark keyed on `provider`, never parsed out of the display label.
     render(<RunTable runs={[run({ provider: "openai" })]} />);
 
-    expect(within(row()).getByText("openai · gpt-5").querySelector("svg")).not.toBeNull();
+    // Beside the label rather than inside it: the label truncates on one line,
+    // so it is a span of its own with the mark next to it.
+    expect(
+      within(row()).getByText("openai · gpt-5").closest("td")?.querySelector("svg"),
+    ).not.toBeNull();
   });
 
   it("draws no vendor mark for a run recorded before the vendor was tracked", () => {
     render(<RunTable runs={[run({ provider: null })]} />);
 
-    expect(within(row()).getByText("openai · gpt-5").querySelector("svg")).toBeNull();
+    expect(
+      within(row()).getByText("openai · gpt-5").closest("td")?.querySelector("svg"),
+    ).toBeNull();
   });
 
   it("marks a cost that is only a floor rather than presenting it as the price", () => {
@@ -292,5 +298,31 @@ describe("who ran it, and which agent", () => {
 
     expect(screen.queryByText("Support agent")).toBeNull();
     expect(screen.queryByRole("columnheader", { name: "Agent" })).toBeNull();
+  });
+});
+
+describe("the run the panel beside the table is showing", () => {
+  it("marks that row and no other", () => {
+    render(
+      <RunTable
+        runs={[run({ id: "run-1" }), run({ id: "run-2" })]}
+        onOpen={() => {}}
+        openRunId="run-2"
+      />,
+    );
+
+    const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+    expect(rows[0]).not.toHaveAttribute("aria-selected", "true");
+    expect(rows[1]).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("marks nothing when no run is open", () => {
+    // A delegations table and the focused run's own table pass none: the detail
+    // is already on screen, so there is nothing for a row to point at.
+    render(<RunTable runs={[run()]} />);
+
+    expect(within(screen.getByRole("table")).getAllByRole("row")[1]).not.toHaveAttribute(
+      "aria-selected",
+    );
   });
 });

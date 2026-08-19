@@ -18,6 +18,7 @@ from app.db.models.organization import Invitation, Organization, OrganizationMem
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.user_slash_command import UserSlashCommand
+from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.dashboard_preset import DashboardPreset
 from app.db.models.mcp_connection import McpConnection
@@ -30,6 +31,7 @@ from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.agent_exposure import AgentExposure, ExposureSurface
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
 from app.db.models.agent_trigger import AgentTrigger, ScheduleKind
+from app.db.models.run_manifest import RunManifest
 from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.credential import ModelProfile
 from app.db.models.organization_secret import OrganizationSecret
@@ -60,6 +62,7 @@ __all__ = [
     "AppAdminAuditLog",
     "KnowledgeBase",
     "UserSlashCommand",
+    "DeploymentSettings",
     "DashboardLayout",
     "DashboardPreset",
     "McpConnection",
@@ -76,6 +79,7 @@ __all__ = [
     "AgentTrigger",
     "ScheduleKind",
     "AgentRun",
+    "RunManifest",
     "IngestionSpend",
     "ToolApproval",
     "RunStatus",

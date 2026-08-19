@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 /** Routes that scroll inside their own panes, not in `main`. */
-const FULL_HEIGHT_ROUTES = /\/chat(?:\/|$)/;
+const FULL_HEIGHT_ROUTES = /\/(?:chat|runs)(?:\/|$)/;
 
 export function PageTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

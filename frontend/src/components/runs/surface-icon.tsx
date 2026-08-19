@@ -1,4 +1,4 @@
-import { CalendarClock, Code2, Globe, MessageSquare } from "lucide-react";
+import { CalendarClock, Code2, Globe, MessageSquare, Zap } from "lucide-react";
 
 import { brandMark } from "@/components/icons/brand-icon";
 import { cn } from "@/lib/utils";
@@ -25,7 +25,13 @@ const MARKS = {
   slack: brandMark("slack"),
   telegram: brandMark("telegram"),
   mattermost: brandMark("mattermost"),
+  // Nobody sat at a keyboard for these two: a clock for the run a schedule was
+  // due to make, a bolt for the one an event fired. They are in this table and
+  // not yet in `SURFACES` on the filter bar, because the filter's vocabulary is
+  // what the backend will validate a query against - offering a value it refuses
+  // is a 422, and the branch that writes these surfaces adds them there.
   schedule: CalendarClock,
+  trigger: Zap,
 } as const;
 
 /** The display name beside the mark - "Mattermost", not the enum's lowercase. */
@@ -37,6 +43,7 @@ const LABEL_KEYS = {
   telegram: "surfaceTelegram",
   mattermost: "surfaceMattermost",
   schedule: "surfaceSchedule",
+  trigger: "surfaceTrigger",
 } as const;
 
 /**
@@ -57,7 +64,20 @@ export function surfaceLabel(surface: string, t: Translate): string {
  * announcement of the same word.
  */
 export function SurfaceIcon({ surface, className }: { surface: string; className?: string }) {
+  // The table directly rather than through the accessor below: a lookup that
+  // goes via a function reads to the compiler's rules as a component *created*
+  // during render, and the two are the same table either way.
   const Mark = MARKS[surface as keyof typeof MARKS];
   if (Mark === undefined) return null;
   return <Mark className={cn("h-3.5 w-3.5 shrink-0", className)} aria-hidden />;
+}
+
+/**
+ * The mark itself, for a caller that needs the component rather than an element.
+ *
+ * The agent map's tiles take an icon as a prop, and reading `MARKS` there would
+ * be a second table - which is the thing this module exists to prevent.
+ */
+export function surfaceIconComponent(surface: string) {
+  return MARKS[surface as keyof typeof MARKS];
 }

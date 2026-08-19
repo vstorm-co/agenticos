@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useModelProviders, useProviderModels } from "./use-model-providers";
+import { useImageProviders, useModelProviders, useProviderModels } from "./use-model-providers";
 import { apiClient } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({
@@ -161,5 +161,39 @@ describe("useProviderModels", () => {
 
     expect(result.current.models).toEqual([]);
     expect(result.current.source).toBeNull();
+  });
+});
+
+describe("useImageProviders", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("asks the platform which providers can draw and what with", async () => {
+    // A catalog, not a listing: no credential is read, and the answer combines
+    // what the SDK says a provider can do with what the catalog file offers.
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [
+        {
+          provider: "openai",
+          name: "OpenAI",
+          models: [{ id: "gpt-image-2", name: "GPT Image 2", description: "The best one." }],
+        },
+      ],
+      total: 1,
+    });
+    const { result } = renderHook(() => useImageProviders(), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/providers/image-models");
+    expect(result.current.providers[0]?.models[0]?.name).toBe("GPT Image 2");
+  });
+
+  it("answers with an empty list and says it failed, rather than throwing", async () => {
+    // The picker draws an explanation from this; a hook that threw would take the
+    // whole capability panel with it.
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("502"));
+    const { result } = renderHook(() => useImageProviders(), { wrapper });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.providers).toEqual([]);
   });
 });

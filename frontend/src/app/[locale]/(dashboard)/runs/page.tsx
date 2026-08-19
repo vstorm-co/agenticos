@@ -7,26 +7,15 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { PeriodControl } from "@/components/dashboard/period-control";
 import { ActivityFigures } from "@/components/runs/activity-figures";
 import { ApprovalsTab } from "@/components/runs/approvals-tab";
-import { FocusedRun } from "@/components/runs/focused-run";
+import { RunDetailPanel } from "@/components/runs/run-detail-panel";
 import { RunHistoryTab } from "@/components/runs/run-history-tab";
 import { SpendTab } from "@/components/runs/spend-tab";
 import { LoadingState } from "@/components/states";
-import {
-  Badge,
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui";
+import { Badge, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { useApprovals, usePermissions, useUrlState } from "@/hooks";
 import { formatPeriodParam, parsePeriodParam, type Period } from "@/lib/dashboard/period";
 import { parseRunFilters, writeRunFilters, type RunFilters } from "@/lib/runs/filter-params";
-import { setUrlParam } from "@/lib/utils";
+import { cn, setUrlParam } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
@@ -101,7 +90,16 @@ export default function RunsPage() {
   const { total: waiting } = useApprovals({ enabled: canDecide });
 
   return (
-    <div className="space-y-6">
+    // A full-height column, like the chat's: the two panes below scroll apart,
+    // so `PageTransition` constrains this route rather than letting the page
+    // scroll. What that buys is a table that keeps its column headers and a run
+    // detail that keeps its own header while the reader is deep in either.
+    //
+    // The negative bottom margin is the chat page's trick for the same reason:
+    // `main` reserves 80px under a page that scrolls, and under one that does
+    // not it is dead space below the two panes. Most of it is given back, and
+    // 24px of breathing room is kept.
+    <div className="-mb-14 flex min-h-0 flex-1 flex-col gap-6 lg:-mb-10">
       <PageHeader title={t("activity2")} description={t("whatYourAgentsDid2")} />
 
       <PeriodControl period={period} onChange={changePeriod} />
@@ -121,11 +119,11 @@ export default function RunsPage() {
           <div data-tour="activity-overview">
             <ActivityFigures canView={canView} canDecide={canDecide} period={period} />
           </div>
-          <Tabs defaultValue="runs">
-            <TabsList>
+          <Tabs defaultValue="runs" className="flex min-h-0 flex-1 flex-col">
+            <TabsList className="shrink-0">
               {/* Runs first: the page's main question is what ran. The queue
-                keeps its count badge, so what is waiting is visible from the
-                strip without opening it. */}
+                  keeps its count badge, so what is waiting is visible from the
+                  strip without opening it. */}
               <TabsTrigger value="runs" data-tour="activity-tab-runs">
                 {t("runs2")}
               </TabsTrigger>
@@ -144,53 +142,76 @@ export default function RunsPage() {
               </TabsTrigger>
             </TabsList>
 
-            {canDecide && (
-              <TabsContent value="approvals" data-tour="activity-approvals">
-                <ApprovalsTab period={period} onFocusRun={focusRun} />
-              </TabsContent>
-            )}
+            {/* Two columns above `lg`: the tab's own panel narrows and the run
+                detail takes the right-hand side, both filling the row's height
+                and scrolling inside themselves. Inside the tabs rather than
+                around them, and the row owns the gap under the strip while each
+                panel gives up the `mt-2` `TabsContent` applies - otherwise the
+                card starts eight pixels below the panel beside it. Below `lg`
+                there is room for one column, so the focused run replaces the
+                list rather than squeezing beside it.
 
-            <TabsContent value="runs" data-tour="activity-runs">
-              {/* The export lives on the tab's control row, beside the filters it
-                exports the result of - see RunHistoryTab. */}
-              <RunHistoryTab
-                agentId={agentId}
-                period={period}
-                filters={filters}
-                onFiltersChange={changeFilters}
-                onAgentChange={changeAgent}
-                onFocusRun={focusRun}
-                initialDurationSort={sortParam === "duration"}
-              />
-            </TabsContent>
+                The floor is what keeps the arrangement honest on a short screen:
+                the figures and the period control above cost about 380px, so a
+                900px viewport would otherwise leave the table three rows deep.
+                Below the floor the page scrolls in `main` again, which is the
+                right trade - a list you can scroll to beats a list with nothing
+                in it. */}
+            <div className="mt-2 flex min-h-[28rem] flex-1 items-stretch gap-4">
+              <div
+                className={cn(
+                  "flex min-w-0 flex-1 flex-col",
+                  focusedRunId !== null && "hidden lg:flex",
+                )}
+              >
+                {canDecide && (
+                  <TabsContent
+                    value="approvals"
+                    data-tour="activity-approvals"
+                    className="mt-0 min-h-0 flex-1 overflow-y-auto"
+                  >
+                    <ApprovalsTab period={period} onFocusRun={focusRun} />
+                  </TabsContent>
+                )}
 
-            <TabsContent value="spend" data-tour="activity-spend">
-              <SpendTab period={period} />
-            </TabsContent>
+                <TabsContent
+                  value="runs"
+                  data-tour="activity-runs"
+                  className="mt-0 flex min-h-0 flex-1 flex-col"
+                >
+                  {/* The export lives on the tab's control row, beside the
+                      filters it exports the result of - see RunHistoryTab. */}
+                  <RunHistoryTab
+                    agentId={agentId}
+                    period={period}
+                    filters={filters}
+                    onFiltersChange={changeFilters}
+                    onAgentChange={changeAgent}
+                    onFocusRun={focusRun}
+                    focusedRunId={focusedRunId}
+                    initialDurationSort={sortParam === "duration"}
+                  />
+                </TabsContent>
+
+                <TabsContent
+                  value="spend"
+                  data-tour="activity-spend"
+                  className="mt-0 min-h-0 flex-1 overflow-y-auto"
+                >
+                  <SpendTab period={period} />
+                </TabsContent>
+              </div>
+
+              {/* The panel belongs to the page rather than to one tab: a run row
+                  and an approval row are both doors to the same view. `?run=`
+                  still deep-links here - the page opens with it already out. */}
+              {focusedRunId !== null && (
+                <RunDetailPanel runId={focusedRunId} onFocusRun={focusRun} />
+              )}
+            </div>
           </Tabs>
         </>
       )}
-
-      {/* The run detail, in a drawer over whichever tab opened it: a run row
-          and an approval row are both doors to the same view, so the drawer
-          belongs to the page rather than to one tab. `?run=` still deep-links
-          here - the page opens with the drawer already out. */}
-      <Sheet
-        open={focusedRunId !== null}
-        onOpenChange={(open) => {
-          if (!open) focusRun(null);
-        }}
-      >
-        <SheetContent side="right" className="w-full sm:max-w-3xl">
-          <SheetHeader className="px-5">
-            <SheetTitle className="text-sm">{t("runDetail")}</SheetTitle>
-            <SheetClose onClick={() => focusRun(null)} />
-          </SheetHeader>
-          <div className="flex-1 overflow-y-auto p-5">
-            {focusedRunId !== null && <FocusedRun runId={focusedRunId} onFocusRun={focusRun} />}
-          </div>
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }

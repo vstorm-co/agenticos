@@ -38,13 +38,48 @@ describe("pageMetadata", () => {
     });
   });
 
-  it("does not repeat the brand when the page is the brand", () => {
-    // "AgenticOS | AgenticOS" is what a title template does to a home page.
-    expect(pageMetadata({ title: SITE.name, description: "…" }).title).toBe(SITE.name);
+  it("leaves the brand to the title template", () => {
+    // The root layout declares `%s | <brand>` and Next applies it to whatever a
+    // page returns, so appending the brand here as well is how every title read
+    // `Sign in | agenticos | Acme AI` - the template's half current, this half
+    // frozen at build time.
+    expect(pageMetadata({ title: "Terms", description: "…" }).title).toBe("Terms");
   });
 
-  it("adds the brand to every other title", () => {
-    expect(pageMetadata({ title: "Terms", description: "…" }).title).toBe(`Terms | ${SITE.name}`);
+  it("opts out of the template when the page's title is the brand", () => {
+    // `absolute` is how Next is told to skip it. Without that the home page reads
+    // "agenticos | agenticos".
+    expect(pageMetadata({ title: SITE.name, description: "…" }).title).toEqual({
+      absolute: SITE.name,
+    });
+  });
+
+  it("carries the brand into the titles no template touches", () => {
+    // OpenGraph and Twitter titles are not templated, so a shared link would
+    // otherwise unfurl as a bare page name with no product on it.
+    const meta = pageMetadata({ title: "Terms", description: "…" });
+
+    expect(meta.openGraph?.title).toBe(`Terms | ${SITE.name}`);
+    expect(meta.twitter?.title).toBe(`Terms | ${SITE.name}`);
+  });
+
+  it("uses the deployment's own name when the caller has read it", () => {
+    // Every `generateMetadata` in the app passes it, so a renamed deployment is
+    // not still `agenticos` on a shared link.
+    const meta = pageMetadata({ title: "Terms", description: "…", brand: "Acme AI" });
+
+    expect(meta.title).toBe("Terms");
+    expect(meta.openGraph?.title).toBe("Terms | Acme AI");
+    expect(meta.openGraph?.siteName).toBe("Acme AI");
+    expect(meta.openGraph?.images).toEqual([
+      expect.objectContaining({ alt: expect.stringContaining("Acme AI") }),
+    ]);
+  });
+
+  it("opts out of the template when the title is the deployment's own name", () => {
+    expect(pageMetadata({ title: "Acme AI", description: "…", brand: "Acme AI" }).title).toEqual({
+      absolute: "Acme AI",
+    });
   });
 
   it("takes a path with no leading slash and one with a trailing slash the same way", () => {

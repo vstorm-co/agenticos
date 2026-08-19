@@ -5,6 +5,7 @@ from typing import Any
 import logfire
 
 from app.core.config import settings
+from app.core.otel_compat import patch_route_details
 
 
 def setup_logfire() -> None:
@@ -18,7 +19,13 @@ def setup_logfire() -> None:
 
 
 def instrument_app(app: Any) -> None:
-    """Instrument FastAPI app with Logfire."""
+    """Instrument FastAPI app with Logfire.
+
+    The compatibility patch goes on first, before anything captures the helper it
+    replaces: without it every wrong-method request to this API answered 500
+    instead of 405. `app/core/otel_compat.py` has the whole of why.
+    """
+    patch_route_details()
     logfire.instrument_fastapi(app)
 
 

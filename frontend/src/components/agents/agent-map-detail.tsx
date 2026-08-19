@@ -61,8 +61,8 @@ export function MapDetail({ title, icon: Icon, node, delegate, onClose }: MapDet
         ) : (
           <ul className="mt-2 space-y-1">
             {node.items.map((item) => (
-              <li key={item} className="text-sm break-words">
-                {item}
+              <li key={item.key} className="text-sm break-words">
+                {item.label}
               </li>
             ))}
           </ul>

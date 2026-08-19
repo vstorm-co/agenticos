@@ -20,13 +20,21 @@ import {
 } from "lucide-react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
-import { AgentMap, MAP_ICONS, type MapDelegate, type MapNode } from "@/components/agents/agent-map";
+import {
+  AgentMap,
+  capabilityMark,
+  MAP_ICONS,
+  MAP_ITEM_ICONS,
+  surfaceMark,
+  type MapDelegate,
+  type MapNode,
+} from "@/components/agents/agent-map";
 import { MODE_LABEL } from "@/components/agents/agent-map-nodes";
+import { entryForConnection } from "@/lib/mcp-servers";
 import { toMapDelegates } from "@/components/agents/agent-map-tree";
 import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
-import { CollectionPicker } from "@/components/agents/collection-picker";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
 import { ExposuresPanel } from "@/components/agents/exposures-panel";
 import { TriggersPanel } from "@/components/triggers/triggers-panel";
@@ -38,8 +46,6 @@ import { PublishDialog } from "@/components/agents/publish-dialog";
 import { PublishState } from "@/components/agents/publish-state";
 import { RunSummary } from "@/components/agents/run-summary";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
-import { SkillGallery } from "@/components/agents/skill-gallery";
-import { ContextGallery } from "@/components/agents/context-gallery";
 import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
 import { VersionHistory } from "@/components/agents/version-history";
@@ -94,7 +100,6 @@ import {
 import {
   readSubagentsConfig,
   SANDBOX_ID,
-  SKILLS_ID,
   SUBAGENTS_ID,
   THINKING_ID,
   withCapability,
@@ -132,7 +137,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const { skills, total: skillCount } = useSkills({ limit: 100 });
   const { files: contextFiles, total: contextCount } = useContextFiles({ limit: 100 });
   const { kbs: collections } = useKnowledgeBases();
-  const { versions } = useAgentVersions(id);
+  // Only the newest, and only for the number below: the history card pages the
+  // rest itself, so a page that fetched fifty to read one would be fetching a
+  // list nothing on it renders.
+  const { versions } = useAgentVersions(id, { limit: 1 });
   const { runs } = useRuns(id);
   const { can, isLoaded: permissionsLoaded } = usePermissions();
   // The organization's servers, never the author's own: a personal connection
@@ -252,9 +260,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
     const name = <T extends { id: string; name: string }>(pool: T[], id: string) =>
       pool.find((entry) => entry.id === id)?.name ?? t("namedMissing", { name: id });
     const chosen = profiles.find((entry) => entry.id === spec.model_profile_id);
+    // The label already names the model on every profile the picker creates, so
+    // appending it unconditionally read as "OpenRouter · claude-haiku-4.5 ·
+    // claude-haiku-4.5" - which truncation used to hide and a wrapped tile does
+    // not. Appended only where the label leaves it out.
     const profile = spec.model_profile_id
       ? chosen
-        ? `${chosen.label} · ${chosen.model}`
+        ? chosen.label.includes(chosen.model)
+          ? chosen.label
+          : `${chosen.label} · ${chosen.model}`
         : t("namedMissing", { name: spec.model_profile_id })
       : t("organizationDefault");
 
@@ -266,15 +280,25 @@ export default function AgentBuilderPage({ params }: PageProps) {
         side: "left",
         // The standing surfaces first - every agent is reachable from the
         // dashboard, the API and the raw socket - then whatever this one was
-        // published as: widgets, and each channel binding.
+        // published as: widgets, and each channel binding. Each wears the mark
+        // its surface wears in run history, from the one table that owns them.
         items: [
-          t("surfaceChat"),
-          t("surfaceApi"),
-          t("surfaceSocket"),
-          ...embeds.map((embed) => t("surfaceWidget", { name: embed.name })),
-          ...exposures.map(
-            (exposure) => `${exposure.channel_bot_name}${exposure.is_active ? "" : " (paused)"}`,
-          ),
+          { key: "chat", label: t("surfaceChat"), icon: surfaceMark("web") },
+          { key: "api", label: t("surfaceApi"), icon: surfaceMark("api") },
+          { key: "socket", label: t("surfaceSocket"), icon: MAP_ITEM_ICONS.socket },
+          ...embeds.map((embed) => ({
+            key: `embed-${embed.id}`,
+            label: embed.name,
+            icon: surfaceMark("embed"),
+          })),
+          ...exposures.map((exposure) => ({
+            key: `exposure-${exposure.id}`,
+            label: exposure.channel_bot_name,
+            icon: surfaceMark(exposure.surface),
+            // Bound but not answering. Drawn dimmed rather than annotated: a
+            // paused binding is still a place this agent is published to.
+            muted: !exposure.is_active,
+          })),
         ],
         empty: t("chatOnlyNotSlack"),
       },
@@ -283,7 +307,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
         title: t("model"),
         icon: MAP_ICONS.model,
         side: "top",
-        items: [profile],
+        items: [{ key: "model", label: profile, icon: MAP_ICONS.model }],
         empty: t("noModel"),
       },
       {
@@ -291,7 +315,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
         title: t("budget"),
         icon: MAP_ICONS.budget,
         side: "top",
-        items: spec.budget?.monthly_usd ? [t("perMonth", { amount: spec.budget.monthly_usd })] : [],
+        items: spec.budget?.monthly_usd
+          ? [
+              {
+                key: "budget",
+                label: t("perMonth", { amount: spec.budget.monthly_usd }),
+                icon: MAP_ICONS.budget,
+              },
+            ]
+          : [],
         empty: t("spendsWithoutCeilingIts"),
       },
       {
@@ -301,7 +333,14 @@ export default function AgentBuilderPage({ params }: PageProps) {
         side: "right",
         items: spec.capabilities
           .filter((binding) => binding.enabled)
-          .map((binding) => name(capabilities, binding.id)),
+          .map((binding) => ({
+            key: binding.id,
+            label: name(capabilities, binding.id),
+            // What this capability's tools do, from the table the chat's own
+            // step list reads - so a capability wears the same mark whether it
+            // is being configured here or watched running there.
+            icon: capabilityMark(capabilities.find((entry) => entry.id === binding.id)),
+          })),
         empty: t("noCapabilitiesEnabled"),
       },
       {
@@ -309,7 +348,19 @@ export default function AgentBuilderPage({ params }: PageProps) {
         title: t("mcpServers"),
         icon: MAP_ICONS.mcp,
         side: "right",
-        items: spec.mcp_server_ids.map((entry) => name(mcpConnections, entry)),
+        items: spec.mcp_server_ids.map((entry) => {
+          const connection = mcpConnections.find((row) => row.id === entry);
+          // The mark belongs to the *catalog* entry a connection matches, not to
+          // the connection - which is how the picker resolves it, and the same
+          // three-source fallback `McpServerIcon` applies underneath.
+          const known =
+            connection === undefined ? null : entryForConnection(connection, mcpCatalog);
+          return {
+            key: entry,
+            label: connection?.name ?? t("namedMissing", { name: entry }),
+            mcp: { icon: known?.icon ?? null, name: connection?.name ?? entry },
+          };
+        }),
         empty: t("noMcpServersAttached"),
       },
       {
@@ -317,7 +368,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
         title: t("knowledge"),
         icon: MAP_ICONS.knowledge,
         side: "right",
-        items: spec.collection_ids.map((entry) => name(collections, entry)),
+        items: spec.collection_ids.map((entry) => ({
+          key: entry,
+          label: name(collections, entry),
+          icon: MAP_ICONS.knowledge,
+        })),
         empty: t("noCollectionsAttached"),
       },
       {
@@ -325,7 +380,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
         title: t("skills"),
         icon: MAP_ICONS.skills,
         side: "right",
-        items: spec.skill_ids.map((entry) => name(skills, entry)),
+        items: spec.skill_ids.map((entry) => ({
+          key: entry,
+          label: name(skills, entry),
+          icon: MAP_ICONS.skills,
+        })),
         empty: t("noSkillsAttached"),
       },
     ];
@@ -342,10 +401,26 @@ export default function AgentBuilderPage({ params }: PageProps) {
         icon: MAP_ICONS.delegation,
         side: "bottom",
         items: [
-          tAgents("mapHandsBack", { mode: tAgents(MODE_LABEL[config.mode]) }),
-          config.allow_dynamic ? t("mapMayInventSpecialists") : t("mapFixedRosterOnly"),
-          t("mapDepthLimit", { depth: config.max_depth }),
-          t("mapFanoutLimit", { fanout: config.max_fanout }),
+          {
+            key: "mode",
+            label: tAgents("mapHandsBack", { mode: tAgents(MODE_LABEL[config.mode]) }),
+            icon: MAP_ITEM_ICONS.mode,
+          },
+          {
+            key: "dynamic",
+            label: config.allow_dynamic ? t("mapMayInventSpecialists") : t("mapFixedRosterOnly"),
+            icon: MAP_ITEM_ICONS.roster,
+          },
+          {
+            key: "depth",
+            label: t("mapDepthLimit", { depth: config.max_depth }),
+            icon: MAP_ITEM_ICONS.limit,
+          },
+          {
+            key: "fanout",
+            label: t("mapFanoutLimit", { fanout: config.max_fanout }),
+            icon: MAP_ITEM_ICONS.limit,
+          },
         ],
         empty: "",
       });
@@ -360,6 +435,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     profiles,
     capabilities,
     mcpConnections,
+    mcpCatalog,
     skills,
     t,
     tAgents,
@@ -437,16 +513,17 @@ export default function AgentBuilderPage({ params }: PageProps) {
         ? tAgents("mapTreeTruncated")
         : null;
 
-  // Two capabilities are configured elsewhere and so are kept off this list,
-  // because a second control for one field is a control that disagrees with the
-  // first. Thinking sits with the model settings: it contributes no tools and
-  // changes how the model runs, not what the agent can do. Skills sits in its
-  // own section, which owns both halves of a decision that used to be split -
-  // see `setSkills`. The workspace stays in the picker: it is a row like the
-  // rest, and the detail panel gives it the controls a switch cannot - see
-  // `CapabilityWorkbench`.
+  // Thinking is the one capability kept off this list, because a second control
+  // for one field is a control that disagrees with the first: it sits with the
+  // model settings, contributes no tools, and changes how the model runs rather
+  // than what the agent can do.
+  //
+  // Skills used to be kept off it too, on the grounds that its own tab owned both
+  // halves of the decision. That tab is gone: the gallery is in this capability's
+  // panel, so switching it off is exactly what unpicking every skill already did,
+  // and there was no way to grant the tools without picking one first.
   const grantable = useMemo(
-    () => capabilities.filter((entry) => entry.id !== THINKING_ID && entry.id !== SKILLS_ID),
+    () => capabilities.filter((entry) => entry.id !== THINKING_ID),
     [capabilities],
   );
 
@@ -802,11 +879,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
           <TabsTrigger value="toolbox" data-tour="agent-tab-toolbox">
             {t("toolbox")}
           </TabsTrigger>
-          <TabsTrigger value="knowledge" data-tour="agent-tab-knowledge">
-            {t("knowledge")}
-          </TabsTrigger>
-          <TabsTrigger value="skills" data-tour="agent-tab-skills">
-            {t("skills")}
+          <TabsTrigger value="mcp" data-tour="agent-tab-mcp">
+            {t("mcpServers")}
           </TabsTrigger>
           <TabsTrigger value="limits" data-tour="agent-tab-limits">
             {t("limits")}
@@ -819,7 +893,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="build" className="mt-4 space-y-6">
+        <TabsContent value="build" className="mt-6 space-y-6">
           <Card data-tour="agent-instructions">
             <CardHeader>
               <CardTitle>{t("instructions")}</CardTitle>
@@ -887,7 +961,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </Card>
         </TabsContent>
 
-        <TabsContent value="toolbox" className="mt-4 space-y-6">
+        <TabsContent value="toolbox" className="mt-6 space-y-6">
           <Card data-tour="agent-capabilities">
             <CardHeader>
               <CardTitle>{t("capabilities")}</CardTitle>
@@ -904,6 +978,25 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 // is handed that slice as well as the binding.
                 subagents={spec.subagents ?? []}
                 onSubagentsChange={(subagents) => update({ subagents })}
+                // What the agent is *given*, picked in the panel of the
+                // capability that reads it. Each setter switches that capability
+                // on with the first pick, because bound without it the resources
+                // are resolved and then discarded.
+                resources={{
+                  contextFiles,
+                  contextTotal: contextCount,
+                  contextIds: spec.context_ids,
+                  onContextToggle: (fileId: string) =>
+                    setContext(toggleId(spec.context_ids, fileId)),
+                  collections,
+                  collectionIds: spec.collection_ids,
+                  onCollectionToggle: (collectionId: string) =>
+                    update({ collection_ids: toggleId(spec.collection_ids, collectionId) }),
+                  skills,
+                  skillTotal: skillCount,
+                  skillIds: spec.skill_ids,
+                  onSkillToggle: (skillId: string) => setSkills(toggleId(spec.skill_ids, skillId)),
+                }}
                 // So promoting a specialist that runs on the parent's model can
                 // resolve one for the standalone agent it becomes.
                 modelProfileId={spec.model_profile_id ?? null}
@@ -912,7 +1005,14 @@ export default function AgentBuilderPage({ params }: PageProps) {
               />
             </CardContent>
           </Card>
+        </TabsContent>
 
+        {/* Its own tab rather than the tail of the Toolbox. The two answer
+            different questions - what this agent can do, and what it reaches
+            outside the deployment for - and the picker embeds the whole server
+            catalog, so it pushed the capability workbench off the top of the
+            screen on any organization with more than a handful of servers. */}
+        <TabsContent value="mcp" className="mt-6 space-y-6">
           <Card data-tour="agent-mcp">
             {/* The passive tour points here rather than at the card: the picker
                 below embeds the whole server catalog, so the card runs well past
@@ -970,68 +1070,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </Card>
         </TabsContent>
 
-        <TabsContent value="knowledge" className="mt-4 space-y-6">
-          <Card data-tour="agent-collections">
-            <CardHeader>
-              <CardTitle>{t("collections")}</CardTitle>
-              <CardDescription>{t("whatAgentMaySearch")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <CollectionPicker
-                collections={collections}
-                selectedIds={spec.collection_ids}
-                onToggle={(collectionId) =>
-                  update({ collection_ids: toggleId(spec.collection_ids, collectionId) })
-                }
-                disabled={!canEdit}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Its own tab rather than a card under Knowledge. A collection is
-            something the agent searches; a skill is something it reads and then
-            acts on. Sharing a tab made the gallery look like a second picker for
-            the same decision, and put the two things with the most to read on
-            one scroll. */}
-        <TabsContent value="skills" className="mt-4 space-y-6">
-          <Card data-tour="agent-skills">
-            <CardHeader>
-              <CardTitle>{t("skills2")}</CardTitle>
-              <CardDescription>{t("writtenKnowHowAgent")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <SkillGallery
-                skills={skills}
-                total={skillCount}
-                selectedIds={spec.skill_ids}
-                onToggle={(skillId) => setSkills(toggleId(spec.skill_ids, skillId))}
-                disabled={!canEdit}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Standing context, beside skills because both are things the agent
-              reads rather than searches - a glossary or a policy injected into
-              the prompt or read on demand, not a procedure loaded on decision. */}
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("context")}</CardTitle>
-              <CardDescription>{t("standingContextAgent")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ContextGallery
-                files={contextFiles}
-                total={contextCount}
-                selectedIds={spec.context_ids}
-                onToggle={(fileId) => setContext(toggleId(spec.context_ids, fileId))}
-                disabled={!canEdit}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="limits" className="mt-4 space-y-6">
+        <TabsContent value="limits" className="mt-6 space-y-6">
           <Card data-tour="agent-limits">
             <CardHeader>
               <CardTitle>{t("runLimits")}</CardTitle>
@@ -1094,7 +1133,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           />
         </TabsContent>
 
-        <TabsContent value="availability" className="mt-4 space-y-6">
+        <TabsContent value="availability" className="mt-6 space-y-6">
           <div data-tour="agent-availability">
             <ExposuresPanel
               agentId={id}
@@ -1111,7 +1150,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           <SharingPanel resourceType="agent" resourceId={id} canManage={canEdit} />
         </TabsContent>
 
-        <TabsContent value="history" className="mt-4 space-y-6">
+        <TabsContent value="history" className="mt-6 space-y-6">
           <Card data-tour="agent-history">
             <CardHeader>
               <CardTitle>{t("environments")}</CardTitle>
@@ -1133,7 +1172,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <CardContent className="space-y-2">
               <VersionHistory
                 agentId={id}
-                versions={versions}
                 currentVersionId={agent.current_version_id}
                 draftSpec={spec}
                 canRestore={canPublish}
@@ -1188,9 +1226,9 @@ function BuilderSkeleton() {
             <div className="bg-foreground/8 h-3.5 w-80 max-w-full animate-pulse rounded" />
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {["w-32", "w-28", "w-24", "w-20"].map((width) => (
+            {["w-32", "w-28", "w-24", "w-20"].map((width, index) => (
               <div
-                key={width}
+                key={index}
                 className={cn("bg-foreground/10 h-9 animate-pulse rounded-md", width)}
               />
             ))}
@@ -1198,13 +1236,12 @@ function BuilderSkeleton() {
         </div>
       </div>
 
-      {/* Tab strip - seven tabs, at the widths their labels take. */}
+      {/* Tab strip - one placeholder per tab, at the width its label takes.
+          Keyed by position rather than by the width class: the classes repeat,
+          which React reported as duplicate keys on every load of this page. */}
       <div className="bg-muted inline-flex h-9 items-center gap-1 rounded-lg p-1">
-        {["w-12", "w-20", "w-24", "w-16", "w-16", "w-24", "w-16"].map((width, index) => (
-          <div
-            key={`${index}-${width}`}
-            className={cn("bg-foreground/10 h-7 animate-pulse rounded-md", width)}
-          />
+        {["w-12", "w-20", "w-28", "w-16", "w-24", "w-16"].map((width, index) => (
+          <div key={index} className={cn("bg-foreground/10 h-7 animate-pulse rounded-md", width)} />
         ))}
       </div>
 

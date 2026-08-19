@@ -45,6 +45,7 @@ from app.db.models.channel_bot import ChannelBot
 from app.db.models.context import ContextFile
 from app.db.models.conversation import Conversation
 from app.db.models.dashboard_layout import DashboardLayout
+from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization, OrganizationMember
@@ -64,6 +65,7 @@ from app.schemas.channel_bot import ChannelBotUpdate
 from app.schemas.context import ContextFileUpdate
 from app.schemas.conversation import ConversationUpdate
 from app.schemas.dashboard_layout import DashboardLayoutUpdate
+from app.schemas.deployment_settings import DeploymentSettingsUpdate
 from app.schemas.knowledge_base import KnowledgeBaseUpdate
 from app.schemas.mcp_connection import McpConnectionUpdate, OrgMcpConnectionUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
@@ -87,6 +89,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     ContextFileUpdate: ContextFile,
     ConversationUpdate: Conversation,
     DashboardLayoutUpdate: DashboardLayout,
+    DeploymentSettingsUpdate: DeploymentSettings,
     EmbedUpdate: AgentEmbed,
     EnvironmentUpdate: AgentEnvironment,
     ExposureUpdate: AgentExposure,

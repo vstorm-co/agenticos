@@ -16,7 +16,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func, text
 
@@ -153,6 +153,15 @@ class Invitation(Base):
     # ignores it, because an address is its own limit of one.
     max_uses: Mapped[int | None] = mapped_column(Integer, nullable=True)
     used_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # The addresses that registered through this link and have not joined yet, so
+    # its remaining capacity is `max_uses - (used_count + len(reserved_emails))`.
+    # Acceptance needs a session and registration does not, so counting only
+    # `used_count` let one `max_uses=1` link admit an unbounded number of
+    # registrations on an `invite_only` deployment. Accepting moves an address from
+    # here into the count, which conserves the capacity somebody registering spent.
+    reserved_emails: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
     # Optional guard on a link: only addresses at this domain may accept. A link
     # posted in a channel is a link that can be forwarded, and "anyone with the
     # URL" is a different risk from "anyone at our company".

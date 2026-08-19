@@ -296,6 +296,10 @@ CALLS: tuple[Call, ...] = (
     # on seeing agents like the catalog beside it: the answer is a public list
     # for OpenRouter and a list of model names for everyone else.
     Call("GET", "/providers/{provider}/models", Perm.AGENTS_VIEW),
+    # Which providers can draw an image and which of their models may be asked to.
+    # Gated the same way and for the same reason: it is the Builder's picker, and
+    # "OpenAI draws through the Responses API" is not a secret.
+    Call("GET", "/providers/image-models", Perm.AGENTS_VIEW),
     Call("GET", "/providers/model-profiles", Perm.AGENTS_VIEW),
     Call(
         "POST",
@@ -1347,6 +1351,17 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # an invitation email, a public share. An id, and a picture the owner
         # uploaded to be seen.
         ("GET", f"{V1}/users/avatar/{{user_id}}"),
+        # This deployment's own name, mark and access policy, plus the two images
+        # it brands itself with. Open because the surfaces that need them have no
+        # session by construction: a favicon is fetched above every tenant, the
+        # sign-in page renders before anybody has one, and a maintenance page has
+        # to be able to say why the deployment is closed. What it publishes is what
+        # a stranger loading that login screen sees anyway - and the announcement,
+        # which is an operator talking to their own users, is deliberately behind
+        # `/branding/notice` instead.
+        ("GET", f"{V1}/branding"),
+        ("GET", f"{V1}/branding/logo"),
+        ("GET", f"{V1}/branding/favicon"),
         # Deployment configuration rather than tenant data: which parsers this
         # build has, and which embedding models it can index with. The same
         # answer for every caller, so there is nothing here to scope - and

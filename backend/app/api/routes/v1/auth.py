@@ -6,7 +6,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 
-from app.api.deps import CurrentUser, SessionSvc, UserSvc
+from app.api.deps import CurrentUser, DeploymentSettingsSvc, SessionSvc, UserSvc
 from app.core.config import settings
 from app.core.exceptions import AuthenticationError
 from app.core.security import (
@@ -113,6 +113,7 @@ async def get_current_user_info(current_user: CurrentUser) -> Any:
 async def request_password_reset(
     body: PasswordResetRequest,
     user_service: UserSvc,
+    branding: DeploymentSettingsSvc,
 ) -> Any:
     """Email a single-use reset link to the address.
 
@@ -128,6 +129,7 @@ async def request_password_reset(
                 to=body.email,
                 name=reset_user.full_name or body.email,
                 reset_url=reset_url,
+                app_name=await branding.effective_app_name(),
             )
         except Exception:
             logger.exception("password_reset_email_failed", extra={"email": body.email})
@@ -148,6 +150,7 @@ async def confirm_password_reset(
 async def request_magic_link(
     body: MagicLinkRequest,
     user_service: UserSvc,
+    branding: DeploymentSettingsSvc,
 ) -> Any:
     """Email a single-use sign-in link.
 
@@ -162,6 +165,7 @@ async def request_magic_link(
                 to=body.email,
                 name=link_user.full_name or body.email,
                 login_url=login_url,
+                app_name=await branding.effective_app_name(),
             )
         except Exception:
             logger.exception("magic_link_email_failed", extra={"email": body.email})

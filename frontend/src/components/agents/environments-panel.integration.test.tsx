@@ -34,6 +34,8 @@ function environment(overrides: Partial<AgentEnvironment> = {}): AgentEnvironmen
     version_id: "v5-id",
     version: 5,
     is_default: false,
+    tracks_latest: false,
+    behind_by: 0,
     logfire_token_secret_id: null,
     service_name: null,
     created_at: "2026-07-01T00:00:00Z",

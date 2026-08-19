@@ -48,6 +48,7 @@ def _invitation() -> SimpleNamespace:
         # shape a link takes and an invitation simply does not use.
         max_uses=None,
         used_count=0,
+        reserved_emails=[],
         email_domain=None,
         token=_TOKEN,
         expires_at=datetime.now(UTC) + timedelta(days=7),
@@ -105,6 +106,25 @@ class TestListingDoesNotHandOutTokens:
         assert item["role"] == "member"
         assert item["status"] == "pending"
         assert item["expires_at"]
+
+    async def test_a_links_capacity_is_reported_as_the_ceiling_measures_it(
+        self, client: AsyncClient, service: MagicMock
+    ) -> None:
+        """`max_uses` is compared against the acceptances *plus* the people who
+        registered under the link and have not joined yet, so a page showing only
+        `used_count` would say a spent link had a place left. The count, never the
+        addresses: who registered under a link is not something this list publishes."""
+        link = _invitation()
+        link.email = None
+        link.max_uses = 2
+        link.used_count = 1
+        link.reserved_emails = ["waiting@example.com"]
+        service.list_for_org = AsyncMock(return_value=[link])
+
+        item = (await client.get(_org_url("/invitations"))).json()["items"][0]
+
+        assert (item["used_count"], item["reserved_count"], item["max_uses"]) == (1, 1, 2)
+        assert "waiting@example.com" not in (await client.get(_org_url("/invitations"))).text
 
 
 class TestCreatingReturnsTheTokenOnce:

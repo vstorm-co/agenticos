@@ -170,6 +170,15 @@ class InvitationRead(BaseSchema):
     status: str
     max_uses: int | None = None
     used_count: int = 0
+    #: How many people registered through this link and have not joined yet.
+    #:
+    #: Beside `used_count` rather than folded into it, because they are different
+    #: facts about the same ceiling: one is who is in, the other is who spent a use
+    #: getting an account. `max_uses` is compared against their sum, so a console
+    #: showing only the acceptances would say a spent link had a place left. The
+    #: count, never the addresses - who registered under a link is not something a
+    #: list of invitations publishes.
+    reserved_count: int = 0
     email_domain: str | None = None
     expires_at: datetime
     created_at: datetime

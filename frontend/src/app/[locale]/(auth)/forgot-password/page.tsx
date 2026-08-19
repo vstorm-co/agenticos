@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 
 import { ForgotPasswordForm } from "@/components/auth";
 import type { Locale } from "@/i18n";
+import { readBranding } from "@/lib/branding-server";
 import { pageMetadata } from "@/lib/seo";
 
 export async function generateMetadata({
@@ -12,7 +13,9 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations("pages.meta");
+  const { appName } = await readBranding();
   return pageMetadata({
+    brand: appName,
     title: t("forgotPasswordTitle"),
     description: t("forgotPasswordDescription"),
     path: "/forgot-password",

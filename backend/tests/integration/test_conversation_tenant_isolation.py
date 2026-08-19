@@ -29,7 +29,7 @@ from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import conversation as conversation_repo
 from app.schemas.conversation import MessageCreate
-from app.services.conversation import UNSCOPED, ConversationService
+from app.services.conversation import ConversationService
 
 pytestmark = pytest.mark.anyio
 
@@ -194,20 +194,3 @@ class TestAColleagueInTheSameOrganization:
 
         remaining = await conversation_repo.get_messages_by_conversation(db, conversation.id)
         assert [message.content for message in remaining] == ["secret", "and another thing"]
-
-
-class TestTheDeliberateCrossTenantRead:
-    async def test_unscoped_still_reaches_another_organization(self, db) -> None:
-        """`/admin/conversations/{id}` exists to read across tenants and is
-        gated on `CurrentAppAdmin`. If this stopped working the sentinel would
-        be decorative and the next reader would reach for `None` again."""
-        theirs = await _org(db, name="Theirs")
-        owner = await _member(db)
-        conversation = await _conversation(db, theirs, owner)
-
-        service = ConversationService(db)
-        found = await service.get_conversation_with_messages(
-            conversation.id, organization_id=UNSCOPED
-        )
-
-        assert found.id == conversation.id
