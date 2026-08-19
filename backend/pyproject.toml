@@ -581,6 +581,20 @@ include = [
     "app/api/routes/v1/context.py",
     "app/services/generated_media.py",
     "app/api/routes/v1/generated_media.py",
+    # What this deployment calls itself, who may register, and whether it is open
+    # at all. The identity half is cosmetic; the other two are refusals - a sign-up
+    # policy applied on the only unauthenticated paths that mint an account, and a
+    # gate that decides whether the API answers at all - so a branch that never
+    # runs in normal operation is the whole point of them.
+    "app/db/models/deployment_settings.py",
+    "app/repositories/deployment_settings.py",
+    "app/schemas/deployment_settings.py",
+    "app/services/deployment_settings.py",
+    "app/services/signup_policy.py",
+    "app/core/maintenance.py",
+    "app/api/routes/v1/branding.py",
+    "app/api/routes/v1/_branding_bytes.py",
+    "app/api/routes/v1/admin_deployment_settings.py",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
 # by tests/test_coverage_gate.py.
@@ -787,6 +801,20 @@ include = [
     "app/api/routes/v1/context.py",
     "app/services/generated_media.py",
     "app/api/routes/v1/generated_media.py",
+    # What this deployment calls itself, who may register, and whether it is open
+    # at all. The identity half is cosmetic; the other two are refusals - a sign-up
+    # policy applied on the only unauthenticated paths that mint an account, and a
+    # gate that decides whether the API answers at all - so a branch that never
+    # runs in normal operation is the whole point of them.
+    "app/db/models/deployment_settings.py",
+    "app/repositories/deployment_settings.py",
+    "app/schemas/deployment_settings.py",
+    "app/services/deployment_settings.py",
+    "app/services/signup_policy.py",
+    "app/core/maintenance.py",
+    "app/api/routes/v1/branding.py",
+    "app/api/routes/v1/_branding_bytes.py",
+    "app/api/routes/v1/admin_deployment_settings.py",
 ]
 branch = true
 omit = [

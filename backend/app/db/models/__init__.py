@@ -18,6 +18,7 @@ from app.db.models.organization import Invitation, Organization, OrganizationMem
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.user_slash_command import UserSlashCommand
+from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.dashboard_preset import DashboardPreset
 from app.db.models.mcp_connection import McpConnection
@@ -59,6 +60,7 @@ __all__ = [
     "AppAdminAuditLog",
     "KnowledgeBase",
     "UserSlashCommand",
+    "DeploymentSettings",
     "DashboardLayout",
     "DashboardPreset",
     "McpConnection",

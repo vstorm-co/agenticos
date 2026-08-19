@@ -629,7 +629,13 @@ class TestUserServiceRegistrationWithOrg:
     @pytest.fixture
     def mock_db(self):
         db = MagicMock()
-        db.execute = AsyncMock()
+        # No deployment settings row, which is "every default" and so `open`
+        # sign-up. Left to answer with a bare mock the policy reads a truthy row
+        # whose `allowed_email_domains` is also truthy, and refuses registration for
+        # a rule nobody configured.
+        result = MagicMock()
+        result.scalar_one_or_none.return_value = None
+        db.execute = AsyncMock(return_value=result)
         db.add = MagicMock()
         db.flush = AsyncMock()
         db.refresh = AsyncMock()

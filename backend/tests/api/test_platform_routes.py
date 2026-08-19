@@ -1308,6 +1308,17 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # an invitation email, a public share. An id, and a picture the owner
         # uploaded to be seen.
         ("GET", f"{V1}/users/avatar/{{user_id}}"),
+        # This deployment's own name, mark and access policy, plus the two images
+        # it brands itself with. Open because the surfaces that need them have no
+        # session by construction: a favicon is fetched above every tenant, the
+        # sign-in page renders before anybody has one, and a maintenance page has
+        # to be able to say why the deployment is closed. What it publishes is what
+        # a stranger loading that login screen sees anyway - and the announcement,
+        # which is an operator talking to their own users, is deliberately behind
+        # `/branding/notice` instead.
+        ("GET", f"{V1}/branding"),
+        ("GET", f"{V1}/branding/logo"),
+        ("GET", f"{V1}/branding/favicon"),
         # Deployment configuration rather than tenant data: which parsers this
         # build has, and which embedding models it can index with. The same
         # answer for every caller, so there is nothing here to scope - and

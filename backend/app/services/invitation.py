@@ -16,6 +16,7 @@ from app.core.exceptions import (
 from app.core.permissions import OrgRoleName, Perm, role_has
 from app.db.models.organization import Invitation, InvitationStatus, OrgRole
 from app.repositories import invitation_repo, member_repo, organization_repo, user_repo
+from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
 
 logger = logging.getLogger(__name__)
@@ -98,6 +99,7 @@ class InvitationService:
                 else "A team member",
                 org_name=org.name if org else "the organization",
                 accept_url=accept_url,
+                app_name=await DeploymentSettingsService(self.db).effective_app_name(),
             )
         except Exception:
             logger.exception("email_invitation_failed")

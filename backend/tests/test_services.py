@@ -98,6 +98,11 @@ class TestUserServicePostgresql:
         # on user_repo.create being invoked.
         scalar_one_result = MagicMock()
         scalar_one_result.scalar_one.return_value = 1
+        # And the deployment settings row the sign-up policy reads: no row means
+        # every default, which is `open`. Left as a bare MagicMock it is a truthy
+        # row whose `allowed_email_domains` is also truthy, so the policy refuses
+        # for a rule nobody configured.
+        scalar_one_result.scalar_one_or_none.return_value = None
         user_service.db.execute = AsyncMock(return_value=scalar_one_result)
 
         with (

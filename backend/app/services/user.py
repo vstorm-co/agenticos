@@ -19,9 +19,11 @@ from app.db.updates import writable
 from app.repositories import session_repo, user_repo
 from app.schemas.conversation_share import AdminUserList, AdminUserRead
 from app.schemas.user import UserCreate, UserUpdate
+from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
 from app.services.file_storage import get_file_storage
 from app.services.organization import OrganizationService
+from app.services.signup_policy import check_may_register
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +94,13 @@ class UserService:
         return AdminUserList(items=items, total=total)
 
     async def register(self, user_in: UserCreate) -> User:
-        """The first user to register is auto-promoted to app-admin - no separate CLI step needed."""
+        """The first user to register is auto-promoted to app-admin - no separate CLI step needed.
+
+        Gated on this deployment's sign-up policy, which is why the check sits after
+        the duplicate-address one: an address that already has an account is told
+        so whatever the policy says, and a closed deployment is not a way to find
+        out who is registered.
+        """
         existing = await user_repo.get_by_email(self.db, user_in.email)
         if existing:
             raise AlreadyExistsError(
@@ -101,6 +109,7 @@ class UserService:
             )
 
         is_first_user = await self._is_first_user()
+        await check_may_register(self.db, email=user_in.email, is_first_user=is_first_user)
 
         hashed_password = get_password_hash(user_in.password)
         user = await user_repo.create(
@@ -118,6 +127,7 @@ class UserService:
                 to=user.email,
                 name=user.full_name or user.email,
                 login_url=login_url,
+                app_name=await DeploymentSettingsService(self.db).effective_app_name(),
             )
         except Exception:
             logger.exception(
@@ -148,6 +158,12 @@ class UserService:
             )
             return by_email
 
+        # The second path that mints an account, and the reason the policy is not
+        # simply a check inside `register`: a deployment with Google sign-in and a
+        # closed sign-up form is not closed at all if this branch is ungated, and
+        # nothing about the OAuth callback looks like a registration.
+        await check_may_register(self.db, email=email, is_first_user=await self._is_first_user())
+
         user = await user_repo.create(
             self.db,
             email=email,
@@ -164,6 +180,7 @@ class UserService:
                 to=user.email,
                 name=user.full_name or user.email,
                 login_url=login_url,
+                app_name=await DeploymentSettingsService(self.db).effective_app_name(),
             )
         except Exception:
             logger.exception(

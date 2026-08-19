@@ -4,7 +4,7 @@ import secrets
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import and_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.organization import Invitation, InvitationStatus, OrgRole
@@ -32,6 +32,57 @@ async def get_pending_for_org_email(
         )
     )
     return result.scalar_one_or_none()
+
+
+async def any_pending_admitting(db: AsyncSession, *, email: str) -> bool:
+    """Whether any live invitation, in any organization, admits this address.
+
+    Asked by the signup policy when this deployment is `invite_only`: an invited
+    person has no account yet and `InvitationService.accept` requires one, so
+    without this the invitation flow would be exactly what closing registration
+    broke.
+
+    Cross-tenant by construction, and it has to be - registration happens before
+    any organization is chosen, so there is no tenant to scope to. What keeps that
+    safe is the answer being a boolean: the caller learns that *somebody* invited
+    this address and never which organization did, so a stranger probing the
+    sign-up form cannot enumerate tenants with it.
+
+    Two shapes admit, and one deliberately does not:
+
+    - an **email invitation** for exactly this address;
+    - a **link scoped to a domain**, where the address is at that domain.
+
+    A link with neither an address nor a domain does not, even though anyone
+    holding it may join once they have an account. The register request carries no
+    token, so honouring it would mean one open link anywhere in the deployment
+    turning `invite_only` back into `open` for the whole internet. Threading the
+    token through registration is the real fix and is filed separately; until then
+    an operator closing registration invites by address or puts a domain on the
+    link.
+    """
+    normalized = email.strip().lower()
+    domain = normalized.rpartition("@")[2]
+    result = await db.execute(
+        select(Invitation.id)
+        .where(
+            Invitation.status == InvitationStatus.PENDING.value,
+            Invitation.expires_at > datetime.now(UTC),
+            or_(
+                Invitation.email == normalized,
+                and_(
+                    Invitation.email.is_(None),
+                    Invitation.email_domain == domain,
+                    or_(
+                        Invitation.max_uses.is_(None),
+                        Invitation.used_count < Invitation.max_uses,
+                    ),
+                ),
+            ),
+        )
+        .limit(1)
+    )
+    return result.first() is not None
 
 
 async def list_for_org(

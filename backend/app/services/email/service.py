@@ -47,6 +47,17 @@ _CATEGORIES: dict[EmailKey, EmailCategory] = {
 
 
 class EmailService:
+    """Renders and sends this deployment's transactional mail.
+
+    `app_name` is a **required** argument on every send rather than a constant in
+    here, and that is the point of it: the name is what the administrator sets on
+    `/admin/settings`, so a default would be a second answer to "what is this
+    product called" and the first email after a rename would be the one that
+    disagrees. It was three hardcoded `"agenticos"` literals before #914. Callers
+    resolve it through `DeploymentSettingsService.effective_app_name`, which has no
+    session here to read it with.
+    """
+
     def __init__(self, provider: EmailProvider) -> None:
         self.provider = provider
 
@@ -87,14 +98,18 @@ class EmailService:
             )
         return result
 
-    async def send_welcome(self, *, to: str, name: str, login_url: str) -> SendResult:
+    async def send_welcome(
+        self, *, to: str, name: str, login_url: str, app_name: str
+    ) -> SendResult:
         return await self.send(
             key=EmailKey.WELCOME,
             to=to,
-            context={"name": name, "login_url": login_url, "app_name": "agenticos"},
+            context={"name": name, "login_url": login_url, "app_name": app_name},
         )
 
-    async def send_password_reset(self, *, to: str, name: str, reset_url: str) -> SendResult:
+    async def send_password_reset(
+        self, *, to: str, name: str, reset_url: str, app_name: str
+    ) -> SendResult:
         return await self.send(
             key=EmailKey.PASSWORD_RESET,
             to=to,
@@ -102,12 +117,12 @@ class EmailService:
                 "name": name,
                 "reset_url": reset_url,
                 "expires_in": "1 hour",
-                "app_name": "agenticos",
+                "app_name": app_name,
             },
         )
 
     async def send_invitation(
-        self, *, to: str, inviter_name: str, org_name: str, accept_url: str
+        self, *, to: str, inviter_name: str, org_name: str, accept_url: str, app_name: str
     ) -> SendResult:
         return await self.send(
             key=EmailKey.INVITATION,
@@ -116,7 +131,7 @@ class EmailService:
                 "inviter_name": inviter_name,
                 "org_name": org_name,
                 "accept_url": accept_url,
-                "app_name": "agenticos",
+                "app_name": app_name,
             },
         )
 
