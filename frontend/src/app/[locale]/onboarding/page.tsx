@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/states";
 import type { Locale } from "@/i18n";
 import { useBranding } from "@/components/branding/branding-provider";
 import { ROUTES } from "@/lib/constants";
+import { readBranding } from "@/lib/branding-server";
 import { pageMetadata } from "@/lib/seo";
 
 export async function generateMetadata({
@@ -17,7 +18,9 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const t = await getTranslations("pages.root");
   const { locale } = await params;
+  const { appName } = await readBranding();
   return pageMetadata({
+    brand: appName,
     title: t("onboardingTitle"),
     description: t("onboardingDescription"),
     path: "/onboarding",

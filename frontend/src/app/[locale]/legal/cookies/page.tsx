@@ -18,6 +18,7 @@ export async function generateMetadata({
   const { locale } = await params;
   const { appName } = await readBranding();
   return pageMetadata({
+    brand: appName,
     title: t("cookiePolicy"),
     description: t("cookiesDescription", { app: appName }),
     path: "/legal/cookies",

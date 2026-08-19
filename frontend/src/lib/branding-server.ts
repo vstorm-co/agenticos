@@ -18,6 +18,8 @@
  * this build ships with, and says so in the log rather than in the page.
  */
 
+import { cache } from "react";
+
 import {
   BUILT_IN_BRANDING,
   resolveBranding,
@@ -26,7 +28,14 @@ import {
 } from "@/lib/branding";
 import { backendFetch } from "@/lib/server-api";
 
-export async function readBranding(): Promise<Branding> {
+/**
+ * Memoized per request by `React.cache`, which is what makes it safe to call from
+ * wherever the answer is needed. The root layout already asks twice - once for its
+ * metadata and once for the body it wraps - and every page's `generateMetadata`
+ * asks again for the title template's brand. Without this that is a request per
+ * caller, on an endpoint deliberately marked `no-store`.
+ */
+export const readBranding = cache(async (): Promise<Branding> => {
   try {
     const data = await backendFetch<BrandingResponse>("/api/v1/branding", {
       // Never cached: an administrator renaming the deployment expects the next
@@ -39,4 +48,4 @@ export async function readBranding(): Promise<Branding> {
     console.warn("branding_read_failed", error);
     return BUILT_IN_BRANDING;
   }
-}
+});

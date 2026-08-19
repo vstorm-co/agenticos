@@ -18,6 +18,7 @@ export async function generateMetadata({
   const { locale } = await params;
   const { appName } = await readBranding();
   return pageMetadata({
+    brand: appName,
     title: t("termsOfService"),
     description: t("termsDescription", { app: appName }),
     path: "/legal/terms",
