@@ -47,7 +47,6 @@ export function PublishDialog({
   const t = useTranslations("agents");
   const tUi = useTranslations("ui");
   const defaultEnvironment = environments.find((environment) => environment.is_default);
-  const pinned = environments.filter((environment) => !environment.is_default);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -56,16 +55,25 @@ export function PublishDialog({
           <DialogDescription>{t("publishFreezesDraft", { version })}</DialogDescription>
         </DialogHeader>
         <div className="text-muted-foreground space-y-1.5 text-sm">
-          <p>
-            {defaultEnvironment
-              ? t("publishMovesDefault", { name: defaultEnvironment.name, version })
-              : t("publishFirstCreatesProduction", { version })}
-          </p>
-          {pinned.map((environment) => (
-            <p key={environment.id}>
-              {t("publishPinnedStays", { name: environment.name, version: environment.version })}
-            </p>
-          ))}
+          {/* Where this version lands, environment by environment. Publishing
+              mints a version and moves only what asked to be moved, so the one
+              question worth answering before the click is "what changes for
+              people using this agent" - and for most agents the answer is
+              nothing until somebody promotes. */}
+          {defaultEnvironment === undefined ? (
+            <p>{t("publishFirstCreatesProduction", { version })}</p>
+          ) : (
+            environments.map((environment) => (
+              <p key={environment.id}>
+                {environment.tracks_latest
+                  ? t("publishMovesFollower", { name: environment.name, version })
+                  : t("publishPinnedStays", {
+                      name: environment.name,
+                      version: environment.version,
+                    })}
+              </p>
+            ))
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={publishing}>

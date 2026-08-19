@@ -14,6 +14,9 @@ import {
   SelectValue,
   Switch,
 } from "@/components/ui";
+import { BrandIcon, type BrandName } from "@/components/icons/brand-icon";
+import { ProviderIcon } from "@/components/vault/provider-icon";
+import { BRAND_GLYPHS } from "@/lib/brand-glyphs.generated";
 import { cn } from "@/lib/utils";
 import type { JsonSchema, JsonSchemaProperty } from "@/types/agents";
 import { useTranslations } from "next-intl";
@@ -207,7 +210,14 @@ function SchemaField({
             )}
             {choices.map((choice) => (
               <SelectItem key={choice} value={choice}>
-                {enumLabel(property, choice)}
+                <span className="flex items-center gap-2">
+                  {/* The service's own mark, where the value names one. A list of
+                      search providers or model vendors is read by their logos
+                      before it is read at all, and the choice is the one thing
+                      on these forms that is a product rather than a setting. */}
+                  {choiceMark(choice)}
+                  {enumLabel(property, choice)}
+                </span>
               </SelectItem>
             ))}
           </SelectContent>
@@ -378,6 +388,28 @@ function defaultOf(property: JsonSchemaProperty): unknown {
 function numberText(value: unknown, fallback: unknown): string {
   const shown = value === undefined || value === null ? fallback : value;
   return typeof shown === "number" || typeof shown === "string" ? String(shown) : "";
+}
+
+/**
+ * The mark for one enum value, where the value names something with a logo.
+ *
+ * Two shapes reach here. A value that *is* a service - `brave`, `tavily` - wears
+ * that service's mark. A value that names a provider and a model - the image
+ * capability's `openai-responses:gpt-5.4` - wears the provider's, read off the
+ * segment before the colon, with the SDK's own transport suffixes trimmed:
+ * `openai-responses` and `google-vertex` are OpenAI and Google to a reader, and
+ * the provider table is keyed the way the model catalog is.
+ */
+function choiceMark(choice: string) {
+  if (choice in BRAND_GLYPHS) {
+    return <BrandIcon name={choice as BrandName} className="h-3.5 w-3.5 shrink-0" />;
+  }
+  const [head] = choice.split(":");
+  const provider = (head ?? "").replace(/-(responses|chat|vertex|gla)$/, "");
+  // Unequal only when there was a colon to split on: a value with none is a
+  // plain choice and wears nothing.
+  if (provider === choice) return null;
+  return <ProviderIcon provider={provider} className="h-3.5 w-3.5" />;
 }
 
 /**

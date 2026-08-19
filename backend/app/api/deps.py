@@ -944,6 +944,16 @@ def get_admin_service(db: DBSession) -> AdminService:
 
 
 AdminSvc = Annotated[AdminService, Depends(get_admin_service)]
+from app.services.deployment_settings import DeploymentSettingsService
+
+
+def get_deployment_settings_service(db: DBSession) -> DeploymentSettingsService:
+    return DeploymentSettingsService(db)
+
+
+DeploymentSettingsSvc = Annotated[
+    DeploymentSettingsService, Depends(get_deployment_settings_service)
+]
 from app.services.mcp_connection import McpConnectionService
 
 

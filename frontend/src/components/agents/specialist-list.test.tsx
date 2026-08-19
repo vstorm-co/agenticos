@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
@@ -276,8 +276,11 @@ describe("what a specialist can do", () => {
       specialists: [specialist({ capabilities: [bound("charts")] })],
     });
 
+    // Settings and Tools are two tabs on that panel, so the tool is one click in -
+    // the same panel a parent's own capability gets, tabs and all.
     const panel = screen.getByRole("group", { name: "Charts" });
     expect(within(panel).getByLabelText("Human approval")).toBeVisible();
+    fireEvent.mouseDown(within(panel).getByRole("tab", { name: "Tools" }));
     expect(within(panel).getByText("create_chart")).toBeVisible();
   });
 

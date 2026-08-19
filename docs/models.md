@@ -156,17 +156,56 @@ time.
 
 The model-id field is populated from two sources, in this order.
 
-**Live.** Ten providers publish a list endpoint and it is the only source that
+**Live.** Twenty providers publish a list endpoint, and it is the only source that
 knows about a model released this morning: `anthropic`, `openai`, `google`,
-`openrouter`, `groq`, `mistral`, `together`, `cohere`, `deepseek`, `xai`. The
-response shapes disagree — the array sits at `data`, at `models` or at the document
-root; the id is `id`, `name` or `model`; Gemini prefixes it with `models/` — so
-each is described by data rather than by a branch. Cached in-process for an hour;
-these lists move on the order of weeks.
+`openrouter`, `groq`, `mistral`, `together`, `cohere`, `deepseek`, `xai`,
+`sambanova`, `vercel`, `ovhcloud`, `huggingface`, `cerebras`, `fireworks`,
+`nebius`, `moonshotai`, `zai`, `alibaba`. The response shapes disagree — the array
+sits at `data`, at `models` or at the document root; the id is `id`, `name` or
+`model`; Gemini prefixes it with `models/` — so each is described by data rather
+than by a branch. Cached in-process for an hour; these lists move on the order of
+weeks.
 
-**Curated.** A short hand-kept list per provider, used when the provider publishes
-nothing, when the call fails, or when there is no key to make it with. Deliberately
-small — the five or six somebody would actually pick, not a mirror of a catalog:
+**Five of them need no credential at all** — `openrouter`, `sambanova`, `vercel`,
+`ovhcloud` and `huggingface` — which is what makes them worth having: the picker
+fills in before anybody has stored a key for that provider. The other fifteen are
+asked with the organization's own key when there is one.
+
+Six providers still publish nothing this can read: `github` (its catalog path is
+gone), `heroku`, `azure`, `bedrock`, `google_cloud` and a `litellm` proxy, whose
+list is whatever the deployment put behind it. `ollama` answers on the deployment's
+own network rather than at a fixed host, so it is not listed here either.
+
+**What a model emits, where the provider says so.** `openrouter` and the Hugging
+Face router both carry `architecture.output_modalities`, and a listing entry may
+name that path; nobody else states it. An empty list means *not stated*, never
+"text only" — a client filtering on it must treat absence as unknown, or it hides
+models that work. It is metadata a client may narrow on; it is *not* how the image
+capability picks its models, which is a catalog file plus the SDK's own answer about
+which providers can draw at all — see
+[Image generation](reference/capabilities.md#image-generation).
+
+**Curated.** A short list per provider, used when the provider publishes nothing,
+when the call fails, or when there is no key to make it with. It lives in
+`backend/app/core/catalog/model_fallbacks.json` beside the other deployment
+catalogs, so adding a model is one entry rather than a Python edit — and the
+listings themselves are `model_listings.json` in the same directory, which is what
+makes a new provider's endpoint data too.
+
+Deliberately short, and deliberately *not* taken from `genai-prices`, which is
+already a dependency and does list models. It is a **price** dataset: it carries
+`ada` and `babbage` under OpenAI, `claude-2` under Anthropic, 690 rows under
+OpenRouter, and it marks almost nothing deprecated — sorted alphabetically, the
+first thing a picker would offer for OpenAI is `ada`. A short current list beats a
+long misleading one.
+
+What the library *is* used for is the half that rots. **Every context length comes
+from the snapshot at read time**, so no window is written down here; two that were
+had already gone stale, one of them recorded twice with two different figures. And
+a curated id the snapshot has never heard of fails the test suite, which is how a
+typo or a retired model is caught rather than shipped as a dropdown the provider
+answers 404 to. A model the snapshot knows but does not price simply has no window,
+which is the null the paragraph below describes.
 
 | Provider | Curated ids |
 |---|---|

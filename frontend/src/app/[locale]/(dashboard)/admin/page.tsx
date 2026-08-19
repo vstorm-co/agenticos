@@ -103,12 +103,6 @@ export default function AdminOverviewPage() {
           description={t("everyTenantDeploymentOnly")}
         />
         <QuickLink
-          href={ROUTES.ADMIN_CONVERSATIONS}
-          icon={MessageSquare}
-          title={t("browseChats")}
-          description={t("allConversationsAcrossUsers")}
-        />
-        <QuickLink
           href={ROUTES.ADMIN_SYSTEM}
           icon={Activity}
           title={t("systemHealth")}

@@ -1,12 +1,14 @@
 "use client";
 
 /**
- * The pieces a skill's file view is made of: the tree, the pane that reads one
- * file, and the two ways to add more.
+ * The pieces a skill's file view is made of: the tree, what fetches one file
+ * into the shared editor, and the two ways to add more.
  *
  * They live apart from the editor that arranges them because the arrangement is
  * the thing that changed - the body and the files were two stacked panels with
- * a footer between them, and they are one skill. See `SkillWorkbench`.
+ * a footer between them, and they are one skill. See `SkillWorkbench`. The pane
+ * itself is `FileEditor` in `components/files`: a named draft, rendered by
+ * default and editable behind a toggle, is not a skills idea.
  *
  * Names are paths and always were, so the tree is derived rather than stored:
  * a folder is a prefix some file has, which makes an empty one impossible. That
@@ -15,22 +17,12 @@
  */
 
 import { useState } from "react";
-import {
-  ChevronRight,
-  Code2,
-  Eye,
-  FileText,
-  Folder,
-  FolderOpen,
-  Trash2,
-  Upload,
-} from "lucide-react";
+import { ChevronRight, FileText, Folder, FolderOpen, Upload } from "lucide-react";
 
-import { FileTextView } from "@/components/files";
+import { FileEditor } from "@/components/files";
 import { Button, Input, Label, Textarea } from "@/components/ui";
 import { useSkillResource } from "@/hooks";
 import type { TreeNode } from "@/lib/file-tree";
-import { resolveFileKind } from "@/lib/file-kinds";
 import { cn } from "@/lib/utils";
 import type { SkillResourceSummary } from "@/types/providers";
 import { useTranslations } from "next-intl";
@@ -147,11 +139,11 @@ function TreeLevel({
 }
 
 /**
- * One file: what it says, and what it is.
+ * One of a skill's files, fetched and handed to the shared editor.
  *
- * Rendered by default and editable behind a toggle, because these are read far
- * more often than they are written - and a Markdown reference read as raw
- * asterisks is the thing this pane exists to stop.
+ * The draft is held here rather than in the pane, so Save and Discard know
+ * whether anything was typed. A resource's content is not in the listing, which
+ * is why this exists at all and the skill's own body does not need it.
  */
 export function FilePane({
   skillId,
@@ -176,7 +168,7 @@ export function FilePane({
   const dirty = draft !== null && draft !== loaded?.content;
 
   return (
-    <FileViewer
+    <FileEditor
       name={resource.name}
       content={value}
       loading={isLoading || loaded === undefined}
@@ -205,126 +197,6 @@ export function FilePane({
         ) : null
       }
     />
-  );
-}
-
-/**
- * A named piece of text, read or edited, filling whatever it is given.
- *
- * Presentational on purpose: the skill's own body is one of these and is not
- * fetched, so the thing that reads a file and the thing that renders one had to
- * come apart. It is also what lets `SKILL.md` have the preview toggle every
- * other Markdown file here has - it is Markdown, and reading it as raw
- * asterisks was the odd one out.
- */
-export function FileViewer({
-  name,
-  content,
-  loading,
-  canEdit,
-  onChange,
-  onDelete,
-  footer,
-  header,
-}: {
-  name: string;
-  content: string;
-  loading?: boolean;
-  canEdit: boolean;
-  /** Absent for a read-only viewer - there is nothing for it to be called with. */
-  onChange?: (next: string) => void;
-  onDelete?: () => void;
-  footer?: React.ReactNode;
-  /** Anything the owner wants above the content - the body's own fields. */
-  header?: React.ReactNode;
-}) {
-  const t = useTranslations("skills");
-  const tc = useTranslations("common");
-  const [mode, setMode] = useState<"preview" | "source">("preview");
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col rounded-md border">
-      <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
-        <span className="min-w-0 flex-1 truncate font-mono text-xs">{name}</span>
-        <div className="flex items-center gap-0.5 rounded-md border p-0.5">
-          <ModeButton
-            icon={Eye}
-            label={t("preview")}
-            active={mode === "preview"}
-            onClick={() => setMode("preview")}
-          />
-          <ModeButton
-            icon={Code2}
-            label={t("source")}
-            active={mode === "source"}
-            onClick={() => setMode("source")}
-          />
-        </div>
-        {onDelete && canEdit && (
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={tc("removeNamed", { name })}
-            onClick={onDelete}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        )}
-      </div>
-
-      {header && <div className="space-y-1.5 border-b px-3 py-2">{header}</div>}
-
-      <div className="min-h-0 flex-1 overflow-auto p-3">
-        {loading ? (
-          <p className="text-muted-foreground text-xs">{t("loading")}</p>
-        ) : mode === "source" ? (
-          // Fills the pane rather than sitting in it: a fixed-row box inside a
-          // tall panel leaves the text in a letterbox with dead space under it.
-          <Textarea
-            value={content}
-            onChange={(event) => onChange?.(event.target.value)}
-            readOnly={!canEdit}
-            className="h-full min-h-[16rem] resize-none font-mono text-xs"
-            aria-label={t("namedSource", { name })}
-          />
-        ) : (
-          // The shared renderer, which is what makes a skill's `references/api.md`
-          // read the same as the same file in a workspace. It is `FileTextView` and
-          // not the viewer above it because there is nothing to fetch: the content is
-          // a draft somebody may be halfway through editing.
-          <FileTextView kind={resolveFileKind(name)} name={name} text={content} />
-        )}
-      </div>
-
-      {footer && <div className="flex items-center gap-2 border-t px-3 py-2">{footer}</div>}
-    </div>
-  );
-}
-
-function ModeButton({
-  icon: Icon,
-  label,
-  active,
-  onClick,
-}: {
-  icon: typeof Eye;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "inline-flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors",
-        active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
-      )}
-    >
-      <Icon className="h-3 w-3" />
-      {label}
-    </button>
   );
 }
 

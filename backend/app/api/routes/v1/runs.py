@@ -10,8 +10,16 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
-from app.api.deps import AgentRunnerSvc, ApprovalSvc, Auth, RunExportSvc, require
+from app.api.deps import (
+    AgentRunnerSvc,
+    ApprovalSvc,
+    Auth,
+    FileUploadSvc,
+    RunExportSvc,
+    require,
+)
 from app.api.responses import csv_response
+from app.api.routes.v1._chat_file_bytes import chat_file_response
 from app.core.permissions import Perm
 from app.db.models.agent_run import (
     ApprovalStatus,
@@ -35,6 +43,7 @@ from app.schemas.agent_run import (
     RunTranscript,
     RunTranscriptMessage,
 )
+from app.schemas.run_manifest import RunManifestRead
 
 router = APIRouter()
 
@@ -275,6 +284,65 @@ async def get_run_transcript(
             for m in messages
         ],
         total=total,
+    )
+
+
+@router.get("/runs/{run_id}/files/{file_id}", response_model=None)
+async def get_run_attachment(
+    run_id: UUID,
+    file_id: UUID,
+    service: AgentRunnerSvc,
+    file_upload_svc: FileUploadSvc,
+    ctx: Auth,
+    disposition: str = Query("inline", description="`attachment` forces a download dialog"),
+) -> Any:
+    """One file that arrived with a turn of this run.
+
+    `GET /files/{id}` is scoped to whoever uploaded it, which is the wrong scope
+    here: reading a run is the organization's right rather than its starter's, so
+    the attachment cards on a colleague's transcript rendered and every preview
+    answered 404 - on the surface whose whole job is to say what reached the
+    model. "The agent answered badly" and "the agent was handed a scan with no
+    text layer" are the same transcript until somebody can open the file.
+
+    No `require(...)` gate, for the reason the transcript route has none: the
+    decision belongs to the service, which resolves the run against the caller's
+    organization, checks `runs:view`, and then admits the file only where it hangs
+    on a turn of the run's own conversation - the same reach the transcript
+    grants, and no wider.
+    """
+    chat_file = await service.get_run_attachment(ctx, run_id, file_id)
+    return chat_file_response(file_upload_svc, chat_file, disposition=disposition)
+
+
+@router.get("/runs/{run_id}/manifest", response_model=RunManifestRead)
+async def get_run_manifest(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
+    """What this run actually handed its model.
+
+    The instructions as composed and sent, every tool as the provider was told
+    about it - name, description and argument schema - the settings, one entry
+    per model request with what it cost in time and tokens, and the last
+    request's messages. Recorded from the wire as the run happened, because none
+    of it is derivable afterwards: the prompt is the spec's text plus the
+    platform's plus a binding's plus the bound skills', and the tool list is the
+    registry plus the organization's MCP servers minus whatever tool search
+    hid.
+
+    No `require(...)` gate, for the reason the transcript route has none:
+    reading a run is authorized rather than owned, so the decision belongs to the
+    service, which resolves the run against the caller's organization and then
+    checks `runs:view`. A run in another tenant reads as absent.
+
+    404 for a run that recorded nothing - one refused before it reached a model,
+    or one that ran before this was recorded. An empty document would claim the
+    agent was given no prompt and no tools.
+    """
+    manifest = await service.get_run_manifest(ctx, run_id)
+    return RunManifestRead(
+        run_id=manifest.run_id,
+        recorded_at=manifest.created_at,
+        truncated=manifest.truncated,
+        **manifest.payload,
     )
 
 

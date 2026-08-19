@@ -9,7 +9,6 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { GET as conversationDetail } from "./conversations/[id]/route";
 import { GET as conversations } from "./conversations/route";
 import { GET as organizations } from "./organizations/route";
 import { GET as ratingsSummary } from "./ratings/summary/route";
@@ -47,10 +46,6 @@ function forwarded(nth = 0): string {
  */
 const GUARDED: [string, () => Promise<Response>][] = [
   ["conversations", () => conversations(request())],
-  [
-    "one conversation",
-    () => conversationDetail(request(), { params: Promise.resolve({ id: "c-1" }) }),
-  ],
   ["organizations", () => organizations(request())],
   ["a ratings summary", () => ratingsSummary(request())],
   ["stats", () => stats(request())],
@@ -148,38 +143,23 @@ describe("the admin gate", () => {
 });
 
 describe("what the admin screens filter on", () => {
-  it("carries every conversation filter, and drops the ones nobody set", async () => {
+  it("carries what the user drawer asks for, and nothing the browser used to", async () => {
+    // The deployment-wide conversation browser is gone; the drawer's
+    // recent-threads list is the one caller left, and it sends three
+    // parameters. An allowlist that forwards what nothing sends is a contract
+    // nobody can read.
     await conversations(
       request(
-        "http://localhost:3000/api/admin/conversations?skip=20&limit=10&search=refund&user_id=u-1&agent_id=a-1&status=archived&sort_by=updated_at&sort_dir=asc",
+        "http://localhost:3000/api/admin/conversations?user_id=u-1&skip=20&limit=10&search=refund&status=archived",
       ),
     );
 
     const path = forwarded();
-    for (const expected of [
-      "skip=20",
-      "limit=10",
-      "search=refund",
-      "user_id=u-1",
-      "agent_id=a-1",
-      "status=archived",
-      "sort_by=updated_at",
-      "sort_dir=asc",
-    ]) {
+    for (const expected of ["user_id=u-1", "skip=20", "limit=10"]) {
       expect(path).toContain(expected);
     }
-  });
-
-  it("forwards nothing at all when nothing was filtered", async () => {
-    await conversations(request("http://localhost:3000/api/admin/conversations"));
-
-    expect(forwarded()).toBe("/api/v1/admin/conversations");
-  });
-
-  it("addresses one conversation by id", async () => {
-    await conversationDetail(request(), { params: Promise.resolve({ id: "c-9" }) });
-
-    expect(forwarded()).toBe("/api/v1/admin/conversations/c-9");
+    expect(path).not.toContain("search");
+    expect(path).not.toContain("status");
   });
 
   it("carries every user-list filter, sort included", async () => {

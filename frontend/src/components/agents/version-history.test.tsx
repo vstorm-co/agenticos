@@ -22,12 +22,37 @@ import type { AgentEnvironment, AgentSpec, AgentVersion } from "@/types/agents";
 /** What `useAgentVersion` answers, keyed by the version id asked for. */
 const specs = new Map<string, AgentSpec>();
 const loading = { value: false };
+/** What the list itself is served - it pages, so it fetches rather than
+ *  being handed rows. `skip` is recorded so a test can assert the pager. */
+const served: { versions: AgentVersion[]; total: number; asked: number[] } = {
+  versions: [],
+  total: 0,
+  asked: [],
+};
 
 vi.mock("@/hooks", () => ({
   useAgentVersion: (_agentId: string | null, versionId: string | null) => ({
     version: versionId && specs.has(versionId) ? { spec: specs.get(versionId) } : undefined,
     isLoading: loading.value,
   }),
+  useAgentVersions: (agentId: string | null, options?: { skip?: number; limit?: number }) => {
+    // The paged list. The comparison picker is `useAllAgentVersions` below, which
+    // walks every page rather than trusting one capped request - a picker offering
+    // the newest fifty of sixty hides the version somebody is looking for.
+    if (agentId === null) return { versions: [], total: 0, isLoading: false };
+    served.asked.push(options?.skip ?? 0);
+    const skip = options?.skip ?? 0;
+    return {
+      versions: served.versions.slice(skip, skip + 10),
+      total: served.total,
+      isLoading: loading.value,
+    };
+  },
+  useAllAgentVersions: (agentId: string | null) =>
+    agentId === null
+      ? { versions: [], total: 0, isLoading: false }
+      : { versions: served.versions, total: served.total, isLoading: false },
+  VERSIONS_PAGE_SIZE: 10,
 }));
 
 function spec(overrides: Partial<AgentSpec> = {}): AgentSpec {
@@ -62,16 +87,26 @@ function environment(name: string, versionId: string, versionNumber: number): Ag
     version_id: versionId,
     version: versionNumber,
     is_default: name === "production",
+    tracks_latest: false,
+    behind_by: 0,
   } as AgentEnvironment;
 }
 
-function mount(props: Partial<Parameters<typeof VersionHistory>[0]> = {}) {
+function mount({
+  versions = [version(2), version(1)],
+  total,
+  ...props
+}: Partial<Parameters<typeof VersionHistory>[0]> & {
+  versions?: AgentVersion[];
+  total?: number;
+} = {}) {
+  served.versions = versions;
+  served.total = total ?? versions.length;
   const onRestore = vi.fn();
   const onPromote = vi.fn();
   render(
     <VersionHistory
       agentId="a-1"
-      versions={[version(2), version(1)]}
       currentVersionId="v2-id"
       draftSpec={spec()}
       canRestore
@@ -84,6 +119,9 @@ function mount(props: Partial<Parameters<typeof VersionHistory>[0]> = {}) {
 }
 
 beforeEach(() => {
+  served.versions = [];
+  served.total = 0;
+  served.asked = [];
   specs.clear();
   specs.set("v1-id", spec({ instructions: "Be terse." }));
   specs.set("v2-id", spec());
@@ -351,5 +389,59 @@ describe("the diff", () => {
     // The gap row says how many lines it stands for rather than hiding them
     // silently.
     expect(screen.getByText(/unchanged lines?/)).toBeInTheDocument();
+  });
+});
+
+describe("a history longer than a page", () => {
+  const many = Array.from({ length: 14 }, (_, index) => version(14 - index));
+
+  it("offers no pager for a history that fits", () => {
+    // Four versions is not a paged list, and a pager under it is furniture.
+    mount({ versions: [version(2), version(1)], total: 2 });
+
+    expect(screen.queryByRole("button", { name: /next/i })).toBeNull();
+  });
+
+  it("pages, and asks the server for the page rather than slicing one it has", () => {
+    // The listing was capped at fifty with no offset and reported the cap as
+    // the total, so a longer history had versions nothing could reach.
+    mount({ versions: many, total: 14 });
+
+    expect(screen.getByText("Change 14")).toBeInTheDocument();
+    expect(screen.queryByText("Change 4")).toBeNull();
+    expect(served.asked).toContain(0);
+  });
+
+  it("waits rather than saying an agent was never published", async () => {
+    // The two are opposite claims about the same empty list, and the
+    // reassuring one is the wrong default while a request is in flight.
+    loading.value = true;
+    mount({ versions: [], total: 0 });
+
+    expect(screen.queryByText("Never published.")).toBeNull();
+    loading.value = false;
+  });
+
+  it("aims the comparison at the newest version, once, and leaves it there", async () => {
+    // Adopted from the first page when it arrives - and only while nothing else
+    // has been picked, because paging must not silently re-aim a comparison.
+    mount({ versions: many, total: 14 });
+
+    expect(screen.getByLabelText("Compare from")).toHaveTextContent("v14");
+
+    await userEvent.click(screen.getByRole("button", { name: "Compare v13" }));
+    expect(screen.getByLabelText("Compare from")).toHaveTextContent("v13");
+  });
+
+  it("keeps a comparison the reader set up when the page turns", async () => {
+    mount({ versions: many, total: 14 });
+    await userEvent.click(screen.getByRole("button", { name: "Compare v12" }));
+
+    await userEvent.click(screen.getByRole("button", { name: /next/i }));
+
+    // Paging must not silently re-aim the diff at whatever is newest on the
+    // page that just arrived.
+    expect(served.asked).toContain(10);
+    expect(screen.getByLabelText("Compare from")).toHaveTextContent("v12");
   });
 });

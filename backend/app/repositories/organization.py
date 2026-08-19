@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.permissions import OrgRoleName
 from app.db.models.organization import Organization, OrganizationMember
 
 
@@ -158,6 +159,22 @@ async def set_avatar_color(
 async def delete(db: AsyncSession, org: Organization) -> None:
     await db.delete(org)
     await db.flush()
+
+
+async def count_owned_by(db: AsyncSession, user_id: UUID) -> int:
+    """How many organizations this account owns, personal one included.
+
+    Owned rather than joined: being invited into ten organizations is somebody
+    else's decision, and a ceiling one person cannot control is a ceiling that
+    locks them out of creating their own.
+    """
+    result = await db.execute(
+        select(func.count(OrganizationMember.id)).where(
+            OrganizationMember.user_id == user_id,
+            OrganizationMember.role == OrgRoleName.OWNER.value,
+        )
+    )
+    return result.scalar() or 0
 
 
 async def count_members(db: AsyncSession, org_id: UUID) -> int:

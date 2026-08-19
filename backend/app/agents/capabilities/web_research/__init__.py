@@ -44,6 +44,19 @@ class WebResearchConfig(BaseModel):
             "brave: an index of its own. "
             "exa: search by meaning rather than keywords."
         ),
+        # The services' own names. Without these the picker offered `duckduckgo`
+        # and `exa` in the case the value is stored in, which reads as a config
+        # key somebody has to recognise rather than as a product they can choose;
+        # the console draws each one's mark beside the label it finds here.
+        json_schema_extra={
+            "x-enum-labels": {
+                "duckduckgo": "DuckDuckGo",
+                "native": "The model provider's own search",
+                "tavily": "Tavily",
+                "brave": "Brave",
+                "exa": "Exa",
+            }
+        },
     )
     max_results: int = Field(
         default=5,

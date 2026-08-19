@@ -19,9 +19,11 @@ from app.db.updates import writable
 from app.repositories import session_repo, user_repo
 from app.schemas.conversation_share import AdminUserList, AdminUserRead
 from app.schemas.user import UserCreate, UserUpdate
+from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
 from app.services.file_storage import get_file_storage
 from app.services.organization import OrganizationService
+from app.services.signup_policy import check_may_register
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +94,18 @@ class UserService:
         return AdminUserList(items=items, total=total)
 
     async def register(self, user_in: UserCreate) -> User:
-        """The first user to register is auto-promoted to app-admin - no separate CLI step needed."""
+        """The first user to register is auto-promoted to app-admin - no separate CLI step needed.
+
+        Gated on this deployment's sign-up policy, which is why the check sits after
+        the duplicate-address one: an address that already has an account is told
+        so whatever the policy says, and a closed deployment is not a way to find
+        out who is registered.
+
+        `invitation_token` is passed through and nothing here reads it: it admits an
+        address the policy would otherwise refuse, and joining the organization is
+        still a separate `InvitationService.accept` the client makes once it has a
+        session. Registering with a token does *not* accept the invitation.
+        """
         existing = await user_repo.get_by_email(self.db, user_in.email)
         if existing:
             raise AlreadyExistsError(
@@ -101,6 +114,12 @@ class UserService:
             )
 
         is_first_user = await self._is_first_user()
+        await check_may_register(
+            self.db,
+            email=user_in.email,
+            is_first_user=is_first_user,
+            invitation_token=user_in.invitation_token,
+        )
 
         hashed_password = get_password_hash(user_in.password)
         user = await user_repo.create(
@@ -118,6 +137,7 @@ class UserService:
                 to=user.email,
                 name=user.full_name or user.email,
                 login_url=login_url,
+                app_name=await DeploymentSettingsService(self.db).effective_app_name(),
             )
         except Exception:
             logger.exception(
@@ -133,8 +153,19 @@ class UserService:
         provider_id: str,
         email: str,
         full_name: str | None = None,
+        invitation_token: str | None = None,
     ) -> User:
-        """Email-matched existing accounts get the OAuth identity attached rather than creating a duplicate."""
+        """Email-matched existing accounts get the OAuth identity attached rather than creating a duplicate.
+
+        `invitation_token` is the one the sign-in was started with, carried through
+        the provider round trip in the session. It admits an address the policy
+        would otherwise refuse and nothing else: joining the organization is still a
+        separate `InvitationService.accept`. Without it an `invite_only` deployment
+        refused the Google button for precisely the invitations that need a token -
+        a link constraining neither an address nor a domain, which the address-based
+        fallback cannot see - so one person could register with a password and not
+        with the provider offered beside it.
+        """
         existing = await user_repo.get_by_oauth(self.db, provider, provider_id)
         if existing:
             return existing
@@ -147,6 +178,17 @@ class UserService:
                 update_data={"oauth_provider": provider, "oauth_id": provider_id},
             )
             return by_email
+
+        # The second path that mints an account, and the reason the policy is not
+        # simply a check inside `register`: a deployment with Google sign-in and a
+        # closed sign-up form is not closed at all if this branch is ungated, and
+        # nothing about the OAuth callback looks like a registration.
+        await check_may_register(
+            self.db,
+            email=email,
+            is_first_user=await self._is_first_user(),
+            invitation_token=invitation_token,
+        )
 
         user = await user_repo.create(
             self.db,
@@ -164,6 +206,7 @@ class UserService:
                 to=user.email,
                 name=user.full_name or user.email,
                 login_url=login_url,
+                app_name=await DeploymentSettingsService(self.db).effective_app_name(),
             )
         except Exception:
             logger.exception(

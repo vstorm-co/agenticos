@@ -51,7 +51,7 @@ export function AgentsAdoptionWidget({
                       name={row.name}
                       hasAvatar={hasAvatar.get(row.agent_id) ?? false}
                       size="sm"
-                      className="size-4 text-[8px]"
+                      className="h-5 w-5"
                     />
                   ),
                 }))}

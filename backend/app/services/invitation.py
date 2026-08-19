@@ -16,6 +16,7 @@ from app.core.exceptions import (
 from app.core.permissions import OrgRoleName, Perm, role_has
 from app.db.models.organization import Invitation, InvitationStatus, OrgRole
 from app.repositories import invitation_repo, member_repo, organization_repo, user_repo
+from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
 
 logger = logging.getLogger(__name__)
@@ -98,6 +99,7 @@ class InvitationService:
                 else "A team member",
                 org_name=org.name if org else "the organization",
                 accept_url=accept_url,
+                app_name=await DeploymentSettingsService(self.db).effective_app_name(),
             )
         except Exception:
             logger.exception("email_invitation_failed")
@@ -200,7 +202,15 @@ class InvitationService:
             # A link. Its guards are its own: how many people it admits, and
             # whose addresses. Checked here rather than at creation because both
             # are questions about the person arriving, not about the link.
-            if invite.max_uses is not None and invite.used_count >= invite.max_uses:
+            # Counting reservations too, minus this person's own: a use held for
+            # somebody who registered under the link is spent, and a use held *for
+            # them* must not refuse the acceptance it was reserved for.
+            held = [
+                address
+                for address in invite.reserved_emails
+                if address != accepting_user.email.lower()
+            ]
+            if invite.max_uses is not None and invite.used_count + len(held) >= invite.max_uses:
                 raise BadRequestError(message="This invite link has been used up")
             if invite.email_domain and not accepting_user.email.lower().endswith(
                 f"@{invite.email_domain}"
@@ -236,7 +246,11 @@ class InvitationService:
             # A link stays open for the next person; an email invitation is
             # spent. Marking a link accepted on its first use would make it a
             # one-shot URL that looked like a link.
-            await invitation_repo.record_use(self.db, invite)
+            #
+            # The address releases whatever reservation it made when it registered,
+            # in the same step - so the use a registration held becomes the use this
+            # acceptance counts rather than a second one.
+            await invitation_repo.record_use(self.db, invite, email=accepting_user.email)
         else:
             await invitation_repo.accept(self.db, invite, accepted_by_user_id=accepting_user_id)
         logger.info(

@@ -10,7 +10,7 @@ member's request reaches.
 import logging
 from collections.abc import Sequence
 from datetime import UTC, datetime
-from typing import Any, Final, Literal
+from typing import Any
 from uuid import UUID
 
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
@@ -40,23 +40,6 @@ from app.services.channels import membership as channel_membership
 from app.services.message_history import HistoryMessage, build_message_history
 
 logger = logging.getLogger(__name__)
-
-UNSCOPED: Final = "unscoped"
-"""Read this conversation without a tenant predicate, on purpose.
-
-`organization_id` used to default to `None` on the methods below, and `None`
-meant unscoped. Two routes serving ordinary members simply omitted it, and any
-signed-in user could read and append to any conversation in the deployment.
-An omission cannot express intent; this can, and `rg UNSCOPED` lists every
-place that claims it.
-
-There is one caller, `/admin/conversations/{id}`, which exists to read across
-tenants and is gated on `CurrentAppAdmin`. Anything serving an ordinary member
-passes the active organization.
-"""
-
-type OrgScope = UUID | Literal["unscoped"]
-"""A tenant to check against, or an explicit refusal to check one."""
 
 
 def _file_uuids(file_ids: Sequence[str]) -> tuple[list[UUID], list[str]]:
@@ -511,50 +494,6 @@ class ConversationService:
         await conversation_repo.delete_conversation(self.db, db_conversation=conversation)
         return True
 
-    async def get_conversation_with_messages(
-        self,
-        conversation_id: UUID,
-        *,
-        organization_id: OrgScope,
-    ) -> Conversation:
-        """A transcript, tenant-checked unless the caller passes `UNSCOPED`.
-
-        Required rather than defaulted: the default was `None`, `None` meant
-        unscoped, and omitting an argument is indistinguishable from intending
-        to omit it. See `UNSCOPED`.
-        """
-        return await self._resolve(
-            conversation_id, organization_id=organization_id, include_messages=True
-        )
-
-    async def _resolve(
-        self,
-        conversation_id: UUID,
-        *,
-        organization_id: OrgScope,
-        include_messages: bool = False,
-        user_id: UUID | None = None,
-        for_write: bool = False,
-    ) -> Conversation:
-        """Load one conversation, skipping the tenant check only for `UNSCOPED`."""
-        if organization_id != UNSCOPED:
-            return await self.get_conversation(
-                conversation_id,
-                organization_id=organization_id,
-                include_messages=include_messages,
-                user_id=user_id,
-                for_write=for_write,
-            )
-        conversation = await conversation_repo.get_conversation_by_id(
-            self.db, conversation_id, include_messages=include_messages
-        )
-        if not conversation:
-            raise NotFoundError(
-                message="Conversation not found",
-                details={"conversation_id": str(conversation_id)},
-            )
-        return conversation
-
     async def get_message(self, message_id: UUID) -> Message:
         message = await conversation_repo.get_message_by_id(self.db, message_id)
         if not message:
@@ -570,7 +509,7 @@ class ConversationService:
         *,
         skip: int = 0,
         limit: int = 100,
-        organization_id: OrgScope,
+        organization_id: UUID,
         include_tool_calls: bool = False,
         user_id: UUID | None = None,
     ) -> tuple[list[Message | MessageRead], int]:
@@ -586,7 +525,9 @@ class ConversationService:
         reader's rating - a second job for one argument, and the reason its
         authorizing half was missed for so long.
         """
-        await self._resolve(conversation_id, organization_id=organization_id, user_id=user_id)
+        await self.get_conversation(
+            conversation_id, organization_id=organization_id, user_id=user_id
+        )
         items = await conversation_repo.get_messages_by_conversation(
             self.db,
             conversation_id,
@@ -624,7 +565,7 @@ class ConversationService:
         self,
         conversation_id: UUID,
         *,
-        organization_id: OrgScope,
+        organization_id: UUID,
         user_id: UUID | None = None,
     ) -> ConversationCost | None:
         """What this whole thread has cost, or `None` where nothing was measured.
@@ -637,7 +578,9 @@ class ConversationService:
         client adding up what it was handed would answer "the first hundred
         turns" while the label says "this conversation".
         """
-        await self._resolve(conversation_id, organization_id=organization_id, user_id=user_id)
+        await self.get_conversation(
+            conversation_id, organization_id=organization_id, user_id=user_id
+        )
         totals = await conversation_repo.conversation_cost(self.db, conversation_id)
         if totals is None:
             return None
@@ -654,16 +597,19 @@ class ConversationService:
         conversation_id: UUID,
         data: MessageCreate,
         *,
-        organization_id: OrgScope,
+        organization_id: UUID,
         user_id: UUID | None = None,
         run_id: UUID | None = None,
     ) -> Message:
         """Append one message into a conversation in `organization_id`.
 
-        Required, and for the sharper reason: this writes. Unscoped, any
-        signed-in caller could append a turn - including one with
+        Required, and for the sharper reason: this writes. Without a tenant,
+        any signed-in caller could append a turn - including one with
         `role: "assistant"` - to any conversation in the deployment, and it
-        would render to its owner as the agent's own words. See `UNSCOPED`.
+        would render to its owner as the agent's own words. That is not a
+        possibility any more: the tenant is a `UUID` on every read and write
+        here, and the sentinel that used to spell "no tenant check, on purpose"
+        went with the deployment-wide conversation browser, its only caller.
 
         `user_id` narrows that to the owner, somebody the conversation was
         shared with or, on a thread with no owner, somebody who spoke in it -
@@ -685,7 +631,7 @@ class ConversationService:
         user saying "this thread is finished", and a message appended afterwards
         would silently reopen it.
         """
-        conversation = await self._resolve(
+        conversation = await self.get_conversation(
             conversation_id, organization_id=organization_id, user_id=user_id, for_write=True
         )
         if conversation.is_archived:

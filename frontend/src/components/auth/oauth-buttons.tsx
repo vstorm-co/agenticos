@@ -33,19 +33,32 @@ interface OAuthButtonsProps {
   next?: string;
   /** Override label suffix when used in register page. */
   variant?: "signin" | "signup";
+  /**
+   * The invitation this page was reached with, carried to the provider.
+   *
+   * On an `invite_only` deployment the token is what admits an address nothing else
+   * recognises - a shareable link constraining neither an address nor a domain -
+   * and without it the provider button refused exactly the people the link was
+   * posted for, while the password form beside it accepted them. The backend takes
+   * it off the query here and holds it in the session across the round trip.
+   */
+  invitation?: string | null;
 }
 
-function OAuthButtons({ next, variant = "signin" }: OAuthButtonsProps) {
+function OAuthButtons({ next, variant = "signin", invitation }: OAuthButtonsProps) {
   const t = useTranslations("auth");
   const providers = readProviders();
   if (providers.length === 0) return null;
 
+  const query = new URLSearchParams();
+  if (next) query.set("next", next);
+  if (invitation) query.set("invitation", invitation);
+  const search = query.size > 0 ? `?${query.toString()}` : "";
+
   return (
     <div className="space-y-2.5">
       {providers.map((provider) => {
-        const url = `${BACKEND_URL}/api/v1/oauth/${provider}/login${
-          next ? `?next=${encodeURIComponent(next)}` : ""
-        }`;
+        const url = `${BACKEND_URL}/api/v1/oauth/${provider}/login${search}`;
         const label =
           variant === "signup"
             ? t(`signUpWith${PROVIDER_WORDS[provider]}`)
@@ -65,12 +78,20 @@ function OAuthButtons({ next, variant = "signin" }: OAuthButtonsProps) {
   );
 }
 
-export function OAuthBlock({ label, variant }: { label: string; variant?: "signin" | "signup" }) {
+export function OAuthBlock({
+  label,
+  variant,
+  invitation,
+}: {
+  label: string;
+  variant?: "signin" | "signup";
+  invitation?: string | null;
+}) {
   if (!process.env.NEXT_PUBLIC_OAUTH_PROVIDERS) return null;
   return (
     <div className="space-y-5">
       <OAuthDivider label={label} />
-      <OAuthButtons variant={variant} />
+      <OAuthButtons variant={variant} invitation={invitation} />
     </div>
   );
 }

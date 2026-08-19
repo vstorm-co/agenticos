@@ -3,7 +3,8 @@ import type { ReactNode } from "react";
 import { getTranslations } from "next-intl/server";
 
 import type { Locale } from "@/i18n";
-import { APP_NAME, ROUTES } from "@/lib/constants";
+import { readBranding } from "@/lib/branding-server";
+import { ROUTES } from "@/lib/constants";
 
 interface LegalPageProps {
   title: string;
@@ -22,6 +23,7 @@ interface LegalPageProps {
  */
 export async function LegalPage({ title, summary, lastUpdated, locale, children }: LegalPageProps) {
   const t = await getTranslations("legal");
+  const { appName } = await readBranding();
 
   const related = [
     { label: t("terms.title"), href: ROUTES.LEGAL_TERMS },
@@ -38,7 +40,7 @@ export async function LegalPage({ title, summary, lastUpdated, locale, children 
             className="text-foreground inline-flex items-center gap-2 text-base font-bold tracking-tight"
           >
             <span aria-hidden className="bg-brand inline-block h-2.5 w-2.5 rounded-full" />
-            {APP_NAME}
+            {appName}
           </Link>
         </div>
       </header>

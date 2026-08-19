@@ -10,9 +10,11 @@ Everything a client can be refused with leaves here in one shape::
     {"error": {"code": ..., "message": ..., "details": ...}}
 
 including schema validation, which FastAPI would otherwise answer in its own
-`{"detail": [...]}` format. Two shapes on the wire means every caller either
-handles both or silently mishandles one, and the one it mishandles is the one
-that carries the field names a form needs.
+`{"detail": [...]}` format, and `HTTPException` - raised at twenty-two places in
+this API and by Starlette's own router for a 405 or an unmatched path - which it
+would answer as `{"detail": "..."}`. Two shapes on the wire means every caller
+either handles both or silently mishandles one, and the one it mishandles is the
+one that carries the field names a form needs.
 
 Every response is built by `_envelope`, which encodes `details` the way
 `response_model` encodes a body. `JSONResponse` on its own serializes with
@@ -21,12 +23,14 @@ raised it had to hand - most often the `UUID` it could not find.
 """
 
 import logging
+from http import HTTPStatus
 from typing import Any
 
 from fastapi import FastAPI
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import HTTPConnection
 
 from app.agents.capabilities.budget import BudgetExceeded
@@ -93,6 +97,20 @@ def _envelope(
     )
 
 
+def _http_error_code(status_code: int) -> str:
+    """A code for an `HTTPException`, derived from its status rather than mapped.
+
+    `HTTPStatus(405).name` is `METHOD_NOT_ALLOWED`, which is the same shape the
+    domain codes take and needs no table to keep in step with the statuses a route
+    actually raises. A status outside the registry - a caller's own 499 - falls back
+    to one that still says what class of thing happened.
+    """
+    try:
+        return HTTPStatus(status_code).name
+    except ValueError:
+        return "HTTP_ERROR"
+
+
 def _connection_meta(conn: HTTPConnection) -> dict[str, Any]:
     """Common log fields shared by HTTP requests and WebSocket connections.
 
@@ -138,7 +156,7 @@ async def app_exception_handler(request: HTTPConnection, exc: AppException) -> J
     # clients, fetch wrappers and CDNs back off on Retry-After, not on a custom
     # field they have no reason to read.
     if exc.status_code == 429:
-        retry_after = exc.details.get("retry_after_seconds")
+        retry_after = (exc.details or {}).get("retry_after_seconds")
         if isinstance(retry_after, int):
             headers["Retry-After"] = str(retry_after)
 
@@ -231,6 +249,49 @@ async def unhandled_exception_handler(
     )
 
 
+async def http_exception_handler(
+    request: HTTPConnection, exc: StarletteHTTPException
+) -> JSONResponse | None:
+    """Put `HTTPException` in the envelope, like every other refusal.
+
+    Two sources reach here and both were answering a shape of their own. Twenty-two
+    routes raise `HTTPException` directly - the hosted page's logo, a file download,
+    a webhook with the wrong signature - and Starlette's router raises it for a 405
+    or an unmatched path. FastAPI's default handler writes `{"detail": ...}`, which
+    is the third shape this module's own docstring says does not exist.
+
+    `detail` is a string on every raise in this codebase, but Starlette's type
+    allows anything: a non-string is reported as the status's own phrase and carried
+    in `details`, so nothing is lost and `message` stays a sentence a client can
+    show. The exception's headers are forwarded whole - a 405 carries `Allow`, and
+    dropping it turns a correct refusal into an uninformative one.
+    """
+    status_code = exc.status_code
+    detail = exc.detail
+    phrase = _http_error_code(status_code).replace("_", " ").capitalize()
+
+    log_extra = {
+        "error_code": _http_error_code(status_code),
+        "status_code": status_code,
+        **_connection_meta(request),
+    }
+    if status_code >= 500:
+        logger.error("http_exception: %s", detail, extra=log_extra)
+    else:
+        logger.warning("http_exception: %s", detail, extra=log_extra)
+
+    if _is_websocket(request):
+        return None
+
+    return _envelope(
+        status_code=status_code,
+        code=_http_error_code(status_code),
+        message=detail if isinstance(detail, str) and detail else phrase,
+        details=None if isinstance(detail, str) or detail is None else {"detail": detail},
+        headers=dict(exc.headers) if exc.headers else None,
+    )
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Register all exception handlers on the FastAPI app.
 
@@ -241,4 +302,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(AppException, app_exception_handler)  # ty: ignore[invalid-argument-type]
     app.add_exception_handler(BudgetExceeded, budget_exceeded_handler)  # ty: ignore[invalid-argument-type]
     app.add_exception_handler(RequestValidationError, validation_exception_handler)  # ty: ignore[invalid-argument-type]
+    # Starlette's, not FastAPI's: `fastapi.HTTPException` subclasses it, so one
+    # registration covers both the routes that raise one and the router's own 405.
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler)  # ty: ignore[invalid-argument-type]
     app.add_exception_handler(Exception, unhandled_exception_handler)  # ty: ignore[invalid-argument-type]

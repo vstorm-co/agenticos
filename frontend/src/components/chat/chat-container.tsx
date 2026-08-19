@@ -80,7 +80,7 @@ export function ChatContainer() {
   // search box, and reading the two facts below off *that* would flip the
   // composer to writable the moment somebody typed a search that excluded the
   // thread they have open.
-  const { conversations, fetchConversations } = useConversations();
+  const { conversations, fetchConversations, refreshConversations } = useConversations();
   const prevConversationIdRef = useRef<string | null | undefined>(undefined);
 
   // An archived conversation is read-only: the backend refuses new messages on
@@ -99,6 +99,14 @@ export function ChatContainer() {
   const handleConversationCreated = useCallback(() => {
     fetchConversations();
   }, [fetchConversations]);
+
+  // A listing fetched when the conversation was created cannot say who answered
+  // in it, because at that moment nobody had: `agents` is derived from the turns
+  // stored in the thread. Nothing else asked again, so the face of the agent you
+  // are talking to arrived on the next full page load and not before.
+  const handleTurnSaved = useCallback(() => {
+    void refreshConversations();
+  }, [refreshConversations]);
 
   const {
     messages,
@@ -124,6 +132,7 @@ export function ChatContainer() {
   } = useChat({
     conversationId: currentConversationId,
     onConversationCreated: handleConversationCreated,
+    onTurnSaved: handleTurnSaved,
   });
 
   // What the file panel watches, rather than a timer. Counted from the transcript

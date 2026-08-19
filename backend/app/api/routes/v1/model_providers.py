@@ -17,6 +17,9 @@ from fastapi import APIRouter, Depends, status
 from app.api.deps import Auth, ModelProfileSvc, SecretSvc, require
 from app.core.permissions import Perm
 from app.schemas.model_profile import (
+    ImageModelRead,
+    ImageProviderList,
+    ImageProviderRead,
     ModelProfileCreate,
     ModelProfileList,
     ModelProfileRead,
@@ -25,6 +28,7 @@ from app.schemas.model_profile import (
     ProviderModelList,
     ProviderModelRead,
 )
+from app.services.image_models import image_providers
 from app.services.model_catalog import models_for
 from app.services.model_profile import provider_catalog
 
@@ -101,6 +105,44 @@ async def delete_model_profile(profile_id: UUID, service: ModelProfileSvc, ctx: 
 
 
 @router.get(
+    "/image-models",
+    response_model=ImageProviderList,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_image_models() -> Any:
+    """Which providers can draw an image, and which of their models may be asked to.
+
+    Answered here rather than decided in the console, because both halves are the
+    platform's: whether a provider's model class honours the image tool is
+    `supported_native_tools()` on the SDK, and which models it offers is
+    `app/core/catalog/image_models.json`. A console that kept either would be a
+    second copy - one that an SDK upgrade makes wrong, and one that makes adding a
+    model released this morning a frontend release.
+
+    No credential is read: this is a catalog, not a listing. It says nothing about
+    what the organization has a key for - the secret field beside it does that.
+
+    Declared before `/{provider}/models`, because that path would otherwise match
+    "image-models" as a provider.
+    """
+    providers = image_providers()
+    return ImageProviderList(
+        items=[
+            ImageProviderRead(
+                provider=entry.provider,
+                name=entry.name,
+                models=[
+                    ImageModelRead(id=model.id, name=model.name, description=model.description)
+                    for model in entry.models
+                ],
+            )
+            for entry in providers
+        ],
+        total=len(providers),
+    )
+
+
+@router.get(
     "/{provider}/models",
     response_model=ProviderModelList,
     dependencies=[Depends(require(Perm.AGENTS_VIEW))],
@@ -122,7 +164,12 @@ async def list_provider_models(provider: str, secrets: SecretSvc, ctx: Auth) -> 
     models, source = await models_for(provider, api_key=api_key)
     return ProviderModelList(
         items=[
-            ProviderModelRead(id=entry.id, name=entry.name, context_length=entry.context_length)
+            ProviderModelRead(
+                id=entry.id,
+                name=entry.name,
+                context_length=entry.context_length,
+                output_modalities=list(entry.output_modalities),
+            )
             for entry in models
         ],
         total=len(models),

@@ -1,12 +1,16 @@
+"use client";
+
 import { Sparkles } from "lucide-react";
 
-import { APP_NAME } from "@/lib/constants";
+import { BrandMark } from "@/components/branding/brand-mark";
+import { useBranding } from "@/components/branding/branding-provider";
 import { useTranslations } from "next-intl";
 
 const HIGHLIGHTS = ["pitchAgents", "pitchKnowledge", "pitchGovernance"];
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const t = useTranslations("pages.auth");
+  const { appName } = useBranding();
   return (
     <div className="bg-background text-foreground min-h-screen lg:grid lg:grid-cols-[1.1fr_minmax(0,560px)]">
       <main id="main" className="theme-light bg-background text-foreground relative flex flex-col">
@@ -14,8 +18,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           {/* Not a link: the root redirects straight back here, so a brand
               mark that navigates would be a no-op. */}
           <span className="text-foreground inline-flex items-center gap-2 text-base font-bold tracking-tight">
-            <span aria-hidden className="bg-brand inline-block h-2.5 w-2.5 rounded-full" />
-            {APP_NAME}
+            <BrandMark size={22} />
+            {appName}
           </span>
         </header>
 
@@ -24,7 +28,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         </div>
 
         <footer className="text-foreground/50 px-6 py-6 font-mono text-[11px] tracking-wider uppercase sm:px-10">
-          © {new Date().getFullYear()} {APP_NAME}
+          © {new Date().getFullYear()} {appName}
         </footer>
       </main>
 

@@ -138,16 +138,16 @@
 
      Measured, not judged. The **stroke** is the only mark whose colour is its
      whole channel - a hairline under a spike - so it keeps a real floor: 3.39:1
-     on the light card, 8.21:1 on the dark one, both clear of the 3:1 a mark owes
+     on the light card, 7.12:1 on the dark one, both clear of the 3:1 a mark owes
      its surface. The **fill** covers area, and area takes a tint: 1.63:1 light
-     and 3.43:1 dark, deliberately under that floor, which is only allowed
+     and 2.98:1 dark, deliberately under that floor, which is only allowed
      because every list drawn in it prints its number as text beside the bar.
 
      The **track** is the fill's own hue several steps away (`dataviz`'s meter
      rule: the unfilled part of a bar is a step of the fill's hue, never a
      neutral alpha) - lighter in light, darker in dark, because what a track has
      to be is *quieter than its surface's opposite*, not lighter in the abstract.
-     It carries no value at all: 1.16:1 light, 1.22:1 dark. `brand-900` was tried
+     It carries no value at all: 1.16:1 light, 1.25:1 dark. `brand-900` was tried
      in dark and is why this one is measured - at 1.41:1 it read as a filled bar,
      so a provider that spent nothing showed a full-width mark against $0.00. */
   --color-chart: oklch(64% 0.13 259);
@@ -190,8 +190,8 @@
 
      Themed, unlike the single values these replace: a dot and a pill are read
      as text here, and one tone cannot be 4:1 on white and 8:1 on graphite.
-     Light measures success 4.08:1 and warning 3.42:1 on the card; dark 8.61:1
-     and 9.38:1. Both are a third off their old chroma, which is the whole
+     Light measures success 4.08:1 and warning 3.42:1 on the card; dark 7.47:1
+     and 8.14:1. Both are a third off their old chroma, which is the whole
      point - a healthy row is the commonest row on the page and should not be
      the loudest. */
   --color-warning: oklch(64% 0.1 72);
@@ -224,17 +224,32 @@
   --duration-slow: 400ms;
 }
 
-/* Dark theme - cool graphite. The old mapping jumped from an 8% page to 23%
-   cards with 36% borders, which read as gray boxes floating on black; these
-   surfaces stay within a few points of each other so the layers feel like one
-   material, and borders drop low enough to divide without glowing. */
+/* Dark theme - cool graphite, and the whole ladder sits clear of near-black on
+   purpose.
+
+   OKLCH lightness is perceptual, which is what made the previous mapping much
+   darker than its numbers read: a 14% page renders `#07090c` and a 17.5% card
+   `#0f1113`, so the product was black on black with a 1.05:1 step between a page
+   and the cards it holds - eight sRGB points, less than the gamma difference
+   between two monitors. The page reads as switched off and a card's edge is
+   carried entirely by its border.
+
+   So the floor is `#141619` and the card sits on `#1d2022`, a 1.10:1 step. Every
+   layer above keeps the offset it had to within half a point - popover +2, muted
+   +4, accent +6, input +8, border +10 - because the relationships were right and
+   it was only the floor that was wrong.
+
+   Two attempts are on the record here: an 8% page under 23% cards with 36%
+   borders, which read as grey boxes floating on black, and its replacement,
+   which cured the floating by flattening everything into the black. This is the
+   third. */
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
-    --color-background: oklch(14% 0.006 250);
+    --color-background: oklch(20% 0.006 250);
     --color-foreground: oklch(95% 0.005 250);
-    --color-card: oklch(17.5% 0.006 250);
+    --color-card: oklch(24% 0.006 250);
     --color-card-foreground: oklch(95% 0.005 250);
-    --color-popover: oklch(19% 0.006 250);
+    --color-popover: oklch(26% 0.006 250);
     --color-popover-foreground: oklch(95% 0.005 250);
     /* Accent roles, dark mapping. The fill lightens - a bright accent reads as
        forward on near-black - and its foreground flips to near-black ink,
@@ -251,17 +266,17 @@
     --color-brand-subtle: var(--brand-950);
     --color-brand-subtle-hover: var(--brand-900);
     --color-brand-line: var(--brand-800);
-    --color-secondary: oklch(22% 0.006 250);
+    --color-secondary: oklch(28% 0.006 250);
     --color-secondary-foreground: oklch(95% 0 0);
-    --color-muted: oklch(22% 0.006 250);
+    --color-muted: oklch(28% 0.006 250);
     --color-muted-foreground: oklch(68% 0.008 250);
-    --color-accent: oklch(24% 0.006 250);
+    --color-accent: oklch(30% 0.006 250);
     --color-accent-foreground: oklch(95% 0 0);
-    --color-border: oklch(28% 0.008 250);
-    --color-input: oklch(27% 0.008 250);
+    --color-border: oklch(34% 0.008 250);
+    --color-input: oklch(32% 0.008 250);
     --color-chart: oklch(74% 0.1 259);
     --color-chart-fill: oklch(52% 0.085 259);
-    --color-track: oklch(26% 0.022 259);
+    --color-track: oklch(31% 0.022 259);
     --color-success: oklch(74% 0.11 155);
     --color-warning: oklch(78% 0.1 78);
     --series-1: oklch(60% 0.105 262);
@@ -273,11 +288,11 @@
 }
 
 :root.dark {
-  --color-background: oklch(14% 0.006 250);
+  --color-background: oklch(20% 0.006 250);
   --color-foreground: oklch(95% 0.005 250);
-  --color-card: oklch(17.5% 0.006 250);
+  --color-card: oklch(24% 0.006 250);
   --color-card-foreground: oklch(95% 0.005 250);
-  --color-popover: oklch(19% 0.006 250);
+  --color-popover: oklch(26% 0.006 250);
   --color-popover-foreground: oklch(95% 0.005 250);
   /* Keep in sync with the `prefers-color-scheme: dark` block above and with
      `.theme-dark` below - three places, one mapping. */
@@ -292,17 +307,17 @@
   --color-brand-subtle: var(--brand-950);
   --color-brand-subtle-hover: var(--brand-900);
   --color-brand-line: var(--brand-800);
-  --color-secondary: oklch(22% 0.006 250);
+  --color-secondary: oklch(28% 0.006 250);
   --color-secondary-foreground: oklch(95% 0 0);
-  --color-muted: oklch(22% 0.006 250);
+  --color-muted: oklch(28% 0.006 250);
   --color-muted-foreground: oklch(68% 0.008 250);
-  --color-accent: oklch(24% 0.006 250);
+  --color-accent: oklch(30% 0.006 250);
   --color-accent-foreground: oklch(95% 0 0);
-  --color-border: oklch(28% 0.008 250);
-  --color-input: oklch(27% 0.008 250);
+  --color-border: oklch(34% 0.008 250);
+  --color-input: oklch(32% 0.008 250);
   --color-chart: oklch(74% 0.1 259);
   --color-chart-fill: oklch(52% 0.085 259);
-  --color-track: oklch(26% 0.022 259);
+  --color-track: oklch(31% 0.022 259);
   --color-success: oklch(74% 0.11 155);
   --color-warning: oklch(78% 0.1 78);
   --series-1: oklch(60% 0.105 262);
@@ -351,13 +366,13 @@
 }
 
 .theme-dark {
-  --color-background: oklch(14% 0.006 250);
+  --color-background: oklch(20% 0.006 250);
   --color-foreground: oklch(95% 0.005 250);
-  --color-card: oklch(17.5% 0.006 250);
+  --color-card: oklch(24% 0.006 250);
   --color-card-foreground: oklch(95% 0.005 250);
-  --color-muted: oklch(22% 0.006 250);
+  --color-muted: oklch(28% 0.006 250);
   --color-muted-foreground: oklch(68% 0.008 250);
-  --color-border: oklch(28% 0.008 250);
+  --color-border: oklch(34% 0.008 250);
   --color-primary: oklch(96% 0.003 250);
   --color-primary-foreground: oklch(16% 0.01 250);
   --color-primary-hover: oklch(88% 0.004 250);
@@ -371,7 +386,7 @@
   --color-brand-line: var(--brand-800);
   --color-chart: oklch(74% 0.1 259);
   --color-chart-fill: oklch(52% 0.085 259);
-  --color-track: oklch(26% 0.022 259);
+  --color-track: oklch(31% 0.022 259);
   --color-success: oklch(74% 0.11 155);
   --color-warning: oklch(78% 0.1 78);
   --series-1: oklch(60% 0.105 262);
@@ -829,6 +844,45 @@
     opacity: 1;
     transform: scale(1);
   }
+}
+
+/* One tile on the agent map, arriving. Sequenced by an inline delay from the
+   node that draws it, so a group of eight reads as eight things rather than as
+   one block appearing. Short, because it runs on every pan that remounts a node
+   and the reduced-motion block below removes it for anyone who has asked. */
+@keyframes map-tile-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.map-tile {
+  animation: map-tile-in 200ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+/* The run detail, arriving. Stepping to a neighbouring run replaces the header
+   and its figures while the timeline below stays standing, and a swap with no
+   movement at all reads as a glitch rather than as a step. Short and small on
+   purpose: this fires on every arrow press, and the reduced-motion block below
+   removes it for anyone who has asked. */
+@keyframes run-detail-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.run-detail-in {
+  animation: run-detail-in 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 /* =========================================================================
@@ -1556,11 +1610,21 @@
    paint: soft neutral shading on a light page, soft neutral blooms on a dark
    one. The frosted sidebars still have something to pull through; the page
    stays the page's own colour. Same two-selector shape as the theme blocks
-   above. */
+   above.
+
+   The two are NOT the same percentage, because the same percentage is not the
+   same wash. Compositing happens in linear light, where white is far more
+   potent over a dark page than ink is over a near-white one: at 7% the dark
+   blooms measure 2.32:1 against their page and the light shading 1.07:1 - a
+   gradient in one theme and nothing at all in the other, which is exactly how
+   it looked. Light lands at 1.10:1 - enough to see, and the ceiling is lower
+   than the arithmetic suggests: 1.15:1 was tried and read as a smudged page
+   rather than as shading, which is the failure the paragraph above records
+   under a different cause. */
 :root {
-  --ambient-a: color-mix(in oklab, var(--color-foreground) 7%, transparent);
-  --ambient-b: color-mix(in oklab, var(--color-foreground) 5%, transparent);
-  --ambient-c: color-mix(in oklab, var(--color-foreground) 6%, transparent);
+  --ambient-a: color-mix(in oklab, var(--color-foreground) 10%, transparent);
+  --ambient-b: color-mix(in oklab, var(--color-foreground) 7%, transparent);
+  --ambient-c: color-mix(in oklab, var(--color-foreground) 9%, transparent);
 }
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {

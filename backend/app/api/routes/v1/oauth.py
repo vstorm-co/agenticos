@@ -16,9 +16,30 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+#: Where an invitation token waits while the caller is away at the provider.
+#:
+#: The session cookie authlib already uses for its own CSRF `state`, because the
+#: token has to survive a round trip this app does not control and must not travel
+#: back through a query string somebody can hand to a third party. Holding the
+#: token *is* the proof an invitation admits an address nothing else recognises, so
+#: it is kept where only this browser can produce it.
+_INVITATION_KEY = "oauth_invitation_token"
+
+
 @router.get("/google/login", response_model=None)
-async def google_login(request: Request):
-    """Redirect to Google OAuth2 login page."""
+async def google_login(request: Request, invitation: str | None = None):
+    """Redirect to Google OAuth2 login page.
+
+    `invitation` carries a shareable link's token through the round trip. Without
+    it, an `invite_only` deployment refused the Google button for exactly the
+    invitations that need it - a link constraining neither an address nor a domain
+    is invisible to the address-based fallback, so the same person could register
+    with a password and not with the provider offered beside it.
+    """
+    if invitation:
+        request.session[_INVITATION_KEY] = invitation
+    else:
+        request.session.pop(_INVITATION_KEY, None)
     return await oauth.google.authorize_redirect(request, settings.GOOGLE_REDIRECT_URI)
 
 
@@ -34,11 +55,15 @@ async def google_callback(request: Request, user_service: UserSvc):
             params = urlencode({"error": "Failed to get user info from Google"})
             return RedirectResponse(url=f"{frontend}/login?{params}")
 
+        # Taken off the session rather than read: an invitation is consumed by the
+        # attempt it was started for, so a token left behind cannot admit a second,
+        # unrelated sign-in from the same browser.
         user = await user_service.get_or_create_oauth_user(
             provider="google",
             provider_id=user_info.get("sub"),
             email=user_info.get("email"),
             full_name=user_info.get("name"),
+            invitation_token=request.session.pop(_INVITATION_KEY, None),
         )
 
         access_token = create_access_token(subject=str(user.id))

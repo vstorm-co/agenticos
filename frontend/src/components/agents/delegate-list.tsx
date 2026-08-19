@@ -11,7 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui";
-import { useAgentVersions } from "@/hooks";
+import { useAllAgentVersions } from "@/hooks";
 import { duplicateDelegateIds, pinStatus, type PinStatus } from "@/lib/agent-spec";
 import type { Agent, DelegationMode, SubagentRef } from "@/types/agents";
 import { useTranslations } from "next-intl";
@@ -184,7 +184,7 @@ function DelegateRow({
   onRemove,
 }: DelegateRowProps) {
   const t = useTranslations("agents");
-  const { versions } = useAgentVersions(agent === undefined ? null : reference.agent_id);
+  const { versions } = useAllAgentVersions(agent === undefined ? null : reference.agent_id);
   const latest = agent?.current_version_id ?? null;
   const status = pinStatus(versions, reference.agent_version_id, latest);
   // Both are a pin that will not do what its author thinks, and both are fixed

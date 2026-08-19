@@ -8,7 +8,7 @@ import type { Agent, AgentVersion, SubagentRef } from "@/types/agents";
 const state = vi.hoisted(() => ({ versions: [] as AgentVersion[] }));
 
 vi.mock("@/hooks", () => ({
-  useAgentVersions: (agentId: string | null) => ({
+  useAllAgentVersions: (agentId: string | null) => ({
     // `null` is how the row says it has no agent to ask about; answering with a
     // history anyway would hide that the query is skipped.
     versions: agentId === null ? [] : state.versions,

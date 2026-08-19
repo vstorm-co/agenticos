@@ -323,10 +323,39 @@ describe("one run drawn as one turn", () => {
     expect(continuesTurn(messages, 1)).toBe(false);
   });
 
-  it("never groups messages with no run recorded", () => {
+  it("never groups messages with neither id recorded", () => {
     // Absent is "not recorded", not "the same run". Guessing from adjacency
     // would fold two unrelated answers into one turn.
     const messages = [message({ id: "a" }), message({ id: "b" })];
+
+    expect(continuesTurn(messages, 1)).toBe(false);
+  });
+
+  it("groups a turn that is still streaming, which has no run id yet", () => {
+    // The row does not exist until the turn is saved, so a live segment carries
+    // the client's own `groupId` and nothing else. Keying on `runId` alone made
+    // grouping work after a reload and never while anybody watched it happen -
+    // measured on a four-segment turn as 32px of padding between each pair and an
+    // avatar on every one, which is the three-agents look this exists to stop.
+    const messages = [message({ id: "a", groupId: "g-1" }), message({ id: "b", groupId: "g-1" })];
+
+    expect(continuesTurn(messages, 1)).toBe(true);
+  });
+
+  it("starts a new turn for a different group", () => {
+    const messages = [message({ id: "a", groupId: "g-1" }), message({ id: "b", groupId: "g-2" })];
+
+    expect(continuesTurn(messages, 1)).toBe(false);
+  });
+
+  it("prefers the stored id where both segments have one", () => {
+    // A groupId is the client's guess at "one turn" and a runId is the server's
+    // answer, so a pair that disagrees is two runs the client happened to stamp
+    // together - not one turn.
+    const messages = [
+      message({ id: "a", runId: "r-9", groupId: "g-1" }),
+      message({ id: "b", runId: "r-10", groupId: "g-1" }),
+    ];
 
     expect(continuesTurn(messages, 1)).toBe(false);
   });

@@ -53,6 +53,16 @@ export interface RegisterRequest {
   email: string;
   password: string;
   full_name?: string;
+  /**
+   * The invitation this sign-up is arriving through, when the form was reached
+   * from one.
+   *
+   * It admits an address a deployment's sign-up policy would otherwise refuse -
+   * and it is the only proof that can admit a shareable link constraining no
+   * address at all. It grants nothing else: joining the organization is still a
+   * separate accept once there is a session.
+   */
+  invitation_token?: string;
 }
 
 export interface RegisterResponse {

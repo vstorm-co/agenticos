@@ -1,13 +1,18 @@
 import Link from "next/link";
 
-import { APP_NAME, ROUTES } from "@/lib/constants";
+import { ROUTES } from "@/lib/constants";
 import { useTranslations } from "next-intl";
 
-export function PrivacyBodyEn() {
+/** The deployment's name, resolved by the page above and interpolated into the text. */
+interface LegalBodyProps {
+  appName: string;
+}
+
+export function PrivacyBodyEn({ appName }: LegalBodyProps) {
   const t = useTranslations("legal");
   return (
     <>
-      <p>{t("privacyIntro", { appName: APP_NAME })}</p>
+      <p>{t("privacyIntro", { appName })}</p>
 
       <h2>{t("n1WhatWeCollect")}</h2>
       <h3>{t("informationYouProvide")}</h3>
@@ -109,11 +114,11 @@ export function PrivacyBodyEn() {
   );
 }
 
-export function PrivacyBodyPl() {
+export function PrivacyBodyPl({ appName }: LegalBodyProps) {
   const t = useTranslations("legal.pl");
   return (
     <>
-      <p>{t("privacyIntro", { appName: APP_NAME })}</p>
+      <p>{t("privacyIntro", { appName })}</p>
 
       <h2>{t("n1CoZbieramy")}</h2>
       <h3>{t("informacjeKtRePodajesz")}</h3>
