@@ -17,6 +17,29 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.207] - 2026-08-20
+
+The two addresses an upload can arrive at answered with different shapes.
+
+### Fixed
+
+- **Both upload routes serialize `RAGIngestResponse` identically.**
+  `POST /rag/collections/{name}/ingest` carried `response_model_exclude_none=True`
+  and `POST /kb/{kb_id}/documents` did not - same schema, same operation, both
+  feeding the same upload UI. `document_id` is `str | None` and is `None` on every
+  accepted upload, because the vector store's id does not exist until the worker
+  has indexed the file, so one address omitted the key and the other sent it as
+  `null`: a client normalising the answer got a different shape depending on which
+  it had called. The flag is gone rather than added to the other route - `null` is
+  the honest answer, the id is pending rather than absent, and it was the only use
+  of `response_model_exclude_none` in the tree. No client is affected: nothing in
+  the frontend reads `document_id` from an upload response. (#560)
+
+### Changed
+
+- **`docs/file-processing.md`** names both upload addresses and says they answer
+  202 with every field of the schema, `"document_id": null` included. (#560)
+
 ## [0.0.206] - 2026-08-20
 
 Storing a long document's chunks cost one database round trip per chunk.
