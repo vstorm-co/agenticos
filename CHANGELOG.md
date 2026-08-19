@@ -17,6 +17,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.202] - 2026-08-19
+
+One test-only release: a `catch` the frontend suite reported as covered had
+never run.
+
+### Fixed
+
+- **The onboarding resume stash is tested against the storage the code reaches.**
+  Node 22+ ships its own `sessionStorage` — enabled on v26.3.0 — which shadows
+  jsdom's, so `vi.spyOn(Storage.prototype, "getItem")` patched a different object
+  than `takeStashedFlow` called: `getItem` never threw, the test passed through
+  the `raw === null` early return, and the `catch` at `resume.ts:45` never ran.
+  It read as covered in CI and as uncovered under `make test-frontend-cov` on a
+  newer Node. `vitest.setup.ts` now normalizes `sessionStorage` the way it already
+  did `localStorage` (one `StorageMock`, installed on both `globalThis` and
+  `window`), and both throw-path tests spy the instance and assert an outcome only
+  the `catch` produces — a stashed flow that comes back `null`, a write that left
+  nothing stored — so a spy that misses fails loudly instead of silently
+  uncovering the branch. No product code changed. (#919)
+
 ## [0.0.201] - 2026-08-19
 
 An agent is configured in one place, a deployment can brand and close itself,
