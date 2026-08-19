@@ -36,6 +36,15 @@ async def upsert(db: AsyncSession, *, update_data: dict[str, Any]) -> Deployment
     `updated_at` is set explicitly: the model's `onupdate` fires on an ORM flush
     and this is a Core upsert, so without it a replaced logo would keep the
     version token its cache-busting URL is built from.
+
+    `populate_existing` is load-bearing, and its absence was a real defect. When
+    the session has already loaded this row - which `set_image` and `clear_image`
+    both do, to find the file they are replacing - the identity map wins:
+    `RETURNING` yields that same instance carrying its *old* attribute values, and
+    so does any later `select` in the same session. The upload then answered
+    `logo_version: null` for a logo it had just stored and was already serving the
+    bytes of. No unit test could see it, because they all mock this module;
+    `tests/integration/test_deployment_settings_row.py` is what holds it shut.
     """
     stmt = (
         insert(DeploymentSettings)
@@ -45,5 +54,6 @@ async def upsert(db: AsyncSession, *, update_data: dict[str, Any]) -> Deployment
             set_={**update_data, "updated_at": func.now()},
         )
         .returning(DeploymentSettings)
+        .execution_options(populate_existing=True)
     )
     return (await db.execute(stmt)).scalar_one()
