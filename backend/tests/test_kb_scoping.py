@@ -475,6 +475,90 @@ class TestKBAccessControl:
             assert list(kwargs.get("shared_org_ids")) == [granted]
 
 
+class TestBindingAnEmbeddingSecret:
+    """Choosing a vault key for a collection's embeddings.
+
+    Binding a key lends it: the collection bills it for everyone who can write
+    the collection. So the chooser has to be able to reach the key themselves,
+    and a key they cannot view is refused as one the vault does not hold.
+    """
+
+    @pytest.fixture
+    def mock_db(self):
+        return MagicMock()
+
+    def _secret(self, purpose: str = "openrouter"):
+        secret = MagicMock()
+        secret.id = uuid.uuid4()
+        secret.purpose = purpose
+        return secret
+
+    @pytest.mark.anyio
+    async def test_a_private_secret_the_caller_cannot_view_is_refused(
+        self, mock_db, unclaimed_collection_name
+    ):
+        """Another member's private key, supplied by id, is turned away.
+
+        Without the caller's `secrets:view` check the org-scoped lookup alone
+        binds it - the picker only ever offered keys they can see, but the API
+        takes an id and an id is guessable.
+        """
+        secret = self._secret()
+        data = KnowledgeBaseCreate(
+            name="Team KB",
+            scope="org",
+            collection_name="team",
+            embedding_secret_id=secret.id,
+        )
+
+        with (
+            patch(
+                "app.repositories.organization_secret_repo.get",
+                new=AsyncMock(return_value=secret),
+            ),
+            patch(
+                "app.services.knowledge_base.resolve_access",
+                new=AsyncMock(return_value=False),
+            ),
+            patch("app.repositories.knowledge_base_repo.create", new=AsyncMock()) as created,
+        ):
+            svc = KnowledgeBaseService(mock_db)
+            with pytest.raises(BadRequestError) as exc:
+                await svc.create(data, ctx=_ctx(role=OrgRoleName.MEMBER.value))
+
+        assert "not in this organization's vault" in exc.value.message
+        created.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_a_secret_the_caller_can_view_is_bound(self, mock_db, unclaimed_collection_name):
+        secret = self._secret()
+        data = KnowledgeBaseCreate(
+            name="Team KB",
+            scope="org",
+            collection_name="team",
+            embedding_secret_id=secret.id,
+        )
+
+        with (
+            patch(
+                "app.repositories.organization_secret_repo.get",
+                new=AsyncMock(return_value=secret),
+            ),
+            patch(
+                "app.services.knowledge_base.resolve_access",
+                new=AsyncMock(return_value=True),
+            ),
+            patch(
+                "app.repositories.knowledge_base_repo.create",
+                new=AsyncMock(return_value=MagicMock()),
+            ) as created,
+        ):
+            svc = KnowledgeBaseService(mock_db)
+            await svc.create(data, ctx=_ctx(role=OrgRoleName.MEMBER.value))
+
+        assert created.call_args.kwargs["embedding_secret_id"] == secret.id
+
+
 class TestCollectionCounts:
     """The listing's document and chunk counts.
 
