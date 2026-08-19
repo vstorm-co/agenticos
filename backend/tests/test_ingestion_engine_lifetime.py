@@ -20,6 +20,7 @@ from __future__ import annotations
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -300,6 +301,40 @@ class TestAConnectorSyncsStore:
 
         assert answer["status"] == "error"
         assert ledger.leaked == 0
+
+
+class TestARequestsStore:
+    """The API's fallback, which only runs on a deployment already in trouble."""
+
+    async def test_a_request_that_builds_its_own_store_closes_it(self):
+        """The lifespan catches a failed pgvector connection and carries on
+        serving, so `request.state.vector_store` is absent and every request
+        builds one - a degraded deployment spending its remaining connections."""
+        from app.api import deps
+
+        store = MagicMock(aclose=AsyncMock())
+        request = MagicMock(state=SimpleNamespace())
+        with patch.object(deps, "PgVectorStore", return_value=store):
+            generator = deps.get_vectorstore(request, MagicMock())
+            assert await anext(generator) is store
+            with pytest.raises(StopAsyncIteration):
+                await anext(generator)
+
+        store.aclose.assert_awaited_once()
+
+    async def test_the_lifespans_store_is_not_closed_by_a_request(self):
+        """It belongs to the process, and shutdown disposes it. Closing it here
+        would leave every later request holding a store with no pool."""
+        from app.api import deps
+
+        shared = MagicMock(aclose=AsyncMock())
+        request = MagicMock(state=SimpleNamespace(vector_store=shared))
+        generator = deps.get_vectorstore(request, MagicMock())
+        assert await anext(generator) is shared
+        with pytest.raises(StopAsyncIteration):
+            await anext(generator)
+
+        shared.aclose.assert_not_awaited()
 
 
 class TestTheKnowledgeCapabilitysStore:
