@@ -97,8 +97,9 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     vi.mocked(apiClient.post).mockResolvedValue(trigger());
     const dialog = await openEvent();
 
-    await user.type(dialog.getByLabelText("Message"), "Triage it");
     await user.type(dialog.getByLabelText("Signing secret"), "a-strong-shared-secret");
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.type(dialog.getByLabelText("Message"), "Triage it");
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
@@ -122,8 +123,9 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     render(<ControlledEventDialog />, { wrapper });
     let dialog = within(await screen.findByRole("dialog"));
 
-    await user.type(dialog.getByLabelText("Message"), "Triage");
     await user.type(dialog.getByLabelText("Signing secret"), "a-strong-shared-secret");
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.type(dialog.getByLabelText("Message"), "Triage");
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     // The dialog does not just close: an event trigger needs its URL pasted into
@@ -143,11 +145,12 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     vi.mocked(apiClient.post).mockResolvedValue(trigger({ event_source: "linkedin" }));
     const dialog = await openEvent();
 
-    await user.type(dialog.getByLabelText("Message"), "Draft a reply");
     await user.click(dialog.getByRole("combobox", { name: "Fires on" }));
     await user.click(await screen.findByRole("option", { name: "A LinkedIn post" }));
     await user.type(dialog.getByLabelText("Signing secret"), "a-strong-shared-secret");
     await user.type(dialog.getByLabelText("Author contains"), "Jane");
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.type(dialog.getByLabelText("Message"), "Draft a reply");
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
@@ -166,12 +169,13 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     vi.mocked(apiClient.post).mockResolvedValue(trigger({ event_source: "webhook" }));
     const dialog = await openEvent();
 
-    await user.type(dialog.getByLabelText("Message"), "Handle it");
     await user.click(dialog.getByRole("combobox", { name: "Fires on" }));
     await user.click(await screen.findByRole("option", { name: "Any webhook" }));
     await user.type(dialog.getByLabelText("Signing secret"), "a-strong-shared-secret");
     // No filter inputs for the generic webhook - filtering is the sender's job.
     expect(dialog.queryByLabelText("Subject contains")).toBeNull();
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.type(dialog.getByLabelText("Message"), "Handle it");
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
@@ -190,12 +194,13 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     vi.mocked(apiClient.post).mockResolvedValue(trigger({ event_source: "email" }));
     const dialog = await openEvent();
 
-    await user.type(dialog.getByLabelText("Message"), "Reply to it");
     await user.click(dialog.getByRole("combobox", { name: "Fires on" }));
     await user.click(await screen.findByRole("option", { name: "An inbound email" }));
     await user.type(dialog.getByLabelText("Signing secret"), "another-strong-secret");
     await user.type(dialog.getByLabelText("Subject contains"), "urgent");
     await user.type(dialog.getByLabelText("Sender contains"), "boss");
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.type(dialog.getByLabelText("Message"), "Reply to it");
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {

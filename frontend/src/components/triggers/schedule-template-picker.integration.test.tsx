@@ -68,7 +68,8 @@ describe("New-schedule template picker", () => {
     const dialog = await open();
 
     await user.click(await dialog.findByRole("button", { name: /Daily standup/ }));
-    // The interval builder now reads the template's cadence: one day.
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    // The schedule step's interval builder reads the template's cadence: one day.
     expect(dialog.getByLabelText<HTMLInputElement>("Run every").value).toBe("1");
 
     await user.click(dialog.getByRole("button", { name: "Create" }));
@@ -89,6 +90,7 @@ describe("New-schedule template picker", () => {
     const dialog = await open();
 
     await user.click(await dialog.findByRole("button", { name: /Weekly report/ }));
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/triggers", {
@@ -106,12 +108,12 @@ describe("New-schedule template picker", () => {
     const dialog = await open();
 
     await user.click(await dialog.findByRole("button", { name: /Daily standup/ }));
-    // Create is enabled once a template fills the prompt.
-    expect(dialog.getByRole("button", { name: "Create" })).toBeEnabled();
+    // The task step can advance once a template fills the prompt.
+    expect(dialog.getByRole("button", { name: "Continue" })).toBeEnabled();
 
     await user.click(dialog.getByRole("button", { name: /Start from scratch/ }));
-    // Back to a blank message, so there is nothing to create yet.
-    expect(dialog.getByRole("button", { name: "Create" })).toBeDisabled();
+    // Back to a blank message, so there is nothing to continue with yet.
+    expect(dialog.getByRole("button", { name: "Continue" })).toBeDisabled();
     expect(dialog.getByRole("button", { name: /Start from scratch/ })).toHaveAttribute(
       "aria-pressed",
       "true",

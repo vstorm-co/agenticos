@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CalendarClock, Cog, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -23,7 +24,11 @@ import {
   Tabs,
   TabsList,
   TabsTrigger,
+  WizardNav,
+  WizardSteps,
+  type WizardStep,
 } from "@/components/ui";
+import { cn } from "@/lib/utils";
 import { EventSourceMark } from "@/components/triggers/event-source-mark";
 import { ScheduleTemplatePicker } from "@/components/triggers/schedule-template-picker";
 import { SecretRevealField } from "@/components/triggers/secret-reveal-field";
@@ -36,6 +41,7 @@ import {
   intervalToUnit,
   unitToSeconds,
 } from "@/lib/trigger-format";
+import type { AgentEnvironment } from "@/types/agents";
 import type {
   EventSource,
   ScheduleKind,
@@ -66,6 +72,12 @@ function generateSecret(): string {
  * takes a raw expression for the cases the presets do not cover.
  */
 type CronFrequency = "daily" | "everyNDays" | "weekly" | "monthly" | "advanced";
+
+/**
+ * The create wizard's steps. A schedule walks task → schedule; an event walks
+ * event → task. "task" is shared - it is the same fields either way.
+ */
+type WizardStepId = "event" | "task" | "schedule";
 
 /** The repeat options, as translation keys so the catalog check can see them. */
 const CRON_FREQUENCIES: readonly { value: CronFrequency; key: string }[] = [
@@ -174,6 +186,10 @@ interface TriggerFormDialogProps {
 /**
  * The one form behind creating and editing a trigger, on every surface.
  *
+ * Creating walks the same stepper chrome as the KB sync-source wizard: a
+ * schedule defines the task then its cadence, a custom webhook picks what
+ * fires it then the task. Editing keeps a single panel - see below.
+ *
  * A trigger's shape is set once: creating chooses schedule-or-event and its
  * cadence or source, and editing may change only the prompt and the environment -
  * the shape controls are read-only, because switching an interval to cron or
@@ -217,6 +233,10 @@ export function TriggerFormDialog({
   // event. There is no in-dialog switch, because event triggers are created from
   // the portal grid by default, not this raw form.
   const type = trigger?.trigger_type ?? initialType;
+  // Creating walks the KB-wizard steps: a schedule defines the task then its
+  // cadence, an event picks what fires it then the task. Editing has no steps -
+  // the shape is fixed, so its few live fields fit one panel.
+  const [step, setStep] = useState<WizardStepId>(type === "event" ? "event" : "task");
   const [prompt, setPrompt] = useState(trigger?.prompt ?? "");
   const [name, setName] = useState(trigger?.name ?? "");
   const [environmentId, setEnvironmentId] = useState(trigger?.environment_id ?? DEFAULT_ENV);
@@ -322,6 +342,21 @@ export function TriggerFormDialog({
     setPrompt("");
   }
 
+  /** Set the cadence controls to a quick preset; they stay editable below it. */
+  function applyPreset(preset: CadencePreset) {
+    setCadenceTouched(true);
+    if (preset.kind === "interval") {
+      setScheduleKind("interval");
+      setIntervalUnit(preset.unit);
+      setIntervalCount(String(preset.count));
+      return;
+    }
+    setScheduleKind("cron");
+    setCronFreq(preset.freq);
+    setCronTime(preset.time);
+    if (preset.freq === "weekly") setCronWeekdays(preset.weekdays);
+  }
+
   /** Wraps a cadence setter so editing any cadence control flips `cadenceTouched`. */
   function onCadence<T>(setter: (value: T) => void): (value: T) => void {
     return (value) => {
@@ -412,14 +447,40 @@ export function TriggerFormDialog({
   // hatch can be left empty, so it is the one cron shape worth guarding.
   const cronValid = cronFreq !== "advanced" || cronAdvanced.trim().length > 0;
   const scheduleValid = scheduleKind === "cron" ? cronValid : Number(intervalCount) > 0;
-  // Editing a schedule can now change its cadence, so the cadence is guarded then
+  const taskValid = prompt.trim().length > 0 && effectiveAgentId !== null;
+  // Editing a schedule can change its cadence, so the cadence is guarded then
   // too; an event edit has no cadence and only its prompt/name to check.
-  const shapeValid = editing
-    ? type !== "schedule" || scheduleValid
-    : type === "schedule"
-      ? scheduleValid
-      : secret.length >= MIN_SECRET;
-  const canSubmit = prompt.trim().length > 0 && shapeValid && effectiveAgentId !== null && !pending;
+  const canSubmit = taskValid && (type !== "schedule" || scheduleValid) && !pending;
+
+  const steps: WizardStep[] =
+    type === "schedule"
+      ? [
+          { id: "task", label: t("stepTask"), icon: Cog },
+          { id: "schedule", label: t("stepSchedule"), icon: CalendarClock },
+        ]
+      : [
+          { id: "event", label: t("stepEvent"), icon: Zap },
+          { id: "task", label: t("stepTask"), icon: Cog },
+        ];
+  const isLastStep = type === "schedule" ? step === "schedule" : step === "task";
+  // Each step gates on its own concern, so a Continue can never outrun what the
+  // final Create would refuse.
+  const canAdvance =
+    step === "task" ? taskValid : step === "schedule" ? scheduleValid : secret.length >= MIN_SECRET;
+  const onFirstStep = step === steps[0]!.id;
+
+  function handleNext() {
+    if (!canAdvance || pending) return;
+    if (isLastStep) {
+      void submit();
+      return;
+    }
+    setStep(type === "schedule" ? "schedule" : "task");
+  }
+
+  function handleBack() {
+    setStep(type === "schedule" ? "task" : "event");
+  }
 
   if (created !== null) {
     return (
@@ -438,104 +499,98 @@ export function TriggerFormDialog({
     );
   }
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            {editing ? t("editTitle") : type === "event" ? t("newEvent") : t("newSchedule")}
-          </DialogTitle>
-          <DialogDescription>
-            {editing ? t("editDescription") : t("createDescription")}
-          </DialogDescription>
-        </DialogHeader>
+  const scheduleFields = type === "schedule" && (
+    <ScheduleFields
+      scheduleKind={scheduleKind}
+      onScheduleKind={onCadence(setScheduleKind)}
+      intervalCount={intervalCount}
+      onIntervalCount={onCadence(setIntervalCount)}
+      intervalUnit={intervalUnit}
+      onIntervalUnit={onCadence(setIntervalUnit)}
+      cron={{
+        freq: cronFreq,
+        onFreq: onCadence(setCronFreq),
+        time: cronTime,
+        onTime: onCadence(setCronTime),
+        everyDays: cronEveryDays,
+        onEveryDays: onCadence(setCronEveryDays),
+        weekdays: cronWeekdays,
+        onToggleWeekday: onCadence(toggleWeekday),
+        dayOfMonth: cronDayOfMonth,
+        onDayOfMonth: onCadence(setCronDayOfMonth),
+        advanced: cronAdvanced,
+        onAdvanced: onCadence(setCronAdvanced),
+      }}
+    />
+  );
 
-        <div className="space-y-4">
-          {agentId === null && !editing && (
-            <FormField label={t("agent")} htmlFor="trigger-agent">
-              <Select
-                value={effectiveAgentId ?? ""}
-                onValueChange={(next) => {
-                  setPickedAgentId(next);
-                  // A named environment belongs to one agent; carrying the
-                  // previous agent's choice across would be refused on create.
-                  setEnvironmentId(DEFAULT_ENV);
-                }}
-              >
-                <SelectTrigger id="trigger-agent">
-                  <SelectValue placeholder={t("chooseAgent")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {runnable.map((agent) => (
-                    <SelectItem key={agent.id} value={agent.id}>
-                      {agent.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
-          )}
+  if (editing) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t("editTitle")}</DialogTitle>
+            <DialogDescription>{t("editDescription")}</DialogDescription>
+          </DialogHeader>
 
-          <FormField label={t("nameLabel")} htmlFor="trigger-name" description={t("nameHelp")}>
-            <Input
-              id="trigger-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder={t("namePlaceholder")}
-              maxLength={120}
-            />
-          </FormField>
+          <div className="space-y-4">
+            <NameField value={name} onChange={setName} />
+            <PromptField value={prompt} onChange={setPrompt} />
 
-          {!editing && type === "schedule" && (
-            <ScheduleTemplatePicker
-              selectedKey={templateKey}
-              onPick={applyTemplate}
-              onScratch={scratchTemplate}
-            />
-          )}
+            {scheduleFields}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="trigger-prompt">{t("prompt")}</Label>
-            <MarkdownEditor
-              id="trigger-prompt"
-              label={t("prompt")}
-              value={prompt}
-              onChange={setPrompt}
-              placeholder={t("promptPlaceholder")}
-              rows={6}
-              describedBy="trigger-prompt-desc"
-            />
-            <p id="trigger-prompt-desc" className="text-muted-foreground text-xs leading-relaxed">
-              {t("promptHelp")}
-            </p>
+            {trigger.trigger_type === "event" && trigger.webhook_url && (
+              <WebhookField url={trigger.webhook_url} />
+            )}
+
+            {trigger.trigger_type === "event" && trigger.can_manage && (
+              <RotateSecretSection triggerId={trigger.id} rotate={rotateSecret} />
+            )}
+
+            {namedEnvironments.length > 0 && (
+              <EnvironmentField
+                value={environmentId}
+                onChange={setEnvironmentId}
+                environments={namedEnvironments}
+              />
+            )}
           </div>
 
-          {type === "schedule" && (
-            <ScheduleFields
-              scheduleKind={scheduleKind}
-              onScheduleKind={onCadence(setScheduleKind)}
-              intervalCount={intervalCount}
-              onIntervalCount={onCadence(setIntervalCount)}
-              intervalUnit={intervalUnit}
-              onIntervalUnit={onCadence(setIntervalUnit)}
-              cron={{
-                freq: cronFreq,
-                onFreq: onCadence(setCronFreq),
-                time: cronTime,
-                onTime: onCadence(setCronTime),
-                everyDays: cronEveryDays,
-                onEveryDays: onCadence(setCronEveryDays),
-                weekdays: cronWeekdays,
-                onToggleWeekday: onCadence(toggleWeekday),
-                dayOfMonth: cronDayOfMonth,
-                onDayOfMonth: onCadence(setCronDayOfMonth),
-                advanced: cronAdvanced,
-                onAdvanced: onCadence(setCronAdvanced),
-              }}
-            />
-          )}
+          <DialogFooter className="sm:justify-between">
+            <Button
+              variant="secondary"
+              disabled={!trigger.is_active || runNow.isPending}
+              onClick={() => runNow.mutate(trigger.id)}
+            >
+              {t("runNow")}
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                {t("cancel")}
+              </Button>
+              <Button onClick={submit} disabled={!canSubmit}>
+                {t("save")}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
-          {!editing && type === "event" && (
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-hidden p-0 sm:max-w-2xl">
+        <DialogHeader className="border-foreground/10 border-b px-6 py-4">
+          <DialogTitle className="text-base font-semibold">
+            {type === "event" ? t("newEvent") : t("newSchedule")}
+          </DialogTitle>
+          <DialogDescription>{t("createDescription")}</DialogDescription>
+          <WizardSteps steps={steps} current={step} />
+        </DialogHeader>
+
+        <div className="max-h-[60vh] scrollbar-thin overflow-y-auto px-6 py-5">
+          {step === "event" && (
             <EventFields
               eventSource={eventSource}
               onEventSource={setEventSource}
@@ -548,54 +603,244 @@ export function TriggerFormDialog({
             />
           )}
 
-          {editing && trigger.trigger_type === "event" && trigger.webhook_url && (
-            <WebhookField url={trigger.webhook_url} />
+          {step === "task" && (
+            <div className="space-y-4">
+              {agentId === null && (
+                <FormField label={t("agent")} htmlFor="trigger-agent">
+                  <Select
+                    value={effectiveAgentId ?? ""}
+                    onValueChange={(next) => {
+                      setPickedAgentId(next);
+                      // A named environment belongs to one agent; carrying the
+                      // previous agent's choice across would be refused on create.
+                      setEnvironmentId(DEFAULT_ENV);
+                    }}
+                  >
+                    <SelectTrigger id="trigger-agent">
+                      <SelectValue placeholder={t("chooseAgent")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {runnable.map((agent) => (
+                        <SelectItem key={agent.id} value={agent.id}>
+                          {agent.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormField>
+              )}
+
+              <NameField value={name} onChange={setName} />
+
+              {type === "schedule" && (
+                <ScheduleTemplatePicker
+                  selectedKey={templateKey}
+                  onPick={applyTemplate}
+                  onScratch={scratchTemplate}
+                />
+              )}
+
+              <PromptField value={prompt} onChange={setPrompt} />
+
+              {namedEnvironments.length > 0 && (
+                <EnvironmentField
+                  value={environmentId}
+                  onChange={setEnvironmentId}
+                  environments={namedEnvironments}
+                />
+              )}
+            </div>
           )}
 
-          {editing && trigger.trigger_type === "event" && trigger.can_manage && (
-            <RotateSecretSection triggerId={trigger.id} rotate={rotateSecret} />
-          )}
-
-          {namedEnvironments.length > 0 && (
-            <FormField label={t("environment")} htmlFor="trigger-environment">
-              <Select value={environmentId} onValueChange={setEnvironmentId}>
-                <SelectTrigger id="trigger-environment">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={DEFAULT_ENV}>{t("defaultEnvironment")}</SelectItem>
-                  {namedEnvironments.map((environment) => (
-                    <SelectItem key={environment.id} value={environment.id}>
-                      {environment.name} (v{environment.version})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
+          {step === "schedule" && (
+            <div className="space-y-4">
+              <CadencePresets
+                scheduleKind={scheduleKind}
+                intervalUnit={intervalUnit}
+                intervalCount={intervalCount}
+                cronFreq={cronFreq}
+                cronTime={cronTime}
+                cronWeekdays={cronWeekdays}
+                onApply={applyPreset}
+              />
+              {scheduleFields}
+            </div>
           )}
         </div>
 
-        <DialogFooter className={editing ? "sm:justify-between" : undefined}>
-          {editing && (
-            <Button
-              variant="secondary"
-              disabled={!trigger.is_active || runNow.isPending}
-              onClick={() => runNow.mutate(trigger.id)}
-            >
-              {t("runNow")}
-            </Button>
-          )}
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              {t("cancel")}
-            </Button>
-            <Button onClick={submit} disabled={!canSubmit}>
-              {editing ? t("save") : t("create")}
-            </Button>
-          </div>
-        </DialogFooter>
+        <WizardNav
+          backIsStep={!onFirstStep}
+          backLabel={onFirstStep ? t("cancel") : t("back")}
+          onBack={onFirstStep ? () => onOpenChange(false) : handleBack}
+          nextLabel={isLastStep ? t("create") : t("continue")}
+          onNext={handleNext}
+          nextDisabled={!canAdvance}
+          isLast={isLastStep}
+          busy={pending}
+          busyLabel={t("creating")}
+        />
       </DialogContent>
     </Dialog>
+  );
+}
+
+function NameField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const t = useTranslations("triggers");
+  return (
+    <FormField label={t("nameLabel")} htmlFor="trigger-name" description={t("nameHelp")}>
+      <Input
+        id="trigger-name"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={t("namePlaceholder")}
+        maxLength={120}
+      />
+    </FormField>
+  );
+}
+
+function PromptField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const t = useTranslations("triggers");
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor="trigger-prompt">{t("prompt")}</Label>
+      <MarkdownEditor
+        id="trigger-prompt"
+        label={t("prompt")}
+        value={value}
+        onChange={onChange}
+        placeholder={t("promptPlaceholder")}
+        rows={6}
+        describedBy="trigger-prompt-desc"
+      />
+      <p id="trigger-prompt-desc" className="text-muted-foreground text-xs leading-relaxed">
+        {t("promptHelp")}
+      </p>
+    </div>
+  );
+}
+
+function EnvironmentField({
+  value,
+  onChange,
+  environments,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  environments: AgentEnvironment[];
+}) {
+  const t = useTranslations("triggers");
+  return (
+    <FormField label={t("environment")} htmlFor="trigger-environment">
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger id="trigger-environment">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={DEFAULT_ENV}>{t("defaultEnvironment")}</SelectItem>
+          {environments.map((environment) => (
+            <SelectItem key={environment.id} value={environment.id}>
+              {environment.name} (v{environment.version})
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </FormField>
+  );
+}
+
+/** A quick cadence worth one click: an interval, or a cron shape and a time. */
+type CadencePreset =
+  | { key: string; kind: "interval"; unit: IntervalUnit; count: number }
+  | { key: string; kind: "cron"; freq: "daily"; time: string }
+  | { key: string; kind: "cron"; freq: "weekly"; time: string; weekdays: number[] };
+
+/** The presets on the schedule step, mirroring the KB sync-source pills. */
+const CADENCE_PRESETS: readonly CadencePreset[] = [
+  { key: "presetEvery15m", kind: "interval", unit: "minutes", count: 15 },
+  { key: "presetHourly", kind: "interval", unit: "hours", count: 1 },
+  { key: "presetEvery6h", kind: "interval", unit: "hours", count: 6 },
+  { key: "presetDaily9", kind: "cron", freq: "daily", time: "09:00" },
+  {
+    key: "presetWeekdays9",
+    kind: "cron",
+    freq: "weekly",
+    time: "09:00",
+    weekdays: [1, 2, 3, 4, 5],
+  },
+];
+
+interface CadencePresetsProps {
+  scheduleKind: ScheduleKind;
+  intervalUnit: IntervalUnit;
+  intervalCount: string;
+  cronFreq: CronFrequency;
+  cronTime: string;
+  cronWeekdays: number[];
+  onApply: (preset: CadencePreset) => void;
+}
+
+/**
+ * One-click cadences above the full builder. A pill lights up while the
+ * controls below still spell out what it set, so a preset is a shortcut into
+ * the builder rather than a mode of its own - editing any control underneath
+ * simply unlights it.
+ */
+function CadencePresets({
+  scheduleKind,
+  intervalUnit,
+  intervalCount,
+  cronFreq,
+  cronTime,
+  cronWeekdays,
+  onApply,
+}: CadencePresetsProps) {
+  const t = useTranslations("triggers");
+
+  function isActive(preset: CadencePreset): boolean {
+    if (preset.kind === "interval") {
+      return (
+        scheduleKind === "interval" &&
+        intervalUnit === preset.unit &&
+        Number(intervalCount) === preset.count
+      );
+    }
+    if (scheduleKind !== "cron" || cronFreq !== preset.freq || cronTime !== preset.time) {
+      return false;
+    }
+    if (preset.freq === "weekly") {
+      return [...cronWeekdays].sort((a, b) => a - b).join(",") === preset.weekdays.join(",");
+    }
+    return true;
+  }
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-foreground/80 text-xs font-medium tracking-wider uppercase">
+        {t("presetsLabel")}
+      </Label>
+      <div className="flex flex-wrap gap-2">
+        {CADENCE_PRESETS.map((preset) => {
+          const active = isActive(preset);
+          return (
+            <button
+              key={preset.key}
+              type="button"
+              aria-pressed={active}
+              onClick={() => onApply(preset)}
+              className={cn(
+                "border-foreground/15 inline-flex rounded-full border px-3 py-1.5 font-mono text-[11px] tracking-wider uppercase transition-colors",
+                active
+                  ? "bg-foreground text-background border-foreground"
+                  : "text-foreground/65 hover:text-foreground hover:border-foreground/40",
+              )}
+            >
+              {t(preset.key)}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

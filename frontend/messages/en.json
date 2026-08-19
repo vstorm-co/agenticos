@@ -1063,7 +1063,6 @@
       "writing": "{named, select, no {Writing…} other {Writing {subject}}}",
       "writingPlan": "Writing the plan",
       "wrote": "{named, select, no {Wrote…} other {Wrote {subject}}}"
-
     },
     "unknownError": "Unknown error",
     "usage": {
@@ -4527,7 +4526,19 @@
     "secretRotated": "Signing secret rotated",
     "templatesLabel": "Start from a template",
     "templateScratch": "Start from scratch",
-    "templateScratchHelp": "Write your own message and cadence."
+    "templateScratchHelp": "Write your own message and cadence.",
+    "stepTask": "Task",
+    "stepSchedule": "Schedule",
+    "stepEvent": "Event",
+    "back": "Back",
+    "continue": "Continue",
+    "creating": "Creating…",
+    "presetsLabel": "Quick presets",
+    "presetEvery15m": "Every 15 min",
+    "presetHourly": "Hourly",
+    "presetEvery6h": "Every 6h",
+    "presetDaily9": "Daily 09:00",
+    "presetWeekdays9": "Weekdays 09:00"
   },
   "portals": {
     "title": "Portals",

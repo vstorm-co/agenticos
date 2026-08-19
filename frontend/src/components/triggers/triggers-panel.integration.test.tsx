@@ -197,6 +197,7 @@ describe("TriggersPanel", () => {
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("Message"), "Do the thing");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     const count = within(dialog).getByLabelText("Run every");
     await user.clear(count);
     await user.type(count, "2");
@@ -266,6 +267,7 @@ describe("TriggersPanel", () => {
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("Message"), "Every couple of days");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.click(within(dialog).getByRole("tab", { name: "At a set time" }));
     await user.click(within(dialog).getByRole("combobox", { name: "Repeat" }));
     await user.click(await screen.findByRole("option", { name: "Every few days" }));
@@ -313,6 +315,7 @@ describe("TriggersPanel", () => {
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("Message"), "Daily digest");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.click(within(dialog).getByRole("tab", { name: "At a set time" }));
     // The builder opens on "every day at 09:00", which composes to 0 9 * * * with
     // nobody having to write crontab - the whole point of the redesign.
@@ -325,6 +328,64 @@ describe("TriggersPanel", () => {
       environment_id: null,
       schedule_kind: "cron",
       cron_expression: "0 9 * * *",
+    });
+  });
+
+  it("creates a weekday-morning schedule from one preset pill", async () => {
+    const user = userEvent.setup();
+    serve([]);
+    vi.mocked(apiClient.post).mockResolvedValue(trigger());
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "New schedule" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Message"), "Morning digest");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    const pill = within(dialog).getByRole("button", { name: "Weekdays 09:00" });
+    await user.click(pill);
+    // The pill lights, and the builder underneath now spells out what it set.
+    expect(pill).toHaveAttribute("aria-pressed", "true");
+    await user.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
+      prompt: "Morning digest",
+      name: null,
+      trigger_type: "schedule",
+      environment_id: null,
+      schedule_kind: "cron",
+      cron_expression: "0 9 * * 1,2,3,4,5",
+    });
+  });
+
+  it("creates a six-hourly schedule from one preset pill, still editable below", async () => {
+    const user = userEvent.setup();
+    serve([]);
+    vi.mocked(apiClient.post).mockResolvedValue(trigger());
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "New schedule" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Message"), "Sweep the queue");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    const pill = within(dialog).getByRole("button", { name: "Every 6h" });
+    await user.click(pill);
+    // A preset is a shortcut into the builder, not a mode: editing the interval
+    // underneath unlights the pill and wins.
+    const count = within(dialog).getByLabelText("Run every");
+    expect(count).toHaveValue(6);
+    await user.clear(count);
+    await user.type(count, "8");
+    expect(pill).toHaveAttribute("aria-pressed", "false");
+    await user.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
+      prompt: "Sweep the queue",
+      name: null,
+      trigger_type: "schedule",
+      environment_id: null,
+      schedule_kind: "interval",
+      // Eight hours, in seconds - the hand edit, not the preset's six.
+      interval_seconds: 28800,
     });
   });
 
@@ -391,6 +452,7 @@ describe("TriggersPanel", () => {
     await user.type(within(dialog).getByLabelText("Message"), "x");
     await user.click(within(dialog).getByRole("combobox", { name: "Environment" }));
     await user.click(await screen.findByRole("option", { name: /staging/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(
@@ -408,9 +470,12 @@ describe("TriggersPanel", () => {
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("Message"), "Do it");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    // Stepping back shows the message untouched - the refusal cost nothing typed.
+    await user.click(within(dialog).getByRole("button", { name: "Back" }));
     expect(within(dialog).getByLabelText<HTMLInputElement>("Message").value).toBe("Do it");
   });
 
@@ -421,7 +486,9 @@ describe("TriggersPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: "New schedule" }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("button", { name: "Create" })).toBeDisabled();
+    // The task step will not even advance without a message, so nothing
+    // downstream can create one.
+    expect(within(dialog).getByRole("button", { name: "Continue" })).toBeDisabled();
   });
 
   it("closes on cancel without creating anything", async () => {
