@@ -294,6 +294,18 @@ written down is `ModelRequestParameters` as the provider received it: after ever
 has been added. The service persists what the wrapper collected and decides
 nothing about its contents.
 
+**An attachment on the transcript is read through the run, not through its
+uploader.** `GET /files/{id}` is scoped to `ChatFile.user_id`, which is the right
+scope for the chat composer and the wrong one for a run review: reading a run is
+the organization's right rather than its starter's, so the attachment cards on a
+colleague's transcript rendered and every preview answered 404.
+`GET /runs/{run_id}/files/{file_id}` authorizes as the transcript does -
+organization, then `runs:view` - and then admits the file only where its
+`message_id` names a turn of the run's own conversation, which is the reach the
+transcript already grants and no wider. Both routes serve the bytes through
+`_chat_file_bytes.py`, so what a browser may *display* does not depend on which
+one authorized the read.
+
 **The write is guarded *and* nested.** It is reached from a `finally` block, so
 an exception raised while recording a failed run would replace the failure with
 itself. Swallowing it is not enough on its own: a failed flush leaves the session

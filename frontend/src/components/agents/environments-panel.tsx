@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAgentEnvironments, useAgentVersions } from "@/hooks";
+import { useAgentEnvironments, useAllAgentVersions } from "@/hooks";
 import { VERSION_HISTORY_LIMIT } from "@/lib/agent-spec";
 import type { AgentEnvironment, AgentVersion } from "@/types/agents";
 import { useTranslations } from "next-intl";
@@ -98,7 +98,7 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
   const tc = useTranslations("common");
   const { environments, isLoading, create, promote, setReleaseMode, rename, remove } =
     useAgentEnvironments(agentId);
-  const { versions } = useAgentVersions(agentId);
+  const { versions } = useAllAgentVersions(agentId);
   const [name, setName] = useState("");
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
 

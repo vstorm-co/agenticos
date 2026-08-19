@@ -36,20 +36,22 @@ vi.mock("@/hooks", () => ({
     isLoading: loading.value,
   }),
   useAgentVersions: (agentId: string | null, options?: { skip?: number; limit?: number }) => {
-    // Two callers: the paged list, and the comparison picker - which asks for
-    // every version, and only when the history is longer than a page.
+    // The paged list. The comparison picker is `useAllAgentVersions` below, which
+    // walks every page rather than trusting one capped request - a picker offering
+    // the newest fifty of sixty hides the version somebody is looking for.
     if (agentId === null) return { versions: [], total: 0, isLoading: false };
-    if (options?.limit === undefined) {
-      return { versions: served.versions, total: served.total, isLoading: false };
-    }
-    served.asked.push(options.skip ?? 0);
-    const skip = options.skip ?? 0;
+    served.asked.push(options?.skip ?? 0);
+    const skip = options?.skip ?? 0;
     return {
       versions: served.versions.slice(skip, skip + 10),
       total: served.total,
       isLoading: loading.value,
     };
   },
+  useAllAgentVersions: (agentId: string | null) =>
+    agentId === null
+      ? { versions: [], total: 0, isLoading: false }
+      : { versions: served.versions, total: served.total, isLoading: false },
   VERSIONS_PAGE_SIZE: 10,
 }));
 

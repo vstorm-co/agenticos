@@ -29,6 +29,10 @@ export const qk = {
     // answers, and caching one as another shows the wrong decade of the timeline.
     versions: (id: string, skip = 0, limit = 50) =>
       ["agents", id, "versions", skip, limit] as const,
+    // Every version, walked page by page - what the pickers read. Its own key
+    // rather than one page's, because it is one answer assembled from several and
+    // caching it as a page would hand a pager the whole history.
+    allVersions: (id: string) => ["agents", id, "versions", "all"] as const,
     delegationTree: (id: string) => ["agents", id, "delegation-tree"] as const,
     version: (id: string, versionId: string) => ["agents", id, "versions", versionId] as const,
     capabilityCatalog: () => ["agents", "capability-catalog"] as const,
@@ -267,6 +271,13 @@ export const qk = {
     // or a workspace - so it is keyed on nothing but the file's own id.
     text: (fileId: string) => ["attachment", fileId, "text"] as const,
     bytes: (fileId: string) => ["attachment", fileId, "bytes"] as const,
+    // The same file read through a run rather than through its uploader, and
+    // keyed apart on purpose: the two addresses authorise different callers, so a
+    // reviewer's 200 must not be answered from a cache entry a 404 wrote.
+    runText: (runId: string, fileId: string) =>
+      ["attachment", "run", runId, fileId, "text"] as const,
+    runBytes: (runId: string, fileId: string) =>
+      ["attachment", "run", runId, fileId, "bytes"] as const,
   },
   rag: {
     // Keyed on the organization: a sync source names a collection and a remote

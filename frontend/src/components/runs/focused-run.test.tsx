@@ -37,6 +37,12 @@ vi.mock("@/hooks", () => ({
 vi.mock("@/components/runs/run-timeline", () => ({
   RunTimeline: ({ runId }: { runId: string }) => <div data-testid="timeline">{runId}</div>,
 }));
+// The second tab reads the manifest, which is `run-manifest-panel`'s subject
+// rather than this file's - and a tab that renders is a tab whose queries run,
+// which the arrow-key tests reach by moving focus along the strip.
+vi.mock("@/components/runs/run-manifest", () => ({
+  RunManifest: () => <div data-testid="manifest" />,
+}));
 vi.mock("@/stores", () => ({ useAuthStore: () => null }));
 
 function run(overrides: Partial<AgentRun> = {}): AgentRun {
@@ -124,6 +130,40 @@ describe("stepping to a neighbour", () => {
     render(<input aria-label="filter" />);
 
     await userEvent.click(screen.getByLabelText("filter"));
+    await userEvent.keyboard("{ArrowLeft}");
+
+    expect(onFocusRun).not.toHaveBeenCalled();
+  });
+
+  it("leaves the tab strip's own arrows to the tab strip", async () => {
+    // ArrowLeft and ArrowRight are how Radix moves between Timeline and Input, and
+    // a window listener sits above them - so moving between tabs also stepped
+    // between runs, which took the tab strip with it.
+    serve({ run: run() });
+    const onFocusRun = renderRun();
+
+    await userEvent.click(screen.getByRole("tab", { name: "Timeline" }));
+    await userEvent.keyboard("{ArrowRight}");
+
+    expect(onFocusRun).not.toHaveBeenCalled();
+  });
+
+  it("leaves an arrow a focused control already answered", async () => {
+    // `defaultPrevented` is the general form of the rule above: a component that
+    // has handled the key has handled it, whatever the component is.
+    serve({ run: run() });
+    const onFocusRun = renderRun();
+    render(
+      <div
+        aria-label="slider"
+        role="slider"
+        aria-valuenow={1}
+        tabIndex={0}
+        onKeyDown={(event) => event.preventDefault()}
+      />,
+    );
+
+    await userEvent.click(screen.getByLabelText("slider"));
     await userEvent.keyboard("{ArrowLeft}");
 
     expect(onFocusRun).not.toHaveBeenCalled();

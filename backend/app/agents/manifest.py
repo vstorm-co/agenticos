@@ -257,16 +257,27 @@ class RecordingModel(WrapperModel):
     ) -> AsyncIterator[StreamedResponse]:
         self.recorder.observe_request(messages, model_settings, model_request_parameters)
         started, clock = datetime.now(UTC), time.perf_counter()
-        async with self.wrapped.request_stream(
-            messages, model_settings, model_request_parameters, run_context
-        ) as stream:
-            yield stream
-            # After the block, because a streamed response is only complete once
-            # the caller has consumed it: read before that, the usage is zero and
-            # the finish reason is not yet known.
-            self.recorder.observe_response(
-                stream.get(), started=started, elapsed_ms=_since(clock), messages=len(messages)
+        # Both halves inside the guard, because both can raise and each leaves the
+        # same hole: a manifest carrying the prompt and no entry for the request
+        # that failed, on the one surface written to say which request failed. The
+        # streaming path is where a provider refusal usually surfaces - opening the
+        # response is one exception, consuming it another.
+        try:
+            async with self.wrapped.request_stream(
+                messages, model_settings, model_request_parameters, run_context
+            ) as stream:
+                yield stream
+                # After the block, because a streamed response is only complete once
+                # the caller has consumed it: read before that, the usage is zero and
+                # the finish reason is not yet known.
+                self.recorder.observe_response(
+                    stream.get(), started=started, elapsed_ms=_since(clock), messages=len(messages)
+                )
+        except Exception as exc:
+            self.recorder.observe_failure(
+                exc, started=started, elapsed_ms=_since(clock), messages=len(messages)
             )
+            raise
 
 
 def _since(clock: float) -> int:
@@ -377,23 +388,68 @@ MAX_PAYLOAD_BYTES = 512_000
 def fit(payload: dict[str, Any], limit: int = MAX_PAYLOAD_BYTES) -> tuple[dict[str, Any], bool]:
     """The payload, trimmed to fit, and whether anything was cut.
 
-    Trimmed in the order things are worth keeping. The messages go first: they
-    are the largest by far, and the transcript beside them already says what was
-    asked and answered. The tool schemas go second, leaving each tool's name and
-    description - which is the half that explains behaviour and the half readable
-    nowhere else. The instructions, the settings and the request waterfall are
-    never dropped; a record that cannot say what the prompt was is not worth
-    keeping at all.
+    Trimmed in the order things are worth keeping, and **measured after each
+    stage** - a ceiling that is not re-checked is not a ceiling. The messages go
+    first: they are the largest by far, and the transcript beside them already
+    says what was asked and answered. The tool schemas go second, leaving each
+    tool's name and description - the half that explains behaviour and the half
+    readable nowhere else. Then the descriptions themselves, and last the
+    instructions, each cut to a length rather than dropped: an agent whose
+    instructions are a hundred thousand words, or an MCP server describing one
+    tool in a manual, is what makes those the oversized part once the messages and
+    the schemas are gone, and neither is bounded anywhere. What survives whatever
+    happens is the settings and the request waterfall.
+
+    Every cut says it cut: the caller stores the flag beside the row and the run
+    drawer reads it, so a manifest that lost its second half never reads as an
+    agent that was given nothing.
     """
     if _size(payload) <= limit:
         return payload, False
     trimmed = {**payload, "messages": []}
     if _size(trimmed) <= limit:
         return trimmed, True
-    return {
+    trimmed = {
         **trimmed,
         "tools": [{**tool, "parameters_json_schema": {}} for tool in trimmed.get("tools", [])],
+    }
+    if _size(trimmed) <= limit:
+        return trimmed, True
+    trimmed = {
+        **trimmed,
+        "tools": [
+            {**tool, "description": _clipped(tool.get("description"), _TEXT_CLIP)}
+            for tool in trimmed.get("tools", [])
+        ],
+    }
+    if _size(trimmed) <= limit:
+        return trimmed, True
+    return {
+        **trimmed,
+        "instructions": _clipped(trimmed.get("instructions"), _TEXT_CLIP),
+        "system_prompts": [
+            _clipped(prompt, _TEXT_CLIP) for prompt in trimmed.get("system_prompts", [])
+        ],
     }, True
+
+
+#: How much of one piece of prose survives the last two trimming stages.
+#:
+#: Enough to recognise a prompt or a tool description by - which is what a reader
+#: of a trimmed manifest is doing - and small enough that a thousand tools cannot
+#: add up past the ceiling on their own.
+_TEXT_CLIP = 400
+
+
+def _clipped(text: Any, limit: int) -> Any:
+    """`text` cut to `limit` characters, saying that it was. Anything else, whole.
+
+    Total rather than typed on `str`, because it runs over a payload that has been
+    through JSON: `instructions` is `str | None`, and a description may be either.
+    """
+    if not isinstance(text, str) or len(text) <= limit:
+        return text
+    return f"{text[:limit]}… [truncated]"
 
 
 def _size(payload: dict[str, Any]) -> int:

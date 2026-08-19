@@ -8,6 +8,7 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.chat_file import ChatFile
+from app.db.models.conversation import Message
 
 
 async def get_by_id(db: AsyncSession, file_id: UUID) -> ChatFile | None:
@@ -29,6 +30,30 @@ async def get_many(db: AsyncSession, file_ids: Iterable[UUID], *, user_id: UUID)
         select(ChatFile).where(ChatFile.id.in_(ids), ChatFile.user_id == user_id)
     )
     return list(result.scalars().all())
+
+
+async def get_in_conversation(
+    db: AsyncSession, file_id: UUID, *, conversation_id: UUID
+) -> ChatFile | None:
+    """One attachment, scoped to the thread whose turn it hangs on.
+
+    The scope a run review needs and `user_id` cannot give: reading a run is the
+    organization's right rather than its starter's, so a colleague holding
+    `runs:view` reads a transcript whose attachments belong to somebody else. What
+    replaces ownership is the turn - the file is admitted only where its
+    `message_id` names a message of this conversation, which is the same reach the
+    transcript route already grants.
+
+    An unlinked file (`message_id` null) is nobody's transcript and resolves to
+    nothing here: it is an upload in progress, and the only caller who should see
+    one is the person holding it.
+    """
+    result = await db.execute(
+        select(ChatFile)
+        .join(Message, Message.id == ChatFile.message_id)
+        .where(ChatFile.id == file_id, Message.conversation_id == conversation_id)
+    )
+    return result.scalar_one_or_none()
 
 
 async def link_to_message(

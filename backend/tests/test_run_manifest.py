@@ -44,6 +44,7 @@ from app.agents.manifest import (
     RecordedRequest,
     RecordingModel,
     RunRecorder,
+    _size,
     as_payload,
     fit,
 )
@@ -222,6 +223,46 @@ class TestAStreamedRun:
         assert len(recorder.requests) == 1
         assert recorder.instructions == "Be brief."
 
+    async def test_a_stream_that_never_opened_is_recorded_as_a_failure(self):
+        """The hole the guard closes. A manifest exists to say which request
+        failed, and the streaming path is where a provider refusal usually
+        surfaces - so a failed run whose waterfall omits exactly that request is
+        the record missing the row it was written for."""
+
+        async def refuse(messages: list[ModelMessage], info: AgentInfo):
+            raise TimeoutError("the provider took too long")
+            yield ""  # unreachable; what makes this an async generator
+
+        recorder = RunRecorder()
+        model = RecordingModel(FunctionModel(_one_word, stream_function=refuse), recorder)
+        agent = Agent(model, instructions="Be brief.")
+
+        with pytest.raises(TimeoutError):
+            async with agent.run_stream("hello"):
+                pass
+
+        assert [request.failed for request in recorder.requests] == ["TimeoutError"]
+        assert recorder.instructions == "Be brief."
+        assert "took too long" not in str(as_payload(recorder))
+
+    async def test_a_stream_that_broke_while_being_read_is_recorded_too(self):
+        """The second half of the same guard: acquiring the response and consuming
+        it are two exceptions, and both used to leave the run with no entry."""
+
+        async def stream(messages: list[ModelMessage], info: AgentInfo):
+            yield "It is "
+            raise ConnectionError("the connection dropped")
+
+        recorder = RunRecorder()
+        model = RecordingModel(FunctionModel(_one_word, stream_function=stream), recorder)
+        agent = Agent(model)
+
+        with pytest.raises(ConnectionError):
+            async with agent.run_stream("hello") as result:
+                await result.get_output()
+
+        assert [request.failed for request in recorder.requests] == ["ConnectionError"]
+
 
 class TestARunThatEndedBadly:
     async def test_a_failed_request_is_recorded_as_one_that_failed(self):
@@ -337,6 +378,65 @@ class TestARecordTooLargeToKeep:
         assert truncated is True
         assert payload["tools"][0]["description"] == "Search the web."
         assert payload["tools"][0]["parameters_json_schema"] == {}
+
+    def test_a_tool_description_is_clipped_when_the_schemas_were_not_the_problem(self):
+        """An MCP server describing one tool in a manual. Nothing bounds a remote
+        description, so with the messages and the schemas already gone it is what
+        is left of the oversized half."""
+        tools = [
+            {
+                "name": "search",
+                "description": "z" * MAX_PAYLOAD_BYTES,
+                "parameters_json_schema": {},
+                "kind": "function",
+            }
+        ]
+
+        payload, truncated = fit(self._payload(tools=tools))
+
+        assert truncated is True
+        assert len(payload) > 0
+        assert payload["tools"][0]["description"].endswith("… [truncated]")
+        assert _size(payload) <= MAX_PAYLOAD_BYTES
+
+    def test_an_unbounded_prompt_is_clipped_last_rather_than_stored_whole(self):
+        """The ceiling the advertised one was not. `instructions` is the agent's
+        own text and nothing bounds its length, so a manifest was persisted over
+        the limit on every run of an agent with a very long prompt."""
+        payload, truncated = fit(
+            self._payload(
+                instructions="i" * MAX_PAYLOAD_BYTES,
+                system_prompts=["s" * MAX_PAYLOAD_BYTES],
+            )
+        )
+
+        assert truncated is True
+        assert payload["instructions"].endswith("… [truncated]")
+        assert payload["system_prompts"][0].endswith("… [truncated]")
+        assert _size(payload) <= MAX_PAYLOAD_BYTES
+
+    def test_the_waterfall_survives_every_cut(self):
+        """What a reader is left with when everything else went: which requests
+        were made, how long each took and what it cost."""
+        payload, _ = fit(self._payload(instructions="i" * MAX_PAYLOAD_BYTES, messages=[{"x": "y"}]))
+
+        assert [request["duration_ms"] for request in payload["requests"]] == [12]
+
+    def test_nothing_is_clipped_where_a_field_is_not_prose(self):
+        """The payload has been through JSON by the time it is trimmed, so a
+        description may be null - and a clip that assumed a string would raise
+        while writing a record nobody asked for."""
+        tools = [
+            {"name": "t", "description": None, "parameters_json_schema": {}, "kind": "function"}
+        ]
+
+        payload, truncated = fit(
+            self._payload(tools=tools, instructions=None, messages=[{"x": "y" * MAX_PAYLOAD_BYTES}])
+        )
+
+        assert truncated is True
+        assert payload["tools"][0]["description"] is None
+        assert payload["instructions"] is None
 
 
 class TestTheOutputToolIsRecordedToo:

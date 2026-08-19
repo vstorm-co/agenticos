@@ -180,10 +180,18 @@ that never reached a model - stopped by a budget, blocked by a guardrail on the
 way in - records nothing and answers 404, because an empty document would claim
 the agent was given no prompt and no tools.
 
-A record too large to keep is trimmed rather than refused, and says so: the
-messages go first, then the tool argument schemas, and what survives is always
-the prompt, the settings, the request waterfall and each tool's name and
-description.
+A record too large to keep is trimmed rather than refused, and says so. Trimmed
+in stages, each one measured: the messages go first, then the tool argument
+schemas, then the tool descriptions, and last the prompt itself - each of those
+two cut to a recognisable length rather than dropped, because an agent's own
+instructions and a remote MCP tool's description are unbounded and are what makes
+a record oversized once the messages and the schemas are gone. What survives
+whatever happens is the settings and the request waterfall.
+
+A request that **failed** is an entry in that waterfall like any other, streamed
+or not: it carries the exception's class and never its message, since a provider
+SDK puts the failing URL - and therefore a key in its query string - in that
+string.
 
 ---
 

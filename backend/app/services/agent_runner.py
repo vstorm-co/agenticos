@@ -150,6 +150,7 @@ from app.repositories import (
     agent_exposure_repo,
     agent_repo,
     agent_run_repo,
+    chat_file_repo,
     conversation_repo,
     knowledge_base_repo,
     message_rating_repo,
@@ -3575,6 +3576,50 @@ class AgentRunnerService:
             )
             total = await conversation_repo.count_messages_by_run(self.db, run.id)
         return run, messages, total
+
+    async def get_run_attachment(self, ctx: AuthContext, run_id: UUID, file_id: UUID) -> ChatFile:
+        """One file that arrived with a turn of this run - authorized as the run is.
+
+        `/files/{id}` is scoped to the uploader, which is the wrong scope for a
+        run review: reading a run is the organization's right rather than its
+        starter's, so a colleague holding `runs:view` sees the attachment cards on
+        somebody else's transcript and every preview answered 404. This route
+        replaces ownership with the turn, and grants exactly what the transcript
+        already grants - the file has to hang on a message of the run's own
+        conversation.
+
+        The refusals are ordered as they are wherever a run is read: existence is
+        resolved against the caller's organization first, so a run in another
+        tenant reads as absent rather than as forbidden, and only a run known to
+        be this organization's turns a missing `runs:view` into a 403.
+
+        Raises:
+            NotFoundError: The run is not in the caller's organization, the run
+                has no conversation, or no turn of that conversation carries this
+                file. The last is deliberately the same answer as a file that does
+                not exist: this route must not confirm one to a caller who cannot
+                read the transcript it hangs on.
+            AuthorizationError: The caller's organization holds the run but the
+                caller does not hold `runs:view`.
+        """
+        run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        if run is None:
+            raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
+        if not ctx.has(Perm.RUNS_VIEW):
+            raise AuthorizationError(
+                message="Insufficient permissions",
+                details={"required": [Perm.RUNS_VIEW.value], "run_id": str(run_id)},
+            )
+        file = (
+            None
+            if run.conversation_id is None
+            else await chat_file_repo.get_in_conversation(
+                self.db, file_id, conversation_id=run.conversation_id
+            )
+        )
+        if file is None:
+            raise NotFoundError(message="File not found", details={"file_id": str(file_id)})
+        return file
 
     async def get_run_manifest(self, ctx: AuthContext, run_id: UUID) -> RunManifest:
         """What the run handed its model - authorized the way its transcript is.

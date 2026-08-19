@@ -15,7 +15,12 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { LoadingState } from "@/components/states";
-import { useAgentVersion, useAgentVersions, VERSIONS_PAGE_SIZE } from "@/hooks";
+import {
+  useAgentVersion,
+  useAgentVersions,
+  useAllAgentVersions,
+  VERSIONS_PAGE_SIZE,
+} from "@/hooks";
 import { collapseUnchanged, diffLines, diffStat } from "@/lib/diff";
 import { cn, formatDate, timeAgo } from "@/lib/utils";
 import type { AgentEnvironment, AgentSpec, AgentVersion } from "@/types/agents";
@@ -125,7 +130,7 @@ export function VersionHistory({
   // page *is* every version, and a second request would fetch what is already
   // here.
   const paged = total > VERSIONS_PAGE_SIZE;
-  const { versions: allVersions } = useAgentVersions(paged ? agentId : null);
+  const { versions: allVersions } = useAllAgentVersions(paged ? agentId : null);
   const pickable = paged ? allVersions : versions;
   const newestId = versions[0]?.id ?? null;
   const [seenNewest, setSeenNewest] = useState<string | null>(null);

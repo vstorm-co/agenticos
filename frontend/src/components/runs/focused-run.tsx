@@ -107,14 +107,26 @@ export function FocusedRun({
     // each of them is the whole friction this view exists to remove.
     //
     // Ignored where the key means something else: a modifier is a browser
-    // shortcut, and a caret in a field is somebody typing rather than stepping.
+    // shortcut, a caret in a field is somebody typing rather than stepping, and
+    // an arrow already answered by the control that has focus is that control's.
+    // The tab strip is the one that bites - ArrowLeft and ArrowRight are how
+    // Radix moves between Timeline and Input, and a window listener sits above
+    // it, so stepping between tabs also stepped between runs.
     function step(event: KeyboardEvent) {
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
       if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (event.defaultPrevented) return;
       const target = event.target;
       if (
         target instanceof HTMLElement &&
-        (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+        (target.isContentEditable ||
+          ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) ||
+          // Anything focusable that reads an arrow of its own - a tab, a menu, a
+          // slider, a listbox. Asked of the ancestors too, because focus lands on
+          // the element carrying the role and a handler may be on its wrapper.
+          target.closest(
+            'button, a[href], [role="tab"], [role="button"], [role="menu"], [role="menuitem"], [role="listbox"], [role="option"], [role="slider"], [role="radiogroup"]',
+          ) !== null)
       ) {
         return;
       }

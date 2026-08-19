@@ -595,6 +595,7 @@ include = [
     "app/core/maintenance.py",
     "app/api/routes/v1/branding.py",
     "app/api/routes/v1/_branding_bytes.py",
+    "app/api/routes/v1/_chat_file_bytes.py",
     "app/api/routes/v1/admin_deployment_settings.py",
     "app/services/invitation_admission.py",
     # One unguarded attribute in a dependency made every wrong-method request a 500
@@ -824,6 +825,7 @@ include = [
     "app/core/maintenance.py",
     "app/api/routes/v1/branding.py",
     "app/api/routes/v1/_branding_bytes.py",
+    "app/api/routes/v1/_chat_file_bytes.py",
     "app/api/routes/v1/admin_deployment_settings.py",
     "app/services/invitation_admission.py",
     # One unguarded attribute in a dependency made every wrong-method request a 500

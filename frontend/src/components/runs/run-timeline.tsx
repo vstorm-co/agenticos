@@ -10,7 +10,7 @@ import { FileCard, FileViewer } from "@/components/files";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useRunTranscript } from "@/hooks";
 import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
-import { attachmentAccess, getFileUrl } from "@/lib/file-api";
+import { getRunFileUrl, runAttachmentAccess } from "@/lib/file-api";
 import { resolveFileKind, suffixOf } from "@/lib/file-kinds";
 import { glideOrJump } from "@/lib/motion";
 import { cn, formatDateTime } from "@/lib/utils";
@@ -79,6 +79,7 @@ export function RunTimeline({ runId }: { runId: string }) {
         <TimelineGroup
           key={group.key}
           group={group}
+          runId={runId}
           anchored={group.runId === anchorRunId}
           position={index + 1}
           locale={locale}
@@ -130,11 +131,14 @@ function groupByRun(items: RunTranscriptMessage[]): RunGroup[] {
  */
 function TimelineGroup({
   group,
+  runId,
   anchored,
   position,
   locale,
 }: {
   group: RunGroup;
+  /** The run being read, which is how a turn's attachments are addressed. */
+  runId: string;
   /** Written by the run the panel is showing - the one that opens. */
   anchored: boolean;
   /** Which section of the thread this is, for a header that can say so. */
@@ -190,7 +194,13 @@ function TimelineGroup({
       {open && (
         <ol className="space-y-4 border-t px-3 py-3">
           {group.items.map((item) => (
-            <TimelineTurn key={item.id} item={item} ownTurn={anchored} locale={locale} />
+            <TimelineTurn
+              key={item.id}
+              item={item}
+              runId={runId}
+              ownTurn={anchored}
+              locale={locale}
+            />
           ))}
         </ol>
       )}
@@ -200,10 +210,19 @@ function TimelineGroup({
 
 function TimelineTurn({
   item,
+  runId,
   ownTurn,
   locale,
 }: {
   item: RunTranscriptMessage;
+  /**
+   * The run being read, which is how an attachment is addressed.
+   *
+   * Not the run that wrote the turn: the timeline shows the whole thread, and a
+   * file is authorised through the conversation the run sits in - the same reach
+   * the transcript itself was granted.
+   */
+  runId: string;
   /** Written by the focused run - marked, where the rest of the thread is context. */
   ownTurn: boolean;
   locale: string;
@@ -273,7 +292,9 @@ function TimelineTurn({
         </div>
       )}
 
-      {message.files && message.files.length > 0 && <TurnAttachments files={message.files} />}
+      {message.files && message.files.length > 0 && (
+        <TurnAttachments runId={runId} files={message.files} />
+      )}
 
       {/* The words somebody left with a thumb down - the complaint, beside the
           answer it judged. */}
@@ -295,7 +316,7 @@ function TimelineTurn({
  * every other surface uses, so a document means the same thing here as it does
  * in the chat it was uploaded to.
  */
-function TurnAttachments({ files }: { files: ChatMessageFile[] }) {
+function TurnAttachments({ runId, files }: { runId: string; files: ChatMessageFile[] }) {
   const t = useTranslations("pages.runs");
   const [opened, setOpened] = useState<ChatMessageFile | null>(null);
   return (
@@ -312,7 +333,7 @@ function TurnAttachments({ files }: { files: ChatMessageFile[] }) {
             mimeType={file.mime_type}
             imageUrl={
               resolveFileKind(file.filename, file.mime_type) === "image"
-                ? getFileUrl(file.id)
+                ? getRunFileUrl(runId, file.id)
                 : null
             }
             typeLabel={suffixOf(file.filename).toUpperCase() || file.file_type.toUpperCase()}
@@ -323,7 +344,7 @@ function TurnAttachments({ files }: { files: ChatMessageFile[] }) {
       {opened !== null && (
         <FileViewer
           file={{ name: opened.filename, mimeType: opened.mime_type }}
-          access={attachmentAccess({ id: opened.id, filename: opened.filename })}
+          access={runAttachmentAccess(runId, { id: opened.id, filename: opened.filename })}
           onClose={() => setOpened(null)}
         />
       )}

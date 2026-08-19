@@ -26,6 +26,7 @@ export {
   useAgents,
   useAgentVersion,
   useAgentVersions,
+  useAllAgentVersions,
   VERSIONS_PAGE_SIZE,
   useCapabilityCatalog,
   useDelegationTree,

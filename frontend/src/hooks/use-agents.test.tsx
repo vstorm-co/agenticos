@@ -8,6 +8,7 @@ import {
   useAgent,
   useAgentVersion,
   useAgentVersions,
+  useAllAgentVersions,
   useAgents,
   useCapabilityCatalog,
   useDelegationTree,
@@ -622,11 +623,10 @@ describe("an agent's versions", () => {
     const { result } = renderHook(() => useAgentVersions("a1"), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    // Fifty by default, because two of the three callers are pickers - which
-    // version to pin an environment or a delegate to - and a picker that offers
-    // ten of sixty hides the one somebody is looking for.
+    // One page, the size the history card reads. A caller needing every version
+    // uses `useAllAgentVersions`, which walks the pages.
     expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/versions", {
-      params: { skip: "0", limit: "50" },
+      params: { skip: "0", limit: "10" },
     });
     expect(result.current.versions).toHaveLength(1);
     expect(result.current.total).toBe(1);
@@ -650,6 +650,68 @@ describe("an agent's versions", () => {
 
   it("does not fetch a timeline before an agent is chosen", () => {
     renderHook(() => useAgentVersions(null), { wrapper });
+
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("walks every page for a picker, because one request is capped", async () => {
+    // The defect: the pickers read one request of fifty and the route reports a
+    // larger `total`, so an agent published more than fifty times offered its
+    // newest fifty - and the version an environment is pinned to could be missing
+    // from the picker that repins it. A `<Select>` with no matching option renders
+    // a blank trigger, so it reads as "no version" rather than as a hidden one.
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({
+        items: Array.from({ length: 100 }, (_, i) => ({ id: `v${230 - i}`, version: 230 - i })),
+        total: 230,
+      })
+      .mockResolvedValueOnce({
+        items: Array.from({ length: 100 }, (_, i) => ({ id: `v${130 - i}`, version: 130 - i })),
+        total: 230,
+      })
+      .mockResolvedValueOnce({
+        items: Array.from({ length: 30 }, (_, i) => ({ id: `v${30 - i}`, version: 30 - i })),
+        total: 230,
+      });
+
+    const { result } = renderHook(() => useAllAgentVersions("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.versions).toHaveLength(230);
+    expect(result.current.total).toBe(230);
+    expect(vi.mocked(apiClient.get).mock.calls.map(([, options]) => options)).toEqual([
+      { params: { skip: "0", limit: "100" } },
+      { params: { skip: "100", limit: "100" } },
+      { params: { skip: "200", limit: "100" } },
+    ]);
+  });
+
+  it("stops walking when a page answers nothing, rather than looping", async () => {
+    // A publication deleted between two requests leaves `total` larger than what
+    // is there to read, and a `while` trusting the count alone would spin.
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ items: [{ id: "v2", version: 2 }], total: 9 })
+      .mockResolvedValueOnce({ items: [], total: 9 });
+
+    const { result } = renderHook(() => useAllAgentVersions("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.versions).toHaveLength(1);
+    expect(apiClient.get).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops walking when the first page is empty", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 4 });
+
+    const { result } = renderHook(() => useAllAgentVersions("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.versions).toEqual([]);
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks for nothing before an agent is chosen", () => {
+    renderHook(() => useAllAgentVersions(null), { wrapper });
 
     expect(apiClient.get).not.toHaveBeenCalled();
   });

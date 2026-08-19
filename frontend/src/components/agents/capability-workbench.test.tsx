@@ -35,6 +35,7 @@ vi.mock("@/hooks", () => ({
   }),
   usePermissions: () => ({ can: () => true, isLoading: false }),
   useAgentVersions: () => ({ versions: [], isLoading: false }),
+  useAllAgentVersions: () => ({ versions: [], isLoading: false }),
   useModelProviders: () => ({ catalog: [], profiles: [], isLoading: false }),
   useKnowledgeBases: () => ({ kbs: [], isLoading: false }),
   useSkills: () => ({ skills: [], total: 0, isLoading: false }),

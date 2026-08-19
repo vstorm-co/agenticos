@@ -36,6 +36,13 @@ vi.mock("@/hooks", () => ({
     ],
     isLoading: false,
   }),
+  useAllAgentVersions: () => ({
+    versions: [
+      { id: "v2", version: 2, note: null, published_by_user_id: null },
+      { id: "v1", version: 1, note: null, published_by_user_id: null },
+    ],
+    isLoading: false,
+  }),
   // Read by the specialist editor nested below, and covered by its own file.
   useModelProviders: () => ({ catalog: [], profiles: [], isLoading: false }),
   useKnowledgeBases: () => ({ kbs: [], isLoading: false }),

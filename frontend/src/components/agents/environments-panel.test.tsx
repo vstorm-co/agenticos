@@ -33,6 +33,7 @@ const versionsState = {
 vi.mock("@/hooks", () => ({
   useAgentEnvironments: () => state,
   useAgentVersions: () => versionsState,
+  useAllAgentVersions: () => versionsState,
 }));
 
 function environment(
