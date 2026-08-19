@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { RegisterForm } from "./register-form";
 import { BrandingProvider } from "@/components/branding/branding-provider";
@@ -15,7 +15,11 @@ import { BUILT_IN_BRANDING, type Branding } from "@/lib/branding";
  * reads the refusal as the product being broken.
  */
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+const searchParams = { value: new URLSearchParams() };
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  useSearchParams: () => searchParams.value,
+}));
 vi.mock("@/hooks", () => ({ useAuth: () => ({ register: vi.fn() }) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/components/auth/oauth-buttons", () => ({ OAuthBlock: () => null }));
@@ -84,6 +88,40 @@ describe("a narrowed domain list", () => {
     });
 
     expect(screen.getByText(/acme\.com, partner\.io/)).toBeInTheDocument();
+  });
+});
+
+describe("arriving with an invitation", () => {
+  afterEach(() => {
+    searchParams.value = new URLSearchParams();
+  });
+
+  it("says the deployment's restrictions do not apply", () => {
+    // Somebody holding an invitation is not the audience for "ask an administrator
+    // to invite you" - the policy admits them, and telling them otherwise reads as
+    // a refusal they have already satisfied.
+    searchParams.value = new URLSearchParams({ invitation: "tok" });
+
+    render(<RegisterForm />, { wrapper: branded({ signupMode: "invite_only" }) });
+
+    expect(screen.getByText(/registering with an invitation/i)).toBeInTheDocument();
+    expect(screen.queryByText(/ask an administrator to invite you/i)).not.toBeInTheDocument();
+  });
+
+  it("does not claim an invitation nobody brought", () => {
+    render(<RegisterForm />, { wrapper: branded({ signupMode: "invite_only" }) });
+
+    expect(screen.queryByText(/registering with an invitation/i)).not.toBeInTheDocument();
+  });
+
+  it("still shows no form on a closed deployment", () => {
+    // "Closed" that lets some registrations through is not closed, and the backend
+    // agrees - so offering the form here would be a form that always fails.
+    searchParams.value = new URLSearchParams({ invitation: "tok" });
+
+    render(<RegisterForm />, { wrapper: branded({ signupMode: "closed" }) });
+
+    expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument();
   });
 });
 

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { ArrowRight, Check, X } from "lucide-react";
@@ -26,6 +26,12 @@ export function RegisterForm() {
   const t = useTranslations("auth");
   const router = useRouter();
   const { register } = useAuth();
+  const search = useSearchParams();
+  // Present when this form was reached from an invitation. It admits an address the
+  // deployment's sign-up policy would otherwise refuse, and it is the only proof
+  // that can admit a shareable link constraining no address at all (#916).
+  const invitationToken = search.get("invitation");
+  const returnTo = search.get("returnTo");
   const branding = useBranding();
   const terms = termsLink(branding);
   const privacy = privacyLink(branding);
@@ -62,9 +68,17 @@ export function RegisterForm() {
 
     setIsLoading(true);
     try {
-      await register({ email, password, full_name: name || undefined });
+      await register({
+        email,
+        password,
+        full_name: name || undefined,
+        invitation_token: invitationToken ?? undefined,
+      });
       toast.success(t("registerSuccess"));
-      router.push(ROUTES.LOGIN + "?registered=true");
+      // The invitation is not accepted by registering - that needs a session - so a
+      // person who arrived through one is sent back to it after signing in.
+      const next = returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : "";
+      router.push(`${ROUTES.LOGIN}?registered=true${next}`);
     } catch (err) {
       const message =
         err instanceof ApiError ? getErrorMessage(err, tErrors) : t("registrationFailedPleaseTry");
@@ -100,7 +114,7 @@ export function RegisterForm() {
         </p>
       </div>
 
-      <SignupPolicyNotice />
+      <SignupPolicyNotice invited={invitationToken !== null} />
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-1.5">

@@ -709,7 +709,8 @@
     "signupInviteOnly": "This deployment is invite-only. You can register with an address somebody has invited.",
     "signupDomainsAllowed": "Only addresses at {domains} can register here.",
     "signupClosedHeading": "Sign-up is closed",
-    "signupClosedBody": "{app} is not accepting new accounts. Ask an administrator to create one for you."
+    "signupClosedBody": "{app} is not accepting new accounts. Ask an administrator to create one for you.",
+    "signupWithInvitation": "You are registering with an invitation, so this deployment's sign-up restrictions do not apply to you."
   },
   "billing": {
     "description": "Manage your subscription for {org}.",
