@@ -176,25 +176,23 @@ async def ingest_path_async(
 
             source_path = str(filepath.resolve())
             if sync_mode in ("new_only", "update_only"):
-                existing_id: str | None = await ingestion.find_existing(collection, source_path)
+                # One scan for both answers - see `existing_document` for why
+                # they are not two calls (#548, #566).
+                existing = await ingestion.existing_document(collection, source_path)
 
                 if sync_mode == "new_only":
-                    if existing_id:
+                    if existing.document_id:
                         file_hash: str = hashlib.sha256(filepath.read_bytes()).hexdigest()
-                        existing_hash: str | None = await ingestion.get_existing_hash(
-                            collection, source_path
-                        )
-                        if existing_hash and file_hash == existing_hash:
+                        if existing.content_hash and file_hash == existing.content_hash:
                             skipped_count += 1
                             continue
 
                 elif sync_mode == "update_only":
-                    if not existing_id:
+                    if not existing.document_id:
                         skipped_count += 1
                         continue
                     file_hash = hashlib.sha256(filepath.read_bytes()).hexdigest()
-                    existing_hash = await ingestion.get_existing_hash(collection, source_path)
-                    if existing_hash and file_hash == existing_hash:
+                    if existing.content_hash and file_hash == existing.content_hash:
                         skipped_count += 1
                         continue
 

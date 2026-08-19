@@ -399,27 +399,24 @@ async def _run_sync(
 
             source_path = str(filepath.resolve())
             if mode in ("new_only", "update_only"):
-                existing_id = await ingestion_service.find_existing(collection_name, source_path)
+                # One scan for both answers. They are facts about the same
+                # document, and asking for them separately is what let a live
+                # file's hash be compared against a different document's (#548).
+                existing = await ingestion_service.existing_document(collection_name, source_path)
 
                 if mode == "new_only":
-                    if existing_id:
+                    if existing.document_id:
                         file_hash = hashlib.sha256(filepath.read_bytes()).hexdigest()
-                        existing_hash = await ingestion_service.get_existing_hash(
-                            collection_name, source_path
-                        )
-                        if existing_hash and file_hash == existing_hash:
+                        if existing.content_hash and file_hash == existing.content_hash:
                             skipped += 1
                             continue
 
                 elif mode == "update_only":
-                    if not existing_id:
+                    if not existing.document_id:
                         skipped += 1
                         continue
                     file_hash = hashlib.sha256(filepath.read_bytes()).hexdigest()
-                    existing_hash = await ingestion_service.get_existing_hash(
-                        collection_name, source_path
-                    )
-                    if existing_hash and file_hash == existing_hash:
+                    if existing.content_hash and file_hash == existing.content_hash:
                         skipped += 1
                         continue
             try:
