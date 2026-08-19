@@ -6,7 +6,6 @@ export { useChat } from "./use-chat";
 export { useConversationWorkspace } from "./use-conversation-workspace";
 export { useConversations } from "./use-conversations";
 export { useConversationShares } from "./use-conversation-shares";
-export { useAdminConversations } from "./use-admin-conversations";
 export { useOrganizations, useOrganizationList, preferredOrg } from "./use-organizations";
 export { useActiveOrganizationRecovery } from "./use-active-organization";
 export { useMembers } from "./use-members";

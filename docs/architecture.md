@@ -501,11 +501,19 @@ bounds a read; the user is what narrows it further.**
   silently applied.
 
 `ConversationService` makes the distinction impossible to omit: `organization_id`
-is a **required** keyword, and a caller that genuinely reads across tenants
-passes the `UNSCOPED` sentinel rather than leaving the argument out. There is one
-— `/admin/conversations/{id}`, gated on `CurrentAppAdmin` — and `rg UNSCOPED`
-finds it. The argument used to default to `None`, `None` meant unscoped, and an
-omission is indistinguishable from an intention.
+is a **required** `UUID` keyword on every read and write of a conversation. It
+used to default to `None`, `None` meant unscoped, and an omission is
+indistinguishable from an intention — two routes serving ordinary members simply
+left it out, and any signed-in user could read and append to any conversation in
+the deployment.
+
+There is **no way to read a conversation across tenants any more.** The sentinel
+that used to spell that out (`UNSCOPED`) had exactly one caller,
+`/admin/conversations/{id}`, and both went with the deployment-wide conversation
+browser — Activity answers "what happened" with the cost, the model, the trace
+and what the model was handed beside it, which is the question that screen was
+being used for. What is left of it is `GET /admin/conversations?user_id=`: one
+named account's threads, listed for the admin user drawer and never read.
 
 For full endpoint-level permissions, see `docs/permissions.md`.
 

@@ -21,7 +21,6 @@ export const ROUTES = {
   ADMIN: "/admin",
   ADMIN_USERS: "/admin/users",
   ADMIN_ORGANIZATIONS: "/admin/organizations",
-  ADMIN_CONVERSATIONS: "/admin/conversations",
   ADMIN_SYSTEM: "/admin/system",
   ADMIN_SETTINGS: "/admin/settings",
   ORGS: "/orgs",

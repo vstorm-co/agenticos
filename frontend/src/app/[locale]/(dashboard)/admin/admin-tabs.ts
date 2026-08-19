@@ -1,4 +1,4 @@
-import { Activity, Building2, LayoutDashboard, MessageSquare, Settings, Users } from "lucide-react";
+import { Activity, Building2, LayoutDashboard, Settings, Users } from "lucide-react";
 
 import type { PageTab } from "@/components/dashboard/page-tabs";
 import { ROUTES } from "@/lib/constants";
@@ -18,7 +18,6 @@ export const ADMIN_TABS: readonly PageTab[] = [
   // under that name, and the palette lists both - two identical options with
   // different destinations. This one is the deployment's whole tenant list.
   { labelKey: "allOrganizations", href: ROUTES.ADMIN_ORGANIZATIONS, icon: Building2 },
-  { labelKey: "conversations", href: ROUTES.ADMIN_CONVERSATIONS, icon: MessageSquare },
   { labelKey: "system", href: ROUTES.ADMIN_SYSTEM, icon: Activity },
   // Last, and named for the deployment rather than for the app: `settings` alone
   // is what the sidebar already calls a person's own preferences, and the palette
