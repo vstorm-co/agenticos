@@ -156,7 +156,7 @@ describe("the announcement banner", () => {
     // A flag would make every later announcement invisible to anybody who
     // dismissed one; the settings row's timestamp would un-dismiss a notice
     // whenever the deployment was renamed. The text is what changed.
-    window.localStorage.setItem("agenticos:notice-dismissed", "The previous one");
+    window.localStorage.setItem("deployment.notice", "The previous one");
     vi.mocked(apiClient.get).mockResolvedValue({ message: "A new one", level: "info" });
 
     render(<AnnouncementBanner enabled />, { wrapper: branded() });

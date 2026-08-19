@@ -21,13 +21,18 @@ import { cn } from "@/lib/utils";
  * one sentence, and a round trip to store it would be a write on every dismissal
  * of a message that expires by being replaced.
  *
+ * The key is `deployment.notice`, matching `cookie.consent` beside it and
+ * deliberately not carrying the product's name: an internal key that spells the
+ * name reads as one a rename should follow, and renaming a deployment must not
+ * un-dismiss a banner for everybody using it.
+ *
  * Read through `useSyncExternalStore` rather than in an effect. The store is a
  * browser API the server has no snapshot of, so the server snapshot is "nothing
  * dismissed" and the client's first commit is the real answer - which is exactly
  * what this hook exists for, and what a `setState` in an effect only approximates
  * at the cost of a cascading render.
  */
-const DISMISSED_KEY = "agenticos:notice-dismissed";
+const DISMISSED_KEY = "deployment.notice";
 
 const listeners = new Set<() => void>();
 
