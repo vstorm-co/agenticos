@@ -815,7 +815,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="build" className="mt-4 space-y-6">
+        <TabsContent value="build" className="mt-6 space-y-6">
           <Card data-tour="agent-instructions">
             <CardHeader>
               <CardTitle>{t("instructions")}</CardTitle>
@@ -883,7 +883,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </Card>
         </TabsContent>
 
-        <TabsContent value="toolbox" className="mt-4 space-y-6">
+        <TabsContent value="toolbox" className="mt-6 space-y-6">
           <Card data-tour="agent-capabilities">
             <CardHeader>
               <CardTitle>{t("capabilities")}</CardTitle>
@@ -934,7 +934,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             outside the deployment for - and the picker embeds the whole server
             catalog, so it pushed the capability workbench off the top of the
             screen on any organization with more than a handful of servers. */}
-        <TabsContent value="mcp" className="mt-4 space-y-6">
+        <TabsContent value="mcp" className="mt-6 space-y-6">
           <Card data-tour="agent-mcp">
             {/* The passive tour points here rather than at the card: the picker
                 below embeds the whole server catalog, so the card runs well past
@@ -992,7 +992,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </Card>
         </TabsContent>
 
-        <TabsContent value="limits" className="mt-4 space-y-6">
+        <TabsContent value="limits" className="mt-6 space-y-6">
           <Card data-tour="agent-limits">
             <CardHeader>
               <CardTitle>{t("runLimits")}</CardTitle>
@@ -1055,7 +1055,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           />
         </TabsContent>
 
-        <TabsContent value="availability" className="mt-4 space-y-6">
+        <TabsContent value="availability" className="mt-6 space-y-6">
           <div data-tour="agent-availability">
             <ExposuresPanel
               agentId={id}
@@ -1069,7 +1069,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           <SharingPanel resourceType="agent" resourceId={id} canManage={canEdit} />
         </TabsContent>
 
-        <TabsContent value="history" className="mt-4 space-y-6">
+        <TabsContent value="history" className="mt-6 space-y-6">
           <Card data-tour="agent-history">
             <CardHeader>
               <CardTitle>{t("environments")}</CardTitle>

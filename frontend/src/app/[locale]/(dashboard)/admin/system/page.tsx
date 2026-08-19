@@ -92,27 +92,12 @@ export default function SystemHealthPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setAuto((a) => !a)}
-          className={cn(auto && "bg-muted")}
-        >
-          <span
-            aria-hidden
-            className={cn("h-1.5 w-1.5 rounded-full", auto ? "bg-chart" : "bg-muted-foreground")}
-          />
-          {t(auto ? "autoRefreshOn" : "autoRefreshOff")}
-        </Button>
-        <Button size="sm" variant="outline" onClick={load}>
-          <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-          {t("refresh2")}
-        </Button>
-      </div>
-
       {summary && (
         <section className="border-border bg-card rounded-xl border p-5">
+          {/* The controls live on this card rather than floating above it: they
+              are about the reading it holds - when it was taken and whether it
+              refreshes itself - and a strip of buttons over an empty page had
+              nothing to belong to. */}
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <span className="bg-muted text-foreground inline-flex h-10 w-10 items-center justify-center rounded-lg">
@@ -136,11 +121,32 @@ export default function SystemHealthPage() {
                 </div>
               </div>
             </div>
-            {health && (
-              <span className="text-muted-foreground text-xs">
-                {t("checkedAt", { time: new Date(health.checked_at).toLocaleTimeString() })}
-              </span>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {health && (
+                <span className="text-muted-foreground mr-1 text-xs">
+                  {t("checkedAt", { time: new Date(health.checked_at).toLocaleTimeString() })}
+                </span>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setAuto((a) => !a)}
+                className={cn(auto && "bg-muted")}
+              >
+                <span
+                  aria-hidden
+                  className={cn(
+                    "h-1.5 w-1.5 rounded-full",
+                    auto ? "bg-chart" : "bg-muted-foreground",
+                  )}
+                />
+                {t(auto ? "autoRefreshOn" : "autoRefreshOff")}
+              </Button>
+              <Button size="sm" variant="outline" onClick={load}>
+                <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+                {t("refresh2")}
+              </Button>
+            </div>
           </div>
         </section>
       )}
