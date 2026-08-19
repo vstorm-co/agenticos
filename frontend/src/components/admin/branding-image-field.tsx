@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { ImageOff, Upload } from "lucide-react";
+import { useRef } from "react";
+import { ImageOff, Loader2, Upload } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
@@ -11,14 +11,21 @@ import { brandingImageUrl } from "@/lib/branding";
 /**
  * Upload or clear one of the two marks, with what is currently stored beside it.
  *
- * The preview is the whole reason this is not two buttons. An operator uploading a
- * favicon cannot see it in the tab until the page reloads, so without a preview the
- * only feedback is a toast - and "uploaded" is not the same claim as "this is the
- * image you meant".
+ * The tile shows **what the deployment serves**, never the bytes just chosen from
+ * the picker. An optimistic preview of the local file would be a claim the server
+ * has not agreed to yet - it refuses anything over 2MB and anything that is not one
+ * of four types - so on a rejected upload the tile would sit there showing an image
+ * this deployment does not have. While the round trip is in flight the tile says so
+ * instead, and the answer carries a new version, which is what re-renders it.
  *
- * The accepted types are the four this platform accepts everywhere, which is what
- * the server will actually take. `accept` is a courtesy to the file picker and not
- * a check: the refusal is the server's, on the declared content type.
+ * That also removes the `blob:` URL the previous version minted, which CodeQL read
+ * as DOM text reaching an HTML sink (`js/xss-through-dom`). The value was never
+ * attacker-controlled - `createObjectURL` returns `blob:<origin>/<uuid>` - but the
+ * simpler component is the better answer than an argument about the taint path.
+ *
+ * The accepted types are the four this platform accepts everywhere. `accept` is a
+ * courtesy to the file picker and not a check: the refusal is the server's, on the
+ * declared content type.
  */
 const ACCEPTS = "image/png,image/jpeg,image/webp,image/gif";
 
@@ -38,27 +45,19 @@ export function BrandingImageField({
 }) {
   const t = useTranslations("pages.admin");
   const input = useRef<HTMLInputElement>(null);
-  const [chosen, setChosen] = useState<string | null>(null);
-
-  // The uploaded bytes, shown before the round trip finishes. Revoked on the next
-  // choice rather than on unmount: a preview replaced is a URL nothing can reach.
-  const preview = chosen ?? brandingImageUrl(kind, version);
-
-  const choose = (file: File | undefined) => {
-    if (!file) return;
-    if (chosen) URL.revokeObjectURL(chosen);
-    setChosen(URL.createObjectURL(file));
-    onUpload(file);
-  };
+  const stored = brandingImageUrl(kind, version);
 
   return (
     <div className="border-border bg-card flex items-center gap-4 rounded-xl border p-4">
       <span className="bg-muted text-muted-foreground flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg">
-        {preview ? (
-          // A `blob:` URL from the file picker before the upload finishes, which
-          // `next/image` can neither optimise nor load.
+        {busy ? (
+          <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+        ) : stored ? (
+          // Served through this app's proxy from bytes the API holds. `next/image`
+          // would need the route in `remotePatterns` and would re-encode a wordmark
+          // it has no size to optimise for.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={preview} alt="" className="h-full w-full object-contain" />
+          <img src={stored} alt="" className="h-full w-full object-contain" />
         ) : (
           <ImageOff className="h-5 w-5" aria-hidden />
         )}
@@ -79,7 +78,14 @@ export function BrandingImageField({
           type="file"
           accept={ACCEPTS}
           className="hidden"
-          onChange={(event) => choose(event.target.files?.[0])}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            // The input is reset so choosing the same file twice fires `change`
+            // again - which is what an operator does after a refusal they have
+            // since fixed by resizing it.
+            event.target.value = "";
+            if (file) onUpload(file);
+          }}
           data-testid={`${kind}-input`}
         />
         <Button size="sm" variant="outline" disabled={busy} onClick={() => input.current?.click()}>
@@ -87,16 +93,7 @@ export function BrandingImageField({
           {t("brandingUpload")}
         </Button>
         {version !== null && (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={busy}
-            onClick={() => {
-              if (chosen) URL.revokeObjectURL(chosen);
-              setChosen(null);
-              onClear();
-            }}
-          >
+          <Button size="sm" variant="outline" disabled={busy} onClick={onClear}>
             {t("brandingReset")}
           </Button>
         )}
