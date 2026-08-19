@@ -29,11 +29,12 @@ const KEYBOARD_STEP = 32;
  * reader, like the chat's attachment preview, which is the other panel that
  * earned the same treatment.
  *
- * **Sticky above `lg`, and only there.** On a wide screen the panel holds the
- * viewport while the list scrolls under it, capped so its own header stays put
- * and its body scrolls (`FocusedRun` owns that split). On a narrow one there is
- * no room for two columns at all: the panel is simply the page, full width, and
- * the caller hides the list behind it.
+ * **Full height, not sticky.** The page is a column that fills the screen, so
+ * this takes the height of the row it sits in and scrolls inside itself -
+ * `FocusedRun` owns the split between the header that stays and the body that
+ * moves. It was sticky first, which left the list sliding under a floating card
+ * with dead space below it. Below `lg` there is no room for two columns at all:
+ * the panel is simply the page, full width, and the caller hides the list.
  */
 export function RunDetailPanel({
   runId,
@@ -66,7 +67,12 @@ export function RunDetailPanel({
       // Through a custom property rather than `style={{ width }}`, so the width
       // applies at the breakpoint where there are two columns and nowhere else.
       style={{ "--run-panel-width": `${width}px` } as React.CSSProperties}
-      className="border-border bg-card @container relative flex w-full shrink-0 flex-col overflow-hidden rounded-xl border lg:sticky lg:top-4 lg:max-h-[calc(100vh-7rem)] lg:w-[var(--run-panel-width)] lg:self-start"
+      // No sticky and no viewport arithmetic: the page is a full-height column
+      // now, so the panel simply takes the height of the row it is in and its
+      // body scrolls inside it. Sticky was the previous shape, and it left the
+      // list sliding *under* a floating card with a hundred pixels of dead
+      // space below it.
+      className="border-border bg-card @container relative flex h-full w-full shrink-0 flex-col overflow-hidden rounded-xl border lg:w-[var(--run-panel-width)]"
     >
       {/* The boundary. A button rather than a bare `separator`, because it is a
           control: the arrow keys move it in steps, so the panel is sizeable by

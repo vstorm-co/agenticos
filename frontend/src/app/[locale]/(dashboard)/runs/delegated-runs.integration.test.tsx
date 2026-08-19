@@ -301,6 +301,26 @@ describe("one run and what it delegated", () => {
     expect(screen.getAllByRole("table").length).toBeGreaterThanOrEqual(2);
   });
 
+  it("starts the list and the panel at the same height", async () => {
+    // Reported twice from a screenshot. `TabsContent` carries its own `mt-2`,
+    // so a panel that is its sibling starts eight pixels above the card beside
+    // it; the row owns the gap now and each tab panel gives its own up. jsdom
+    // computes no layout, so the class is what can be asserted - and it is the
+    // whole of the fix.
+    params.set("run", "run-parent");
+    backend();
+
+    render(<RunsPage />, { wrapper });
+    await openRunsTab();
+    await findPanel();
+
+    // By its own anchor: the run detail has a tab strip of its own, so there is
+    // more than one `tabpanel` on screen once the panel is open.
+    const tabPanel = document.querySelector('[data-tour="activity-runs"]') as HTMLElement;
+    expect(tabPanel.className).toContain("mt-0");
+    expect(tabPanel.className).not.toMatch(/\bmt-2\b/);
+  });
+
   it("marks the open run's row in the list beside it", async () => {
     // Without it the list gives no answer to "which of these am I looking at",
     // and stepping with the arrows moves a selection nothing on screen shows.

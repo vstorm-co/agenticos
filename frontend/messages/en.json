@@ -3650,6 +3650,8 @@
       "timeline": "Timeline",
       "delegations": "Delegations",
       "openTheAgent": "Open the agent",
+      "earlierInThread": "Run {position} in this thread",
+      "turnsInRun": "{count, plural, =1 {1 turn} other {# turns}}",
       "thisRun": "This run",
       "attachedFiles": "{count, plural, =1 {1 file attached} other {# files attached}}",
       "contextCarried": "{tokens} ctx",

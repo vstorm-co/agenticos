@@ -89,7 +89,16 @@ export default function RunsPage() {
   const { total: waiting } = useApprovals({ enabled: canDecide });
 
   return (
-    <div className="space-y-6">
+    // A full-height column, like the chat's: the two panes below scroll apart,
+    // so `PageTransition` constrains this route rather than letting the page
+    // scroll. What that buys is a table that keeps its column headers and a run
+    // detail that keeps its own header while the reader is deep in either.
+    //
+    // The negative bottom margin is the chat page's trick for the same reason:
+    // `main` reserves 80px under a page that scrolls, and under one that does
+    // not it is dead space below the two panes. Most of it is given back, and
+    // 24px of breathing room is kept.
+    <div className="-mb-14 flex min-h-0 flex-1 flex-col gap-6 lg:-mb-10">
       <PageHeader title={t("activity2")} description={t("whatYourAgentsDid2")} />
 
       <PeriodControl period={period} onChange={changePeriod} />
@@ -109,8 +118,8 @@ export default function RunsPage() {
           <div data-tour="activity-overview">
             <ActivityFigures canView={canView} canDecide={canDecide} period={period} />
           </div>
-          <Tabs defaultValue="runs">
-            <TabsList>
+          <Tabs defaultValue="runs" className="flex min-h-0 flex-1 flex-col">
+            <TabsList className="shrink-0">
               {/* Runs first: the page's main question is what ran. The queue
                   keeps its count badge, so what is waiting is visible from the
                   strip without opening it. */}
@@ -133,20 +142,42 @@ export default function RunsPage() {
             </TabsList>
 
             {/* Two columns above `lg`: the tab's own panel narrows and the run
-                detail takes the right-hand side, tops aligned. Inside the tabs
-                rather than around them, so the panel starts level with the card
-                beside it rather than level with the strip above it. Below `lg`
+                detail takes the right-hand side, both filling the row's height
+                and scrolling inside themselves. Inside the tabs rather than
+                around them, and the row owns the gap under the strip while each
+                panel gives up the `mt-2` `TabsContent` applies - otherwise the
+                card starts eight pixels below the panel beside it. Below `lg`
                 there is room for one column, so the focused run replaces the
-                list rather than squeezing beside it. */}
-            <div className="flex items-start gap-4">
-              <div className={cn("min-w-0 flex-1", focusedRunId !== null && "hidden lg:block")}>
+                list rather than squeezing beside it.
+
+                The floor is what keeps the arrangement honest on a short screen:
+                the figures and the period control above cost about 380px, so a
+                900px viewport would otherwise leave the table three rows deep.
+                Below the floor the page scrolls in `main` again, which is the
+                right trade - a list you can scroll to beats a list with nothing
+                in it. */}
+            <div className="mt-2 flex min-h-[28rem] flex-1 items-stretch gap-4">
+              <div
+                className={cn(
+                  "flex min-w-0 flex-1 flex-col",
+                  focusedRunId !== null && "hidden lg:flex",
+                )}
+              >
                 {canDecide && (
-                  <TabsContent value="approvals" data-tour="activity-approvals">
+                  <TabsContent
+                    value="approvals"
+                    data-tour="activity-approvals"
+                    className="mt-0 min-h-0 flex-1 overflow-y-auto"
+                  >
                     <ApprovalsTab period={period} onFocusRun={focusRun} />
                   </TabsContent>
                 )}
 
-                <TabsContent value="runs" data-tour="activity-runs">
+                <TabsContent
+                  value="runs"
+                  data-tour="activity-runs"
+                  className="mt-0 flex min-h-0 flex-1 flex-col"
+                >
                   {/* The export lives on the tab's control row, beside the
                       filters it exports the result of - see RunHistoryTab. */}
                   <RunHistoryTab
@@ -161,7 +192,11 @@ export default function RunsPage() {
                   />
                 </TabsContent>
 
-                <TabsContent value="spend" data-tour="activity-spend">
+                <TabsContent
+                  value="spend"
+                  data-tour="activity-spend"
+                  className="mt-0 min-h-0 flex-1 overflow-y-auto"
+                >
                   <SpendTab period={period} />
                 </TabsContent>
               </div>

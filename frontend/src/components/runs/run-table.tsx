@@ -47,6 +47,7 @@ export function RunTable({
   onSort,
   onOpen,
   openRunId,
+  fillHeight,
   agentsById,
   membersById,
 }: {
@@ -58,6 +59,8 @@ export function RunTable({
   onOpen?: (run: AgentRun) => void;
   /** Which run the detail panel beside this table is showing, when one is. */
   openRunId?: string | null;
+  /** Scroll the rows inside the card, headers pinned - see `DataTable`. */
+  fillHeight?: boolean;
   /** Names for the Agent column, keyed by id. Given only by a caller whose
    * reader holds agents:view - the column is withheld, not dashed out, when
    * the names cannot be resolved. */
@@ -177,12 +180,17 @@ export function RunTable({
       header: t("model"),
       // The vendor's mark beside the profile label, the way the Builder's
       // current-model row draws it - one presentation for a model everywhere.
+      // One line, truncated, with the whole label in the title: a model name
+      // wrapping over three lines makes every row in the list three rows tall,
+      // and the list is narrow whenever the run detail is open beside it.
       cell: (run) => (
         <span className="flex items-center gap-1.5 font-mono text-xs">
           {run.provider !== null && (
-            <ProviderIcon provider={run.provider} className="h-3.5 w-3.5" />
+            <ProviderIcon provider={run.provider} className="h-3.5 w-3.5 shrink-0" />
           )}
-          {run.model_label ?? "-"}
+          <span className="max-w-[16rem] truncate" title={run.model_label ?? undefined}>
+            {run.model_label ?? "-"}
+          </span>
         </span>
       ),
     },
@@ -281,6 +289,7 @@ export function RunTable({
       onSort={onSort ? (next) => onSort({ by: next.by as RunSortKey, dir: next.dir }) : undefined}
       onRowClick={onOpen}
       isRowActive={openRunId == null ? undefined : (run) => run.id === openRunId}
+      fillHeight={fillHeight}
       className="rounded-none border-0 bg-transparent [&_table]:min-w-[46rem]"
     />
   );

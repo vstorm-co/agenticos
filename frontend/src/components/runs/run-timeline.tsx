@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { MessagesSquare, Paperclip, ThumbsDown } from "lucide-react";
+import { ChevronRight, MessagesSquare, Paperclip, ThumbsDown } from "lucide-react";
 
 import { CopyButton } from "@/components/chat/copy-button";
 import { MessageCost } from "@/components/chat/message-cost";
@@ -71,16 +71,16 @@ export function RunTimeline({ runId }: { runId: string }) {
   // already right. `run_id` moves when the answer does, which is what makes the
   // step read as the anchor gliding rather than the page reloading.
   const anchorRunId = transcript.run_id;
-  const firstOwnTurnId = transcript.items.find((item) => item.run_id === anchorRunId)?.id;
+  const groups = groupByRun(transcript.items);
 
   return (
-    <ol className="space-y-4">
-      {transcript.items.map((item) => (
-        <TimelineTurn
-          key={item.id}
-          item={item}
-          ownTurn={item.run_id === anchorRunId}
-          scrollTarget={item.id === firstOwnTurnId}
+    <ol className="space-y-2">
+      {groups.map((group, index) => (
+        <TimelineGroup
+          key={group.key}
+          group={group}
+          anchored={group.runId === anchorRunId}
+          position={index + 1}
           locale={locale}
         />
       ))}
@@ -88,30 +88,127 @@ export function RunTimeline({ runId }: { runId: string }) {
   );
 }
 
+/** Consecutive turns of one run, in the order the thread holds them. */
+interface RunGroup {
+  key: string;
+  runId: string | null;
+  items: RunTranscriptMessage[];
+}
+
+/**
+ * The thread cut into runs.
+ *
+ * By *consecutive* run id rather than by grouping every turn of a run together,
+ * because the thread's order is the fact being shown: two runs interleave only
+ * if that is what happened, and a grouping that reordered turns would invent a
+ * conversation nobody had. A turn no run wrote - a message somebody appended by
+ * hand - carries a null id and groups with its neighbours that also have one.
+ */
+function groupByRun(items: RunTranscriptMessage[]): RunGroup[] {
+  const groups: RunGroup[] = [];
+  for (const item of items) {
+    const runId = item.run_id ?? null;
+    const current = groups.at(-1);
+    if (current !== undefined && current.runId === runId) current.items.push(item);
+    else groups.push({ key: item.id, runId, items: [item] });
+  }
+  return groups;
+}
+
+/**
+ * One run's turns, folded unless it is the one being read.
+ *
+ * The thread is the context a run is judged against - what the agent was asked
+ * three turns earlier usually explains what it did here - but read as one flat
+ * list it is worse than no context at all: every turn looks equally relevant,
+ * and the answer somebody opened the page for is somewhere in the middle of
+ * fifteen others. So each run is a section, and only the one being read opens.
+ *
+ * The header says what the section is before it is opened: how many turns, when,
+ * and - for the run being read - that it is this one. Opening one is local
+ * state, so a reader who wants two runs side by side gets them.
+ */
+function TimelineGroup({
+  group,
+  anchored,
+  position,
+  locale,
+}: {
+  group: RunGroup;
+  /** Written by the run the panel is showing - the one that opens. */
+  anchored: boolean;
+  /** Which section of the thread this is, for a header that can say so. */
+  position: number;
+  locale: string;
+}) {
+  const t = useTranslations("pages.runs");
+  const [open, setOpen] = useState(anchored);
+  const ref = useRef<HTMLLIElement>(null);
+
+  // Opened by the step that made this section the anchor, adjusted during
+  // render rather than from an effect - the idiom `RunHistoryTab` uses for the
+  // same shape. It stays a *starting* state: a reader who folds the run they
+  // are reading keeps it folded until they step somewhere else.
+  const [wasAnchored, setWasAnchored] = useState(anchored);
+  if (wasAnchored !== anchored) {
+    setWasAnchored(anchored);
+    if (anchored) setOpen(true);
+  }
+
+  // Land the reader on the run rather than at the top of a thread that may be
+  // long, and glide rather than jump: this fires again on every step through the
+  // thread, where the sections do not otherwise change.
+  useEffect(() => {
+    if (anchored) ref.current?.scrollIntoView?.({ block: "start", behavior: glideOrJump() });
+  }, [anchored]);
+
+  const first = group.items[0];
+  const stamp = first?.created_at;
+
+  return (
+    <li ref={ref} className={cn("rounded-lg border", anchored ? "border-primary/40" : "")}>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((was) => !was)}
+        className="hover:bg-muted/40 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs transition-colors"
+      >
+        <ChevronRight
+          className={cn("h-3.5 w-3.5 shrink-0 transition-transform", open && "rotate-90")}
+          aria-hidden
+        />
+        <span className={cn("font-medium", anchored ? "text-primary" : "text-foreground")}>
+          {anchored ? t("thisRun") : t("earlierInThread", { position })}
+        </span>
+        <span className="text-muted-foreground">
+          {t("turnsInRun", { count: group.items.length })}
+        </span>
+        {stamp !== undefined && (
+          <span className="text-muted-foreground ml-auto">{formatDateTime(stamp, locale)}</span>
+        )}
+      </button>
+      {open && (
+        <ol className="space-y-4 border-t px-3 py-3">
+          {group.items.map((item) => (
+            <TimelineTurn key={item.id} item={item} ownTurn={anchored} locale={locale} />
+          ))}
+        </ol>
+      )}
+    </li>
+  );
+}
+
 function TimelineTurn({
   item,
   ownTurn,
-  scrollTarget,
   locale,
 }: {
   item: RunTranscriptMessage;
   /** Written by the focused run - marked, where the rest of the thread is context. */
   ownTurn: boolean;
-  scrollTarget: boolean;
   locale: string;
 }) {
   const t = useTranslations("pages.runs");
-  const ref = useRef<HTMLLIElement>(null);
-  useEffect(() => {
-    // Land the reader on the run, not at the top of a thread that may be long.
-    // Optional-called: jsdom has no scrollIntoView, and a test must not need one.
-    //
-    // Glided rather than jumped, because this fires again on every step through
-    // the thread: two runs of one conversation share a transcript, so an arrow
-    // press moves only the anchor, and a jump between two turns of a list that
-    // did not otherwise change reads as the page having been replaced.
-    if (scrollTarget) ref.current?.scrollIntoView?.({ block: "start", behavior: glideOrJump() });
-  }, [scrollTarget]);
 
   // The stored row, handed over whole. `RunTranscriptMessage` is declared
   // structurally compatible with the conversation reader's `RawMessage` for
@@ -129,7 +226,6 @@ function TimelineTurn({
 
   return (
     <li
-      ref={ref}
       className={cn(
         "relative border-l-2 pl-4",
         ownTurn ? "border-primary" : "border-border opacity-70",
@@ -138,7 +234,6 @@ function TimelineTurn({
       <div className="text-muted-foreground mb-1 flex flex-wrap items-center gap-2 text-xs">
         <span className="text-foreground font-medium">{t(roleKey)}</span>
         {item.created_at && <span>{formatDateTime(item.created_at, locale)}</span>}
-        {ownTurn && <span className="text-primary font-medium">{t("thisRun")}</span>}
         {/* Which model wrote this turn, on the turn. A thread can be switched
             between models mid-conversation, so the run header's one label is
             the last answer's rather than every answer's. */}
