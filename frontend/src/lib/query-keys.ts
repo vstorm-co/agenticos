@@ -121,6 +121,10 @@ export const qk = {
     // two different answers.
     transcript: (runId: string, scope: "run" | "conversation" = "run") =>
       ["runs", runId, "transcript", scope] as const,
+    // What the run handed its model. Its own key like the transcript's, and for
+    // the same reason: a different body from the run row, written once when the
+    // run ends and never invalidated by anything the run row is invalidated by.
+    manifest: (runId: string) => ["runs", runId, "manifest"] as const,
     // A separate key from `list`, because it is a separate question: `list`
     // answers "the top level", this answers "what did this run delegate", and
     // caching one as the other would show a run's children as the whole history.

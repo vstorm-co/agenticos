@@ -2816,6 +2816,10 @@
         "title": "Where the money went",
         "body": "Spend over time and by agent, against the budgets you've set — so an agent quietly getting expensive shows up here before the bill does."
       },
+      "run-detail-input": {
+        "title": "What the model was actually given",
+        "body": "The prompt as it was composed and sent, every tool with the description the model reads, the settings, and one bar per request — recorded from the wire, so it is what was sent rather than what the spec says."
+      },
       "knowledge-new": {
         "title": "Knowledge bases",
         "body": "Upload documents so your agents can answer from them. Each collection is searchable and stays private to your organization — create your first one here."
@@ -3579,6 +3583,25 @@
       "attachedFiles": "{count, plural, =1 {1 file attached} other {# files attached}}",
       "contextCarried": "{tokens} ctx",
       "contextCarriedHint": "Tokens the history sent with this turn occupied, after any compaction",
+      "whatWentIn": "What went in",
+      "systemPrompt": "System prompt",
+      "noInstructionsSent": "No instructions were sent with this run.",
+      "modelSettings": "Model settings",
+      "settingPair": "{key} {value}",
+      "toolsSent": "{count, plural, =0 {Tools} =1 {1 tool} other {# tools}}",
+      "noToolsSent": "The model was given no tools.",
+      "argumentSchema": "Argument schema",
+      "requests": "{count, plural, =0 {Requests} =1 {1 request} other {# requests}}",
+      "noRequestsRecorded": "This run made no model request.",
+      "requestIndex": "#{index}",
+      "requestDetail": "{input} in, {output} out · {messages} messages carried · finished {finish}",
+      "milliseconds": "{ms} ms",
+      "lastRequestContext": "What the model saw last",
+      "messagesCount": "{count, plural, =1 {1 message} other {# messages}}",
+      "recordWasTrimmed": "This record was trimmed to fit its size limit - the messages, and possibly the argument schemas, were dropped.",
+      "nothingRecordedForThisRun": "Nothing was recorded for this run",
+      "nothingRecordedBecause": "The run never reached a model - stopped by a budget or a guardrail - or it ran before this was recorded.",
+      "manifestCouldNotBeRead": "What went in could not be read",
       "toolInput": "Input",
       "toolOutput": "Output",
       "runDetail": "Run detail",

@@ -8,10 +8,11 @@ import { Activity, ArrowLeft, ArrowRight, ExternalLink, MessageSquare, Play } fr
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { RunStatusBadge } from "@/components/agents/status-badge";
 import { SurfaceIcon, surfaceLabel } from "@/components/runs/surface-icon";
+import { RunManifest } from "@/components/runs/run-manifest";
 import { RunTimeline } from "@/components/runs/run-timeline";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
-import { Button } from "@/components/ui";
+import { Button, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import {
   useAgent,
   useDelegatedRuns,
@@ -268,10 +269,26 @@ export function FocusedRun({
         )}
       </div>
 
-      <section className="space-y-2">
-        <h3 className="text-foreground text-sm font-semibold">{t("timeline")}</h3>
-        <RunTimeline runId={runId} />
-      </section>
+      {/* Two questions, and they are genuinely different ones. The timeline is
+          what happened - the thread, the turns, the tool calls, the files. The
+          input is what the model was given before any of it, which is what a
+          wrong answer is usually explained by and which nothing else in the
+          product shows. Tabs rather than one long column, because the second
+          question is asked after the first has failed to answer. */}
+      <Tabs defaultValue="timeline">
+        <TabsList>
+          <TabsTrigger value="timeline">{t("timeline")}</TabsTrigger>
+          <TabsTrigger value="input" data-tour="run-detail-input">
+            {t("whatWentIn")}
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="timeline">
+          <RunTimeline runId={runId} />
+        </TabsContent>
+        <TabsContent value="input">
+          <RunManifest runId={runId} />
+        </TabsContent>
+      </Tabs>
 
       {delegated.length > 0 && (
         <section className="space-y-2">

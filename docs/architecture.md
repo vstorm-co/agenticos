@@ -267,6 +267,41 @@ table in the schema. The index on `parent_run_id` serves
 [Governance](governance.md#what-run-history-shows) for why run history never lists
 the two kinds of row together.
 
+## What a run handed its model, and why it is a table
+
+`run_manifests` holds one row per run: the instructions as composed and sent,
+every tool definition as the provider was handed it, the settings, one entry per
+model request, and the last request's message list. It is written by
+`AgentRunnerService.finish` on every path out of a run, and read by
+`GET /runs/{id}/manifest` — see
+[Concepts](concepts.md#a-run-and-what-it-handed-the-model) for what is recorded
+and why it cannot be reconstructed from the spec.
+
+Three layering decisions are worth writing down, because each one is a place the
+obvious alternative is wrong.
+
+**A table, not a column on `agent_runs`.** That table is the most-listed in the
+product — run history, the spend tab, the dashboard figures, the CSV export — and
+a JSONB document holding every tool's JSON schema would be read by all of them to
+answer a question none of them asks. One row per run, `ON DELETE CASCADE` from
+both the run and the organization, read only by the detail view.
+
+**The recording happens in `app/agents/manifest.py`, not in the service.** The
+model the agent is built with is wrapped (`RecordingModel`, a `WrapperModel` —
+the same shape `MeteredModel` uses to book a sub-agent's spend), so what is
+written down is `ModelRequestParameters` as the provider received it: after every
+`prepare` hook, after tool search has hidden what it hides, after the output tool
+has been added. The service persists what the wrapper collected and decides
+nothing about its contents.
+
+**The write is guarded *and* nested.** It is reached from a `finally` block, so
+an exception raised while recording a failed run would replace the failure with
+itself. Swallowing it is not enough on its own: a failed flush leaves the session
+unusable, so the run's own terminal write would be lost to a record nobody asked
+for. It runs inside `begin_nested()` for the same reason
+`TranscriptService._attach` does — a SAVEPOINT is what makes "this write may fail
+harmlessly" true rather than aspirational.
+
 ## A refusal that names a field
 
 Every refusal leaves in one envelope, `{"error": {"code", "message", "details"}}`,
