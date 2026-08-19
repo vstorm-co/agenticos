@@ -1,10 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Calendar, Check, Cog, Copy, Plus, Plug } from "lucide-react";
+import { Calendar, Cog, Copy, Plus, Plug } from "lucide-react";
 import { toast } from "sonner";
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, Spinner } from "@/components/ui";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  WizardNav,
+  WizardSteps,
+} from "@/components/ui";
 import { getErrorMessage, submitFailure } from "@/lib/api-error";
 import { CloneStep } from "@/components/rag/sync-source-clone-step";
 import { ConfigureStep } from "@/components/rag/sync-source-configure-step";
@@ -130,7 +137,6 @@ export function SyncSourceWizard({
     [selectedConnector],
   );
 
-  const stepIdx = STEPS.findIndex((s) => s.id === step);
   const enabledConnectors = connectors.filter((c) => c.enabled);
   const hasOrgIntegrations = orgIntegrations.length > 0;
 
@@ -264,42 +270,10 @@ export function SyncSourceWizard({
 
           {/* Step indicator - only for new mode */}
           {mode === "new" && (
-            <ol className="mt-3 flex items-center gap-2">
-              {STEPS.map((s, i) => {
-                const done = i < stepIdx;
-                const active = s.id === step;
-                return (
-                  <li key={s.id} className="flex flex-1 items-center gap-2">
-                    <div
-                      className={cn(
-                        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors",
-                        done && "bg-foreground text-background",
-                        active && "bg-brand text-brand-foreground",
-                        !done && !active && "bg-foreground/8 text-foreground/55",
-                      )}
-                    >
-                      {done ? <Check className="h-3 w-3" /> : <s.icon className="h-3 w-3" />}
-                    </div>
-                    <span
-                      className={cn(
-                        "hidden font-mono text-[10px] tracking-wider uppercase sm:inline",
-                        active || done ? "text-foreground" : "text-foreground/45",
-                      )}
-                    >
-                      {t(s.words)}
-                    </span>
-                    {i < STEPS.length - 1 && (
-                      <span
-                        className={cn(
-                          "h-px flex-1",
-                          i < stepIdx ? "bg-foreground" : "bg-foreground/15",
-                        )}
-                      />
-                    )}
-                  </li>
-                );
-              })}
-            </ol>
+            <WizardSteps
+              steps={STEPS.map((s) => ({ id: s.id, label: t(s.words), icon: s.icon }))}
+              current={step}
+            />
           )}
         </DialogHeader>
 
@@ -343,51 +317,23 @@ export function SyncSourceWizard({
           )}
         </div>
 
-        <div className="border-foreground/10 flex items-center justify-between border-t px-6 py-4">
-          {mode === "new" && step !== "source" ? (
-            <button
-              type="button"
-              onClick={handleBack}
-              disabled={submitting}
-              className="text-foreground/65 hover:text-foreground inline-flex items-center gap-1.5 text-sm font-medium"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              {t("back")}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => onOpenChange(false)}
-              className="text-foreground/65 hover:text-foreground text-sm font-medium"
-            >
-              {t("cancel")}
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={handleNext}
-            disabled={!canAdvance || submitting}
-            className="bg-foreground text-background hover:bg-foreground/90 disabled:bg-foreground/30 inline-flex items-center gap-1.5 rounded-full px-5 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed"
-          >
-            {submitting && isLastStep ? (
-              <>
-                <Spinner className="h-3.5 w-3.5" />
-                {mode === "clone" ? t("cloning") : t("creating3")}
-              </>
-            ) : isLastStep ? (
-              <>
-                {mode === "clone" ? t("useIntegration") : t("createSource")}
-                <Check className="h-4 w-4" />
-              </>
-            ) : (
-              <>
-                {t("continue")}
-                <ArrowRight className="h-4 w-4" />
-              </>
-            )}
-          </button>
-        </div>
+        <WizardNav
+          backIsStep={mode === "new" && step !== "source"}
+          backLabel={mode === "new" && step !== "source" ? t("back") : t("cancel")}
+          onBack={mode === "new" && step !== "source" ? handleBack : () => onOpenChange(false)}
+          nextLabel={
+            isLastStep
+              ? mode === "clone"
+                ? t("useIntegration")
+                : t("createSource")
+              : t("continue")
+          }
+          onNext={handleNext}
+          nextDisabled={!canAdvance}
+          isLast={isLastStep}
+          busy={Boolean(submitting) && isLastStep}
+          busyLabel={mode === "clone" ? t("cloning") : t("creating3")}
+        />
       </DialogContent>
     </Dialog>
   );
