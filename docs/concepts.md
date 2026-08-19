@@ -135,6 +135,40 @@ statuses (`?status=failed,budget_exceeded`), because the operator's question is
 a set of outcomes, not one status at a time. An unknown status is refused rather
 than silently matching nothing - an empty page must mean "no such runs".
 
+### A run and what it handed the model
+
+The transcript says what was asked and what came back. It does not say what the
+model was *given* - which prompt, which tools, described how, under which
+settings - and none of that is derivable afterwards. What the model was told is
+the spec's instructions plus the platform's, plus whatever a channel binding
+appended, plus the bound skills, plus whichever
+[system reminder](reference/capabilities.md) fired on that request; what it could
+call is the capability registry plus the organization's MCP servers minus
+whatever [tool search](mcp.md) hid. Reconstructing that from the stored spec
+would be a second implementation of the builder, and a second implementation is
+a thing that disagrees with the first.
+
+So it is recorded rather than reconstructed. The model the agent runs on is
+wrapped, and each request is written down as it passes: the instructions and
+system parts, every tool definition exactly as the provider was handed it, the
+settings that were sent, one entry per request with its duration, tokens and
+what it asked to call next, and the last request's whole message list. What is
+stored is therefore what was sent.
+
+`GET /runs/{id}/manifest` reads it back, authorized the way the transcript is -
+existence resolved against the caller's organization first, then `runs:view`.
+Two things it deliberately does not do. It never records provider passthrough
+(`extra_headers`, `extra_body`), because that is where a provider credential
+rides and [the vault](secrets.md) is the only place a secret is kept. And a run
+that never reached a model - stopped by a budget, blocked by a guardrail on the
+way in - records nothing and answers 404, because an empty document would claim
+the agent was given no prompt and no tools.
+
+A record too large to keep is trimmed rather than refused, and says so: the
+messages go first, then the tool argument schemas, and what survives is always
+the prompt, the settings, the request waterfall and each tool's name and
+description.
+
 ---
 
 ## Three more, because they are easy to confuse

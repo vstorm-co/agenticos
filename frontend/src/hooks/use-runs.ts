@@ -15,6 +15,7 @@ import type {
   CostSummary,
   RunStatus,
   ResumedRun,
+  RunManifest,
   RunTranscript,
   ToolApproval,
 } from "@/types/runs";
@@ -214,6 +215,30 @@ export function useRunTranscript(runId: string, scope: "run" | "conversation" = 
     placeholderData: keepPreviousData,
   });
   return { transcript: data, isLoading, error };
+}
+
+/**
+ * What one run handed its model - the prompt, the tools, the request waterfall.
+ *
+ * `error` is returned and it carries a meaning: the endpoint answers 404 for a
+ * run that recorded nothing, which is a fact about that run - it never reached a
+ * model, or it ran before this was recorded - and not a failed request. A
+ * surface that drew both as an empty panel would say the agent was given no
+ * prompt and no tools, which is a claim about the agent.
+ *
+ * Never refetched on its own: a manifest is written once when the run ends and
+ * cannot change afterwards, so the app-wide cache is exactly right for it.
+ */
+export function useRunManifest(runId: string, options?: { enabled?: boolean }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.runs.manifest(runId),
+    queryFn: () => apiClient.get<RunManifest>(`/runs/${runId}/manifest`),
+    enabled: options?.enabled ?? true,
+    // A 404 here is an answer, not a hiccup. Retrying it three times delays the
+    // panel that says so by as many round trips.
+    retry: false,
+  });
+  return { manifest: data, isLoading, error };
 }
 
 /** What one run delegated - the rows the top-level list leaves out. */

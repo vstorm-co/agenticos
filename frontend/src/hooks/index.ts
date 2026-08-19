@@ -50,6 +50,7 @@ export {
   useDelegatedRuns,
   usePrefetchRuns,
   useRun,
+  useRunManifest,
   useRuns,
   useResumeRun,
   useRunTranscript,

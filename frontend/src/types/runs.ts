@@ -186,6 +186,64 @@ export interface RunTranscript {
   total: number;
 }
 
+/**
+ * One tool as the provider was told about it.
+ *
+ * The description is the half that decides behaviour and the half readable
+ * nowhere else in the product: an agent that never calls a tool it has is
+ * usually an agent whose tool describes itself badly.
+ */
+export interface ManifestTool {
+  name: string;
+  description: string | null;
+  parameters_json_schema: Record<string, unknown>;
+  /** `function`, or `output` for the tool carrying a structured answer. */
+  kind: string;
+}
+
+/** One model request the run made, and what it cost in time. */
+export interface ManifestRequest {
+  index: number;
+  started_at: string | null;
+  duration_ms: number;
+  model: string | null;
+  /** How much history it carried - the size a long run is really paying for. */
+  message_count: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  /** What the model asked to call next. Empty on the request that answered. */
+  tool_calls: string[];
+  finish_reason: string | null;
+  /** The exception class, where the request raised - never its message. */
+  failed: string | null;
+}
+
+/**
+ * What a run handed its model, as `GET /runs/{run_id}/manifest` answers it.
+ *
+ * Recorded from the wire as the run happened rather than reconstructed from the
+ * spec afterwards: the prompt the model saw is the spec's text plus the
+ * platform's plus a binding's plus the bound skills', and the tool list is the
+ * registry plus the organization's MCP servers minus whatever tool search hid.
+ *
+ * A run that never reached a model has none, and the endpoint answers 404 -
+ * which is why the surface reading this must tell that from a failed request.
+ */
+export interface RunManifest {
+  run_id: string;
+  recorded_at: string;
+  instructions: string | null;
+  system_prompts: string[];
+  tools: ManifestTool[];
+  settings: Record<string, unknown>;
+  requests: ManifestRequest[];
+  /** The last request's messages, dumped - what the model saw at the end. */
+  messages: Record<string, unknown>[];
+  /** Whether the record was trimmed to fit its size ceiling. */
+  truncated: boolean;
+}
+
 export interface ToolApproval {
   id: string;
   run_id: string;

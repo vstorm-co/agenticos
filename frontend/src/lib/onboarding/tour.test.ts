@@ -238,11 +238,15 @@ describe("stepsForPage", () => {
   });
 
   it("walks the three activity tabs on the '?' pass, approvals first for a decider", () => {
+    // The run drawer's stop rides along, and is `optional` because it only
+    // mounts once a run is focused - the walk drops it rather than pinning a
+    // caption to nothing when the drawer is closed.
     expect(stepsForPage(ROUTES.RUNS, () => true).map((step) => step.id)).toEqual([
       "activity-overview",
       "activity-approvals",
       "activity-runs",
       "activity-spend",
+      "run-detail-input",
     ]);
   });
 
@@ -250,7 +254,7 @@ describe("stepsForPage", () => {
     const held = new Set<Permission>([Perm.runsView]);
     expect(
       stepsForPage(ROUTES.RUNS, (permission) => held.has(permission)).map((s) => s.id),
-    ).toEqual(["activity-overview", "activity-runs", "activity-spend"]);
+    ).toEqual(["activity-overview", "activity-runs", "activity-spend", "run-detail-input"]);
   });
 
   it("walks only the collection when asked from a collection route — past the list", () => {

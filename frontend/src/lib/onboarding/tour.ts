@@ -265,6 +265,17 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "activity-tab-spend",
     permission: Perm.runsView,
   },
+  // Inside the run drawer, which opens only when somebody has focused a run - so
+  // `optional`, like the MCP catalog's data-conditional controls. The walk skips
+  // it with the drawer closed and describes it in place when a reader presses "?"
+  // with a run open, which is exactly when the tab is worth explaining.
+  {
+    id: "run-detail-input",
+    page: ROUTES.RUNS,
+    target: "run-detail-input",
+    permission: Perm.runsView,
+    optional: true,
+  },
 
   {
     id: "knowledge-new",

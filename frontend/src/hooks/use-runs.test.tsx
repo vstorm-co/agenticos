@@ -7,6 +7,7 @@ import {
   useApprovals,
   useDelegatedRuns,
   usePrefetchRuns,
+  useRunManifest,
   useResumeRun,
   useRun,
   useRuns,
@@ -523,6 +524,36 @@ describe("usePrefetchRuns", () => {
 
   it("asks for nothing at the edge of a thread", () => {
     renderHook(() => usePrefetchRuns([null, null]), { wrapper });
+
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+});
+
+describe("useRunManifest", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("reads what the run handed its model", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ run_id: "run-1", tools: [] });
+
+    const { result } = renderHook(() => useRunManifest("run-1"), { wrapper });
+
+    await waitFor(() => expect(result.current.manifest).toBeDefined());
+    expect(apiClient.get).toHaveBeenCalledWith("/runs/run-1/manifest");
+  });
+
+  it("surfaces the 404 rather than retrying it three times", async () => {
+    // A run that recorded nothing is an answer, not a hiccup: retried, the panel
+    // that says so arrives three round trips late.
+    vi.mocked(apiClient.get).mockRejectedValue(new ApiError(404, "nothing recorded"));
+
+    const { result } = renderHook(() => useRunManifest("run-1"), { wrapper });
+
+    await waitFor(() => expect(result.current.error).toBeInstanceOf(ApiError));
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks for nothing when the caller opts out", () => {
+    renderHook(() => useRunManifest("run-1", { enabled: false }), { wrapper });
 
     expect(apiClient.get).not.toHaveBeenCalled();
   });
