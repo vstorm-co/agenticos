@@ -4539,7 +4539,8 @@
     "presetDaily9": "Daily 09:00",
     "presetWeekdays9": "Weekdays 09:00",
     "stepConfigure": "Configure",
-    "stepMessage": "Message"
+    "stepMessage": "Message",
+    "templateScratchHelpEvent": "Write your own message."
   },
   "portals": {
     "title": "Portals",

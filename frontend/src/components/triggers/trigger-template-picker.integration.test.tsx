@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TriggerFormDialog } from "./trigger-form-dialog";
 import { apiClient } from "@/lib/api-client";
-import type { ScheduleTemplate } from "@/types/schedule-templates";
+import type { TriggerTemplate } from "@/types/trigger-templates";
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
@@ -24,25 +24,27 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
-const DAILY: ScheduleTemplate = {
+const DAILY: TriggerTemplate = {
   key: "daily-standup",
   label: "Daily standup",
   description: "Summarise overnight activity",
   prompt: "Summarise what happened overnight.",
+  trigger_type: "schedule",
   suggested_cadence: { schedule_kind: "interval", interval_seconds: 86400 },
 };
 
-const WEEKLY: ScheduleTemplate = {
+const WEEKLY: TriggerTemplate = {
   key: "weekly-report",
   label: "Weekly report",
   description: "Write the weekly report",
   prompt: "Write this week's report.",
+  trigger_type: "schedule",
   suggested_cadence: { schedule_kind: "cron", cron_expression: "0 9 * * 1" },
 };
 
-function serve(templates: ScheduleTemplate[] = [DAILY, WEEKLY]) {
+function serve(templates: TriggerTemplate[] = [DAILY, WEEKLY]) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
-    if (path === "/schedule-templates") return { items: templates, total: templates.length };
+    if (path === "/trigger-templates") return { items: templates, total: templates.length };
     if (path === "/agents") {
       return { items: [{ id: "a1", name: "Analyst", status: "published" }], total: 1 };
     }

@@ -21,8 +21,8 @@ from app.api.routes.v1.agent_triggers import (
     delete_trigger,
     list_org_triggers,
     list_portal_targets,
-    list_schedule_templates,
     list_trigger_portals,
+    list_trigger_templates,
     list_triggers,
     rotate_trigger_secret,
     run_trigger_now,
@@ -70,13 +70,20 @@ async def test_the_portal_catalog_maps_every_portal_and_its_presets():
     assert opened.target_required is True
 
 
-async def test_the_schedule_template_catalog_carries_a_prompt_and_a_cadence():
-    result = await list_schedule_templates()
+async def test_the_trigger_template_catalog_carries_a_prompt_for_both_modes():
+    result = await list_trigger_templates()
     assert result.total == len(result.items) > 0
     digest = next(t for t in result.items if t.key == "pr_digest_weekday_mornings")
     assert digest.prompt
+    assert digest.suggested_cadence is not None
     assert digest.suggested_cadence.schedule_kind == "cron"
     assert digest.suggested_cadence.cron_expression == "0 8 * * 1-5"
+    # An event template reaches the wire with its source and no cadence, which
+    # is what the picker files it under the event flow by.
+    triage = next(t for t in result.items if t.key == "github_triage_new_issue")
+    assert triage.trigger_type == "event"
+    assert triage.event_source == "github"
+    assert triage.suggested_cadence is None
 
 
 async def test_rotating_answers_with_what_the_service_returned():

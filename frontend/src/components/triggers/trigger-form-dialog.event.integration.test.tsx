@@ -230,6 +230,47 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     ).toBeGreaterThanOrEqual(16);
   });
 
+  it("offers the source's message templates and prefills the prompt from one", async () => {
+    const user = userEvent.setup();
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === "/trigger-templates") {
+        return {
+          items: [
+            {
+              key: "github_triage",
+              label: "Triage the new issue",
+              description: "Propose a priority and labels",
+              prompt: "Triage this issue.",
+              trigger_type: "event",
+              event_source: "github",
+            },
+            {
+              key: "email_reply",
+              label: "Draft a reply",
+              description: "Answer the sender",
+              prompt: "Draft a reply.",
+              trigger_type: "event",
+              event_source: "email",
+            },
+          ],
+          total: 2,
+        };
+      }
+      return { items: [], total: 0 };
+    });
+    const dialog = await openEvent();
+
+    await user.type(dialog.getByLabelText("Signing secret"), "a-strong-shared-secret");
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+
+    // Only the templates written for the source picked on step one - a prompt
+    // about an email makes no sense against a GitHub delivery.
+    expect(dialog.queryByRole("button", { name: /Draft a reply/ })).toBeNull();
+    await user.click(dialog.getByRole("button", { name: /Triage the new issue/ }));
+    expect(dialog.getByLabelText<HTMLTextAreaElement>("Message").value).toBe("Triage this issue.");
+  });
+
   it("marks each event source in the Fires on picker", async () => {
     const user = userEvent.setup();
     const dialog = await openEvent();

@@ -70,7 +70,7 @@ function serve(triggers: Trigger[]) {
     }
     // The New-schedule flow reads the seeded template catalog; empty here so the
     // picker stays out of the way of these create tests.
-    if (path === "/schedule-templates") {
+    if (path === "/trigger-templates") {
       return { items: [], total: 0 };
     }
     throw new Error(`unexpected GET ${path}`);

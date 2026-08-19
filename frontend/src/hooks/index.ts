@@ -40,7 +40,7 @@ export {
   type PortalWithState,
 } from "./use-portals";
 export { usePortalTargets } from "./use-portal-targets";
-export { useScheduleTemplates } from "./use-schedule-templates";
+export { useTriggerTemplates } from "./use-trigger-templates";
 export { useUrlSort, type UrlSort } from "./use-url-sort";
 export { useModelProviders, useProviderModels } from "./use-model-providers";
 export {

@@ -8,10 +8,12 @@ page is what you do next: how to point a real provider at the webhook, what the
 delivery has to contain, and how to test the whole thing from a laptop.
 
 If you only need the agent to run on the clock, you want a **schedule**, not an event
-trigger - no webhook, no secret, no provider to configure. A schedule can start from a
-seeded **template** (`GET /schedule-templates`) - "summarise my open pull requests every
-weekday morning", "triage new issues each morning" - which pre-fills the prompt and a
-sane cadence rather than a blank box. Everything below is for the event case.
+trigger - no webhook, no secret, no provider to configure. Either kind can start from a
+seeded **template** (`GET /trigger-templates`): a schedule template - "summarise my open
+pull requests every weekday morning" - pre-fills the prompt and a sane cadence, and an
+event template - "triage the new issue", "draft a reply to the email" - pre-fills the
+prompt on its own source's message step, so neither starts from a blank box. Everything
+below is for the event case.
 
 ## The mechanism, once
 

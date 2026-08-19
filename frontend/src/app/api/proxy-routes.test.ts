@@ -25,7 +25,7 @@ import * as rag from "./rag/[[...path]]/route";
 import * as ratings from "./ratings/[[...path]]/route";
 import * as roles from "./roles/[[...path]]/route";
 import * as runs from "./runs/[[...path]]/route";
-import * as scheduleTemplates from "./schedule-templates/[[...path]]/route";
+import * as triggerTemplates from "./trigger-templates/[[...path]]/route";
 import * as sandboxConnections from "./sandbox-connections/[[...path]]/route";
 import * as sandboxWorkspaces from "./sandbox-workspaces/[[...path]]/route";
 import * as secrets from "./secrets/[[...path]]/route";
@@ -64,7 +64,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["runs", runs],
   ["sandbox-connections", sandboxConnections],
   ["sandbox-workspaces", sandboxWorkspaces],
-  ["schedule-templates", scheduleTemplates],
+  ["trigger-templates", triggerTemplates],
   ["secrets", secrets],
   ["skill-changes", skillChanges],
   ["skills", skills],

@@ -55,11 +55,12 @@ export const qk = {
     // shared `all()` prefix.
     orgList: () => ["triggers", "org"] as const,
   },
-  scheduleTemplates: {
-    all: () => ["schedule-templates"] as const,
-    // The seeded schedule catalog. Curated and compiled into the deployment, so
-    // it changes on redeploy and never on a mutation - cached like the portal one.
-    catalog: () => ["schedule-templates", "catalog"] as const,
+  triggerTemplates: {
+    all: () => ["trigger-templates"] as const,
+    // The seeded template catalog, both modes. Curated and compiled into the
+    // deployment, so it changes on redeploy and never on a mutation - cached
+    // like the portal one.
+    catalog: () => ["trigger-templates", "catalog"] as const,
   },
   portals: {
     all: () => ["portals"] as const,

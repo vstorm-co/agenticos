@@ -26,6 +26,7 @@ import {
 } from "@/components/ui";
 import { useAgentEnvironments, useAgents } from "@/hooks";
 import { SecretRevealField } from "@/components/triggers/secret-reveal-field";
+import { TriggerTemplatePicker } from "@/components/triggers/trigger-template-picker";
 import { usePortalTargets } from "@/hooks/use-portal-targets";
 import { useTriggers } from "@/hooks/use-triggers";
 import { useAgentSelectionStore } from "@/stores";
@@ -120,6 +121,9 @@ export function PortalTriggerDialog({
   // LinkedIn, none for a source that filters nothing. Empty slots are not sent.
   const [filterA, setFilterA] = useState("");
   const [filterB, setFilterB] = useState("");
+  // Which seeded template the message started from, or null for "from scratch".
+  // Only tracked to light the picked card; the prompt stays freely editable.
+  const [templateKey, setTemplateKey] = useState<string | null>(null);
   const [created, setCreated] = useState<TriggerCreated | null>(null);
 
   const eventSource = portal.event_source as EventSource;
@@ -347,20 +351,38 @@ export function PortalTriggerDialog({
           )}
 
           {step === "message" && (
-            <div className="space-y-1.5">
-              <Label htmlFor="portal-prompt">{tt("prompt")}</Label>
-              <MarkdownEditor
-                id="portal-prompt"
-                label={tt("prompt")}
-                value={prompt}
-                onChange={setPrompt}
-                placeholder={tt("promptPlaceholder")}
-                rows={12}
-                describedBy="portal-prompt-desc"
+            <div className="space-y-4">
+              <TriggerTemplatePicker
+                triggerType="event"
+                eventSource={eventSource}
+                selectedKey={templateKey}
+                onPick={(template) => {
+                  setTemplateKey(template.key);
+                  setPrompt(template.prompt);
+                }}
+                onScratch={() => {
+                  setTemplateKey(null);
+                  setPrompt("");
+                }}
               />
-              <p id="portal-prompt-desc" className="text-muted-foreground text-xs leading-relaxed">
-                {tt("promptHelp")}
-              </p>
+              <div className="space-y-1.5">
+                <Label htmlFor="portal-prompt">{tt("prompt")}</Label>
+                <MarkdownEditor
+                  id="portal-prompt"
+                  label={tt("prompt")}
+                  value={prompt}
+                  onChange={setPrompt}
+                  placeholder={tt("promptPlaceholder")}
+                  rows={12}
+                  describedBy="portal-prompt-desc"
+                />
+                <p
+                  id="portal-prompt-desc"
+                  className="text-muted-foreground text-xs leading-relaxed"
+                >
+                  {tt("promptHelp")}
+                </p>
+              </div>
             </div>
           )}
         </div>

@@ -240,9 +240,9 @@ CALLS: tuple[Call, ...] = (
     # let the service resolve `agents:run` per row.
     Call("GET", "/triggers", Perm.AGENTS_VIEW),
     Call("GET", "/trigger-portals", Perm.AGENTS_VIEW),
-    # The schedule-templates catalog, gated on `agents:view` like `/trigger-portals`
+    # The trigger-templates catalog, gated on `agents:view` like `/trigger-portals`
     # beside it - browsing ready-made schedules, not acting on one agent.
-    Call("GET", "/schedule-templates", Perm.AGENTS_VIEW),
+    Call("GET", "/trigger-templates", Perm.AGENTS_VIEW),
     Call(
         "GET",
         "/trigger-portals/{portal_key}/targets",
@@ -679,9 +679,9 @@ _PLATFORM_PREFIXES = (
     # The trigger-portals catalog, gated on `agents:view` like `/mcp-catalog` -
     # a distinct path, not a `/triggers` prefix, so it needs its own entry.
     "/trigger-portals",
-    # The schedule-templates catalog, the schedule counterpart of the portals
+    # The trigger-templates catalog, the prompt counterpart of the portals
     # catalog above, gated the same way and needing its own prefix entry too.
-    "/schedule-templates",
+    "/trigger-templates",
 )
 
 

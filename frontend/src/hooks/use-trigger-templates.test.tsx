@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useScheduleTemplates } from "./use-schedule-templates";
+import { useTriggerTemplates } from "./use-trigger-templates";
 import { apiClient } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", async () => {
@@ -18,8 +18,8 @@ function wrapper({ children }: { children: ReactNode }) {
 
 beforeEach(() => vi.clearAllMocks());
 
-describe("useScheduleTemplates", () => {
-  it("reads the seeded schedule-template catalog", async () => {
+describe("useTriggerTemplates", () => {
+  it("reads the seeded trigger-template catalog", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({
       items: [
         {
@@ -27,16 +27,17 @@ describe("useScheduleTemplates", () => {
           label: "Daily standup",
           description: "Summarise overnight activity",
           prompt: "Summarise what happened overnight.",
+          trigger_type: "schedule",
           suggested_cadence: { schedule_kind: "interval", interval_seconds: 86400 },
         },
       ],
       total: 1,
     });
 
-    const { result } = renderHook(() => useScheduleTemplates(), { wrapper });
+    const { result } = renderHook(() => useTriggerTemplates(), { wrapper });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(apiClient.get).toHaveBeenCalledWith("/schedule-templates");
+    expect(apiClient.get).toHaveBeenCalledWith("/trigger-templates");
     expect(result.current.templates).toHaveLength(1);
     expect(result.current.templates[0]?.label).toBe("Daily standup");
   });
@@ -44,7 +45,7 @@ describe("useScheduleTemplates", () => {
   it("answers with an empty list before the catalog arrives", () => {
     vi.mocked(apiClient.get).mockReturnValue(new Promise(() => {}));
 
-    const { result } = renderHook(() => useScheduleTemplates(), { wrapper });
+    const { result } = renderHook(() => useTriggerTemplates(), { wrapper });
 
     expect(result.current.templates).toEqual([]);
     expect(result.current.isLoading).toBe(true);

@@ -30,7 +30,7 @@ import {
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { EventSourceMark } from "@/components/triggers/event-source-mark";
-import { ScheduleTemplatePicker } from "@/components/triggers/schedule-template-picker";
+import { TriggerTemplatePicker } from "@/components/triggers/trigger-template-picker";
 import { SecretRevealField } from "@/components/triggers/secret-reveal-field";
 import { useAgentEnvironments, useAgents } from "@/hooks";
 import { useTriggers } from "@/hooks/use-triggers";
@@ -51,7 +51,7 @@ import type {
   TriggerType,
   TriggerUpdate,
 } from "@/types/triggers";
-import type { ScheduleTemplate } from "@/types/schedule-templates";
+import type { TriggerTemplate } from "@/types/trigger-templates";
 
 /** Sentinel for "the default environment" - a Select item may not be empty. */
 const DEFAULT_ENV = "__default__";
@@ -315,12 +315,15 @@ export function TriggerFormDialog({
     );
   }
 
-  /** Prefill the prompt and cadence from a seeded template, still editable below. */
-  function applyTemplate(template: ScheduleTemplate) {
+  /** Prefill what the template's mode can use, still editable below: the
+   *  message always, the cadence only from a schedule template - an event
+   *  template has none. */
+  function applyTemplate(template: TriggerTemplate) {
     setTemplateKey(template.key);
     setPrompt(template.prompt);
-    setCadenceTouched(true);
     const cadence = template.suggested_cadence;
+    if (!cadence) return;
+    setCadenceTouched(true);
     if (cadence.schedule_kind === "cron" && cadence.cron_expression) {
       const parsed = parseCron(cadence.cron_expression);
       setScheduleKind("cron");
@@ -655,13 +658,13 @@ export function TriggerFormDialog({
 
           {step === "message" && (
             <div className="space-y-4">
-              {type === "schedule" && (
-                <ScheduleTemplatePicker
-                  selectedKey={templateKey}
-                  onPick={applyTemplate}
-                  onScratch={scratchTemplate}
-                />
-              )}
+              <TriggerTemplatePicker
+                triggerType={type}
+                eventSource={type === "event" ? eventSource : undefined}
+                selectedKey={templateKey}
+                onPick={applyTemplate}
+                onScratch={scratchTemplate}
+              />
 
               {/* The step is the message's own, so the editor gets the room a
                   long prompt needs. */}

@@ -35,8 +35,8 @@ from app.schemas.portal import (
     PortalTargetList,
     PortalTargetRead,
 )
-from app.schemas.schedule_template import ScheduleTemplateList, ScheduleTemplateRead
-from app.services import portal_catalog, schedule_templates
+from app.schemas.trigger_template import TriggerTemplateList, TriggerTemplateRead
+from app.services import portal_catalog, trigger_templates
 
 router = APIRouter()
 
@@ -88,21 +88,20 @@ async def list_trigger_portals() -> Any:
 
 
 @org_router.get(
-    "/schedule-templates",
-    response_model=ScheduleTemplateList,
+    "/trigger-templates",
+    response_model=TriggerTemplateList,
     dependencies=[Depends(require(Perm.AGENTS_VIEW))],
 )
-async def list_schedule_templates() -> Any:
-    """Ready-made schedules, so a schedule starts from a template, not a blank box.
+async def list_trigger_templates() -> Any:
+    """Ready-made triggers, so a schedule or an event starts from a template.
 
     Hand-curated data, gated like `GET /trigger-portals` on the coarse
     `agents:view` first door - browsing what can be set up, not acting on one
-    agent. Each carries a prompt and a cadence the create form pre-fills.
+    agent. Each carries a prompt plus the mode that decides which flow offers
+    it: a cadence for a schedule, an event source for an event.
     """
-    items = [
-        ScheduleTemplateRead.model_validate(template) for template in schedule_templates.CATALOG
-    ]
-    return ScheduleTemplateList(items=items, total=len(items))
+    items = [TriggerTemplateRead.model_validate(template) for template in trigger_templates.CATALOG]
+    return TriggerTemplateList(items=items, total=len(items))
 
 
 @org_router.get(
