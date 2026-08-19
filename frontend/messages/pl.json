@@ -187,7 +187,7 @@
     "signupInviteOnly": "Ta instalacja przyjmuje tylko zaproszone osoby. Zarejestrujesz adres, który ktoś zaprosił.",
     "signupDomainsAllowed": "Zarejestrować się mogą tylko adresy w domenach {domains}.",
     "signupClosedHeading": "Rejestracja jest zamknięta",
-    "signupClosedBody": "{app} nie przyjmuje nowych kont. Poproś administratora, żeby utworzył konto dla Ciebie.",
+    "signupClosedBody": "{app} nie przyjmuje nowych kont. Poproś administratora o zaproszenie.",
     "signupWithInvitation": "Rejestrujesz się z zaproszeniem, więc ograniczenia rejestracji tej instalacji Cię nie dotyczą."
   },
   "profile": {

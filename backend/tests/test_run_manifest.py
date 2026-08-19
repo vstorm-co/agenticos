@@ -422,21 +422,36 @@ class TestARecordTooLargeToKeep:
 
         assert [request["duration_ms"] for request in payload["requests"]] == [12]
 
-    def test_nothing_is_clipped_where_a_field_is_not_prose(self):
+    def test_nothing_is_clipped_where_a_field_is_short_or_not_prose(self):
         """The payload has been through JSON by the time it is trimmed, so a
-        description may be null - and a clip that assumed a string would raise
-        while writing a record nobody asked for."""
+        description may be null - and a clip that assumed a string would raise while
+        writing a record nobody asked for. A short one is left whole for the plainer
+        reason: there is nothing to gain by cutting it.
+
+        The oversize is a system prompt, so both late stages run and neither the null
+        description nor the short one is what fit had to give up."""
         tools = [
-            {"name": "t", "description": None, "parameters_json_schema": {}, "kind": "function"}
+            {"name": "t", "description": None, "parameters_json_schema": {}, "kind": "function"},
+            {
+                "name": "u",
+                "description": "Short.",
+                "parameters_json_schema": {},
+                "kind": "function",
+            },
         ]
 
         payload, truncated = fit(
-            self._payload(tools=tools, instructions=None, messages=[{"x": "y" * MAX_PAYLOAD_BYTES}])
+            self._payload(
+                tools=tools,
+                instructions=None,
+                system_prompts=["s" * MAX_PAYLOAD_BYTES],
+            )
         )
 
         assert truncated is True
-        assert payload["tools"][0]["description"] is None
+        assert [tool["description"] for tool in payload["tools"]] == [None, "Short."]
         assert payload["instructions"] is None
+        assert payload["system_prompts"][0].endswith("… [truncated]")
 
 
 class TestTheOutputToolIsRecordedToo:

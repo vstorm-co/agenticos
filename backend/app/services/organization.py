@@ -12,6 +12,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.permissions import AuthContext, OrgRoleName, Perm, role_has
+from app.db.locks import LockScope, hold_subject
 from app.db.models.organization import Organization, OrganizationMember, OrgRole
 from app.repositories import member_repo, organization_repo
 from app.schemas.organization import (
@@ -119,7 +120,7 @@ class OrganizationService:
                 deployment that has never set one has - see
                 `DeploymentSettings.max_organizations_per_user`.
         """
-        await self._refuse_past_the_ceiling(owner_id)
+        await self.refuse_past_the_ceiling(owner_id)
         slug = data.slug
         if slug:
             if await organization_repo.slug_exists(self.db, slug):
@@ -179,20 +180,32 @@ class OrganizationService:
                 # the seed-skills command tolerates the same collision.
                 logger.warning("Bundled skill %r shares a name with another; skipped", bundled.key)
 
-    async def _refuse_past_the_ceiling(self, owner_id: UUID) -> None:
-        """Refuse a create that would put this account over the deployment's limit.
+    async def refuse_past_the_ceiling(self, owner_id: UUID) -> None:
+        """Refuse a transition that would put this account over the deployment's limit.
 
         Checked here rather than at the route, because the route is not the only
         way in - and the refusal names the ceiling, so the answer to "why can I
         not" is in the response rather than in an administrator's memory.
 
+        **Every transition into ownership calls it, not only a create.**
+        `MemberService.transfer_ownership` makes an existing member an owner, and a
+        ceiling enforced on new rows alone is one an account at its limit walks past
+        by being handed somebody else's organization.
+
         The personal organization sign-up creates counts, which is why the
         schema refuses a ceiling of zero: an account that cannot own its own
         personal organization is an account that cannot be created.
+
+        The lock is what makes the count mean anything. Read and acted on without
+        one, two requests both pass it and both write - the ceiling is exceeded
+        deterministically by clicking twice - and no constraint can express "at most
+        five rows like this". Taken only where a limit exists, so an uncapped
+        deployment pays nothing for it, and released by the transaction either way.
         """
         limit = (await DeploymentSettingsService(self.db).limits()).organizations_per_user
         if limit is None:
             return
+        await hold_subject(self.db, LockScope.ORGANIZATIONS_PER_USER, owner_id)
         owned = await organization_repo.count_owned_by(self.db, owner_id)
         if owned >= limit:
             raise BadRequestError(

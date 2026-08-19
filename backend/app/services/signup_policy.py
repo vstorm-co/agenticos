@@ -22,9 +22,19 @@ Then the mode:
   registration carries is proof on its own - it is the only thing that can admit a
   shareable link with no address and no domain, which nothing about the submitted
   address could recognise (#916). Without one, the fallback is
-  `invitation_repo.any_pending_admitting`: is there a live invitation *for this
+  `invitation_repo.first_pending_admitting`: is there a live invitation *for this
   address*, by name or by a link scoped to its domain.
-- `closed` - nobody registers. Accounts arrive by an administrator creating them.
+
+  Either way, a link with a `max_uses` has a use **reserved** for the address
+  before it is admitted. Acceptance needs a session and registration does not, so a
+  ceiling read off `used_count` alone bounded joins and not accounts - one one-use
+  link posted anywhere admitted as many registrations as somebody cared to make.
+- `closed` - nobody registers, by any route. There is deliberately no
+  administrator-creates-an-account path: an account needs a password its owner
+  chose, so adding somebody means opening registration to them, which is what
+  `invite_only` is. A mode that let an administrator mint accounts anyway would be
+  a second account-creation path to gate, and the two that exist are already the
+  reason this module does.
 
 And, across all three, the domain allow-list: a non-empty
 `allowed_email_domains` narrows who may register at all. An **invitation
@@ -39,6 +49,7 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError
+from app.db.models.organization import Invitation
 from app.repositories import deployment_settings_repo, invitation_repo
 from app.services.invitation_admission import admits
 
@@ -76,7 +87,7 @@ async def check_may_register(
     mode = row.signup_mode
     if mode == "closed":
         raise AuthorizationError(
-            message="This deployment is not accepting new accounts. Ask an administrator for one."
+            message="This deployment is not accepting new accounts. Ask an administrator to invite you."
         )
 
     domains = row.allowed_email_domains
@@ -110,11 +121,34 @@ async def _is_invited(db: AsyncSession, *, email: str, invitation_token: str | N
     does not turn a registration that would otherwise be allowed into an error about
     something the person cannot fix.
 
+    Either way, an admitting **link with a `max_uses`** has a use reserved before
+    this answers yes. That is the whole of #914's finding: `used_count` counts
+    acceptances, acceptance needs a session, and registration does not - so a
+    one-use link admitted an unbounded number of accounts, each one checking a
+    count nothing had yet moved. The reservation is what makes the ceiling mean
+    registrations too, and `reserve_use` is atomic so two registrations racing on
+    the last use cannot both take it.
+
     `open` with no domain list never reaches here at all - the caller decides that,
     because it is the one that knows whether the verdict is read.
     """
     if invitation_token is not None:
         invite = await invitation_repo.get_by_token(db, invitation_token)
         if invite is not None and admits(invite, email=email):
-            return True
-    return await invitation_repo.any_pending_admitting(db, email=email)
+            return await _reserved(db, invite, email=email)
+    found = await invitation_repo.first_pending_admitting(db, email=email)
+    return found is not None and await _reserved(db, found, email=email)
+
+
+async def _reserved(db: AsyncSession, invite: Invitation, *, email: str) -> bool:
+    """Hold one of this invitation's uses for `email`, where it has a ceiling.
+
+    An email invitation and an unlimited link bound nothing, so there is nothing to
+    hold and nothing to fail: they admit outright. A capped link answers whether the
+    address got a use, which is a second, atomic reading of the same condition
+    `admits` checked - and the one that survives a race, because `admits` read a row
+    this session loaded.
+    """
+    if invite.email is not None or invite.max_uses is None:
+        return True
+    return await invitation_repo.reserve_use(db, invitation_id=invite.id, email=email)

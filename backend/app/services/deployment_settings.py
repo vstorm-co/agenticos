@@ -35,6 +35,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
+from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.core.maintenance import publish as publish_maintenance
@@ -98,11 +99,25 @@ class DeploymentSettingsService:
         return _branding(await deployment_settings_repo.get(self.db))
 
     async def notice(self) -> NoticeRead:
-        """The banner for a signed-in user, or an empty one when there is none."""
+        """What an open page has to keep asking: the banner, and whether we are shut.
+
+        One read for both, because a client polling for an announcement is a client
+        that also needs to hear about a maintenance window opened after its page
+        was rendered - and two endpoints on two intervals would be two answers that
+        can disagree about the same row.
+
+        No row, or no announcement, still answers the maintenance half: the
+        defaults are "nothing to say" rather than "nothing to report".
+        """
         row = await deployment_settings_repo.get(self.db)
-        if row is None or not row.announcement:
+        if row is None:
             return NoticeRead()
-        return NoticeRead(message=row.announcement, level=_notice_level(row.announcement_level))
+        return NoticeRead(
+            message=row.announcement or None,
+            level=_notice_level(row.announcement_level),
+            maintenance_mode=row.maintenance_mode,
+            maintenance_message=row.maintenance_message,
+        )
 
     async def read(self) -> DeploymentSettingsRead:
         """The administrator's whole view, so one request fills one form."""
@@ -152,7 +167,19 @@ class DeploymentSettingsService:
         # deployment - which an administrator experiences as a switch that did
         # nothing. Pushed from the row rather than from the request, because a
         # PATCH that touched only the name must not publish a stale `None`.
-        await publish_maintenance(on=row.maintenance_mode, message=row.maintenance_message)
+        #
+        # After the commit, not before it: published eagerly, a request that then
+        # failed - on the audit write, or on the commit itself - left Redis
+        # advertising a state the database rolled back, for up to the TTL. A
+        # failed disable reopened the deployment; a failed enable closed it while
+        # answering an error. `spawn_after_commit` is what makes the cache unable
+        # to run ahead of the truth, and the values are scalars, so nothing here
+        # holds the session it waits on.
+        spawn_after_commit(
+            self.db,
+            publish_maintenance(on=row.maintenance_mode, message=row.maintenance_message),
+            name="deployment_maintenance_publish",
+        )
         await record_audit(
             self.db,
             actor_user_id=actor_user_id,
@@ -191,10 +218,13 @@ class DeploymentSettingsService:
         path = await storage.save(_STORAGE_KEY, f"{kind}{_SUFFIX[content_type]}", file_data)
         await deployment_settings_repo.upsert(self.db, update_data={column: path})
         if previous:
-            # A replaced picture is not worth failing an upload over, and the old
-            # file is unreachable the moment the row stops pointing at it.
-            with contextlib.suppress(Exception):
-                await storage.delete(previous)
+            # After the commit, because a delete cannot be rolled back with the
+            # row that authorised it: deleted eagerly, an audit write or a commit
+            # that then failed restored `previous` as the active image and the
+            # bytes it names were already gone - an error answered, and a
+            # deployment pointing at a missing file. The replacement is left an
+            # orphan on rollback instead, which is the harmless half of the trade.
+            spawn_after_commit(self.db, _delete_quietly(previous), name="deployment_image_replaced")
         await record_audit(
             self.db,
             actor_user_id=actor_user_id,
@@ -217,8 +247,7 @@ class DeploymentSettingsService:
         if previous is None:
             return await self.read()
         await deployment_settings_repo.upsert(self.db, update_data={column: None})
-        with contextlib.suppress(Exception):
-            await get_file_storage().delete(previous)
+        spawn_after_commit(self.db, _delete_quietly(previous), name="deployment_image_cleared")
         await record_audit(
             self.db,
             actor_user_id=actor_user_id,
@@ -246,6 +275,18 @@ class DeploymentSettingsService:
         """
         row = await deployment_settings_repo.get(self.db)
         return (row.app_name if row else None) or settings.PROJECT_NAME
+
+
+async def _delete_quietly(path: str) -> None:
+    """Remove a file the settings row no longer points at, failing quietly.
+
+    A replaced or cleared picture is unreachable the moment the row stops naming
+    it, so the delete is housekeeping: worth attempting, never worth turning into
+    an error somebody has to act on. It runs after the commit, where there is no
+    response left to fail.
+    """
+    with contextlib.suppress(Exception):
+        await get_file_storage().delete(path)
 
 
 def _branding(row: DeploymentSettings | None) -> BrandingRead:
@@ -280,11 +321,17 @@ def _image_version(kind: ImageKind, row: DeploymentSettings) -> int | None:
     created row would be served under the same token. That token is the only reason
     a replaced image ever appears - the address is constant and the bytes carry a
     year of `immutable` - so one that does not move is an upload that looks failed.
+
+    In **microseconds**, which is the column's own resolution and not decoration:
+    truncated to a second, replacing a logo twice within the same second minted the
+    same token for both, and a client holding the first went on showing it for a
+    year against a replacement that had certainly succeeded. `now()` is the
+    transaction's timestamp and these are separate transactions, so the two differ.
     """
     if getattr(row, _IMAGE_COLUMN[kind]) is None:
         return None
     written = row.updated_at or row.created_at
-    return int(written.timestamp())
+    return int(written.timestamp() * 1_000_000)
 
 
 _SIGNUP_MODES: dict[str, SignupMode] = {

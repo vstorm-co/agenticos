@@ -40,10 +40,20 @@ export interface BrandingResponse {
   maintenance_message: string | null;
 }
 
-/** `GET /api/branding/notice` - the banner, behind a session. */
+/**
+ * `GET /api/branding/notice` - what an open page keeps asking, behind a session.
+ *
+ * The banner, and the maintenance verdict. The latter is in `BrandingResponse`
+ * too, but that one is resolved once by the root server layout and never changes
+ * for the life of the page - so a window opened afterwards left every open tab on
+ * a dashboard whose requests had begun answering 503, and closing one left a tab
+ * stuck on the maintenance screen until somebody reloaded it.
+ */
 export interface NoticeResponse {
   message: string | null;
   level: NoticeLevel;
+  maintenance_mode: boolean;
+  maintenance_message: string | null;
 }
 
 /** The resolved answer every surface reads: no nulls where a built-in exists. */

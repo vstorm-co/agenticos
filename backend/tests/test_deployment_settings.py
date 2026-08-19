@@ -29,6 +29,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
+from app.core import background
 from app.core.config import Settings, settings
 from app.core.exceptions import BadRequestError
 from app.db.models.deployment_settings import DeploymentSettings
@@ -67,6 +68,12 @@ def a_row(**overrides) -> DeploymentSettings:
     for field, value in overrides.items():
         setattr(row, field, value)
     return row
+
+
+async def after_commit(session) -> None:
+    """Run what the service handed over for after the commit, as the session does."""
+    background.start_deferred(session)
+    await background.drain(timeout=5.0)
 
 
 @pytest.fixture
@@ -188,6 +195,23 @@ class TestTheImageVersion:
 
         assert before != after
 
+    async def test_two_writes_in_one_second_are_two_versions(self, mock_db_session, repo):
+        """The token is the whole reason a replaced image ever appears, and truncated
+        to a second two uploads a moment apart minted the same one - so a client
+        holding the first went on showing it for a year against a replacement that
+        certainly succeeded. The column keeps microseconds; so does this."""
+        first = a_row(logo_path="deployment/one.png")
+        first.updated_at = datetime(2026, 8, 20, 9, 0, 0, 120_000, tzinfo=UTC)
+        repo.get.return_value = first
+        before = (await DeploymentSettingsService(mock_db_session).branding()).logo_version
+
+        second = a_row(logo_path="deployment/two.png")
+        second.updated_at = datetime(2026, 8, 20, 9, 0, 0, 480_000, tzinfo=UTC)
+        repo.get.return_value = second
+        after = (await DeploymentSettingsService(mock_db_session).branding()).logo_version
+
+        assert before != after
+
     async def test_a_freshly_created_row_still_gets_a_real_stamp(self, mock_db_session, repo):
         """A Core upsert that inserts leaves `updated_at` null, so `created_at` is the
         write time - and every image would otherwise be served under the same token."""
@@ -195,7 +219,7 @@ class TestTheImageVersion:
 
         version = (await DeploymentSettingsService(mock_db_session).branding()).favicon_version
 
-        assert version == int(WRITTEN.timestamp())
+        assert version == int(WRITTEN.timestamp() * 1_000_000)
 
 
 class TestTheBanner:
@@ -223,6 +247,33 @@ class TestTheBanner:
         repo.get.return_value = a_row(announcement="Hello", announcement_level="apocalyptic")
 
         assert (await DeploymentSettingsService(mock_db_session).notice()).level == "info"
+
+    async def test_it_carries_the_maintenance_verdict_a_polling_page_needs(
+        self, mock_db_session, repo
+    ):
+        """The branding context is resolved once by the server layout, so a window
+        opened afterwards left every open tab on a dashboard whose requests had
+        started answering 503. This is the answer an open page keeps asking for."""
+        repo.get.return_value = a_row(maintenance_mode=True, maintenance_message="Back at 22:00")
+
+        notice = await DeploymentSettingsService(mock_db_session).notice()
+
+        assert (notice.maintenance_mode, notice.maintenance_message) == (True, "Back at 22:00")
+
+    async def test_it_reports_the_window_even_with_nothing_to_announce(self, mock_db_session, repo):
+        """The two are independent: an operator closing the deployment need not also
+        write a banner nobody in it will see."""
+        repo.get.return_value = a_row(announcement=None, maintenance_mode=True)
+
+        notice = await DeploymentSettingsService(mock_db_session).notice()
+
+        assert notice.message is None
+        assert notice.maintenance_mode is True
+
+    async def test_no_row_at_all_is_open_rather_than_unknown(self, mock_db_session, repo):
+        notice = await DeploymentSettingsService(mock_db_session).notice()
+
+        assert notice.maintenance_mode is False
 
 
 class TestTheAdministratorsView:
@@ -311,6 +362,13 @@ class TestWriting:
             actor_user_id=uuid4(), data=DeploymentSettingsUpdate(maintenance_mode=True)
         )
 
+        # Not yet: a cache that ran ahead of the commit would advertise a state the
+        # database can still roll back - a failed disable reopening the deployment,
+        # a failed enable closing it while answering an error.
+        published.assert_not_awaited()
+
+        await after_commit(mock_db_session)
+
         assert published.await_args.kwargs == {"on": True, "message": "Back at 22:00"}
 
     async def test_it_publishes_from_the_written_row_not_the_request(
@@ -325,6 +383,7 @@ class TestWriting:
         await DeploymentSettingsService(mock_db_session).update(
             actor_user_id=uuid4(), data=DeploymentSettingsUpdate(app_name="Acme AI")
         )
+        await after_commit(mock_db_session)
 
         assert published.await_args.kwargs == {"on": True, "message": "Still closed"}
 
@@ -404,6 +463,13 @@ class TestUploadingAnImage:
             actor_user_id=uuid4(), kind="logo", file_data=b"x", content_type="image/png"
         )
 
+        # Not before the commit: a delete cannot be rolled back with the row that
+        # authorised it, so a request that then failed left the deployment pointing
+        # at bytes that were already gone.
+        storage.delete.assert_not_awaited()
+
+        await after_commit(mock_db_session)
+
         storage.delete.assert_awaited_once_with("deployment/old.png")
 
     async def test_a_delete_that_fails_does_not_fail_the_upload(
@@ -418,6 +484,7 @@ class TestUploadingAnImage:
         read = await DeploymentSettingsService(mock_db_session).set_image(
             actor_user_id=uuid4(), kind="logo", file_data=b"x", content_type="image/png"
         )
+        await after_commit(mock_db_session)
 
         assert read is not None
 
@@ -452,6 +519,10 @@ class TestClearingAnImage:
         )
 
         assert repo.upsert.await_args.kwargs["update_data"] == {"favicon_path": None}
+        storage.delete.assert_not_awaited()
+
+        await after_commit(mock_db_session)
+
         storage.delete.assert_awaited_once_with("deployment/f.png")
 
     async def test_a_delete_that_fails_still_clears_the_column(
@@ -463,6 +534,7 @@ class TestClearingAnImage:
         await DeploymentSettingsService(mock_db_session).clear_image(
             actor_user_id=uuid4(), kind="logo"
         )
+        await after_commit(mock_db_session)
 
         assert repo.upsert.await_args.kwargs["update_data"] == {"logo_path": None}
 

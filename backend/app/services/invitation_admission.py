@@ -29,7 +29,9 @@ def admits(invite: Invitation, *, email: str) -> bool:
 
     An **email invitation** admits exactly its own address. A **link** - `email` is
     null - admits anybody whose address is at its `email_domain`, or anybody at all
-    when it names no domain, for as many uses as it has left.
+    when it names no domain, for as many uses as it has left. Uses *left* counts the
+    addresses that registered under it and have not joined yet as well as the
+    acceptances, minus this address's own reservation - see :func:`_spent`.
 
     That last case is why a caller has to be holding the token to ask: an
     address-based query cannot recognise a link that constrains no address, so
@@ -45,8 +47,23 @@ def admits(invite: Invitation, *, email: str) -> bool:
     if invite.email is not None:
         return candidate == invite.email.strip().lower()
 
-    if invite.max_uses is not None and invite.used_count >= invite.max_uses:
+    if invite.max_uses is not None and _spent(invite, email) >= invite.max_uses:
         return False
     if invite.email_domain:
         return candidate.endswith(f"@{invite.email_domain.strip().lower()}")
     return True
+
+
+def _spent(invite: Invitation, email: str) -> int:
+    """How much of a link's capacity is gone, from this address's point of view.
+
+    Acceptances plus the addresses that registered under it and have not joined
+    yet - because acceptance needs a session and registration does not, so
+    `used_count` alone let a one-use link admit registrations without bound.
+
+    This address's own reservation does not count against it: that use is already
+    being held *for* it, and counting it would mean the link admitted the
+    registration and then refused the acceptance it was reserved for.
+    """
+    held = [address for address in invite.reserved_emails if address != email.strip().lower()]
+    return invite.used_count + len(held)

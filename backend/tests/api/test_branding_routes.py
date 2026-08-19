@@ -146,7 +146,15 @@ class TestReadingTheIdentity:
         response = await member.get(f"{settings.API_V1_STR}/branding/notice")
 
         assert response.status_code == 200
-        assert response.json() == {"message": "Window at 22:00", "level": "warning"}
+        # The maintenance verdict rides along, because a page already open has to
+        # learn about a window opened after it was rendered - and two endpoints on
+        # two intervals would be two answers about one row.
+        assert response.json() == {
+            "message": "Window at 22:00",
+            "level": "warning",
+            "maintenance_mode": False,
+            "maintenance_message": None,
+        }
 
 
 class TestTheAdminSurface:

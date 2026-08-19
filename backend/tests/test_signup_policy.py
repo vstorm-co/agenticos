@@ -11,18 +11,28 @@ are the kind that passes every happy-path test:
 
 *Closing the sign-up form does not close OAuth.* `get_or_create_oauth_user` is a
 second path that mints an account, and nothing about a Google callback looks like a
-registration - so a deployment with `closed` and a Google button was wide open.
+registration - so a deployment with `closed` and a Google button was wide open. The
+gate cuts both ways: an invitation has to reach that path too, or `invite_only`
+refuses the provider button for the very links that need a token (#914), which is
+why the route carries one through the round trip in the session.
 
 *Closing registration breaks invitations.* `InvitationService.accept` requires an
 existing signed-in user, so an invited person has to register first. `invite_only`
 is what keeps that flow working, and it has two ways to recognise an invitation: a
 **token** the registration carries, which is the only proof that can admit a
-shareable link constraining no address, and otherwise `any_pending_admitting` over
+shareable link constraining no address, and otherwise `first_pending_admitting` over
 the submitted address (#916).
+
+*And a capped link bounded joins rather than accounts.* `used_count` counts
+acceptances, acceptance needs a session, and registration does not - so one
+`max_uses=1` link admitted as many registrations as anybody cared to make on an
+`invite_only` deployment. A use is **reserved** for the address before the account
+is created, atomically, which is what makes the ceiling mean both (#914).
 """
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -38,14 +48,39 @@ from tests.test_deployment_settings import a_row
 pytestmark = pytest.mark.anyio
 
 
+def a_link(**overrides) -> Invitation:
+    """A live shareable link, as the lookup answers with one."""
+    invite = Invitation(
+        id=uuid4(),
+        organization_id=uuid4(),
+        email=None,
+        role="member",
+        max_uses=1,
+        used_count=0,
+        reserved_emails=[],
+        email_domain=None,
+        invited_by_user_id=uuid4(),
+        token=uuid4().hex,
+        status=InvitationStatus.PENDING.value,
+        expires_at=datetime.now(UTC) + timedelta(days=3),
+    )
+    for field, value in overrides.items():
+        setattr(invite, field, value)
+    return invite
+
+
 @pytest.fixture
 def repos(monkeypatch) -> MagicMock:
     """The settings row and both invitation lookups, stubbed."""
     settings_repo = MagicMock()
     settings_repo.get = AsyncMock(return_value=None)
     invitations = MagicMock()
-    invitations.any_pending_admitting = AsyncMock(return_value=False)
+    invitations.first_pending_admitting = AsyncMock(return_value=None)
     invitations.get_by_token = AsyncMock(return_value=None)
+    # A link with a ceiling has a use held before the account is created, and the
+    # policy admits nobody the reservation refuses. Its own atomicity is
+    # `TestReservingAUse` below; here it is a yes or a no.
+    invitations.reserve_use = AsyncMock(return_value=True)
     monkeypatch.setattr(module, "deployment_settings_repo", settings_repo)
     monkeypatch.setattr(module, "invitation_repo", invitations)
     holder = MagicMock()
@@ -104,7 +139,7 @@ class TestOpen:
 
         await check_may_register(mock_db_session, email="anyone@example.com", is_first_user=False)
 
-        repos.invitations.any_pending_admitting.assert_not_called()
+        repos.invitations.first_pending_admitting.assert_not_called()
 
 
 class TestClosed:
@@ -120,7 +155,7 @@ class TestClosed:
         """ "Closed" that lets some registrations through is not closed. An operator who
         wants invitations honoured sets `invite_only`, which is the mode for it."""
         repos.settings.get.return_value = a_row(signup_mode="closed")
-        repos.invitations.any_pending_admitting.return_value = True
+        repos.invitations.first_pending_admitting.return_value = a_link()
 
         with pytest.raises(AuthorizationError):
             await check_may_register(mock_db_session, email="invited@acme.com", is_first_user=False)
@@ -139,7 +174,7 @@ class TestInviteOnly:
         """The whole reason this mode exists: an invited person has no account, and
         `InvitationService.accept` requires one."""
         repos.settings.get.return_value = a_row(signup_mode="invite_only")
-        repos.invitations.any_pending_admitting.return_value = True
+        repos.invitations.first_pending_admitting.return_value = a_link()
 
         await check_may_register(mock_db_session, email="invited@acme.com", is_first_user=False)
 
@@ -212,7 +247,7 @@ class TestTheDomainAllowList:
         repos.settings.get.return_value = a_row(
             signup_mode="invite_only", allowed_email_domains=["acme.com"]
         )
-        repos.invitations.any_pending_admitting.return_value = True
+        repos.invitations.first_pending_admitting.return_value = a_link()
 
         await check_may_register(mock_db_session, email="contractor@gmail.com", is_first_user=False)
 
@@ -228,18 +263,21 @@ class TestTheDomainAllowList:
 
 
 class TestWhichInvitationsAdmit:
-    """`invitation_repo.any_pending_admitting`, at the query level.
+    """`invitation_repo.first_pending_admitting`, at the query level.
 
     Cross-tenant by construction - registration happens before an organization is
-    chosen, so there is no tenant to scope to - and what keeps that safe is the
-    answer being a boolean rather than a row.
+    chosen, so there is no tenant to scope to - and what keeps that safe is where
+    the answer goes: the policy turns it into a boolean refusal, so a stranger
+    probing the form never learns which organization invited the address.
     """
 
     @staticmethod
     async def _predicate(email: str) -> str:
         db = MagicMock()
-        db.execute = AsyncMock(return_value=MagicMock(first=MagicMock(return_value=None)))
-        await invitation_repo_module.any_pending_admitting(db, email=email)
+        db.execute = AsyncMock(
+            return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None))
+        )
+        await invitation_repo_module.first_pending_admitting(db, email=email)
         return str(db.execute.await_args.args[0].compile(compile_kwargs={"literal_binds": True}))
 
     async def test_it_asks_only_about_live_invitations(self):
@@ -264,34 +302,157 @@ class TestWhichInvitationsAdmit:
         assert "invitations.email_domain = 'acme.com'" in sql
 
     async def test_a_spent_link_does_not_admit(self):
+        """Spent counts the reservations as well as the acceptances: a link admitting
+        registrations it has no capacity left for is the whole defect."""
         sql = await self._predicate("me@acme.com")
 
         assert "used_count" in sql
         assert "max_uses" in sql
+        assert "jsonb_array_length" in sql
 
-    async def test_it_answers_a_boolean_and_never_the_row(self):
+    async def test_an_address_already_holding_a_reservation_still_matches(self):
+        """Idempotent, so a registration retried after a network error is not refused
+        by the reservation its first attempt made."""
+        sql = await self._predicate("me@acme.com")
+
+        assert "reserved_emails" in sql
+
+    async def test_it_answers_the_row_it_found(self):
+        found = a_link()
         db = MagicMock()
-        db.execute = AsyncMock(return_value=MagicMock(first=MagicMock(return_value=(uuid4(),))))
+        db.execute = AsyncMock(
+            return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=found))
+        )
 
-        answer = await invitation_repo_module.any_pending_admitting(db, email="me@acme.com")
+        answer = await invitation_repo_module.first_pending_admitting(db, email="me@acme.com")
 
-        assert answer is True
-        assert str(db.execute.await_args.args[0]).strip().startswith("SELECT invitations.id")
+        assert answer is found
 
-    async def test_no_match_answers_false(self):
+    async def test_no_match_answers_nothing(self):
         db = MagicMock()
-        db.execute = AsyncMock(return_value=MagicMock(first=MagicMock(return_value=None)))
+        db.execute = AsyncMock(
+            return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None))
+        )
 
-        assert await invitation_repo_module.any_pending_admitting(db, email="me@acme.com") is False
+        assert await invitation_repo_module.first_pending_admitting(db, email="me@acme.com") is None
 
     def test_the_model_it_queries_still_has_the_columns_it_names(self):
         """The query is written against `Invitation`, so a rename there would be
         caught by the type checker - but a *removed* nullable column would not, and
         the shape of the rule depends on both existing."""
         columns = Invitation.__table__.columns
-        assert {"email", "email_domain", "max_uses", "used_count", "expires_at"} <= set(
-            columns.keys()
+        assert {
+            "email",
+            "email_domain",
+            "max_uses",
+            "used_count",
+            "reserved_emails",
+            "expires_at",
+        } <= set(columns.keys())
+
+
+class TestReservingAUse:
+    """A capped link has to bound accounts, not only joins.
+
+    `used_count` counts acceptances and acceptance needs a session, so a
+    `max_uses=1` link admitted an unbounded number of registrations on an
+    `invite_only` deployment - each one reading a count nothing had yet moved. One
+    link posted in a channel, and closing sign-up was closed to nobody.
+
+    The atomicity is the point and is proven against a real database in
+    `tests/integration/test_invitation_reservations.py`; what is here is which
+    invitations get a reservation at all, and what the policy does with the answer.
+    """
+
+    async def test_a_capped_link_has_a_use_held_before_the_account_exists(
+        self, mock_db_session, repos
+    ):
+        repos.settings.get.return_value = a_row(signup_mode="invite_only")
+        repos.invitations.first_pending_admitting.return_value = a_link(max_uses=1)
+
+        await check_may_register(mock_db_session, email="Me@Acme.com", is_first_user=False)
+
+        assert repos.invitations.reserve_use.await_args.kwargs["email"] == "Me@Acme.com"
+
+    async def test_a_link_with_no_use_left_refuses_the_registration(self, mock_db_session, repos):
+        """The reservation is the second, atomic reading of the same condition the
+        lookup checked - and the one that survives a race, because the lookup read a
+        row this session had already loaded."""
+        repos.settings.get.return_value = a_row(signup_mode="invite_only")
+        repos.invitations.first_pending_admitting.return_value = a_link(max_uses=1)
+        repos.invitations.reserve_use.return_value = False
+
+        with pytest.raises(AuthorizationError):
+            await check_may_register(mock_db_session, email="second@acme.com", is_first_user=False)
+
+    async def test_an_uncapped_link_reserves_nothing(self, mock_db_session, repos):
+        """It bounds nothing, so there is nothing to hold and nothing that can fail."""
+        repos.settings.get.return_value = a_row(signup_mode="invite_only")
+        repos.invitations.first_pending_admitting.return_value = a_link(max_uses=None)
+
+        await check_may_register(mock_db_session, email="me@acme.com", is_first_user=False)
+
+        repos.invitations.reserve_use.assert_not_called()
+
+    async def test_an_email_invitation_reserves_nothing(self, mock_db_session, repos):
+        """An address is its own limit of one, and `register` refuses an address that
+        already has an account."""
+        repos.settings.get.return_value = a_row(signup_mode="invite_only")
+        repos.invitations.first_pending_admitting.return_value = a_link(
+            email="me@acme.com", max_uses=None
         )
+
+        await check_may_register(mock_db_session, email="me@acme.com", is_first_user=False)
+
+        repos.invitations.reserve_use.assert_not_called()
+
+    async def test_a_token_carried_by_the_registration_reserves_too(
+        self, mock_db_session, repos, admits
+    ):
+        """Possession admits a link no address-based query can see, and that is
+        exactly the link whose capacity nothing else was counting."""
+        repos.settings.get.return_value = a_row(signup_mode="invite_only")
+        repos.invitations.get_by_token.return_value = a_link(max_uses=2)
+
+        await check_may_register(
+            mock_db_session,
+            email="stranger@example.com",
+            is_first_user=False,
+            invitation_token="tok",
+        )
+
+        repos.invitations.reserve_use.assert_awaited_once()
+
+    async def test_a_token_whose_link_is_spent_is_refused_rather_than_admitted(
+        self, mock_db_session, repos, admits
+    ):
+        repos.settings.get.return_value = a_row(signup_mode="invite_only")
+        repos.invitations.get_by_token.return_value = a_link(max_uses=1)
+        repos.invitations.reserve_use.return_value = False
+
+        with pytest.raises(AuthorizationError):
+            await check_may_register(
+                mock_db_session,
+                email="stranger@example.com",
+                is_first_user=False,
+                invitation_token="tok",
+            )
+
+    async def test_the_domain_allow_list_is_not_overridden_by_a_refused_reservation(
+        self, mock_db_session, repos
+    ):
+        """The invitation is what overrides the list, and a link with nothing left is
+        not an invitation for this person."""
+        repos.settings.get.return_value = a_row(
+            signup_mode="open", allowed_email_domains=["acme.com"]
+        )
+        repos.invitations.first_pending_admitting.return_value = a_link(max_uses=1)
+        repos.invitations.reserve_use.return_value = False
+
+        with pytest.raises(AuthorizationError):
+            await check_may_register(
+                mock_db_session, email="contractor@gmail.com", is_first_user=False
+            )
 
 
 class TestBothPathsThatMintAnAccountAreGated:
@@ -385,10 +546,38 @@ class TestBothPathsThatMintAnAccountAreGated:
                 provider="google", provider_id="g1", email="new@acme.com"
             )
 
-        # No token: a provider callback carries no invitation, so an invited person
-        # arriving through Google is admitted by the address-based question or not at
-        # all. A real limit, and the one #916's fix deliberately does not reach.
-        assert checked == [{"email": "new@acme.com", "is_first_user": False}]
+        assert checked == [
+            {"email": "new@acme.com", "is_first_user": False, "invitation_token": None}
+        ]
+
+    async def test_an_invitation_survives_the_provider_round_trip(self, monkeypatch):
+        """The gap #914 found. A shareable link constraining neither an address nor a
+        domain is invisible to the address-based fallback, so `invite_only` refused
+        the Google button for exactly the invitations that need a token - the same
+        person could register with a password and not with the provider beside it.
+        The route carries it in the session; this is the half that reads it."""
+        service, checked, patch = self._service(monkeypatch, refuse=False)
+        with (
+            patch("app.services.user.user_repo") as repo,
+            patch("app.services.user.OrganizationService") as orgs,
+            patch("app.services.user.get_email_service"),
+            patch("app.services.user.DeploymentSettingsService"),
+        ):
+            repo.get_by_oauth = AsyncMock(return_value=None)
+            repo.get_by_email = AsyncMock(return_value=None)
+            repo.create = AsyncMock(return_value=MagicMock(id=uuid4(), email="new@acme.com"))
+            orgs.return_value.create_personal_org = AsyncMock()
+
+            await service.get_or_create_oauth_user(
+                provider="google",
+                provider_id="g1",
+                email="new@acme.com",
+                invitation_token="tok",
+            )
+
+        assert checked == [
+            {"email": "new@acme.com", "is_first_user": False, "invitation_token": "tok"}
+        ]
 
     async def test_a_closed_deployment_refuses_a_new_oauth_account(self, monkeypatch):
         service, _checked, patch = self._service(monkeypatch, refuse=True)
@@ -435,7 +624,7 @@ class TestBothPathsThatMintAnAccountAreGated:
 
 
 class TestATokenTheRegistrationCarries:
-    """The half `any_pending_admitting` cannot answer.
+    """The half `first_pending_admitting` cannot answer.
 
     A shareable link with neither an address nor a domain admits anybody holding it,
     and no query over the submitted address can see that. Holding the token is the
@@ -445,7 +634,7 @@ class TestATokenTheRegistrationCarries:
 
     async def test_it_admits_an_address_no_invitation_names(self, mock_db_session, repos, admits):
         repos.settings.get.return_value = a_row(signup_mode="invite_only")
-        repos.invitations.get_by_token.return_value = MagicMock()
+        repos.invitations.get_by_token.return_value = a_link()
 
         await check_may_register(
             mock_db_session,
@@ -463,19 +652,19 @@ class TestATokenTheRegistrationCarries:
         otherwise be allowed into an error about something the person cannot fix."""
         repos.settings.get.return_value = a_row(signup_mode="invite_only")
         repos.invitations.get_by_token.return_value = None
-        repos.invitations.any_pending_admitting.return_value = True
+        repos.invitations.first_pending_admitting.return_value = a_link()
 
         await check_may_register(
             mock_db_session, email="invited@acme.com", is_first_user=False, invitation_token="gone"
         )
 
-        repos.invitations.any_pending_admitting.assert_awaited_once()
+        repos.invitations.first_pending_admitting.assert_awaited_once()
 
     async def test_a_token_for_an_invitation_that_does_not_admit_them_falls_back_too(
         self, mock_db_session, repos, admits
     ):
         repos.settings.get.return_value = a_row(signup_mode="invite_only")
-        repos.invitations.get_by_token.return_value = MagicMock()
+        repos.invitations.get_by_token.return_value = a_link()
         admits.return_value = False
 
         with pytest.raises(AuthorizationError):
@@ -492,7 +681,7 @@ class TestATokenTheRegistrationCarries:
         repos.settings.get.return_value = a_row(
             signup_mode="open", allowed_email_domains=["acme.com"]
         )
-        repos.invitations.get_by_token.return_value = MagicMock()
+        repos.invitations.get_by_token.return_value = a_link()
 
         await check_may_register(
             mock_db_session,
@@ -505,7 +694,7 @@ class TestATokenTheRegistrationCarries:
         """ "Closed" that lets some registrations through is not closed - and an
         operator who wants invitations honoured has `invite_only` for it."""
         repos.settings.get.return_value = a_row(signup_mode="closed")
-        repos.invitations.get_by_token.return_value = MagicMock()
+        repos.invitations.get_by_token.return_value = a_link()
 
         with pytest.raises(AuthorizationError):
             await check_may_register(
@@ -534,7 +723,7 @@ class TestATokenTheRegistrationCarries:
         otherwise a token in a sign-up body would be a membership grant on an
         unauthenticated route."""
         repos.settings.get.return_value = a_row(signup_mode="invite_only")
-        repos.invitations.get_by_token.return_value = MagicMock()
+        repos.invitations.get_by_token.return_value = a_link()
 
         await check_may_register(
             mock_db_session, email="invited@acme.com", is_first_user=False, invitation_token="tok"

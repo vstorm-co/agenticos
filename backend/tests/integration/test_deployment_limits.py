@@ -12,9 +12,11 @@ the count it was measured against.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 
 import pytest
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.agents.spec import AgentSpec
 from app.core.exceptions import BadRequestError
@@ -23,8 +25,10 @@ from app.db.models.agent import AgentStatus
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
+from app.repositories import member_repo
 from app.schemas.organization import OrganizationCreate
 from app.services.agent_registry import AgentRegistryService
+from app.services.member import MemberService
 from app.services.organization import OrganizationService
 
 pytestmark = pytest.mark.anyio
@@ -158,3 +162,140 @@ class TestAgentsPerOrganization:
         created = await registry.create(_ctx(theirs, owner), AgentSpec(name="First"))
 
         assert created.organization_id == theirs.id
+
+    async def test_restoring_an_archived_agent_is_refused_at_the_ceiling(self, db) -> None:
+        """The way past the ceiling if only creates are checked: archive one, create
+        a replacement, restore what you archived. The count is of live agents, so a
+        restore is a transition *into* the counted state."""
+        owner = await _user(db)
+        org = await _org(db, owner)
+        await _limits(db, max_agents_per_organization=1)
+        registry = AgentRegistryService(db)
+        first = await registry.create(_ctx(org, owner), AgentSpec(name="First"))
+        await registry.archive(_ctx(org, owner), first.id)
+        await registry.create(_ctx(org, owner), AgentSpec(name="Second"))
+
+        with pytest.raises(BadRequestError) as refusal:
+            await registry.unarchive(_ctx(org, owner), first.id)
+
+        assert refusal.value.details == {"limit": 1, "held": 1}
+
+    async def test_restoring_below_the_ceiling_still_works(self, db) -> None:
+        owner = await _user(db)
+        org = await _org(db, owner)
+        await _limits(db, max_agents_per_organization=2)
+        registry = AgentRegistryService(db)
+        first = await registry.create(_ctx(org, owner), AgentSpec(name="First"))
+        await registry.archive(_ctx(org, owner), first.id)
+
+        restored = await registry.unarchive(_ctx(org, owner), first.id)
+
+        assert restored.status != AgentStatus.ARCHIVED.value
+
+
+class TestATransitionIntoOwnership:
+    """A ceiling on new rows alone is one an account walks past sideways.
+
+    `MemberService.transfer_ownership` makes an existing member an owner, which is
+    the same transition `OrganizationService.create` performs and the same count it
+    spends - so it asks the same question.
+    """
+
+    async def test_an_account_at_its_ceiling_cannot_be_handed_another_organization(
+        self, db
+    ) -> None:
+        owner, colleague = await _user(db), await _user(db)
+        await _org(db, colleague, personal=True)
+        org = await _org(db, owner)
+        db.add(
+            OrganizationMember(
+                id=uuid.uuid4(),
+                organization_id=org.id,
+                user_id=colleague.id,
+                role=OrgRoleName.ADMIN.value,
+            )
+        )
+        await db.flush()
+        await _limits(db, max_organizations_per_user=1)
+
+        with pytest.raises(BadRequestError) as refusal:
+            await MemberService(db).transfer_ownership(org.id, colleague.id, owner.id)
+
+        assert refusal.value.details == {"limit": 1, "owned": 1}
+
+    async def test_a_transfer_below_the_ceiling_still_works(self, db) -> None:
+        owner, colleague = await _user(db), await _user(db)
+        await _org(db, colleague, personal=True)
+        org = await _org(db, owner)
+        db.add(
+            OrganizationMember(
+                id=uuid.uuid4(),
+                organization_id=org.id,
+                user_id=colleague.id,
+                role=OrgRoleName.ADMIN.value,
+            )
+        )
+        await db.flush()
+        await _limits(db, max_organizations_per_user=3)
+
+        await MemberService(db).transfer_ownership(org.id, colleague.id, owner.id)
+
+        rows = await member_repo.get(db, organization_id=org.id, user_id=colleague.id)
+        assert rows is not None and rows.role == OrgRoleName.OWNER.value
+
+
+class TestTwoRequestsRacingOnTheLastPlace:
+    """The ceiling is a count read and then acted on, which is two statements.
+
+    Under the default isolation both requests pass the count and both write, so a
+    deployment allowing one agent ends up with two - deterministically, by clicking
+    twice. No constraint can express "at most N rows like this", so the subject of
+    the ceiling is locked for the length of the transaction instead. Two sessions
+    are the only way to see that work.
+    """
+
+    async def test_only_one_of_two_concurrent_creates_gets_the_last_place(self, db, engine) -> None:
+        owner = await _user(db)
+        org = await _org(db, owner)
+        await _limits(db, max_agents_per_organization=1)
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async def create(name: str) -> bool:
+            async with factory() as session:
+                try:
+                    await AgentRegistryService(session).create(
+                        _ctx(org, owner), AgentSpec(name=name)
+                    )
+                    await session.commit()
+                except BadRequestError:
+                    await session.rollback()
+                    return False
+                return True
+
+        both = await asyncio.gather(create("First"), create("Second"))
+
+        assert both.count(True) == 1
+
+    async def test_only_one_of_two_concurrent_organizations_is_created(self, db, engine) -> None:
+        owner = await _user(db)
+        await _org(db, owner, personal=True)
+        await _limits(db, max_organizations_per_user=2)
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async def create(name: str) -> bool:
+            async with factory() as session:
+                try:
+                    await OrganizationService(session).create(
+                        OrganizationCreate(name=name), owner.id
+                    )
+                    await session.commit()
+                except BadRequestError:
+                    await session.rollback()
+                    return False
+                return True
+
+        both = await asyncio.gather(create("Second"), create("Third"))
+
+        assert both.count(True) == 1

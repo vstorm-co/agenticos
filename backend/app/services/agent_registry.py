@@ -45,6 +45,7 @@ from app.core.exceptions import (
 )
 from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm
+from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.credential import ModelProfile
 from app.repositories import (
@@ -1673,6 +1674,10 @@ class AgentRegistryService:
                 message=f"Agent '{agent.name}' is not archived",
                 details={"agent_id": str(agent.id), "status": agent.status},
             )
+        # Restoring is a transition into the counted state, since the ceiling counts
+        # live agents only: without this an organization at its limit archives one,
+        # creates a replacement and restores what it archived.
+        await self._refuse_past_the_ceiling(ctx)
         restored = (
             AgentStatus.PUBLISHED.value
             if agent.current_version_id is not None
@@ -2011,16 +2016,28 @@ class AgentRegistryService:
         return walk.pins[cache_key]
 
     async def _refuse_past_the_ceiling(self, ctx: AuthContext) -> None:
-        """Refuse a create that would put this organization over the deployment's limit.
+        """Refuse a transition that would put this organization over the limit.
 
         Archived agents are not counted: archiving is how an agent is retired,
         and a ceiling a retired agent went on occupying would make the only way
         back under it a delete - which takes the version history and the run
         attribution with it.
+
+        Which is exactly why **`unarchive` calls this too**. Counting only the live
+        rows means restoring one is a transition *into* the counted state, and a
+        ceiling enforced on creates alone is one an organization walks past by
+        archiving an agent, creating a replacement and restoring what it archived.
+
+        The lock is what makes the count mean anything: read and acted on without
+        one, two creates both pass it and both insert, so the ceiling is exceeded
+        deterministically by clicking twice - and no constraint can say "at most
+        five rows like this". Taken only where a limit exists, and released by the
+        transaction whichever way it ends.
         """
         limit = (await DeploymentSettingsService(self.db).limits()).agents_per_organization
         if limit is None:
             return
+        await hold_subject(self.db, LockScope.AGENTS_PER_ORGANIZATION, ctx.organization_id)
         held = await agent_repo.count_for_organization(self.db, organization_id=ctx.organization_id)
         if held >= limit:
             raise BadRequestError(

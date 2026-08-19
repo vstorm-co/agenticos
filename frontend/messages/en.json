@@ -708,7 +708,7 @@
     "signupInviteOnly": "This deployment is invite-only. You can register with an address somebody has invited.",
     "signupDomainsAllowed": "Only addresses at {domains} can register here.",
     "signupClosedHeading": "Sign-up is closed",
-    "signupClosedBody": "{app} is not accepting new accounts. Ask an administrator to create one for you.",
+    "signupClosedBody": "{app} is not accepting new accounts. Ask an administrator to invite you.",
     "signupWithInvitation": "You are registering with an invitation, so this deployment's sign-up restrictions do not apply to you."
   },
   "billing": {
@@ -3068,7 +3068,7 @@
       "accessModeLabel_closed": "Closed",
       "accessMode_open": "Anybody can create an account.",
       "accessMode_invite_only": "Only an address somebody has invited, by email or through a link scoped to its domain.",
-      "accessMode_closed": "Nobody can register. You create accounts yourself. The first account on a new deployment is always allowed.",
+      "accessMode_closed": "Nobody can register, by any route - including an invitation. To add somebody, switch to invite-only and invite them. The first account on a new deployment is always allowed.",
       "accessDomains": "Allowed email domains",
       "accessDomainsHint": "Leave empty to allow every domain. An invitation overrides this list.",
       "domainsPlaceholder": "acme.com",

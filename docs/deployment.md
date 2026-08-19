@@ -65,7 +65,7 @@ gates **both** paths that mint an account.
 |---|---|
 | `open` | Anybody may register. The default, and what every deployment before this feature was. |
 | `invite_only` | Only an address some organization has actually invited. |
-| `closed` | Nobody registers. An administrator creates accounts. |
+| `closed` | Nobody registers, by any route — an invitation does not override it. |
 
 Across all three, a non-empty `allowed_email_domains` narrows who may register at
 all. **An invitation overrides that list** — somebody holding `members:invite`
@@ -73,7 +73,15 @@ named the address on purpose, and a domain list is deployment policy for strange
 rather than a veto over a deliberate act. `closed` is overridden by nothing,
 because "closed" that lets some registrations through is not closed.
 
-Three things about this that are easy to get wrong, and were:
+**`closed` means closed, and there is no administrator-creates-an-account path.**
+Deliberately: an account needs a password its owner chose, so adding somebody means
+opening registration *to them* — which is what `invite_only` is for. A mode that
+let an administrator mint accounts would be a third path minting one, and the two
+that already exist are the whole reason `signup_policy` is a module rather than a
+check inside `register`. So a deployment that has to admit one more person switches
+to `invite_only` and invites them.
+
+Three more things about this that are easy to get wrong, and were:
 
 **The first user is always admitted.** A fresh installation has no accounts, so
 its administrator does not exist yet; a closed deployment that also refuses the
@@ -84,10 +92,11 @@ defers to the same fact.
 **`invite_only` exists because closing registration would otherwise break
 invitations.** `InvitationService.accept` requires an existing signed-in user, so
 an invited person has to register first. The policy asks
-`invitation_repo.any_pending_admitting`, which is cross-tenant by construction —
-registration happens before an organization is chosen — and answers a boolean
-rather than a row, so a stranger probing the sign-up form cannot enumerate tenants
-with it.
+`invitation_repo.first_pending_admitting`, which is cross-tenant by construction —
+registration happens before an organization is chosen. What keeps that safe is
+where the answer goes: the policy turns it into a boolean refusal, so a stranger
+probing the sign-up form learns that somebody invited the address and never which
+organization did.
 
 **How an invitation is recognised depends on whether the registration carries its
 token**, and the two answers cover different shapes:
@@ -95,7 +104,7 @@ token**, and the two answers cover different shapes:
 | Arrives with | Recognised by | Which shapes it admits |
 |---|---|---|
 | A token (`invitation_token` on the sign-up body) | `invitation_admission.admits` | Any live invitation that admits the address — including a link constraining **no** address, which is the shape nothing else can see |
-| No token | `invitation_repo.any_pending_admitting` | An email invitation for that address, or a link scoped to its domain |
+| No token | `invitation_repo.first_pending_admitting` | An email invitation for that address, or a link scoped to its domain |
 
 The token is the only proof available for a shareable link with neither an address
 nor a domain on it. A query over the submitted address cannot recognise one, so
@@ -119,9 +128,25 @@ token back out of that `returnTo` so "create an account" points at
 `/register?invitation=<token>`. Before that, the only route onward was a plain link
 to `/register`, and the form then refused somebody holding a valid invitation.
 
-One shape it still does not reach: **signing in with a provider**. An OAuth callback
-carries no invitation, so an invited person arriving through Google is admitted by
-the address-based question or not at all.
+**A link with a `max_uses` bounds accounts, not only joins.** `used_count` counts
+acceptances and acceptance needs a session, so a ceiling read off it alone bounded
+nothing a registration did: one one-use link posted in a channel admitted as many
+accounts as anybody cared to create, on the deployment that had just closed sign-up.
+So a use is **reserved** for the registering address first — `reserved_emails` on the
+row, and `used_count + reserved_emails` is what "used up" means. The reservation is a
+single conditional `UPDATE`, because two registrations racing on the last use would
+both read the same count otherwise. Accepting moves the address out of the list as it
+increments the count, which conserves it: somebody who registered through a one-use
+link can still join. A reservation nobody accepts stays spent — `max_uses` is how
+many people a link admits, and an account created with it was admitted — and it dies
+with the invitation.
+
+**Signing in with a provider carries the invitation too.** The token is put on
+`/oauth/google/login?invitation=…` and held in the session across the round trip,
+because the provider redirect is not ours to add a parameter to. Without it,
+`invite_only` refused the Google button for exactly the links that need a token —
+one constraining neither an address nor a domain — while the password form beside it
+accepted the same person.
 
 **Signing in with a provider is a registration too.** `get_or_create_oauth_user`
 is the second path that creates an account, and nothing about a Google callback
@@ -148,7 +173,11 @@ route, `GET /api/v1/branding/notice`, behind a session.
 Dismissal is keyed on the **message itself**, in the browser's own storage. A flag
 would make the next announcement invisible to everybody who dismissed the last
 one; the settings row's timestamp would un-dismiss a notice whenever the
-deployment was renamed. The text is what changed, so the text is the key.
+deployment was renamed. The text is what changed, so the text is the key. Storage
+that refuses to be read or written — a privacy mode, an embedded webview — means
+"nothing dismissed" rather than an exception: thrown during render it would take the
+dashboard down for every signed-in user, and the banner still closes for as long as
+the page is open.
 
 **Maintenance mode holds the API shut**, not just the console.
 `app/core/maintenance.py` is a pure-ASGI middleware above the routes, so a page
@@ -174,10 +203,20 @@ non-admin there exactly as it always did.
 migration that has not run — lets traffic through, because the alternative turns an
 infrastructure hiccup into a total outage nobody scheduled.
 
-The verdict is cached in the Redis every worker already shares: written eagerly
-when an administrator saves, so the switch is immediate, and carrying a 30-second
-TTL as well, so a write that never reached Redis heals itself instead of leaving
-the deployment open through a window somebody scheduled.
+The verdict is cached in the Redis every worker already shares: written **after the
+commit**, so the switch is immediate and the cache can never advertise a state the
+database rolled back — published eagerly, a request that then failed left a
+disabled window reopening the deployment for up to the TTL. It carries a 30-second
+TTL as well, so a write that never reached Redis heals itself instead of leaving the
+deployment open through a window somebody scheduled.
+
+**And an already-open page hears about it.** The branding context is resolved once by
+the root server layout and never changes for the life of a page, so a window opened
+afterwards left every open tab on a dashboard whose every request had begun answering
+503, with nothing on screen saying why — and closing one left a tab on the
+maintenance screen until somebody reloaded. `GET /api/v1/branding/notice` carries the
+maintenance verdict beside the announcement and is polled once a minute, which is one
+request for both answers rather than two that can disagree about one row.
 
 In the console, the administrator sees a strip rather than the closed page. They
 are the only person who can end the window, and a maintenance mode that also hides
@@ -194,6 +233,21 @@ otherwise mint tenants without bound.
 |---|---|---|
 | Organizations per account | The organizations an account **owns**, personal one included | Ones somebody else invited them into |
 | Agents per organization | Agents the organization holds | Archived agents |
+
+**Every transition into the counted state is checked, not only a create.** A ceiling
+enforced on new rows alone is one that gets walked past sideways: an organization at
+its agent limit archives one, creates a replacement and restores what it archived,
+and an account at its organization limit is handed somebody else's through
+`transfer_ownership`. So `unarchive` and `transfer_ownership` ask the same question
+`create` does.
+
+**And the count is taken under a lock.** Reading `count(...) >= limit` and then
+writing is two statements, so two requests both pass the count and both insert — the
+ceiling exceeded deterministically, by clicking twice. No constraint can express "at
+most N rows like this", so `app/db/locks.py` takes a transaction-scoped advisory lock
+on the *subject* of the ceiling: two requests about one account queue, requests about
+different accounts never meet, and the lock is released by the commit or the
+rollback. Only where a limit is set, so an uncapped deployment pays nothing.
 
 Both exclusions are the point of the design rather than details of it. Being
 invited into ten organizations is somebody else's decision, and a ceiling one

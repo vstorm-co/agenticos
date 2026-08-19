@@ -34,6 +34,10 @@ def an_invite(**overrides) -> Invitation:
         role="member",
         max_uses=None,
         used_count=0,
+        # `NOT NULL` with a server default, so a persistent row always has a list;
+        # a transient one has whatever the constructor was given, and every caller
+        # of `admits` reads a row that came out of the database.
+        reserved_emails=[],
         email_domain=None,
         invited_by_user_id=uuid.uuid4(),
         token=uuid.uuid4().hex,

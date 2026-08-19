@@ -267,7 +267,9 @@ export function RegisterForm() {
         </p>
       </form>
 
-      <OAuthBlock label={t("orSignUpWith")} variant="signup" />
+      {/* The token travels with the provider too: an `invite_only` deployment
+          otherwise refuses the button beside a form that accepts the same person. */}
+      <OAuthBlock label={t("orSignUpWith")} variant="signup" invitation={invitationToken} />
     </div>
   );
 }

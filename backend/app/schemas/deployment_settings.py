@@ -109,10 +109,22 @@ class BrandingRead(BaseSchema):
 
 
 class NoticeRead(BaseSchema):
-    """The banner a signed-in user sees, if there is one."""
+    """What a signed-in surface has to keep asking about.
+
+    Two things, because a page already open has to learn both of them without
+    being reloaded: the administrator's announcement, and whether the deployment
+    has since been closed for maintenance. The maintenance verdict is in
+    `BrandingRead` as well, but that one is resolved once by the server layout and
+    then never changes for the life of the page - so a window opened afterwards
+    left every open tab on a dashboard whose requests had started answering 503,
+    and closing one left a tab stuck on the maintenance screen. This is the
+    polled answer.
+    """
 
     message: str | None = None
     level: NoticeLevel = "info"
+    maintenance_mode: bool = False
+    maintenance_message: str | None = None
 
 
 class DeploymentLimits(BaseSchema):

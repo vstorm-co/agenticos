@@ -204,6 +204,76 @@ class TestPromoteAndRename:
             "current_version_id": environment.version_id
         }
 
+    async def test_switching_to_follows_latest_adopts_the_newest_version_now(self):
+        """A mode that claims to follow and does not until something else happens is
+        the half-true state the whole setting exists to remove."""
+        agent = _agent()
+        environment = _environment(agent_id=agent.id, name="dev")
+        newest = _version(agent_id=agent.id, number=9)
+        service = _service(agent)
+
+        with (
+            patch(_REPO) as environments,
+            patch(f"{_AGENTS}.newest_version", new=AsyncMock(return_value=newest)),
+            patch(_AUDIT, new=AsyncMock()),
+        ):
+            environments.get = AsyncMock(return_value=environment)
+            environments.update = AsyncMock(return_value=environment)
+            await service.update(
+                _ctx(), agent.id, environment.id, EnvironmentUpdate(tracks_latest=True)
+            )
+
+        assert environments.update.call_args.kwargs["update_data"] == {
+            "tracks_latest": True,
+            "version_id": newest.id,
+        }
+
+    async def test_an_environment_already_on_the_newest_version_only_changes_its_mode(self):
+        """Nothing to adopt: it is already there, and writing the version it already
+        holds would audit a promotion that did not happen."""
+        agent = _agent()
+        environment = _environment(agent_id=agent.id, name="dev")
+        newest = _version(agent_id=agent.id, number=9)
+        newest.id = environment.version_id
+        service = _service(agent)
+
+        with (
+            patch(_REPO) as environments,
+            patch(f"{_AGENTS}.newest_version", new=AsyncMock(return_value=newest)),
+            patch(f"{_AGENTS}.update", new=AsyncMock()) as agents,
+            patch(_AUDIT, new=AsyncMock()),
+        ):
+            environments.get = AsyncMock(return_value=environment)
+            environments.update = AsyncMock(return_value=environment)
+            await service.update(
+                _ctx(), agent.id, environment.id, EnvironmentUpdate(tracks_latest=True)
+            )
+
+        assert environments.update.call_args.kwargs["update_data"] == {"tracks_latest": True}
+        agents.assert_not_awaited()
+
+    async def test_an_agent_with_no_versions_at_all_only_changes_the_mode(self):
+        """`current_version_id` is set and the newest read answers nothing - a version
+        deleted out from under the pointer. Following nothing is still following."""
+        agent = _agent()
+        environment = _environment(agent_id=agent.id, name="dev")
+        service = _service(agent)
+
+        with (
+            patch(_REPO) as environments,
+            patch(f"{_AGENTS}.newest_version", new=AsyncMock(return_value=None)),
+            patch(f"{_AGENTS}.update", new=AsyncMock()) as agents,
+            patch(_AUDIT, new=AsyncMock()),
+        ):
+            environments.get = AsyncMock(return_value=environment)
+            environments.update = AsyncMock(return_value=environment)
+            await service.update(
+                _ctx(), agent.id, environment.id, EnvironmentUpdate(tracks_latest=True)
+            )
+
+        assert environments.update.call_args.kwargs["update_data"] == {"tracks_latest": True}
+        agents.assert_not_awaited()
+
     async def test_an_environment_cannot_be_unpinned(self):
         """`version_id: null` is not "track latest" - there is no such state."""
         agent = _agent()

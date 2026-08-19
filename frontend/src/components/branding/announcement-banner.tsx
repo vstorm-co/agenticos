@@ -1,11 +1,10 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { AlertTriangle, Info, Megaphone, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { useBrandingNotice } from "@/hooks/use-branding-notice";
-import type { NoticeLevel } from "@/lib/branding";
+import type { NoticeLevel, NoticeResponse } from "@/lib/branding";
 import { cn } from "@/lib/utils";
 
 /**
@@ -41,8 +40,23 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
+/**
+ * What this browser has dismissed, or nothing where it will not say.
+ *
+ * `localStorage` is not always readable: a browser with site data blocked, a
+ * privacy mode, an embedded webview - each throws `SecurityError` on the *getter*.
+ * Thrown from here it would be thrown during render, inside
+ * `useSyncExternalStore`, and take the whole dashboard down for every signed-in
+ * user rather than merely failing to remember a dismissal. Unreadable therefore
+ * means "nothing dismissed", which shows the announcement one more time than
+ * necessary and is the harmless direction.
+ */
 function readDismissed(): string | null {
-  return window.localStorage.getItem(DISMISSED_KEY);
+  try {
+    return window.localStorage.getItem(DISMISSED_KEY);
+  } catch {
+    return null;
+  }
 }
 
 /** The server has no `localStorage`, so nothing is dismissed there. */
@@ -50,9 +64,21 @@ function noneDismissed(): null {
   return null;
 }
 
-function dismiss(message: string): void {
-  window.localStorage.setItem(DISMISSED_KEY, message);
+/**
+ * Remember the dismissal where the browser allows, and say so either way.
+ *
+ * The write throws for the same reasons the read does. Answering `false` is what
+ * lets the caller keep the banner closed anyway: unstorable is not unimportant, so
+ * it goes away now and comes back on the next load rather than refusing to close.
+ */
+function remember(message: string): boolean {
+  try {
+    window.localStorage.setItem(DISMISSED_KEY, message);
+  } catch {
+    return false;
+  }
   for (const listener of listeners) listener();
+  return true;
 }
 
 const TONE: Record<NoticeLevel, { wrapper: string; icon: typeof Info }> = {
@@ -64,15 +90,24 @@ const TONE: Record<NoticeLevel, { wrapper: string; icon: typeof Info }> = {
   },
 };
 
-export function AnnouncementBanner({ enabled }: { enabled: boolean }) {
+/**
+ * `notice` rather than a poll of its own: `DeploymentGate` above already asks, and
+ * it has to - the maintenance verdict decides whether this banner is even mounted,
+ * so a second query for the same row would be a second answer and a second
+ * interval. `undefined` while the first answer is in flight, which draws nothing.
+ */
+export function AnnouncementBanner({ notice }: { notice: NoticeResponse | undefined }) {
   const t = useTranslations("common");
-  const { data } = useBrandingNotice(enabled);
-  const message = data?.message ?? null;
+  const message = notice?.message ?? null;
   const dismissed = useSyncExternalStore(subscribe, readDismissed, noneDismissed);
+  // The dismissal a browser refusing storage cannot be told to remember. Held here
+  // rather than in a module variable so it lasts exactly as long as it is true of:
+  // this mounted banner, in a session where nothing can be written down.
+  const [unstorable, setUnstorable] = useState<string | null>(null);
 
-  if (!message || dismissed === message) return null;
+  if (!message || dismissed === message || unstorable === message) return null;
 
-  const tone = TONE[data?.level ?? "info"];
+  const tone = TONE[notice?.level ?? "info"];
   const Icon = tone.icon;
 
   return (
@@ -84,7 +119,9 @@ export function AnnouncementBanner({ enabled }: { enabled: boolean }) {
       <p className="min-w-0 flex-1 break-words">{message}</p>
       <button
         type="button"
-        onClick={() => dismiss(message)}
+        onClick={() => {
+          if (!remember(message)) setUnstorable(message);
+        }}
         aria-label={t("dismiss")}
         className="text-foreground/50 hover:text-foreground -mr-1 shrink-0 rounded p-0.5 transition-colors"
       >

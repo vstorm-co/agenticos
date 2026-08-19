@@ -10,7 +10,7 @@ import { BrandingProvider } from "./branding-provider";
 import { DeploymentGate } from "./deployment-gate";
 import { MaintenanceScreen } from "./maintenance-screen";
 import { apiClient } from "@/lib/api-client";
-import { BUILT_IN_BRANDING, type Branding } from "@/lib/branding";
+import { BUILT_IN_BRANDING, type Branding, type NoticeResponse } from "@/lib/branding";
 
 /**
  * What the deployment's own state does to the product.
@@ -48,8 +48,23 @@ beforeEach(() => {
   vi.clearAllMocks();
   window.localStorage.clear();
   authState.user = { is_app_admin: false };
-  vi.mocked(apiClient.get).mockResolvedValue({ message: null, level: "info" });
+  vi.mocked(apiClient.get).mockResolvedValue({
+    message: null,
+    level: "info",
+    maintenance_mode: false,
+    maintenance_message: null,
+  });
 });
+
+function notice(overrides: Partial<NoticeResponse> = {}): NoticeResponse {
+  return {
+    message: null,
+    level: "info",
+    maintenance_mode: false,
+    maintenance_message: null,
+    ...overrides,
+  };
+}
 
 describe("the deployment's mark", () => {
   it("draws the built-in glyph when nothing was uploaded", () => {
@@ -100,6 +115,37 @@ describe("a maintenance window", () => {
     expect(screen.getByRole("status")).toHaveTextContent(/maintenance mode is on/i);
   });
 
+  it("closes a tab that was already open when the window opened", async () => {
+    // The defect: the branding context is resolved once by the root server layout,
+    // so a non-admin left on a dashboard whose every request had begun answering
+    // 503 - with nothing on screen saying why - until they reloaded.
+    vi.mocked(apiClient.get).mockResolvedValue(notice({ maintenance_mode: true }));
+
+    render(
+      <DeploymentGate>
+        <p>the dashboard</p>
+      </DeploymentGate>,
+      { wrapper: branded() },
+    );
+
+    expect(screen.getByText("the dashboard")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("the dashboard")).not.toBeInTheDocument());
+  });
+
+  it("reopens a tab stuck on the screen once the window closes", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(notice({ maintenance_mode: false }));
+
+    render(
+      <DeploymentGate>
+        <p>the dashboard</p>
+      </DeploymentGate>,
+      { wrapper: branded({ maintenanceMode: true }) },
+    );
+
+    expect(screen.queryByText("the dashboard")).not.toBeInTheDocument();
+    expect(await screen.findByText("the dashboard")).toBeInTheDocument();
+  });
+
   it("changes nothing while no window is open", () => {
     render(
       <DeploymentGate>
@@ -127,46 +173,82 @@ describe("a maintenance window", () => {
 });
 
 describe("the announcement banner", () => {
-  it("stays away when there is no announcement", async () => {
-    render(<AnnouncementBanner enabled />, { wrapper: branded() });
+  it("stays away while the first answer is still in flight", () => {
+    render(<AnnouncementBanner notice={undefined} />, { wrapper: branded() });
 
-    await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
-  it("shows what the administrator wrote", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ message: "Upgrade at 22:00", level: "warning" });
+  it("stays away when there is no announcement", () => {
+    render(<AnnouncementBanner notice={notice()} />, { wrapper: branded() });
 
-    render(<AnnouncementBanner enabled />, { wrapper: branded() });
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
 
-    expect(await screen.findByText("Upgrade at 22:00")).toBeInTheDocument();
+  it("shows what the administrator wrote", () => {
+    render(
+      <AnnouncementBanner notice={notice({ message: "Upgrade at 22:00", level: "warning" })} />,
+      {
+        wrapper: branded(),
+      },
+    );
+
+    expect(screen.getByText("Upgrade at 22:00")).toBeInTheDocument();
   });
 
   it("stays dismissed once dismissed", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ message: "Upgrade at 22:00", level: "info" });
-    render(<AnnouncementBanner enabled />, { wrapper: branded() });
-    await screen.findByText("Upgrade at 22:00");
+    render(<AnnouncementBanner notice={notice({ message: "Upgrade at 22:00" })} />, {
+      wrapper: branded(),
+    });
 
     await userEvent.click(screen.getByRole("button", { name: /dismiss/i }));
 
     expect(screen.queryByText("Upgrade at 22:00")).not.toBeInTheDocument();
   });
 
-  it("keys the dismissal on the sentence, so the next announcement is seen", async () => {
+  it("keys the dismissal on the sentence, so the next announcement is seen", () => {
     // A flag would make every later announcement invisible to anybody who
     // dismissed one; the settings row's timestamp would un-dismiss a notice
     // whenever the deployment was renamed. The text is what changed.
     window.localStorage.setItem("deployment.notice", "The previous one");
-    vi.mocked(apiClient.get).mockResolvedValue({ message: "A new one", level: "info" });
 
-    render(<AnnouncementBanner enabled />, { wrapper: branded() });
+    render(<AnnouncementBanner notice={notice({ message: "A new one" })} />, {
+      wrapper: branded(),
+    });
 
-    expect(await screen.findByText("A new one")).toBeInTheDocument();
+    expect(screen.getByText("A new one")).toBeInTheDocument();
   });
 
-  it("does not ask at all when nobody is signed in", async () => {
-    render(<AnnouncementBanner enabled={false} />, { wrapper: branded() });
+  it("draws rather than throwing where storage cannot be read", () => {
+    // A browser with site data blocked, a privacy mode, an embedded webview: the
+    // *getter* throws `SecurityError`, and thrown from inside
+    // `useSyncExternalStore` that took the whole dashboard down for every signed-in
+    // user rather than merely failing to remember a dismissal.
+    const getItem = vi.spyOn(window.localStorage, "getItem").mockImplementation(() => {
+      throw new DOMException("denied", "SecurityError");
+    });
 
-    await waitFor(() => expect(apiClient.get).not.toHaveBeenCalled());
+    render(<AnnouncementBanner notice={notice({ message: "Upgrade at 22:00" })} />, {
+      wrapper: branded(),
+    });
+
+    expect(screen.getByText("Upgrade at 22:00")).toBeInTheDocument();
+    getItem.mockRestore();
+  });
+
+  it("closes now even where the dismissal cannot be stored", async () => {
+    // Unstorable is not unimportant: the banner goes away and comes back on the
+    // next load, rather than refusing to close at all.
+    const setItem = vi.spyOn(window.localStorage, "setItem").mockImplementation(() => {
+      throw new DOMException("denied", "SecurityError");
+    });
+
+    render(<AnnouncementBanner notice={notice({ message: "Upgrade at 22:00" })} />, {
+      wrapper: branded(),
+    });
+    await userEvent.click(screen.getByRole("button", { name: /dismiss/i }));
+
+    expect(screen.queryByText("Upgrade at 22:00")).not.toBeInTheDocument();
+    setItem.mockRestore();
   });
 });

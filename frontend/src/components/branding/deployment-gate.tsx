@@ -8,6 +8,7 @@ import { AnnouncementBanner } from "@/components/branding/announcement-banner";
 import { useBranding } from "@/components/branding/branding-provider";
 import { MaintenanceScreen } from "@/components/branding/maintenance-screen";
 import { useAuth } from "@/hooks";
+import { useBrandingNotice } from "@/hooks/use-branding-notice";
 
 /**
  * What the deployment's own state does to the page under it.
@@ -21,19 +22,30 @@ import { useAuth } from "@/hooks";
  * it off, and a maintenance mode that also hides the switch is an outage. The API
  * agrees with that split on its own terms - the admin endpoints are on its allow-list
  * - so this is the same rule drawn rather than a second, looser one.
+ *
+ * **The verdict is polled, not the layout's.** `useBranding` is resolved once by
+ * the root server layout and never changes for the life of the page, so a window
+ * opened afterwards left every open tab on a dashboard whose every request had
+ * begun answering 503, and closing one left a tab on the maintenance screen until
+ * somebody reloaded it. The context is still the *first* answer - it is there
+ * before any request - and the poll takes over the moment it has one. The poll
+ * lives here rather than in the banner below because the banner is inside what the
+ * maintenance screen replaces, and a gate cannot be told by something it unmounts.
  */
 export function DeploymentGate({ children }: { children: ReactNode }) {
   const t = useTranslations("pages.maintenance");
   const { maintenanceMode } = useBranding();
   const { user } = useAuth();
+  const { data: notice } = useBrandingNotice(Boolean(user));
+  const closed = notice?.maintenance_mode ?? maintenanceMode;
 
-  if (maintenanceMode && !user?.is_app_admin) {
+  if (closed && !user?.is_app_admin) {
     return <MaintenanceScreen />;
   }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
-      {maintenanceMode && (
+      {closed && (
         <div
           role="status"
           className="border-warning/40 bg-warning/10 text-foreground flex items-center gap-2.5 rounded-xl border px-4 py-2.5 text-sm"
@@ -42,7 +54,7 @@ export function DeploymentGate({ children }: { children: ReactNode }) {
           <p>{t("adminStrip")}</p>
         </div>
       )}
-      <AnnouncementBanner enabled={Boolean(user)} />
+      <AnnouncementBanner notice={notice} />
       {children}
     </div>
   );

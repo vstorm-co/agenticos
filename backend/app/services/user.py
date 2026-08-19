@@ -153,8 +153,19 @@ class UserService:
         provider_id: str,
         email: str,
         full_name: str | None = None,
+        invitation_token: str | None = None,
     ) -> User:
-        """Email-matched existing accounts get the OAuth identity attached rather than creating a duplicate."""
+        """Email-matched existing accounts get the OAuth identity attached rather than creating a duplicate.
+
+        `invitation_token` is the one the sign-in was started with, carried through
+        the provider round trip in the session. It admits an address the policy
+        would otherwise refuse and nothing else: joining the organization is still a
+        separate `InvitationService.accept`. Without it an `invite_only` deployment
+        refused the Google button for precisely the invitations that need a token -
+        a link constraining neither an address nor a domain, which the address-based
+        fallback cannot see - so one person could register with a password and not
+        with the provider offered beside it.
+        """
         existing = await user_repo.get_by_oauth(self.db, provider, provider_id)
         if existing:
             return existing
@@ -172,7 +183,12 @@ class UserService:
         # simply a check inside `register`: a deployment with Google sign-in and a
         # closed sign-up form is not closed at all if this branch is ungated, and
         # nothing about the OAuth callback looks like a registration.
-        await check_may_register(self.db, email=email, is_first_user=await self._is_first_user())
+        await check_may_register(
+            self.db,
+            email=email,
+            is_first_user=await self._is_first_user(),
+            invitation_token=invitation_token,
+        )
 
         user = await user_repo.create(
             self.db,
