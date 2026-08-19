@@ -17,6 +17,34 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.204] - 2026-08-20
+
+Every knowledge base in the product reported nothing indexed, however many
+documents had finished ingesting.
+
+### Fixed
+
+- **A collection's indexed count filters on the status the pipeline writes.**
+  `counts_by_collection` counted rows whose `status` was `"completed"`, and
+  nothing has ever written that value: an upload creates a row `processing` and
+  the pipeline moves it to `done` or `error`, which is what the model default,
+  `docs/file-processing.md` and the frontend's status map all say. The `FILTER`
+  clause therefore could not match a row, so `indexed_count` was `0` on every
+  knowledge base and a collection where everything succeeded read as entirely
+  unindexed. The literal is now an enum: `DocumentStatus` sits beside the column
+  in `app/db/models/rag_document.py` - the shape `RunStatus`, `AgentStatus` and
+  `InvitationStatus` already take - and the writer (`RAGDocumentService`) and the
+  reader name the same member rather than two strings free to drift.
+  `rag_document_repo.create` and `update_status` take `DocumentStatus` instead of
+  `str`, so the next typo is a type error rather than a count that silently
+  reports nothing. (#148)
+
+### Changed
+
+- **`docs/file-processing.md`** says the three status values are the
+  `DocumentStatus` members and that the indexed count filters on `done`, so a
+  reader of that table knows where the vocabulary lives.
+
 ## [0.0.203] - 2026-08-19
 
 A Member could pay for a collection's embeddings with another member's private
