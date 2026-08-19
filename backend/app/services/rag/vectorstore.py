@@ -164,6 +164,7 @@ class BaseVectorStore(ABC):
 
 import json
 from collections.abc import Awaitable, Callable
+from itertools import batched
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -190,6 +191,17 @@ EmbeddingResolver = Callable[[str], Awaitable[ResolvedEmbeddings | None]]
 # collection created with the default configuration would have failed on its
 # first upload, in a worker, with a 500 and no explanation on screen.
 _HNSW_MAX_VECTOR_DIM = 2000
+
+# How many chunks go into one `INSERT`. The statement used to run once per chunk,
+# so a 200-page PDF at the default `chunk_size` was one to three thousand
+# sequential round trips inside one open transaction - a second or two on a local
+# socket, five to fifteen against a managed Postgres at 3-5ms (#950).
+#
+# Batched rather than one statement for the whole document, because the parameter
+# list is held in memory and each row carries an embedding rendered as text: at
+# 3072 dimensions that is tens of kilobytes a row, so three thousand of them in
+# one statement is a parameter list measured in hundreds of megabytes.
+_CHUNK_INSERT_BATCH = 200
 
 
 class PgVectorStore(BaseVectorStore):
@@ -352,29 +364,40 @@ class PgVectorStore(BaseVectorStore):
             return result.scalar() is not None
 
     async def insert_document(self, collection_name: str, document: Document) -> None:
+        """Write a document's chunks, a batch of rows per statement.
+
+        One statement per `_CHUNK_INSERT_BATCH` chunks rather than one per chunk:
+        SQLAlchemy takes a list of parameter dictionaries and issues an
+        `executemany`, which asyncpg pipelines. What that replaces is a Python
+        loop of sequential round trips inside one open transaction, holding a
+        connection while it waited - and the number of them scaled with the
+        document, so the worst case was a long PDF against the slowest database
+        (#950).
+        """
         table = self._table(collection_name)
         await self._ensure_collection(collection_name)
         if not document.chunked_pages:
             raise ValueError("Document has no chunked pages.")
         embedder, _ = await self._for_collection(collection_name)
         vectors = embedder.embed_document(document)
+        statement = text(f"""
+            INSERT INTO {table} (id, parent_doc_id, content, embedding, metadata)
+            VALUES (:id, :parent_doc_id, :content, :embedding, :metadata)
+            ON CONFLICT (id) DO UPDATE SET content = :content, embedding = :embedding, metadata = :metadata
+        """)
+        rows = [
+            {
+                "id": chunk.chunk_id,
+                "parent_doc_id": chunk.parent_doc_id,
+                "content": chunk.chunk_content,
+                "embedding": str(vectors[i]),
+                "metadata": json.dumps(self._build_chunk_metadata(chunk, document)),
+            }
+            for i, chunk in enumerate(document.chunked_pages)
+        ]
         async with self.async_session() as session:
-            for i, chunk in enumerate(document.chunked_pages):
-                meta = self._build_chunk_metadata(chunk, document)
-                await session.execute(
-                    text(f"""
-                        INSERT INTO {table} (id, parent_doc_id, content, embedding, metadata)
-                        VALUES (:id, :parent_doc_id, :content, :embedding, :metadata)
-                        ON CONFLICT (id) DO UPDATE SET content = :content, embedding = :embedding, metadata = :metadata
-                    """),
-                    {
-                        "id": chunk.chunk_id,
-                        "parent_doc_id": chunk.parent_doc_id,
-                        "content": chunk.chunk_content,
-                        "embedding": str(vectors[i]),
-                        "metadata": json.dumps(meta),
-                    },
-                )
+            for batch in batched(rows, _CHUNK_INSERT_BATCH):
+                await session.execute(statement, list(batch))
             await session.commit()
 
     async def search(

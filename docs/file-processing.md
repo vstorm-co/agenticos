@@ -341,6 +341,17 @@ Chunk boundaries are what a search matches against, so a collection ingested
 before that change keeps the chunks it was ingested with. Re-upload a document,
 or re-run `uv run agenticos cmd rag-ingest`, to re-chunk it.
 
+**How many chunks a document has decides how long storing it takes, but no longer
+how many round trips.** `insert_document` writes them 200 rows to a statement
+(`executemany`, which asyncpg pipelines), where it used to issue one `INSERT` per
+chunk in a Python loop inside one open transaction — so a 200-page PDF at the
+default `chunk_size` was one to three thousand sequential round trips, five to
+fifteen seconds against a managed Postgres at 3-5ms before a single embedding was
+paid for ([#950](https://github.com/vstorm-co/agenticos/issues/950)). It is
+batched rather than one statement for the whole document because the parameter
+list is held in memory and each row carries its embedding rendered as text: at
+3072 dimensions that is tens of kilobytes a row.
+
 **An override is checked against the merged pair, not against its own value.** A
 per-upload `ingestion` field carries only what it changes, so `chunk_overlap:
 4096` sent to a collection chunking at 512 is two individually legal numbers and
