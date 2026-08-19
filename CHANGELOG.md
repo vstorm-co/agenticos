@@ -17,6 +17,34 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.203] - 2026-08-19
+
+A Member could pay for a collection's embeddings with another member's private
+key by supplying its id.
+
+### Fixed
+
+- **Binding an embedding key checks that the chooser can see it.**
+  `KnowledgeBaseService._check_embedding_secret` looked the chosen key up scoped
+  only to the organization and never ran the caller's own secret-view check, so a
+  Member with `collections:edit` who supplied the UUID of another member's
+  **private** vault key bound a key `secrets:view` would have refused them — and
+  the collection's embeddings then billed it, for everyone who can write the
+  collection. The picker only ever offered keys the chooser can see, which is not
+  a check: the API takes an id and an id is guessable. The fetched row now goes
+  through `resolve_access(..., Perm.SECRETS_VIEW, resource_type=SECRET)`, exactly
+  as the agent secret bindings already did, and a key the caller cannot view is
+  refused as one the vault does not hold — so the refusal cannot enumerate
+  somebody else's private secrets. Creation is the only path that binds one:
+  `KnowledgeBaseUpdate` carries no `embedding_secret_id`. (#918)
+
+### Changed
+
+- **`docs/file-processing.md` says binding needs `secrets:view`**, and why —
+  binding a key is lending it. The page listed the two refusals creation already
+  made, another organization's key and the wrong purpose, so a reader acting on it
+  would have expected `collections:edit` alone to be enough. (#918)
+
 ## [0.0.202] - 2026-08-19
 
 One test-only release: a `catch` the frontend suite reported as covered had
