@@ -1816,6 +1816,13 @@ class AgentRegistryService:
     async def delete(self, ctx: AuthContext, agent_id: UUID) -> None:
         """Permanently remove an agent, its versions and its shares."""
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        # The agent's triggers go with it by CASCADE, which would silently discard
+        # the provider webhook ids their auto-registered hooks are removable by -
+        # so the provider side is swept first, best-effort. Imported locally:
+        # the trigger service imports this module at module scope.
+        from app.services.agent_trigger import AgentTriggerService
+
+        await AgentTriggerService(self.db).deregister_agent_webhooks(ctx, agent.id)
         # The grant table is generic and has no foreign key to the agent, so
         # nothing cascades on its behalf.
         await resource_grant_repo.delete_for_resource(

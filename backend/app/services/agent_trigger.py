@@ -432,22 +432,6 @@ class AgentTriggerService:
             portal_key=portal_key,
             delivery_mode=delivery_mode,
         )
-        # Auto-register the provider webhook for a preset whose portal supports it
-        # and whose connected account carries the scope; any miss leaves the
-        # trigger `manual` and the caller pastes the URL the response exposes.
-        if (
-            portal is not None
-            and portal.delivery is DeliveryMode.AUTO_WEBHOOK
-            and connection_id is not None
-        ):
-            await self._auto_register_webhook(
-                ctx,
-                trigger,
-                portal=portal,
-                connection_id=connection_id,
-                target=data.target,
-                secret=cast(str, plaintext_secret),
-            )
         # Open the run-log conversation now, not on the first fire, so a new
         # trigger is a clickable item in the sidebar the moment it exists - empty
         # until a fire appends to it. `_run_log` stays the idempotent fallback for
@@ -471,6 +455,28 @@ class AgentTriggerService:
                 "event_source": trigger.event_source,
             },
         )
+        # Auto-register the provider webhook for a preset whose portal supports it
+        # and whose connected account carries the scope; any miss leaves the
+        # trigger `manual` and the caller pastes the URL the response exposes.
+        # Deliberately the last step, after every row this create writes has
+        # flushed: the provider-side hook is the one effect the transaction cannot
+        # roll back, so anything that can still fail this request must fail it
+        # *before* GitHub holds a live hook pointing at a trigger that was never
+        # committed. The remaining window - the final commit itself failing - is
+        # the irreducible cost of not having an outbox.
+        if (
+            portal is not None
+            and portal.delivery is DeliveryMode.AUTO_WEBHOOK
+            and connection_id is not None
+        ):
+            await self._auto_register_webhook(
+                ctx,
+                trigger,
+                portal=portal,
+                connection_id=connection_id,
+                target=data.target,
+                secret=cast(str, plaintext_secret),
+            )
         # Reload before returning: opening the run-log conversation flushed a
         # `conversation_id` update, and the server-side `updated_at` (onupdate) it
         # triggered is now expired on the instance. Serializing the response reads
@@ -569,6 +575,23 @@ class AgentTriggerService:
                 "trigger_webhook_deregister_failed",
                 extra={"trigger_id": str(trigger.id)},
             )
+
+    async def deregister_agent_webhooks(self, ctx: AuthContext, agent_id: UUID) -> None:
+        """Remove every provider webhook this agent's triggers registered.
+
+        Called by the agent registry before it deletes the agent: the trigger rows
+        go with the agent by CASCADE, which removes the stored `provider_webhook_id`
+        without ever passing through :meth:`delete` - so without this sweep GitHub
+        keeps a live hook for every auto-registered trigger, delivering to ids that
+        no longer exist, with the id needed to remove it gone for good. Best-effort
+        per trigger, like `_deregister_webhook` itself: a provider that is down
+        must not block deleting the agent.
+        """
+        triggers = await agent_trigger_repo.list_for_agent(
+            self.db, agent_id=agent_id, organization_id=ctx.organization_id
+        )
+        for trigger in triggers:
+            await self._deregister_webhook(ctx, trigger)
 
     async def update(
         self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID, data: TriggerUpdate
@@ -834,8 +857,15 @@ class AgentTriggerService:
         timeout - 60s by default on nginx - answered the caller 504 while the run
         carried on and committed server-side: a failure reported for something that
         was working, and an invitation to press the button again and fire the
-        schedule twice. `spawn_after_commit`, not `spawn`, because the fire opens a
-        session of its own and must not outrun this request's transaction.
+        schedule twice. It is dispatched as its own `run-scheduled-trigger` flow -
+        the same durable, capped door the heartbeat and the webhook path use -
+        rather than an in-process task, because the 202 is a promise: a task
+        living in the API process is lost with the process (a restart, a deploy,
+        an exceeded drain timeout), leaving the caller polling for a `last_run_id`
+        that will never arrive, while an accepted flow run survives the API and is
+        performed by the worker. `spawn_after_commit`, not `spawn`, because the
+        fire reads the trigger on a session of its own and must not outrun this
+        request's transaction.
 
         Returns the trigger as it stands, which is why the route answers 202: the
         run has not happened yet, so `last_run_id` still names the previous one. The
@@ -851,10 +881,13 @@ class AgentTriggerService:
             target_id=str(agent_id),
             details={"trigger_id": str(trigger.id)},
         )
-        # Local: the handler imports this module, so hoisting this is a cycle.
-        from app.worker.background.trigger_fire import fire_trigger
+        # Local, like the webhook route's: `trigger_tasks` pulls in Prefect, and
+        # the API import must stay free of it (#520).
+        from app.worker.tasks.trigger_tasks import dispatch_trigger_fire
 
-        spawn_after_commit(self.db, fire_trigger(trigger.id), name=f"trigger-run-now-{trigger.id}")
+        spawn_after_commit(
+            self.db, dispatch_trigger_fire(str(trigger.id)), name=f"trigger-run-now-{trigger.id}"
+        )
         # `_owned` let this caller through, so they manage it - say so on the read.
         setattr(trigger, "can_manage", True)  # noqa: B010
         return trigger
@@ -902,8 +935,9 @@ class AgentTriggerService:
         # not fire a second run and a second spend. Claim the provider's delivery
         # id; a delivery that carries none, or a Redis that cannot be reached, fails
         # open and fires, and a duplicate answers the same nothing-to-do `None` an
-        # unmatched delivery does, so it stays unprobeable. The claim is released by
-        # the route if the fire's hand-off then fails (`release_event_claim`).
+        # unmatched delivery does, so it stays unprobeable. The claim is kept even
+        # when the route's hand-off then raises - the raise is ambiguous, the flow
+        # may have been enqueued - and lapses with its TTL (see the route).
         delivery = trigger_events.delivery_id(source, headers)
         if delivery is not None and not await trigger_dedupe.claim_event_delivery(
             trigger_id=trigger.id, delivery_id=delivery
@@ -911,20 +945,6 @@ class AgentTriggerService:
             return None
         context = trigger_events.render_context(source, payload=payload)
         return EventFireDecision(trigger_id=trigger.id, event_context=context)
-
-    async def release_event_claim(
-        self, source: str, trigger_id: UUID, headers: Mapping[str, str]
-    ) -> None:
-        """Give back the dedupe claim on a delivery whose fire was not dispatched.
-
-        `prepare_event_fire` claims before returning the decision, so a hand-off
-        that then raises - Prefect unreachable - must release the claim or the
-        provider's resend is dropped and the event lost. A delivery with no provider
-        id was never claimed, so this is a no-op for it.
-        """
-        delivery = trigger_events.delivery_id(source, headers)
-        if delivery is not None:
-            await trigger_dedupe.release_event_delivery(trigger_id=trigger_id, delivery_id=delivery)
 
     def _unseal_event_secret(self, trigger: AgentTrigger) -> str:
         """The trigger's signing secret, unsealed for its organization.
@@ -1049,9 +1069,14 @@ class AgentTriggerService:
         try:
             await self._fire_loaded(trigger, event_context=event_context)
         finally:
-            if claimed_at is not None and trigger.fire_in_flight_since == claimed_at:
-                trigger.fire_in_flight_since = None
-                await self.db.flush()
+            if claimed_at is not None:
+                # A conditional UPDATE against the committed row, not a comparison
+                # on the instance loaded when this fire began: a fire that outran
+                # the lease may find a newer claim's marker there, and only the
+                # database can judge that freshly (`clear_fire_marker`).
+                await agent_trigger_repo.clear_fire_marker(
+                    self.db, trigger_id=trigger.id, claimed_at=claimed_at
+                )
 
     async def _fire_loaded(
         self, trigger: AgentTrigger, *, event_context: str | None = None

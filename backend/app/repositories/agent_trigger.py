@@ -7,6 +7,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import false, func, or_, select
+from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -191,6 +192,28 @@ async def update(
 
 async def delete(db: AsyncSession, trigger: AgentTrigger) -> None:
     await db.delete(trigger)
+    await db.flush()
+
+
+async def clear_fire_marker(db: AsyncSession, *, trigger_id: UUID, claimed_at: datetime) -> None:
+    """Free the in-flight marker, but only while it is still this claim's own.
+
+    A conditional UPDATE rather than a read-compare-assign on the loaded row: the
+    row was loaded when the fire began, and a fire that outran `_FIRE_LEASE` may
+    since have had its trigger re-claimed by a heartbeat that committed a *newer*
+    `fire_in_flight_since`. Comparing against the session's cached value and
+    assigning `None` would clear that newer claim's marker and reopen the trigger
+    under a fire still in flight; the `WHERE` here re-evaluates against the
+    committed row, so a stale ticket simply matches nothing.
+    """
+    await db.execute(
+        sql_update(AgentTrigger)
+        .where(
+            AgentTrigger.id == trigger_id,
+            AgentTrigger.fire_in_flight_since == claimed_at,
+        )
+        .values(fire_in_flight_since=None)
+    )
     await db.flush()
 
 

@@ -190,15 +190,13 @@ async def test_a_webhook_that_matches_submits_the_fire_as_a_capped_flow():
     fired.assert_awaited_once_with(str(decision.trigger_id), event_context="ISSUE #7")
 
 
-async def test_a_dispatch_failure_releases_the_dedupe_claim_and_surfaces():
-    """The delivery was dedupe-claimed in prepare_event_fire; a hand-off that
-    raises got no 2xx, so the provider will resend - the claim must be given back
-    or that resend is dropped, and the 500 must still surface."""
+async def test_a_dispatch_failure_keeps_the_dedupe_claim_and_surfaces():
+    """A raise out of the hand-off is ambiguous - `run_deployment` can enqueue the
+    flow and then lose the response - so the delivery's claim is deliberately kept:
+    released, the provider's retry of this 500 would start a second run on top of
+    an accepted one. The 500 must still surface for the operator."""
     decision = EventFireDecision(trigger_id=uuid.uuid4(), event_context="x")
-    service = MagicMock(
-        prepare_event_fire=AsyncMock(return_value=decision),
-        release_event_claim=AsyncMock(),
-    )
+    service = MagicMock(prepare_event_fire=AsyncMock(return_value=decision))
     boom = AsyncMock(side_effect=RuntimeError("prefect unreachable"))
     with (
         patch("app.worker.tasks.trigger_tasks.dispatch_trigger_fire", boom),
@@ -210,7 +208,9 @@ async def test_a_dispatch_failure_releases_the_dedupe_claim_and_surfaces():
             _request(b"{}", {"x-github-delivery": "d"}),
             service,
         )
-    service.release_event_claim.assert_awaited_once()
+    # The route asked the service only to prepare the fire - nothing gave the
+    # delivery's claim back on the way out.
+    assert [name for name, *_ in service.mock_calls] == ["prepare_event_fire"]
 
 
 async def test_portal_targets_maps_the_adapters_answer():

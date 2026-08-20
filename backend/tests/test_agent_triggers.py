@@ -229,6 +229,13 @@ class TestCreate:
         with pytest.raises(PydanticValidationError, match="ever fires"):
             TriggerCreate(prompt="run", schedule_kind="cron", cron_expression="0 0 31 2 *")
 
+    def test_a_six_field_cron_with_seconds_is_a_422(self):
+        """croniter would accept `* * * * * *` and promise a fire every second,
+        but the only heartbeat ticks once a minute - a cadence the platform cannot
+        honour is refused rather than accepted and permanently overdue."""
+        with pytest.raises(PydanticValidationError, match="valid crontab"):
+            TriggerCreate(prompt="run", schedule_kind="cron", cron_expression="* * * * * *")
+
     def test_an_interval_beyond_the_column_ceiling_is_a_422(self):
         """Without an upper bound the value overflows the `integer` column, and
         `_next_fire` overflows `timedelta` on the way there - both 500s. The ceiling
@@ -710,20 +717,25 @@ class TestManagingAnotherMembersTrigger:
 
 
 @pytest.fixture
-def fired(monkeypatch: pytest.MonkeyPatch) -> list[uuid.UUID]:
-    """The trigger ids the dispatched background fire was handed, in order.
+def fired(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """The trigger ids the dispatched fire was handed, in order.
 
-    `run_now` queues `fire_trigger` for after the commit rather than awaiting
-    `fire`, so what was fired is recorded here and not on the service. Every test
-    that reaches `_run_deferred` needs this: without it the queued coroutine is the
-    real handler, which opens a database session of its own.
+    `run_now` queues `dispatch_trigger_fire` for after the commit rather than
+    awaiting `fire`, so what was fired is recorded here and not on the service.
+    Every test that reaches `_run_deferred` needs this: without it the queued
+    coroutine is the real dispatcher, which submits a Prefect flow run.
     """
-    ids: list[uuid.UUID] = []
+    ids: list[str] = []
 
-    async def _fire(trigger_id: uuid.UUID, *, event_context: str | None = None) -> None:
+    async def _fire(
+        trigger_id: str,
+        *,
+        event_context: str | None = None,
+        claimed_at: datetime | None = None,
+    ) -> None:
         ids.append(trigger_id)
 
-    monkeypatch.setattr("app.worker.background.trigger_fire.fire_trigger", _fire)
+    monkeypatch.setattr("app.worker.tasks.trigger_tasks.dispatch_trigger_fire", _fire)
     return ids
 
 
@@ -758,7 +770,7 @@ class TestRunningNow:
             service.fire.assert_not_awaited()
             assert fired == []
             await _run_deferred(service.db)
-        assert fired == [trigger.id]
+        assert fired == [str(trigger.id)]
 
     async def test_running_now_fires_without_rescheduling(self, fired):
         """A manual fire is one extra run, not a reschedule - next_fire_at stands."""
@@ -806,12 +818,17 @@ class TestRunningNow:
         """Run now is a deliberate manual test-fire on an event trigger too, not a
         400: it dispatches the fire with no delivery context, so the agent runs its
         base prompt exactly as it would before any webhook arrived."""
-        calls: list[tuple[uuid.UUID, str | None]] = []
+        calls: list[tuple[str, str | None]] = []
 
-        async def _fire(trigger_id: uuid.UUID, *, event_context: str | None = None) -> None:
+        async def _fire(
+            trigger_id: str,
+            *,
+            event_context: str | None = None,
+            claimed_at: datetime | None = None,
+        ) -> None:
             calls.append((trigger_id, event_context))
 
-        monkeypatch.setattr("app.worker.background.trigger_fire.fire_trigger", _fire)
+        monkeypatch.setattr("app.worker.tasks.trigger_tasks.dispatch_trigger_fire", _fire)
         agent = _agent()
         service = _service(agent)
         trigger = _event_trigger(agent_id=agent.id)
@@ -822,7 +839,7 @@ class TestRunningNow:
             repo.get = AsyncMock(return_value=trigger)
             await service.run_now(_ctx(), agent.id, trigger.id)
             await _run_deferred(service.db)
-        assert calls == [(trigger.id, None)]
+        assert calls == [(str(trigger.id), None)]
 
 
 class TestClaiming:
@@ -1156,8 +1173,9 @@ class TestFiring:
 
     async def test_the_scheduled_path_clears_the_in_flight_marker_when_the_run_completes(self):
         """The claim set fire_in_flight_since; the scheduled fire it dispatched is
-        handed that timestamp as `claimed_at` and clears the marker in a finally once
-        it still matches, so once the run settles the next tick can claim again."""
+        handed that timestamp as `claimed_at` and clears the marker in a finally -
+        through the repo's conditional UPDATE, which frees it only while it is
+        still this claim's own - so once the run settles the next tick can claim."""
         agent = _agent()
         service = _service(agent)
         claimed_at = datetime(2026, 1, 1, tzinfo=UTC)
@@ -1175,21 +1193,24 @@ class TestFiring:
             patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
+            repo.clear_fire_marker = AsyncMock()
             members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             runner = runner_cls.return_value
             runner.execute = AsyncMock(return_value=("done", run))
             await service.fire(trigger.id, claimed_at=claimed_at)
 
-        assert trigger.fire_in_flight_since is None
+        repo.clear_fire_marker.assert_awaited_once_with(
+            service.db, trigger_id=trigger.id, claimed_at=claimed_at
+        )
         assert trigger.last_run_id == run.id
 
-    async def test_a_slow_fire_does_not_clear_a_newer_claims_marker(self):
+    async def test_a_slow_fire_hands_the_clear_its_own_ticket_not_the_rows_current_marker(self):
         """A fire that outran the lease finds the trigger re-claimed: `claim_due` has
-        stamped a fresh fire_in_flight_since for a second fire now in flight. This one
-        finishing must not clear that newer marker - it was dispatched with the older
-        `claimed_at`, which no longer matches - or the trigger reopens to the next
-        tick while the newer fire is still running, the self-overlap the marker
-        closes."""
+        stamped a fresh fire_in_flight_since for a second fire now in flight. The
+        clear is a conditional UPDATE keyed on the ticket this fire was *dispatched*
+        with - never on whatever the loaded row shows now - so the newer claim's
+        marker cannot match and stands. The database-side WHERE itself is proven in
+        the integration suite; what the service owns is passing its own ticket."""
         agent = _agent()
         service = _service(agent)
         dispatched_with = datetime(2026, 1, 1, tzinfo=UTC)
@@ -1208,13 +1229,15 @@ class TestFiring:
             patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
+            repo.clear_fire_marker = AsyncMock()
             members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             runner = runner_cls.return_value
             runner.execute = AsyncMock(return_value=("done", run))
             await service.fire(trigger.id, claimed_at=dispatched_with)
 
-        # The newer claim's marker stands; only its own fire may clear it.
-        assert trigger.fire_in_flight_since == newer_claim
+        repo.clear_fire_marker.assert_awaited_once_with(
+            service.db, trigger_id=trigger.id, claimed_at=dispatched_with
+        )
         assert trigger.last_run_id == run.id
 
     async def test_a_fire_off_the_scheduled_path_leaves_a_concurrent_claims_marker(self):
@@ -1243,6 +1266,7 @@ class TestFiring:
             await service.fire(trigger.id)
 
         assert trigger.fire_in_flight_since == in_flight
+        repo.clear_fire_marker.assert_not_called()
         assert trigger.last_run_id == run.id
 
     async def test_a_fire_that_errors_and_leaves_only_the_previous_fires_run_is_not_misstamped(
@@ -1655,31 +1679,6 @@ class TestPreparingAnEventFire:
             )
         assert decision is not None
         dedupe.claim_event_delivery.assert_not_called()
-
-    async def test_release_event_claim_gives_back_a_claimed_delivery(self):
-        service = _service()
-        trigger_id = uuid.uuid4()
-        with (
-            patch("app.services.agent_trigger.trigger_events") as events,
-            patch("app.services.agent_trigger.trigger_dedupe") as dedupe,
-        ):
-            events.delivery_id = MagicMock(return_value="delivery-1")
-            dedupe.release_event_delivery = AsyncMock()
-            await service.release_event_claim("github", trigger_id, {"x-github-delivery": "d"})
-        dedupe.release_event_delivery.assert_awaited_once_with(
-            trigger_id=trigger_id, delivery_id="delivery-1"
-        )
-
-    async def test_release_event_claim_is_a_noop_without_a_provider_id(self):
-        service = _service()
-        with (
-            patch("app.services.agent_trigger.trigger_events") as events,
-            patch("app.services.agent_trigger.trigger_dedupe") as dedupe,
-        ):
-            events.delivery_id = MagicMock(return_value=None)
-            dedupe.release_event_delivery = AsyncMock()
-            await service.release_event_claim("webhook", uuid.uuid4(), {})
-        dedupe.release_event_delivery.assert_not_called()
 
     async def test_a_body_that_is_not_json_is_a_400(self):
         service = _service()
@@ -2151,6 +2150,37 @@ class TestCreatingFromAPortalPreset:
         assert repo.create.await_args.kwargs["event_config"] == {"actions": ["opened"]}
         assert repo.create.await_args.kwargs["portal_key"] == "github"
 
+    async def test_the_hook_is_registered_only_after_every_row_this_create_writes(self):
+        """The provider-side hook is the one effect the transaction cannot roll
+        back, so it is the last step: were it registered before the run-log and the
+        audit row, a failure in either would roll the trigger back while GitHub
+        kept a live hook pointing at an id that was never committed - with the
+        stored hook id needed to remove it rolled back too."""
+        agent = _agent()
+        service = _service(agent)
+        service.connections.webhook_access_token = AsyncMock(return_value="tok")
+        order: list[str] = []
+        adapter = MagicMock()
+        adapter.register_webhook = AsyncMock(
+            side_effect=lambda **_kw: (
+                order.append("provider") or RegisteredWebhook(provider_webhook_id="hook-1")
+            )
+        )
+
+        async def audit(_db, **kwargs):
+            order.append("audit")
+
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock(side_effect=audit)),
+            patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter),
+        ):
+            repo.create = AsyncMock(
+                return_value=_event_trigger(conversation_id=uuid.uuid4(), delivery_mode="manual")
+            )
+            await service.create(_ctx(), agent.id, _preset_create())
+        assert order == ["audit", "provider"]
+
     async def test_a_missing_scope_leaves_the_trigger_manual(self):
         agent = _agent()
         service = _service(agent)
@@ -2467,6 +2497,60 @@ class TestDeletingDeregistersItsWebhook:
             repo.delete = AsyncMock()
             await service.delete(_ctx(), agent.id, trigger.id)
         repo.delete.assert_awaited_once()
+
+
+class TestDeletingTheAgentSweepsItsWebhooks:
+    """`deregister_agent_webhooks` - the registry's pre-delete sweep. The CASCADE
+    that removes the trigger rows never passes through `delete`, so this is the
+    one chance to remove the provider-side hooks while their ids still exist."""
+
+    async def test_every_auto_hook_is_deregistered_and_the_rest_skipped(self):
+        agent = _agent()
+        service = _service(agent)
+        service.connections.webhook_access_token = AsyncMock(return_value="tok")
+        adapter = MagicMock(delete_webhook=AsyncMock())
+        hooked = _event_trigger(
+            agent_id=agent.id,
+            provider_webhook_id="hook-1",
+            connection_id=uuid.uuid4(),
+            portal_key="github",
+            provider_target="acme/api",
+        )
+        schedule = _trigger(agent_id=agent.id)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter),
+        ):
+            repo.list_for_agent = AsyncMock(return_value=[hooked, schedule])
+            await service.deregister_agent_webhooks(_ctx(), agent.id)
+        # One hook to remove, one schedule with nothing at the provider.
+        adapter.delete_webhook.assert_awaited_once_with(
+            access_token="tok", target="acme/api", provider_webhook_id="hook-1"
+        )
+
+    async def test_a_provider_error_on_one_hook_does_not_stop_the_sweep(self):
+        agent = _agent()
+        service = _service(agent)
+        service.connections.webhook_access_token = AsyncMock(return_value="tok")
+        adapter = MagicMock(delete_webhook=AsyncMock(side_effect=[RuntimeError("down"), None]))
+        hooks = [
+            _event_trigger(
+                agent_id=agent.id,
+                provider_webhook_id=f"hook-{i}",
+                connection_id=uuid.uuid4(),
+                portal_key="github",
+                provider_target="acme/api",
+            )
+            for i in (1, 2)
+        ]
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter),
+        ):
+            repo.list_for_agent = AsyncMock(return_value=hooks)
+            await service.deregister_agent_webhooks(_ctx(), agent.id)
+        # Best-effort per trigger: the second hook is still attempted.
+        assert adapter.delete_webhook.await_count == 2
 
 
 class TestListingPortalTargets:

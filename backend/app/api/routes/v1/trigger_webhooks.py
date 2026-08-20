@@ -62,12 +62,13 @@ async def ingest_trigger_event(
     # one place in the API that submits a flow, so it pays that cost on first use.
     from app.worker.tasks.trigger_tasks import dispatch_trigger_fire
 
-    try:
-        await dispatch_trigger_fire(str(decision.trigger_id), event_context=decision.event_context)
-    except Exception:
-        # The fire was deduplicated-claimed in `prepare_event_fire`; a hand-off that
-        # failed got no 2xx and the provider will resend, so give the claim back or
-        # that resend is dropped as a duplicate. Then let the 500 surface the failure.
-        await service.release_event_claim(source, trigger_id, headers)
-        raise
+    # A raise out of the dispatch is ambiguous, exactly as it is for the heartbeat
+    # (#589): `run_deployment` can enqueue the flow on the Prefect API and then
+    # lose or time out the response, so "it raised" does not mean "no run was
+    # started". The delivery's dedupe claim is therefore deliberately kept - giving
+    # it back would let the provider's retry of the resulting 500 enqueue a second
+    # run on top of an accepted-but-queued one, a duplicate spend. Kept, the retry
+    # is answered as a duplicate while the claim lives, and a dispatch that truly
+    # failed is recovered by a provider retry after the claim's TTL lapses.
+    await dispatch_trigger_fire(str(decision.trigger_id), event_context=decision.event_context)
     return Response(status_code=status.HTTP_202_ACCEPTED)

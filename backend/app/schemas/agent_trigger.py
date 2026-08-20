@@ -31,7 +31,15 @@ def _cron_has_next(expression: str) -> bool:
     into a 500 at create or retime time. Resolving one occurrence here proves the
     expression has a future, so an unschedulable one is refused as a 422 naming
     the field instead.
+
+    Only the five-field crontab shape is accepted. croniter also parses a
+    six-field expression with a seconds column, but the heartbeat that fires
+    schedules ticks once a minute, so `* * * * * *` would be accepted promising
+    once a second and then fire once a minute, permanently overdue - a cadence
+    the platform cannot honour is refused rather than quietly rounded.
     """
+    if len(expression.split()) != 5:
+        return False
     if not croniter.is_valid(expression):
         return False
     try:

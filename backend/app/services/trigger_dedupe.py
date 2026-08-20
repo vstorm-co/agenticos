@@ -12,9 +12,11 @@ The claim is one atomic `SET NX` against the deployment's shared Redis, keyed on
 the provider's own delivery id - the id a provider reuses when it re-sends, so the
 retry lands on the same key. It is the same mechanism the channel webhooks use
 (:mod:`app.services.channels.dedupe`); a trigger keys on the delivery id rather
-than a channel message id, and does not need the channel path's release-on-failure
-because the delivery is only claimed once the fire has been handed off (the route
-gives the claim back if that hand-off fails).
+than a channel message id, and deliberately has no release-on-failure: a hand-off
+that raises is ambiguous - `run_deployment` can enqueue the flow and then lose the
+response - so giving the claim back would let the provider's retry start a second
+run on top of an accepted one. A claim on a hand-off that truly failed simply
+lapses with `SEEN_TTL_SECONDS`, after which a provider retry fires normally.
 """
 
 from __future__ import annotations
@@ -72,22 +74,3 @@ async def claim_event_delivery(*, trigger_id: UUID, delivery_id: str) -> bool:
     except Exception:
         logger.warning("trigger_dedupe_redis_unavailable", exc_info=True)
         return True
-
-
-async def release_event_delivery(*, trigger_id: UUID, delivery_id: str) -> None:
-    """Give a claim back, so a redelivery of a fire that was never dispatched is
-    processed rather than mistaken for one that was.
-
-    The claim is taken before the fire is handed to the worker. If that hand-off
-    raises - Prefect unreachable - the provider gets no 2xx and will resend; the
-    claim must not outlive the failed attempt, or the resend is dropped and the
-    event is lost. Best effort, on the same reasoning as the claim: a claim that
-    cannot be given back costs one duplicate fire, where raising here would replace
-    the failure the caller is already handling with this one.
-    """
-    if _redis is None:
-        return
-    try:
-        await _redis.delete(_key(trigger_id, delivery_id))
-    except Exception:
-        logger.warning("trigger_dedupe_release_failed", exc_info=True)

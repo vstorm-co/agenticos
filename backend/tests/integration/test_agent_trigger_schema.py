@@ -417,6 +417,32 @@ class TestTwoHeartbeatsDoNotDoubleFire:
             assert also == []  # the second heartbeat is handed nothing, not a duplicate
 
 
+class TestClearingTheFireMarker:
+    async def test_a_stale_ticket_does_not_clear_a_newer_claims_marker(self, db):
+        """A fire that outran the lease ends holding the ticket its own claim
+        stamped, while a heartbeat has since committed a newer one for a second
+        fire still running. The clear's WHERE re-checks against the committed row,
+        so the stale ticket matches nothing and the newer marker stands - and the
+        matching ticket, from the fire the marker actually belongs to, clears it."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        old_ticket = datetime.now(UTC) - timedelta(hours=2)
+        newer_claim = datetime.now(UTC)
+        trigger = _trigger(org, agent, fire_in_flight_since=newer_claim)
+        db.add(trigger)
+        await db.flush()
+
+        await agent_trigger_repo.clear_fire_marker(db, trigger_id=trigger.id, claimed_at=old_ticket)
+        await db.refresh(trigger)
+        assert trigger.fire_in_flight_since == newer_claim
+
+        await agent_trigger_repo.clear_fire_marker(
+            db, trigger_id=trigger.id, claimed_at=newer_claim
+        )
+        await db.refresh(trigger)
+        assert trigger.fire_in_flight_since is None
+
+
 class TestACreatedTriggerSerializes:
     async def test_a_created_trigger_survives_response_serialization(self, db):
         """Creating a trigger opens its run-log conversation, and that flush fires

@@ -106,7 +106,9 @@ before it has ever fired.
 A trigger fires one of two ways. A **schedule** fires on the clock: an **interval**
 ("every N seconds", a minute at the finest, since a heartbeat claims the due ones once
 a minute) or a **cron** expression evaluated in UTC - `0 9 * * *` for 09:00 each day,
-or any crontab - the service computing the next fire for each the same way, and a run
+or any five-field crontab (a six-field shape with a seconds column is refused, since
+seconds are a cadence the once-a-minute heartbeat cannot honour) - the service
+computing the next fire for each the same way, and a run
 that outlives its own interval finishing before the next fire rather than piling up on
 itself. An **event** fires on an arrival: a GitHub issue, an inbound email, or the
 catch-all API source - anything that can POST signed JSON, so a Zapier or Make code
@@ -119,9 +121,11 @@ source is a value in one enum and a branch in one module; it changes nothing on 
 
 Any trigger can also be **run now**: one extra fire on demand that leaves its cadence
 untouched. It is accepted rather than awaited - the request answers as soon as the
-fire is handed over, and the run appears in the trigger's run-log conversation as it
-happens - so an agent that takes minutes does not hold the browser's request open
-until a proxy gives up on it. And every schedule and event in an organization is
+fire is handed to the worker as its own flow run, the same durable door a scheduled or
+delivered fire goes through, and the run appears in the trigger's run-log conversation
+as it happens - so an agent that takes minutes does not hold the browser's request open
+until a proxy gives up on it, and an accepted fire survives the API process that
+accepted it. And every schedule and event in an organization is
 listed together across its agents, each filtered to the ones the caller may run -
 the same per-resource `agents:run` that gates creating one.
 

@@ -1956,7 +1956,10 @@ class TestArchiveAndDelete:
             ) as drop_grants,
             patch(f"{REGISTRY_PATH}.agent_repo.delete", new=AsyncMock()) as delete,
             patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()) as audit,
+            patch("app.services.agent_trigger.AgentTriggerService") as triggers_cls,
         ):
+            triggers = triggers_cls.return_value
+            triggers.deregister_agent_webhooks = AsyncMock()
             await AgentRegistryService(_db()).delete(ctx, agent.id)
 
         assert drop_grants.call_args.kwargs["resource_type"] == "agent"
@@ -1964,6 +1967,9 @@ class TestArchiveAndDelete:
         assert drop_grants.call_args.kwargs["organization_id"] == ctx.organization_id
         assert delete.call_args.args[1] is agent
         assert audit.call_args.kwargs["action"] == "agent.deleted"
+        # The provider side is swept before the rows cascade away - after that the
+        # stored webhook ids the hooks are removable by are gone for good.
+        triggers.deregister_agent_webhooks.assert_awaited_once_with(ctx, agent.id)
 
 
 class TestGetVersion:

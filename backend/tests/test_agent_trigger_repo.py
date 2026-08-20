@@ -253,3 +253,22 @@ class TestClaiming:
         session = _RecordingSession(_scalars(rows))
         claimed = await agent_trigger_repo.claim_due(session, now=datetime(2026, 6, 1, tzinfo=UTC))
         assert claimed == rows
+
+    async def test_the_marker_clear_is_conditioned_on_its_own_ticket(self):
+        """The clear is one UPDATE whose WHERE re-checks the marker against the
+        committed row - never a read-compare-assign on session state, which a fire
+        that outran the lease would judge against a value cached before the
+        re-claim, clearing the newer claim's marker and reopening the trigger."""
+        claimed_at = datetime(2026, 6, 1, tzinfo=UTC)
+        trigger_id = uuid.uuid4()
+        session = _RecordingSession(MagicMock())
+        await agent_trigger_repo.clear_fire_marker(
+            session, trigger_id=trigger_id, claimed_at=claimed_at
+        )
+
+        sql = _sql(session)
+        assert "update agent_triggers set fire_in_flight_since" in sql
+        assert "agent_triggers.fire_in_flight_since = " in sql
+        params = _filters(session)
+        assert trigger_id in params.values()
+        assert claimed_at in params.values()
