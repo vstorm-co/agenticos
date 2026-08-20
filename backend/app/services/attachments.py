@@ -34,9 +34,19 @@ from app.services.file_storage import get_file_storage
 
 logger = logging.getLogger(__name__)
 
-UPLOAD_DIR = "/uploads"
-"""Where attachments land. One directory, so `ls /uploads` answers "what was I
-given" without the agent guessing at a layout."""
+UPLOAD_DIR = "uploads"
+"""Where attachments land, **relative to the workspace's working directory**.
+
+One directory, so `ls uploads` answers "what was I given" without the agent
+guessing at a layout. Relative because absolute was wrong in a way nothing
+reported: a sandbox resolves an absolute path as absolute, so `/uploads/x`
+landed at the container's filesystem root - outside the bind-mounted work
+directory. The agent's `ls` did not see it, the workspace browser reads the host
+directory and so could not list it, and the file died with the container while
+everything under the work directory survived. An agent asked to read an
+attachment answered that the directory was empty, having summarised the file
+from the head sample in its own prompt (#1039).
+"""
 
 HEAD_LINES = 20
 """How much of a text file the reference shows.

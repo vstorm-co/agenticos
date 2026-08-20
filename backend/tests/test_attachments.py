@@ -277,13 +277,52 @@ class TestWithAWorkspace:
         assert "could not be processed" in prompt
 
 
+class TestWhereAnAttachmentLands:
+    """Inside the working directory, which is the whole of #1039.
+
+    A sandbox resolves an absolute path as absolute. `/uploads/x` therefore
+    landed at the *container's* filesystem root rather than in the bind-mounted
+    work directory, and three things followed, all of them silent: the agent's
+    own `ls` did not see the file, the workspace browser reads the host
+    directory and so could not list it, and it died with the container. Probed
+    against a live service, `write uploads/a.txt` answers
+    `/workspace/uploads/a.txt` and `write /uploads/a.txt` answers
+    `/uploads/a.txt`, which exists nowhere on the host.
+    """
+
+    def test_the_path_is_relative_so_the_sandbox_resolves_it_in_the_work_dir(self):
+        path = workspace_path(_file(filename="report.pdf"))
+
+        assert not path.startswith("/")
+        assert path.startswith("uploads/")
+
+    def test_a_generated_image_lands_there_too(self):
+        # The same defect in the other direction: an image the agent made was
+        # written outside the workspace, so it was also absent from the snapshot
+        # a channel diffs to decide what to post back.
+        from app.agents.capabilities.image_generation._toolset import WORKSPACE_OUTPUT_DIR
+
+        assert not WORKSPACE_OUTPUT_DIR.startswith("/")
+
+    async def test_the_model_is_told_the_path_the_file_is_actually_at(self, storage):
+        # The reference is the only thing that tells a model where to look, so a
+        # path in it that a shell cannot reach is worse than no path at all.
+        backend = _workspace()
+        chat_file = _file(filename="report.pdf", file_type="pdf", parsed_content="a b c")
+
+        prompt = await AttachmentRouter(backend).build_prompt("read it", [chat_file])
+
+        assert workspace_path(chat_file) in prompt
+        assert "/uploads/" not in prompt
+
+
 class TestFilenamesAreNotTrusted:
     @pytest.mark.parametrize(
         "hostile",
         ["../../etc/passwd", "..\\..\\secrets.env", "-rf", "  ", "." * 5],
     )
     def test_a_name_cannot_escape_the_uploads_directory(self, hostile: str):
-        assert workspace_path(_file(filename=hostile)).startswith("/uploads/")
+        assert workspace_path(_file(filename=hostile)).startswith("uploads/")
         assert ".." not in safe_name(hostile)
 
     def test_a_very_long_name_is_bounded(self):
