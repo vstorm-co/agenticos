@@ -24,12 +24,15 @@ id, and under `READ COMMITTED` does not find it (#417).
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import logging
 from collections.abc import Coroutine
 from dataclasses import dataclass
 from typing import Any, cast
 
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.audit import set_impersonator
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +69,14 @@ def spawn(coro: Coroutine[Any, Any, Any], *, name: str) -> asyncio.Task[Any]:
         The task, for callers that want to await or cancel it. Ignoring the
         return value is safe, which is the point.
     """
-    task = asyncio.create_task(coro, name=name)
+    # Background work is not the request that spawned it. `create_task` copies the
+    # current context, so a task started inside an impersonated request would
+    # inherit that actor - and a long-lived one (a channel poller opened while an
+    # admin was impersonating) would then stamp every later audit entry with them.
+    # Reset the impersonation actor in the task's own context so it does not (#943).
+    context = contextvars.copy_context()
+    context.run(set_impersonator, None)
+    task = asyncio.create_task(coro, name=name, context=context)
     _running.add(task)
     task.add_done_callback(_on_done)
     return task

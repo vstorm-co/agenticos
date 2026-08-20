@@ -26,6 +26,15 @@ def set_impersonator(impersonator_id: UUID | None) -> None:
     _impersonator_id.set(impersonator_id)
 
 
+def current_impersonator() -> UUID | None:
+    """The administrator acting behind this request's subject, or None.
+
+    Used when minting a token so a nested impersonation keeps naming the human
+    who started the chain rather than the account one hop up it (#943).
+    """
+    return _impersonator_id.get()
+
+
 async def record_audit(
     db,
     *,
