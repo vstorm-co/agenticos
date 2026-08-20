@@ -17,6 +17,42 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.222] - 2026-08-20
+
+The sync wizard says who will be able to read what a source ingests.
+
+### Added
+
+- **The step that decides a source's collection now names the audience.** Access
+  is decided at the collection and there is no per-document isolation inside one,
+  so everything the credential can reach becomes readable by everyone who can read
+  that collection - a Confluence token issued for a whole instance, pointed at an
+  `org` collection, publishes the instance to every member holding
+  `collections:view`. The decision is the operator's, deliberately; what was wrong
+  is that it was made silently. One sentence per scope: `personal` is its owner,
+  `org` is everyone who can view the collection, `app` is anybody in the
+  deployment. (#982)
+- **The credential is named alongside the audience**, because the pair is the
+  decision: a credential's own permissions are a ceiling nothing here can raise,
+  while `config` narrows the reach and cannot be relied on to keep it narrow. A
+  connector that authenticates with nothing has none to name and the sentence does
+  not invent one, and neither does one whose reader holds no `secrets:view`.
+  (#982)
+- **Cloning says it too**, which is the reachable half of "repointing re-asks": a
+  clone references the same vault secret and names a different collection, so the
+  audience changes while nothing about the credential does. Repointing an existing
+  source has no screen to ask on - `PATCH` on `collection_name` is reachable
+  through the API and the CLI only, where the audit entry added in 0.0.221 is what
+  records it. (#982)
+
+### Fixed
+
+- **The knowledge-base page no longer reads the vault on every load.** The
+  wizard mounts whether or not it is open, so a credential lookup in its own body
+  fired `/secrets` and `/secrets/kinds` on each page load - including for members
+  holding no `secrets:view`, who get a refusal and a retry of it. The lookup lives
+  in the notice, which renders inside the dialog. (#982)
+
 ## [0.0.221] - 2026-08-20
 
 Who bound a credential to a collection is recorded.
