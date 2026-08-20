@@ -459,6 +459,9 @@ async def _run_sync(
                     filename=filepath.name,
                     filesize=filepath.stat().st_size,
                     collection_name=collection_name,
+                    # The same address it hands `existing_document` above, so the
+                    # row and the lookup name one file (#996).
+                    source_path=source_path,
                     # A path on the server belongs to no tenant and to no
                     # knowledge base; `POST /rag/sync/local` is the one route
                     # that still carries `is_app_admin` for exactly that reason.
@@ -471,7 +474,16 @@ async def _run_sync(
 
                 with metered_by(ledger):
                     result = await ingestion_service.ingest_file(
-                        filepath=filepath, collection_name=collection_name, replace=True
+                        filepath=filepath,
+                        collection_name=collection_name,
+                        replace=True,
+                        # The address this flow already looks documents up by. It
+                        # was omitted, so the stored document identified itself by
+                        # filename while the lookup asked for a path - the
+                        # `existing_document` call above only ever matched through
+                        # the filename fallback, and the row and the vector would
+                        # now disagree about which file this is (#996).
+                        source_path=source_path,
                     )
 
                 # Either way, which is the other half of #997: a file that failed
@@ -604,6 +616,7 @@ async def _open_document_row(
     filename: str,
     filesize: int,
     collection_name: str,
+    source_path: str,
     organization_id: UUID | None,
     knowledge_base_id: UUID | None,
     ingestion_config: IngestionConfig,
@@ -635,6 +648,7 @@ async def _open_document_row(
             filename=filename,
             filesize=filesize,
             filetype=Path(filename).suffix.lstrip(".").lower(),
+            source_path=source_path,
             organization_id=organization_id,
             knowledge_base_id=knowledge_base_id,
             ingestion_config=ingestion_config,
@@ -807,6 +821,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                         filename=remote_file.name,
                         filesize=local_path.stat().st_size,
                         collection_name=collection_name,
+                        source_path=remote_file.source_path,
                         organization_id=organization_id,
                         knowledge_base_id=knowledge_base_id,
                         ingestion_config=ingestion_config,

@@ -608,12 +608,39 @@ local-directory one in
 locally-synced file that fails to parse a row and a reason — it had neither, so a
 sync log saying four of forty failed named none of them.
 
-One row per file is not yet an invariant. A file that fails to parse on one sync
-and succeeds on the next leaves both rows, because retirement matches on
-`vector_document_id` and a failed parse wrote no vectors — and it cannot be
-matched by filename instead, since `rag_documents` has no `source_path` column
-and two keys of one basename would delete each other's rows. That column is
-[#996](https://github.com/vstorm-co/agenticos/issues/996).
+**A synced row says which file it tracks**, in `source_path`: `gdrive://<id>`,
+`s3://bucket/key`, or an absolute path for a local or CLI sync. That is what
+retires a previous attempt at the *same file* — a failed parse writes no vectors,
+so `complete_ingestion`'s retirement has nothing to match and both rows used to
+survive, one more per failure, each counting toward the collection's
+`document_count` ([#996](https://github.com/vstorm-co/agenticos/issues/996)).
+
+**An upload stores no address**, and so retires nothing. Its only name is a
+basename, which is not an address: two people can upload different `report.pdf`s
+and, with `replace=false`, mean both to exist. Retiring by that name would delete
+the first one's failed row — its diagnosis, its retry and its stored file — for a
+caller who asked for no such thing. A `NULL` address matches no comparison, which
+is the answer wanted rather than one to work around, and it is what every row
+written before the column has.
+
+Three things decide what a retirement may take, and each of them was got wrong
+first:
+
+- **By address, never by filename.** That is the collision
+  [#990](https://github.com/vstorm-co/agenticos/issues/990) removed on the vector
+  side reached from the other direction: `a/readme.md` and `b/readme.md` in one
+  bucket share a basename, so a name match deletes the other file's row.
+- **`ERROR`, not "has no vector id".** Those are different sets, and treating
+  them as one is a race: a `PROCESSING` row belongs to an attempt still running,
+  and two overlapping ingestions of one source would have the second delete the
+  first's live row — after which the first finishes, replaces the vectors and
+  finds no row to complete.
+- **A failed *supersede* is not a failed ingest.** `ingest_file` inserts the new
+  document before deleting the one it replaces, so a delete that raises used to
+  return an error while the vectors were sitting there — an `ERROR` row with no
+  vector id, which the next attempt would retire and orphan them. The insert
+  having succeeded is the whole answer: the lingering old document is logged, and
+  a duplicate somebody can see and delete is not a failure to report.
 
 The connector sync wrote no row at all until
 [#992](https://github.com/vstorm-co/agenticos/issues/992) — the sentence above
