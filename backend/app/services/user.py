@@ -241,6 +241,23 @@ class UserService:
 
         return await user_repo.update(self.db, db_user=user, update_data=update_data)
 
+    async def update_current(self, user: User, user_in: UserUpdate) -> User:
+        """A user updating their own row through `/users/me`.
+
+        `UserUpdate` carries `is_active`, and this route reaches the same column
+        the admin route does - so without the same refusal an app admin could
+        suspend themselves here, the exact lock-out #941 guards against one route
+        over (a single-admin install then stays locked until somebody reaches a
+        terminal). A non-admin deactivating their own account only affects
+        themselves and an admin can restore it, so the guard is the app admin's
+        alone.
+        """
+        if user.is_app_admin and user_in.is_active is False:
+            raise AuthorizationError(
+                message="You cannot suspend your own account; ask another app admin to."
+            )
+        return await self.update(user.id, user_in)
+
     async def update_avatar(
         self, user_id: UUID, file_data: bytes, filename: str, content_type: str
     ) -> User:

@@ -254,6 +254,37 @@ class TestUserServicePostgresql:
             mock_repo.update.assert_not_awaited()
 
     @pytest.mark.anyio
+    async def test_an_app_admin_cannot_suspend_themselves_through_the_self_route(
+        self, user_service: UserService
+    ):
+        """`/users/me` reaches the same `is_active` column as the admin route, so
+        without the same guard it is the way around #941 - an app admin suspends
+        themselves and the next request signs them out."""
+        me = MagicMock(id=uuid4(), is_app_admin=True)
+        with patch("app.services.user.user_repo") as mock_repo:
+            mock_repo.update = AsyncMock()
+
+            with pytest.raises(AuthorizationError):
+                await user_service.update_current(me, UserUpdate(is_active=False))
+
+            mock_repo.update.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_non_admin_may_deactivate_their_own_account_through_the_self_route(
+        self, user_service: UserService, mock_user: MockUser
+    ):
+        """The guard is the app admin's alone - a member deactivating their own
+        row only affects themselves, and an admin can restore it."""
+        mock_user.is_app_admin = False
+        with patch("app.services.user.user_repo") as mock_repo:
+            mock_repo.get_by_id = AsyncMock(return_value=mock_user)
+            mock_repo.update = AsyncMock(return_value=mock_user)
+
+            await user_service.update_current(mock_user, UserUpdate(is_active=False))
+
+            mock_repo.update.assert_awaited_once()
+
+    @pytest.mark.anyio
     async def test_an_admin_may_suspend_another_user(
         self, user_service: UserService, mock_user: MockUser
     ):

@@ -38,8 +38,13 @@ async def update_current_user(
     non-admin had put in the body - has nothing left to strip. Granting the one
     global privilege is a CLI act (`agenticos cmd create-app-admin`), which
     keeps it off the surface a user can PATCH.
+
+    It can still take one away from its owner, though: `is_active` is on this
+    schema and this route reaches the same column the admin route does, so
+    `update_current` refuses an app admin suspending themselves here - otherwise
+    it is the way around #941's guard.
     """
-    return await user_service.update(current_user.id, user_in)
+    return await user_service.update_current(current_user, user_in)
 
 
 @router.post("/me/avatar", response_model=UserRead)
