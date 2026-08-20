@@ -1,13 +1,24 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Calendar, Check, Cog, Copy, Plus, Plug } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Calendar,
+  Check,
+  Cog,
+  Copy,
+  KeyRound,
+  Plug,
+  Plus,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, Spinner } from "@/components/ui";
 import { getErrorMessage, submitFailure } from "@/lib/api-error";
 import { CloneStep } from "@/components/rag/sync-source-clone-step";
 import { ConfigureStep } from "@/components/rag/sync-source-configure-step";
+import { CredentialStep } from "@/components/rag/sync-source-credential-step";
 import { ConnectorStep } from "@/components/rag/sync-source-connector-step";
 import { ScheduleStep } from "@/components/rag/sync-source-schedule-step";
 import type { ConnectorInfo, SyncSourceCreate, SyncSourceRead } from "@/lib/rag-api";
@@ -40,12 +51,16 @@ interface SyncSourceWizardProps {
 }
 
 type Mode = "new" | "clone";
-type Step = "source" | "configure" | "schedule";
+type Step = "source" | "configure" | "credential" | "schedule";
 
 /** Each step's word is in the catalog; `words` names the key. */
 const STEPS: { id: Step; words: string; icon: typeof Plug }[] = [
   { id: "source", words: "stepSource", icon: Plug },
   { id: "configure", words: "stepConfigure", icon: Cog },
+  // Between the configuration and the schedule, because it is the one thing a
+  // source needs that is not configuration: the credential is a vault secret it
+  // references, not a field it carries (#937).
+  { id: "credential", words: "stepCredential", icon: KeyRound },
   { id: "schedule", words: "stepSchedule", icon: Calendar },
 ];
 
@@ -57,6 +72,7 @@ const EMPTY_FORM: SyncSourceCreate = {
   connector_type: "",
   collection_name: null,
   config: {},
+  secret_id: null,
   sync_mode: "full",
   schedule_minutes: null,
 };
@@ -122,11 +138,15 @@ export function SyncSourceWizard({
     [connectors, form.connector_type],
   );
 
-  // Which of the server's complaints the configure step can show. The backend
-  // reports them below the document it was sent - `config.folder_id` - and
-  // `submitFailure` matches a path by its leaf as well as in full.
+  // Which of the server's complaints this wizard can show beside an input. The
+  // backend reports them below the document it was sent - `config.folder_id` -
+  // and `submitFailure` matches a path by its leaf as well as in full.
+  //
+  // `secret_id` is in the list because it is a field of the form now rather than
+  // a member of `config_schema`, and a refusal about a field nothing claims is a
+  // refusal that becomes a toast (#937).
   const configFields = useMemo(
-    () => Object.keys(selectedConnector?.config_schema ?? {}),
+    () => [...Object.keys(selectedConnector?.config_schema ?? {}), "secret_id"],
     [selectedConnector],
   );
 
@@ -159,6 +179,13 @@ export function SyncSourceWizard({
         const v = form.config[key];
         return v !== undefined && v !== null && v !== "";
       });
+    }
+    if (step === "credential") {
+      // A connector needing no credential advances with nothing chosen; one that
+      // needs a kind will not sync without it, so the wizard asks here rather
+      // than letting the source be created and fail in a worker.
+      if (!selectedConnector) return false;
+      return selectedConnector.secret_kind === "none" || Boolean(form.secret_id);
     }
     if (step === "schedule") return true;
     return false;
@@ -195,7 +222,12 @@ export function SyncSourceWizard({
       }
       const failure = submitFailure(error, { fields: configFields }, tErrors);
       setConfigErrors(failure.fields);
-      if (Object.keys(failure.fields).length > 0) setStep("configure");
+      // To the step that holds the field, not always to `configure`: the
+      // credential is its own step since #937, and jumping to the configuration
+      // for a refused `secret_id` marks an input that is not on screen - which
+      // is the same defect #897 fixed by moving the message out of a toast.
+      const named = Object.keys(failure.fields);
+      if (named.length > 0) setStep(named.includes("secret_id") ? "credential" : "configure");
       if (failure.toast) toast.error(failure.toast);
     }
   };
@@ -207,13 +239,15 @@ export function SyncSourceWizard({
       return;
     }
     if (step === "source") setStep("configure");
-    else if (step === "configure") setStep("schedule");
+    else if (step === "configure") setStep("credential");
+    else if (step === "credential") setStep("schedule");
     else if (step === "schedule") handleSubmit();
   };
 
   const handleBack = () => {
     if (step === "configure") setStep("source");
-    else if (step === "schedule") setStep("configure");
+    else if (step === "credential") setStep("configure");
+    else if (step === "schedule") setStep("credential");
   };
 
   const isLastStep = mode === "clone" || step === "schedule";
@@ -334,6 +368,17 @@ export function SyncSourceWizard({
                     setForm(update);
                   }}
                   errors={configErrors}
+                />
+              )}
+              {step === "credential" && selectedConnector && (
+                <CredentialStep
+                  connector={selectedConnector}
+                  form={form}
+                  setForm={(update) => {
+                    setConfigErrors(NO_ERRORS);
+                    setForm(update);
+                  }}
+                  error={configErrors.secret_id}
                 />
               )}
               {step === "schedule" && (

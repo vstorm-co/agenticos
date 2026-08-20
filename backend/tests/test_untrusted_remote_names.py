@@ -13,14 +13,17 @@ query string the Drive client was handed - rather than on a helper having been
 called.
 """
 
+import json
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+from pydantic import SecretStr
 
 from app.core.config import settings
 from app.core.exceptions import BadRequestError
+from app.core.secret_kinds import AwsCredentialsSecret, GcpServiceAccountSecret
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 from app.services.rag.connectors import CONNECTOR_REGISTRY, BaseSyncConnector, RemoteFile
@@ -38,10 +41,12 @@ class _RecordingConnector(BaseSyncConnector):
 
     CONNECTOR_TYPE = "recording"
 
-    async def list_files(self, config: dict) -> list[RemoteFile]:
+    async def list_files(self, config: dict, credential: object = None) -> list[RemoteFile]:
         return []
 
-    async def _fetch(self, file: RemoteFile, dest_path: Path, config: dict) -> None:
+    async def _fetch(
+        self, file: RemoteFile, dest_path: Path, config: dict, credential: object = None
+    ) -> None:
         dest_path.write_bytes(b"payload")
 
 
@@ -146,7 +151,7 @@ class TestTheGoogleDriveConnector:
             "app.services.rag.connectors.google_drive.MediaIoBaseDownload", _Downloader
         )
         connector = GoogleDriveConnector()
-        monkeypatch.setattr(connector, "_get_drive_service", lambda config: service)
+        monkeypatch.setattr(connector, "_get_drive_service", lambda credential: service)
 
         local = await connector.download_file(_remote("../authorized_keys"), sync_dir, config={})
 
@@ -160,9 +165,9 @@ class TestTheGoogleDriveConnector:
         service = MagicMock()
         service.files.return_value.list.return_value.execute.return_value = {"files": []}
         connector = GoogleDriveConnector()
-        monkeypatch.setattr(connector, "_get_drive_service", lambda config: service)
+        monkeypatch.setattr(connector, "_get_drive_service", lambda credential: service)
 
-        await connector.list_files({"folder_id": "1AbC-dEf_2", "include_subfolders": False})
+        await connector.list_files({"folder_id": "1AbC-dEf_2", "include_subfolders": False}, None)
 
         assert service.files.return_value.list.call_args.kwargs["q"] == (
             "'1AbC-dEf_2' in parents and trashed = false"
@@ -173,10 +178,12 @@ class TestTheGoogleDriveConnector:
     ) -> None:
         service = MagicMock()
         connector = GoogleDriveConnector()
-        monkeypatch.setattr(connector, "_get_drive_service", lambda config: service)
+        monkeypatch.setattr(connector, "_get_drive_service", lambda credential: service)
 
         with pytest.raises(BadRequestError) as exc:
-            await connector.list_files({"folder_id": "x' in parents or name contains 'salary"})
+            await connector.list_files(
+                {"folder_id": "x' in parents or name contains 'salary"}, None
+            )
 
         assert exc.value.details is None
         assert "salary" not in exc.value.message
@@ -193,10 +200,10 @@ class TestTheGoogleDriveConnector:
             ]
         }
         connector = GoogleDriveConnector()
-        monkeypatch.setattr(connector, "_get_drive_service", lambda config: service)
+        monkeypatch.setattr(connector, "_get_drive_service", lambda credential: service)
 
         with pytest.raises(BadRequestError):
-            await connector.list_files({"folder_id": "1AbC", "include_subfolders": True})
+            await connector.list_files({"folder_id": "1AbC", "include_subfolders": True}, None)
 
     @pytest.mark.parametrize(
         "folder_id",
@@ -240,15 +247,20 @@ class TestTheGoogleDriveConnector:
         )
 
     async def test_a_missing_required_field_is_still_refused_first(self) -> None:
-        refusal = await GoogleDriveConnector().validate_config({"folder_id": "1AbC"})
+        """`folder_id` is the only required field left. The credential used to be
+        one and is now a vault secret the source references, so there is nothing
+        for `validate_config` to say about it (#937)."""
+        refusal = await GoogleDriveConnector().validate_config({})
         assert refusal is not None
-        assert "Service Account JSON" in refusal.message
-        assert refusal.field == "service_account_json"
+        assert "Google Drive Folder ID" in refusal.message
+        assert refusal.field == "folder_id"
+
+        assert await GoogleDriveConnector().validate_config({"folder_id": "1AbC"}) is None
 
     def test_a_source_without_its_own_credential_is_refused(self) -> None:
         """There is no deployment-wide fallback for a tenant's query to run under."""
         with pytest.raises(BadRequestError) as exc:
-            GoogleDriveConnector()._get_drive_service({})
+            GoogleDriveConnector()._get_drive_service(None)
         assert exc.value.details is None
 
 
@@ -383,22 +395,77 @@ class TestEveryWritePathJudgesTheConfig:
         )
 
 
-def test_the_s3_connector_signs_with_the_sources_own_credentials() -> None:
+# The shape `GcpServiceAccountSecret` insists on: a service account key, not any
+# JSON document. The validator is why - it refuses a file somebody grabbed by
+# mistake rather than storing it and failing at the first API call.
+_SERVICE_ACCOUNT_JSON = json.dumps(
+    {
+        "type": "service_account",
+        "project_id": "a-project",
+        "client_email": "sync@a-project.iam.gserviceaccount.com",
+        # Present but not PEM-shaped: the validator asks for the field, and a
+        # fixture that looked like a real key would trip `detect-private-key`.
+        "private_key": "not-a-key",
+    }
+)
+
+
+def test_the_s3_connector_refuses_when_the_source_names_no_credential() -> None:
     """No deployment-wide fallback, which is the Drive removal applied to S3.
 
     Both settings default to empty, so the old `or settings.S3_RAG_ACCESS_KEY`
     resolved to `None` and boto3 fell through to the container's own credential
     chain - the caller's `bucket` then chose what was read under whatever the
     task role could reach.
+
+    Since #937 the credential is a vault secret rather than a config field, and
+    the absence of one is a refusal rather than a client signed with nothing:
+    building a client that would have been signed by the container's role is the
+    thing worth not doing, and `None` keys only failed later, at the API call.
     """
     connector = S3Connector()
     with (
         patch("app.services.rag.connectors.s3.boto3.client") as client,
         patch.object(settings, "S3_RAG_ACCESS_KEY", "operator-key"),
         patch.object(settings, "S3_RAG_SECRET_KEY", "operator-secret"),
+        pytest.raises(BadRequestError, match="no credential"),
     ):
-        connector._get_s3_client({"bucket": "somebody-elses"})
+        connector._get_s3_client({"bucket": "somebody-elses"}, None)
+
+    client.assert_not_called()
+
+
+def test_the_s3_connector_signs_with_the_vault_credential_it_was_given() -> None:
+    """And with nothing else: the operator's settings are not consulted."""
+    connector = S3Connector()
+    credential = AwsCredentialsSecret(
+        aws_access_key_id="AKIATENANT",
+        aws_secret_access_key=SecretStr("tenant-secret"),
+        region_name="eu-west-1",
+    )
+    with (
+        patch("app.services.rag.connectors.s3.boto3.client") as client,
+        patch.object(settings, "S3_RAG_ACCESS_KEY", "operator-key"),
+        patch.object(settings, "S3_RAG_SECRET_KEY", "operator-secret"),
+    ):
+        connector._get_s3_client({"bucket": "ours"}, credential)
 
     kwargs = client.call_args.kwargs
-    assert kwargs["aws_access_key_id"] is None
-    assert kwargs["aws_secret_access_key"] is None
+    assert kwargs["aws_access_key_id"] == "AKIATENANT"
+    assert kwargs["aws_secret_access_key"] == "tenant-secret"
+    assert kwargs["region_name"] == "eu-west-1"
+
+
+def test_the_s3_connector_refuses_a_credential_of_the_wrong_kind() -> None:
+    """A service account is not an AWS key pair, and failing here says so - where
+    failing at the API call says `InvalidAccessKeyId` in a sync log."""
+    connector = S3Connector()
+    wrong = GcpServiceAccountSecret(service_account_json=SecretStr(_SERVICE_ACCOUNT_JSON))
+
+    with (
+        patch("app.services.rag.connectors.s3.boto3.client") as client,
+        pytest.raises(BadRequestError, match="AWS key pair"),
+    ):
+        connector._get_s3_client({"bucket": "ours"}, wrong)
+
+    client.assert_not_called()

@@ -63,8 +63,9 @@ async def create(
     name: str,
     connector_type: str,
     config: dict[str, object],
-    organization_id: UUID | None = None,
+    organization_id: UUID,
     collection_name: str | None = None,
+    secret_id: UUID | None = None,
     sync_mode: str = "new_only",
     schedule_minutes: int | None = None,
 ) -> SyncSource:
@@ -75,6 +76,7 @@ async def create(
         organization_id=organization_id,
         collection_name=collection_name,
         config=config,
+        secret_id=secret_id,
         sync_mode=sync_mode,
         schedule_minutes=schedule_minutes,
     )

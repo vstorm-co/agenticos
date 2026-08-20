@@ -85,6 +85,7 @@ function source(id: string, status: string, error: string | null): SyncSourceRea
     connector_type: "gdrive",
     collection_name: "org_handbook",
     config: {},
+    secret_id: null,
     sync_mode: "full",
     schedule_minutes: 60,
     is_active: true,

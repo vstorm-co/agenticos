@@ -16,8 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import BudgetExceeded, SpendLedger, metered_by
 from app.core.config import settings
+from app.core.secret_kinds import SecretKind, StorableSecret, unseal_secret
+from app.core.vault import VaultScope
 from app.db.session import get_worker_db_context
-from app.repositories import ingestion_spend_repo, knowledge_base_repo
+from app.repositories import ingestion_spend_repo, knowledge_base_repo, organization_secret_repo
 from app.repositories import sync_source as sync_source_repo
 from app.services.embedding_resolution import (
     ResolvedEmbeddings,
@@ -516,6 +518,41 @@ async def _update_sync_log(sync_log_id: str, status: str, error_message: str | N
         logger.warning("Failed to update SyncLog: %s", e)
 
 
+async def _connector_credential(
+    db: AsyncSession, secret_id: str | None, organization_id: UUID
+) -> StorableSecret | None:
+    """The unsealed credential a sync source names, or `None`.
+
+    `None` for three reasons, and the connector treats them alike because a
+    caller cannot act on the difference: the source names no credential, the
+    secret was deleted from the vault (the column is `ON DELETE SET NULL`), or
+    the envelope will not open. What must *not* happen is a fallback - a Drive or
+    S3 source that ran on the deployment's own credentials would read under the
+    operator's identity rather than the tenant's, which is the reach both
+    connectors had their environment fallbacks removed for.
+
+    The unsealing happens here rather than in the connector because only this
+    layer has a database session, and because a connector that could reach the
+    vault could reach another organization's row in it.
+    """
+    if secret_id is None:
+        return None
+    row = await organization_secret_repo.get(db, UUID(secret_id), organization_id=organization_id)
+    if row is None:
+        logger.warning("sync_source_secret_missing", extra={"organization": str(organization_id)})
+        return None
+    try:
+        return unseal_secret(
+            row.sealed_secret,
+            kind=SecretKind(row.kind),
+            scope=VaultScope.organization(organization_id),
+            key_version=row.key_version,
+        )
+    except Exception:
+        logger.warning("sync_source_secret_unusable", extra={"secret": str(row.id)})
+        return None
+
+
 async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> dict[str, Any]:
     """Core sync logic for connector-based sources (shared between all task frameworks).
 
@@ -535,11 +572,17 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
             )
             return {"status": "error", "message": f"Unknown connector: {source.connector_type}"}
 
-        raw_config = source.config if isinstance(source.config, dict) else json.loads(source.config)
-        config = SyncSourceService.decrypt_config_dict(raw_config)
+        config = source.config if isinstance(source.config, dict) else json.loads(source.config)
         collection_name = source.collection_name
         sync_mode = source.sync_mode
-        organization_id = source.organization_id
+        organization_id = UUID(source.organization_id)
+        # The credential, unsealed from this organization's vault while there is
+        # still a session. It travels beside the config rather than inside it:
+        # `config` says how to find the documents and holds nothing that has to
+        # be kept (#937). `None` here is a source with no credential, or one
+        # whose secret was deleted - the connector refuses rather than reaching
+        # for a deployment-wide fallback, because there is not one.
+        credential = await _connector_credential(db, source.secret_id, organization_id)
 
         # Use existing SyncLog (from API trigger) or create new one (from scheduler)
         if sync_log_id:
@@ -576,14 +619,14 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
     ledger = SpendLedger(organization_id=organization_id)
 
     try:
-        files = await connector.list_files(config)
+        files = await connector.list_files(config, credential)
         total = len(files)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             for remote_file in files:
                 try:
                     local_path = await connector.download_file(
-                        remote_file, Path(tmp_dir), config=config
+                        remote_file, Path(tmp_dir), config=config, credential=credential
                     )
                     with metered_by(ledger):
                         await ingestion_svc.ingest_file(

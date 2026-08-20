@@ -83,13 +83,19 @@ Easy to violate, cross-cutting, and each one has been violated here at least onc
 - Route handlers return `-> Any`; `response_model` does the serialization (avoids double
   Pydantic validation).
 - Every secret at rest goes through `app/core/vault.py`. **There is no second
-  mechanism**, and adding one is the defect migration `0038` removed.
+  mechanism**, and adding one is the defect migrations `0038` and `0042` removed -
+  the second of them being `app/core/crypto.py`, which held RAG connector
+  credentials on one deployment-wide Fernet key and made this sentence untrue for
+  one table until #937 deleted it.
 - `datetime.now(UTC)`, never `datetime.utcnow()`.
 - `secrets.compare_digest()` for API key comparison, never `==`.
 - **Do not reintroduce what was deliberately removed:** `UserRole`, `User.has_role()`,
   `RoleChecker`, `CurrentAdmin`, `CurrentSuperuser` (dropped in `0066` — authority
   inside an organization is a membership row plus the permission catalog), or
-  `CHANNEL_ENCRYPTION_KEY` and the deployment-wide Fernet keys (dropped in `0038`).
+  `CHANNEL_ENCRYPTION_KEY` and the deployment-wide Fernet keys (dropped in `0038`),
+  or `app/core/crypto.py` and a `secret: true` field in a connector's
+  `CONFIG_SCHEMA` (dropped in `0042` - a connector credential is a vault secret the
+  source references by id).
 
 ## Read the matching rule before writing code
 

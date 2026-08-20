@@ -5,14 +5,10 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.core.config import settings
-from app.services.embedding_resolution import embeddings_for_collection
 from app.services.rag.documents import DocumentProcessor
-from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.failures import IngestionStage, failure_summary
 from app.services.rag.models import Document, DocumentInfo, IngestionResult, IngestionStatus
 from app.services.rag.vectorstore import BaseVectorStore
-from app.services.rag.vectorstore import PgVectorStore as VectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -52,21 +48,6 @@ class IngestionService:
         self.processor = processor
         self.store = vector_store
         self._on_event = on_event
-
-    @classmethod
-    def from_settings(
-        cls,
-        on_event: Callable[..., Awaitable[None]] | None = None,
-    ) -> IngestionService:
-        rag_settings = settings.rag
-        embed_service = EmbeddingService(settings=rag_settings)
-        vector_store = VectorStore(
-            settings=rag_settings,
-            embedding_service=embed_service,
-            resolver=embeddings_for_collection,
-        )
-        processor = DocumentProcessor(settings=rag_settings)
-        return cls(processor=processor, vector_store=vector_store, on_event=on_event)
 
     async def _emit(self, event: str, data: dict[str, object]) -> None:
         if self._on_event:

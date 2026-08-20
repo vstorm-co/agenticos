@@ -1,16 +1,66 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import { SyncSourceWizard } from "./sync-source-wizard";
+import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 import type { ConnectorInfo, SyncSourceCreate } from "@/lib/rag-api";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("@/lib/api-client", () => ({
+  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+}));
+
+/** A service-account credential in the organization's vault, as `/secrets` lists one. */
+const DRIVE_CREDENTIAL = {
+  id: "secret-1",
+  name: "Drive service account",
+  kind: "gcp_service_account",
+  purpose: "custom",
+  hint: "a1b2",
+  visibility: "org",
+  created_at: "2026-08-20T00:00:00Z",
+};
+
+/**
+ * The credential step reads the vault and the caller's permissions, so both are
+ * served rather than left to a rejected query - an empty picker and a refused
+ * one look the same on screen and mean different things.
+ */
+function serve({ secrets = [DRIVE_CREDENTIAL], permissions = ["secrets:view"] } = {}) {
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path === "/secrets") return { items: secrets, total: secrets.length };
+    if (path === "/me/permissions")
+      return {
+        organization_id: "org-1",
+        role: "builder",
+        is_app_admin: false,
+        permissions: permissions.map((permission) => ({ permission, scope: "all" })),
+      };
+    return {};
+  });
+}
+
+function withQuery(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const view = render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+  // The provider has to survive a rerender: the credential step reads the vault
+  // through react-query, and a rerender that dropped the provider would throw
+  // where the test means to assert about the dialog.
+  return {
+    ...view,
+    rerender: (next: ReactElement) =>
+      view.rerender(<QueryClientProvider client={client}>{next}</QueryClientProvider>),
+  };
+}
 
 beforeEach(() => {
   vi.mocked(toast.error).mockClear();
+  serve();
 });
 
 /**
@@ -34,6 +84,7 @@ const CONNECTOR: ConnectorInfo = {
   // Nothing required, so the configure step can be walked straight past to the
   // schedule step the picker lives on.
   config_schema: {},
+  secret_kind: "none",
 };
 
 /** Walk the wizard from its first step to the last, where the collection is chosen. */
@@ -42,7 +93,7 @@ async function openScheduleStep(props: {
   defaultCollection?: string;
   onSubmit: (data: SyncSourceCreate) => void;
 }) {
-  render(
+  withQuery(
     <SyncSourceWizard
       open
       onOpenChange={vi.fn()}
@@ -54,6 +105,9 @@ async function openScheduleStep(props: {
   );
   await userEvent.type(screen.getByLabelText("Source name"), "Engineering docs");
   await userEvent.click(screen.getByRole("button", { name: /Google Drive/ }));
+  await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
+  // Configure, then the credential step. This connector needs no credential, so
+  // it advances with nothing chosen.
   await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
   await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
   await screen.findByText("Sync mode");
@@ -130,10 +184,12 @@ const GDRIVE: ConnectorInfo = {
   name: "Google Drive",
   enabled: true,
   config_schema: {
-    service_account_json: { type: "textarea", required: true, label: "Service Account JSON" },
     folder_id: { type: "string", required: true, label: "Google Drive Folder ID" },
     include_subfolders: { type: "boolean", required: false, label: "Include subfolders" },
   },
+  // The credential is a vault secret this source references, not a field it
+  // carries - so it is not in `config_schema` any more (#937).
+  secret_kind: "gcp_service_account",
 };
 
 const FOLDER_ID_REFUSED = "A Google Drive folder ID may contain only letters, digits, '-' and '_'.";
@@ -160,15 +216,22 @@ function wizard(onSubmit: (data: SyncSourceCreate) => Promise<void>, open = true
 
 /** Fill the configure step in full and press Create source on the step after it. */
 async function submitConfigured(onSubmit: (data: SyncSourceCreate) => Promise<void>) {
-  const view = render(wizard(onSubmit));
+  const view = withQuery(wizard(onSubmit));
   await userEvent.type(screen.getByLabelText("Source name"), "Engineering docs");
   await userEvent.click(screen.getByRole("button", { name: /Google Drive/ }));
   await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
-  await userEvent.type(screen.getByLabelText(/Service Account JSON/), "{{}}");
   await userEvent.type(screen.getByLabelText(/Google Drive Folder ID/), "x' in parents");
+  await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
+  await pickTheCredential();
   await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
   await userEvent.click(screen.getByRole("button", { name: /Create source/ }));
   return view;
+}
+
+/** Choose the one credential the vault holds, on the step that asks for it. */
+async function pickTheCredential() {
+  await userEvent.click(await screen.findByLabelText(/Vault credential/));
+  await userEvent.click(await screen.findByRole("option", { name: /Drive service account/ }));
 }
 
 describe("a config the connector refuses", () => {
@@ -185,9 +248,9 @@ describe("a config the connector refuses", () => {
     const folderId = await screen.findByLabelText(/Google Drive Folder ID/);
     expect(folderId).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByText(FOLDER_ID_REFUSED)).toBeVisible();
-    // The other required field is not implicated, and saying so would send
-    // somebody to rewrite a credential that was accepted.
-    expect(screen.getByLabelText(/Service Account JSON/)).not.toHaveAttribute("aria-invalid");
+    // The other input on this step is not implicated, and saying so would send
+    // somebody to rewrite a value that was accepted.
+    expect(screen.getByLabelText(/Include subfolders/)).not.toHaveAttribute("aria-invalid");
     // Marked instead of announced: a toast is not beside anything.
     expect(toast.error).not.toHaveBeenCalled();
   });
@@ -210,9 +273,7 @@ describe("a config the connector refuses", () => {
         refusal({ fields: [{ field: "config.folder_id", message: FOLDER_ID_REFUSED }] }),
       )
       .mockRejectedValueOnce(
-        refusal({
-          fields: [{ field: "config.service_account_json", message: "That is not a service key." }],
-        }),
+        refusal({ fields: [{ field: "secret_id", message: "That is not a service account." }] }),
       );
 
     await submitConfigured(onSubmit);
@@ -223,13 +284,15 @@ describe("a config the connector refuses", () => {
 
     await userEvent.type(screen.getByLabelText(/Google Drive Folder ID/), "1AbC");
     await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
     await userEvent.click(screen.getByRole("button", { name: /Create source/ }));
 
-    expect(await screen.findByLabelText(/Service Account JSON/)).toHaveAttribute(
+    // The mark follows the field to whichever step holds it, and the credential
+    // is a step of its own since #937.
+    expect(await screen.findByLabelText(/Vault credential/)).toHaveAttribute(
       "aria-invalid",
       "true",
     );
-    expect(screen.getByLabelText(/Google Drive Folder ID/)).not.toHaveAttribute("aria-invalid");
     expect(screen.queryByText(FOLDER_ID_REFUSED)).toBeNull();
   });
 
@@ -273,5 +336,80 @@ describe("a config the connector refuses", () => {
     expect(screen.queryByText(FOLDER_ID_REFUSED)).toBeNull();
     // Said rather than swallowed: a create that failed is not nothing.
     expect(toast.error).toHaveBeenCalledWith("Invalid connector config");
+  });
+});
+
+describe("the credential step", () => {
+  /** Walk as far as the credential step, with a connector that needs one. */
+  async function openCredentialStep() {
+    const view = withQuery(wizard(vi.fn()));
+    await userEvent.type(screen.getByLabelText("Source name"), "Engineering docs");
+    await userEvent.click(screen.getByRole("button", { name: /Google Drive/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
+    await userEvent.type(screen.getByLabelText(/Google Drive Folder ID/), "1AbC");
+    await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
+    return view;
+  }
+
+  it("does not advance until a credential is chosen", async () => {
+    // A source with no credential is one that cannot sync, and the connectors
+    // have no deployment-wide fallback to run on instead - so the wizard asks
+    // here rather than creating a row that fails in a worker.
+    await openCredentialStep();
+
+    expect(await screen.findByLabelText(/Vault credential/)).toBeVisible();
+    expect(screen.getByRole("button", { name: /Continue/ })).toBeDisabled();
+
+    await pickTheCredential();
+
+    expect(screen.getByRole("button", { name: /Continue/ })).toBeEnabled();
+  });
+
+  it("sends the credential's id and no credential of its own", async () => {
+    // The whole of #937 on this surface: what leaves the browser is a reference,
+    // not a service account JSON pasted into a config field.
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    await submitConfigured(onSubmit);
+
+    const sent = onSubmit.mock.calls[0]?.[0] as SyncSourceCreate;
+    expect(sent.secret_id).toBe("secret-1");
+    expect(sent.config).not.toHaveProperty("service_account_json");
+  });
+
+  it("offers only the kind this connector authenticates with", async () => {
+    // An S3 key pair is in the same vault and cannot sign a Drive request. Two
+    // credentials, one offered.
+    serve({
+      secrets: [
+        DRIVE_CREDENTIAL,
+        { ...DRIVE_CREDENTIAL, id: "secret-2", name: "Backups key", kind: "aws_credentials" },
+      ],
+    });
+    await openCredentialStep();
+
+    await userEvent.click(await screen.findByLabelText(/Vault credential/));
+
+    expect(await screen.findByRole("option", { name: /Drive service account/ })).toBeVisible();
+    expect(screen.queryByRole("option", { name: /Backups key/ })).toBeNull();
+  });
+
+  it("says the vault holds none rather than showing an empty picker", async () => {
+    // An empty picker with nowhere to go is the dead end this step replaced.
+    serve({ secrets: [] });
+    await openCredentialStep();
+
+    expect(await screen.findByText(/holds no credential/)).toBeVisible();
+    expect(screen.getByRole("link", { name: /Open the Vault/ })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Continue/ })).toBeDisabled();
+  });
+
+  it("says who has to choose when the reader cannot see the vault", async () => {
+    // Not an empty picker: a member without `secrets:view` is not looking at an
+    // organization with no credentials.
+    serve({ permissions: [] });
+    await openCredentialStep();
+
+    expect(await screen.findByText(/cannot see this organization's credentials/)).toBeVisible();
+    expect(screen.queryByLabelText(/Vault credential/)).toBeNull();
   });
 });

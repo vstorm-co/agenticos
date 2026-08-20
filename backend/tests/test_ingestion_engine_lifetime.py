@@ -243,7 +243,11 @@ class TestAConnectorSyncsStore:
             config={"folder_id": "abc"},
             collection_name="docs",
             sync_mode="full",
-            organization_id=None,
+            # A string, the way `SyncSourceRead` carries it, and never `None`:
+            # the column is NOT NULL since #937 and the worker unseals this
+            # organization's credential from it.
+            organization_id=str(uuid.uuid4()),
+            secret_id=None,
         )
         sources = MagicMock(
             get_source=AsyncMock(return_value=source),
@@ -255,11 +259,6 @@ class TestAConnectorSyncsStore:
         async with _worker(ledger):
             with (
                 patch.object(rag_tasks, "SyncSourceService", return_value=sources),
-                patch.object(
-                    rag_tasks.SyncSourceService,
-                    "decrypt_config_dict",
-                    new=staticmethod(lambda raw: raw),
-                ),
                 patch.dict(rag_tasks.CONNECTOR_REGISTRY, {"gdrive": lambda: connector}),
                 patch("app.services.rag_sync.RAGSyncService", return_value=MagicMock()),
                 patch.object(rag_tasks, "_config_for_collection", new=AsyncMock()),
@@ -276,7 +275,11 @@ class TestAConnectorSyncsStore:
             config={"folder_id": "abc"},
             collection_name="docs",
             sync_mode="full",
-            organization_id=None,
+            # A string, the way `SyncSourceRead` carries it, and never `None`:
+            # the column is NOT NULL since #937 and the worker unseals this
+            # organization's credential from it.
+            organization_id=str(uuid.uuid4()),
+            secret_id=None,
         )
         sources = MagicMock(
             get_source=AsyncMock(return_value=source), update_after_sync=AsyncMock()
@@ -286,11 +289,6 @@ class TestAConnectorSyncsStore:
         async with _worker(ledger):
             with (
                 patch.object(rag_tasks, "SyncSourceService", return_value=sources),
-                patch.object(
-                    rag_tasks.SyncSourceService,
-                    "decrypt_config_dict",
-                    new=staticmethod(lambda raw: raw),
-                ),
                 patch.dict(rag_tasks.CONNECTOR_REGISTRY, {"gdrive": lambda: connector}),
                 patch("app.services.rag_sync.RAGSyncService", return_value=MagicMock()),
                 patch.object(rag_tasks, "_config_for_collection", new=AsyncMock()),
