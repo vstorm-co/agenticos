@@ -34,7 +34,7 @@ from app.services.rag.config import DocumentExtensions
 from app.services.rag.connectors import CONNECTOR_REGISTRY
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.failures import IngestionStage, failure_summary
-from app.services.rag.ingestion import IngestionService
+from app.services.rag.ingestion import IngestionService, StoredDocument
 from app.services.rag.models import IngestionStatus
 from app.services.rag.vectorstore import EmbeddingResolver
 from app.services.rag.vectorstore import PgVectorStore as VectorStore
@@ -621,7 +621,8 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
 
     connector = connector_cls()
 
-    ingested = skipped = failed = total = 0
+    ingested = updated = skipped = failed = 0
+    total = 0
     ledger = SpendLedger(organization_id=organization_id)
 
     try:
@@ -631,17 +632,61 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
         with tempfile.TemporaryDirectory() as tmp_dir:
             for remote_file in files:
                 try:
+                    # `sync_mode` used to reach one argument here and nothing
+                    # else, so a scheduled source re-embedded every file every
+                    # night - and on the default `new_only` it passed
+                    # `replace=False`, which skips the lookup, leaves the old
+                    # document in place and inserts a second copy. A week of
+                    # nightly syncs was seven copies of every chunk, ranked
+                    # against each other in every search (#990). The modes are
+                    # `sync_local_flow`'s, deliberately: one column feeds both
+                    # flows and they must mean the same thing.
+                    existing = StoredDocument()
+                    if sync_mode in ("new_only", "update_only"):
+                        existing = await ingestion_svc.existing_document(
+                            collection_name, remote_file.source_path
+                        )
+                        # Before the transfer, where the answer allows it:
+                        # `update_only` has nothing to do with a file it has
+                        # never seen, and downloading one to find that out is a
+                        # transfer per new file, every run.
+                        if sync_mode == "update_only" and not existing.document_id:
+                            skipped += 1
+                            continue
+
                     local_path = await connector.download_file(
                         remote_file, Path(tmp_dir), config=config, credential=credential
                     )
+
+                    # After it, because a hash needs the bytes and no remote
+                    # system on this list offers one. A stored document with no
+                    # hash is re-ingested rather than assumed current: the
+                    # embedding is the cost worth avoiding, and skipping a file
+                    # that may have changed is the answer that cannot be
+                    # corrected later.
+                    if existing.content_hash and (
+                        hashlib.sha256(local_path.read_bytes()).hexdigest() == existing.content_hash
+                    ):
+                        skipped += 1
+                        continue
+
                     with metered_by(ledger):
-                        await ingestion_svc.ingest_file(
+                        result = await ingestion_svc.ingest_file(
                             filepath=local_path,
                             collection_name=collection_name,
-                            replace=(sync_mode == "full"),
+                            # Unconditional, as in `sync_local_flow`: once this
+                            # has decided to ingest, whatever it matched has to
+                            # go, or the collection grows a copy.
+                            replace=True,
                             source_path=remote_file.source_path,
                         )
-                    ingested += 1
+                    # On `replaced_document_id`, not on the result's sentence:
+                    # `sync_local_flow` reads its own message for the word
+                    # "replaced", which is a string it has to keep agreeing with.
+                    if result.replaced_document_id:
+                        updated += 1
+                    else:
+                        ingested += 1
                 except Exception as e:
                     logger.warning("Failed to sync %s: %s", remote_file.name, e)
                     failed += 1
@@ -664,6 +709,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                 status="done" if not failed else "error",
                 total_files=total,
                 ingested=ingested,
+                updated=updated,
                 skipped=skipped,
                 failed=failed,
             )
@@ -676,10 +722,11 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
             logger.error("Failed to update sync status for source %s", source_id)
 
     logger.info(
-        "Source sync complete: %s - total=%d, ingested=%d, skipped=%d, failed=%d",
+        "Source sync complete: %s - total=%d, ingested=%d, updated=%d, skipped=%d, failed=%d",
         source_id,
         total,
         ingested,
+        updated,
         skipped,
         failed,
     )
@@ -687,6 +734,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
         "status": "done" if not failed else "error",
         "total": total,
         "ingested": ingested,
+        "updated": updated,
         "skipped": skipped,
         "failed": failed,
     }

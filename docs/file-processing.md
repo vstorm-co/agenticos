@@ -667,14 +667,43 @@ matches. A store that cannot answer the listing is treated as "no match" rather
 than as a match: a failed query is not evidence that a document is absent, but
 acting on it as though a document *were* present would delete one.
 
-**That is the local-directory sync. A connector sync implements none of it**
-([#990](https://github.com/vstorm-co/agenticos/issues/990)): `sync_source_flow`
-downloads and ingests every file the connector lists, `sync_mode` reaches only
-`ingest_file`'s `replace` argument, and `ingest_file` never skips — so on the
-default `new_only` the previous document is neither found nor deleted and a
-duplicate is inserted on every run. The `skipped` counter beside it is
-initialised and never incremented, which is what a sync log truthfully reporting
-`skipped=0` every night has been saying all along.
+**Both flows, and they have to agree** — one `sync_mode` column feeds a local
+directory and a connector alike, so a mode meaning one thing for each is the
+defect whatever either does alone. A connector sync implemented none of it until
+[#990](https://github.com/vstorm-co/agenticos/issues/990): `sync_mode` reached
+only `ingest_file`'s `replace` argument and `ingest_file` never skips, so on the
+default `new_only` the previous document was neither found nor deleted and a
+*second copy* was inserted every run — a week of nightly syncs was seven copies
+of every chunk, ranked against each other in every search and each one paid for
+in embeddings. The `skipped` counter beside it was initialised and never
+incremented, which is a sync log truthfully reporting `skipped=0` every night.
+
+Where the decision is taken differs between them, because a remote file's bytes
+cost something to fetch. `update_only` needs no bytes to skip a file it has never
+seen, so that answer is given before the download; a hash needs them, so an
+unchanged file is recognised after one and before the embedding, which is the
+expensive half. A stored document carrying no `content_hash` is re-ingested
+rather than assumed current: skipping a file that may have changed is the answer
+nothing later corrects. A file that was replaced is counted as an **update**
+rather than an ingestion, read off `replaced_document_id` rather than off the
+result's own sentence.
+
+**Two things about matching, both of which decide whether a document survives.**
+`existing_document`'s last-but-one resort is a *filename* match, and it exists so
+a file uploaded through the browser and later synced from the folder it came from
+is replaced rather than duplicated — an upload stores its filename as its
+`source_path`, so the two agree and it stays reachable by name. A document naming
+a **different** address is not a candidate for it: a bucket holding
+`a/readme.md` beside `b/readme.md` had the second key find the first's document
+by name, so equal contents skipped it and unequal contents replaced the first —
+either way a first sync could not keep both, and said nothing. The same
+collision applied to two local files of one name in different directories.
+
+And a replacement **inserts before it deletes**. `insert_document` is where the
+embeddings are computed, so a provider that refused between the two statements
+used to leave the collection holding neither document — permanently, because a
+failed ingest is returned rather than raised and nothing retries it. Both for the
+length of an insert is a state a search survives; neither is not.
 
 One source's own history is `GET /kb/{kb_id}/sync-sources/{source_id}/logs`. The
 source is resolved against that knowledge base first, so a source belonging to
@@ -811,19 +840,16 @@ A connector is `list_files` + `_fetch` + a `CONFIG_SCHEMA`, and the API calls ar
 the cheap part. Three things are not, and a connector without them is a bill or a
 surprise rather than a feature:
 
-- **A change signal** — and, today, the sync path that would use it.
-  `sync_source_flow` lists, downloads and ingests every file unconditionally:
-  `sync_mode` reaches one argument and `ingest_file` never skips, so a scheduled
-  source re-embeds everything nightly and, on the default `new_only`, inserts a
-  *second copy* each run
-  ([#990](https://github.com/vstorm-co/agenticos/issues/990)). Naming a signal
-  therefore buys nothing on its own, which is why #990 comes before the
-  connectors are worth having: it is the comparison step, and the local-directory
-  flow already has one to copy. Name the signal in the connector's docstring
-  anyway — a Graph `delta` token, a page's `version.number`, a commit sha, an
-  HTTP `ETag` — because which one a connector can offer is what decides whether
-  that comparison happens before the download or after it, and fall back to
-  `content_hash` only where the remote system genuinely offers none.
+- **A change signal.** The sync path compares one since
+  [#990](https://github.com/vstorm-co/agenticos/issues/990), and what it compares
+  is a `content_hash` of the bytes — which means it downloads a file to find out
+  it was unchanged. That saves the embedding and not the transfer. A connector
+  that can answer "changed?" *without* the bytes should say so in its docstring —
+  a Graph `delta` token, a page's `version.number`, a commit sha, an HTTP `ETag` —
+  because a signal the flow can read before the download is the difference
+  between a nightly sync that costs a listing and one that costs the whole
+  folder. `content_hash` is the fallback where the remote system genuinely offers
+  none.
 - **A credential scoped at the source.** See the section above. A connector's
   `SECRET_KIND` says what shape the credential is; nothing in the platform can
   say how wide it was issued, which is why the guidance belongs where the source
@@ -841,10 +867,7 @@ question to answer before writing one is which half is being built — see
 [mcp](mcp.md).
 
 Which connectors are being built, and in what order, is decided in
-[#938](https://github.com/vstorm-co/agenticos/issues/938). First
-[#990](https://github.com/vstorm-co/agenticos/issues/990), because every
-connector below names a change signal and the sync path consults none of them:
-then a web crawler
+[#938](https://github.com/vstorm-co/agenticos/issues/938): a web crawler
 ([#984](https://github.com/vstorm-co/agenticos/issues/984)), SharePoint and
 OneDrive ([#985](https://github.com/vstorm-co/agenticos/issues/985)), Confluence
 ([#986](https://github.com/vstorm-co/agenticos/issues/986)), a git repository's

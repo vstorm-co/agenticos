@@ -146,6 +146,63 @@ class TestOnePrecedenceForBothAnswers:
         assert existing == StoredDocument(document_id="doc-a", content_hash=None)
 
 
+class TestADocumentThatNamesItsOwnAddress:
+    """The filename fallback may not claim one (#990).
+
+    It exists so a file uploaded through the browser and later synced from the
+    folder it came from is replaced rather than duplicated - an upload stores its
+    filename as its `source_path`, so the two agree and it stays reachable by
+    name. A document naming a *different* address is a different document, and
+    matching it by basename loses one of the two.
+    """
+
+    async def test_two_keys_with_the_same_basename_are_two_documents(self):
+        """An S3 bucket holding `a/readme.md` and `b/readme.md`. The second key
+        found the first's document by name, so under `new_only` equal contents
+        skipped it and unequal contents *replaced* the first - either way a
+        first sync could not keep both, and said nothing."""
+        service = _service(
+            [
+                _doc(
+                    "doc-a",
+                    filename="readme.md",
+                    source_path="s3://bucket/a/readme.md",
+                    content_hash="hash-a",
+                )
+            ]
+        )
+
+        existing = await service.existing_document("kb", "s3://bucket/b/readme.md")
+
+        assert existing == StoredDocument()
+
+    async def test_two_local_files_of_the_same_name_in_different_folders_are_two(self):
+        """The same collision on the flow that had the modes right all along."""
+        service = _service(
+            [
+                _doc(
+                    "doc-a",
+                    filename="notes.md",
+                    source_path="/srv/docs/one/notes.md",
+                    content_hash="hash-a",
+                )
+            ]
+        )
+
+        assert await service.existing_document("kb", "/srv/docs/two/notes.md") == StoredDocument()
+
+    async def test_an_uploaded_document_is_still_replaced_by_its_sync(self):
+        """The case the fallback is for, and the reason it is narrowed rather
+        than removed: an upload's `source_path` is its filename."""
+        service = _service(
+            [_doc("doc-a", filename="handbook.md", source_path="handbook.md", content_hash="h")]
+        )
+
+        existing = await service.existing_document("kb", "gdrive://file-1/handbook.md")
+
+        assert existing == StoredDocument(document_id="doc-a", content_hash="h")
+
+
 class TestHowManyTimesTheCollectionIsRead:
     """#566. Three lookups over one listing, and a sync asked for two of them."""
 
@@ -200,6 +257,71 @@ class TestHowManyTimesTheCollectionIsRead:
 
         assert result.status is IngestionStatus.DONE
         assert store.get_documents.await_count == 1
+
+
+class TestReplacingADocument:
+    """The new one is written before the old one is removed (#990).
+
+    `insert_document` is where the embeddings are computed, so a provider that
+    refuses between the two statements used to leave the collection holding
+    *neither* - permanently, because `ingest_file` returns the failure rather
+    than raising it and nothing retries. Both for the length of an insert is a
+    state a search survives; neither is not.
+    """
+
+    @staticmethod
+    def _replacing(insert: AsyncMock) -> tuple[MagicMock, IngestionService]:
+        store = MagicMock(
+            get_documents=AsyncMock(
+                return_value=[
+                    _doc(
+                        "doc-old",
+                        filename="handbook.pdf",
+                        source_path="/srv/sync/handbook.pdf",
+                        content_hash="hash-old",
+                    )
+                ]
+            ),
+            insert_document=insert,
+            delete_document=AsyncMock(),
+        )
+        document = Document(
+            pages=[DocumentPage(page_num=1, content="body")],
+            metadata=DocumentMetadata(filename="handbook.pdf", filesize=4, filetype="pdf"),
+        )
+        document.chunked_pages = [
+            DocumentPageChunk(chunk_content="body", chunk_num=0, page_num=1, content="body")
+        ]
+        document.metadata.content_hash = "hash-new"
+        processor = MagicMock(process_file=AsyncMock(return_value=document))
+        return store, IngestionService(processor=processor, vector_store=store)
+
+    async def test_a_failed_embedding_leaves_the_old_document_in_place(self):
+        store, service = self._replacing(AsyncMock(side_effect=RuntimeError("provider refused")))
+
+        result = await service.ingest_file(
+            filepath=Path("handbook.pdf"),
+            collection_name="kb",
+            replace=True,
+            source_path="/srv/sync/handbook.pdf",
+        )
+
+        assert result.status is IngestionStatus.ERROR
+        store.delete_document.assert_not_awaited()
+
+    async def test_a_successful_replacement_still_removes_the_old_one(self):
+        store, service = self._replacing(AsyncMock())
+
+        result = await service.ingest_file(
+            filepath=Path("handbook.pdf"),
+            collection_name="kb",
+            replace=True,
+            source_path="/srv/sync/handbook.pdf",
+        )
+
+        assert result.status is IngestionStatus.DONE
+        assert result.replaced_document_id == "doc-old"
+        store.delete_document.assert_awaited_once_with("kb", "doc-old")
 
 
 class TestGetDocumentsIsDeterministic:
