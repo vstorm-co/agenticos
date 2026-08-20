@@ -633,6 +633,10 @@ Each ingested document gets:
 
 ### Sync Connectors
 
-Remote document sources use pluggable connectors in `rag/connectors/`. Each
-connector implements `BaseSyncConnector` with `list_files()` and `download_file()`
-methods. See `docs/patterns.md` for how to add a new connector.
+Remote document sources use pluggable connectors in
+`app/services/rag/connectors/`. Each connector implements `BaseSyncConnector`
+with `list_files()` and `_fetch()`, declares a `SECRET_KIND` naming the vault
+secret that authenticates it, and declares a `CONFIG_SCHEMA` of
+`ConnectorConfigField`s saying how to find the documents. `download_file()` is
+concrete and decides where a file may land. See `docs/patterns.md` for how to
+add one, and `docs/howto/add-sync-connector.md` for a worked example.

@@ -14,15 +14,19 @@ Sync connectors are pluggable adapters that fetch files from external systems
 | `remote_names` | `app/services/rag/remote_names.py` | Where a remote name may be written, and what may reach a query |
 | `RemoteFile` | `app/services/rag/connectors/__init__.py` | Pydantic model describing a remote file |
 | `ConfigRefusal` | `app/services/rag/connectors/__init__.py` | Why a config is not acceptable, and which field of it |
+| `ConnectorConfigField` | `app/schemas/sync_source.py` | One declared field: its type, whether it is required, its label |
+| `ConnectorConfig` | `app/services/rag/connectors/__init__.py` | The source's own config document, as the wizard posted it |
 | `CONNECTOR_REGISTRY` | `app/services/rag/connectors/__init__.py` | Dict mapping connector type strings to classes |
 | `SyncSource` | `app/db/models/sync_source.py` | Database model storing source configurations |
 | `SyncLog` | `app/db/models/sync_log.py` | Database model tracking sync operations |
 
 ### Flow
 
-1. User creates a **SyncSource** (connector type + config + collection name)
+1. User creates a **SyncSource** (connector type + config + collection name +
+   the id of the vault secret that authenticates it)
 2. User triggers a **sync** (via API, CLI, or scheduled task)
-3. The connector's `list_files()` returns `list[RemoteFile]`
+3. Whoever runs the sync unseals that secret and hands it in; the connector's
+   `list_files()` returns `list[RemoteFile]`
 4. For each file, `BaseSyncConnector.download_file()` decides where it may land
    and calls the connector's `_fetch()` to write it there
 5. The ingestion pipeline parses, chunks, embeds, and stores each file
@@ -42,6 +46,20 @@ The same applies to any caller-supplied value a connector puts into a **query**:
 check it where the query is built, against what the remote system can actually
 issue. `app/services/rag/remote_names.py` holds both answers.
 
+### A connector does not hold its own credential either
+
+`CONFIG_SCHEMA` says how to **find** the documents and nothing more. The
+credential is a vault secret the source references by id, unsealed by whoever
+runs the sync and handed in as `credential` — so a connector declares what kind
+of secret it needs (`SECRET_KIND`) and reads nothing from `config` to
+authenticate with.
+
+A field for a token in `CONFIG_SCHEMA` is a credential in a JSONB column, which
+is what migration `0042` and #937 removed. There is no deployment-wide fallback
+to reach for either: a source runs on the credential it names or it does not run,
+because a fallback means one tenant's `folder_id` chooses what is read under the
+*operator's* identity.
+
 ## Step-by-Step: Notion Connector
 
 This example implements a Notion connector that fetches pages from a Notion
@@ -54,9 +72,17 @@ workspace.
 import asyncio
 import logging
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import ClassVar
 
-from app.services.rag.connectors import BaseSyncConnector, ConfigRefusal, RemoteFile
+from app.core.exceptions import BadRequestError
+from app.core.secret_kinds import ApiKeySecret, SecretKind, StorableSecret
+from app.schemas.sync_source import ConnectorConfigField
+from app.services.rag.connectors import (
+    BaseSyncConnector,
+    ConfigRefusal,
+    ConnectorConfig,
+    RemoteFile,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -66,41 +92,57 @@ class NotionConnector(BaseSyncConnector):
 
     CONNECTOR_TYPE: ClassVar[str] = "notion"
     DISPLAY_NAME: ClassVar[str] = "Notion"
+    # Which vault secret authenticates this connector. The wizard offers the
+    # organization's matching secrets and nothing else.
+    SECRET_KIND: ClassVar[SecretKind] = SecretKind.API_KEY
 
     # CONFIG_SCHEMA is used for:
     #   - API validation when creating/updating sync sources
     #   - Dynamic form generation in the frontend UI
-    CONFIG_SCHEMA: ClassVar[dict[str, dict[str, Any]]] = {
-        "api_token": {
-            "type": "string",
-            "required": True,
-            "label": "Integration Token",
-            "help": "Notion internal integration token (secret_...)",
-        },
-        "database_id": {
-            "type": "string",
-            "required": False,
-            "default": "",
-            "label": "Database ID",
-            "help": "Limit sync to a specific Notion database (optional)",
-        },
-        "include_subpages": {
-            "type": "boolean",
-            "required": False,
-            "default": True,
-            "label": "Include sub-pages",
-        },
+    # It holds no credential - see "A connector does not hold its own
+    # credential either" above.
+    CONFIG_SCHEMA: ClassVar[dict[str, ConnectorConfigField]] = {
+        "database_id": ConnectorConfigField(
+            type="string",
+            default="",
+            label="Database ID",
+            help="Limit sync to a specific Notion database (optional)",
+        ),
+        "include_subpages": ConnectorConfigField(
+            type="boolean", default=True, label="Include sub-pages"
+        ),
     }
 
-    async def list_files(self, config: dict) -> list[RemoteFile]:
+    def _client(self, credential: StorableSecret | None):
+        """The Notion client this source's own credential opens.
+
+        Raises:
+            BadRequestError: the source names no credential, its secret has been
+                deleted, or the secret is not an API key.
+        """
+        from notion_client import Client
+
+        if credential is None:
+            raise BadRequestError(
+                message=(
+                    "This Notion source has no credential. Pick an API key in "
+                    "the Vault and point the source at it."
+                )
+            )
+        if not isinstance(credential, ApiKeySecret):
+            raise BadRequestError(
+                message="A Notion source needs an API key, and the one it names is not one."
+            )
+        return Client(auth=credential.api_key.get_secret_value())
+
+    async def list_files(
+        self, config: ConnectorConfig, credential: StorableSecret | None
+    ) -> list[RemoteFile]:
         """List Notion pages available for sync."""
-        api_token = config["api_token"]
         database_id = config.get("database_id", "")
 
-        def _list():
-            from notion_client import Client
-
-            notion = Client(auth=api_token)
+        def _list() -> list[RemoteFile]:
+            notion = self._client(credential)
             files: list[RemoteFile] = []
 
             if database_id:
@@ -136,10 +178,16 @@ class NotionConnector(BaseSyncConnector):
 
         return await asyncio.to_thread(_list)
 
-    async def _fetch(self, file: RemoteFile, dest_path: Path, config: dict) -> None:
+    async def _fetch(
+        self,
+        file: RemoteFile,
+        dest_path: Path,
+        config: ConnectorConfig,
+        credential: StorableSecret | None,
+    ) -> None:
         """Export a Notion page as Markdown to the path the base class chose."""
         def _download() -> None:
-            from notion_client import Client
+            notion = self._client(credential)
 
             # `dest_path` is already confirmed to be inside the sync directory.
             # Do not build a path from `file.name` — see "A connector does not
@@ -154,38 +202,40 @@ class NotionConnector(BaseSyncConnector):
 
         await asyncio.to_thread(_download)
 
-    async def validate_config(self, config: dict) -> ConfigRefusal | None:
-        """Test Notion API access with the provided token."""
+    async def validate_config(self, config: ConnectorConfig) -> ConfigRefusal | None:
+        """Refuse a config the wizard can still fix.
+
+        Connectivity is not checked here: `validate_config` sees the config and
+        not the credential, so "can this key reach Notion" is a question for the
+        first sync. What it can answer is the shape of what was typed.
+        """
         refusal = await super().validate_config(config)
         if refusal is not None:
             return refusal
 
-        try:
-            def _test():
-                from notion_client import Client
-
-                notion = Client(auth=config["api_token"])
-                notion.users.me()
-
-            await asyncio.to_thread(_test)
-            return None
-        except Exception:
-            logger.exception("Notion credential check failed")
-            # `field="api_token"` when one field is to blame - the
-            # sync-source wizard marks that input. Here it is the token or the
-            # workspace it was issued for, and guessing between them would send
-            # somebody to change the wrong one.
-            return ConfigRefusal(message="Could not reach Notion with these credentials.")
+        database_id = config.get("database_id", "")
+        if database_id and not database_id.replace("-", "").isalnum():
+            # `field=` names one input, and the sync-source wizard marks it.
+            # Name it as `CONFIG_SCHEMA` does; where it sits in the request body
+            # is not a connector's to know.
+            return ConfigRefusal(
+                message="A Notion database id is letters, digits and dashes",
+                field="database_id",
+            )
+        return None
 ```
 
 `validate_config` answers *why not*, or `None` when the config is acceptable.
-`ConfigRefusal(message="…", field="api_token")` names one: `SyncSourceService`
-roots it against the payload (`config.api_token`), raises it with `refused_field`,
-and the wizard marks that input. Name the field as `CONFIG_SCHEMA` does - where
-it sits in the request body is not a connector's to know.
-Never put the client's own exception text in the message — an SDK puts the
-request it was making in there, and that routinely carries a URL with a key in
-it. Log it instead, as above.
+`ConfigRefusal(message="…", field="database_id")` names one: `SyncSourceService`
+roots it against the payload (`config.database_id`), raises it with
+`refused_field`, and the wizard marks that input. Name the field as
+`CONFIG_SCHEMA` does — where it sits in the request body is not a connector's to
+know.
+
+If a connector does check connectivity somewhere, never put the client's own
+exception text in the message — an SDK puts the request it was making in there,
+and that routinely carries a URL with a key in it. Log it and refuse in your own
+words.
 
 ### 2. Register in CONNECTOR_REGISTRY
 
@@ -208,12 +258,18 @@ uv add notion-client
 ### 4. Test via CLI
 
 ```bash
-# Create a sync source and trigger sync
-uv run agenticos cmd rag-sync \
-    --connector notion \
-    --config '{"api_token": "secret_...", "database_id": "abc123"}' \
+# Store the credential once, then point a source at it
+uv run agenticos cmd rag-source-add \
+    --name "Engineering Wiki" \
+    --type notion \
+    --org <organization-id> \
+    --secret-id <vault-secret-id> \
+    --config '{"database_id": "abc123"}' \
     --collection knowledge-base
 ```
+
+`--secret-id` names an entry in that organization's vault; the token never
+appears on the command line or in the source's config.
 
 ### 5. Test via API
 
@@ -226,8 +282,8 @@ curl -X POST http://localhost:8000/api/v1/rag/sync/sources \
         "name": "Engineering Wiki",
         "connector_type": "notion",
         "collection_name": "knowledge-base",
+        "secret_id": "<vault-secret-id>",
         "config": {
-            "api_token": "secret_...",
             "database_id": "abc123",
             "include_subpages": true
         }
@@ -244,50 +300,60 @@ curl http://localhost:8000/api/v1/rag/sync/logs \
 
 ## CONFIG_SCHEMA Reference
 
-The `CONFIG_SCHEMA` class variable defines the connector's configuration
-fields. The frontend reads this schema from the
-`GET /api/v1/rag/sync/connectors` endpoint to dynamically render form fields.
+The `CONFIG_SCHEMA` class variable defines how to **find** a source's documents.
+The frontend reads it from the `GET /api/v1/rag/sync/connectors` endpoint to
+render the form fields, and `validate_config` reads it to refuse a config that
+is missing one.
+
+Each entry is a `ConnectorConfigField`, not a bare mapping. That is what makes a
+misspelled key a type error where it is written: `CONFIG_SCHEMA` used to be
+`dict[str, dict[str, Any]]`, so a declaration that said `"require": True`
+disabled that field's check silently and the wizard drew a required field as
+optional (#562).
 
 ### Supported field types
+
+`type` is one of four, because those are the four the wizard draws — a fifth
+would fall through to a text input and collect the value wrongly, so
+`ConnectorFieldType` refuses it.
 
 | Type | UI Widget | Python type |
 |------|-----------|-------------|
 | `"string"` | Text input | `str` |
-| `"boolean"` | Checkbox/toggle | `bool` |
+| `"boolean"` | Switch | `bool` |
 | `"integer"` | Number input | `int` |
+| `"textarea"` | Multi-line text | `str` |
 
 ### Field properties
 
 | Property | Required | Description |
 |----------|----------|-------------|
-| `type` | Yes | Data type (`"string"`, `"boolean"`, `"integer"`) |
-| `required` | Yes | Whether the field must be provided |
-| `label` | Yes | Human-readable label shown in the UI |
+| `type` | Yes | One of the four above |
+| `label` | Yes | What the form draws above the input, and what a refusal names |
+| `required` | No | Whether the field must be provided. Defaults to `False` |
 | `help` | No | Tooltip/description text |
-| `default` | No | Default value for optional fields |
+| `default` | No | Placeholder the form shows for an optional field |
+
+There is no `secret` property, and there is nowhere to add one: a credential is
+a vault secret the source references by id, so `SECRET_KIND` is how a connector
+says what it needs.
 
 ### Example
 
 ```python
-CONFIG_SCHEMA: ClassVar[dict[str, dict[str, Any]]] = {
-    "api_key": {
-        "type": "string",
-        "required": True,
-        "label": "API Key",
-        "help": "Your service API key",
-    },
-    "max_files": {
-        "type": "integer",
-        "required": False,
-        "default": 100,
-        "label": "Max files to sync",
-    },
-    "recursive": {
-        "type": "boolean",
-        "required": False,
-        "default": True,
-        "label": "Include nested items",
-    },
+CONFIG_SCHEMA: ClassVar[dict[str, ConnectorConfigField]] = {
+    "workspace": ConnectorConfigField(
+        type="string",
+        required=True,
+        label="Workspace",
+        help="Which workspace to read",
+    ),
+    "max_files": ConnectorConfigField(
+        type="integer", label="Max files to sync", default=100
+    ),
+    "recursive": ConnectorConfigField(
+        type="boolean", label="Include nested items", default=True
+    ),
 }
 ```
 
@@ -295,7 +361,7 @@ CONFIG_SCHEMA: ClassVar[dict[str, dict[str, Any]]] = {
 
 - Set `RemoteFile.source_path` to a unique URI (e.g., `notion://page_id`) — this is used for deduplication across syncs
 - Use `asyncio.to_thread()` to wrap blocking SDK calls so they don't block the event loop
-- Implement `validate_config()` to test connectivity when users create sync sources — it prevents misconfigured sources, and a `ConfigRefusal` naming a `field` is what makes the wizard mark that input rather than show a sentence over four of them
-- Server-level credentials (shared across all sources) go in `app/core/config.py` and `.env`
-- Per-source credentials go in `CONFIG_SCHEMA` and are stored in the database per sync source
+- Implement `validate_config()` to refuse a config the wizard can still fix — a `ConfigRefusal` naming a `field` is what makes it mark that input rather than show a sentence over four of them. It sees the config and not the credential, so "can this key reach the service" is a question for the first sync, not for this method
+- Declare `SECRET_KIND` and read the credential from the `credential` argument. A credential never goes in `CONFIG_SCHEMA`, and there is no deployment-wide fallback to fall back to
+- Settings in `app/core/config.py` and `.env` are for values that name no principal — where a store is, not who is asking (`S3_RAG_ENDPOINT` is the shape)
 - `_fetch()` writes to the `dest_path` it is handed and returns nothing — the base class answers where that is, and the ingestion pipeline handles everything from there

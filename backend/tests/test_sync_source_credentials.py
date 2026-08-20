@@ -23,15 +23,23 @@ from __future__ import annotations
 
 import uuid
 from types import SimpleNamespace
+from typing import get_args
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pydantic import ValidationError
 
 from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories import organization_secret_repo
-from app.schemas.sync_source import SyncSourceCreate, SyncSourceUpdate
+from app.schemas.sync_source import (
+    ConnectorConfigField,
+    ConnectorFieldType,
+    SyncSourceCreate,
+    SyncSourceUpdate,
+)
 from app.services import sync_source as sync_source_module
+from app.services.rag.connectors.s3 import S3Connector
 from app.services.sync_source import SyncSourceService
 
 pytestmark = pytest.mark.anyio
@@ -272,16 +280,42 @@ class TestWhatTheConnectorsDeclare:
 
         assert kinds == {"gdrive": "gcp_service_account", "s3": "aws_credentials"}
 
-    def test_no_connector_asks_for_a_secret_in_its_config_schema(self):
+    def test_a_connector_cannot_ask_for_a_secret_in_its_config_schema(self):
         """The `secret: true` marker is gone, and with it `_mask_config`,
-        `_secret_fields` and the encryption they existed for. A connector added
-        later that marked a field would be storing a credential in a JSONB column
-        again."""
+        `_secret_fields` and the encryption they existed for.
+
+        A declaration is a `ConnectorConfigField` now rather than a bare mapping,
+        so this is no longer a sweep over what the two shipped connectors happen
+        to say: the field does not exist to be set, in any connector written
+        later, and `ty` refuses one that tries (#562)."""
+        assert "secret" not in ConnectorConfigField.model_fields
+
+    def test_every_declared_field_is_something_the_wizard_can_draw(self):
+        """`type` is what `SyncSourceConfigureStep` branches on, and its fall-through
+        is a text input - so a connector inventing a type got a field the form
+        collects wrongly, with nothing reporting it."""
         from app.services.rag.connectors import CONNECTOR_REGISTRY
 
+        drawable = set(get_args(ConnectorFieldType))
         for name, cls in CONNECTOR_REGISTRY.items():
             for field, spec in cls.CONFIG_SCHEMA.items():
-                assert "secret" not in spec, f"{name}.{field} still marks itself secret"
+                assert spec.type in drawable, f"{name}.{field} declares {spec.type!r}"
+
+    async def test_a_required_field_is_refused_by_the_label_the_form_shows(self):
+        """The wizard marks the input this names, so it has to be the name the
+        wizard drew - not the key underneath it."""
+        refusal = await S3Connector().validate_config({})
+
+        assert refusal is not None
+        assert refusal.field == "bucket"
+        assert refusal.message == "Missing required field: Bucket Name"
+
+    def test_a_field_cannot_be_declared_without_the_label_the_form_draws(self):
+        """`SyncSourceConfigureStep` renders `label` above the input, and only
+        `validate_config` ever fell back to the key - so a connector omitting it
+        got an unlabelled box on the form and a refusal that read fine."""
+        with pytest.raises(ValidationError):
+            ConnectorConfigField(type="string", required=True)
 
     def test_the_connector_listing_publishes_the_kind(self):
         listed = SyncSourceService.list_connectors()

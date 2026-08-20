@@ -17,7 +17,7 @@ every sync operation.
 
 | Component | Location | Role |
 |-----------|----------|------|
-| `BaseSyncConnector` | `app/rag/connectors/__init__.py` | Abstract base for all connectors |
+| `BaseSyncConnector` | `app/services/rag/connectors/__init__.py` | Abstract base for all connectors |
 | `RemoteFile` | `app/rag/connectors/__init__.py` | Pydantic model describing a remote file |
 | `CONNECTOR_REGISTRY` | `app/rag/connectors/__init__.py` | Maps connector type strings to classes |
 | `SyncSource` (DB model) | `app/db/models/sync_source.py` | Persists source configurations |
@@ -353,11 +353,13 @@ To add a new connector type (e.g. Notion, Confluence, Dropbox), see
 The short version:
 
 1. Create a class inheriting `BaseSyncConnector` in
-   `app/rag/connectors/`.
+   `app/services/rag/connectors/`.
 2. Implement `list_files()`, `_fetch()`, and optionally `validate_config()`.
-3. Define a `CONFIG_SCHEMA` for the connector's settings.
+3. Declare `SECRET_KIND` — what kind of vault secret authenticates it — and a
+   `CONFIG_SCHEMA` of `ConnectorConfigField`s saying how to find the documents.
+   The credential is never one of those fields.
 4. Register it in `CONNECTOR_REGISTRY` in
-   `app/rag/connectors/__init__.py`.
+   `app/services/rag/connectors/__init__.py`.
 
 Once registered, the connector appears automatically in the CLI, API,
 and UI.

@@ -36,7 +36,7 @@ from typing import Any
 from uuid import UUID
 
 from PIL import Image, ImageOps
-from pydantic_ai_backends import FileInfo
+from pydantic_ai_backends import FileData, FileInfo
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.sandbox import SandboxConfig
@@ -179,7 +179,7 @@ def sandbox_config(spec: AgentSpec) -> SandboxConfig | None:
     return None
 
 
-def _without_spills(files: dict[str, Any]) -> dict[str, Any]:
+def _without_spills(files: dict[str, FileData]) -> dict[str, FileData]:
     """The workspace document with `tool_output_limits` spills stripped out (#803).
 
     A spilled tool return goes to the run's backend under the reserved
@@ -1137,7 +1137,7 @@ def _absent(row: AgentWorkspace, contents: WorkspaceContents, path: str) -> bool
     return all(str(entry.get("path")) != path for entry in contents.entries)
 
 
-def stored_entries(files: dict[str, Any]) -> list[FileInfo]:
+def stored_entries(files: dict[str, FileData]) -> list[FileInfo]:
     """Every file in a stored workspace, dotfiles included.
 
     Two patterns, because one is not enough: `**/*` does not match a name beginning
@@ -1165,7 +1165,7 @@ PREVIEW_CHARS = 200
 the tile is a hint, and the viewer is one click away for the rest."""
 
 
-def stored_preview(data: dict[str, Any] | None) -> str | None:
+def stored_preview(data: FileData | None) -> str | None:
     """The first lines of a stored text file, or `None` where there is nothing a
     tile could honestly show.
 
@@ -1209,7 +1209,7 @@ it rather than a picture, and Pillow does not read one anyway. Suffix rather tha
 sniffing, so nothing outside this set is ever handed to a decoder."""
 
 
-def stored_thumbnail(path: str, data: dict[str, Any] | None) -> str | None:
+def stored_thumbnail(path: str, data: FileData | None) -> str | None:
     """A stored image scaled to a data URI, or `None` where a tile has nothing to draw.
 
     The counterpart of :func:`stored_preview` for the kind of file that has no first

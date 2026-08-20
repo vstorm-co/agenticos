@@ -232,21 +232,38 @@ pattern defined in `app/services/rag/connectors/`. Each connector inherits from
 3. Register the connector in `CONNECTOR_REGISTRY`.
 
 ```python
-from app.services.rag.connectors import BaseSyncConnector, RemoteFile, CONNECTOR_REGISTRY
+from app.core.secret_kinds import SecretKind, StorableSecret
+from app.schemas.sync_source import ConnectorConfigField
+from app.services.rag.connectors import (
+    CONNECTOR_REGISTRY,
+    BaseSyncConnector,
+    ConnectorConfig,
+    RemoteFile,
+)
 
 class SharePointConnector(BaseSyncConnector):
     CONNECTOR_TYPE = "sharepoint"
     DISPLAY_NAME = "SharePoint"
+    # What authenticates it. The credential is a vault secret the source names,
+    # unsealed by the caller - never a field of CONFIG_SCHEMA.
+    SECRET_KIND = SecretKind.API_KEY
     CONFIG_SCHEMA = {
-        "site_url": {"label": "Site URL", "required": True},
-        "client_id": {"label": "Client ID", "required": True},
+        "site_url": ConnectorConfigField(type="string", required=True, label="Site URL"),
     }
 
-    async def list_files(self, config: dict) -> list[RemoteFile]:
+    async def list_files(
+        self, config: ConnectorConfig, credential: StorableSecret | None
+    ) -> list[RemoteFile]:
         # Return metadata for available files
         ...
 
-    async def _fetch(self, file: RemoteFile, dest_path: Path, config: dict) -> None:
+    async def _fetch(
+        self,
+        file: RemoteFile,
+        dest_path: Path,
+        config: ConnectorConfig,
+        credential: StorableSecret | None,
+    ) -> None:
         # Write the bytes to dest_path. The base class chose it and confirmed
         # it is inside the sync directory - never build a path from file.name.
         ...

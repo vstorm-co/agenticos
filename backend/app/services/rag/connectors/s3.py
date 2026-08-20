@@ -16,12 +16,19 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 import boto3
+from botocore.client import BaseClient
 from botocore.config import Config
 
 from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import AwsCredentialsSecret, SecretKind, StorableSecret
-from app.services.rag.connectors import BaseSyncConnector, ConfigRefusal, RemoteFile
+from app.schemas.sync_source import ConnectorConfigField
+from app.services.rag.connectors import (
+    BaseSyncConnector,
+    ConfigRefusal,
+    ConnectorConfig,
+    RemoteFile,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,34 +48,25 @@ class S3Connector(BaseSyncConnector):
     CONNECTOR_TYPE: ClassVar[str] = "s3"
     DISPLAY_NAME: ClassVar[str] = "S3 / MinIO"
     SECRET_KIND: ClassVar[SecretKind] = SecretKind.AWS_CREDENTIALS
-    CONFIG_SCHEMA: ClassVar[dict[str, dict[str, Any]]] = {
-        "bucket": {
-            "type": "string",
-            "required": True,
-            "label": "Bucket Name",
-        },
-        "prefix": {
-            "type": "string",
-            "required": False,
-            "default": "",
-            "label": "Path Prefix",
-            "help": "e.g. 'documents/legal/' - leave empty for entire bucket",
-        },
-        "endpoint_url": {
-            "type": "string",
-            "required": False,
-            "label": "Custom Endpoint URL",
-            "help": "For MinIO or compatible services (e.g., http://minio:9000). Leave empty for AWS S3.",
-        },
-        "region": {
-            "type": "string",
-            "required": False,
-            "default": "us-east-1",
-            "label": "Region",
-        },
+    CONFIG_SCHEMA: ClassVar[dict[str, ConnectorConfigField]] = {
+        "bucket": ConnectorConfigField(type="string", label="Bucket Name", required=True),
+        "prefix": ConnectorConfigField(
+            type="string",
+            label="Path Prefix",
+            help="e.g. 'documents/legal/' - leave empty for entire bucket",
+            default="",
+        ),
+        "endpoint_url": ConnectorConfigField(
+            type="string",
+            label="Custom Endpoint URL",
+            help="For MinIO or compatible services (e.g., http://minio:9000). Leave empty for AWS S3.",
+        ),
+        "region": ConnectorConfigField(type="string", label="Region", default="us-east-1"),
     }
 
-    def _get_s3_client(self, config: dict, credential: StorableSecret | None):
+    def _get_s3_client(
+        self, config: ConnectorConfig, credential: StorableSecret | None
+    ) -> BaseClient:
         """Build a boto3 S3 client from the vault secret the source names.
 
         The key and secret come from the organization's vault and nowhere else.
@@ -112,16 +110,18 @@ class S3Connector(BaseSyncConnector):
             client_kwargs["endpoint_url"] = endpoint
         return boto3.client("s3", **client_kwargs, config=Config(signature_version="s3v4"))
 
-    async def validate_config(self, config: dict) -> ConfigRefusal | None:
+    async def validate_config(self, config: ConnectorConfig) -> ConfigRefusal | None:
         """Validate required fields only - connectivity is checked at sync time."""
         return await super().validate_config(config)
 
-    async def list_files(self, config: dict, credential: StorableSecret | None) -> list[RemoteFile]:
+    async def list_files(
+        self, config: ConnectorConfig, credential: StorableSecret | None
+    ) -> list[RemoteFile]:
         """List files in an S3 bucket/prefix."""
         bucket = config["bucket"]
         prefix = config.get("prefix", "")
 
-        def _list():
+        def _list() -> list[RemoteFile]:
             client = self._get_s3_client(config, credential)
             paginator = client.get_paginator("list_objects_v2")
             params: dict[str, Any] = {"Bucket": bucket}
@@ -161,7 +161,7 @@ class S3Connector(BaseSyncConnector):
         self,
         file: RemoteFile,
         dest_path: Path,
-        config: dict,
+        config: ConnectorConfig,
         credential: StorableSecret | None,
     ) -> None:
         """Download a file from S3 to the path the base class chose."""

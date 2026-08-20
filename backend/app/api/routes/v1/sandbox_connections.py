@@ -34,7 +34,6 @@ from app.schemas.sandbox_connection import (
     SandboxPolicyRead,
     SandboxProbeRequest,
     SandboxRuntimeCatalog,
-    SandboxRuntimeOption,
     SandboxSessionList,
 )
 
@@ -117,10 +116,8 @@ async def list_runtimes(service: SandboxConnectionSvc, ctx: Auth) -> Any:
     permits is narrower and only that service can say - `POST /probe` and
     `GET /{id}/policy` are the two ways to ask it.
     """
-    return SandboxRuntimeCatalog(
-        items=[SandboxRuntimeOption(**entry) for entry in service.runtime_catalog()],
-        total=len(service.runtime_catalog()),
-    )
+    runtimes = service.runtime_catalog()
+    return SandboxRuntimeCatalog(items=runtimes, total=len(runtimes))
 
 
 @router.post(

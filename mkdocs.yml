@@ -130,7 +130,6 @@ nav:
       - howto/add-api-endpoint.md
       - howto/add-background-task.md
       - howto/customize-agent-prompt.md
-      - howto/add-rag-source.md
       - howto/add-sync-connector.md
       - howto/configure-sync-sources.md
       - howto/use-ratings.md
