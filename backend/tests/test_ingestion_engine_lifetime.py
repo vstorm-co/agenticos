@@ -83,6 +83,9 @@ async def _worker(ledger: StoreLedger, *, ingest: AsyncMock | None = None) -> An
         patch.object(rag_tasks.IngestionService, "ingest_file", new=ingest or AsyncMock()),
     ):
         config_service.return_value.build_processor = AsyncMock(return_value=MagicMock())
+        # A connector sync asks for the image model to record on each document's
+        # row (#992), so the stand-in service has to answer awaitably.
+        config_service.return_value.resolved_image_model = AsyncMock(return_value=None)
         yield config_service
 
 

@@ -172,18 +172,29 @@ async def _knowledge_base_for(
     """The knowledge base behind a collection name, or `None` if none claims it.
 
     The organization narrows the candidates because `collection_name` is not
-    unique across tenants. Two callers reach `None`: a local-directory sync,
-    which names a path on the server rather than a collection somebody
-    configured, and a sync source with no collection at all - an org-level
-    integration template that exists to be cloned and should never have been
-    run.
+    unique across tenants - and the caller's own row wins over a deployment-wide
+    one of the same name, which is the reason for two passes rather than one
+    condition.
+
+    An `app`-scoped collection belongs to no organization, so it is matched on
+    the second pass rather than skipped. Skipping it meant a source pointed at
+    one was parsed with the deployment defaults instead of the settings that
+    collection had chosen, and - once a sync started recording documents - filed
+    them under no knowledge base, which is the invisibility this was fixing
+    (#992).
+
+    Two callers still reach `None`: a local-directory sync, which names a path on
+    the server rather than a collection somebody configured, and a sync source
+    with no collection at all - an org-level integration template that exists to
+    be cloned and should never have been run.
     """
     if collection_name is None:
         return None
-    for kb in await knowledge_base_repo.list_by_collection_name(db, collection_name):
+    candidates = await knowledge_base_repo.list_by_collection_name(db, collection_name)
+    for kb in candidates:
         if organization_id is None or kb.organization_id == organization_id:
             return kb
-    return None
+    return next((kb for kb in candidates if kb.organization_id is None), None)
 
 
 async def _config_for_collection(
@@ -574,8 +585,7 @@ async def _connector_credential(
         return None
 
 
-async def _track_synced_document(
-    result: IngestionResult,
+async def _open_document_row(
     *,
     filename: str,
     filesize: int,
@@ -583,8 +593,10 @@ async def _track_synced_document(
     organization_id: UUID | None,
     knowledge_base_id: UUID | None,
     ingestion_config: IngestionConfig,
-) -> None:
-    """Record what a sync ingested, the way an upload records it.
+    image_description_model: str | None,
+    embedding_model: str | None,
+) -> str:
+    """Record a document a sync is about to ingest, and answer its row id.
 
     A connector sync used to create no `rag_documents` row at all, so its
     documents were searchable and invisible: absent from the knowledge base's
@@ -603,8 +615,7 @@ async def _track_synced_document(
     from app.services.rag_document import RAGDocumentService
 
     async with get_worker_db_context() as db:
-        documents = RAGDocumentService(db)
-        row = await documents.create_document(
+        row = await RAGDocumentService(db).create_document(
             collection_name=collection_name,
             filename=filename,
             filesize=filesize,
@@ -612,19 +623,33 @@ async def _track_synced_document(
             organization_id=organization_id,
             knowledge_base_id=knowledge_base_id,
             ingestion_config=ingestion_config,
+            image_description_model=image_description_model,
+            embedding_model=embedding_model,
         )
+        return str(row.id)
+
+
+async def _settle_document_row(row_id: str, result: IngestionResult) -> None:
+    """Move an open row to what the ingest actually did.
+
+    The failure branch is not an afterthought: a document that failed to parse
+    is the one a reader most needs to see, and its reason is a `failure_summary`
+    already, built by `ingest_file` rather than by a caller stringifying a
+    vendor's exception (#423).
+    """
+    from app.services.rag_document import RAGDocumentService
+
+    async with get_worker_db_context() as db:
+        documents = RAGDocumentService(db)
         if result.status is IngestionStatus.DONE and result.document_id:
             await documents.complete_ingestion(
-                str(row.id),
+                row_id,
                 vector_document_id=result.document_id,
                 chunk_count=result.chunk_count,
                 replaced_document_id=result.replaced_document_id,
             )
         else:
-            # The row is created either way, because a document that failed to
-            # parse is the one a reader most needs to see - and its reason is a
-            # `failure_summary` already, built by `ingest_file` (#423).
-            await documents.fail_ingestion(str(row.id), result.error_message or "Ingestion failed")
+            await documents.fail_ingestion(row_id, result.error_message or "Ingestion failed")
 
 
 async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> dict[str, Any]:
@@ -693,6 +718,14 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
             else IngestionConfig.model_validate(knowledge_base.ingestion_config)
         )
         knowledge_base_id = None if knowledge_base is None else knowledge_base.id
+        # Both models, resolved once for the collection rather than per file, and
+        # recorded on every row this sync writes - the provenance the documents
+        # page reads. An upload has carried them since it started tracking; a
+        # sync reported neither.
+        embedding_model = None if knowledge_base is None else knowledge_base.embedding_model
+        image_description_model = await IngestionConfigService(db).resolved_image_model(
+            organization_id, ingestion_config
+        )
         ingestion_svc = await _ingestion_service_for(
             db, config=ingestion_config, organization_id=organization_id
         )
@@ -748,6 +781,24 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                         skipped += 1
                         continue
 
+                    # Opened before the ingest, which is the order the upload
+                    # path uses and the only one that cannot leave the state this
+                    # removes: a row written afterwards and failing - a database
+                    # blip, a remote name longer than the column - left the
+                    # vector document stored and untracked, and the next
+                    # `new_only` run then matched its hash and skipped the file
+                    # before reaching the write, for good.
+                    row_id = await _open_document_row(
+                        filename=remote_file.name,
+                        filesize=local_path.stat().st_size,
+                        collection_name=collection_name,
+                        organization_id=organization_id,
+                        knowledge_base_id=knowledge_base_id,
+                        ingestion_config=ingestion_config,
+                        image_description_model=image_description_model,
+                        embedding_model=embedding_model,
+                    )
+
                     with metered_by(ledger):
                         result = await ingestion_svc.ingest_file(
                             filepath=local_path,
@@ -759,15 +810,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                             source_path=remote_file.source_path,
                         )
 
-                    await _track_synced_document(
-                        result,
-                        filename=remote_file.name,
-                        filesize=local_path.stat().st_size,
-                        collection_name=collection_name,
-                        organization_id=organization_id,
-                        knowledge_base_id=knowledge_base_id,
-                        ingestion_config=ingestion_config,
-                    )
+                    await _settle_document_row(row_id, result)
 
                     # On `replaced_document_id`, not on the result's sentence:
                     # `sync_local_flow` reads its own message for the word

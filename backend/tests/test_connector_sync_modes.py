@@ -40,6 +40,9 @@ BODY = b"the handbook, unchanged since last night"
 BODY_HASH = hashlib.sha256(BODY).hexdigest()
 SOURCE_PATH = "gdrive://file-1"
 KB_ID = uuid.uuid4()
+ROW_ID = uuid.uuid4()
+IMAGE_MODEL = "openai:gpt-4o-mini"
+EMBEDDING_MODEL = "openai:text-embedding-3-small"
 
 
 def _stored(*, content_hash: str, source_path: str = SOURCE_PATH) -> MagicMock:
@@ -121,7 +124,7 @@ async def _syncing(
     )
     ingest = AsyncMock(return_value=_result(replaced=replaced))
     documents = MagicMock(
-        create_document=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+        create_document=AsyncMock(return_value=MagicMock(id=ROW_ID)),
         complete_ingestion=AsyncMock(),
         fail_ingestion=AsyncMock(),
     )
@@ -140,7 +143,11 @@ async def _syncing(
         patch.object(
             rag_tasks,
             "_knowledge_base_for",
-            new=AsyncMock(return_value=MagicMock(id=KB_ID, ingestion_config={})),
+            new=AsyncMock(
+                return_value=MagicMock(
+                    id=KB_ID, ingestion_config={}, embedding_model=EMBEDDING_MODEL
+                )
+            ),
         ),
         patch.object(rag_tasks, "IngestionConfigService") as config_service,
         patch.object(rag_tasks.IngestionService, "ingest_file", new=ingest),
@@ -149,6 +156,7 @@ async def _syncing(
         patch("app.services.rag_document.RAGDocumentService", return_value=documents),
     ):
         config_service.return_value.build_processor = AsyncMock(return_value=MagicMock())
+        config_service.return_value.resolved_image_model = AsyncMock(return_value=IMAGE_MODEL)
         yield ingest, documents
 
 
@@ -165,6 +173,61 @@ async def _sync(
     ):
         answer = await rag_tasks._run_source_sync(str(uuid.uuid4()), sync_log_id=str(uuid.uuid4()))
     return answer, ingest, documents
+
+
+class TestWhichKnowledgeBaseOwnsTheCollection:
+    """`_knowledge_base_for` decides two things at once: which parser settings a
+    sync reads documents with, and which knowledge base its documents are filed
+    under. Getting it wrong is invisible both times."""
+
+    @staticmethod
+    def _kbs(*rows: MagicMock) -> Any:
+        return patch.object(
+            rag_tasks.knowledge_base_repo,
+            "list_by_collection_name",
+            new=AsyncMock(return_value=list(rows)),
+        )
+
+    @staticmethod
+    def _kb(*, organization_id: uuid.UUID | None) -> MagicMock:
+        return MagicMock(id=uuid.uuid4(), organization_id=organization_id, ingestion_config={})
+
+    async def test_the_callers_own_collection_is_found(self):
+        org = uuid.uuid4()
+        mine = self._kb(organization_id=org)
+
+        with self._kbs(self._kb(organization_id=uuid.uuid4()), mine):
+            assert await rag_tasks._knowledge_base_for(MagicMock(), "docs", org) is mine
+
+    async def test_an_app_scoped_collection_belongs_to_no_organization(self):
+        """It has `organization_id=None`, so the equality test skipped it - and a
+        source pointed at one was parsed with the deployment defaults instead of
+        that collection's own settings, then filed under no knowledge base at
+        all."""
+        shared = self._kb(organization_id=None)
+
+        with self._kbs(shared):
+            found = await rag_tasks._knowledge_base_for(MagicMock(), "docs", uuid.uuid4())
+
+        assert found is shared
+
+    async def test_the_organizations_own_row_wins_over_a_deployment_wide_one(self):
+        """Two passes rather than one condition, because `collection_name` is not
+        unique and the caller's own collection is the one they meant."""
+        org = uuid.uuid4()
+        mine = self._kb(organization_id=org)
+
+        with self._kbs(self._kb(organization_id=None), mine):
+            assert await rag_tasks._knowledge_base_for(MagicMock(), "docs", org) is mine
+
+    async def test_another_tenants_collection_is_not_borrowed(self):
+        with self._kbs(self._kb(organization_id=uuid.uuid4())):
+            found = await rag_tasks._knowledge_base_for(MagicMock(), "docs", uuid.uuid4())
+
+        assert found is None
+
+    async def test_a_source_with_no_collection_asks_nothing(self):
+        assert await rag_tasks._knowledge_base_for(MagicMock(), None, uuid.uuid4()) is None
 
 
 class TestAnIngestAlwaysReplaces:
@@ -339,6 +402,36 @@ class TestWhatASyncedDocumentLeavesBehind:
 
         documents.create_document.assert_not_awaited()
 
+    async def test_the_row_is_opened_before_the_file_is_indexed(self):
+        """The order that cannot leave the state this issue is about. Written
+        after the ingest and failing, the row left a vector document stored and
+        untracked - and the next `new_only` run matched its hash and skipped the
+        file before reaching the write, so it stayed searchable, invisible and
+        undeletable for good."""
+        order: list[str] = []
+        connector = _connector()
+        async with _syncing(mode="new_only", listing=[], connector=connector) as (
+            ingest,
+            documents,
+        ):
+            documents.create_document = AsyncMock(
+                side_effect=lambda **_: order.append("create") or MagicMock(id=ROW_ID)
+            )
+            ingest.side_effect = lambda **_: order.append("ingest") or _result()
+            await rag_tasks._run_source_sync(str(uuid.uuid4()), sync_log_id=str(uuid.uuid4()))
+
+        assert order == ["create", "ingest"]
+
+    async def test_the_row_records_which_models_read_the_document(self):
+        """An upload has carried both since it started tracking; a sync reported
+        neither, so the documents page showed a synced file as parsed by nothing
+        and embedded by nothing."""
+        _, _, documents = await _sync(mode="new_only", listing=[], connector=_connector())
+
+        created = documents.create_document.await_args.kwargs
+        assert created["image_description_model"] == IMAGE_MODEL
+        assert created["embedding_model"] == EMBEDDING_MODEL
+
     async def test_a_file_that_failed_to_parse_keeps_its_own_reason(self):
         """The count in the sync log said four of forty failed and nothing said
         which four, or why."""
@@ -430,13 +523,14 @@ class TestAListingTheStoreCannotAnswer:
             patch(
                 "app.services.rag_document.RAGDocumentService",
                 return_value=MagicMock(
-                    create_document=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+                    create_document=AsyncMock(return_value=MagicMock(id=ROW_ID)),
                     complete_ingestion=AsyncMock(),
                     fail_ingestion=AsyncMock(),
                 ),
             ),
         ):
             config_service.return_value.build_processor = AsyncMock(return_value=MagicMock())
+            config_service.return_value.resolved_image_model = AsyncMock(return_value=None)
             answer = await rag_tasks._run_source_sync(
                 str(uuid.uuid4()), sync_log_id=str(uuid.uuid4())
             )

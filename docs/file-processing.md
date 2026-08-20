@@ -595,6 +595,21 @@ since [#990](https://github.com/vstorm-co/agenticos/issues/990) it skips
 everything unchanged and re-fetches exactly what has no document, so retrying
 four failures out of forty costs four transfers rather than forty.
 
+**The row is opened before the file is indexed**, on every path. Written
+afterwards, a row whose write failed — a database blip, a remote name longer than
+the column — left the vector document stored and untracked, and the next
+`new_only` run then matched its hash and *skipped* the file before reaching the
+write, so it stayed searchable, invisible and undeletable for good. This order's
+worst case is a row that says `processing` beside a document that finished, which
+is visible and can be deleted.
+
+One row per file is not yet an invariant. A file that fails to parse on one sync
+and succeeds on the next leaves both rows, because retirement matches on
+`vector_document_id` and a failed parse wrote no vectors — and it cannot be
+matched by filename instead, since `rag_documents` has no `source_path` column
+and two keys of one basename would delete each other's rows. That column is
+[#996](https://github.com/vstorm-co/agenticos/issues/996).
+
 The connector sync wrote no row at all until
 [#992](https://github.com/vstorm-co/agenticos/issues/992) — the sentence above
 was true of the upload, the CLI and the *local* sync only. A document from a
