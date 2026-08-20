@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.223"
+version = "0.0.224"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
