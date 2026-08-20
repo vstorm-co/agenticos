@@ -1,5 +1,7 @@
 """Tests for service layer."""
 
+import asyncio
+import threading
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -7,7 +9,7 @@ import pytest
 
 from app.core.exceptions import AlreadyExistsError, AuthenticationError, NotFoundError
 from app.schemas.user import UserCreate, UserUpdate
-from app.services.user import UserService
+from app.services.user import _DUMMY_HASH, UserService
 
 
 class MockUser:
@@ -188,6 +190,66 @@ class TestUserServicePostgresql:
 
             with pytest.raises(AuthenticationError):
                 await user_service.authenticate("test@example.com", "password")
+
+    @pytest.mark.anyio
+    async def test_authenticate_runs_bcrypt_off_the_event_loop(
+        self, user_service: UserService, mock_user: MockUser
+    ):
+        """bcrypt is ~170ms with no suspension point, so an unmetered /login flood
+        saturates a worker's event loop (#947). It runs in a thread now: while it
+        blocks in there, the loop keeps turning. If it ran on the loop, the poll
+        below could never observe `in_bcrypt` and the test would hang.
+        """
+        gate = threading.Event()
+        in_bcrypt = threading.Event()
+
+        def blocking_verify(_password: str, _hash: str) -> bool:
+            in_bcrypt.set()
+            gate.wait(timeout=5)
+            return True
+
+        with (
+            patch("app.services.user.user_repo") as mock_repo,
+            patch("app.services.user.verify_password", blocking_verify),
+        ):
+            mock_repo.get_by_email = AsyncMock(return_value=mock_user)
+            login = asyncio.create_task(user_service.authenticate("test@example.com", "password"))
+            try:
+                # Waiting off the loop, so the loop stays free to run `login` up to
+                # its own bcrypt. If bcrypt ran on the loop, `login` would block it
+                # here and this would only resume once bcrypt finished - by which
+                # point `login` is done and the assertion below fails.
+                assert await asyncio.to_thread(in_bcrypt.wait, 5) is True
+                assert not login.done()
+            finally:
+                gate.set()
+            assert await login is mock_user
+
+    @pytest.mark.anyio
+    async def test_authenticate_runs_bcrypt_even_for_an_unknown_address(
+        self, user_service: UserService
+    ):
+        """The timing oracle: an address with no account used to skip bcrypt and be
+        refused in milliseconds, where a known one took ~170ms - two orders of
+        magnitude, measurable over the internet (#947). An unknown address is now
+        verified against `_DUMMY_HASH`, so both refuse in the same time.
+        """
+        checked: list[str] = []
+
+        def recording_verify(_password: str, stored_hash: str) -> bool:
+            checked.append(stored_hash)
+            return False
+
+        with (
+            patch("app.services.user.user_repo") as mock_repo,
+            patch("app.services.user.verify_password", recording_verify),
+        ):
+            mock_repo.get_by_email = AsyncMock(return_value=None)
+
+            with pytest.raises(AuthenticationError):
+                await user_service.authenticate("nobody@example.com", "password")
+
+        assert checked == [_DUMMY_HASH]
 
     @pytest.mark.anyio
     async def test_update_success(self, user_service: UserService, mock_user: MockUser):

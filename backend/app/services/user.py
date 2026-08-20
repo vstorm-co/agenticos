@@ -1,5 +1,7 @@
+import asyncio
 import contextlib
 import logging
+import secrets
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -26,6 +28,12 @@ from app.services.organization import OrganizationService
 from app.services.signup_policy import check_may_register
 
 logger = logging.getLogger(__name__)
+
+# A real bcrypt hash of a value nobody holds, computed once at import. An
+# address with no account is verified against this rather than short-circuited,
+# so an unknown address costs the same ~170ms as a known one and the timing no
+# longer says which addresses have accounts (#947).
+_DUMMY_HASH = get_password_hash(secrets.token_urlsafe(32))
 
 
 class UserService:
@@ -121,7 +129,7 @@ class UserService:
             invitation_token=user_in.invitation_token,
         )
 
-        hashed_password = get_password_hash(user_in.password)
+        hashed_password = await asyncio.to_thread(get_password_hash, user_in.password)
         user = await user_repo.create(
             self.db,
             email=user_in.email,
@@ -217,11 +225,14 @@ class UserService:
 
     async def authenticate(self, email: str, password: str) -> User:
         user = await user_repo.get_by_email(self.db, email)
-        if (
-            not user
-            or not user.hashed_password
-            or not verify_password(password, user.hashed_password)
-        ):
+        # bcrypt is ~170ms with no suspension point, so it runs in a thread rather
+        # than blocking the event loop for every other request the worker holds
+        # (#947). And always against a hash: an unknown address is checked against
+        # `_DUMMY_HASH` rather than skipping bcrypt, so it cannot be told apart
+        # from a known one by how long the refusal takes.
+        stored = user.hashed_password if user and user.hashed_password else _DUMMY_HASH
+        ok = await asyncio.to_thread(verify_password, password, stored)
+        if not user or not user.hashed_password or not ok:
             raise AuthenticationError(message="Invalid email or password")
         if not user.is_active:
             raise AuthenticationError(message="User account is disabled")
@@ -232,7 +243,9 @@ class UserService:
 
         update_data = writable(user_in, over=User)
         if "password" in update_data:
-            update_data["hashed_password"] = get_password_hash(update_data.pop("password"))
+            update_data["hashed_password"] = await asyncio.to_thread(
+                get_password_hash, update_data.pop("password")
+            )
 
         return await user_repo.update(self.db, db_user=user, update_data=update_data)
 
@@ -294,7 +307,9 @@ class UserService:
         await user_repo.update(
             self.db,
             db_user=user,
-            update_data={"hashed_password": get_password_hash(new_password)},
+            update_data={
+                "hashed_password": await asyncio.to_thread(get_password_hash, new_password)
+            },
         )
         # Revoke any active sessions so a previously-issued refresh token cannot
         # outlive a password reset. The current request returns no tokens - the
