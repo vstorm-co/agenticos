@@ -15,9 +15,11 @@ export interface RawToolCall {
 
 /** One entry of a stored timeline - see `MessagePart` in the backend schemas. */
 export interface RawMessagePart {
-  type: "text" | "thinking" | "tool";
+  type: "text" | "thinking" | "tool" | "ask_user";
   text?: string | null;
   tool_call_id?: string | null;
+  question?: string | null;
+  answer?: string | null;
 }
 
 export interface RawMessage {
@@ -76,6 +78,15 @@ export function replayStoredParts(
     if (entry.type === "tool") {
       const toolCall = entry.tool_call_id ? byId.get(entry.tool_call_id) : undefined;
       if (toolCall) parts.push({ id: toolCall.id, type: "tool" as const, toolCall });
+      return;
+    }
+    if (entry.type === "ask_user") {
+      parts.push({
+        id: `${msgId}-ask_user-${index}`,
+        type: "ask_user" as const,
+        question: entry.question ?? "",
+        answer: entry.answer ?? "",
+      });
       return;
     }
     if (!entry.text) return;

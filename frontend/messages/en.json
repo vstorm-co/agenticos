@@ -738,6 +738,8 @@
     "approve": "Approve",
     "archive": "Archive",
     "archivedToast": "Conversation archived",
+    "askUserAnswered": "You answered",
+    "askUserAsked": "Asked you",
     "attachedFile": "Attached file",
     "backAgentAposS": "Back to the agent's own model",
     "cancel": "Cancel",
