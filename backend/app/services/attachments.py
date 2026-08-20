@@ -155,6 +155,37 @@ def _unstored(chat_file: ChatFile) -> str:
     return "".join(parts)
 
 
+def _unreadable(chat_file: ChatFile) -> str:
+    """A file no parser could read, with no workspace to open it from.
+
+    Said rather than skipped, the same principle as `_too_large_to_show`: the
+    person attached a file and asked about it, so an empty prompt reads as the
+    model denying the file the transcript says arrived. There is nothing to
+    sample and no path to give, so the model is told what came and why it cannot
+    be opened.
+    """
+    return (
+        f"\n---\nAttached file: {chat_file.filename} "
+        f"({_size(chat_file)}, {chat_file.file_type}) - its text could not be extracted, "
+        "and this agent has no workspace to open it from."
+    )
+
+
+def _unprocessable(chat_file: ChatFile) -> str:
+    """Named when routing the file raised, so the turn survives but the model is
+    not left denying it.
+
+    The error's own text stays in the `logger.warning` beside the raise; the
+    model is told only that the file arrived and could not be processed, which is
+    all it can honestly say about it.
+    """
+    return (
+        f"\n---\nAttached file: {chat_file.filename} "
+        f"({_size(chat_file)}, {chat_file.file_type}) - it arrived but could not be "
+        "processed, so its contents are unavailable."
+    )
+
+
 class AttachmentRouter:
     """Turns attached files into a prompt, and into files an agent can open.
 
@@ -206,7 +237,7 @@ class AttachmentRouter:
             logger.warning(
                 "attachment_routing_failed", extra={"file_id": str(chat_file.id)}, exc_info=True
             )
-            return AttachmentPlan(reference=None, inline=None)
+            return AttachmentPlan(reference=_unprocessable(chat_file), inline=None)
 
     async def _route(self, chat_file: ChatFile) -> AttachmentPlan:
         backend = self._backend
@@ -236,7 +267,7 @@ class AttachmentRouter:
             return AttachmentPlan(reference=None, inline=inline)
         if chat_file.parsed_content:
             return AttachmentPlan(reference=_pasted(chat_file), inline=None)
-        return AttachmentPlan(reference=None, inline=None)
+        return AttachmentPlan(reference=_unreadable(chat_file), inline=None)
 
     async def _into_workspace(
         self, backend: AsyncBackendProtocol, chat_file: ChatFile
