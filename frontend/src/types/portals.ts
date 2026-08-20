@@ -2,7 +2,7 @@
  * Types for trigger portals, mirroring the backend's `PortalRead`.
  *
  * A **portal** is the friendly face of an event trigger: a named service
- * (GitHub, Email, LinkedIn) with a handful of ready-made **presets** - "fire
+ * (GitHub, Email) with a handful of ready-made **presets** - "fire
  * when a new issue is opened" - so a person picks a card instead of composing a
  * raw `event_source` and signing secret. The picker consumes
  * `GET /trigger-portals`; the raw form under `TriggerFormDialog` stays as the

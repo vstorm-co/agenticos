@@ -204,71 +204,13 @@ class TestRenderContext:
         assert len(context) < 3000
 
 
-class TestLinkedinAndWebhook:
-    def test_a_linkedin_delivery_uses_the_relay_signature_header(self):
-        body = b'{"author": "Jane"}'
+class TestGenericWebhook:
+    def test_a_webhook_delivery_uses_the_relay_signature_header(self):
+        body = b'{"ticket": 7}'
         headers = {"x-signature-256": _sign(_SECRET, body)}
         assert trigger_events.verify_signature(
-            "linkedin", secret=_SECRET, body=body, headers=headers
+            "webhook", secret=_SECRET, body=body, headers=headers
         )
-
-    def test_a_linkedin_post_with_no_filter_matches(self):
-        assert trigger_events.event_matches(
-            "linkedin", headers={}, payload={"author": "Jane", "text": "hello"}, config={}
-        )
-
-    def test_a_linkedin_author_filter_is_applied(self):
-        assert not trigger_events.event_matches(
-            "linkedin",
-            headers={},
-            payload={"author": "Someone Else", "text": "hello"},
-            config={"author_contains": "Jane"},
-        )
-        assert trigger_events.event_matches(
-            "linkedin",
-            headers={},
-            payload={"author": "Jane Doe", "text": "hello"},
-            config={"author_contains": "Jane"},
-        )
-
-    def test_a_linkedin_text_filter_falls_back_to_the_body_field(self):
-        assert trigger_events.event_matches(
-            "linkedin",
-            headers={},
-            payload={"author": "Jane", "body": "launch day"},
-            config={"text_contains": "launch"},
-        )
-        assert not trigger_events.event_matches(
-            "linkedin",
-            headers={},
-            payload={"author": "Jane", "body": "quiet day"},
-            config={"text_contains": "launch"},
-        )
-
-    def test_a_linkedin_author_and_text_filter_match_regardless_of_case(self):
-        assert trigger_events.event_matches(
-            "linkedin",
-            headers={},
-            payload={"author": "Jane DOE", "text": "We SHIPPED it"},
-            config={"author_contains": "doe", "text_contains": "shipped"},
-        )
-
-    def test_a_linkedin_post_renders_its_author_and_text(self):
-        context = trigger_events.render_context(
-            "linkedin",
-            payload={"author": "Jane", "url": "https://li/x", "text": "We shipped it"},
-        )
-        assert "Author: Jane" in context
-        assert "We shipped it" in context
-
-    def test_a_giant_linkedin_body_is_clipped_and_its_header_survives(self):
-        context = trigger_events.render_context(
-            "linkedin",
-            payload={"author": "Jane", "url": "https://li/x", "text": "z" * 10000},
-        )
-        assert "Author: Jane" in context
-        assert "truncated" in context
-        assert len(context) < 3000
 
     def test_a_generic_webhook_always_matches_once_verified(self):
         # The sender chose to deliver; filtering is its job, not the trigger's.

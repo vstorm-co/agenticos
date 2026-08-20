@@ -66,17 +66,19 @@ const PORTALS = {
     {
       // A non-GitHub auto-webhook portal: it still connects through the generic
       // discovery flow, which is what tells the GitHub branch apart from it.
-      key: "linkedin",
-      name: "LinkedIn",
-      description: "Run an agent when a post arrives.",
+      key: "tracker",
+      name: "Tracker",
+      description: "Run an agent when a ticket arrives.",
       category: "productivity",
-      icon: "linkedin",
-      event_source: "linkedin",
+      icon: "linear",
+      event_source: "webhook",
       delivery: "auto_webhook",
       webhook_admin_scopes: [],
       target_kind: null,
       connection_catalog_key: null,
-      presets: [{ key: "new_post", label: "New post", description: "…", target_required: false }],
+      presets: [
+        { key: "new_ticket", label: "New ticket", description: "…", target_required: false },
+      ],
     },
   ],
   total: 3,
@@ -144,7 +146,7 @@ async function mount({
 
 const githubRow = () => within(screen.getByRole("group", { name: "GitHub" }));
 const emailRow = () => within(screen.getByRole("group", { name: "Email" }));
-const linkedinRow = () => within(screen.getByRole("group", { name: "LinkedIn" }));
+const trackerRow = () => within(screen.getByRole("group", { name: "Tracker" }));
 
 describe("PortalCatalog", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -229,10 +231,10 @@ describe("PortalCatalog", () => {
     vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://provider/consent" });
     await mount({ org: [] });
 
-    await userEvent.click(linkedinRow().getByRole("button", { name: "Connect account" }));
+    await userEvent.click(trackerRow().getByRole("button", { name: "Connect account" }));
 
     await waitFor(() =>
-      expect(startMcpOAuth).toHaveBeenCalledWith({ name: "LinkedIn", url: "" }, "organization"),
+      expect(startMcpOAuth).toHaveBeenCalledWith({ name: "Tracker", url: "" }, "organization"),
     );
     expect(startGithubOrgOAuth).not.toHaveBeenCalled();
   });

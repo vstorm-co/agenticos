@@ -1441,16 +1441,6 @@ class TestEventTriggerSchema:
         )
         assert trigger.event_config == {"subject_contains": "urgent", "sender_contains": None}
 
-    def test_a_linkedin_config_is_normalised_with_both_filters(self):
-        trigger = TriggerCreate(
-            prompt="x",
-            trigger_type="event",
-            event_source="linkedin",
-            event_secret=_SIGNING_SECRET,
-            event_config={"author_contains": "Jane"},
-        )
-        assert trigger.event_config == {"author_contains": "Jane", "text_contains": None}
-
     def test_the_generic_webhook_takes_no_filter(self):
         """Filtering is the sender's job; a key here would be stored to mean
         nothing, so the empty config model refuses it."""

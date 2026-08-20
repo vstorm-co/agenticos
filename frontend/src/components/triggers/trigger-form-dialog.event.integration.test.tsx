@@ -142,38 +142,13 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  it("creates a LinkedIn event trigger with its author and text filters", async () => {
-    const user = userEvent.setup();
-    vi.mocked(apiClient.post).mockResolvedValue(trigger({ event_source: "linkedin" }));
-    const dialog = await openEvent();
-
-    await user.click(dialog.getByRole("combobox", { name: "Fires on" }));
-    await user.click(await screen.findByRole("option", { name: "A LinkedIn post" }));
-    await user.type(dialog.getByLabelText("Signing secret"), "a-strong-shared-secret");
-    await user.type(dialog.getByLabelText("Author contains"), "Jane");
-    await user.click(dialog.getByRole("button", { name: "Continue" }));
-    await user.click(dialog.getByRole("button", { name: "Continue" }));
-    await user.type(dialog.getByLabelText("Message"), "Draft a reply");
-    await user.click(dialog.getByRole("button", { name: "Create" }));
-
-    expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
-      prompt: "Draft a reply",
-      name: null,
-      trigger_type: "event",
-      environment_id: null,
-      event_source: "linkedin",
-      event_secret: "a-strong-shared-secret",
-      event_config: { author_contains: "Jane" },
-    });
-  });
-
-  it("creates a generic webhook trigger, which takes no filters", async () => {
+  it("creates a generic API trigger, which takes no filters", async () => {
     const user = userEvent.setup();
     vi.mocked(apiClient.post).mockResolvedValue(trigger({ event_source: "webhook" }));
     const dialog = await openEvent();
 
     await user.click(dialog.getByRole("combobox", { name: "Fires on" }));
-    await user.click(await screen.findByRole("option", { name: "Any webhook" }));
+    await user.click(await screen.findByRole("option", { name: "API (your own code)" }));
     await user.type(dialog.getByLabelText("Signing secret"), "a-strong-shared-secret");
     // No filter inputs for the generic webhook - filtering is the sender's job.
     expect(dialog.queryByLabelText("Subject contains")).toBeNull();
@@ -276,8 +251,8 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     const dialog = await openEvent();
 
     await user.click(dialog.getByRole("combobox", { name: "Fires on" }));
-    // Every source carries a mark beside its name, not four bare words.
-    const option = await screen.findByRole("option", { name: "A LinkedIn post" });
+    // Every source carries a mark beside its name, not three bare words.
+    const option = await screen.findByRole("option", { name: "API (your own code)" });
     expect(option.querySelector("svg")).not.toBeNull();
   });
 });

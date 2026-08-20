@@ -53,7 +53,7 @@ def test_every_event_source_offers_at_least_one_template() -> None:
         for template in trigger_templates.CATALOG
         if template.trigger_type == "event"
     }
-    assert sources == {"github", "email", "linkedin", "webhook"}
+    assert sources == {"github", "email", "webhook"}
 
 
 def test_every_template_key_is_unique() -> None:

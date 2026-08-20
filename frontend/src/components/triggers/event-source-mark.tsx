@@ -8,14 +8,13 @@ import type { EventSource } from "@/types/triggers";
  * on" picker and every trigger row read this so a GitHub trigger never wears two
  * faces across the surfaces.
  *
- * GitHub and LinkedIn get their brand marks (bundled Simple Icons, monochrome
- * `currentColor`, no external fetch); an inbound email and a generic webhook have
- * no brand and take a plain lucide glyph. The mark is decorative - a label always
- * sits beside it - so it is `aria-hidden` and adds no second announcement.
+ * GitHub gets its brand mark (bundled Simple Icons, monochrome `currentColor`,
+ * no external fetch); an inbound email and the API source have no brand and
+ * take a plain lucide glyph. The mark is decorative - a label always sits
+ * beside it - so it is `aria-hidden` and adds no second announcement.
  */
 const BRAND_SOURCES: Partial<Record<EventSource, BrandName>> = {
   github: "github",
-  linkedin: "linkedin",
 };
 
 export function EventSourceMark({

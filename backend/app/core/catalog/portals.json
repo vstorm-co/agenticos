@@ -51,22 +51,5 @@
         "event_config": {}
       }
     ]
-  },
-  {
-    "key": "linkedin",
-    "name": "LinkedIn",
-    "description": "Run an agent when a matching LinkedIn post arrives through a relay.",
-    "category": "marketing",
-    "event_source": "linkedin",
-    "delivery": "manual",
-    "icon": "linkedin",
-    "presets": [
-      {
-        "key": "any_post",
-        "label": "Any matching post",
-        "description": "Fires on every relayed post. Add an author or text filter to narrow it.",
-        "event_config": {}
-      }
-    ]
   }
 ]

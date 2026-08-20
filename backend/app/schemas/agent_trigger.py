@@ -96,21 +96,6 @@ class EmailTriggerConfig(BaseSchema):
     sender_contains: str | None = Field(default=None, max_length=255)
 
 
-class LinkedinTriggerConfig(BaseSchema):
-    """The filter a LinkedIn event trigger applies to a delivered post.
-
-    LinkedIn offers no user-level webhooks, so the delivery comes from whatever
-    relay watches the feed - a Zapier/Make step, a monitoring tool - posting the
-    fields it saw. Both filters are optional substrings over those fields;
-    absent, any signed delivery fires.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    author_contains: str | None = Field(default=None, max_length=255)
-    text_contains: str | None = Field(default=None, max_length=255)
-
-
 class WebhookTriggerConfig(BaseSchema):
     """The generic webhook source carries no filter - a signed delivery fires.
 
@@ -125,7 +110,6 @@ class WebhookTriggerConfig(BaseSchema):
 _EVENT_CONFIG_MODELS: dict[str, type[BaseSchema]] = {
     EventSource.GITHUB.value: GithubTriggerConfig,
     EventSource.EMAIL.value: EmailTriggerConfig,
-    EventSource.LINKEDIN.value: LinkedinTriggerConfig,
     EventSource.WEBHOOK.value: WebhookTriggerConfig,
 }
 
@@ -137,7 +121,7 @@ class TriggerCreate(BaseSchema):
     `interval` ("every N seconds") or `cron` (a crontab evaluated in UTC), the
     expression parsed here so an unschedulable one is a 422 naming the field, not
     a fire that never comes. An `event` trigger instead names an `event_source`
-    (`github`, `email`, `linkedin`, or the catch-all `webhook`), an optional
+    (`github`, `email`, or the catch-all `webhook`), an optional
     per-source `event_config` filter, and the `event_secret` its inbound webhook
     is signed with - the secret is sealed by the service and never stored or
     returned in the clear.
@@ -157,7 +141,7 @@ class TriggerCreate(BaseSchema):
     cron_expression: str | None = Field(default=None, max_length=255)
 
     # Event fields.
-    event_source: Literal["github", "email", "linkedin", "webhook"] | None = None
+    event_source: Literal["github", "email", "webhook"] | None = None
     event_config: dict[str, Any] | None = None
     event_secret: str | None = Field(default=None, min_length=16, max_length=255)
 
@@ -335,7 +319,7 @@ class TriggerRead(BaseSchema, TimestampSchema):
     schedule_kind: Literal["interval", "cron"]
     interval_seconds: int | None = None
     cron_expression: str | None = None
-    event_source: Literal["github", "email", "linkedin", "webhook"] | None = None
+    event_source: Literal["github", "email", "webhook"] | None = None
     event_config: dict[str, Any] = Field(default_factory=dict)
     prompt: str
     # Null on an event trigger, which has no scheduled next fire.

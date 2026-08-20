@@ -12,8 +12,6 @@ function presetEventKey(portalKey: string): string {
       return "event.presetGithub";
     case "email":
       return "event.presetEmail";
-    case "linkedin":
-      return "event.presetLinkedin";
     default:
       return "event.presetGeneric";
   }
@@ -56,8 +54,6 @@ export function TriggerSummary({ trigger }: { trigger: Trigger }) {
           return <>{t("event.github")}</>;
         case "email":
           return <>{t("event.email")}</>;
-        case "linkedin":
-          return <>{t("event.linkedin")}</>;
         case "webhook":
           return <>{t("event.webhook")}</>;
       }

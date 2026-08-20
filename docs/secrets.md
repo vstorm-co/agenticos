@@ -101,7 +101,7 @@ Telegram's `X-Telegram-Bot-Api-Secret-Token`, a Mattermost outgoing webhook's
 token. See [Channels](channels.md).
 
 **Event triggers.** The secret an event trigger's inbound webhook is verified against -
-GitHub's HMAC key, or the signing secret a mail/LinkedIn/generic relay sends - sealed to the organization and
+GitHub's HMAC key, or the signing secret a mail or API relay sends - sealed to the organization and
 stored inline on the trigger row with the `key_version` that sealed it, the same shape
 as a channel bot's signing secret. It is never returned or logged in the clear; the
 verification unseals it, compares in constant time, and a delivery that fails is a 403.

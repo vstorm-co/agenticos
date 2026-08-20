@@ -218,13 +218,22 @@ class TestTheEventShapeRejectsABadRow:
         with pytest.raises(IntegrityError):
             await db.flush()
 
+    async def test_the_removed_linkedin_source_is_refused(self, db):
+        """`linkedin` left the vocabulary with the source's removal; a row
+        claiming it would be one no matcher or renderer can ever serve."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        db.add(_event(org, agent, event_source="linkedin"))
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
     async def test_every_shipped_event_source_is_in_the_vocabulary(self, db):
         """The CHECK's list and the EventSource enum drift apart exactly once -
         when a source is added to the code and not the constraint - so every
         shipped value is written through it here."""
         org = await _org(db)
         agent = await _agent(db, org)
-        for source in ("github", "email", "linkedin", "webhook"):
+        for source in ("github", "email", "webhook"):
             db.add(_event(org, agent, event_source=source))
         await db.flush()
 

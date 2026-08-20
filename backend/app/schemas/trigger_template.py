@@ -30,7 +30,7 @@ class TriggerTemplateRead(BaseSchema):
     prompt: str
     trigger_type: Literal["schedule", "event"]
     suggested_cadence: SuggestedCadenceRead | None = None
-    event_source: Literal["github", "email", "linkedin", "webhook"] | None = None
+    event_source: Literal["github", "email", "webhook"] | None = None
 
 
 class TriggerTemplateList(BaseSchema):

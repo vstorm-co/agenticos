@@ -15,13 +15,12 @@ on the source:
 * :func:`event_matches` - does this delivery pass the trigger's filter? A GitHub
   trigger fires only on an `issues` webhook whose action the filter lists (issue
   creation by default); an email trigger on a subject and sender the filter allows;
-  a LinkedIn trigger on an author and text the filter allows; the generic webhook
-  always - the sender chose to deliver, so filtering is its job.
+  the generic webhook always - the sender chose to deliver, so filtering is its job.
 * :func:`render_context` - what does the agent need to see? The payload rendered to
   the plain-text block appended to the trigger's prompt, so a run knows which issue,
-  email or post set it off.
+  email or delivery set it off.
 
-Adding a third source is a value in :class:`app.db.models.agent_trigger.EventSource`
+Adding a source is a value in :class:`app.db.models.agent_trigger.EventSource`
 and a branch in each of the three functions - nothing on the row and nothing in the
 service.
 """
@@ -35,11 +34,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from app.db.models.agent_trigger import EventSource
-from app.schemas.agent_trigger import (
-    EmailTriggerConfig,
-    GithubTriggerConfig,
-    LinkedinTriggerConfig,
-)
+from app.schemas.agent_trigger import EmailTriggerConfig, GithubTriggerConfig
 
 # Where each source's HMAC-SHA256 signature of the raw body rides. GitHub's is its
 # own native header; every relay-delivered source reuses the same scheme under a
@@ -47,7 +42,6 @@ from app.schemas.agent_trigger import (
 _SIGNATURE_HEADER = {
     EventSource.GITHUB.value: "x-hub-signature-256",
     EventSource.EMAIL.value: "x-signature-256",
-    EventSource.LINKEDIN.value: "x-signature-256",
     EventSource.WEBHOOK.value: "x-signature-256",
 }
 
@@ -69,7 +63,6 @@ _GITHUB_ISSUE_EVENT = "issues"
 _DELIVERY_ID_HEADER = {
     EventSource.GITHUB.value: "x-github-delivery",
     EventSource.EMAIL.value: "x-delivery-id",
-    EventSource.LINKEDIN.value: "x-delivery-id",
     EventSource.WEBHOOK.value: "x-delivery-id",
 }
 
@@ -118,8 +111,6 @@ def event_matches(
         return _github_matches(headers, payload, config)
     if source == EventSource.EMAIL.value:
         return _email_matches(payload, config)
-    if source == EventSource.LINKEDIN.value:
-        return _linkedin_matches(payload, config)
     # The generic webhook: the sender chose to deliver, so a verified delivery
     # is a match by definition.
     return True
@@ -131,8 +122,6 @@ def render_context(source: str, *, payload: Mapping[str, Any]) -> str:
         return _github_context(payload)
     if source == EventSource.EMAIL.value:
         return _email_context(payload)
-    if source == EventSource.LINKEDIN.value:
-        return _linkedin_context(payload)
     return _webhook_context(payload)
 
 
@@ -162,8 +151,8 @@ def _clip(text: str) -> str:
     """A free-text field, truncated so one paste cannot dominate the run's message.
 
     A GitHub issue body runs to 65,536 characters and its author is anyone who can
-    open an issue on the watched repo; an email or LinkedIn body is whatever the
-    relay forwards, also unbounded. The run's budget bounds the spend either way,
+    open an issue on the watched repo; an email body is whatever the relay
+    forwards, also unbounded. The run's budget bounds the spend either way,
     but the cap keeps a single delivery from filling the fired run's prompt with
     text nobody chose to send - the same reason the generic webhook is clipped.
     """
@@ -190,25 +179,6 @@ def _email_context(payload: Mapping[str, Any]) -> str:
         f"From: {payload.get('from', '')}\n"
         f"Subject: {payload.get('subject', '')}\n\n"
         f"{_clip(str(payload.get('body') or payload.get('text') or ''))}"
-    ).strip()
-
-
-def _linkedin_matches(payload: Mapping[str, Any], config: Mapping[str, Any]) -> bool:
-    # Case-insensitive substrings, like the email filter above.
-    parsed = LinkedinTriggerConfig.model_validate(dict(config))
-    author = str(payload.get("author") or "").casefold()
-    text = str(payload.get("text") or payload.get("body") or "").casefold()
-    if parsed.author_contains is not None and parsed.author_contains.casefold() not in author:
-        return False
-    return parsed.text_contains is None or parsed.text_contains.casefold() in text
-
-
-def _linkedin_context(payload: Mapping[str, Any]) -> str:
-    return (
-        "A LinkedIn post arrived.\n"
-        f"Author: {payload.get('author', '')}\n"
-        f"{payload.get('url', '')}\n\n"
-        f"{_clip(str(payload.get('text') or payload.get('body') or ''))}"
     ).strip()
 
 

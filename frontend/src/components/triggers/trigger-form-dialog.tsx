@@ -280,8 +280,8 @@ export function TriggerFormDialog({
   const [eventSource, setEventSource] = useState<EventSource>(trigger?.event_source ?? "github");
   const [secret, setSecret] = useState("");
   // Two generic substring filters; what they mean is the source's business - a
-  // subject and sender for email, an author and text for LinkedIn - so the keys
-  // are mapped in `buildCreate` and the labels in `EventFields`.
+  // subject and sender for email - so the keys are mapped in `buildCreate` and
+  // the labels in `EventFields`.
   const [filterA, setFilterA] = useState("");
   const [filterB, setFilterB] = useState("");
   // The event trigger just created, held so the dialog can show its webhook URL
@@ -1139,7 +1139,6 @@ interface EventFieldsProps {
 // filters the server will actually apply.
 const SOURCE_FILTERS: Partial<Record<EventSource, readonly [string, string]>> = {
   email: ["subjectContains", "senderContains"],
-  linkedin: ["authorContains", "textContains"],
 };
 
 /** The sources the picker offers, each with its static label key so the catalog
@@ -1147,7 +1146,6 @@ const SOURCE_FILTERS: Partial<Record<EventSource, readonly [string, string]>> = 
 const EVENT_SOURCES: readonly { value: EventSource; labelKey: string }[] = [
   { value: "github", labelKey: "sourceGithub" },
   { value: "email", labelKey: "sourceEmail" },
-  { value: "linkedin", labelKey: "sourceLinkedin" },
   { value: "webhook", labelKey: "sourceWebhook" },
 ];
 
@@ -1159,8 +1157,6 @@ function sourceHelp(t: ReturnType<typeof useTranslations>, source: EventSource):
       return t("sourceHelpGithub");
     case "email":
       return t("sourceHelpEmail");
-    case "linkedin":
-      return t("sourceHelpLinkedin");
     case "webhook":
       return t("sourceHelpWebhook");
   }

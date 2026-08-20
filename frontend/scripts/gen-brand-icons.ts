@@ -29,7 +29,7 @@ const OUT = join(here, "..", "src", "lib", "brand-glyphs.generated.ts");
  * - `simple` — Simple Icons, the set behind `react-icons/si`. Every service and
  *   connector mark, monochrome and 24×24 by construction.
  * - `fontawesome` — the marks Simple Icons does not carry in the form the
- *   console used: AWS, Microsoft, Slack's rounded hash, and LinkedIn. Their own
+ *   console used: AWS, Microsoft, and Slack's rounded hash. Their own
  *   viewBoxes.
  * - `lobehub` — the model-provider set, `Mono` variants. `icons/` in the static
  *   package *is* the monochrome form, which is what the console wants: a column
@@ -92,7 +92,6 @@ const BRANDS: Readonly<Record<string, Source>> = {
   huggingface: simple("huggingface"),
   intercom: simple("intercom"),
   linear: simple("linear"),
-  linkedin: fontawesome("linkedin"),
   llamaparse: lobehub("llamaindex"),
   loom: simple("loom"),
   lucid: simple("lucid"),

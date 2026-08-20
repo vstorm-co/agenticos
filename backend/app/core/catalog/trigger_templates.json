@@ -72,14 +72,6 @@
     "event_source": "email"
   },
   {
-    "key": "linkedin_draft_comment",
-    "label": "Draft a comment on the post",
-    "description": "When a matching post appears, draft a comment worth leaving.",
-    "prompt": "A LinkedIn post just matched your filters - the author and text are in this message. Say in one line why the post matters to us, then draft a short, genuine comment worth posting - no generic praise, engage with the substance of what was said.",
-    "trigger_type": "event",
-    "event_source": "linkedin"
-  },
-  {
     "key": "webhook_act_on_delivery",
     "label": "Act on the delivery",
     "description": "When a payload arrives, say what happened and take the next step.",

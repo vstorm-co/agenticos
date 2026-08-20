@@ -6,12 +6,12 @@ import type { EventSource } from "@/types/triggers";
 
 /**
  * One mark per event source, drawn wherever a source is shown so the picker and
- * the trigger rows never disagree. GitHub and LinkedIn get a brand mark, an
- * inbound email and a generic webhook a plain glyph; all are decorative, named
- * by the label beside them.
+ * the trigger rows never disagree. GitHub gets a brand mark, an inbound email
+ * and the API source a plain glyph; all are decorative, named by the label
+ * beside them.
  */
 describe("EventSourceMark", () => {
-  it.each(["github", "email", "linkedin", "webhook"] as EventSource[])(
+  it.each(["github", "email", "webhook"] as EventSource[])(
     "draws a decorative mark for %s",
     (source) => {
       const { container } = render(<EventSourceMark source={source} />);

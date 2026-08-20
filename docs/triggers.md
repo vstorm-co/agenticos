@@ -1,7 +1,7 @@
 # Setting up an event trigger
 
 An **event trigger** fires an agent when a signed webhook arrives - a GitHub issue,
-an inbound email, a LinkedIn post, or anything that can POST signed JSON.
+an inbound email, or anything that can POST signed JSON (the **API** source).
 [Concepts](concepts.md#trigger) covers what a trigger *is* and how a fired run behaves;
 [Governance](governance.md) covers what it spends and how a refusal is handled. This
 page is what you do next: how to point a real provider at the webhook, what the
@@ -29,7 +29,8 @@ the signature and fires the agent only if the two match.
   {PUBLIC_BASE_URL}/api/v1/webhooks/triggers/{source}/{trigger_id}
   ```
 
-  `source` is one of `github`, `email`, `linkedin`, `webhook`; `trigger_id` is an
+  `source` is one of `github`, `email`, `webhook` (the API source's wire name);
+  `trigger_id` is an
   unguessable UUID. The dialog fills this in for you - copy it, do not build it by hand.
 
 - **The signature** is `HMAC-SHA256` over the **exact raw request bytes**, keyed with
@@ -39,7 +40,7 @@ the signature and fires the agent only if the two match.
   | Source | Header |
   |---|---|
   | `github` | `X-Hub-Signature-256` |
-  | `email`, `linkedin`, `webhook` | `X-Signature-256` |
+  | `email`, `webhook` | `X-Signature-256` |
 
   GitHub signs deliveries natively under its own `X-Hub-Signature-256` header, so you
   give GitHub the secret and it does the signing. Every other source reuses the identical
@@ -104,8 +105,8 @@ mismatch - almost always the secret is wrong or the content type is not
 
 ## The payload contract for relay-delivered sources
 
-GitHub owns its payload shape. The other sources do not: `email` and `linkedin`
-deliveries come from whatever relay you point at the URL - a Zapier or Make step, a
+GitHub owns its payload shape. The other sources do not: an `email` delivery comes
+from whatever relay you point at the URL - a Zapier or Make code step, a
 monitoring tool, a small script - and that relay decides what JSON to send. The filters
 read specific field names, and **if the relay names a field anything else, the filter
 silently never matches and the trigger simply never fires** - there is no error to tell
@@ -130,21 +131,11 @@ narrow the trigger at create time, or leave them blank to fire on every incoming
 They map to the `subject_contains` and `sender_contains` filter above, and either one can
 still be changed later by editing the trigger's filter.
 
-**LinkedIn** (`source = linkedin`):
-
-| Field | Used for |
-|---|---|
-| `author` | `author_contains` filter |
-| `text` | `text_contains` filter, and appended to the prompt (accepts `body` as an alias) |
-| `url` | appended to the prompt |
-
-```json
-{ "author": "Jane Doe", "text": "We are hiring…", "url": "https://www.linkedin.com/…" }
-```
-
-The catch-all `webhook` source has no filter - a verified delivery fires, and the whole
-JSON body is appended to the prompt - so use it for anything whose shape does not fit
-the two above.
+The catch-all `webhook` source - **API** in the dialogs - has no filter: a verified
+delivery fires, and the whole JSON body is appended to the prompt. Use it for anything
+whose shape does not fit the contract above; watching a feed no provider exposes an
+API for (a LinkedIn page, a marketplace listing) is exactly this source, with whatever
+relay you write doing the watching.
 
 ## Signing a delivery yourself
 

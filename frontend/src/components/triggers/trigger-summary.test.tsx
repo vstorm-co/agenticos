@@ -79,19 +79,6 @@ describe("TriggerSummary", () => {
     expect(screen.getByText("On inbound email")).toBeInTheDocument();
   });
 
-  it("names a LinkedIn event trigger", () => {
-    render(
-      <TriggerSummary
-        trigger={trigger({
-          trigger_type: "event",
-          event_source: "linkedin",
-          interval_seconds: null,
-        })}
-      />,
-    );
-    expect(screen.getByText("On new LinkedIn posts")).toBeInTheDocument();
-  });
-
   it("reads a portal preset in plain language with its target", () => {
     render(
       <TriggerSummary
@@ -121,7 +108,7 @@ describe("TriggerSummary", () => {
     expect(screen.getByText("On new GitHub issues")).toBeInTheDocument();
   });
 
-  it("names a generic webhook event trigger", () => {
+  it("names an API event trigger", () => {
     render(
       <TriggerSummary
         trigger={trigger({
@@ -131,6 +118,6 @@ describe("TriggerSummary", () => {
         })}
       />,
     );
-    expect(screen.getByText("On a webhook delivery")).toBeInTheDocument();
+    expect(screen.getByText("On an API delivery")).toBeInTheDocument();
   });
 });

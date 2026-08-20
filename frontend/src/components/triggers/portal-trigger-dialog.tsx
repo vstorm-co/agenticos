@@ -117,8 +117,8 @@ export function PortalTriggerDialog({
   const [environmentId, setEnvironmentId] = useState(DEFAULT_ENV);
   const [target, setTarget] = useState("");
   // Two generic substring slots, mapped to the source's `event_config` keys by
-  // `FILTER_KEYS` - a subject and sender for email, an author and post text for
-  // LinkedIn, none for a source that filters nothing. Empty slots are not sent.
+  // `FILTER_KEYS` - a subject and sender for email, none for a source that
+  // filters nothing. Empty slots are not sent.
   const [filterA, setFilterA] = useState("");
   const [filterB, setFilterB] = useState("");
   // Which seeded template the message started from, or null for "from scratch".
