@@ -426,4 +426,42 @@ describe("rating an answer", () => {
 
     release({ ok: true, status: 200, json: () => Promise.resolve({}) });
   });
+
+  it("spins one thumb on a message nobody has rated yet", async () => {
+    // An unrated message has currentRating === null, the case a spinner keyed
+    // on the rating cannot tell apart - and the normal one.
+    let release: (value: unknown) => void = () => {};
+    fetchMock = vi.fn().mockReturnValue(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    mount();
+
+    await userEvent.click(up());
+
+    await waitFor(() => expect(up().querySelector(".animate-spin")).not.toBeNull());
+    expect(down().querySelector(".animate-spin")).toBeNull();
+
+    release({ ok: true, status: 200, json: () => Promise.resolve({}) });
+  });
+
+  it("spins one thumb when a rating is being removed", async () => {
+    let release: (value: unknown) => void = () => {};
+    fetchMock = vi.fn().mockReturnValue(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    mount({ currentRating: RatingValue.DISLIKE });
+
+    await userEvent.click(down());
+
+    await waitFor(() => expect(down().querySelector(".animate-spin")).not.toBeNull());
+    expect(up().querySelector(".animate-spin")).toBeNull();
+
+    release({ ok: true, status: 200, json: () => Promise.resolve({}) });
+  });
 });
