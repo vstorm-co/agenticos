@@ -111,6 +111,55 @@ class TestClientConstruction:
         assert reranker.client is not None
 
 
+class TestClientLifecycle:
+    """A client the reranker builds is request-scoped and closed after the search.
+
+    The process-wide retrieval service builds a fresh reranker per query, so an
+    unclosed client would leak one httpx connection pool per search. An injected
+    client is the caller's and is left open.
+    """
+
+    async def test_a_client_it_builds_is_closed_after_reranking(self):
+        built = _client_returning((0, 0.9))
+        with patch("app.services.rag.reranker.cohere.AsyncClientV2", return_value=built) as ctor:
+            reranker = CohereReranker(model="rerank-v3.5", api_key="co-key")
+            await reranker.rerank("q", _results("a"), top_n=1)
+
+        ctor.assert_called_once_with(api_key="co-key")
+        built.__aexit__.assert_awaited_once()
+        assert reranker._client is None
+
+    async def test_a_built_client_is_closed_even_when_the_call_fails(self):
+        built = AsyncMock()
+        built.rerank = AsyncMock(side_effect=RuntimeError("cohere down"))
+        with patch("app.services.rag.reranker.cohere.AsyncClientV2", return_value=built):
+            reranker = CohereReranker(model="rerank-v3.5", api_key="co-key")
+            with pytest.raises(RuntimeError):
+                await reranker.rerank("q", _results("a"), top_n=1)
+
+        built.__aexit__.assert_awaited_once()
+        assert reranker._client is None
+
+    async def test_an_injected_client_is_left_open(self):
+        client = _client_returning((0, 0.9))
+        reranker = _reranker(client)
+
+        await reranker.rerank("q", _results("a"), top_n=1)
+
+        client.__aexit__.assert_not_awaited()
+        assert reranker._client is client
+
+    async def test_a_close_failure_is_swallowed_and_does_not_mask_the_result(self):
+        built = _client_returning((0, 0.9))
+        built.__aexit__ = AsyncMock(side_effect=RuntimeError("pool already gone"))
+        with patch("app.services.rag.reranker.cohere.AsyncClientV2", return_value=built):
+            reranker = CohereReranker(model="rerank-v3.5", api_key="co-key")
+            reranked = await reranker.rerank("q", _results("a"), top_n=1)
+
+        assert [r.content for r in reranked] == ["a"]
+        assert reranker._client is None
+
+
 class TestConfigEquality:
     """Two rerankers are equal when they name the same model and key.
 

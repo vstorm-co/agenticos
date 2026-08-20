@@ -70,13 +70,19 @@ class CohereReranker(BaseReranker):
     """Cohere's rerank endpoint behind :class:`BaseReranker`.
 
     The client is built on first use and can be injected, so a test drives the
-    reranker without a network or a key.
+    reranker without a network or a key. A reranker is built per search and
+    reranks once, so a client it builds itself is request-scoped: `rerank`
+    closes it before returning rather than leaving the httpx connection pool
+    open. Nothing else does - the process-wide retrieval service builds a fresh
+    reranker every search - so an unclosed client would accumulate one pool per
+    query. An injected client belongs to its caller and is left open.
     """
 
     def __init__(self, model: str, api_key: str, client: AsyncClientV2 | None = None) -> None:
         self.model = model
         self._api_key = api_key
         self._client = client
+        self._owns_client = client is None
 
     def __eq__(self, other: object) -> bool:
         # Two rerankers are the same reranker when they name the same model and
@@ -102,27 +108,45 @@ class CohereReranker(BaseReranker):
         if not results:
             return []
 
-        response = await self.client.rerank(
-            model=self.model,
-            query=query,
-            documents=[r.content for r in results],
-            top_n=min(top_n, len(results)),
-        )
-
-        # Booked only once the call has returned: Cohere does not bill a failed
-        # request, and a raise propagates to retrieval, which degrades to the
-        # un-reranked order rather than failing the search.
-        book_ambient_spend(self._spend_entry(len(results)))
-
-        return [
-            SearchResult(
-                content=results[item.index].content,
-                score=item.relevance_score,
-                metadata=results[item.index].metadata,
-                parent_doc_id=results[item.index].parent_doc_id,
+        client = self.client
+        try:
+            response = await client.rerank(
+                model=self.model,
+                query=query,
+                documents=[r.content for r in results],
+                top_n=min(top_n, len(results)),
             )
-            for item in response.results
-        ]
+
+            # Booked only once the call has returned: Cohere does not bill a
+            # failed request, and a raise propagates to retrieval, which degrades
+            # to the un-reranked order rather than failing the search.
+            book_ambient_spend(self._spend_entry(len(results)))
+
+            return [
+                SearchResult(
+                    content=results[item.index].content,
+                    score=item.relevance_score,
+                    metadata=results[item.index].metadata,
+                    parent_doc_id=results[item.index].parent_doc_id,
+                )
+                for item in response.results
+            ]
+        finally:
+            await self._release(client)
+
+    async def _release(self, client: AsyncClientV2) -> None:
+        """Close a client this reranker built; leave an injected one alone.
+
+        Best-effort: a failure to return the connection pool is logged, never
+        raised, so it cannot mask the rerank's own result or exception.
+        """
+        if not self._owns_client:
+            return
+        self._client = None
+        try:
+            await client.__aexit__(None, None, None)
+        except Exception:
+            logger.warning("[RERANK] Closing the Cohere client failed", exc_info=True)
 
     def _spend_entry(self, document_count: int) -> SpendEntry:
         units = ceil(document_count / _DOCS_PER_SEARCH_UNIT)
