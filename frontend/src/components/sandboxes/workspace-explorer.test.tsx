@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -196,24 +196,51 @@ describe("the workspace explorer", () => {
     expect(screen.getByText(/Nothing in this workspace matches/)).toBeVisible();
   });
 
-  it("opens the viewer on the file that was clicked", async () => {
+  it("renders the file beside the tree rather than over it", async () => {
+    // A dialog closes the list every time, and reading a workspace means reading
+    // several files in turn - so the tree stays and the file renders next to it
+    // (#1039). `FileViewer` is still what the flat "all files" list opens, where
+    // one file is the whole errand.
     render(<WorkspaceExplorer workspaceId="w-1" />);
 
     await userEvent.click(screen.getByRole("button", { name: "report.md" }));
 
-    expect(await screen.findByRole("dialog")).toBeVisible();
-    expect(screen.getByRole("heading", { name: /report\.md/ })).toBeVisible();
-    expect(screen.getByTestId("rendered")).toHaveTextContent("# Report");
+    expect(await screen.findByTestId("rendered")).toHaveTextContent("# Report");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    // The tree is still there, which is the whole reason for the shape.
+    expect(screen.getByRole("button", { name: "chart.png" })).toBeVisible();
   });
 
-  it("closes it again", async () => {
+  it("offers markdown as source, and offers nothing to toggle on an image", async () => {
+    // The toggle exists where there are two renderings to choose between. On a PNG
+    // it would offer to show the same thing twice.
+    render(<WorkspaceExplorer workspaceId="w-1" />);
+
+    await userEvent.click(screen.getByRole("button", { name: "report.md" }));
+    await userEvent.click(screen.getByRole("button", { name: "Source" }));
+
+    expect(screen.getByRole("button", { name: "Preview" })).toHaveAttribute("aria-pressed", "true");
+
+    await userEvent.click(screen.getByRole("button", { name: "chart.png" }));
+
+    expect(screen.queryByRole("button", { name: /Source|Preview/ })).toBeNull();
+  });
+
+  it("moves between two files in one click", async () => {
     render(<WorkspaceExplorer workspaceId="w-1" />);
     await userEvent.click(screen.getByRole("button", { name: "report.md" }));
-    await screen.findByRole("dialog");
+    await screen.findByTestId("rendered");
 
-    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    await userEvent.click(screen.getByRole("button", { name: "chart.png" }));
 
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByRole("button", { name: "chart.png" })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "report.md" })).toHaveAttribute(
+      "aria-current",
+      "false",
+    );
   });
 
   it("offers a download without opening the file first", async () => {
