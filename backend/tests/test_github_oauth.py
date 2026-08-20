@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import patch
 
+import httpx
 import pytest
 
 from app.services.portals import github_oauth
@@ -131,6 +132,24 @@ class TestTheTokenExchange:
     async def test_a_200_without_a_token_is_a_recoverable_error(self) -> None:
         with (
             _patch_client(_Resp(200, {"scope": "repo"}), []),
+            pytest.raises(github_oauth.GithubOAuthError),
+        ):
+            await github_oauth.exchange_code(
+                client_id="cid", client_secret="cs", code="c", redirect_uri="https://app/cb"
+            )
+
+    async def test_a_transport_failure_is_a_recoverable_error_not_a_500(self) -> None:
+        """A timeout or a refused connection raises out of httpx before there is
+        any response to judge. The shared callback only recovers `GithubOAuthError`
+        into its `ok=false` result, so an ordinary GitHub outage must arrive as
+        that error - anything else is a 500 for a failure the user can retry."""
+
+        class _DownClient(_FakeClient):
+            async def post(self, url: str, **kwargs: Any) -> _Resp:
+                raise httpx.ConnectTimeout("connection timed out")
+
+        with (
+            patch("httpx.AsyncClient", lambda **_kw: _DownClient(_Resp(200, {}), [])),
             pytest.raises(github_oauth.GithubOAuthError),
         ):
             await github_oauth.exchange_code(

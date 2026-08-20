@@ -89,22 +89,33 @@ async def exchange_code(
     """Exchange an authorization code for an access token.
 
     Raises:
-        GithubOAuthError: The endpoint answered non-200, answered with an error
-            body, or returned no access token. The message is a fixed string - the
-            response body carries the token on success and an error description on
-            failure, and neither belongs in a log line or a browser toast.
+        GithubOAuthError: The endpoint could not be reached, answered non-200,
+            answered with an error body, or returned no access token. A transport
+            failure - a timeout, a refused connection, a dropped response - is
+            translated too, because the shared OAuth callback turns this error
+            into its recoverable `ok=false` result and anything else into a 500;
+            an ordinary GitHub outage is the user's to retry, not a server error.
+            The message is a fixed string - the response body carries the token on
+            success and an error description on failure, and neither belongs in a
+            log line or a browser toast.
     """
-    async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=False) as client:
-        response = await client.post(
-            TOKEN_ENDPOINT,
-            headers={"Accept": "application/json"},
-            data={
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "code": code,
-                "redirect_uri": redirect_uri,
-            },
-        )
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=False) as client:
+            response = await client.post(
+                TOKEN_ENDPOINT,
+                headers={"Accept": "application/json"},
+                data={
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "code": code,
+                    "redirect_uri": redirect_uri,
+                },
+            )
+    except httpx.HTTPError as exc:
+        logger.warning("github_token_exchange_unreachable", extra={"error": type(exc).__name__})
+        raise GithubOAuthError(
+            "GitHub could not be reached - please try connecting again."
+        ) from exc
     if response.status_code != 200:
         logger.warning("github_token_exchange_failed", extra={"status": response.status_code})
         raise GithubOAuthError("GitHub rejected the authorization - please try connecting again.")
