@@ -595,20 +595,18 @@ since [#990](https://github.com/vstorm-co/agenticos/issues/990) it skips
 everything unchanged and re-fetches exactly what has no document, so retrying
 four failures out of forty costs four transfers rather than forty.
 
-**An upload and a connector sync open the row before the file is indexed.**
-Written afterwards, a row whose write failed — a database blip, a remote name
-longer than the column — left the vector document stored and untracked, and the
-next `new_only` run then matched its hash and *skipped* the file before reaching
-the write, so it stayed searchable, invisible and undeletable for good. This
-order's worst case is a row that says `processing` beside a document that
-finished, which is visible and can be deleted.
-
-The **local-directory** sync still writes its row after the ingest, and only when
-the ingest succeeded — so it carries the same exposure, and a file that failed to
-parse leaves no row and no reason at all.
-[#997](https://github.com/vstorm-co/agenticos/issues/997) is that reorder; it is
-a narrower path (an app admin naming a directory on the server) which is why it
-is not folded in here.
+**Every path opens the row before the file is indexed.** Written afterwards, a
+row whose write failed — a database blip, a name longer than the column — left the
+vector document stored and untracked, and the next `new_only` run then matched
+its hash and *skipped* the file before reaching the write, so it stayed
+searchable, invisible and undeletable for good. This order's worst case is a row
+that says `processing` beside a document that finished, which is visible and can
+be deleted. The connector sync stopped writing afterwards in
+[#992](https://github.com/vstorm-co/agenticos/issues/992) and the
+local-directory one in
+[#997](https://github.com/vstorm-co/agenticos/issues/997), which also gave a
+locally-synced file that fails to parse a row and a reason — it had neither, so a
+sync log saying four of forty failed named none of them.
 
 One row per file is not yet an invariant. A file that fails to parse on one sync
 and succeeds on the next leaves both rows, because retirement matches on
