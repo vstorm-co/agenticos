@@ -24,6 +24,10 @@ export const qk = {
     all: () => ["agents"] as const,
     /** `includeArchived` is part of the key: the two lists are different rows. */
     list: (includeArchived = false) => ["agents", "list", includeArchived] as const,
+    // One boolean assembled from as many pages as it takes - "may this caller
+    // create a trigger anywhere". Its own key, not a list page's, and under
+    // "agents" so the same invalidations that move the list refresh the answer.
+    anyRunnable: () => ["agents", "any-runnable"] as const,
     detail: (id: string) => ["agents", id] as const,
     // The page is part of the key: a history past its page size is several
     // answers, and caching one as another shows the wrong decade of the timeline.

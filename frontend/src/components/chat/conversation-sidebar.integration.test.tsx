@@ -66,16 +66,18 @@ function conversation(id: string, title: string) {
 function serve(items: ReturnType<typeof conversation>[], total = items.length) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path.includes("/messages")) return { items: [], total: 0 };
+    // The trigger-menu gate sweeps /agents itself for a runnable one.
+    if (path === "/agents") return { items: mockAgents, total: mockAgents.length };
     return { items, total };
   });
 }
 
-/** Every list request made so far, newest last. */
+/** Every conversation-list request made so far, newest last. */
 function listRequests(): string[] {
   return vi
     .mocked(apiClient.get)
     .mock.calls.map(([path]) => path as string)
-    .filter((path) => !path.includes("/messages"));
+    .filter((path) => !path.includes("/messages") && path !== "/agents");
 }
 
 function mount() {
