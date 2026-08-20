@@ -118,8 +118,7 @@ class IngestionService:
         by_hash: DocumentInfo | None = None
         for doc in docs:
             meta = doc.additional_info or {}
-            stored_path = str(meta.get("source_path") or "")
-            if source_path and stored_path == source_path:
+            if source_path and meta.get("source_path") == source_path:
                 return _stored(doc)
             if by_filename is None and filename and doc.filename == filename and _unaddressed(doc):
                 by_filename = doc
@@ -168,9 +167,10 @@ class IngestionService:
             # is where the embeddings are computed, so a provider that refuses
             # between the two statements used to leave the collection with
             # *neither* document - permanently, since the failure is returned
-            # rather than raised and nothing retries it. In this order the worst
-            # case is both for as long as the insert takes, which a search
-            # survives and a reader can see (#990).
+            # rather than raised and nothing retries it. This order fails the
+            # other way: a delete that does not happen leaves both, which is
+            # visible, searchable and fixable, where neither was none of those
+            # (#990).
             await self.store.insert_document(
                 collection_name=collection_name,
                 document=document,
