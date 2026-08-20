@@ -118,6 +118,7 @@ class RAGDocumentService:
         filesize: int,
         filetype: str,
         storage_path: str | None = None,
+        source_path: str | None = None,
         organization_id: UUID | None = None,
         knowledge_base_id: UUID | None = None,
         ingestion_config: IngestionConfig | None = None,
@@ -125,7 +126,17 @@ class RAGDocumentService:
         image_description_model: str | None = None,
         embedding_model: str | None = None,
     ) -> RAGDocument:
-        """Create a new RAG document tracking record."""
+        """Create a new RAG document tracking record.
+
+        `source_path` is how the ingest addressed the file, and it is what lets a
+        later run find this row again - `discard_unindexed` retires a previous
+        attempt at the *same file* rather than at the same basename, which two
+        keys in one bucket share (#996).
+        """
+        if source_path:
+            await rag_document_repo.discard_unindexed(
+                self.db, collection_name=collection_name, source_path=source_path
+            )
         return await rag_document_repo.create(
             self.db,
             collection_name=collection_name,
@@ -133,6 +144,7 @@ class RAGDocumentService:
             filesize=filesize,
             filetype=filetype,
             storage_path=storage_path or "",
+            source_path=source_path,
             organization_id=organization_id,
             knowledge_base_id=knowledge_base_id,
             ingestion_config=(
@@ -223,6 +235,12 @@ class RAGDocumentService:
             filesize=len(file_data),
             filetype=ext.lstrip("."),
             storage_path=storage_path,
+            # The same value `ingest_document_flow` is dispatched with below, so
+            # the row and the stored document agree on which file this is. An
+            # upload has no address of its own, which is why it is the filename -
+            # and why a document uploaded once and later synced from the folder it
+            # came from is still reachable by name (`_unaddressed`).
+            source_path=filename,
             organization_id=organization_id,
             knowledge_base_id=knowledge_base_id,
             ingestion_config=config,

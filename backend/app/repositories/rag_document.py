@@ -84,6 +84,7 @@ async def create(
     filesize: int,
     filetype: str,
     storage_path: str,
+    source_path: str | None = None,
     status: DocumentStatus = DocumentStatus.PROCESSING,
     organization_id: UUID | None = None,
     knowledge_base_id: UUID | None = None,
@@ -99,6 +100,7 @@ async def create(
         filesize=filesize,
         filetype=filetype,
         storage_path=storage_path,
+        source_path=source_path,
         status=status,
         organization_id=organization_id,
         knowledge_base_id=knowledge_base_id,
@@ -161,6 +163,36 @@ async def get_superseded(
         )
     )
     return list(result.scalars().all())
+
+
+async def discard_unindexed(db: AsyncSession, *, collection_name: str, source_path: str) -> int:
+    """Drop rows for this file that point at no vector document, and count them.
+
+    A failed parse writes no vectors, so the row it leaves has no
+    `vector_document_id` - and `complete_ingestion`'s retirement matches on
+    exactly that, which is why a file failing one sync and succeeding the next
+    used to leave both rows and inflate the collection's count for good (#996).
+    A stale `processing` row from a run that died mid-ingest is the same shape and
+    goes the same way.
+
+    **Only rows with no vector document.** One that has vectors is retired by
+    `complete_ingestion` after the replacement is written, and deleting it here -
+    before an ingest that may fail - would drop the only record of a document the
+    store still holds.
+
+    Matched on `source_path` rather than `filename`, which is the whole reason
+    the column exists: `a/readme.md` and `b/readme.md` in one bucket share a
+    basename, and matching by name would delete the other file's row.
+    """
+    result = await db.execute(
+        sql_delete(RAGDocument).where(
+            RAGDocument.collection_name == collection_name,
+            RAGDocument.source_path == source_path,
+            RAGDocument.vector_document_id.is_(None),
+        )
+    )
+    await db.flush()
+    return int(result.rowcount or 0)
 
 
 async def delete(db: AsyncSession, doc_id: UUID) -> bool:

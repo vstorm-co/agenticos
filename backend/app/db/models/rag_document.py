@@ -41,6 +41,16 @@ class RAGDocument(TimestampMixin, Base):
     filesize: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     filetype: Mapped[str] = mapped_column(String(20), nullable=False)
     storage_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Which file this row tracks, as the ingest addressed it: `gdrive://<id>`,
+    # `s3://bucket/key`, an absolute path for a local sync, and the filename
+    # itself for an upload, which has no address of its own.
+    #
+    # Indexed because it is how a row is found again. Without it a row could only
+    # be matched by `filename`, and two keys of one basename in a bucket are
+    # indistinguishable that way - so retiring "the previous row for this file"
+    # deleted the other file's (#996), which is the collision #990 removed on the
+    # vector side. Nullable for every row written before this column existed.
+    source_path: Mapped[str | None] = mapped_column(String(1024), nullable=True, index=True)
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default=DocumentStatus.PROCESSING
     )

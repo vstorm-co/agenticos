@@ -119,3 +119,65 @@ class TestTheRouteThatTheDocumentsTabUses:
             )
 
         documents.delete_document.assert_not_awaited()
+
+
+class TestRetiringAPreviousAttempt:
+    """A file that failed one sync and succeeded the next left both rows (#996).
+
+    `complete_ingestion`'s retirement matches on `vector_document_id`, and a
+    failed parse writes none - so the succeeding run had nothing to name, both
+    rows survived, and the collection's `document_count` was inflated for good by
+    every repeated failure.
+
+    It cannot be matched by filename instead, which is why `rag_documents` gained
+    a `source_path`: `a/readme.md` and `b/readme.md` in one bucket share a
+    basename, and matching by name would delete the other file's row - the
+    collision #990 removed on the vector side.
+    """
+
+    async def test_a_previous_attempt_at_the_same_file_is_discarded(self, monkeypatch):
+        discard = AsyncMock(return_value=1)
+        monkeypatch.setattr(rag_document_repo, "discard_unindexed", discard)
+        monkeypatch.setattr(rag_document_repo, "create", AsyncMock(return_value=MagicMock()))
+
+        await RAGDocumentService(MagicMock()).create_document(
+            collection_name="docs",
+            filename="readme.md",
+            filesize=4,
+            filetype="md",
+            source_path="s3://bucket/a/readme.md",
+        )
+
+        assert discard.await_args.kwargs == {
+            "collection_name": "docs",
+            "source_path": "s3://bucket/a/readme.md",
+        }
+
+    async def test_a_row_with_no_address_discards_nothing(self, monkeypatch):
+        """One written before the column existed, or by a path that has no
+        address to give. Guessing an address from its filename is the guess the
+        column exists to avoid."""
+        discard = AsyncMock()
+        monkeypatch.setattr(rag_document_repo, "discard_unindexed", discard)
+        monkeypatch.setattr(rag_document_repo, "create", AsyncMock(return_value=MagicMock()))
+
+        await RAGDocumentService(MagicMock()).create_document(
+            collection_name="docs", filename="readme.md", filesize=4, filetype="md"
+        )
+
+        discard.assert_not_awaited()
+
+    async def test_the_address_is_recorded_on_the_row(self, monkeypatch):
+        monkeypatch.setattr(rag_document_repo, "discard_unindexed", AsyncMock(return_value=0))
+        created = AsyncMock(return_value=MagicMock())
+        monkeypatch.setattr(rag_document_repo, "create", created)
+
+        await RAGDocumentService(MagicMock()).create_document(
+            collection_name="docs",
+            filename="readme.md",
+            filesize=4,
+            filetype="md",
+            source_path="gdrive://file-1",
+        )
+
+        assert created.await_args.kwargs["source_path"] == "gdrive://file-1"

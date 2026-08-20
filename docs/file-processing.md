@@ -608,12 +608,23 @@ local-directory one in
 locally-synced file that fails to parse a row and a reason — it had neither, so a
 sync log saying four of forty failed named none of them.
 
-One row per file is not yet an invariant. A file that fails to parse on one sync
-and succeeds on the next leaves both rows, because retirement matches on
-`vector_document_id` and a failed parse wrote no vectors — and it cannot be
-matched by filename instead, since `rag_documents` has no `source_path` column
-and two keys of one basename would delete each other's rows. That column is
-[#996](https://github.com/vstorm-co/agenticos/issues/996).
+**A row says which file it tracks**, in `source_path`: `gdrive://<id>`,
+`s3://bucket/key`, an absolute path for a local sync, and the filename itself for
+an upload, which has no address of its own. That is what retires a previous
+attempt at the *same file* — a failed parse writes no vectors, so
+`complete_ingestion`'s retirement has nothing to match and both rows used to
+survive, one more per failure, each counting toward the collection's
+`document_count` ([#996](https://github.com/vstorm-co/agenticos/issues/996)).
+
+Retiring by **filename** instead is the trap, and it is the collision
+[#990](https://github.com/vstorm-co/agenticos/issues/990) removed on the vector
+side reached from the other direction: `a/readme.md` and `b/readme.md` in one
+bucket share a basename, so a name match would delete the other file's row. Only
+rows with no `vector_document_id` are retired this way — one that has vectors
+describes a document the store still holds, and this runs *before* an ingest that
+may fail. Rows written before the column exists keep `NULL` and are matched by
+address never and by vector document as before; inventing an address from a
+filename is the guess the column exists to avoid.
 
 The connector sync wrote no row at all until
 [#992](https://github.com/vstorm-co/agenticos/issues/992) — the sentence above
