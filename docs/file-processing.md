@@ -743,6 +743,89 @@ config. A connector cannot reach the vault itself, and a source whose secret was
 deleted syncs no further — the connectors have no deployment-wide fallback and
 must not grow one.
 
+### Who ends up able to read what a source ingested
+
+**The collection is the permission boundary, and a source's credential is its
+reach.** A sync source ingests into exactly one collection, access is decided at
+the collection (see [Who may reach a collection](#who-may-reach-a-collection)),
+and there is no per-document isolation inside one — so **everything that
+credential can see becomes readable by everyone who can read that collection.**
+A Confluence token good for the whole instance, pointed at an `org` collection,
+publishes the whole instance to every member holding `collections:view`.
+
+That is a decision somebody has to make, and the platform's answer is to make it
+**explicit rather than clever**. The alternative — mirroring each source's own
+ACLs into the store and filtering at retrieval — is not on the roadmap, and the
+reasons are worth stating so it is not proposed again as an obvious win:
+
+- **There is no identity map.** A SharePoint ACL names Entra principals, a
+  Confluence one names Atlassian accounts, and neither is an `organization_members`
+  row. Guessing the correspondence by email address is how a platform grants the
+  wrong person access to the right document.
+- **An ACL is a moving target.** A permission changed in the source is invisible
+  here until the next sync, so a mirrored ACL is *stale authorization* — worse
+  than none, because it looks like an answer.
+- **A crawler has no ACL at all**, and a git repository's is the hosting
+  platform's rather than the document's. A model that only works for two of the
+  candidate connectors is not the model.
+
+So the rule for whoever creates a source, and the thing a wizard step has to
+say: **scope the credential, not the collection.** A service account shared into
+one folder, an Entra app consented to one site rather than a tenant, a
+Confluence token limited to a space — the reach of the credential *is* the reach
+of the source, and it is the only knob that narrows it. Pointing a broad
+credential at a `personal` collection narrows the readers but not what was
+ingested; pointing a narrow one at an `org` collection is the shape to aim for.
+
+Two things this rule owes and does not yet have, each filed:
+[#982](https://github.com/vstorm-co/agenticos/issues/982) states the consequence
+in the wizard where the collection is chosen, and re-asks when a source is
+repointed at a different one; [#983](https://github.com/vstorm-co/agenticos/issues/983)
+records creating and repointing a source in the audit log, which is what gives
+"who decided this collection gets that credential's reach" an answer after the
+fact. Today both are silent, which is exactly the implicitness this section
+exists to name.
+
+### What a new connector owes
+
+A connector is `list_files` + `_fetch` + a `CONFIG_SCHEMA`, and the API calls are
+the cheap part. Three things are not, and a connector without them is a bill or a
+surprise rather than a feature:
+
+- **A change signal.** `sync_mode` defaults to `new_only`, and a connector with
+  nothing to compare re-ingests: re-embedding a wiki nightly is a recurring cost
+  in somebody's provider account. Name the signal in the connector's docstring —
+  a Graph `delta` token, a page's `version.number`, a commit sha, an HTTP `ETag` —
+  and fall back to `content_hash` only where the remote system genuinely offers
+  none.
+- **A credential scoped at the source.** See the section above. A connector's
+  `SECRET_KIND` says what shape the credential is; nothing in the platform can
+  say how wide it was issued, which is why the guidance belongs where the source
+  is created.
+- **A file count somebody has thought about.** Reading a collection's document
+  listing is still a full scan
+  ([#27](https://github.com/vstorm-co/agenticos/issues/27)), so a connector that
+  brings thousands of files makes that pagination urgent rather than tidy.
+
+**A sync connector is not an MCP server.** MCP is how an agent reaches a product
+*live*, mid-run; a sync source is a scheduled bulk pull with change detection
+whose output is chunks in pgvector. Notion-as-a-tool is an MCP server;
+Notion-as-a-corpus is a connector. Several candidates are honestly both, and the
+question to answer before writing one is which half is being built — see
+[mcp](mcp.md).
+
+Which connectors are being built, and in what order, is decided in
+[#938](https://github.com/vstorm-co/agenticos/issues/938): a web crawler
+([#984](https://github.com/vstorm-co/agenticos/issues/984)), SharePoint and
+OneDrive ([#985](https://github.com/vstorm-co/agenticos/issues/985)), Confluence
+([#986](https://github.com/vstorm-co/agenticos/issues/986)), a git repository's
+documentation ([#987](https://github.com/vstorm-co/agenticos/issues/987)), and
+then Azure Blob and GCS once `S3Connector` is an object store rather than an S3
+one ([#988](https://github.com/vstorm-co/agenticos/issues/988)). Notion, Slack
+and email archives are decided **against** for now, each for a reason recorded
+there — the last two because a conversation retrieves badly and the channel
+integrations already put an agent *in* Slack.
+
 ### A connector's refusal names the field it is about
 
 `validate_config` answers a `ConfigRefusal` — a sentence, and the field that
