@@ -96,11 +96,17 @@ async def impersonate_user(
     db: DBSession,
     service: UserSvc,
 ) -> Any:
-    """Issue a short-lived (1h) access token to act as the target user."""
+    """Issue a short-lived (1h) access token to act as the target user.
+
+    The token carries the administrator as an `act` claim, so every action taken
+    with it is attributable to who was really acting and not only to the account
+    they were acting as (#943).
+    """
     target = await service.get_by_id(user_id)
     token = create_access_token(
         subject=str(target.id),
         expires_delta=timedelta(hours=1),
+        act=str(admin.id),
     )
     await record_audit(
         db,

@@ -72,6 +72,22 @@ class TestAccessToken:
         assert payload["sub"] == subject
         assert payload["type"] == "access"
 
+    def test_an_ordinary_token_carries_no_actor_claim(self):
+        """The `act` claim is absent unless someone is impersonating, so an
+        ordinary token is exactly what it was before #943."""
+        payload = verify_token(create_access_token("user123"))
+
+        assert payload is not None
+        assert "act" not in payload
+
+    def test_an_impersonation_token_names_the_actor_behind_the_subject(self):
+        """The subject is the account being acted as; `act` is who is acting."""
+        payload = verify_token(create_access_token("target-user", act="admin-user"))
+
+        assert payload is not None
+        assert payload["sub"] == "target-user"
+        assert payload["act"] == "admin-user"
+
     def test_verify_invalid_token(self):
         """Test verifying invalid token."""
         payload = verify_token("invalid.token.here")

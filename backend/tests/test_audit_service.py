@@ -32,16 +32,38 @@ def _ctx(org_id: uuid.UUID | None = None) -> AuthContext:
     )
 
 
-def _entry(*, action: str = "agent.published") -> MagicMock:
+def _entry(
+    *, action: str = "agent.published", impersonator_user_id: uuid.UUID | None = None
+) -> MagicMock:
     entry = MagicMock()
     entry.id = uuid.uuid4()
     entry.actor_user_id = uuid.uuid4()
+    entry.impersonator_user_id = impersonator_user_id
     entry.action = action
     entry.target_type = "agent"
     entry.target_id = str(uuid.uuid4())
     entry.details = {"version": 3}
     entry.created_at = datetime.now(UTC)
     return entry
+
+
+async def test_an_impersonated_entry_reports_who_was_acting() -> None:
+    """The read half of #943: the trail names the administrator behind the
+    account an impersonated action was recorded as."""
+    admin_id = uuid.uuid4()
+    entry = _entry(action="agent.deleted", impersonator_user_id=admin_id)
+
+    with (
+        patch(
+            "app.services.audit.audit_log_repo.list_for_org",
+            new=AsyncMock(return_value=[entry]),
+        ),
+        patch("app.services.audit.audit_log_repo.count_for_org", new=AsyncMock(return_value=1)),
+    ):
+        page = await AuditService(MagicMock()).list_for_organization(_ctx())
+
+    assert page.items[0].impersonator_user_id == admin_id
+    assert page.items[0].actor_user_id == entry.actor_user_id
 
 
 async def test_an_entry_is_reported_as_the_page_it_belongs_to() -> None:
