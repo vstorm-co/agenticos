@@ -667,6 +667,15 @@ matches. A store that cannot answer the listing is treated as "no match" rather
 than as a match: a failed query is not evidence that a document is absent, but
 acting on it as though a document *were* present would delete one.
 
+**That is the local-directory sync. A connector sync implements none of it**
+([#990](https://github.com/vstorm-co/agenticos/issues/990)): `sync_source_flow`
+downloads and ingests every file the connector lists, `sync_mode` reaches only
+`ingest_file`'s `replace` argument, and `ingest_file` never skips — so on the
+default `new_only` the previous document is neither found nor deleted and a
+duplicate is inserted on every run. The `skipped` counter beside it is
+initialised and never incremented, which is what a sync log truthfully reporting
+`skipped=0` every night has been saying all along.
+
 One source's own history is `GET /kb/{kb_id}/sync-sources/{source_id}/logs`. The
 source is resolved against that knowledge base first, so a source belonging to
 another base answers **404** rather than an empty list — the two render the same
@@ -745,13 +754,23 @@ must not grow one.
 
 ### Who ends up able to read what a source ingested
 
-**The collection is the permission boundary, and a source's credential is its
-reach.** A sync source ingests into exactly one collection, access is decided at
-the collection (see [Who may reach a collection](#who-may-reach-a-collection)),
-and there is no per-document isolation inside one — so **everything that
-credential can see becomes readable by everyone who can read that collection.**
-A Confluence token good for the whole instance, pointed at an `org` collection,
-publishes the whole instance to every member holding `collections:view`.
+**The collection is the permission boundary, and a source's reach is its
+credential's permissions narrowed by its own configuration.** A sync source
+ingests into exactly one collection, access is decided at the collection (see
+[Who may reach a collection](#who-may-reach-a-collection)), and there is no
+per-document isolation inside one — so **everything that source reads becomes
+readable by everyone who can read that collection.**
+
+The two halves of that reach are not equally reliable, which is the part worth
+knowing. A Drive source is bounded by its `folder_id` and an S3 source by its
+`bucket` and `prefix`, so a broad credential pointed at one folder ingests one
+folder. But `config` is a field on the row, editable by anyone holding
+`collections:edit` on that collection — so **configuration narrows the reach and
+cannot be relied on to keep it narrow**, while the credential's own permissions
+are a ceiling nothing in this product can raise. A Confluence token good for the
+whole instance, on a source somebody later repoints at a wider space, publishes
+the whole instance to every member holding `collections:view`; the same token
+scoped to one space cannot, whatever the config says.
 
 That is a decision somebody has to make, and the platform's answer is to make it
 **explicit rather than clever**. The alternative — mirroring each source's own
@@ -770,12 +789,12 @@ reasons are worth stating so it is not proposed again as an obvious win:
   candidate connectors is not the model.
 
 So the rule for whoever creates a source, and the thing a wizard step has to
-say: **scope the credential, not the collection.** A service account shared into
+say: **scope the credential, not just the config.** A service account shared into
 one folder, an Entra app consented to one site rather than a tenant, a
-Confluence token limited to a space — the reach of the credential *is* the reach
-of the source, and it is the only knob that narrows it. Pointing a broad
-credential at a `personal` collection narrows the readers but not what was
-ingested; pointing a narrow one at an `org` collection is the shape to aim for.
+Confluence token limited to a space — that is the half of the reach an edit to
+the source cannot widen. Pointing a broad credential at a `personal` collection
+narrows the readers but not what was ingested; a narrow credential on an `org`
+collection is the shape to aim for.
 
 Two things this rule owes and does not yet have, each filed:
 [#982](https://github.com/vstorm-co/agenticos/issues/982) states the consequence
@@ -792,12 +811,19 @@ A connector is `list_files` + `_fetch` + a `CONFIG_SCHEMA`, and the API calls ar
 the cheap part. Three things are not, and a connector without them is a bill or a
 surprise rather than a feature:
 
-- **A change signal.** `sync_mode` defaults to `new_only`, and a connector with
-  nothing to compare re-ingests: re-embedding a wiki nightly is a recurring cost
-  in somebody's provider account. Name the signal in the connector's docstring —
-  a Graph `delta` token, a page's `version.number`, a commit sha, an HTTP `ETag` —
-  and fall back to `content_hash` only where the remote system genuinely offers
-  none.
+- **A change signal** — and, today, the sync path that would use it.
+  `sync_source_flow` lists, downloads and ingests every file unconditionally:
+  `sync_mode` reaches one argument and `ingest_file` never skips, so a scheduled
+  source re-embeds everything nightly and, on the default `new_only`, inserts a
+  *second copy* each run
+  ([#990](https://github.com/vstorm-co/agenticos/issues/990)). Naming a signal
+  therefore buys nothing on its own, which is why #990 comes before the
+  connectors are worth having: it is the comparison step, and the local-directory
+  flow already has one to copy. Name the signal in the connector's docstring
+  anyway — a Graph `delta` token, a page's `version.number`, a commit sha, an
+  HTTP `ETag` — because which one a connector can offer is what decides whether
+  that comparison happens before the download or after it, and fall back to
+  `content_hash` only where the remote system genuinely offers none.
 - **A credential scoped at the source.** See the section above. A connector's
   `SECRET_KIND` says what shape the credential is; nothing in the platform can
   say how wide it was issued, which is why the guidance belongs where the source
