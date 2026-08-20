@@ -55,7 +55,7 @@ from app.schemas.agent import (
     SpecialistPromote,
 )
 from app.services.capability_contracts import tool_contracts
-from app.services.file_storage import image_media_type_for
+from app.services.file_storage import sniff_image_media_type
 from app.services.mcp_catalog import CATALOG
 
 router = APIRouter()
@@ -394,11 +394,11 @@ async def set_agent_avatar_color(
 async def get_agent_avatar(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> FileResponse:
     """Stream the agent's picture to someone entitled to see the agent."""
     path = await service.avatar_path(ctx, agent_id)
-    # Pinned to the file's actual image type, and refused if it is not an image at
-    # all: the avatar is served from the app's own origin, and the upload kept
-    # whatever suffix the caller's filename had, so a file stored as `x.html`
-    # guessed to `text/html` and ran as a script here (#1035, same class as #702).
-    media_type = image_media_type_for(path)
+    # The type comes from the file's own bytes, not its stored name, and it is
+    # refused if the bytes are not an image: the avatar is served from the app's
+    # own origin, so a file whose bytes are HTML must never be served as something
+    # a browser runs, whatever it was named (#1035, same class as #702).
+    media_type = sniff_image_media_type(path)
     if media_type is None:
         raise NotFoundError(message="This agent has no avatar", details={"agent_id": str(agent_id)})
     return FileResponse(
