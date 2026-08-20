@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.227] - 2026-08-20
+
+An attachment the router cannot read is named rather than dropped.
+
+### Fixed
+
+- **A file no parser could read contributed nothing to the prompt**, so the model
+  answered as though nothing had arrived - which reads as it denying a file the
+  transcript plainly shows. The reference now names the file and says its text
+  could not be extracted and that the agent has no workspace to open it from,
+  which is the same principle the too-large-image case already followed. (#746)
+- **A routing failure was silent too.** It still does not fail the turn - the
+  person asked a question, and answering without the file beats not answering -
+  but the model is told the file arrived and could not be processed. The error's
+  own text stays in the log line beside the raise, never in the prompt. (#746)
+
 ## [0.0.226] - 2026-08-20
 
 A malformed file id on the socket is a refusal, not a crash in the log.
