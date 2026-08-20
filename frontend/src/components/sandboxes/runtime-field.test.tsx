@@ -228,15 +228,18 @@ describe("the default runtime", () => {
     expect(screen.queryByText(/This host did not name/)).toBeNull();
   });
 
-  it("keeps the runtime's own description on the trigger, which does describe it", async () => {
-    // The line under the alias says what the image is for, which is true of the
-    // option wherever it is drawn - so it stays in `children` and the trigger
-    // is right to inherit it.
+  it("says the alias on the trigger and leaves the description to the list", async () => {
+    // The description belongs under the alias *in the list*, where there is room
+    // for two lines and something to compare against. The trigger is 36px with
+    // `line-clamp-1`, so mirroring a two-line block into it clipped the
+    // description and pushed the alias sideways - which is what a 118-character
+    // description made unmissable.
     field({ value: "workbench" });
 
-    expect(screen.getByRole("combobox", { name: "Default runtime" })).toHaveTextContent(
-      "what workbench is for",
-    );
+    const trigger = screen.getByRole("combobox", { name: "Default runtime" });
+
+    expect(trigger).toHaveTextContent("workbench");
+    expect(trigger).not.toHaveTextContent("what workbench is for");
   });
 
   it("keeps the trigger inside its container, whatever the label says", () => {

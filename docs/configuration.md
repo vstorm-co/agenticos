@@ -373,9 +373,9 @@ holding unauthenticated internal APIs should say so at the network rather than h
 
 ### Which environments an agent may ask for
 
-One runtime ships — `workbench` (1.26 GB): Python 3.12, Node 24, and the libraries
-an agent needs to read, write and plot the files a conversation is about, including
-liteparse with OCR. It is defined in
+One runtime ships — `workbench` (1.93 GB): Python 3.12, Node 24, LibreOffice, and
+the libraries an agent needs to read, write, convert and plot the files a
+conversation is about, including liteparse with OCR. It is defined in
 `backend/app/core/catalog/sandbox_runtimes.json`. Adding one is an edit there and
 `make sandbox-runtimes`, which writes `SANDBOXD_RUNTIMES` into all three compose
 files; that variable is the only channel the service accepts runtimes on, and

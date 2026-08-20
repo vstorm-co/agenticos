@@ -85,12 +85,19 @@ export function RuntimeField({
           value={value === "" ? SERVICE_DEFAULT : value}
           onValueChange={(alias) => onChange(alias === SERVICE_DEFAULT ? "" : alias)}
         >
-          {/* `min-w-0` and a truncating value: an option label is a sentence
-              ("coding — Python with git, ripgrep, fd, jq and uv"), and without
-              this the trigger grew to fit it and pushed the dialog wider than the
-              viewport. */}
+          {/* The trigger says the alias and nothing else, and it says it itself.
+              An option is two lines - the alias, then what the runtime is for -
+              and Radix mirrors an item's `ItemText` into the closed trigger,
+              which is 36 px tall with `line-clamp-1` on its child: a two-line
+              block landed in there half-clipped and pushed the alias sideways.
+              Passing `children` to `SelectValue` overrides what is mirrored, so
+              the list keeps both lines and the trigger keeps one. */}
           <SelectTrigger id="connection-runtime" className="w-full min-w-0">
-            <SelectValue className="truncate" />
+            <SelectValue className="truncate">
+              <span className="truncate font-mono text-xs">
+                {value === "" ? t("serviceDefault") : value}
+              </span>
+            </SelectValue>
           </SelectTrigger>
           <SelectContent className="max-w-[min(30rem,90vw)]">
             <SelectItem value={SERVICE_DEFAULT}>{t("serviceDefault")}</SelectItem>

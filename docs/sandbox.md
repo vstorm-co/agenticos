@@ -83,13 +83,13 @@ What separates one tenant from another:
 **One runtime ships, and it is defined in this repository** —
 `backend/app/core/catalog/sandbox_runtimes.json`:
 
-| | `workbench` — 1.3 GB, built in about 45 s on a warm host |
+| | `workbench` — 1.93 GB, built in about 65 s on a warm host |
 |---|---|
 | Built on | `python:3.12-slim` |
 | Languages | Python 3.12; Node 24.19.0 LTS with npm 11 and `tsx` for TypeScript |
 | Tools | `git`, `curl`, `ripgrep`, `fd`, `jq`, `less`, `procps`, `unzip`, `zip`, `uv`, `pdftotext`/`pdfinfo` |
 | Reading | **liteparse** (`lit`) — PDFs and images to text or markdown, OCR included; `poppler-utils` for the fast text-layer path and a page count |
-| Documents | `pypdf`, `python-docx`, `openpyxl`, `python-pptx`, `reportlab` |
+| Documents | `pypdf`, `python-docx`, `openpyxl`, `python-pptx`, `reportlab`; **LibreOffice** headless for conversion and the legacy formats |
 | Data | `pandas`, `duckdb`, `tabulate` |
 | Charts and images | `matplotlib` (Agg), `pillow` |
 | Web | `httpx`, `requests`, `beautifulsoup4`, `lxml`, `markdownify` |
@@ -119,14 +119,23 @@ Measured on `python:3.12-slim` (205 MB), arm64:
   and 79 ms for a PNG. So `cargo install` (a Rust toolchain), the npm package (a
   second copy of the same binary) and the WASM build (for browsers) all buy
   nothing here.
-- **No LibreOffice: +683 MB, measured.** It is what `lit` shells out to for
-  office documents, so without it `.doc`, `.ppt` and `.odt` cannot be read at
-  all — the one real gap in this image, and the briefing below says so to the
-  model rather than letting it find out. `.docx` and `.xlsx` are read and written
-  through `python-docx` and `openpyxl` instead, which is also the only way to
-  *write* them. A deployment that needs the rest adds a second runtime with
-  `libreoffice-writer libreoffice-calc libreoffice-impress` in its
-  `setup_commands`.
+- **LibreOffice, at +683 MB, and it is worth it.** It buys three things nothing
+  else here does: `lit` can read the legacy `.doc`, `.xls` and `.ppt` formats,
+  which is what a business user actually attaches; `soffice --headless
+  --convert-to pdf deck.pptx` renders a deck the agent built with `python-pptx`,
+  which is how a presentation becomes something a person can open; and
+  `--convert-to png` turns a slide into an image the agent can read back and
+  *look at*, since `read_file` is multimodal here. About a second per document
+  after the first. Writer and Calc are +135 MB of that 683 and are in for one
+  reason: office conversion that worked for presentations and not for documents
+  would be an exception in the product and an exception in the prompt.
+- **It only works because the runtime is *built*.** LibreOffice creates a user
+  profile on first run, so it needs a real account with a writable home — which
+  the builder makes when `SANDBOXD_SANDBOX_UID` is set (`useradd --uid 10001
+  --create-home`). Run the same image as a bare uid with no passwd entry and
+  every conversion fails with `User installation could not be completed`. That is
+  also why a ready-made `image` runtime cannot simply add LibreOffice: the two
+  decisions are one decision.
 - **Node from nodejs.org, not from apt.** Debian's `nodejs npm` is +398 MB and
   ships npm 9; the official tarball is +239 MB *and* current — and Node 20, which
   this recipe first pinned, has been end-of-life since April 2026. The arch is
@@ -175,8 +184,8 @@ carries the two OCR traps above, because a scanned book is where both of them
 land at once.
 
 So every run on a runtime this deployment ships has a paragraph appended to its
-instructions: which runtime it got, the package list, the `lit` line, the two
-gaps (no LibreOffice, no compiler), and whether it has a network. It is
+instructions: which runtime it got, the package list, the `lit` line, what
+`soffice` converts, the one gap (no C compiler), and whether it has a network. It is
 **composed from the catalogue**, not written beside it — `runtime_briefing` reads
 the package list off the definition, so a package added to the file reaches the
 prompt in the same edit that reaches the image. Only what cannot be derived is
