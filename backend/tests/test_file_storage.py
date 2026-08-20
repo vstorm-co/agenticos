@@ -10,31 +10,39 @@ from pathlib import Path
 
 import pytest
 
-from app.services.file_storage import LocalFileStorage, avatar_filename, image_media_type_for
+from app.services.file_storage import LocalFileStorage, avatar_filename, sniff_image_media_type
 
 pytestmark = pytest.mark.anyio
 
 
-@pytest.mark.parametrize(
-    ("name", "expected"),
-    [
-        ("a.png", "image/png"),
-        ("a.jpg", "image/jpeg"),
-        ("a.webp", "image/webp"),
-        ("a.gif", "image/gif"),
-    ],
-)
-def test_an_image_is_served_as_its_own_type(name: str, expected: str) -> None:
-    assert image_media_type_for(f"/uploads/{name}") == expected
+_MAGIC = {
+    "image/png": b"\x89PNG\r\n\x1a\n" + b"\x00" * 8,
+    "image/jpeg": b"\xff\xd8\xff\xe0" + b"\x00" * 12,
+    "image/gif": b"GIF89a" + b"\x00" * 10,
+    "image/webp": b"RIFF\x00\x00\x00\x00WEBP",
+}
 
 
-@pytest.mark.parametrize("name", ["x.html", "x.svg", "x.xhtml", "x.txt", "x.pdf", "x"])
-def test_a_non_image_is_refused_rather_than_served(name: str) -> None:
-    # The avatar was stored under the uploader's own suffix, so a file saved as
-    # `x.html` guesses to `text/html`; refused here, it cannot be served as a
-    # script on the app's own origin (#702). A PDF is refused too - an avatar is
-    # an image, and this helper serves only images.
-    assert image_media_type_for(f"/uploads/{name}") is None
+@pytest.mark.parametrize("expected", list(_MAGIC))
+def test_an_image_is_served_as_the_type_its_bytes_say(expected: str, tmp_path: Path) -> None:
+    """Read from the content, so a valid image serves whatever it was named -
+    including a legacy avatar stored under an extensionless name (#702)."""
+    stored = tmp_path / "avatar-legacy-name"
+    stored.write_bytes(_MAGIC[expected])
+    assert sniff_image_media_type(str(stored)) == expected
+
+
+def test_a_file_whose_bytes_are_not_an_image_is_refused(tmp_path: Path) -> None:
+    """An HTML file named `avatar.png` still fails the magic check, so it is never
+    served as something the browser will run on the app's own origin (#702)."""
+    for content in (b"<!doctype html><script>alert(1)</script>", b"%PDF-1.7", b"<svg></svg>"):
+        stored = tmp_path / "avatar.png"
+        stored.write_bytes(content)
+        assert sniff_image_media_type(str(stored)) is None
+
+
+def test_a_missing_file_sniffs_to_none_rather_than_raising(tmp_path: Path) -> None:
+    assert sniff_image_media_type(str(tmp_path / "gone.png")) is None
 
 
 @pytest.mark.parametrize(
@@ -49,12 +57,9 @@ def test_a_non_image_is_refused_rather_than_served(name: str) -> None:
 def test_an_avatar_is_named_from_its_type_not_the_callers_filename(
     content_type: str, expected: str
 ) -> None:
-    """The served type is guessed from the name on disk, so the stored suffix has
-    to match the validated type - or a valid image uploaded as `avatar.txt` (or no
-    extension) becomes unrenderable (#702)."""
-    stored = avatar_filename(content_type)
-    assert stored == expected
-    assert image_media_type_for(f"/uploads/{stored}") == content_type
+    """The stored file is self-describing - named for its validated type, not the
+    caller's filename - even though serving now reads the bytes (#702)."""
+    assert avatar_filename(content_type) == expected
 
 
 @pytest.fixture
