@@ -905,7 +905,9 @@ does (#983).
 the one that decides the collection - names the credential and the audience
 together, because the pair is the decision: *"<credential> can read whatever it
 has been granted, and everything it ingests becomes searchable in <collection>
-by ..."*. Each scope ends that sentence differently - `personal` is its owner,
+by ..."*. A connector that authenticates with nothing has no credential to name
+and the sentence does not invent one; nor does it name one whose reader holds no
+`secrets:view`. Each scope ends that sentence differently - `personal` is its owner,
 `org` is everyone who can view the collection, `app` is anybody in the
 deployment - and an integration filed under no knowledge base says that nothing
 can search it yet. The sentence does not wait for the collection *picker*, which

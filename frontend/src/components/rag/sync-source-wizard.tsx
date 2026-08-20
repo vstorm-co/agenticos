@@ -27,7 +27,6 @@ import type { KBScope } from "@/types/knowledge-base";
 import { cn } from "@/lib/utils";
 import { DIALOG_FORM } from "@/lib/dialog-widths";
 import { useChanged } from "@/hooks/use-changed";
-import { useSecrets } from "@/hooks";
 import { useTranslations } from "next-intl";
 
 interface SyncSourceWizardProps {
@@ -178,14 +177,14 @@ export function SyncSourceWizard({
       c.name ===
       (mode === "clone" ? defaultCollection : (form.collection_name ?? defaultCollection)),
   );
-  // The same list the credential step offers, so the name shown is the name that
-  // was chosen there. `undefined` covers both a caller who may not read the
-  // vault and a credential the org no longer holds; the sentence then does not
-  // name one rather than naming an empty string.
-  const { secrets } = useSecrets();
-  const credentialName = secrets.find(
-    (secret) => secret.id === (mode === "clone" ? selectedIntegration?.secret_id : form.secret_id),
-  )?.name;
+  // Which connector's credential the sentence is about - the one being
+  // configured, or the one the chosen integration already uses. A connector
+  // declaring `secret_kind: "none"` has none, and the notice says so rather than
+  // describing one that does not exist.
+  const audienceConnector =
+    mode === "clone"
+      ? connectors.find((c) => c.type === selectedIntegration?.connector_type)
+      : selectedConnector;
 
   const handleCloneSubmit = async () => {
     if (!cloneSourceId || !defaultCollection) return;
@@ -426,7 +425,8 @@ export function SyncSourceWizard({
             <SourceAudienceNotice
               scope={target?.scope}
               collectionName={target?.name}
-              credentialName={credentialName}
+              secretId={mode === "clone" ? selectedIntegration?.secret_id : form.secret_id}
+              needsCredential={audienceConnector?.secret_kind !== "none"}
             />
           )}
         </div>

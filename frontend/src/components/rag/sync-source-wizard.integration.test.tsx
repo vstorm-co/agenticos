@@ -199,9 +199,11 @@ describe("the audience of what a source ingests", () => {
     });
 
     expect(screen.getByText("Who will be able to read this")).toBeVisible();
+    // This connector authenticates with nothing, so the sentence describes what
+    // the source ingests rather than a credential it does not have.
     expect(
       screen.getByText(/everyone in this organization who can view that collection/),
-    ).toHaveTextContent("org_handbook");
+    ).toHaveTextContent("Everything this source ingests becomes searchable in org_handbook");
   });
 
   it("follows the picker, so a personal collection reads differently", async () => {
@@ -243,6 +245,25 @@ describe("the audience of what a source ingests", () => {
     expect(screen.getByText(/filed under no knowledge base yet/)).toBeVisible();
   });
 
+  it("reads the vault only once somebody is looking at the sentence", async () => {
+    // The knowledge-base page mounts this wizard whether or not it is open, so a
+    // vault read in the wizard's own body ran on every page load - including for
+    // members holding no `secrets:view`, who get a refusal for it, retried.
+    vi.mocked(apiClient.get).mockClear();
+    withQuery(
+      <SyncSourceWizard
+        open={false}
+        onOpenChange={vi.fn()}
+        connectors={[GDRIVE]}
+        collections={[{ name: "org_handbook", scope: "org" }]}
+        defaultCollection="org_handbook"
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    expect(vi.mocked(apiClient.get).mock.calls.map(([path]) => path)).not.toContain("/secrets");
+  });
+
   it("is stated for a clone too, which repoints somebody else's credential", async () => {
     // A clone references the same vault secret and names a different collection,
     // so the audience changes while nothing about the credential does - and it
@@ -251,7 +272,7 @@ describe("the audience of what a source ingests", () => {
       <SyncSourceWizard
         open
         onOpenChange={vi.fn()}
-        connectors={[CONNECTOR]}
+        connectors={[GDRIVE]}
         collections={[{ name: "org_handbook", scope: "org" }]}
         defaultCollection="org_handbook"
         orgIntegrations={[

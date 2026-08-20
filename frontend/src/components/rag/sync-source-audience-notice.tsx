@@ -3,6 +3,7 @@
 import { Eye } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { useSecrets } from "@/hooks";
 import type { KBScope } from "@/types/knowledge-base";
 
 /** One message per scope, because each names a different set of people. */
@@ -32,24 +33,34 @@ const AUDIENCE = {
  * decision: the credential's own permissions are a ceiling nothing in this
  * product can raise, while `config` narrows the reach and cannot be relied on to
  * keep it narrow - it is a field anyone with `collections:edit` can widen later.
+ *
+ * **The vault is read here rather than by the wizard.** This renders inside the
+ * dialog, so the query starts when a reader is actually looking at the sentence;
+ * the same call in the wizard's own body ran on every load of the knowledge-base
+ * page, dialog shut, including for members who hold no `secrets:view` and get a
+ * refusal for it.
  */
 export function SourceAudienceNotice({
   scope,
   collectionName,
-  credentialName,
+  secretId,
+  needsCredential,
 }: {
   /** The collection's scope, or `undefined` for a source filed under none. */
   scope?: KBScope;
   collectionName?: string;
+  /** Which vault credential the source will authenticate with, if it has one. */
+  secretId?: string | null;
   /**
-   * The chosen vault credential. Absent when this caller cannot read the vault,
-   * or before one has been picked - the sentence then says "the credential this
-   * source uses" rather than naming it, because a message with an empty
-   * parameter in it is worse than one that never promised a name.
+   * Whether this connector authenticates at all. A connector declaring
+   * `secret_kind: "none"` - a public crawler - has none to name, and a sentence
+   * about "the credential this source uses" would contradict the step before it.
    */
-  credentialName?: string;
+  needsCredential: boolean;
 }) {
   const t = useTranslations("rag");
+  const { secrets } = useSecrets();
+  const credential = secrets.find((secret) => secret.id === secretId)?.name;
 
   return (
     <div className="border-foreground/10 bg-foreground/[0.03] mt-5 rounded-xl border p-4">
@@ -61,8 +72,14 @@ export function SourceAudienceNotice({
         {scope === undefined || collectionName === undefined
           ? t("audienceUnassigned")
           : t(AUDIENCE[scope], {
-              named: credentialName === undefined ? "no" : "yes",
-              credential: credentialName ?? "",
+              // Three states, not two: no credential to name, one this caller
+              // cannot read the name of, and one it can.
+              credentialing: !needsCredential
+                ? "none"
+                : credential === undefined
+                  ? "unknown"
+                  : "named",
+              credential: credential ?? "",
               collection: collectionName,
             })}
       </p>
