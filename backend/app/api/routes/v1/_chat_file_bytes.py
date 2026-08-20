@@ -12,6 +12,7 @@ from fastapi import HTTPException, status
 from fastapi.responses import FileResponse
 
 from app.db.models.chat_file import ChatFile
+from app.services.file_storage import RENDER_SAFE_MIME_TYPES
 from app.services.file_upload import FileUploadService
 
 
@@ -36,14 +37,23 @@ def chat_file_response(
     if not file_path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found on disk")
 
-    mode = "attachment" if disposition == "attachment" else "inline"
+    # `text/html`, an SVG or a spreadsheet is a valid attachment - the agent reads
+    # it - but must never render inline: the frontend serves this from the app's
+    # own origin, whose CSP allows inline script, so an inline `text/html` is a
+    # stored script (#702). Only a render-safe type is shown inline; everything
+    # else is forced to download, `nosniff` on both so the type cannot be sniffed
+    # past. The `mime_type` was set from the client's declared header, not the
+    # bytes, which is why the type alone cannot be trusted here.
+    render_safe = chat_file.mime_type in RENDER_SAFE_MIME_TYPES
+    mode = "inline" if disposition != "attachment" and render_safe else "attachment"
     safe_name = chat_file.filename.replace('"', "")
-    # The preview embeds this URL in an iframe for a PDF or an HTML page, which
-    # `X-Frame-Options: DENY` from `SecurityHeadersMiddleware` would refuse. Opted
-    # down to the same origin the app itself runs on, no wider; the CSP is the
-    # modern spelling of it and browsers honour whichever they recognise.
+    # The preview embeds this URL in an iframe for a PDF, which `X-Frame-Options:
+    # DENY` from `SecurityHeadersMiddleware` would refuse. Opted down to the same
+    # origin the app itself runs on, no wider; the CSP is the modern spelling of it
+    # and browsers honour whichever they recognise.
     headers = {
         "Content-Disposition": f'{mode}; filename="{safe_name}"',
+        "X-Content-Type-Options": "nosniff",
         "X-Frame-Options": "SAMEORIGIN",
         "Content-Security-Policy": "frame-ancestors 'self'",
     }

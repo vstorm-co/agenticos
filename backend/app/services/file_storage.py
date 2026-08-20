@@ -5,6 +5,7 @@ Files are organized per-user: {storage_root}/{user_id}/{uuid}_{filename}
 """
 
 import logging
+import mimetypes
 import os
 import re
 import uuid
@@ -47,6 +48,25 @@ SPREADSHEET_MIME_TYPES = {
 }
 
 IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+
+# Types safe to render inline on a browser tab from this deployment's own origin.
+# Anything a chat attachment may hold that is not here - `text/html`, an SVG, a
+# spreadsheet - is served as a download rather than displayed, so it cannot run as
+# a script on the origin the app itself is served from (#702).
+RENDER_SAFE_MIME_TYPES = IMAGE_MIME_TYPES | {"application/pdf"}
+
+
+def image_media_type_for(path: str) -> str | None:
+    """The image media type this file may be served as, or `None` to refuse it.
+
+    Guessed from the name on disk and checked against `IMAGE_MIME_TYPES`. An
+    avatar is stored under whatever suffix the uploader's filename had, so a file
+    saved as `x.html` guesses to `text/html` and is refused here rather than
+    served as a script on the app's own origin (#702, and #634 for the logo).
+    """
+    media_type = mimetypes.guess_type(path)[0]
+    return media_type if media_type in IMAGE_MIME_TYPES else None
+
 
 # Avatars are decoration rendered at 40px; the limit is what stops someone
 # storing a 40MB photograph to be scaled down on every page load.

@@ -13,6 +13,7 @@ from app.api.deps import (
 )
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.schemas.user import UserRead, UserUpdate
+from app.services.file_storage import image_media_type_for
 
 router = APIRouter()
 
@@ -68,7 +69,16 @@ async def get_avatar(user_id: UUID, user_service: UserSvc) -> Any:
     file_path = user_service.get_avatar_path(user.avatar_url)
     if not file_path:
         raise NotFoundError(message="Avatar file not found")
-    return FileResponse(path=file_path, media_type="image/jpeg")
+    # Pinned to the file's actual image type, and refused if it is not an image at
+    # all: the avatar is served from the app's own origin, and the upload kept
+    # whatever suffix the caller's filename had (#702). Hardcoding image/jpeg here
+    # named a lie for a stored png and, worse, said nothing about a stored .html.
+    media_type = image_media_type_for(file_path)
+    if media_type is None:
+        raise NotFoundError(message="Avatar file not found")
+    return FileResponse(
+        path=file_path, media_type=media_type, headers={"X-Content-Type-Options": "nosniff"}
+    )
 
 
 @router.get("/{user_id}", response_model=UserRead)

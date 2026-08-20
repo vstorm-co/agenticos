@@ -10,9 +10,31 @@ from pathlib import Path
 
 import pytest
 
-from app.services.file_storage import LocalFileStorage
+from app.services.file_storage import LocalFileStorage, image_media_type_for
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("a.png", "image/png"),
+        ("a.jpg", "image/jpeg"),
+        ("a.webp", "image/webp"),
+        ("a.gif", "image/gif"),
+    ],
+)
+def test_an_image_is_served_as_its_own_type(name: str, expected: str) -> None:
+    assert image_media_type_for(f"/uploads/{name}") == expected
+
+
+@pytest.mark.parametrize("name", ["x.html", "x.svg", "x.xhtml", "x.txt", "x.pdf", "x"])
+def test_a_non_image_is_refused_rather_than_served(name: str) -> None:
+    # The avatar was stored under the uploader's own suffix, so a file saved as
+    # `x.html` guesses to `text/html`; refused here, it cannot be served as a
+    # script on the app's own origin (#702). A PDF is refused too - an avatar is
+    # an image, and this helper serves only images.
+    assert image_media_type_for(f"/uploads/{name}") is None
 
 
 @pytest.fixture
