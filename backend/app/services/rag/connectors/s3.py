@@ -49,19 +49,19 @@ class S3Connector(BaseSyncConnector):
     DISPLAY_NAME: ClassVar[str] = "S3 / MinIO"
     SECRET_KIND: ClassVar[SecretKind] = SecretKind.AWS_CREDENTIALS
     CONFIG_SCHEMA: ClassVar[dict[str, ConnectorConfigField]] = {
-        "bucket": ConnectorConfigField(type="string", required=True, label="Bucket Name"),
+        "bucket": ConnectorConfigField(type="string", label="Bucket Name", required=True),
         "prefix": ConnectorConfigField(
             type="string",
-            default="",
             label="Path Prefix",
             help="e.g. 'documents/legal/' - leave empty for entire bucket",
+            default="",
         ),
         "endpoint_url": ConnectorConfigField(
             type="string",
             label="Custom Endpoint URL",
             help="For MinIO or compatible services (e.g., http://minio:9000). Leave empty for AWS S3.",
         ),
-        "region": ConnectorConfigField(type="string", default="us-east-1", label="Region"),
+        "region": ConnectorConfigField(type="string", label="Region", default="us-east-1"),
     }
 
     def _get_s3_client(

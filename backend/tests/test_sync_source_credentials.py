@@ -27,6 +27,7 @@ from typing import get_args
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pydantic import ValidationError
 
 from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
@@ -38,7 +39,6 @@ from app.schemas.sync_source import (
     SyncSourceUpdate,
 )
 from app.services import sync_source as sync_source_module
-from app.services.rag.connectors import BaseSyncConnector
 from app.services.rag.connectors.s3 import S3Connector
 from app.services.sync_source import SyncSourceService
 
@@ -310,23 +310,12 @@ class TestWhatTheConnectorsDeclare:
         assert refusal.field == "bucket"
         assert refusal.message == "Missing required field: Bucket Name"
 
-    async def test_a_required_field_with_no_label_is_refused_by_its_key(self):
-        """A label is optional in the declaration, and a refusal naming an empty
-        string would mark an input with nothing on it."""
-
-        class _Unlabelled(BaseSyncConnector):
-            CONFIG_SCHEMA = {"root": ConnectorConfigField(type="string", required=True)}
-
-            async def list_files(self, config, credential):  # pragma: no cover - never called
-                return []
-
-            async def _fetch(self, file, dest_path, config, credential):  # pragma: no cover
-                return None
-
-        refusal = await _Unlabelled().validate_config({})
-
-        assert refusal is not None
-        assert refusal.message == "Missing required field: root"
+    def test_a_field_cannot_be_declared_without_the_label_the_form_draws(self):
+        """`SyncSourceConfigureStep` renders `label` above the input, and only
+        `validate_config` ever fell back to the key - so a connector omitting it
+        got an unlabelled box on the form and a refusal that read fine."""
+        with pytest.raises(ValidationError):
+            ConnectorConfigField(type="string", required=True)
 
     def test_the_connector_listing_publishes_the_kind(self):
         listed = SyncSourceService.list_connectors()

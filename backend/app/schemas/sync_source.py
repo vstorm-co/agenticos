@@ -3,6 +3,8 @@
 from typing import Any, Literal
 from uuid import UUID
 
+from pydantic import Field
+
 from app.schemas.base import BaseSchema
 
 ConnectorFieldType = Literal["string", "boolean", "integer", "textarea"]
@@ -26,6 +28,11 @@ class ConnectorConfigField(BaseSchema):
     said `require` disabled that field's check silently, and the wizard drew a
     required field as optional (#562).
 
+    `label` is required, because it is what `SyncSourceConfigureStep` draws
+    above the input - it defaulted to `""`, and only `validate_config` fell back
+    to the key, so a connector omitting it got an unlabelled box on the form and
+    a refusal that read sensibly.
+
     No `secret` flag any more. A connector's configuration says how to *find*
     the documents; the credential is a vault secret the source references by id,
     so there is no field here for a form to mask, encrypt or round-trip as
@@ -33,8 +40,8 @@ class ConnectorConfigField(BaseSchema):
     """
 
     type: ConnectorFieldType
+    label: str = Field(min_length=1)
     required: bool = False
-    label: str = ""
     help: str | None = None
     default: Any = None
 

@@ -71,12 +71,12 @@ class GoogleDriveConnector(BaseSyncConnector):
     CONFIG_SCHEMA: ClassVar[dict[str, ConnectorConfigField]] = {
         "folder_id": ConnectorConfigField(
             type="string",
-            required=True,
             label="Google Drive Folder ID",
             help="The ID from the folder URL: drive.google.com/drive/folders/{THIS_ID}",
+            required=True,
         ),
         "include_subfolders": ConnectorConfigField(
-            type="boolean", default=True, label="Include subfolders"
+            type="boolean", label="Include subfolders", default=True
         ),
     }
 

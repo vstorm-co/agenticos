@@ -260,8 +260,9 @@ uv add notion-client
 ```bash
 # Store the credential once, then point a source at it
 uv run agenticos cmd rag-source-add \
+    --name "Engineering Wiki" \
+    --type notion \
     --org <organization-id> \
-    --connector notion \
     --secret-id <vault-secret-id> \
     --config '{"database_id": "abc123"}' \
     --collection knowledge-base
@@ -328,8 +329,8 @@ would fall through to a text input and collect the value wrongly, so
 | Property | Required | Description |
 |----------|----------|-------------|
 | `type` | Yes | One of the four above |
+| `label` | Yes | What the form draws above the input, and what a refusal names |
 | `required` | No | Whether the field must be provided. Defaults to `False` |
-| `label` | No | What the UI calls it, and what a refusal names. Defaults to the key |
 | `help` | No | Tooltip/description text |
 | `default` | No | Placeholder the form shows for an optional field |
 
@@ -348,10 +349,10 @@ CONFIG_SCHEMA: ClassVar[dict[str, ConnectorConfigField]] = {
         help="Which workspace to read",
     ),
     "max_files": ConnectorConfigField(
-        type="integer", default=100, label="Max files to sync"
+        type="integer", label="Max files to sync", default=100
     ),
     "recursive": ConnectorConfigField(
-        type="boolean", default=True, label="Include nested items"
+        type="boolean", label="Include nested items", default=True
     ),
 }
 ```

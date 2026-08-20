@@ -139,8 +139,7 @@ class BaseSyncConnector(ABC):
         for field_name, field_spec in self.CONFIG_SCHEMA.items():
             if field_spec.required and not config.get(field_name):
                 return ConfigRefusal(
-                    message=f"Missing required field: {field_spec.label or field_name}",
-                    field=field_name,
+                    message=f"Missing required field: {field_spec.label}", field=field_name
                 )
         return None
 
