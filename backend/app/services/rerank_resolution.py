@@ -39,6 +39,14 @@ logger = logging.getLogger(__name__)
 # would collide with it. The tuple exists so a second provider is one entry.
 RERANK_KEY_PURPOSES = ("cohere",)
 
+# The rerank models this platform can actually run. Cohere Rerank 3.5 is the only
+# one behind `CohereReranker` today; a value outside this set would be accepted,
+# stored and displayed as configured, then fail every search inside Cohere - a
+# request `_rank_and_truncate` swallows, so reranking would be silently off. So a
+# model is validated at create and update against this tuple, which grows by one
+# entry when a second model is supported.
+SUPPORTED_RERANK_MODELS = ("rerank-v3.5",)
+
 
 class RerankKeySource(StrEnum):
     """Why a collection did or did not get a reranker.

@@ -447,7 +447,7 @@ Configured **per knowledge base**, mirroring embeddings, by
 
 | | |
 |---|---|
-| **Provider and model** | Cohere Rerank 3.5 is the first and only implementation behind `BaseReranker` (`app/services/rag/reranker.py`); a second provider is a second implementation, not a rewrite. `rerank_model` on the knowledge base names it, and unlike the embedding model it can be changed later. |
+| **Provider and model** | Cohere Rerank 3.5 is the first and only implementation behind `BaseReranker` (`app/services/rag/reranker.py`); a second provider is a second implementation, not a rewrite. `rerank_model` on the knowledge base names it, and unlike the embedding model it can be changed later. It is validated at create and update against `SUPPORTED_RERANK_MODELS` — a model this deployment cannot run would be stored and shown as configured, then swallowed as a failed Cohere call on every search, so an unsupported name is refused where the person setting it can see why. |
 | **Credential** | The Cohere vault key chosen on the collection (`rerank_secret_id`), which is what the organization is billed for. |
 
 The one deliberate difference from embeddings is that reranking is **off by

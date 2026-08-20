@@ -689,6 +689,38 @@ class TestRerankConfig:
             await KnowledgeBaseService(mock_db).create(data, ctx=_ctx())
 
     @pytest.mark.anyio
+    async def test_an_unsupported_model_is_refused_before_the_key_is_read(
+        self, mock_db, unclaimed_collection_name
+    ):
+        # A typo'd model with an otherwise valid key would be stored and shown as
+        # configured, then fail every search inside Cohere where the error is
+        # swallowed - reranking silently off. Refused at create, and before the
+        # vault is even consulted.
+        data = KnowledgeBaseCreate(
+            name="KB",
+            scope="org",
+            collection_name="c",
+            rerank_model="rerank-v3.5x",
+            rerank_secret_id=uuid.uuid4(),
+        )
+        with (
+            patch("app.repositories.organization_secret_repo.get", new=AsyncMock()) as secret_get,
+            pytest.raises(BadRequestError, match="Unsupported rerank model"),
+        ):
+            await KnowledgeBaseService(mock_db).create(data, ctx=_ctx())
+        secret_get.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_an_update_to_an_unsupported_model_is_refused(self, mock_db):
+        kb = _kb("org", organization_id=uuid.uuid4())
+        data = KnowledgeBaseUpdate(rerank_model="bogus", rerank_secret_id=uuid.uuid4())
+        with (
+            patch.object(KnowledgeBaseService, "get_for_write", new=AsyncMock(return_value=kb)),
+            pytest.raises(BadRequestError, match="Unsupported rerank model"),
+        ):
+            await KnowledgeBaseService(mock_db).update(kb.id, data, ctx=_ctx())
+
+    @pytest.mark.anyio
     async def test_a_configured_pair_is_written_through(self, mock_db, unclaimed_collection_name):
         secret_id = uuid.uuid4()
         data = KnowledgeBaseCreate(

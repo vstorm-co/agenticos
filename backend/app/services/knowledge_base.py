@@ -33,7 +33,7 @@ from app.services.ingestion_config import (
     deployment_defaults,
     deployment_embedding,
 )
-from app.services.rerank_resolution import RERANK_KEY_PURPOSES
+from app.services.rerank_resolution import RERANK_KEY_PURPOSES, SUPPORTED_RERANK_MODELS
 
 logger = logging.getLogger(__name__)
 
@@ -368,17 +368,27 @@ class KnowledgeBaseService:
 
     @staticmethod
     def _check_rerank_pair(model: str | None, secret_id: UUID | None) -> None:
-        """A reranker is a model *and* a key, or neither.
+        """A reranker is a supported model *and* a key, or neither.
 
         Reranking runs only when both are set (`rerank_resolution`), so a lone
-        half is a setting that reads as configured and does nothing. Refused
-        here, where the person setting it can see why, rather than silently
-        ignored at search time.
+        half is a setting that reads as configured and does nothing. And a model
+        this deployment cannot run is the same failure by another route: it is
+        accepted, stored and shown as configured, then every search fails inside
+        Cohere and is swallowed, so reranking is silently off. Both are refused
+        here, where the person setting it can see why, rather than at search time.
         """
         if (model is None) != (secret_id is None):
             raise BadRequestError(
                 message="Reranking needs both a model and a key, or neither",
                 details={"rerank_model": model, "rerank_secret_id": str(secret_id)},
+            )
+        if model is not None and model not in SUPPORTED_RERANK_MODELS:
+            raise BadRequestError(
+                message=(
+                    f"Unsupported rerank model; this deployment reranks through "
+                    f"{', '.join(SUPPORTED_RERANK_MODELS)}"
+                ),
+                details={"rerank_model": model},
             )
 
     async def _check_rerank_secret(
