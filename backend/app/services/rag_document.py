@@ -17,6 +17,7 @@ from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.services.rag.config import get_supported_formats
 from app.services.rag.documents import has_indexable_text
+from app.services.rag.ingestion import IngestionService
 from app.services.rag.vectorstore import BaseVectorStore
 from app.repositories import rag_document_repo
 from app.schemas.rag import (
@@ -418,17 +419,26 @@ class RAGDocumentService:
     async def delete_document(
         self,
         doc_id: str,
-        ingestion_service: Any = None,
+        ingestion_service: IngestionService,
     ) -> None:
         """Delete a document with cascading cleanup.
 
-        Removes the record from the database and attempts to clean up
-        the vector store entry and stored file. Failures in cleanup
-        are logged but do not prevent the DB deletion.
+        Removes the record from the database and attempts to clean up the vector
+        store entry and stored file. Failures in cleanup are logged but do not
+        prevent the DB deletion.
+
+        **`ingestion_service` has no default, and that is the whole of it.** It
+        was `Any = None`, and the vector cleanup ran only when a caller happened
+        to pass one - so `DELETE /kb/{kb_id}/documents/{doc_id}`, which did not,
+        removed the row and left the content searchable. A collection then held a
+        document nobody could see, delete or re-ingest, because the next
+        `new_only` sync matched its unchanged hash and skipped it (#992). That is
+        the same trap `complete_ingestion` describes one method down: an argument
+        the caller may omit is an argument some caller will.
         """
         doc = await self.get_document(doc_id)
 
-        if doc.vector_document_id and ingestion_service:
+        if doc.vector_document_id:
             try:
                 await ingestion_service.remove_document(doc.collection_name, doc.vector_document_id)
             except Exception as e:
