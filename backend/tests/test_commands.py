@@ -174,6 +174,22 @@ class TestRagSourceSyncWaitsForItsWork:
         )
 
 
+def _kb(
+    *,
+    organization_id,
+    collection_name: str = "docs",
+    scope: str = "org",
+    owner=None,
+) -> SimpleNamespace:
+    """A knowledge base row as the command reads one: name, tenant and scope."""
+    return SimpleNamespace(
+        collection_name=collection_name,
+        organization_id=organization_id,
+        scope=scope,
+        owner_user_id=owner,
+    )
+
+
 class TestRagSourceAddRefusesWhatItCannotOwn:
     """#707. The command wrote a caller-supplied collection name straight into a
     `sync_sources` row without asking whether it was a legal identifier, whether
@@ -247,7 +263,7 @@ class TestRagSourceAddRefusesWhatItCannotOwn:
         """And the row carries the organization, which every row this command
         made used to lack."""
         organization = SimpleNamespace(id=self.ORG, name="Acme")
-        kb = SimpleNamespace(collection_name="docs", organization_id=self.ORG)
+        kb = _kb(organization_id=self.ORG)
         created, _ = self._run(monkeypatch, organization=organization, candidates=[kb])
 
         result = self._invoke("docs")
@@ -266,7 +282,8 @@ class TestRagSourceAddRefusesWhatItCannotOwn:
         result = self._invoke("absent")
 
         assert created == []
-        assert "No collection 'absent'" in result.output
+        assert result.exit_code != 0
+        assert "'absent'" in result.output
 
     def test_another_organizations_collection_is_refused(self, monkeypatch) -> None:
         """The injection the route's docstring names. `collection_name` is not
@@ -275,13 +292,46 @@ class TestRagSourceAddRefusesWhatItCannotOwn:
         row the database returns (#913).
         """
         organization = SimpleNamespace(id=self.ORG, name="Acme")
-        theirs = SimpleNamespace(collection_name="docs", organization_id=uuid4())
+        theirs = _kb(organization_id=uuid4())
         created, _ = self._run(monkeypatch, organization=organization, candidates=[theirs])
 
         result = self._invoke("docs")
 
         assert created == []
-        assert "No collection 'docs'" in result.output
+        assert result.exit_code != 0
+        assert "'docs'" in result.output
+
+    def test_a_members_personal_collection_is_refused(self, monkeypatch) -> None:
+        """A personal base carries the organization's id too, so "same tenant" is
+        not ownership: `writable_kb` lets only its owner write to one.
+
+        Accepting it here would point an *organization-owned* source at a
+        member's private collection, which every member holding
+        `connections:manage` could then see and trigger. The command has no
+        caller identity, so the org scope is the only one it can claim on the
+        organization's behalf.
+        """
+        organization = SimpleNamespace(id=self.ORG, name="Acme")
+        personal = _kb(organization_id=self.ORG, scope="personal", owner=uuid4())
+        created, _ = self._run(monkeypatch, organization=organization, candidates=[personal])
+
+        result = self._invoke("docs")
+
+        assert created == []
+        assert result.exit_code != 0
+        assert "personal collection" in result.output
+
+    def test_an_app_scoped_collection_is_refused(self, monkeypatch) -> None:
+        """It belongs to the deployment, and takes an app admin - which a
+        `--org` cannot stand in for."""
+        organization = SimpleNamespace(id=self.ORG, name="Acme")
+        shared = _kb(organization_id=self.ORG, scope="app")
+        created, _ = self._run(monkeypatch, organization=organization, candidates=[shared])
+
+        result = self._invoke("docs")
+
+        assert created == []
+        assert result.exit_code != 0
 
     def test_an_organization_that_does_not_exist_is_refused(self, monkeypatch) -> None:
         created, _ = self._run(monkeypatch, organization=None, candidates=[])
@@ -289,6 +339,7 @@ class TestRagSourceAddRefusesWhatItCannotOwn:
         result = self._invoke("docs")
 
         assert created == []
+        assert result.exit_code != 0
         assert "No such organization" in result.output
 
     def test_something_that_is_not_an_organization_id_is_refused_before_any_query(
@@ -301,6 +352,7 @@ class TestRagSourceAddRefusesWhatItCannotOwn:
         result = self._invoke("docs", org="acme")
 
         assert created == []
+        assert result.exit_code != 0
         assert "Not an organization id" in result.output
 
     def test_a_name_no_table_can_be_called_is_refused_by_the_service(self, monkeypatch) -> None:
@@ -310,16 +362,29 @@ class TestRagSourceAddRefusesWhatItCannotOwn:
         from app.services.sync_source import SyncSourceService
 
         organization = SimpleNamespace(id=self.ORG, name="Acme")
-        kb = SimpleNamespace(collection_name="Bad Name!", organization_id=self.ORG)
+        kb = _kb(collection_name="Bad Name!", organization_id=self.ORG)
         self._run(
             monkeypatch, organization=organization, candidates=[kb], service=SyncSourceService
         )
 
         result = self._invoke("Bad Name!")
 
-        assert result.exit_code == 0, result.output
+        assert result.exit_code != 0
         assert "Failed to create source" in result.output
         assert "collection name" in result.output
+
+    def test_a_refusal_exits_non_zero_so_a_script_can_read_it(self, monkeypatch) -> None:
+        """`error` is `click.secho`, so a command that printed and returned exited
+        **0** - and a shell script carried on as though the source had been
+        created when no row existed.
+        """
+        organization = SimpleNamespace(id=self.ORG, name="Acme")
+        created, _ = self._run(monkeypatch, organization=organization, candidates=[])
+
+        result = self._invoke("absent")
+
+        assert created == []
+        assert result.exit_code == 1
 
 
 class TestSeedSkillsSurvivesARacingListing:
