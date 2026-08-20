@@ -49,8 +49,15 @@ async function openCollection(page: Page, name: string): Promise<void> {
   await expect(pageHeading(page, name)).toBeVisible();
 }
 
-/** The panel that states what reads this collection's documents. */
-function howItReads(page: Page) {
+/**
+ * The panel that states what reads this collection's documents.
+ *
+ * Behind its own tab since #939 - the three sections used to stack - so reaching
+ * it means choosing it. Idempotent: clicking a selected tab changes nothing, so
+ * a spec that opens the panel twice is fine.
+ */
+async function howItReads(page: Page) {
+  await page.getByRole("tab", { name: "How documents are read" }).click();
   return page.getByRole("region", { name: "How documents are read" });
 }
 
@@ -93,16 +100,16 @@ test.describe("Ingestion settings", () => {
     await expect(dialog).toBeHidden();
 
     await openCollection(page, KB_NAME);
-    await expect(howItReads(page)).toContainText(PARSER);
-    await expect(howItReads(page)).toContainText("1,024 characters");
+    await expect(await howItReads(page)).toContainText(PARSER);
+    await expect(await howItReads(page)).toContainText("1,024 characters");
 
     // Through the server, not through the state the dialog left behind. This is
     // the assertion the whole spec exists for: everything above would also pass
     // if `ingestion_config` were dropped on the way out.
     await page.reload();
     await expect(pageHeading(page, KB_NAME)).toBeVisible();
-    await expect(howItReads(page)).toContainText(PARSER);
-    await expect(howItReads(page)).toContainText("1,024 characters");
+    await expect(await howItReads(page)).toContainText(PARSER);
+    await expect(await howItReads(page)).toContainText("1,024 characters");
 
     // And it can be changed afterwards. The API replaces the object wholesale,
     // so this is also the only assertion that the dialog sent the nine fields
@@ -114,8 +121,8 @@ test.describe("Ingestion settings", () => {
     await expect(settings).toBeHidden();
 
     await page.reload();
-    await expect(howItReads(page)).toContainText("2,048 characters");
-    await expect(howItReads(page)).toContainText(PARSER);
+    await expect(await howItReads(page)).toContainText("2,048 characters");
+    await expect(await howItReads(page)).toContainText(PARSER);
   });
 
   test("the embedding model is stated as a fact and offered as no control", async ({ page }) => {
@@ -125,14 +132,16 @@ test.describe("Ingestion settings", () => {
     // dropdown here would be an invitation to break a collection silently.
     await openCollection(page, SEEDED_KB_NAME);
 
-    const embeddings = howItReads(page).getByText("dimensions");
+    const embeddings = (await howItReads(page)).getByText("dimensions");
     await expect(embeddings).toBeVisible();
-    await expect(howItReads(page).getByRole("combobox", { name: /embedding/i })).toHaveCount(0);
+    await expect(
+      (await howItReads(page)).getByRole("combobox", { name: /embedding/i }),
+    ).toHaveCount(0);
   });
 
   test("a per-upload override says it is not changing the collection", async ({ page }) => {
     await openCollection(page, SEEDED_KB_NAME);
-    const before = await howItReads(page).innerText();
+    const before = await (await howItReads(page)).innerText();
 
     await page.getByRole("button", { name: "Parse options" }).click();
     const dialog = page.getByRole("dialog");
@@ -143,7 +152,7 @@ test.describe("Ingestion settings", () => {
     // Two claims, and the second is the one that matters: the departure applies
     // to documents, and the collection is exactly as it was.
     await expect(page.getByText("The collection itself is unchanged.")).toBeVisible();
-    expect(await howItReads(page).innerText()).toBe(before);
+    expect(await (await howItReads(page)).innerText()).toBe(before);
 
     // And it can be put back, which is what stops it applying to whatever is
     // dropped on this page twenty minutes from now.

@@ -74,6 +74,8 @@ test.describe("Reusable integrations", () => {
     await expect(pageHeading(page, "Knowledge bases")).toBeVisible();
     await expect(page.getByText(SEEDED_KB_NAME, { exact: true }).first()).toBeVisible();
 
+    // Its own tab since #939, rather than a section under the base grid.
+    await page.getByRole("tab", { name: "Integrations" }).click();
     await page.getByRole("button", { name: "Add integration" }).click();
     const wizard = page.getByRole("dialog");
     await wizard.getByLabel("Source name").fill(REUSABLE_NAME);
@@ -109,7 +111,9 @@ test.describe("Reusable integrations", () => {
     await expect(page.getByText(REUSABLE_NAME)).toBeVisible();
 
     const kbId = await seededKbId(page.request);
-    await page.goto(`/rag/${kbId}`);
+    // Straight to the section, which the URL can name since #939 - rather than
+    // landing on the documents and clicking across.
+    await page.goto(`/rag/${kbId}?tab=sync`);
     await expect(pageHeading(page, SEEDED_KB_NAME)).toBeVisible();
     await expect(page.getByText(CLONE_NAME)).toBeVisible();
   });
