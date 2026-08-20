@@ -89,17 +89,34 @@ export function WorkspaceBrowser() {
   const { workspaces, isLoading, error } = useSandboxWorkspaces();
   const [flat, setFlat] = useState(false);
 
+  /**
+   * Four columns, not seven, and the row is the link.
+   *
+   * Seven columns of small grey text made a table nobody could scan, and three of
+   * them were two halves of one fact: an agent and the chat its files belong to are
+   * one identity, and what holds a workspace and who can see it are one answer
+   * about reach. Folded, each cell carries a heading and its qualifier - which is
+   * the shape every other listing in this product already uses (#1039).
+   *
+   * The trailing `Open` button is gone and the agent's name is the link instead -
+   * a real one, so the URL can be copied, middle-clicked and sent, which this
+   * page's own comment says is the point of a workspace having one. Deliberately
+   * not a clickable row: every `onRowClick` in this codebase opens something in
+   * place, and a router push from one would need next-intl's navigation for the
+   * locale prefix, which is a provider this table has never needed.
+   */
   const columns = useMemo<Column<WorkspaceSummary>[]>(
     () => [
       {
-        key: "agent",
-        header: t("agent"),
+        key: "workspace",
+        header: t("workspace"),
+        className: "pl-5",
         sortable: true,
         sortValue: (workspace) => workspace.agent_name,
         cell: (workspace) => (
-          <span className="flex items-center gap-2 font-medium">
-            {/* Decorative beside the name it initials - the presentation
-                every list of agents draws. */}
+          <div className="flex min-w-0 items-center gap-3">
+            {/* Decorative beside the name it initials - the presentation every
+                list of agents draws. */}
             <span aria-hidden>
               <AgentAvatar
                 agentId={workspace.agent_id}
@@ -108,49 +125,53 @@ export function WorkspaceBrowser() {
                 size="sm"
               />
             </span>
-            {workspace.agent_name}
-          </span>
+            <div className="min-w-0">
+              <Link
+                href={ROUTES.WORKSPACE_DETAIL(workspace.id)}
+                className="text-foreground block truncate text-sm font-medium underline-offset-4 hover:underline"
+              >
+                {workspace.agent_name}
+              </Link>
+              {/* A conversation-scoped workspace has exactly one chat; a shared
+                  one has however many the agent has answered in, and that number
+                  is the difference between "my files" and "everybody's". The
+                  reader's own thread links to the chat itself - anybody else's
+                  would land on an empty sidebar dressed as the conversation. */}
+              {workspace.conversation_id !== null && workspace.conversation_is_mine ? (
+                <Link
+                  href={`${ROUTES.CHAT}?id=${workspace.conversation_id}`}
+                  className="text-muted-foreground inline-flex max-w-64 items-center gap-1 truncate text-xs underline-offset-4 hover:underline"
+                  aria-label={t("openTheChatBehindFiles")}
+                >
+                  <MessageSquare className="h-3 w-3 shrink-0" aria-hidden />
+                  <span className="truncate">
+                    {workspace.conversation_title ?? t("untitledChat")}
+                  </span>
+                </Link>
+              ) : (
+                <span className="text-muted-foreground block max-w-64 truncate text-xs">
+                  {workspace.conversation_title ??
+                    (workspace.conversations > 0
+                      ? t("conversationCount", { count: workspace.conversations })
+                      : "—")}
+                </span>
+              )}
+            </div>
+          </div>
         ),
-      },
-      {
-        key: "conversation",
-        header: t("conversation"),
-        cell: (workspace) =>
-          /* A conversation-scoped workspace has exactly one chat; a shared
-             one has however many the agent has answered in, and that number
-             is the difference between "my files" and "everybody's". The
-             reader's own thread links to the chat itself - anybody else's
-             would land on an empty sidebar dressed as the conversation. */
-          workspace.conversation_id !== null && workspace.conversation_is_mine ? (
-            <Link
-              href={`${ROUTES.CHAT}?id=${workspace.conversation_id}`}
-              className="text-muted-foreground inline-flex max-w-48 items-center gap-1 truncate text-xs underline-offset-4 hover:underline"
-              aria-label={t("openTheChatBehindFiles")}
-            >
-              <MessageSquare className="h-3 w-3 shrink-0" aria-hidden />
-              <span className="truncate">{workspace.conversation_title ?? t("untitledChat")}</span>
-            </Link>
-          ) : (
-            <span className="text-muted-foreground block max-w-48 truncate text-xs">
-              {workspace.conversation_title ??
-                (workspace.conversations > 0
-                  ? t("conversationCount", { count: workspace.conversations })
-                  : "—")}
-            </span>
-          ),
       },
       {
         key: "whoCanSeeIt",
         header: t("whoCanSeeIt"),
         cell: (workspace) => (
-          <span className="text-muted-foreground text-xs">{workspace.access_label}</span>
-        ),
-      },
-      {
-        key: "backend",
-        header: t("backend"),
-        cell: (workspace) => (
-          <Badge variant="outline">{workspace.backend === "state" ? "stored" : "container"}</Badge>
+          <div className="min-w-0">
+            <Badge variant="outline">
+              {workspace.backend === "state" ? t("stored") : t("container")}
+            </Badge>
+            <span className="text-muted-foreground mt-1 block truncate text-xs">
+              {workspace.access_label}
+            </span>
+          </div>
         ),
       },
       {
@@ -160,9 +181,8 @@ export function WorkspaceBrowser() {
         sortValue: (workspace) => (workspace.backend === "state" ? workspace.bytes_total : null),
         cell: (workspace) => (
           <span className="text-muted-foreground text-xs">
-            {/* Only meaningful for a stored workspace: a container's
-                files are on its host volume and this column is the
-                JSONB document's size. */}
+            {/* Only meaningful for a stored workspace: a container's files are on
+                its host volume and this column is the JSONB document's size. */}
             {workspace.backend === "state" ? formatBytes(workspace.bytes_total) : t("host")}
           </span>
         ),
@@ -172,24 +192,6 @@ export function WorkspaceBrowser() {
         header: t("lastUsed"),
         cell: (workspace) => (
           <span className="text-muted-foreground text-xs">{used(workspace.last_used_at, t)}</span>
-        ),
-      },
-      {
-        key: "files",
-        header: t("files"),
-        align: "right",
-        cell: (workspace) => (
-          /* A page, not a panel below the table. A workspace with a
-             `skills/` directory is a tree, and it is worth having a
-             URL somebody can send. */
-          <Button variant="ghost" size="sm" asChild>
-            <Link
-              href={ROUTES.WORKSPACE_DETAIL(workspace.id)}
-              aria-label={t("filesOf", { agent: workspace.agent_name })}
-            >
-              {t("open")}
-            </Link>
-          </Button>
         ),
       },
     ],

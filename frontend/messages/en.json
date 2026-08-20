@@ -4177,14 +4177,12 @@
       "agent": "Agent",
       "allFiles": "All files",
       "allFiles2": "All files",
-      "backend": "Backend",
       "byWorkspace": "By workspace",
       "bytesStored": "· {size} stored",
       "container": "container",
       "conversation": "Conversation",
       "conversationCount": "{count, plural, =1 {1 conversation} other {# conversations}}",
       "files": "Files",
-      "filesOf": "Files of {agent}",
       "folderEmpty": "This folder is empty.",
       "folders": "Folders",
       "host": "on the host",
@@ -4208,6 +4206,7 @@
       "usedYesterday": "yesterday",
       "whatAgentsAreKeeping": "What the agents are keeping. A workspace is scratch space — it is deleted with the conversation it belongs to, and is not a place to store anything durable.",
       "whoCanSeeIt": "Who can see it",
+      "workspace": "Workspace",
       "workspacesHeading": "Workspaces"
     },
     "workspacesHeading": "Workspaces"

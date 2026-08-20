@@ -184,13 +184,13 @@ describe("WorkspaceBrowser", () => {
       return cell.textContent;
     };
 
-    await userEvent.click(screen.getByRole("button", { name: "Agent" }));
-    expect(firstAgent()).toBe("Builder");
+    await userEvent.click(screen.getByRole("button", { name: "Workspace" }));
+    expect(firstAgent()).toContain("Builder");
 
     // Descending by size: the stored workspace has a number, the container
     // has none - and an absence is not a small number, so it sorts last.
     await userEvent.click(screen.getByRole("button", { name: "Size" }));
-    expect(firstAgent()).toBe("Analyst");
+    expect(firstAgent()).toContain("Analyst");
   });
 
   it("links the reader's own conversation to its chat", () => {
@@ -291,13 +291,24 @@ describe("WorkspaceBrowser", () => {
 
   it("opens a workspace as its own page rather than a panel under the table", () => {
     // A workspace with a `skills/` directory is a tree, and a URL is what makes
-    // "look at this file" something one person can send another.
+    // "look at this file" something one person can send another. The agent's name
+    // is that link now - the trailing `Open` button was a seventh column saying
+    // what the row already meant (#1039).
     render(<WorkspaceBrowser />);
 
-    expect(screen.getByRole("link", { name: "Files of Analyst" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Analyst" })).toHaveAttribute(
       "href",
       "/workspaces/w-1",
     );
+  });
+
+  it("says what holds the files beside who can see them", () => {
+    // Two halves of one answer about reach, folded into one cell: seven columns of
+    // small grey text was a table nobody could scan.
+    render(<WorkspaceBrowser />);
+
+    const cell = screen.getByText("Whoever is in that conversation").closest("td")!;
+    expect(cell).toHaveTextContent("stored");
   });
 
   describe("the flat view", () => {
