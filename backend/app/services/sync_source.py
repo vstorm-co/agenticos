@@ -196,9 +196,11 @@ class SyncSourceService:
     async def create_source(self, data: SyncSourceCreate, *, ctx: AuthContext) -> SyncSourceRead:
         """Create a new sync source.
 
-        Secret fields are Fernet-encrypted before persisting.
         `collection_name` is optional - omit to create an org-level integration
-        not yet linked to a knowledge base.
+        not yet linked to a knowledge base. Whatever it names decides who can
+        read what this source ingests, because access is decided at the
+        collection and the credential's reach is the source's reach
+        (`docs/file-processing.md#who-ends-up-able-to-read-what-a-source-ingested`).
 
         The name's *shape* is judged here rather than only at the routes,
         because a sync writes into whatever collection this row names and the
