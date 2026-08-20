@@ -17,6 +17,35 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.218] - 2026-08-20
+
+Every ingest path writes its tracking row before the file is indexed.
+
+### Fixed
+
+- **The local-directory sync opens its document row before the ingest**, and
+  writes one whether or not the ingest succeeded. It created the row afterwards
+  and only on success, so a row whose write failed - a database blip, a name
+  longer than the 255-character column - left the vector document stored and
+  untracked, and the next `new_only` run then matched its unchanged hash and
+  skipped the file before reaching the write: searchable, invisible and
+  undeletable for good. This was the last path still doing it; the connector sync
+  stopped in #992. (#997)
+- **A locally-synced file that failed to parse keeps its own reason.** `failed`
+  was incremented in the sync log and nothing anywhere said which file or why, so
+  a run reporting four of forty failures named none of the four. (#997)
+- **A locally-synced document's row says which parser read it.** The rows carried
+  no `ingestion_config` at all, so `parser` read `null` for every one of them
+  while the setting that chose it sat resolved a few lines above. (#997)
+
+### Changed
+
+- `updated` is counted off `replaced_document_id` rather than by searching the
+  ingest result's own message for the word "replaced" - the string dependency
+  #990's review removed from the connector flow. Equivalent today, since
+  `ingest_file` writes that word exactly when it replaced something; one of the
+  two is a fact and the other is a sentence. (#997)
+
 ## [0.0.217] - 2026-08-20
 
 What a connector sync ingests is visible, and deleting it deletes it.
