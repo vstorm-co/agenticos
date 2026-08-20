@@ -98,7 +98,16 @@ async function mount(permissions: Permission[], onChange = vi.fn()) {
   });
   render(
     <QueryClientProvider client={client}>
-      <ChatModelPicker value={null} onChange={onChange} />
+      <ChatModelPicker
+        value={null}
+        agentModel={{
+          profile_id: "ap",
+          provider: "anthropic",
+          model: "claude-sonnet-4-5",
+          label: "Claude Sonnet",
+        }}
+        onChange={onChange}
+      />
     </QueryClientProvider>,
   );
   // Waited for, not assumed: `can()` answers false until the permission set
@@ -126,7 +135,7 @@ describe("who may move this conversation onto another model", () => {
     expect(screen.queryByText(/permission you do not hold/)).toBeNull();
   });
 
-  it("offers none of it without, and says so rather than going blank", async () => {
+  it("offers none of the fields without, but still says what it runs on", async () => {
     // An operator: they may run this agent, which is what opens the popover, and
     // may not define a model for the organization, which is what the form does.
     await mount([Perm.agentsView, Perm.agentsRun]);
@@ -134,10 +143,10 @@ describe("who may move this conversation onto another model", () => {
     expect(screen.queryByRole("combobox", { name: "Provider" })).toBeNull();
     expect(screen.queryByLabelText("Model")).toBeNull();
     expect(submit()).toBeNull();
-    // Paired with the absences deliberately: a panel rendering nothing at all
-    // would satisfy the three above, and the popover opens on this tab - so what
-    // the reader would get is a blank box with no account of itself.
     expect(screen.getByText(/permission you do not hold/)).toBeInTheDocument();
+    // Reading which model the conversation runs on is agents:view, not the
+    // permission being refused - so the model is shown even here.
+    expect(screen.getByText("Claude Sonnet")).toBeInTheDocument();
     expect(apiClient.post).not.toHaveBeenCalled();
   });
 
