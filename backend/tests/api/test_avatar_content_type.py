@@ -1,11 +1,12 @@
 """An avatar is served as an image or not at all.
 
-Both avatar routes serve a file the uploader named, from the app's own origin,
-under a CSP that allows inline script. The upload kept whatever suffix the caller
-chose, so a file stored as `x.html` was served as `text/html` - a stored script
-rather than a picture (#702). The routes now pin the served type to an image and
-refuse anything else; the type is guessed from the name on disk, so a stored
-`.html` is refused rather than served.
+All three avatar routes serve a file the uploader named, from the app's own
+origin, under a CSP that allows inline script. The upload kept whatever suffix
+the caller chose, so a file stored as `x.html` was served as `text/html` - a
+stored script rather than a picture (#702 for the user and org avatars, #1035 for
+the agent's). The routes now pin the served type to an image and refuse anything
+else; the type is guessed from the name on disk, so a stored `.html` is refused
+rather than served.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.api.routes.v1.agents import get_agent_avatar
 from app.api.routes.v1.organizations import get_organization_avatar
 from app.api.routes.v1.users import get_avatar
 from app.core.exceptions import NotFoundError
@@ -75,4 +77,24 @@ async def test_an_org_avatar_that_is_an_image_is_pinned_and_nosniffed(tmp_path: 
     response = await get_organization_avatar(uuid4(), service, MagicMock(id=uuid4()))
 
     assert response.media_type == "image/webp"
+    assert response.headers["x-content-type-options"] == "nosniff"
+
+
+async def test_an_agent_avatar_stored_as_html_is_refused(tmp_path: Path) -> None:
+    stored = tmp_path / "x.html"
+    stored.write_bytes(b"<script>fetch('/api/v1/agents')</script>")
+    service = MagicMock(avatar_path=AsyncMock(return_value=str(stored)))
+
+    with pytest.raises(NotFoundError):
+        await get_agent_avatar(uuid4(), service, MagicMock())
+
+
+async def test_an_agent_avatar_that_is_an_image_is_pinned_and_nosniffed(tmp_path: Path) -> None:
+    stored = tmp_path / "x.gif"
+    stored.write_bytes(b"GIF89a")
+    service = MagicMock(avatar_path=AsyncMock(return_value=str(stored)))
+
+    response = await get_agent_avatar(uuid4(), service, MagicMock())
+
+    assert response.media_type == "image/gif"
     assert response.headers["x-content-type-options"] == "nosniff"
