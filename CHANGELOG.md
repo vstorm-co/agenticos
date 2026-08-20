@@ -17,6 +17,40 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.231] - 2026-08-20
+
+The organization in the URL is the tenant.
+
+### Fixed
+
+- **`/orgs/{id}/members` acted on the organization in its path and judged
+  permissions from the active one.** `X-Organization-Id` travels on every request
+  and names the active organization, while the organizations list opens any org's
+  members page through a link and *switching* is a separate button that navigates
+  to the dashboard - so the ordinary route to another organization's members page
+  was the one that left the active organization behind, and the page then judged
+  Acme's members by the caller's role in Globex. `ActiveOrgGuard` adopts the
+  organization a path names, before the page asks anything. (#1032)
+- Not only the role picker: `canManage` decides whether any role control, invite
+  button or spending field renders at all, and it read the same wrong answer long
+  before the picker did. (#1032)
+- **Switching organization from a page that names one now takes the route with
+  it** - Globex picked on Acme's members page lands on Globex's members page.
+  Adoption happens once per path, so a deliberate switch is not written back; the
+  two together are what keep the primary switcher working on those pages while
+  the URL still decides the tenant. (#1032)
+- An organization id in a URL is adopted lower-cased. The server serialises them
+  canonically and the active organization is found by identity, so an upper-case
+  spelling would be held as the selection, match nothing in the list - the
+  switcher showing the first organization while requests carried another - and be
+  unrecoverable, since the refusal check compares the same two strings. (#1032)
+
+### Changed
+
+- `OrgSwitcher` navigates through `@/lib/locale-navigation` rather than
+  `next/navigation`, so its pushes keep the locale prefix instead of sending a
+  Polish reader to the English `/orgs`. (#1032)
+
 ## [0.0.230] - 2026-08-20
 
 A role picker offers what the caller may actually assign.
