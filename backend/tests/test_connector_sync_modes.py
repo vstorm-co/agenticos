@@ -537,3 +537,81 @@ class TestAListingTheStoreCannotAnswer:
 
         assert answer["ingested"] == 1
         assert answer["skipped"] == 0
+
+
+class TestTheLocalDirectorySync:
+    """The same two guarantees, on the flow that names a path on the server.
+
+    One `sync_mode` column feeds both flows and both now write their rows the
+    same way round - which is the point: the local sync kept the exposure #992
+    removed from the connector path, and a file that failed to parse there left
+    no row and no reason at all (#997).
+    """
+
+    @staticmethod
+    @asynccontextmanager
+    async def _syncing(*, result: MagicMock) -> Any:
+        store = MagicMock(aclose=AsyncMock(), get_documents=AsyncMock(return_value=[]))
+        documents = MagicMock(
+            create_document=AsyncMock(return_value=MagicMock(id=ROW_ID)),
+            complete_ingestion=AsyncMock(),
+            fail_ingestion=AsyncMock(),
+        )
+
+        @asynccontextmanager
+        async def _db() -> Any:
+            yield MagicMock()
+
+        with (
+            patch.object(rag_tasks, "VectorStore", return_value=store),
+            patch.object(rag_tasks, "EmbeddingService", new=MagicMock()),
+            patch.object(rag_tasks, "get_worker_db_context", new=_db),
+            patch.object(rag_tasks, "_record_embedding_spend", new=AsyncMock()),
+            patch.object(rag_tasks, "_config_for_collection", new=AsyncMock()),
+            patch.object(rag_tasks, "IngestionConfigService") as config_service,
+            patch.object(
+                rag_tasks.IngestionService, "ingest_file", new=AsyncMock(return_value=result)
+            ),
+            patch(
+                "app.services.rag_sync.RAGSyncService",
+                # The loop asks whether the run was cancelled before each file,
+                # so the stand-in has to answer awaitably and say it was not.
+                return_value=MagicMock(
+                    get_sync_log=AsyncMock(return_value=MagicMock(status="running")),
+                    complete_sync=AsyncMock(),
+                ),
+            ),
+            patch("app.services.rag_document.RAGDocumentService", return_value=documents),
+        ):
+            config_service.return_value.build_processor = AsyncMock(return_value=MagicMock())
+            yield documents
+
+    async def test_a_file_that_failed_to_parse_keeps_its_own_reason(self, tmp_path: Path):
+        (tmp_path / "handbook.md").write_text("body")
+        failure = MagicMock(
+            status=IngestionStatus.ERROR,
+            document_id=None,
+            chunk_count=0,
+            replaced_document_id=None,
+            error_message="The parser gave up on page 4",
+        )
+
+        async with self._syncing(result=failure) as documents:
+            answer = await rag_tasks._run_sync(
+                str(uuid.uuid4()), "local", "docs", "full", str(tmp_path)
+            )
+
+        assert answer["failed"] == 1
+        documents.create_document.assert_awaited_once()
+        assert "page 4" in documents.fail_ingestion.await_args.args[1]
+
+    async def test_the_row_says_which_parser_read_the_document(self, tmp_path: Path):
+        """The rows carried no configuration at all, so `parser` read `null` for
+        every locally-synced file while the setting that chose it was right
+        there."""
+        (tmp_path / "handbook.md").write_text("body")
+
+        async with self._syncing(result=_result()) as documents:
+            await rag_tasks._run_sync(str(uuid.uuid4()), "local", "docs", "full", str(tmp_path))
+
+        assert documents.create_document.await_args.kwargs["ingestion_config"] is not None

@@ -375,7 +375,6 @@ async def _run_ingestion(
 async def _run_sync(
     sync_log_id: str, source: str, collection_name: str, mode: str, path: str
 ) -> dict[str, Any]:
-    from app.services.rag_document import RAGDocumentService
     from app.services.rag_sync import RAGSyncService
 
     target_path = Path(path).resolve()
@@ -402,10 +401,12 @@ async def _run_sync(
     # store owns a pooled engine, so one built before an early return is a pool
     # nothing ever closes (#948).
     async with get_worker_db_context() as db:
+        # Kept, not just passed through: every row this sync writes records which
+        # parser read the document, and the rows used to carry no configuration at
+        # all - so `parser` read `null` for every locally-synced file (#997).
+        ingestion_config = await _config_for_collection(db, collection_name, None)
         ingestion_service = await _ingestion_service_for(
-            db,
-            config=await _config_for_collection(db, collection_name, None),
-            organization_id=None,
+            db, config=ingestion_config, organization_id=None
         )
 
     try:
@@ -448,28 +449,41 @@ async def _run_sync(
                         skipped += 1
                         continue
             try:
+                # Opened before the ingest, as the upload and the connector sync
+                # do (#992). Written afterwards it could fail afterwards - a
+                # database blip, a name longer than the column - leaving the
+                # vector document stored and untracked, and the next `new_only`
+                # run then matched its unchanged hash and skipped the file before
+                # reaching the write, for good (#997).
+                row_id = await _open_document_row(
+                    filename=filepath.name,
+                    filesize=filepath.stat().st_size,
+                    collection_name=collection_name,
+                    # A path on the server belongs to no tenant and to no
+                    # knowledge base; `POST /rag/sync/local` is the one route
+                    # that still carries `is_app_admin` for exactly that reason.
+                    organization_id=None,
+                    knowledge_base_id=None,
+                    ingestion_config=ingestion_config,
+                    image_description_model=None,
+                    embedding_model=None,
+                )
+
                 with metered_by(ledger):
                     result = await ingestion_service.ingest_file(
                         filepath=filepath, collection_name=collection_name, replace=True
                     )
-                if result.status.value == "done":
-                    if result.message and "replaced" in result.message:
+
+                # Either way, which is the other half of #997: a file that failed
+                # to parse used to leave no row and no reason, so a sync log
+                # saying four of forty failed named none of the four.
+                await _settle_document_row(row_id, result)
+
+                if result.status is IngestionStatus.DONE:
+                    if result.replaced_document_id:
                         updated += 1
                     else:
                         ingested += 1
-                    async with get_worker_db_context() as db:
-                        doc = await RAGDocumentService(db).create_document(
-                            collection_name=collection_name,
-                            filename=filepath.name,
-                            filesize=filepath.stat().st_size,
-                            filetype=filepath.suffix.lstrip(".").lower(),
-                        )
-                        await RAGDocumentService(db).complete_ingestion(
-                            str(doc.id),
-                            vector_document_id=result.document_id,
-                            chunk_count=result.chunk_count,
-                            replaced_document_id=result.replaced_document_id,
-                        )
                 else:
                     failed += 1
             except Exception as e:
