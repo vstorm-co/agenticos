@@ -83,6 +83,9 @@ async def _worker(ledger: StoreLedger, *, ingest: AsyncMock | None = None) -> An
         patch.object(rag_tasks.IngestionService, "ingest_file", new=ingest or AsyncMock()),
     ):
         config_service.return_value.build_processor = AsyncMock(return_value=MagicMock())
+        # A connector sync asks for the image model to record on each document's
+        # row (#992), so the stand-in service has to answer awaitably.
+        config_service.return_value.resolved_image_model = AsyncMock(return_value=None)
         yield config_service
 
 
@@ -142,7 +145,7 @@ class TestAnUploadsStore:
         ):
             with (
                 patch("app.services.rag_document.RAGDocumentService", return_value=documents),
-                patch.object(rag_tasks, "_update_status", new=AsyncMock()),
+                patch.object(rag_tasks, "_fail_document", new=AsyncMock()),
                 pytest.raises(RuntimeError),
             ):
                 await rag_tasks._run_ingestion(
@@ -262,7 +265,7 @@ class TestAConnectorSyncsStore:
                 patch.object(rag_tasks, "SyncSourceService", return_value=sources),
                 patch.dict(rag_tasks.CONNECTOR_REGISTRY, {"gdrive": lambda: connector}),
                 patch("app.services.rag_sync.RAGSyncService", return_value=MagicMock()),
-                patch.object(rag_tasks, "_config_for_collection", new=AsyncMock()),
+                patch.object(rag_tasks, "_knowledge_base_for", new=AsyncMock(return_value=None)),
             ):
                 await rag_tasks._run_source_sync(str(uuid.uuid4()), sync_log_id=str(uuid.uuid4()))
 
@@ -293,7 +296,7 @@ class TestAConnectorSyncsStore:
                 patch.object(rag_tasks, "SyncSourceService", return_value=sources),
                 patch.dict(rag_tasks.CONNECTOR_REGISTRY, {"gdrive": lambda: connector}),
                 patch("app.services.rag_sync.RAGSyncService", return_value=MagicMock()),
-                patch.object(rag_tasks, "_config_for_collection", new=AsyncMock()),
+                patch.object(rag_tasks, "_knowledge_base_for", new=AsyncMock(return_value=None)),
             ):
                 answer = await rag_tasks._run_source_sync(
                     str(uuid.uuid4()), sync_log_id=str(uuid.uuid4())

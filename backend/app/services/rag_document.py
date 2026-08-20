@@ -17,6 +17,7 @@ from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.services.rag.config import get_supported_formats
 from app.services.rag.documents import has_indexable_text
+from app.services.rag.ingestion import IngestionService
 from app.services.rag.vectorstore import BaseVectorStore
 from app.repositories import rag_document_repo
 from app.schemas.rag import (
@@ -117,6 +118,7 @@ class RAGDocumentService:
         filesize: int,
         filetype: str,
         storage_path: str | None = None,
+        source_path: str | None = None,
         organization_id: UUID | None = None,
         knowledge_base_id: UUID | None = None,
         ingestion_config: IngestionConfig | None = None,
@@ -124,7 +126,24 @@ class RAGDocumentService:
         image_description_model: str | None = None,
         embedding_model: str | None = None,
     ) -> RAGDocument:
-        """Create a new RAG document tracking record."""
+        """Create a new RAG document tracking record.
+
+        `source_path` is how the ingest addressed the file, and it is what lets a
+        later run find this row again - `discard_failed` retires a previous
+        attempt at the *same file* rather than at the same basename, which two
+        keys in one bucket share (#996).
+
+        An **upload passes none**, and that is the point of the argument being
+        optional. A browser upload's only name is its basename, which is not an
+        address: two people can upload different `report.pdf`s and, with
+        `replace=false`, mean both to exist. Retiring by that name would delete
+        the first one's failed row - its diagnosis, its retry and its stored file
+        - for a caller who asked for no such thing.
+        """
+        if source_path:
+            await rag_document_repo.discard_failed(
+                self.db, collection_name=collection_name, source_path=source_path
+            )
         return await rag_document_repo.create(
             self.db,
             collection_name=collection_name,
@@ -132,6 +151,7 @@ class RAGDocumentService:
             filesize=filesize,
             filetype=filetype,
             storage_path=storage_path or "",
+            source_path=source_path,
             organization_id=organization_id,
             knowledge_base_id=knowledge_base_id,
             ingestion_config=(
@@ -418,17 +438,26 @@ class RAGDocumentService:
     async def delete_document(
         self,
         doc_id: str,
-        ingestion_service: Any = None,
+        ingestion_service: IngestionService,
     ) -> None:
         """Delete a document with cascading cleanup.
 
-        Removes the record from the database and attempts to clean up
-        the vector store entry and stored file. Failures in cleanup
-        are logged but do not prevent the DB deletion.
+        Removes the record from the database and attempts to clean up the vector
+        store entry and stored file. Failures in cleanup are logged but do not
+        prevent the DB deletion.
+
+        **`ingestion_service` has no default, and that is the whole of it.** It
+        was `Any = None`, and the vector cleanup ran only when a caller happened
+        to pass one - so `DELETE /kb/{kb_id}/documents/{doc_id}`, which did not,
+        removed the row and left the content searchable. A collection then held a
+        document nobody could see, delete or re-ingest, because the next
+        `new_only` sync matched its unchanged hash and skipped it (#992). That is
+        the same trap `complete_ingestion` describes one method down: an argument
+        the caller may omit is an argument some caller will.
         """
         doc = await self.get_document(doc_id)
 
-        if doc.vector_document_id and ingestion_service:
+        if doc.vector_document_id:
             try:
                 await ingestion_service.remove_document(doc.collection_name, doc.vector_document_id)
             except Exception as e:

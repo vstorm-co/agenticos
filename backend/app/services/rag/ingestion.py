@@ -177,8 +177,26 @@ class IngestionService:
             )
 
             if existing_id:
-                await self.store.delete_document(collection_name, existing_id)
-                logger.info("Replaced existing document %s for '%s'", existing_id, filepath.name)
+                try:
+                    await self.store.delete_document(collection_name, existing_id)
+                except Exception:
+                    # The ingest *succeeded*: the document asked for is stored.
+                    # Failing here used to be reported as a failed ingest, which
+                    # made the tracking row say `error` with no vector id while
+                    # the vectors existed - and the next attempt at the file then
+                    # retired that row as a failure and orphaned them (#996).
+                    # What is wrong is that an old document lingers, which is a
+                    # duplicate somebody can see and delete.
+                    logger.exception(
+                        "Stored %s but could not remove the document it replaces (%s)",
+                        filepath.name,
+                        existing_id,
+                    )
+                    existing_id = None
+                else:
+                    logger.info(
+                        "Replaced existing document %s for '%s'", existing_id, filepath.name
+                    )
 
             action = "replaced" if existing_id else "ingested"
             chunk_count = len(document.chunked_pages or [])

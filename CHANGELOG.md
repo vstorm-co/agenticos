@@ -17,6 +17,152 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.220] - 2026-08-20
+
+A status parameter with one value stops pretending to be a choice.
+
+### Changed
+
+- **`_update_status` in the ingestion flow is `_fail_document`, and takes no
+  status.** It branched on two values and all four callers passed `"error"`; the
+  `elif status == "done"` was a `pass` whose comment explained why nothing takes
+  it - reaching `DONE` needs the vector document's id, which only
+  `_run_ingestion` holds, so it calls `complete_ingestion` itself. The name now
+  says what the function does: record the *first* failure and refuse to overwrite
+  it (#423). `vulture` could not see the dead branch, because the parameter was
+  read. (#956)
+- **The guard compares `DocumentStatus.ERROR`, not the string.** Two spellings of
+  one value set is how #148 happened - a fourth status nothing had ever written,
+  filtered on by the listing, so every knowledge base reported `indexed_count:
+  0`. (#956)
+
+### Added
+
+- A test for the guard's other half: a row that has not failed yet does take the
+  failure. It was covered only incidentally, through `_run_ingestion`. (#956)
+
+## [0.0.219] - 2026-08-20
+
+A tracking row says which file it tracks, so a failed attempt stops piling up.
+
+### Fixed
+
+- **A file that failed to parse on one sync and succeeded on the next left both
+  rows.** `complete_ingestion`'s retirement matches on `vector_document_id` and a
+  failed parse writes none, so the succeeding run had nothing to name and every
+  repeated failure added another row that counted toward the collection's
+  `document_count` for good. `rag_documents` gained a `source_path` (`0043`) -
+  `gdrive://<id>`, `s3://bucket/key`, or an absolute path for a local or CLI sync
+  - and a new attempt retires the previous *failed* one by that address. (#996)
+- **Not by filename**, which is the trap and the collision #990 removed on the
+  vector side reached from the other direction: `a/readme.md` and `b/readme.md`
+  in one bucket share a basename, so a name match deletes the other file's row.
+  (#996)
+- **Not a `PROCESSING` row either.** "Has no vector id" is also true of an
+  attempt still running, and nothing serialises two manual triggers on one
+  source - the second would delete the first's live row, after which the first
+  finishes, replaces the vectors and finds no row to complete. Retirement matches
+  `status == ERROR`. (#996)
+- **A failed *supersede* is no longer reported as a failed ingest.**
+  `ingest_file` inserts the new document before deleting the one it replaces, so
+  a delete that raised returned an error while the vectors sat in the store - an
+  `ERROR` row with no vector id, which the next attempt then retired and
+  orphaned them. The insert succeeding is the answer; the lingering old document
+  is logged. (#996)
+- **The CLI sync records its address too.** `rag-ingest` called both
+  `create_document` and `ingest_file` without the resolved path it had already
+  computed, so its rows got `NULL` and a file failing there repeatedly kept
+  inflating the count. (#996)
+
+### Changed
+
+- **An upload stores no address and retires nothing.** Its only name is a
+  basename, and two people can upload different `report.pdf`s meaning both to
+  exist, since `replace` defaults to false. Retiring by that name would delete
+  the first one's failed row - its diagnosis, its retry and its stored file - for
+  a caller who asked for no such thing. (#996)
+- `source_path` is `Text` with a **hash** index rather than `String(1024)`: an S3
+  key alone reaches 1024 bytes before the scheme and bucket are added and a
+  filesystem path reaches 4096, and a btree index refuses a key over about 2700
+  bytes at insert time. Equality is the only way the column is read. (#996)
+
+## [0.0.218] - 2026-08-20
+
+Every ingest path writes its tracking row before the file is indexed.
+
+### Fixed
+
+- **The local-directory sync opens its document row before the ingest**, and
+  writes one whether or not the ingest succeeded. It created the row afterwards
+  and only on success, so a row whose write failed - a database blip, a name
+  longer than the 255-character column - left the vector document stored and
+  untracked, and the next `new_only` run then matched its unchanged hash and
+  skipped the file before reaching the write: searchable, invisible and
+  undeletable for good. This was the last path still doing it; the connector sync
+  stopped in #992. (#997)
+- **A locally-synced file that failed to parse keeps its own reason.** `failed`
+  was incremented in the sync log and nothing anywhere said which file or why, so
+  a run reporting four of forty failures named none of the four. (#997)
+- **A locally-synced document's row says which parser read it.** The rows carried
+  no `ingestion_config` at all, so `parser` read `null` for every one of them
+  while the setting that chose it sat resolved a few lines above. (#997)
+
+### Changed
+
+- `updated` is counted off `replaced_document_id` rather than by searching the
+  ingest result's own message for the word "replaced" - the string dependency
+  #990's review removed from the connector flow. Equivalent today, since
+  `ingest_file` writes that word exactly when it replaced something; one of the
+  two is a fact and the other is a sentence. (#997)
+
+## [0.0.217] - 2026-08-20
+
+What a connector sync ingests is visible, and deleting it deletes it.
+
+### Fixed
+
+- **A connector sync records a `rag_documents` row.** It created none, so a Drive
+  folder synced into a knowledge base reported "ingested: 40" and left the
+  Documents tab empty, the collection's own `document_count` at zero, and the
+  documents unreachable by delete - one ingested from a folder could be removed
+  only by dropping the whole collection. A failure was a number in the sync log
+  and a reason nowhere, so "which four of the forty failed, and why" had no
+  answer. (#992)
+- **A delete removes the vectors, whichever route asked.**
+  `RAGDocumentService.delete_document` took `ingestion_service: Any = None` and
+  removed vectors only when a caller passed one - `/rag/documents/{doc_id}` did,
+  `/kb/{kb_id}/documents/{doc_id}` did not. So deleting from the Documents tab
+  removed the row and left the content searchable, and for a synced document that
+  was permanent: the next `new_only` run matched its unchanged hash and skipped
+  it. The argument is required and typed now, so a third route cannot repeat it.
+  Reachable today for an uploaded document. (#992)
+- **The row is opened before the file is indexed**, on the upload and the
+  connector sync. Written afterwards and failing - a database blip, a remote name
+  longer than the column - it left the vector document stored and untracked, and
+  the next `new_only` run then skipped the file before reaching the write. The
+  local-directory sync still writes its row afterwards ([#997]). (#992)
+- **An `app`-scoped collection belongs to no organization**, so
+  `kb.organization_id == organization_id` skipped it: a source pointed at one was
+  parsed with the deployment defaults rather than that collection's own settings,
+  and filed its documents under no knowledge base. The caller's own row still
+  wins over a deployment-wide one of the same name, and another tenant's matches
+  neither. (#992)
+- **The row records which models read the document.** `image_description_model`
+  and `embedding_model` were both omitted, so the documents page showed a synced
+  file as parsed by nothing and embedded by nothing. (#992)
+
+### Changed
+
+- A synced document keeps **no original**: a synced file's bytes live in the
+  system it came from, and mirroring every one onto this deployment's disk to
+  make a retry button work is a cost per corpus rather than per failure.
+  `has_file` is false for these and re-running the sync is the retry - which
+  since #990 skips everything unchanged and re-fetches exactly what has no
+  document, so four failures out of forty cost four transfers. (#992)
+- The knowledge base behind a collection is resolved once per sync rather than
+  per file: `_config_for_collection` was already finding that row to read its
+  parser settings, so one lookup now answers both questions. (#992)
+
 ## [0.0.216] - 2026-08-20
 
 A scheduled sync stops duplicating everything it has already ingested.
