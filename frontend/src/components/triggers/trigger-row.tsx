@@ -73,9 +73,13 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
   }
 
   function fireAndWatch() {
+    // The boundary is the press, not the response: a fast fire can record its
+    // reply before the 202 reaches the browser, and a boundary stamped after
+    // that reply would wait forever for a message "newer" than it.
+    const pressedAt = Date.now();
     runNow.mutate(trigger.id, {
       onSuccess: () => {
-        setPendingSince(Date.now());
+        setPendingSince(pressedAt);
         setViewing(true);
       },
     });
