@@ -141,6 +141,18 @@ def run_limit() -> Limit:
     return Limit(attempts=settings.RATE_LIMIT_RUN_PER_MINUTE)
 
 
+def auth_limit() -> Limit:
+    """How many auth attempts one caller gets per minute.
+
+    The one surface where the cost of an attempt is the defence rather than a
+    detail: `verify_password` is bcrypt, ~170ms with no suspension point, so an
+    unmetered `/login` flood saturates a worker's event loop with no credentials
+    at all. Counted per IP and per submitted address both - see
+    `deps.enforce_auth_limit` - because the two stop different attacks.
+    """
+    return Limit(attempts=settings.RATE_LIMIT_AUTH_PER_MINUTE)
+
+
 async def hosted_admission_allowed(public_key: str) -> Decision:
     """Whether this hosted page may be configured again right now.
 

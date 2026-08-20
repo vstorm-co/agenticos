@@ -202,6 +202,12 @@ class TestTheLimitsThemselves:
 
         assert rate_limit.run_limit() == Limit(attempts=7, window_seconds=60)
 
+    def test_the_auth_allowance_comes_from_settings(self, monkeypatch):
+        """The auth surface has its own low ceiling, tunable without a release."""
+        monkeypatch.setattr(settings, "RATE_LIMIT_AUTH_PER_MINUTE", 5)
+
+        assert rate_limit.auth_limit() == Limit(attempts=5, window_seconds=60)
+
     async def test_admission_is_counted_per_address(self, monkeypatch):
         monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_PER_MINUTE", 2)
         monkeypatch.setattr(settings, "RATE_LIMIT_TRUST_FORWARDED_FOR", False)
