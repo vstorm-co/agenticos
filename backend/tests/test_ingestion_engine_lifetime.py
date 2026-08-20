@@ -243,7 +243,12 @@ class TestAConnectorSyncsStore:
             config={"folder_id": "abc"},
             collection_name="docs",
             sync_mode="full",
-            organization_id=None,
+            # A `UUID`, not a string: `get_source` answers with the *model*, whose
+            # columns are `PG_UUID(as_uuid=True)`. A fixture holding a string is
+            # what let `UUID(source.organization_id)` past review, and that raises
+            # on every real sync.
+            organization_id=uuid.uuid4(),
+            secret_id=None,
         )
         sources = MagicMock(
             get_source=AsyncMock(return_value=source),
@@ -255,11 +260,6 @@ class TestAConnectorSyncsStore:
         async with _worker(ledger):
             with (
                 patch.object(rag_tasks, "SyncSourceService", return_value=sources),
-                patch.object(
-                    rag_tasks.SyncSourceService,
-                    "decrypt_config_dict",
-                    new=staticmethod(lambda raw: raw),
-                ),
                 patch.dict(rag_tasks.CONNECTOR_REGISTRY, {"gdrive": lambda: connector}),
                 patch("app.services.rag_sync.RAGSyncService", return_value=MagicMock()),
                 patch.object(rag_tasks, "_config_for_collection", new=AsyncMock()),
@@ -276,7 +276,12 @@ class TestAConnectorSyncsStore:
             config={"folder_id": "abc"},
             collection_name="docs",
             sync_mode="full",
-            organization_id=None,
+            # A `UUID`, not a string: `get_source` answers with the *model*, whose
+            # columns are `PG_UUID(as_uuid=True)`. A fixture holding a string is
+            # what let `UUID(source.organization_id)` past review, and that raises
+            # on every real sync.
+            organization_id=uuid.uuid4(),
+            secret_id=None,
         )
         sources = MagicMock(
             get_source=AsyncMock(return_value=source), update_after_sync=AsyncMock()
@@ -286,11 +291,6 @@ class TestAConnectorSyncsStore:
         async with _worker(ledger):
             with (
                 patch.object(rag_tasks, "SyncSourceService", return_value=sources),
-                patch.object(
-                    rag_tasks.SyncSourceService,
-                    "decrypt_config_dict",
-                    new=staticmethod(lambda raw: raw),
-                ),
                 patch.dict(rag_tasks.CONNECTOR_REGISTRY, {"gdrive": lambda: connector}),
                 patch("app.services.rag_sync.RAGSyncService", return_value=MagicMock()),
                 patch.object(rag_tasks, "_config_for_collection", new=AsyncMock()),

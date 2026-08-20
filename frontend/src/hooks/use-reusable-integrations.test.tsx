@@ -31,6 +31,7 @@ function source(overrides: Partial<SyncSourceRead> = {}): SyncSourceRead {
     connector_type: "gdrive",
     collection_name: null,
     config: { folder_id: "abc" },
+    secret_id: null,
     sync_mode: "full",
     schedule_minutes: null,
     is_active: true,

@@ -75,18 +75,30 @@ export interface SyncSourceCreate {
   /** Omit to create an org-level integration not yet assigned to a KB. */
   collection_name?: string | null;
   config: Record<string, unknown>;
+  /**
+   * The vault secret the connector authenticates with.
+   *
+   * Never the credential itself: `config` says how to find the documents and
+   * holds nothing that has to be kept. The server refuses a config carrying the
+   * field names this replaced (#937).
+   */
+  secret_id?: string | null;
   sync_mode?: string;
   schedule_minutes?: number | null;
 }
 
 export interface SyncSourceRead {
   id: string;
-  organization_id: string | null;
+  organization_id: string;
   name: string;
   connector_type: string;
   /** null = org-level integration, not yet assigned to a KB */
   collection_name: string | null;
+  /** Unmasked, because the credential is not in here - it is `secret_id` (#937). */
   config: Record<string, unknown>;
+  secret_id: string | null;
+  /** The vault's four-character hint, so a reader can tell which credential. */
+  secret_hint?: string | null;
   sync_mode: string;
   schedule_minutes: number | null;
   is_active: boolean;
@@ -119,13 +131,18 @@ export interface ConnectorConfigField {
   label: string;
   help?: string;
   default?: unknown;
-  secret?: boolean;
 }
 
 export interface ConnectorInfo {
   type: string;
   name: string;
   config_schema: Record<string, ConnectorConfigField>;
+  /**
+   * What kind of vault secret this connector authenticates with - so the wizard
+   * offers the organization's matching credentials and nothing else. `none` for
+   * a connector needing no credential.
+   */
+  secret_kind: string;
   enabled: boolean;
 }
 

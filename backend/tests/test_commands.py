@@ -218,8 +218,8 @@ class TestRagSourceAddRefusesWhatItCannotOwn:
             def __init__(self, db: object) -> None:
                 self.db = db
 
-            async def create_source(self, data, organization_id=None):
-                created.append({"data": data, "organization_id": organization_id})
+            async def create_source(self, data, *, ctx):
+                created.append({"data": data, "organization_id": ctx.organization_id})
                 return SimpleNamespace(name=data.name, id=uuid4())
 
         @asynccontextmanager

@@ -178,9 +178,14 @@ https://drive.google.com/drive/folders/1abc123def456ghi
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `service_account_json` | textarea | Yes | -- | The full contents of the service account JSON key file |
 | `folder_id` | string | Yes | -- | Google Drive folder ID from the URL |
 | `include_subfolders` | boolean | No | `true` | Recursively include files from subfolders |
+
+The service account itself is **not** a config field. Add it to the Vault as a
+`gcp_service_account` credential and point the source at it with `secret_id`: it is
+stored once and referenced by every source that needs it, rather than pasted into
+each one ([#937](https://github.com/vstorm-co/agenticos/issues/937)). Posting it
+under `config` is refused.
 
 A `folder_id` may hold only what Google issues — letters, digits, `-` and `_`.
 Anything else is refused when the source is created, because the id is
@@ -373,11 +378,18 @@ available types with `rag-sources` or `GET /api/v1/rag/sync/connectors`.
 Google Drive (`gdrive`) is available.
 S3 (`s3`) is available.
 
-### Google Drive: "no service account credential"
+### Google Drive: "this source has no credential"
 
-The source's `service_account_json` field is empty. Paste the contents of the
-service account JSON key file into it — `GOOGLE_DRIVE_CREDENTIALS_FILE` does not
-stand in for it, and only the `rag-sync-gdrive` CLI command reads that setting.
+The source's `secret_id` is empty, or the vault secret it named has been deleted.
+Add the service account JSON to the Vault and choose it on the source's credential
+step — `GOOGLE_DRIVE_CREDENTIALS_FILE` does not stand in for it, and only the
+`rag-sync-gdrive` CLI command reads that setting.
+
+### "A Google Drive source needs a service account credential"
+
+The `secret_id` names a credential of the wrong kind — an AWS key pair, say. A Drive
+source takes a `gcp_service_account` and an S3 source an `aws_credentials` pair; the
+wizard offers only the matching ones, so this is reachable through the API.
 
 ### Google Drive: "folder ID may contain only letters, digits, '-' and '_'"
 

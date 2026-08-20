@@ -712,6 +712,37 @@ was listed under the *operator's* service account and whatever that account had
 been shared. The fallback is gone; the setting now serves only the
 `rag-sync-gdrive` CLI command, which an operator runs from their own shell.
 
+### The credential is a vault secret, not a config field
+
+`sync_sources.config` says how to *find* the documents — a folder id, a bucket, a
+prefix — and holds nothing that has to be kept. What authenticates is a vault
+secret the source names in `secret_id`: a `gcp_service_account` for Drive, an
+`aws_credentials` pair for S3, declared by the connector as `SECRET_KIND` and
+offered to the wizard as `secret_kind` on the connector listing.
+
+It used to be in `config`, encrypted by `app/core/crypto.py` — one
+deployment-wide Fernet key over every tenant's credential, which is the weakness
+the vault exists to remove, and the one place `CLAUDE.md`'s "there is no second
+mechanism" was untrue. That module is gone
+([#937](https://github.com/vstorm-co/agenticos/issues/937)). Three things follow:
+
+- **A credential is added once and referenced.** Five knowledge bases fed from one
+  Drive folder used to mean the same JSON pasted five times, rotated five times and
+  revoked in five places. Cloning an integration now copies the reference.
+- **The wizard offers what the organization holds**, filtered to the kind the
+  connector needs, and links to the Vault when there is none — `InlineSecret` is
+  not used here because it handles `api_key` only, and a service account is a
+  multi-field form whose honest place is the Vault.
+- **The service refuses a config carrying a credential.** Posting the old field
+  names is answered with "a credential does not go in a source's configuration",
+  rather than being dropped so the source stores and then cannot authenticate.
+
+Reading it happens where there is a session and a tenant: the worker unseals the
+secret for the source's own organization and hands it to the connector beside the
+config. A connector cannot reach the vault itself, and a source whose secret was
+deleted syncs no further — the connectors have no deployment-wide fallback and
+must not grow one.
+
 ### A connector's refusal names the field it is about
 
 `validate_config` answers a `ConfigRefusal` — a sentence, and the field that

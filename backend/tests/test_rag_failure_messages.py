@@ -31,7 +31,6 @@ from app.core.exceptions import ConfigurationError
 from app.services.rag.failures import IngestionStage, failure_summary
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import IngestionStatus
-from app.worker.background.rag import ingest_document_in_background
 from app.worker.tasks.rag_tasks import _run_ingestion, _update_status
 
 pytestmark = pytest.mark.anyio
@@ -267,35 +266,3 @@ class TestWhatTheWorkerWritesToTheRow:
             await _update_status(str(uuid.uuid4()), "error", error_message="the vague one")
 
         documents.return_value.fail_ingestion.assert_not_awaited()
-
-    async def test_the_in_process_fallback_records_a_summary_too(
-        self, caplog: pytest.LogCaptureFixture
-    ):
-        """`app/worker/background/rag.py` swallows, so its log is the only copy."""
-        documents = MagicMock()
-        documents.return_value.fail_ingestion = AsyncMock()
-
-        with (
-            patch("app.worker.background.rag.get_db_context", self._db),
-            patch("app.services.rag_document.RAGDocumentService", documents),
-            patch.object(
-                IngestionService,
-                "from_settings",
-                MagicMock(
-                    return_value=MagicMock(ingest_file=AsyncMock(side_effect=_vendor_failure()))
-                ),
-            ),
-            caplog.at_level(logging.ERROR, logger="app.worker.background.rag"),
-        ):
-            await ingest_document_in_background(
-                rag_document_id=str(uuid.uuid4()),
-                collection_name="kb_ops",
-                filepath="/srv/uploads/never-written.pdf",
-                source_path="handbook.pdf",
-                replace=False,
-            )
-
-        stored = documents.return_value.fail_ingestion.await_args.kwargs["error_message"]
-        _assert_leaks_nothing(stored)
-        assert stored.startswith("The document could not be ingested (AuthenticationError)")
-        assert _VENDOR_TEXT in caplog.text

@@ -24,6 +24,7 @@ import click
 from app.commands import command, error, info, success, warning
 from app.core.background import drain
 from app.core.exceptions import AppException
+from app.core.permissions import AuthContext
 from app.db.models.knowledge_base import KBScope
 from app.db.session import get_db_context
 from app.repositories import knowledge_base_repo, organization_repo
@@ -558,6 +559,11 @@ def rag_sources() -> None:
 @click.option("--type", "connector_type", required=True, help="Connector type (e.g. gdrive, s3)")
 @click.option("--org", "org_id", required=True, help="Organization id that owns the collection")
 @click.option("--collection", required=True, help="Target collection name")
+@click.option(
+    "--secret-id",
+    "secret_id",
+    help="Vault secret the connector authenticates with. Required unless the connector needs none.",
+)
 @click.option("--config", "config_json", required=True, help="Config JSON string")
 @click.option(
     "--sync-mode",
@@ -577,6 +583,7 @@ def rag_source_add(
     connector_type: str,
     org_id: str,
     collection: str,
+    secret_id: str | None,
     config_json: str,
     sync_mode: str,
     schedule_minutes: int,
@@ -593,9 +600,15 @@ def rag_source_add(
     had no ctx and so asked neither question: it wrote whatever name it was
     given, into a row with no organization at all (#707).
 
+    `--secret-id` names the vault credential the connector authenticates with -
+    a `gcp_service_account` for Drive, an `aws_credentials` pair for S3. It is not
+    a config field: a credential in `--config` is refused, because `config` says
+    how to find the documents and holds nothing that has to be kept (#937). A
+    source may be created without one and will refuse to sync until it has one.
+
     Example:
         project cmd rag-source-add --name "My Drive" --type gdrive \\
-            --org 0c8f... --collection docs \\
+            --org 0c8f... --collection docs --secret-id 7d21... \\
             --config '{"folder_id": "abc123"}' --sync-mode new_only
     """
     try:
@@ -610,11 +623,20 @@ def rag_source_add(
         error(f"Not an organization id: {org_id}")
         raise SystemExit(1) from exc
 
+    secret_uuid: UUID | None = None
+    if secret_id is not None:
+        try:
+            secret_uuid = UUID(secret_id)
+        except ValueError as exc:
+            error(f"Not a secret id: {secret_id}")
+            raise SystemExit(1) from exc
+
     data = SyncSourceCreate(
         name=name,
         connector_type=connector_type,
         collection_name=collection,
         config=config_dict,
+        secret_id=secret_uuid,
         sync_mode=sync_mode,
         schedule_minutes=schedule_minutes if schedule_minutes > 0 else None,
     )
@@ -657,7 +679,12 @@ def rag_source_add(
 
             svc = SyncSourceService(db)
             try:
-                source = await svc.create_source(data, organization_id=organization_id)
+                # A context with no subject: there is no person at a shell prompt
+                # for `resolve_access` to evaluate, and the service says so - the
+                # vault's per-member visibility is about members of an
+                # organization, not about whoever hosts it. The tenant check still
+                # applies.
+                source = await svc.create_source(data, ctx=AuthContext.anonymous(organization_id))
             except (ValueError, AppException) as e:
                 error(f"Failed to create source: {e}")
                 return False

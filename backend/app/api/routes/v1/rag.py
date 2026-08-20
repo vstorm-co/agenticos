@@ -525,7 +525,7 @@ async def create_sync_source(
     """
     if data.collection_name is not None:
         await access.writable(ctx, data.collection_name)
-    return await sync_source_svc.create_source(data, organization_id=ctx.organization_id)
+    return await sync_source_svc.create_source(data, ctx=ctx)
 
 
 @router.post(
@@ -571,7 +571,7 @@ async def update_sync_source(
     source = await access.sync_source(ctx, source_id)
     if data.collection_name is not None:
         await access.writable(ctx, data.collection_name)
-    return await sync_source_svc.update_source(str(source.id), data)
+    return await sync_source_svc.update_source(str(source.id), data, ctx=ctx)
 
 
 @router.delete(

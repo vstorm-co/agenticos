@@ -33,7 +33,14 @@ function mount(ui: ReactElement) {
 }
 
 const CONNECTORS = [
-  { type: "gdrive", name: "Google Drive", enabled: true, requires: [], config_schema: {} },
+  {
+    type: "gdrive",
+    name: "Google Drive",
+    enabled: true,
+    requires: [],
+    config_schema: {},
+    secret_kind: "gcp_service_account",
+  },
 ];
 
 beforeEach(() => vi.clearAllMocks());
