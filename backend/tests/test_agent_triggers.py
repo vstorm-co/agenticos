@@ -56,7 +56,7 @@ def _named(**attributes: object) -> MagicMock:
 
 
 def _agent(*, agent_id: uuid.UUID | None = None, name: str = "Nightly") -> MagicMock:
-    return _named(id=agent_id or uuid.uuid4(), name=name)
+    return _named(id=agent_id or uuid.uuid4(), name=name, has_avatar=True, avatar_color=3)
 
 
 def _service(agent: MagicMock | None = None) -> AgentTriggerService:
@@ -447,8 +447,12 @@ class TestOrgListing:
         assert repo.list_for_organization.call_args.kwargs["see_all"] is False
         assert repo.list_for_organization.call_args.kwargs["user_id"] == _CALLER
         assert total == 2
-        # The row is named with its agent, which a bare trigger does not carry.
+        # The row is named with its agent, which a bare trigger does not carry -
+        # and carries the agent's face, so the routines page draws the same
+        # avatar every other surface does.
         assert items[0].agent_name == "Nightly"
+        assert items[0].agent_has_avatar is True
+        assert items[0].agent_avatar_color == 3
         assert items[0].can_manage is True
         # Resolved once for the shared agent, not per row.
         assert resolve.await_count == 1

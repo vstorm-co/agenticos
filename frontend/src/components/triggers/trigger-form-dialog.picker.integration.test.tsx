@@ -84,11 +84,11 @@ describe("TriggerFormDialog with no agent in context", () => {
     const dialog = await screen.findByRole("dialog");
     await user.click(await within(dialog).findByRole("combobox", { name: "Agent" }));
     // Only published agents are offered - a draft has no version to run.
-    expect(screen.queryByRole("option", { name: "Draft" })).toBeNull();
+    expect(screen.queryByRole("option", { name: /Draft/ })).toBeNull();
     // Nor an agent the caller cannot run, published or not - the picker never
     // offers a target the create would refuse.
-    expect(screen.queryByRole("option", { name: "Restricted" })).toBeNull();
-    await user.click(await screen.findByRole("option", { name: "Nightly" }));
+    expect(screen.queryByRole("option", { name: /Restricted/ })).toBeNull();
+    await user.click(await screen.findByRole("option", { name: /Nightly/ }));
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Do it");
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));

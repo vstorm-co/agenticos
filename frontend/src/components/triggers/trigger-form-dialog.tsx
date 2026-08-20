@@ -29,6 +29,8 @@ import {
   type WizardStep,
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { DEFAULT_ENV, EnvironmentField } from "@/components/triggers/environment-field";
 import { EventSourceMark } from "@/components/triggers/event-source-mark";
 import { TriggerTemplatePicker } from "@/components/triggers/trigger-template-picker";
 import { SecretRevealField } from "@/components/triggers/secret-reveal-field";
@@ -41,7 +43,6 @@ import {
   intervalToUnit,
   unitToSeconds,
 } from "@/lib/trigger-format";
-import type { AgentEnvironment } from "@/types/agents";
 import type {
   EventSource,
   ScheduleKind,
@@ -53,8 +54,6 @@ import type {
 } from "@/types/triggers";
 import type { TriggerTemplate } from "@/types/trigger-templates";
 
-/** Sentinel for "the default environment" - a Select item may not be empty. */
-const DEFAULT_ENV = "__default__";
 /** The backend's floor for a webhook secret; the generator comfortably clears it. */
 const MIN_SECRET = 16;
 
@@ -650,7 +649,16 @@ export function TriggerFormDialog({
                     <SelectContent>
                       {runnable.map((agent) => (
                         <SelectItem key={agent.id} value={agent.id}>
-                          {agent.name}
+                          <span className="flex items-center gap-2">
+                            <AgentAvatar
+                              agentId={agent.id}
+                              name={agent.name}
+                              hasAvatar={agent.has_avatar}
+                              colorSlot={agent.avatar_color}
+                              size="sm"
+                            />
+                            {agent.name}
+                          </span>
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -760,35 +768,6 @@ function PromptField({
         {t("promptHelp")}
       </p>
     </div>
-  );
-}
-
-function EnvironmentField({
-  value,
-  onChange,
-  environments,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  environments: AgentEnvironment[];
-}) {
-  const t = useTranslations("triggers");
-  return (
-    <FormField label={t("environment")} htmlFor="trigger-environment">
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger id="trigger-environment">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={DEFAULT_ENV}>{t("defaultEnvironment")}</SelectItem>
-          {environments.map((environment) => (
-            <SelectItem key={environment.id} value={environment.id}>
-              {environment.name} (v{environment.version})
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </FormField>
   );
 }
 

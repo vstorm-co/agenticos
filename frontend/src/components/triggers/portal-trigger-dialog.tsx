@@ -25,6 +25,8 @@ import {
   WizardSteps,
 } from "@/components/ui";
 import { useAgentEnvironments, useAgents } from "@/hooks";
+import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { DEFAULT_ENV, EnvironmentField } from "@/components/triggers/environment-field";
 import { SecretRevealField } from "@/components/triggers/secret-reveal-field";
 import { TriggerTemplatePicker } from "@/components/triggers/trigger-template-picker";
 import { usePortalTargets } from "@/hooks/use-portal-targets";
@@ -35,9 +37,6 @@ import { FILTER_KEYS, eventFilterConfig } from "@/lib/trigger-format";
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import type { PortalCatalogEntry } from "@/types/portals";
 import type { EventSource, TriggerCreate, TriggerCreated } from "@/types/triggers";
-
-/** Sentinel for "the default environment" - a Select item may not be empty. */
-const DEFAULT_ENV = "__default__";
 
 /** The field label for a portal's target kind, as a fixed key. */
 function targetLabelKey(targetKind: string | null): string {
@@ -266,7 +265,16 @@ export function PortalTriggerDialog({
                   <SelectContent>
                     {runnable.map((agent) => (
                       <SelectItem key={agent.id} value={agent.id}>
-                        {agent.name}
+                        <span className="flex items-center gap-2">
+                          <AgentAvatar
+                            agentId={agent.id}
+                            name={agent.name}
+                            hasAvatar={agent.has_avatar}
+                            colorSlot={agent.avatar_color}
+                            size="sm"
+                          />
+                          {agent.name}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -333,21 +341,12 @@ export function PortalTriggerDialog({
               })}
 
               {namedEnvironments.length > 0 && (
-                <FormField label={tt("environment")} htmlFor="portal-environment">
-                  <Select value={environmentId} onValueChange={setEnvironmentId}>
-                    <SelectTrigger id="portal-environment">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={DEFAULT_ENV}>{tt("defaultEnvironment")}</SelectItem>
-                      {namedEnvironments.map((environment) => (
-                        <SelectItem key={environment.id} value={environment.id}>
-                          {environment.name} (v{environment.version})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FormField>
+                <EnvironmentField
+                  id="portal-environment"
+                  value={environmentId}
+                  onChange={setEnvironmentId}
+                  environments={namedEnvironments}
+                />
               )}
             </div>
           )}

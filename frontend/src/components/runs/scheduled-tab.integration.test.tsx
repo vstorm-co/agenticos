@@ -73,6 +73,9 @@ describe("ScheduledTab", () => {
 
     expect(await screen.findByText("Nightly")).toBeVisible();
     expect(screen.getByText("Every 15 minutes")).toBeVisible();
+    // The row draws the agent's face beside the name - initials here, since the
+    // fixture has no uploaded avatar - not a bare string in a list of strings.
+    expect(screen.getByText("N")).toBeVisible();
   });
 
   it("says nothing is scheduled rather than drawing an empty box", async () => {

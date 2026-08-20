@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Pause, Pencil, Play, Trash2, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { BrandIcon, isBrandName } from "@/components/icons/brand-icon";
 import { EventSourceMark } from "@/components/triggers/event-source-mark";
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
@@ -85,6 +86,16 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
         className="hover:bg-muted/40 -m-1 flex min-w-0 flex-1 items-center gap-3 rounded p-1 text-left"
       >
         <TriggerMark trigger={trigger} className="text-muted-foreground h-5 w-5 shrink-0" />
+        {showAgent && trigger.agent_name && (
+          <AgentAvatar
+            agentId={trigger.agent_id}
+            name={trigger.agent_name}
+            hasAvatar={trigger.agent_has_avatar ?? false}
+            colorSlot={trigger.agent_avatar_color}
+            size="sm"
+            className="shrink-0"
+          />
+        )}
         <div className="min-w-0 flex-1">
           {(trigger.name || (showAgent && trigger.agent_name)) && (
             <p className="truncate text-xs font-medium">{trigger.name ?? trigger.agent_name}</p>

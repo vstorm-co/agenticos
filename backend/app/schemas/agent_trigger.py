@@ -302,8 +302,12 @@ class TriggerRead(BaseSchema, TimestampSchema):
     agent_id: UUID
     # Set only on the org-wide listing, where a row is shown away from its agent
     # and needs to name it; the per-agent list leaves it unset (the agent is the
-    # page). The service fills it from the listing query's join onto agents.
+    # page). The service fills all three from the listing query's join onto
+    # agents - the avatar pair so the row can draw the same face every other
+    # surface draws, not just the name.
     agent_name: str | None = None
+    agent_has_avatar: bool = False
+    agent_avatar_color: int | None = None
     # Whether *this caller* may edit, delete or run-now this trigger - the same
     # creator-or-`agents:edit` rule the service's `_owned` enforces, resolved per
     # row and per agent so a control the caller cannot use is not rendered rather
