@@ -17,6 +17,50 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.215] - 2026-08-20
+
+Which sync connectors come after Google Drive and S3, and who ends up able to
+read what one ingests.
+
+### Documentation
+
+- **A source's reach, and who decides it.** A sync source ingests into exactly
+  one collection, access is decided at the collection, and there is no
+  per-document isolation inside one - so everything a source reads becomes
+  readable by everyone who can read that collection. The two halves of that
+  reach are not equally reliable: `config` narrows it but is a row field anyone
+  with `collections:edit` can widen, while the credential's own permissions are a
+  ceiling nothing in the product can raise. Hence the rule - scope the
+  credential, not just the config. (#938)
+- **Mirroring each source's ACLs and filtering at retrieval is decided
+  against**, with the reasons written down so it is not proposed again as an
+  obvious win: there is no identity map between an Entra or Atlassian principal
+  and an `organization_members` row, a permission changed in the source is
+  invisible until the next sync so a mirrored ACL is stale authorization, and a
+  crawler has no ACL at all. (#938)
+- **The connector list is cut and ordered**: #990 first, because every connector
+  below names a change signal and the sync path consults none; then a web crawler
+  (#984), SharePoint and OneDrive (#985), Confluence (#986), a git repository's
+  documentation (#987), and Azure Blob and GCS only once `S3Connector` is an
+  object store rather than an S3 one (#988). Notion is decided against for now -
+  MCP covers Notion-as-a-tool - and Slack and email archives stay off, because a
+  conversation retrieves badly and the channel integrations already put an agent
+  *in* Slack. (#938)
+- **What a new connector owes** is stated alongside: a change signal named in the
+  docstring, a credential scoped where the source is created, and a file count
+  somebody has thought about while reading a collection's listing is still a full
+  scan (#27). (#938)
+
+### Fixed
+
+- **The page no longer states the local sync's behaviour as the rule for both.**
+  `sync_mode`'s hash comparison and skip counters exist in `sync_local_flow` and
+  nowhere else; a connector sync implements none of it, which is #990 - filed
+  severity high, and found reviewing this change. (#938)
+- **`create_source`'s docstring stopped claiming its secret fields are
+  Fernet-encrypted**, which has been untrue since #937 deleted
+  `app/core/crypto.py`. (#938)
+
 ## [0.0.214] - 2026-08-20
 
 The sandbox and connector service contracts are typed.
