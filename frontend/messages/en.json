@@ -888,12 +888,14 @@
     "memberEmail": "Email address",
     "memberSuggestions": "Matching members",
     "modelPicker": {
+      "agentModel": "Agent's model",
       "chooseProvider": "Choose a provider",
       "model": "Model",
-      "needsConnectionsManage": "Choosing another model needs a permission you do not hold. This conversation runs on the agent's own model, and somebody who can manage this organization's connections can change that.",
+      "needsConnectionsManage": "Choosing another model needs a permission you do not hold. Somebody who can manage this organization's connections can change it.",
       "noProviderKey": "No {provider} key in the vault yet.",
       "provider": "Provider",
-      "runModel": "Run on this model"
+      "runModel": "Run on this model",
+      "thisChat": "Just this chat"
     },
     "newChat": "New Chat",
     "newConversation": "New conversation",

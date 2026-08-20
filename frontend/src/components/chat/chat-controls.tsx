@@ -9,6 +9,7 @@ import { ChatModelPicker } from "./chat-model-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { useModelProviders } from "@/hooks";
 import { useConversationStore } from "@/stores";
+import type { PublishedModel } from "@/types/agents";
 import { cn } from "@/lib/utils";
 
 type ThinkingEffort = "off" | "low" | "medium" | "high";
@@ -25,6 +26,8 @@ const EFFORT_OPTIONS: { value: ThinkingEffort; key: string }[] = [
 interface ChatControlsProps {
   /** The model profile this conversation runs on, or null for the agent's own. */
   onModelProfileChange?: (profileId: string | null) => void;
+  /** The selected agent's published model, shown as current when there is no override. */
+  agentModel?: PublishedModel | null;
   onTemperatureChange?: (value: number | null) => void;
   onThinkingEffortChange?: (value: "low" | "medium" | "high" | null) => void;
 }
@@ -52,6 +55,7 @@ interface ChatControlsProps {
  */
 export function ChatControls({
   onModelProfileChange,
+  agentModel = null,
   onTemperatureChange,
   onThinkingEffortChange,
 }: ChatControlsProps) {
@@ -141,6 +145,7 @@ export function ChatControls({
               </p>
               <ChatModelPicker
                 value={profileId}
+                agentModel={agentModel}
                 onChange={(next) => {
                   setProfileId(next);
                   onModelProfileChange?.(next);
