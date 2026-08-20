@@ -132,9 +132,11 @@ export interface TriggerCreated extends Trigger {
 /**
  * A partial edit. A schedule's cadence can change in place - a new interval, a new
  * cron, or a switch between the two (`schedule_kind` with its field) - and its
- * title. What cannot change is a trigger's *type* (a schedule never becomes an
- * event) or an event's source, filter or secret; those are set once and otherwise
- * remade by deleting and recreating.
+ * title. An event's *filter* is editable too: which deliveries fire is a filter,
+ * not a different trigger, and the server revalidates it against the source's
+ * own rules exactly as create does. What cannot change is a trigger's *type* (a
+ * schedule never becomes an event), or an event's source and secret; the source
+ * is remade by deleting and recreating, the secret by rotating.
  */
 export interface TriggerUpdate {
   prompt?: string;
@@ -144,4 +146,5 @@ export interface TriggerUpdate {
   cron_expression?: string | null;
   is_active?: boolean;
   environment_id?: string | null;
+  event_config?: Record<string, unknown>;
 }

@@ -251,6 +251,57 @@ describe("TriggersPanel", () => {
     expect(within(dialog).getByRole("button", { name: "Create" })).toBeEnabled();
   });
 
+  it("edits an email trigger's filter in place, and only when it changed", async () => {
+    const user = userEvent.setup();
+    const row = trigger({
+      trigger_type: "event",
+      event_source: "email",
+      interval_seconds: null,
+      event_config: { subject_contains: "invoice", sender_contains: null },
+    });
+    serve([row]);
+    vi.mocked(apiClient.patch).mockResolvedValue(row);
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    // Seeded from the row's own filter, not blank - a blank would read as
+    // "no filter" and saving anything else would silently clear it.
+    const subject = within(dialog).getByLabelText<HTMLInputElement>("Subject contains");
+    expect(subject.value).toBe("invoice");
+    await user.clear(subject);
+    await user.type(subject, "overdue");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`, {
+      event_config: { subject_contains: "overdue" },
+    });
+  });
+
+  it("does not echo the filter back on a prompt-only edit of an event trigger", async () => {
+    const user = userEvent.setup();
+    const row = trigger({
+      trigger_type: "event",
+      event_source: "email",
+      interval_seconds: null,
+      event_config: { subject_contains: "invoice" },
+    });
+    serve([row]);
+    vi.mocked(apiClient.patch).mockResolvedValue(row);
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    const message = within(dialog).getByLabelText("Message");
+    await user.clear(message);
+    await user.type(message, "Reworded");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`, {
+      prompt: "Reworded",
+    });
+  });
+
   it("edits only the message and the environment of an existing trigger", async () => {
     const user = userEvent.setup();
     serve([trigger()]);

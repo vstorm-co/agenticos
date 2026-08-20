@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { MessagesSquare } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -9,6 +10,7 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from "@/components/ui";
 import { useRunTranscript } from "@/hooks";
 import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
+import { qk } from "@/lib/query-keys";
 import type { ChatMessage } from "@/types";
 import type { Trigger } from "@/types/triggers";
 
@@ -50,6 +52,20 @@ export function TriggerRunsView({
     enabled: runId !== null,
     refetchInterval: pendingSince !== null ? POLL_WHILE_WAITING_MS : false,
   });
+
+  // On a trigger that has never fired, "Run now" leaves last_run_id null until
+  // the background fire records its run - and the transcript query above is
+  // disabled without an id, so nothing else would ever notice it appearing. The
+  // trigger itself is what has to be re-read: poll its list queries until the
+  // id arrives, at which point the transcript poll takes over.
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (pendingSince === null || runId !== null) return;
+    const timer = setInterval(() => {
+      void queryClient.invalidateQueries({ queryKey: qk.triggers.all() });
+    }, POLL_WHILE_WAITING_MS);
+    return () => clearInterval(timer);
+  }, [pendingSince, runId, queryClient]);
 
   const repliedAfter =
     pendingSince !== null &&

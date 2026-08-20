@@ -39,6 +39,7 @@ import { useTriggers } from "@/hooks/use-triggers";
 import { useAgentSelectionStore } from "@/stores";
 import {
   eventFilterConfig,
+  FILTER_KEYS,
   type IntervalUnit,
   intervalToUnit,
   unitToSeconds,
@@ -291,13 +292,23 @@ export function TriggerFormDialog({
   const [secret, setSecret] = useState("");
   // Two generic substring filters; what they mean is the source's business - a
   // subject and sender for email - so the keys are mapped in `buildCreate` and
-  // the labels in `EventFields`.
-  const [filterA, setFilterA] = useState("");
-  const [filterB, setFilterB] = useState("");
+  // the labels in `EventFields`. Editing seeds them from the row's own filter,
+  // so a saved `subject_contains` comes back as the value it was, not a blank
+  // that would read as "no filter".
+  const seededFilter = (index: number): string => {
+    if (!trigger?.event_source) return "";
+    const key = FILTER_KEYS[trigger.event_source]?.[index];
+    const value = key ? trigger.event_config[key] : undefined;
+    return typeof value === "string" ? value : "";
+  };
+  const [filterA, setFilterA] = useState(seededFilter(0));
+  const [filterB, setFilterB] = useState(seededFilter(1));
   // The event trigger just created, held so the dialog can show its webhook URL
-  // to paste into the provider before it closes - the one thing an event trigger
-  // needs that a schedule does not.
-  const [created, setCreated] = useState<Trigger | null>(null);
+  // and its signing secret to paste into the provider before it closes - the
+  // two things an event trigger needs that a schedule does not. The created
+  // type, not Trigger: `reveal_secret` exists only on the create response, and
+  // losing it here is losing it forever (no read ever returns it).
+  const [created, setCreated] = useState<TriggerCreated | null>(null);
 
   const pending = create.isPending || update.isPending;
 
@@ -442,6 +453,18 @@ export function TriggerFormDialog({
         if (trigger.trigger_type === "schedule" && cadenceTouched) {
           Object.assign(patch, scheduleCadence());
         }
+        // An event's filter is editable in place (the source and secret are
+        // not); sent only when a value changed, and as `{}` when both were
+        // cleared - which the server reads as "fire on anything signed".
+        if (trigger.trigger_type === "event" && trigger.event_source) {
+          const keys = FILTER_KEYS[trigger.event_source] ?? [];
+          const changed = keys.some(
+            (key, index) => ([filterA, filterB][index]?.trim() ?? "") !== seededFilter(index),
+          );
+          if (changed) {
+            patch.event_config = eventFilterConfig(trigger.event_source, [filterA, filterB]) ?? {};
+          }
+        }
         await update.mutateAsync({ triggerId: trigger.id, patch });
         onOpenChange(false);
       } else {
@@ -515,6 +538,20 @@ export function TriggerFormDialog({
             <DialogDescription>{t("createdDescription")}</DialogDescription>
           </DialogHeader>
           {created.webhook_url && <WebhookField url={created.webhook_url} />}
+          {/* The secret, shown beside the URL it belongs with: the provider form
+              asks for both at once, and a generated one nobody copied would
+              otherwise be gone the moment this screen replaced the form -
+              recoverable only by rotating. The raw form's secret is the caller's
+              own (the server does not echo it back), so the local state is the
+              copy shown; `reveal_secret` covers a server-minted one. */}
+          {(created.reveal_secret ?? secret) && (
+            <SecretRevealField
+              secret={created.reveal_secret ?? secret}
+              label={t("secret")}
+              note={t("createdSecretNote")}
+              id="created-secret"
+            />
+          )}
           <DialogFooter>
             <Button onClick={() => onOpenChange(false)}>{t("done")}</Button>
           </DialogFooter>
@@ -566,6 +603,36 @@ export function TriggerFormDialog({
             {trigger.trigger_type === "event" && trigger.webhook_url && (
               <WebhookField url={trigger.webhook_url} />
             )}
+
+            {/* The filter is the one event field that is editable in place -
+                narrowing "which deliveries fire" is a filter edit, not a new
+                trigger. The source and secret stay fixed (the secret rotates
+                below instead). */}
+            {trigger.trigger_type === "event" &&
+              trigger.event_source &&
+              (() => {
+                const filters = SOURCE_FILTERS[trigger.event_source];
+                return filters ? (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <FormField label={t(filters[0])} htmlFor="edit-filter-a">
+                      <Input
+                        id="edit-filter-a"
+                        value={filterA}
+                        onChange={(event) => setFilterA(event.target.value)}
+                        placeholder={t("filterOptional")}
+                      />
+                    </FormField>
+                    <FormField label={t(filters[1])} htmlFor="edit-filter-b">
+                      <Input
+                        id="edit-filter-b"
+                        value={filterB}
+                        onChange={(event) => setFilterB(event.target.value)}
+                        placeholder={t("filterOptional")}
+                      />
+                    </FormField>
+                  </div>
+                ) : null;
+              })()}
 
             {trigger.trigger_type === "event" && trigger.can_manage && (
               <RotateSecretSection triggerId={trigger.id} rotate={rotateSecret} />

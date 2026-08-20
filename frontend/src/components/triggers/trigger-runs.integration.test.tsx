@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TriggerRow } from "./trigger-row";
 import { apiClient } from "@/lib/api-client";
+import { useTriggers } from "@/hooks/use-triggers";
 import type { ChatMessage } from "@/types";
 import type { Trigger } from "@/types/triggers";
 
@@ -170,6 +171,41 @@ describe("TriggerRow run-log view", () => {
     expect(await screen.findByText("Earlier answer")).toBeVisible();
     expect(screen.getByRole("status")).toBeVisible();
   });
+
+  it("keeps polling a never-fired trigger until its first run acquires an id", async () => {
+    // The transcript query is disabled while last_run_id is null, so the
+    // trigger itself is what must be re-read - through a mounted list query,
+    // as the panel mounts it, or the invalidation would have nothing to
+    // refetch and the drawer would spin forever on its optimistic waiting.
+    let listCalls = 0;
+    vi.mocked(apiClient.post).mockResolvedValue(trigger());
+    serveGets((path) => {
+      if (path === "/agents/a1/triggers") {
+        listCalls += 1;
+        return { items: [trigger(listCalls >= 3 ? { last_run_id: "r1" } : {})], total: 1 };
+      }
+      if (path === "/runs/r1/transcript")
+        return transcript([
+          { id: "m1", role: "assistant", content: "Done it", created_at: AFTER_NOW() },
+        ]);
+      throw new Error(`unexpected GET ${path}`);
+    });
+    function Harness() {
+      const { triggers } = useTriggers("a1");
+      const row = triggers[0];
+      return row ? <TriggerRow trigger={row} /> : null;
+    }
+    render(<Harness />, { wrapper });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Run now" }));
+    const drawer = within(await screen.findByRole("dialog"));
+
+    // One poll later the id has landed, the transcript answers, and the
+    // fresh reply replaces the optimistic placeholder.
+    expect(await drawer.findByText("Done it", undefined, { timeout: 10_000 })).toBeVisible();
+    expect(drawer.queryByRole("status")).toBeNull();
+    expect(listCalls).toBeGreaterThanOrEqual(3);
+  }, 15_000);
 
   it("closes the drawer from its close button", async () => {
     serveGets(() => ({}));

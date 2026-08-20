@@ -135,7 +135,15 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     dialog = within(await screen.findByRole("dialog"));
     const url = dialog.getByLabelText<HTMLInputElement>("Webhook URL");
     expect(url.value).toBe("https://api.example.com/api/v1/webhooks/triggers/github/t1");
-    await user.click(dialog.getByRole("button", { name: "Copy" }));
+    // And on the secret beside it: the provider form asks for both at once, and
+    // the server never echoes a raw trigger's secret back, so the dialog's own
+    // copy is the last chance to read a generated one.
+    expect(dialog.getByLabelText<HTMLInputElement>("Signing secret").value).toBe(
+      "a-strong-shared-secret",
+    );
+    await user.click(
+      within(url.closest("div") as HTMLElement).getByRole("button", { name: "Copy" }),
+    );
     expect(writeText).toHaveBeenCalledWith(url.value);
 
     await user.click(dialog.getByRole("button", { name: "Done" }));

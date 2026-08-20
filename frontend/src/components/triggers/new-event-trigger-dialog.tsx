@@ -30,8 +30,10 @@ interface NewEventTriggerDialogProps {
  * trigger is gated on the same per-agent floor as the buttons that open this
  * dialog (`useCanCreateTrigger`, true for a Viewer holding a run grant on one
  * agent, where the role-level `agents:run` would be false), and connecting the
- * organization's account needs `connections:manage` - and the cards hide the
- * actions the caller may not use.
+ * organization's account needs `mcp:manage` - the permission the org
+ * MCP-connection and GitHub OAuth routes those buttons invoke actually require,
+ * which `connections:manage` is not - and the cards hide the actions the caller
+ * may not use.
  */
 export function NewEventTriggerDialog({ open, onOpenChange }: NewEventTriggerDialogProps) {
   const t = useTranslations("triggers");
@@ -45,7 +47,7 @@ export function NewEventTriggerDialog({ open, onOpenChange }: NewEventTriggerDia
           <DialogTitle>{t("newEventTitle")}</DialogTitle>
           <DialogDescription>{t("newEventDescription")}</DialogDescription>
         </DialogHeader>
-        <PortalCatalog canRun={canCreate} canManageConnections={can(Perm.connectionsManage)} />
+        <PortalCatalog canRun={canCreate} canManageConnections={can(Perm.mcpManage)} />
       </DialogContent>
     </Dialog>
   );

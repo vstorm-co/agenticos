@@ -54,7 +54,8 @@ interface PortalCatalogProps {
  * portal whose primary action follows its connection state - connect the account,
  * re-authorize it, or create a trigger. A control the caller may not use is not
  * rendered rather than disabled: creating needs `agents:run`, connecting the
- * organization's account needs `connections:manage`, and both are false while
+ * organization's account needs `mcp:manage` (what the org MCP-connection and
+ * GitHub OAuth routes require), and both are false while
  * permissions load, so the grid reveals actions rather than flashing ones that
  * would 403.
  *

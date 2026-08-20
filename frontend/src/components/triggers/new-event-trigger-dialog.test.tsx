@@ -52,14 +52,28 @@ describe("NewEventTriggerDialog", () => {
   it("takes create-ability from the per-agent floor, not the org-level agents:run", () => {
     // A Viewer whose role reaches no agent but who holds a run grant on one:
     // `agents:run` is false, `useCanCreateTrigger` is true, so the grid must
-    // still be told it may create. Connecting stays a separate org permission.
-    can = (permission) => permission === "connections:manage";
+    // still be told it may create. Connecting is gated on `mcp:manage` - the
+    // permission the org MCP-connection routes those buttons invoke require -
+    // and `connections:manage` alone must NOT light the connect actions, or a
+    // custom role holding only it would be offered buttons that always 403.
+    can = (permission) => permission === "mcp:manage";
     canCreate = true;
     render(<NewEventTriggerDialog open onOpenChange={vi.fn()} />);
 
     const grid = screen.getByTestId("portal-catalog");
     expect(grid.getAttribute("data-can-run")).toBe("true");
     expect(grid.getAttribute("data-can-connect")).toBe("true");
+  });
+
+  it("does not offer connect on connections:manage alone", () => {
+    // The two permissions are independent and the routes behind Connect and
+    // Re-authorize require mcp:manage; a caller holding only connections:manage
+    // must not be shown controls the backend will refuse.
+    can = (permission) => permission === "connections:manage";
+    canCreate = true;
+    render(<NewEventTriggerDialog open onOpenChange={vi.fn()} />);
+
+    expect(screen.getByTestId("portal-catalog").getAttribute("data-can-connect")).toBe("false");
   });
 
   it("withholds create-ability when no agent is runnable, whatever the org role says", () => {
