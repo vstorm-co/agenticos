@@ -17,6 +17,39 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.225] - 2026-08-20
+
+The chat says which model the conversation runs on.
+
+### Added
+
+- **`published_model` on a listed agent** - the profile id, provider, model id
+  and label of the model its published version runs on. Read off the **frozen
+  spec's** profile rather than the draft's, which may name a model the agent does
+  not run; `null` for a draft agent and for a profile that has been deleted,
+  because a picker prefilled from a gap would name a model the profile no longer
+  is. Filled by the listing only, the same bargain `budget_monthly_usd` and
+  `context_window_tokens` take. (#926)
+- The two lookups behind it - version to published profile, profile to row - are
+  the ones `_context_windows` already made, and they are now loaded once and fed
+  to both, so the summary costs no extra query. (#926)
+
+### Fixed
+
+- **The chat's Model tab opened without saying which model the conversation runs
+  on** - the one thing the panel is named after. It keyed its "currently running"
+  line on the *override*, which is `null` until somebody sets one, so every
+  conversation before its first override rendered blank and asked the reader to
+  choose against a baseline it never showed. The summary now reads the agent's
+  published model when there is no override and the override's profile when there
+  is, labelled *Agent's model* or *Just this chat*. (#926)
+- **A caller without `connections:manage` got a refusal in place of the whole
+  panel.** Creating a model profile needs that permission; *reading* which model
+  an agent runs on is `agents:view`, which opening the conversation already
+  implies - and the person who may not change it is the one most likely to want to
+  know. The summary renders above the gate now and only the fields that write are
+  withheld. (#926)
+
 ## [0.0.224] - 2026-08-20
 
 Only the thumb whose request is in flight spins.
