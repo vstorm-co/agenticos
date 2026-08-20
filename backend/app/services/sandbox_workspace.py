@@ -58,6 +58,7 @@ from app.repositories import agent as agent_repo
 from app.repositories import agent_workspace as workspace_repo
 from app.repositories import conversation as conversation_repo
 from app.services.sandbox_connection import ResolvedConnection, SandboxConnectionService
+from app.services.sandbox_runtimes import runtime_briefing
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +146,16 @@ class OpenWorkspace:
 
     connection_id: UUID | None = None
     """Which registered connection it runs on, for a workspace that is not `state`."""
+
+    briefing: str | None = None
+    """What this run should tell its model about the container it works in.
+
+    Composed here rather than carried as an alias, because an alias would be
+    `None` for two different reasons - no `sandboxd` at all, and a `sandboxd`
+    whose default nobody overrode - and only the second one is describable.
+    `None` for a `state` or Daytona workspace, whose image this deployment does
+    not build and so cannot honestly describe.
+    """
 
     opened_version: int | None = None
     """What `version` said when this run loaded the document.
@@ -348,10 +359,12 @@ class SandboxWorkspaceService:
         resolving can fail for reasons that were fine at publish time (a key
         rotated away, a host switched off) and each of those says which.
         """
+        briefing: str | None = None
         if resolved.kind == "daytona":
             backend = self._daytona(key, resolved)
         else:
             backend = self._sandboxd(config, identity, key, resolved)
+            briefing = runtime_briefing(config.runtime or resolved.row.default_runtime or None)
 
         row = await self._row(
             config, identity, key, scope, session_id=key, connection_id=resolved.row.id
@@ -363,6 +376,7 @@ class SandboxWorkspaceService:
             scope_key=key,
             row_id=row.id if row is not None else None,
             connection_id=resolved.row.id,
+            briefing=briefing,
         )
 
     @staticmethod

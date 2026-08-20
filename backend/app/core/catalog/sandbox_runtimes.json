@@ -1,0 +1,46 @@
+[
+  {
+    "alias": "workbench",
+    "description": "Python 3.12 and Node 24 with the tools and libraries to read, write and plot the files a conversation is about",
+    "base_image": "python:3.12-slim",
+    "setup_commands": [
+      "apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates ripgrep fd-find jq less procps xz-utils unzip zip tzdata fonts-dejavu-core && ln -s /usr/bin/fdfind /usr/local/bin/fd && rm -rf /var/lib/apt/lists/*",
+      "arch=\"$(dpkg --print-architecture)\"; case \"$arch\" in amd64) node_arch=x64 ;; arm64) node_arch=arm64 ;; *) echo \"no Node build for $arch\" >&2; exit 1 ;; esac; curl -fsSL \"https://nodejs.org/dist/v24.19.0/node-v24.19.0-linux-${node_arch}.tar.xz\" | tar -xJ -C /usr/local --strip-components=1 --exclude CHANGELOG.md --exclude README.md --exclude LICENSE && npm install -g tsx && npm cache clean --force",
+      "curl -fsSL https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin INSTALLER_NO_MODIFY_PATH=1 sh"
+    ],
+    "packages": [
+      "liteparse",
+      "pypdf",
+      "python-docx",
+      "openpyxl",
+      "python-pptx",
+      "pillow",
+      "pandas",
+      "duckdb",
+      "matplotlib",
+      "httpx",
+      "requests",
+      "beautifulsoup4",
+      "lxml",
+      "markdownify",
+      "pyyaml",
+      "tabulate",
+      "reportlab"
+    ],
+    "env_vars": {
+      "PYTHONUNBUFFERED": "1",
+      "PYTHONDONTWRITEBYTECODE": "1",
+      "PYTHONUTF8": "1",
+      "MPLBACKEND": "Agg",
+      "PIP_DISABLE_PIP_VERSION_CHECK": "1"
+    },
+    "briefing": [
+      "Python 3.12 (`python3`) and Node 24 (`node`, `npm`, `tsx` for TypeScript). Shell tools: `git`, `rg`, `fd`, `jq`, `curl`, `unzip`, and `uv` for installing Python packages fast.",
+      "`lit parse <file> -o out.md` reads PDFs and images into text or markdown, OCR included - use it rather than writing a PDF extractor.",
+      "Office files can be written (`python-docx`, `openpyxl`, `python-pptx`) and `.xlsx`/`.docx` read the same way, but `lit` cannot convert them: there is no LibreOffice here, so `.doc`, `.ppt` and `.odt` cannot be read at all.",
+      "There is no C compiler, so a package with no prebuilt wheel will fail to install."
+    ],
+    "mem_limit": "2g",
+    "needs_network": true
+  }
+]

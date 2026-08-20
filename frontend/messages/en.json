@@ -4093,7 +4093,7 @@
       "placeholder": "the service's own",
       "selectedNotOnThisHost": "This host did not name the runtime selected. Pick one it did, or an agent taking this default fails on its first tool call.",
       "serviceDefault": "Whatever the service defaults to",
-      "shipped": "These are the runtimes the sandbox library ships.",
+      "shipped": "These are the runtimes this deployment ships.",
       "test": "Test and check this host",
       "typeAlias": "Type an alias instead"
     },

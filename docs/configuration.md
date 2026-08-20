@@ -373,51 +373,18 @@ holding unauthenticated internal APIs should say so at the network rather than h
 
 ### Which environments an agent may ask for
 
-Two lists, and they answer different questions. The **connection dialog's**
-`Default runtime` offers the fifteen image recipes the sandbox library ships, and
-they are recipes rather than promises: it is a list of what *could* be built. The
-**agent Builder's** `Runtime` offers what the service registered on that connection
-actually allows, read live from it, so an alias it names is an alias the next tool
-call will accept. Where the two disagree, the second one is right — and the dialog
-marks the difference once it has asked, which is what its `Test` button is for.
+One runtime ships — `workbench` (1.26 GB): Python 3.12, Node 24, and the libraries
+an agent needs to read, write and plot the files a conversation is about, including
+liteparse with OCR. It is defined in
+`backend/app/core/catalog/sandbox_runtimes.json`. Adding one is an edit there and
+`make sandbox-runtimes`, which writes `SANDBOXD_RUNTIMES` into all three compose
+files; that variable is the only channel the service accepts runtimes on, and
+`PUT /policy` deliberately refuses the membership of the list.
 
-What a service allows is `SANDBOXD_RUNTIMES` on the service, and there is no other
-place:
-
-```
-SANDBOXD_RUNTIMES=python=python:3.12-slim,data=@python-analytics;mem_limit=4g
-```
-
-`alias=image` starts a ready-made image. `alias=@name` names one of the library's
-recipes, whose packages are built into an image on first use and cached after.
-`;field=value` sets any field of that entry — `mem_limit`, `cpus`, `pids_limit`,
-`network_mode`. A JSON object is accepted instead, and is the only form that can
-name a package list of its own:
-
-```json
-{"documents": {"mem_limit": "2g",
-  "runtime": {"name": "documents", "base_image": "python:3.12-slim",
-              "packages": ["liteparse", "pypdf", "python-docx", "openpyxl"]}}}
-```
-
-Three things about that variable are worth knowing before editing it:
-
-- **The first entry is the default** for an agent whose spec names none.
-- **`network_mode` is not inherited.** `SANDBOXD_NETWORK_MODE` is the service-wide
-  default and this project's compose sets it to `none`, so an entry whose purpose is
-  installing what a project declares has to say `bridge` for itself. The shipped
-  `coding` runtime carries its own `bridge`; an allowlist written by hand does not
-  inherit that, and the failure is an agent whose `uv pip install` times out.
-- **Adding one is a deployment action, not a form.** `PUT /policy` changes ceilings
-  and lifetimes without a restart and deliberately refuses the *membership* of this
-  list, along with `network_mode`, `oci_runtime`, `sandbox_uid`, `work_dir` and
-  `persist_containers`: naming an image is a decision about isolation, and the
-  service token is held by an application rather than by whoever runs the host.
-
-What the shipped compose files allow — `coding`, `polyglot`, `python`, `node`,
-`documents`, `data` — is a starting point rather than a recommendation: a deployment
-whose agents write Go wants `@go` in there, and one on a small host wants fewer
-things that build.
+`sandbox.md#which-environments-an-agent-may-ask-for` has the field-by-field
+format, the three traps (the first entry is the default, `network_mode` is not
+inherited, a build is paid for at start-up by `prewarm`) and why the generated
+copy in the compose files cannot drift from the catalogue.
 
 ### The service's own settings
 
@@ -428,6 +395,8 @@ or that decide whether files survive:
 | Variable | Shipped | What it decides |
 |---|---|---|
 | `SANDBOXD_WORKSPACE_ROOT` | a host path | Where each session's work directory lives, bind-mounted from the *host*. **Unset, files exist only inside a running container** — an idle reaping discards them and the next request opens an empty workspace, with nothing in a log. It is also what makes browsing possible: reading a workspace never starts a container |
+| `SANDBOXD_SANDBOX_UID` | `10001` | The unprivileged user a sandbox runs as, instead of root — a container escape starts from whoever the container runs as, and every file an agent writes is owned by this uid on the host. **Has to be the service's own uid**: opening a session `chown`s the workspace to this user, which an unprivileged service can only do for itself. Applies to a runtime the deployment *builds*, since a ready-made image has no such account and an agent inside one could install nothing |
+| `SANDBOXD_CONTAINER_TTL` | 86400s | How long a *stopped* persisted container is kept. Reclaims what a session installed — the build, the wheels, `node_modules` — and leaves the workspace untouched, because the files are the work. Unset, they are kept for ever |
 | `SANDBOXD_PERSIST_CONTAINERS` | `true` | A closed session's container is kept rather than removed, so the next session on that workspace starts without a build. Costs a stopped container per workspace; `SANDBOXD_CONTAINER_TTL` bounds it |
 | `SANDBOXD_MAX_SESSIONS_PER_TENANT` | `5` | One organization cannot take the pool. `SANDBOXD_MAX_SESSIONS` (20) is the pool |
 | `SANDBOXD_NETWORK_MODE` | `none` | The default network for a sandbox. `none` is no network at all; a runtime may name `bridge` for itself |

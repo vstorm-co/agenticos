@@ -50,6 +50,7 @@ from app.schemas.sandbox_connection import (
     SandboxSessionUsage,
 )
 from app.services.organization_secret import OrganizationSecretService
+from app.services.sandbox_runtimes import CATALOG
 
 logger = logging.getLogger(__name__)
 
@@ -230,24 +231,24 @@ class SandboxConnectionService:
 
     @staticmethod
     def runtime_catalog() -> list[SandboxRuntimeOption]:
-        """Every runtime the sandbox library ships, read from the library.
+        """What this deployment ships, from `app/core/catalog/sandbox_runtimes.json`.
 
-        Read rather than copied. `BUILTIN_RUNTIMES` is what a `sandboxd` is built
-        from, so a list of aliases maintained here would drift the first time the
-        library added one - and the failure is invisible: a form offering fewer
-        runtimes than exist looks complete.
+        The same file the compose files' `SANDBOXD_RUNTIMES` is generated from, so
+        the form offers what a `sandboxd` started by this project was actually
+        given. It used to read the library's `BUILTIN_RUNTIMES` instead, which
+        offered fifteen aliases of which a host allowed three - and the reason it
+        no longer does is that changing what this product ships should not be a
+        release of a dependency.
 
         This is not the same question as `policy`. A service can be started with a
-        narrower allowlist, so what it *permits* is only knowable by asking it. What
-        this answers is the earlier and cheaper question - which aliases exist at
-        all - so the form has a populated select before anybody has typed an
-        address or picked a key.
+        narrower allowlist - or a wider one, by a deployment that generated its own -
+        so what it *permits* is only knowable by asking it. What this answers is the
+        earlier and cheaper question, so the form has a populated select before
+        anybody has typed an address or picked a key.
         """
-        from pydantic_ai_backends import BUILTIN_RUNTIMES
-
         return [
             SandboxRuntimeOption(
-                alias=alias,
+                alias=runtime.alias,
                 description=runtime.description,
                 # A ready-made image names `image`; a built one names the base its
                 # build starts from. Both are worth showing - "python:3.12-slim"
@@ -255,7 +256,7 @@ class SandboxConnectionService:
                 image=runtime.image or runtime.base_image,
                 builds=runtime.image is None,
             )
-            for alias, runtime in BUILTIN_RUNTIMES.items()
+            for runtime in CATALOG
         ]
 
     async def local_service(self, ctx: AuthContext) -> SandboxLocalServiceRead:

@@ -249,44 +249,47 @@ services:
       # once, on the host - and it is where a conversation's files live, so it
       # belongs on storage somebody backs up.
       SANDBOXD_WORKSPACE_ROOT: ${SANDBOX_WORKSPACE_ROOT:-/var/lib/agenticos/sandbox-workspaces}
-      # Which environments an agent may ask for, and the only place they are
-      # decided. `SANDBOXD_RUNTIMES` is `alias=image` or `alias=@recipe` in its
-      # compact form; this is the JSON form, which is the only one that can name
-      # a package list of its own - which is what `documents` needs.
+      # Which environments an agent may ask for. **Generated - do not edit here.**
+      # `make sandbox-runtimes` writes it from
+      # backend/app/core/catalog/sandbox_runtimes.json, which is where a runtime
+      # is added or a package changed, and which the connection dialog offers as
+      # well - so the two cannot disagree about what this deployment ships.
+      # `backend/tests/test_sandbox_runtime_catalog.py` fails when this line has
+      # drifted from that file.
       #
-      # Adding one is an edit here and a restart, not a form in the product, and
-      # that is upstream's decision rather than an omission: `PUT /policy`
-      # changes ceilings and lifetimes at run time and deliberately refuses
-      # `runtimes` membership, because naming an image is a decision about
-      # isolation and the service token belongs to an application rather than to
-      # whoever runs the host.
+      # Written into a tracked file rather than read from one at start-up because
+      # `docker compose up` has to work without generating anything first;
+      # otherwise a deployment silently gets the library's own default allowlist.
       #
-      # Two things to know before editing it. **The first entry is the default**
-      # for an agent whose spec names none. And `network_mode` is *not*
-      # inherited: `SANDBOXD_NETWORK_MODE: none` below is the service-wide
-      # default, so an entry that installs anything at run time has to say
-      # `bridge` for itself - which `coding` and `polyglot` do, because
-      # installing what a project declares is what they are for. The rest have
-      # their packages baked in at build time and get no network at all.
+      # Not a form in the product, and that is upstream's decision rather than an
+      # omission: `PUT /policy` changes ceilings and lifetimes at run time and
+      # deliberately refuses `runtimes` membership, because naming an image is a
+      # decision about isolation and this token belongs to an application rather
+      # than to whoever runs the host. Changing the list is a restart, and
+      # `prewarm` rebuilds what it names as the service starts rather than inside
+      # somebody's first request - which is minutes on a cold cache, and the
+      # reason this deployment ships one runtime rather than eight.
+      SANDBOXD_RUNTIMES: '{"workbench":{"description":"Python 3.12 and Node 24 with the tools and libraries to read, write and plot the files a conversation is about","runtime":{"name":"workbench","base_image":"python:3.12-slim","description":"Python 3.12 and Node 24 with the tools and libraries to read, write and plot the files a conversation is about","setup_commands":["apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates ripgrep fd-find jq less procps xz-utils unzip zip tzdata fonts-dejavu-core && ln -s /usr/bin/fdfind /usr/local/bin/fd && rm -rf /var/lib/apt/lists/*","arch=\"$(dpkg --print-architecture)\"; case \"$arch\" in amd64) node_arch=x64 ;; arm64) node_arch=arm64 ;; *) echo \"no Node build for $arch\" >&2; exit 1 ;; esac; curl -fsSL \"https://nodejs.org/dist/v24.19.0/node-v24.19.0-linux-${node_arch}.tar.xz\" | tar -xJ -C /usr/local --strip-components=1 --exclude CHANGELOG.md --exclude README.md --exclude LICENSE && npm install -g tsx && npm cache clean --force","curl -fsSL https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin INSTALLER_NO_MODIFY_PATH=1 sh"],"packages":["liteparse","pypdf","python-docx","openpyxl","python-pptx","pillow","pandas","duckdb","matplotlib","httpx","requests","beautifulsoup4","lxml","markdownify","pyyaml","tabulate","reportlab"],"env_vars":{"PYTHONUNBUFFERED":"1","PYTHONDONTWRITEBYTECODE":"1","PYTHONUTF8":"1","MPLBACKEND":"Agg","PIP_DISABLE_PIP_VERSION_CHECK":"1"}},"mem_limit":"2g","network_mode":"bridge"}}'
+      # An escape starts from whoever the container runs as, and the default is
+      # root. The image is built around this uid - a home directory and a
+      # virtualenv it owns, without which an agent's `pip install` fails - so it
+      # only applies to a runtime this deployment builds, which `workbench` is.
+      # It also makes every file an agent writes owned by this uid on the host,
+      # rather than by root.
       #
-      # Restarting with a changed list rebuilds what it names: `prewarm` builds
-      # every recipe as the service starts rather than inside somebody's first
-      # request, which is minutes on a cold cache.
-      SANDBOXD_RUNTIMES: >-
-        {"coding": {"runtime": "coding", "network_mode": "bridge", "mem_limit": "1g",
-        "description": "Python with git, ripgrep, fd, jq and uv - installs what a project declares"},
-        "polyglot": {"runtime": "polyglot", "network_mode": "bridge", "mem_limit": "1g",
-        "description": "Python and Node together, with curl and git"},
-        "python": {"image": "python:3.12-slim", "description": "Python 3.12, standard library only"},
-        "node": {"image": "node:20-slim", "description": "Node.js 20, no extra packages"},
-        "documents": {"mem_limit": "4g", "description": "Read and write documents - LiteParse, pypdf, python-docx, openpyxl, Pillow",
-        "runtime": {"name": "documents", "base_image": "python:3.12-slim",
-        "description": "LiteParse, pypdf, python-docx, openpyxl and Pillow",
-        "packages": ["liteparse", "pypdf", "python-docx", "openpyxl", "pillow"]}},
-        "data": {"runtime": "python-analytics", "mem_limit": "4g",
-        "description": "DuckDB and Polars - the same work as pandas in a third of the memory"}}
+      # **The service's own uid, and it has to be.** Opening a session `chown`s
+      # the workspace to this user, and a sandboxd running unprivileged can only
+      # do that for itself - so a different number here fails at the first
+      # session rather than at start-up.
+      SANDBOXD_SANDBOX_UID: "10001"
       SANDBOXD_PERSIST_CONTAINERS: "true"
-      SANDBOXD_MAX_SESSIONS_PER_TENANT: "5"
+      # What a session installed inside its container - the build, the wheels,
+      # `node_modules` - reclaimed a day after it stopped. Without it a persisted
+      # container is kept for ever and the host fills up with the ones nobody
+      # reattached to. The workspace is untouched: the files are the work, the
+      # container is rebuildable.
+      SANDBOXD_CONTAINER_TTL: "86400"
+      SANDBOXD_MAX_SESSIONS_PER_TENANT: "10"
       SANDBOXD_NETWORK_MODE: none
       SANDBOXD_UI_ENABLED: "0"
     volumes:

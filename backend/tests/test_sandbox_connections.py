@@ -44,6 +44,7 @@ from app.services.sandbox_connection import (
     SandboxConnectionService,
     to_read,
 )
+from app.services.sandbox_runtimes import CATALOG
 
 pytestmark = pytest.mark.anyio
 
@@ -582,37 +583,30 @@ class TestWhatThisDeploymentCanAlreadySee:
 
 
 class TestTheRuntimeCatalog:
-    """Read from the library rather than listed here.
+    """What this deployment ships, not what the library does.
 
-    A copy would drift the first time `pydantic-ai-backends` added a runtime, and
-    the failure is invisible: a form offering twelve of fifteen looks complete.
+    The form used to offer `BUILTIN_RUNTIMES` - fifteen aliases, of which a
+    `sandboxd` started by this project allowed three, and the failure was
+    invisible in the direction that matters: a select offering a runtime the host
+    will refuse looks complete.
     """
 
-    def test_every_runtime_the_library_ships_is_offered(self):
-        from pydantic_ai_backends import BUILTIN_RUNTIMES
-
-        catalog = SandboxConnectionService.runtime_catalog()
-
-        assert {entry.alias for entry in catalog} == set(BUILTIN_RUNTIMES)
-
-    def test_a_ready_made_image_is_named_and_marked_as_not_building(self):
-        catalog = {entry.alias: entry for entry in SandboxConnectionService.runtime_catalog()}
-
-        node = catalog["node-minimal"]
-
-        assert node.image == "node:20-slim"
-        assert node.builds is False
+    def test_the_form_offers_what_the_compose_files_gave_the_service(self):
+        assert [entry.alias for entry in SandboxConnectionService.runtime_catalog()] == [
+            runtime.alias for runtime in CATALOG
+        ]
 
     def test_a_built_runtime_says_what_it_starts_from_and_that_it_builds(self):
-        """The first session pays for the build, so "coding" and "node-minimal" are
-        not the same promise about how long the first message takes."""
+        """A build is paid for once, by whoever opens the first session on a host
+        that has not prewarmed it - so "builds" is a claim about how long a first
+        message can take, and worth showing."""
         catalog = {entry.alias: entry for entry in SandboxConnectionService.runtime_catalog()}
 
-        coding = catalog["coding"]
+        workbench = catalog["workbench"]
 
-        assert coding.image == "python:3.12-slim"
-        assert coding.builds is True
-        assert "git" in coding.description
+        assert workbench.image == "python:3.12-slim"
+        assert workbench.builds is True
+        assert "Node" in workbench.description
 
 
 class TestStoringTheLocalToken:

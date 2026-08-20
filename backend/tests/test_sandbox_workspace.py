@@ -1796,6 +1796,50 @@ class TestContainerBackedWorkspaces:
 
         assert seen["runtime"] == "data-science"
 
+    async def test_a_container_workspace_carries_what_is_installed_in_it(
+        self, monkeypatch, mock_db_session
+    ):
+        """The run has to tell its model, and only the open knows which runtime it
+        resolved to. Without it an agent writes a PDF extractor beside the `lit`
+        that would have read the file."""
+        from pydantic_ai_backends import remote as remote_module
+
+        monkeypatch.setattr(remote_module, "RemoteSandbox", lambda url, **kwargs: object())
+        _serve(monkeypatch, _resolved(default_runtime="workbench"))
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=None))
+        monkeypatch.setattr(
+            workspace_repo, "create", AsyncMock(return_value=_row(backend="service"))
+        )
+
+        opened = await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service"), ctx=_ctx(), identity=_identity()
+        )
+
+        assert opened is not None
+        assert opened.briefing is not None
+        assert "liteparse" in opened.briefing
+
+    async def test_a_runtime_this_deployment_does_not_ship_is_described_to_nobody(
+        self, monkeypatch, mock_db_session
+    ):
+        """A host can be started with an allowlist of its own, and inventing a
+        package list for one of its images would be a prompt that lies."""
+        from pydantic_ai_backends import remote as remote_module
+
+        monkeypatch.setattr(remote_module, "RemoteSandbox", lambda url, **kwargs: object())
+        _serve(monkeypatch, _resolved(default_runtime="their-own-image"))
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=None))
+        monkeypatch.setattr(
+            workspace_repo, "create", AsyncMock(return_value=_row(backend="service"))
+        )
+
+        opened = await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service"), ctx=_ctx(), identity=_identity()
+        )
+
+        assert opened is not None
+        assert opened.briefing is None
+
     async def test_a_daytona_connection_uses_the_organizations_own_key(
         self, monkeypatch, mock_db_session
     ):

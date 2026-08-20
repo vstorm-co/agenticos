@@ -18,7 +18,7 @@ import { useTranslations } from "next-intl";
 interface RuntimeFieldProps {
   value: string;
   onChange: (alias: string) => void;
-  /** Every runtime the library ships. Offered immediately, without asking a host. */
+  /** What this deployment ships. Offered immediately, without asking a host. */
   catalog: SandboxRuntimeOption[];
   /** What the service said it allows, or null before anybody asked it. */
   allowed: SandboxRuntime[] | null;
@@ -33,15 +33,16 @@ const SERVICE_DEFAULT = "__service__";
 /**
  * Which image an agent gets when its own spec names none.
  *
- * **Populated before anything is probed.** The aliases come from the sandbox
- * library's own catalog, which is what every `sandboxd` is built from — so the list
- * is complete the moment the form opens, and a select that only filled in after
- * pressing a button was a select nobody would find.
+ * **Populated before anything is probed.** The aliases come from this
+ * deployment's own catalogue — the same file the compose files' allowlist is
+ * generated from — so the list is complete the moment the form opens, and a
+ * select that only filled in after pressing a button was a select nobody
+ * would find.
  *
- * Probing is still worth doing and now means something narrower: a service can be
- * started with a shorter allowlist, so once it has answered, the options it did not
- * name are marked. Before that the field says plainly that nothing has been checked
- * yet — offering fifteen aliases as though all fifteen will work would be a
+ * Probing is still worth doing and means something narrower: a host can have
+ * been started with a different allowlist, so once it has answered, the options
+ * it did not name are marked. Before that the field says plainly that nothing
+ * has been checked yet, because offering an alias as though it will work is a
  * promise this cannot make.
  *
  * The free-text field stays reachable, and that is not indecision. A service can be

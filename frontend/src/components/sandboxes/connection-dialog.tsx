@@ -160,12 +160,11 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
   /**
    * Ask as soon as there is something to ask with.
    *
-   * The runtime list is the library's catalogue until a host has answered, and
-   * twelve of its fifteen entries may be aliases this service was never started
-   * with - which the field marks, but only after somebody presses `Test`. So a
-   * form filled in and saved without pressing it registered a default the first
-   * tool call refuses, and the button that would have said so looked optional
-   * (#1039).
+   * The runtime list is what this deployment ships until a host has answered,
+   * and a service can have been started with a different allowlist - which the
+   * field marks, but only after somebody presses `Test`. So a form filled in and
+   * saved without pressing it registered a default the first tool call refuses,
+   * and the button that would have said so looked optional (#1039).
    *
    * Debounced, because the address is typed: a request per keystroke would ask
    * about `htt`, `http`, `http:` and be wrong about all of them. The explicit

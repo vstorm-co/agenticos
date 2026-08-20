@@ -148,7 +148,7 @@ export interface SandboxEventList {
  * one would have had it in a browser.
  */
 /**
- * One runtime the sandbox library ships.
+ * One runtime this deployment ships.
  *
  * The catalog, not the allowlist: every `sandboxd` is built from these, so a form
  * can offer them with no address and no credential. Whether a particular service
@@ -201,7 +201,7 @@ export async function deleteSandboxConnection(id: string): Promise<void> {
   await apiClient.delete(`${ROOT}/${id}`);
 }
 
-/** Every runtime the library ships. Static — nothing is contacted to answer it. */
+/** What this deployment ships. Static — nothing is contacted to answer it. */
 export async function listSandboxRuntimes(): Promise<SandboxRuntimeOption[]> {
   const data = await apiClient.get<{ items: SandboxRuntimeOption[]; total: number }>(
     `${ROOT}/runtimes`,

@@ -1066,6 +1066,24 @@ async def _with_exposure_prompt(
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
 
 
+def _with_workspace_briefing(spec: AgentSpec, workspace: OpenWorkspace) -> AgentSpec:
+    """The spec told what is installed in the container this run opened.
+
+    Appended for the same reason a binding's prompt is, and with the same
+    `model_copy`: it is true of this run rather than of the published version, and
+    which runtime a run gets is resolved from the spec, the connection and the host
+    at the moment it starts.
+
+    The alternative was an agent discovering its own machine by failing on it -
+    writing a PDF extractor beside a `lit` that would have read it, or installing
+    a package that was already there. `runtime_briefing` says `None` for a
+    workspace this deployment cannot honestly describe, and then nothing is added.
+    """
+    if workspace.briefing is None:
+        return spec
+    return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{workspace.briefing}"})
+
+
 def _with_channel_tools(spec: AgentSpec, exposure: AgentExposure | None) -> AgentSpec:
     """The spec with the lookups *this* binding grants, if it grants any.
 
@@ -1681,6 +1699,7 @@ class AgentRunnerService:
         if workspace is not None:
             resources[WORKSPACE_BACKEND_RESOURCE] = workspace.backend
             resources[SPILL_LOG_RESOURCE] = workspace.spills
+            spec = _with_workspace_briefing(spec, workspace)
             # Skills as files, beside the shell that can run them. A skill whose
             # resource is a script was previously handed to the model as text it
             # could quote and not execute, while the same agent had `execute` one
