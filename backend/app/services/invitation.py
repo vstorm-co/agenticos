@@ -13,22 +13,13 @@ from app.core.exceptions import (
     NotFoundError,
     PaymentRequiredError,
 )
-from app.core.permissions import OrgRoleName, Perm, role_has
-from app.db.models.organization import Invitation, InvitationStatus, OrgRole
+from app.core.permissions import Perm, assignable_roles, role_has
+from app.db.models.organization import Invitation, InvitationStatus
 from app.repositories import invitation_repo, member_repo, organization_repo, user_repo
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
 
 logger = logging.getLogger(__name__)
-
-# Roles an admin may invite into. Owner and admin are excluded: inviting a peer
-# to your own level is an ownership decision.
-_ADMIN_INVITABLE_ROLES = {
-    OrgRoleName.BUILDER.value,
-    OrgRoleName.OPERATOR.value,
-    OrgRoleName.MEMBER.value,
-    OrgRoleName.VIEWER.value,
-}
 
 
 class InvitationService:
@@ -48,8 +39,14 @@ class InvitationService:
         if not requester or not role_has(requester.role, Perm.MEMBERS_MANAGE):
             raise AuthorizationError(message="Only Owner or Admin can invite members")
 
-        if requester.role == OrgRole.ADMIN.value and role not in _ADMIN_INVITABLE_ROLES:
-            raise AuthorizationError(message="Admin can only invite as Member or Viewer")
+        # A role may be offered only when the requester's own strictly outranks
+        # it, off the catalog rather than the literal "admin": a custom role
+        # (Phase 2) holding `members:manage` would otherwise invite a new Admin (#696).
+        if role not in assignable_roles(requester.role):
+            raise AuthorizationError(
+                message="You cannot invite as a role your own does not outrank",
+                details={"role": role},
+            )
 
         normalized_email = email.lower()
 
@@ -131,8 +128,14 @@ class InvitationService:
         )
         if not requester or not role_has(requester.role, Perm.MEMBERS_MANAGE):
             raise AuthorizationError(message="Only Owner or Admin can invite members")
-        if requester.role == OrgRole.ADMIN.value and role not in _ADMIN_INVITABLE_ROLES:
-            raise AuthorizationError(message="Admin can only invite as Member or Viewer")
+        # A role may be offered only when the requester's own strictly outranks
+        # it, off the catalog rather than the literal "admin": a custom role
+        # (Phase 2) holding `members:manage` would otherwise invite a new Admin (#696).
+        if role not in assignable_roles(requester.role):
+            raise AuthorizationError(
+                message="You cannot invite as a role your own does not outrank",
+                details={"role": role},
+            )
 
         invite = await invitation_repo.create(
             self.db,
