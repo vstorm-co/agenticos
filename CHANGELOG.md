@@ -17,6 +17,33 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.212] - 2026-08-20
+
+The RAG dialogs: a real editor for a model prompt, one width scale, and a mark on
+each parser.
+
+### Changed
+
+- **The image-description prompt is a `MarkdownEditor`.** It is a model prompt,
+  several sentences long, and it was a bare three-row textarea - while the product
+  already has the control for that, the one the Builder uses for an agent's
+  instructions, an exposure prompt and a capability's generated form. The editor
+  gained `maxLength` so the swap did not quietly drop the hard cap: a field whose
+  length the API refuses should not let somebody write past it and find out on
+  submit. `IngestionSettings` is embedded whole in the create dialog, so both
+  dialogs get it. (#940)
+- **The four RAG dialogs agree on a width scale.** The same `IngestionSettings` was
+  given 768px in two of them and 512px in the one that also carries four fields
+  above it - not a judgement call but a disagreement, since nobody had decided and
+  each had picked. `src/lib/dialog-widths.ts` holds the three sizes with the rule on
+  each, so the create dialog is no longer the narrowest thing holding the widest
+  form. (#940)
+- **Each PDF parser choice draws a mark.** Three lines of text where every other
+  picker in the product draws one. Only LlamaParse is a product, so it takes
+  LlamaIndex's own mark - a row in `scripts/gen-brand-icons.ts`, generated, never a
+  hand-authored path - and PyMuPDF and liteparse take a lucide icon rather than one
+  row getting special treatment and two getting blanks. (#940)
+
 ## [0.0.211] - 2026-08-20
 
 The last second mechanism for secrets at rest is gone.
