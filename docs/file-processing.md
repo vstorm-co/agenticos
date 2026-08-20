@@ -472,7 +472,11 @@ and dated in a comment) and booked with `book_ambient_spend`, landing
 `priced=True`. `POST /rag/search` — which opened no metering block and so left
 even its embeddings unbilled (#16 class) — is now wrapped in one by
 `KnowledgeSearchService`, so both its rerank and its embedding spend reach the
-organization's monthly bill.
+organization's monthly bill. And because a search is a paid call, that service
+asserts the organization's monthly budget before it opens the ledger — the same
+`assert_organization_within_budget` guard ingestion carries — so an exhausted cap
+refuses the search before any embedding or Cohere call, rather than only being
+recorded after the money is spent.
 
 ### Vector Storage
 Vectors are stored in **pgvector** using the existing PostgreSQL database.

@@ -15,7 +15,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.agents.capabilities.budget import SpendEntry, book_ambient_spend
+from app.agents.capabilities.budget import (
+    BudgetExceeded,
+    BudgetScope,
+    SpendEntry,
+    book_ambient_spend,
+)
 from app.schemas.rag import RAGSearchRequest
 from app.services.knowledge_search import KnowledgeSearchService
 from app.services.rag.models import SearchResult
@@ -23,6 +28,13 @@ from app.services.rag.models import SearchResult
 pytestmark = pytest.mark.anyio
 
 _MODULE = "app.services.knowledge_search"
+
+
+@pytest.fixture(autouse=True)
+def _budget_ok():
+    """Every test but the budget one runs under an organization within its cap."""
+    with patch(f"{_MODULE}.assert_organization_within_budget", new=AsyncMock()):
+        yield
 
 
 def _kb(collection_name: str) -> MagicMock:
@@ -125,6 +137,35 @@ class TestMetering:
         assert record.await_count == 2
         models = {call.kwargs["model"] for call in record.await_args_list}
         assert models == {"text-embedding-3-large", "rerank-v3.5"}
+
+
+class TestBudgetGuardsThePaidSearch:
+    """A search is a paid call, so the monthly cap refuses it before it spends,
+    exactly as ingestion is refused - not merely recorded after the fact."""
+
+    async def test_an_exhausted_budget_refuses_before_any_paid_call(self):
+        service, retrieval = _service(readable=[_kb("c1")], retrieve=_booking("0.002"))
+        exceeded = AsyncMock(
+            side_effect=BudgetExceeded(
+                limit_usd=Decimal("1"), spent_usd=Decimal("1"), scope=BudgetScope.ORGANIZATION
+            )
+        )
+        with (
+            patch(f"{_MODULE}.assert_organization_within_budget", new=exceeded),
+            patch(f"{_MODULE}.ingestion_spend_repo.record", new=AsyncMock()) as record,
+            pytest.raises(BudgetExceeded),
+        ):
+            await service.search(_ctx(), RAGSearchRequest(query="q"))
+
+        retrieval.retrieve.assert_not_awaited()
+        record.assert_not_awaited()
+
+    async def test_a_search_with_no_organization_is_not_budget_checked(self):
+        service, _ = _service(readable=[_kb("c1")])
+        ctx = MagicMock(organization_id=None)
+        with patch(f"{_MODULE}.assert_organization_within_budget") as guard:
+            await service.search(ctx, RAGSearchRequest(query="q"))
+        guard.assert_not_called()
 
 
 class TestSpendSurvivesAFailedSearch:

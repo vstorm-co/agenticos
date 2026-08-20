@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 from app.agents.capabilities.budget import SpendLedger, metered_by
 from app.db.session import get_db_context
 from app.repositories import ingestion_spend_repo
+from app.services.spend import assert_organization_within_budget
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -55,9 +56,19 @@ class KnowledgeSearchService:
         A collection the caller cannot reach refuses the whole search rather
         than being dropped from it - `CollectionAccessService.readable_all`
         raises, and this never opens a ledger for a search that will not run.
+
+        The budget is asserted before the ledger opens, not only recorded after:
+        the embedding and any rerank spend this path incurs is real provider
+        cost, and without the same guard ingestion carries a member with
+        collection-view access could keep spending the organization's keys after
+        the monthly cap is reached. Checked here, once access is resolved, so a
+        refused search never reaches a paid call.
         """
         names = request.collection_names or [request.collection_name]
         collections = [kb.collection_name for kb in await self.access.readable_all(ctx, names)]
+
+        if ctx.organization_id is not None:
+            await assert_organization_within_budget(self.db, ctx.organization_id)
 
         ledger = SpendLedger(organization_id=ctx.organization_id)
         try:
