@@ -28,10 +28,11 @@ import pytest
 
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
 from app.core.exceptions import ConfigurationError
+from app.db.models.rag_document import DocumentStatus
 from app.services.rag.failures import IngestionStage, failure_summary
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import IngestionStatus
-from app.worker.tasks.rag_tasks import _run_ingestion, _update_status
+from app.worker.tasks.rag_tasks import _fail_document, _run_ingestion
 
 pytestmark = pytest.mark.anyio
 
@@ -222,7 +223,9 @@ class TestWhatTheWorkerWritesToTheRow:
         """
         documents = MagicMock()
         documents.return_value.get_document = AsyncMock(
-            return_value=MagicMock(organization_id=None, ingestion_config={}, status="processing")
+            return_value=MagicMock(
+                organization_id=None, ingestion_config={}, status=DocumentStatus.PROCESSING
+            )
         )
         documents.return_value.fail_ingestion = AsyncMock()
         pipeline = MagicMock()
@@ -256,13 +259,34 @@ class TestWhatTheWorkerWritesToTheRow:
         with the vague one.
         """
         documents = MagicMock()
-        documents.return_value.get_document = AsyncMock(return_value=MagicMock(status="error"))
+        documents.return_value.get_document = AsyncMock(
+            return_value=MagicMock(status=DocumentStatus.ERROR)
+        )
         documents.return_value.fail_ingestion = AsyncMock()
 
         with (
             patch("app.worker.tasks.rag_tasks.get_worker_db_context", self._db),
             patch("app.services.rag_document.RAGDocumentService", documents),
         ):
-            await _update_status(str(uuid.uuid4()), "error", error_message="the vague one")
+            await _fail_document(str(uuid.uuid4()), error_message="the vague one")
 
         documents.return_value.fail_ingestion.assert_not_awaited()
+
+    async def test_a_row_that_has_not_failed_yet_takes_the_failure(self):
+        """The other half of the guard above: the first handler does write."""
+        documents = MagicMock()
+        documents.return_value.get_document = AsyncMock(
+            return_value=MagicMock(status=DocumentStatus.PROCESSING)
+        )
+        documents.return_value.fail_ingestion = AsyncMock()
+
+        with (
+            patch("app.worker.tasks.rag_tasks.get_worker_db_context", self._db),
+            patch("app.services.rag_document.RAGDocumentService", documents),
+        ):
+            await _fail_document(str(uuid.uuid4()), error_message="the specific one")
+
+        assert (
+            documents.return_value.fail_ingestion.await_args.kwargs["error_message"]
+            == "the specific one"
+        )

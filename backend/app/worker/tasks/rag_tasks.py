@@ -19,6 +19,7 @@ from app.core.config import settings
 from app.core.secret_kinds import SecretKind, StorableSecret, unseal_secret
 from app.core.vault import VaultScope
 from app.db.models.knowledge_base import KnowledgeBase
+from app.db.models.rag_document import DocumentStatus
 from app.db.session import get_worker_db_context
 from app.repositories import ingestion_spend_repo, knowledge_base_repo, organization_secret_repo
 from app.repositories import sync_source as sync_source_repo
@@ -238,9 +239,8 @@ async def ingest_document_flow(
         )
     except Exception as exc:
         logger.exception("Ingestion failed for %s", source_path)
-        await _update_status(
+        await _fail_document(
             rag_document_id,
-            "error",
             error_message=failure_summary(exc, stage=IngestionStage.INGEST),
         )
         raise
@@ -323,9 +323,8 @@ async def _run_ingestion(
         # budget, or the pipeline itself. Which stage it was is not knowable
         # from here, and the stage below says so.
         logger.exception("Ingestion failed for %s", source_path)
-        await _update_status(
+        await _fail_document(
             rag_document_id,
-            "error",
             error_message=failure_summary(exc, stage=IngestionStage.INGEST),
         )
         raise
@@ -348,7 +347,7 @@ async def _run_ingestion(
     # held zero rows.
     if result.status is not IngestionStatus.DONE:
         reason = result.error_message or result.message
-        await _update_status(rag_document_id, "error", error_message=reason)
+        await _fail_document(rag_document_id, error_message=reason)
         raise RuntimeError(f"Ingestion failed for {source_path}: {reason}")
 
     try:
@@ -361,9 +360,8 @@ async def _run_ingestion(
             )
     except Exception as exc:
         logger.exception("Indexed %s but could not record it", source_path)
-        await _update_status(
+        await _fail_document(
             rag_document_id,
-            "error",
             error_message=failure_summary(exc, stage=IngestionStage.RECORD),
         )
         raise
@@ -526,10 +524,8 @@ async def _run_sync(
         await ingestion_service.store.aclose()
 
 
-async def _update_status(
-    rag_document_id: str, status: str, error_message: str | None = None
-) -> None:
-    """Put a status on the document row, and let the first failure keep it.
+async def _fail_document(rag_document_id: str, *, error_message: str | None) -> None:
+    """Put a failure on the document row, and let the first one keep it.
 
     One collapse is reported by up to three handlers here: the stage that
     raised, the check that a *returned* failure is not `done`, and the flow's
@@ -538,24 +534,23 @@ async def _update_status(
     the outermost only knows the ingest failed. Overwriting therefore replaces
     the useful sentence with the vague one, which mattered from the moment the
     column stopped holding the same `str(exc)` at every level (#423).
+
+    Failure is the only status this records. Reaching `DONE` needs the vector
+    document's id, which only `_run_ingestion` holds, so it calls
+    `complete_ingestion` itself.
     """
     from app.services.rag_document import RAGDocumentService
 
     try:
         async with get_worker_db_context() as db:
             doc_svc = RAGDocumentService(db)
-            if status == "error":
-                if (await doc_svc.get_document(rag_document_id)).status == "error":
-                    return
-                await doc_svc.fail_ingestion(
-                    rag_document_id, error_message=error_message or "Unknown error"
-                )
-            elif status == "done":
-                # vector_document_id required for complete_ingestion; callers
-                # set status="done" directly in _run_ingestion with the ID.
-                pass
+            if (await doc_svc.get_document(rag_document_id)).status == DocumentStatus.ERROR:
+                return
+            await doc_svc.fail_ingestion(
+                rag_document_id, error_message=error_message or "Unknown error"
+            )
     except Exception as e:
-        logger.warning("Failed to update RAGDocument status: %s", e)
+        logger.warning("Failed to record the ingestion failure: %s", e)
 
 
 async def _update_sync_log(sync_log_id: str, status: str, error_message: str | None = None) -> None:
