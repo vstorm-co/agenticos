@@ -619,12 +619,13 @@ async def _open_document_row(
     whole collection (#992). A failure was counted in the sync log and recorded
     nowhere per-file, so "which four of the forty failed, and why" had no answer.
 
-    No original is stored, unlike an upload: a synced file's bytes live in the
-    system it was synced from, and mirroring every one of them onto this
-    deployment's disk to make a retry button work is a cost per corpus rather
-    than per failure. `has_file` is false for these, and re-running the sync is
-    the retry - which since #990 skips everything unchanged and re-fetches
-    exactly what has no document.
+    No original is stored, unlike an upload, and that holds for both callers:
+    a connector's file lives in the system it was synced from and a local one is
+    already on this host's disk at the path the sync named, so keeping a second
+    copy to make a retry button work is a cost per corpus rather than per
+    failure. `has_file` is false for these, and **re-running the sync is the
+    retry** - which since #990 skips everything unchanged and re-fetches exactly
+    what has no document.
     """
     from app.services.rag_document import RAGDocumentService
 
