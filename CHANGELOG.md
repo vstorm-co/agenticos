@@ -17,6 +17,40 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.221] - 2026-08-20
+
+Who bound a credential to a collection is recorded.
+
+### Fixed
+
+- **Creating, cloning, repointing and deleting a sync source left no audit
+  entry.** A source binds a credential to a collection, and access to what it
+  ingests is decided at the collection - so the row is the platform's
+  authorization decision for everything that credential can reach, and nothing
+  recorded who made it. `sync_source.created`, `.updated` and `.deleted` name the
+  actor, the connector, the collection and the *id* of the secret. (#983)
+- **A clone is recorded as a creation naming the row it came from.** It points a
+  credential somebody already scoped at a different collection, so the audience
+  changes while nothing about the credential does - the decision in this set that
+  is easiest to miss. (#983)
+- **An update names the fields it changed, never their values**, one of them
+  being `config` - a place a credential has been posted before (#937). An update
+  that moves the source to another collection also records the one it left,
+  because a rename and a change of audience are otherwise the same entry. (#983)
+
+### Changed
+
+- **A null audit actor now means one of two things**, and the `action` says
+  which: the approval expiry sweep, and an operator command at the deployment's
+  shell (`rag-source-add`, `rag-source-remove`), which have nobody at a keyboard
+  to name. Reading `ctx.subject_id` there - as every HTTP path does - would have
+  turned two working commands into an `AuthorizationError`. (#983)
+- Three sentences said the audit actor column is `NOT NULL`
+  (`docs/permissions.md`, `docs/governance.md`, `AuthContext.subject_id`). It is
+  nullable, and has been since the expiry sweep needed it; the reason
+  `subject_id` raises is that an authenticated path has a person, not that the
+  database would refuse. (#983)
+
 ## [0.0.220] - 2026-08-20
 
 A status parameter with one value stops pretending to be a choice.
