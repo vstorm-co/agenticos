@@ -143,7 +143,11 @@ describe("ActiveSessions", () => {
     await user.click(screen.getByLabelText("Next page"));
 
     expect(screen.getByText("Device 1")).toBeInTheDocument();
-    expect(screen.getByRole("list")).toHaveAttribute("aria-busy", "true");
+    const heldList = screen.getByRole("list");
+    expect(heldList).toHaveAttribute("aria-busy", "true");
+    // Inert, so a keyboard or assistive technology cannot reach a revoke button
+    // on the held page and revoke the wrong page's session (#944).
+    expect(heldList).toHaveAttribute("inert");
     expect(screen.getByLabelText("Next page")).toBeDisabled();
 
     releaseSecondPage();

@@ -164,10 +164,13 @@ export function ActiveSessions() {
         <>
           <ul
             aria-busy={isPlaceholderData || undefined}
-            className={cn(
-              "space-y-2 transition-opacity",
-              isPlaceholderData && "pointer-events-none opacity-50",
-            )}
+            // `inert`, not just `pointer-events-none`: the held list is dimmed
+            // while the next page loads, and a mouse cannot reach it - but a
+            // keyboard or assistive technology still could, and revoke the wrong
+            // page's session. `inert` takes it out of the tab order and blocks
+            // every input method (#944).
+            inert={isPlaceholderData}
+            className={cn("space-y-2 transition-opacity", isPlaceholderData && "opacity-50")}
           >
             {sessions.map((session) => (
               <li
