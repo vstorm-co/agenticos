@@ -92,6 +92,21 @@ class TestTheAllowanceItself:
         keys = [call.args[0] for call in client.count_in_window.await_args_list]
         assert keys == ["ratelimit:agent_run:user:a", "ratelimit:embed_admission:ip:1.2.3.4"]
 
+    async def test_an_oversized_caller_is_digested_so_it_cannot_bloat_redis(self):
+        """The login identifier is caller-controlled and unbounded, so a raw key
+        would let one request store megabytes. Past the bound it becomes a
+        fixed-size hash; the key stays small (#947)."""
+        client = _redis([1])
+        rate_limit.configure(client)
+
+        await rate_limit.consume(
+            surface="auth_login", caller=f"id:{'a' * 1_000_000}", limit=Limit(attempts=3)
+        )
+
+        key = client.count_in_window.await_args_list[0].args[0]
+        assert key.startswith("ratelimit:auth_login:h:")
+        assert len(key) < 128
+
     async def test_the_window_is_what_the_key_expires_after(self):
         """A window that never expires is an allowance somebody spends once and
         never gets back."""
