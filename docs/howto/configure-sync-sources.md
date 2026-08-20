@@ -17,7 +17,7 @@ every sync operation.
 
 | Component | Location | Role |
 |-----------|----------|------|
-| `BaseSyncConnector` | `app/rag/connectors/__init__.py` | Abstract base for all connectors |
+| `BaseSyncConnector` | `app/services/rag/connectors/__init__.py` | Abstract base for all connectors |
 | `RemoteFile` | `app/rag/connectors/__init__.py` | Pydantic model describing a remote file |
 | `CONNECTOR_REGISTRY` | `app/rag/connectors/__init__.py` | Maps connector type strings to classes |
 | `SyncSource` (DB model) | `app/db/models/sync_source.py` | Persists source configurations |
@@ -43,6 +43,7 @@ uv run agenticos cmd rag-sources
 uv run agenticos cmd rag-source-add \
   --name "Legal docs" \
   --type gdrive \
+  --org 0c8f2b1e-... \
   --collection legal \
   --config '{"folder_id": "1abc123def", "include_subfolders": true}' \
   --sync-mode new_only \
@@ -55,6 +56,7 @@ uv run agenticos cmd rag-source-add \
 uv run agenticos cmd rag-source-add \
   --name "Marketing" \
   --type s3 \
+  --org 0c8f2b1e-... \
   --collection marketing \
   --config '{"bucket": "my-docs", "prefix": "marketing/"}' \
   --sync-mode full \
@@ -176,9 +178,14 @@ https://drive.google.com/drive/folders/1abc123def456ghi
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `service_account_json` | textarea | Yes | -- | The full contents of the service account JSON key file |
 | `folder_id` | string | Yes | -- | Google Drive folder ID from the URL |
 | `include_subfolders` | boolean | No | `true` | Recursively include files from subfolders |
+
+The service account itself is **not** a config field. Add it to the Vault as a
+`gcp_service_account` credential and point the source at it with `secret_id`: it is
+stored once and referenced by every source that needs it, rather than pasted into
+each one ([#937](https://github.com/vstorm-co/agenticos/issues/937)). Posting it
+under `config` is refused.
 
 A `folder_id` may hold only what Google issues — letters, digits, `-` and `_`.
 Anything else is refused when the source is created, because the id is
@@ -346,11 +353,13 @@ To add a new connector type (e.g. Notion, Confluence, Dropbox), see
 The short version:
 
 1. Create a class inheriting `BaseSyncConnector` in
-   `app/rag/connectors/`.
+   `app/services/rag/connectors/`.
 2. Implement `list_files()`, `_fetch()`, and optionally `validate_config()`.
-3. Define a `CONFIG_SCHEMA` for the connector's settings.
+3. Declare `SECRET_KIND` — what kind of vault secret authenticates it — and a
+   `CONFIG_SCHEMA` of `ConnectorConfigField`s saying how to find the documents.
+   The credential is never one of those fields.
 4. Register it in `CONNECTOR_REGISTRY` in
-   `app/rag/connectors/__init__.py`.
+   `app/services/rag/connectors/__init__.py`.
 
 Once registered, the connector appears automatically in the CLI, API,
 and UI.
@@ -371,11 +380,18 @@ available types with `rag-sources` or `GET /api/v1/rag/sync/connectors`.
 Google Drive (`gdrive`) is available.
 S3 (`s3`) is available.
 
-### Google Drive: "no service account credential"
+### Google Drive: "this source has no credential"
 
-The source's `service_account_json` field is empty. Paste the contents of the
-service account JSON key file into it — `GOOGLE_DRIVE_CREDENTIALS_FILE` does not
-stand in for it, and only the `rag-sync-gdrive` CLI command reads that setting.
+The source's `secret_id` is empty, or the vault secret it named has been deleted.
+Add the service account JSON to the Vault and choose it on the source's credential
+step — `GOOGLE_DRIVE_CREDENTIALS_FILE` does not stand in for it, and only the
+`rag-sync-gdrive` CLI command reads that setting.
+
+### "A Google Drive source needs a service account credential"
+
+The `secret_id` names a credential of the wrong kind — an AWS key pair, say. A Drive
+source takes a `gcp_service_account` and an S3 source an `aws_credentials` pair; the
+wizard offers only the matching ones, so this is reachable through the API.
 
 ### Google Drive: "folder ID may contain only letters, digits, '-' and '_'"
 

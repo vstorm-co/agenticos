@@ -450,8 +450,8 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       {
         id: "flow-agent-knowledge",
         page: AGENT_BUILDER,
-        target: "agent-collections",
-        activate: "agent-tab-knowledge",
+        target: "capability-knowledge",
+        activate: "agent-tab-toolbox",
         permission: Perm.agentsView,
         include: (state) => state.hasKnowledgeBase,
       },
@@ -496,8 +496,8 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       {
         id: "flow-agent-knowledge-attach",
         page: AGENT_BUILDER,
-        target: "agent-collections",
-        activate: "agent-tab-knowledge",
+        target: "capability-knowledge",
+        activate: "agent-tab-toolbox",
         permission: Perm.agentsView,
         requires: "flow-agent-knowledge-ask",
       },
@@ -506,8 +506,8 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       {
         id: "flow-agent-skills",
         page: AGENT_BUILDER,
-        target: "agent-skills",
-        activate: "agent-tab-skills",
+        target: "capability-skills",
+        activate: "agent-tab-toolbox",
         permission: Perm.agentsView,
         include: (state) => state.hasSkill,
       },
@@ -546,8 +546,8 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       {
         id: "flow-agent-skills-attach",
         page: AGENT_BUILDER,
-        target: "agent-skills",
-        activate: "agent-tab-skills",
+        target: "capability-skills",
+        activate: "agent-tab-toolbox",
         permission: Perm.agentsView,
         requires: "flow-agent-skills-ask",
       },
@@ -568,16 +568,17 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         id: "flow-agent-mcp",
         page: AGENT_BUILDER,
         target: "agent-mcp",
-        activate: "agent-tab-toolbox",
+        activate: "agent-tab-mcp",
         permission: Perm.agentsView,
         include: (state) => state.hasOrgMcp,
       },
       {
         id: "flow-agent-mcp-ask",
-        // MCP connects inline in the Toolbox, so its "screen" is that tab: reveal
-        // it, then ask there — the connect button the yes points at is right below.
+        // MCP connects inline on its own tab, so that tab is its "screen":
+        // reveal it, then ask there — the connect button the yes points at is
+        // right below.
         page: AGENT_BUILDER,
-        activate: "agent-tab-toolbox",
+        activate: "agent-tab-mcp",
         permission: Perm.connectionsManage,
         include: (state) => !state.hasOrgMcp,
         question: true,
@@ -586,7 +587,7 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         id: "flow-agent-mcp-connect",
         page: AGENT_BUILDER,
         target: "agent-mcp-connect",
-        activate: "agent-tab-toolbox",
+        activate: "agent-tab-mcp",
         permission: Perm.connectionsManage,
         signal: { kind: "opened" },
         requires: "flow-agent-mcp-ask",
@@ -615,7 +616,7 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         id: "flow-agent-mcp-attach",
         page: AGENT_BUILDER,
         target: "agent-mcp",
-        activate: "agent-tab-toolbox",
+        activate: "agent-tab-mcp",
         permission: Perm.agentsView,
         requires: "flow-agent-mcp-ask",
       },

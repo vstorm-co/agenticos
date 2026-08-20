@@ -38,6 +38,14 @@ interface MarkdownEditorProps {
    */
   invalid?: boolean;
   describedBy?: string;
+  /**
+   * A hard cap on what can be typed, where the field has one.
+   *
+   * The browser's own limit, not a validation message: a field whose length the
+   * server refuses should not let somebody write past it and find out on submit.
+   * It applies to the source textarea, which is the only place text is entered.
+   */
+  maxLength?: number;
 }
 
 /**
@@ -64,6 +72,7 @@ export function MarkdownEditor({
   disabled,
   id,
   textareaRef,
+  maxLength,
 }: MarkdownEditorProps) {
   const t = useTranslations("ui");
   const [mode, setMode] = useState<"source" | "preview">("source");
@@ -94,6 +103,7 @@ export function MarkdownEditor({
         <Textarea
           ref={textareaRef}
           id={id}
+          maxLength={maxLength}
           aria-label={label}
           aria-invalid={invalid}
           aria-describedby={describedBy}

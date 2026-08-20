@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
+import { AlertTriangle, Check, Pencil, Plus, Trash2, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -14,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAgentEnvironments, useAgentVersions } from "@/hooks";
+import { useAgentEnvironments, useAllAgentVersions } from "@/hooks";
 import { VERSION_HISTORY_LIMIT } from "@/lib/agent-spec";
 import type { AgentEnvironment, AgentVersion } from "@/types/agents";
 import { useTranslations } from "next-intl";
@@ -74,21 +75,30 @@ function VersionPin({
 }
 
 /**
- * Which version of this agent answers under which name.
+ * Which version of this agent answers under which name, and which of them a
+ * publish is allowed to move.
  *
- * Publish moves only the default; every other row is pinned until somebody
- * promotes a version onto it - from its own row's version control here, or
- * from the version list below, where the thing being promoted is visible.
- * This panel also owns the names: creating `dev` for a bot to bind to,
- * renaming it, removing an environment a client no longer has. The default
- * keeps its name - it is part of the publish contract.
+ * **Publishing mints a version; putting it somewhere is a separate decision.**
+ * Every environment says which it is: *pinned* waits to be promoted onto, and
+ * *follows latest* moves with every publish - which is what a `dev` somebody is
+ * iterating in wants, and what the default environment used to do silently, so
+ * that fixing a prompt changed what the live bot answered with in the same
+ * click.
+ *
+ * A pinned environment says how far behind it is, because "pinned on purpose"
+ * and "forgotten" look identical without the number - and the promote control
+ * beside it is one click from closing the gap.
+ *
+ * The panel also owns the names: creating `dev` for a bot to bind to, renaming
+ * it, removing an environment a client no longer has. The default keeps its
+ * name - it is what a surface naming no environment resolves through.
  */
 export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; canManage: boolean }) {
   const t = useTranslations("agents");
   const tc = useTranslations("common");
-  const { environments, isLoading, create, promote, rename, remove } =
+  const { environments, isLoading, create, promote, setReleaseMode, rename, remove } =
     useAgentEnvironments(agentId);
-  const { versions } = useAgentVersions(agentId);
+  const { versions } = useAllAgentVersions(agentId);
   const [name, setName] = useState("");
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
 
@@ -161,13 +171,38 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
               ) : (
                 <p className="truncate font-mono text-sm">{environment.name}</p>
               )}
-              <p className="text-muted-foreground text-xs">
-                {t("servesVersion", {
-                  version: environment.version,
-                  isDefault: String(environment.is_default),
-                })}
-              </p>
+              <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 text-xs">
+                <span>{t("servesVersion", { version: environment.version })}</span>
+                {/* What being pinned currently costs. Silent, the two states
+                    that matter - held back on purpose, and forgotten - are the
+                    same row. */}
+                {!environment.tracks_latest && environment.behind_by > 0 && (
+                  <span className="text-warning inline-flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" aria-hidden />
+                    {t("behindBy", { count: environment.behind_by })}
+                  </span>
+                )}
+              </div>
             </div>
+            {/* The release mode, on the row it governs rather than in a
+                settings dialog: which environments a publish moves is the first
+                thing somebody needs to know when they publish. */}
+            {canManage && (
+              <label className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs">
+                <Switch
+                  checked={environment.tracks_latest}
+                  disabled={setReleaseMode.isPending}
+                  aria-label={t("followsLatestFor", { name: environment.name })}
+                  onCheckedChange={(checked) =>
+                    setReleaseMode.mutate({
+                      environmentId: environment.id,
+                      tracksLatest: checked,
+                    })
+                  }
+                />
+                {environment.tracks_latest ? t("followsLatest") : t("pinned")}
+              </label>
+            )}
             {canManage && (
               <VersionPin
                 environment={environment}

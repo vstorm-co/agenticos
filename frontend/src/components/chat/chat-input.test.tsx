@@ -2,8 +2,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { toast } from "sonner";
+
 import { ChatInput } from "./chat-input";
 import type { FileUploadResponse } from "@/lib/file-api";
+import { CHAT_MAX_UPLOAD_SIZE_MB } from "@/lib/utils";
 
 const state = vi.hoisted(() => ({
   upload: vi.fn<(file: File) => Promise<FileUploadResponse>>(),
@@ -38,6 +41,10 @@ const LONG = "x".repeat(50_000);
 beforeEach(() => {
   state.upload.mockReset();
   state.upload.mockResolvedValue(uploaded());
+  // The toast mock is module-level, so without this a refusal asserted in one
+  // test is still recorded in the next one that asserts none.
+  vi.mocked(toast.error).mockClear();
+  vi.mocked(toast.info).mockClear();
 });
 
 describe("ChatInput paste", () => {
@@ -129,5 +136,39 @@ describe("ChatInput attachments", () => {
 
     expect(screen.queryByText("pasted-2026-08-08.txt")).toBeNull();
     expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
+  });
+  it("refuses a file over the chat ceiling without uploading it", async () => {
+    // #498. The composer checked against a default of 50MB while the server
+    // refused at 10, so a 20MB file passed here, was read, was sent in full and
+    // came back refused by a number no configuration held. The client's ceiling
+    // is the chat surface's own now, not the knowledge base's.
+    const { container } = render(<ChatInput onSend={vi.fn()} />);
+
+    await userEvent.upload(
+      container.querySelector<HTMLInputElement>('input[type="file"]')!,
+      new File([new Uint8Array(CHAT_MAX_UPLOAD_SIZE_MB * 1024 * 1024 + 1)], "export.csv", {
+        type: "text/csv",
+      }),
+    );
+
+    expect(toast.error).toHaveBeenCalledWith(
+      `export.csv: File too large. Maximum ${CHAT_MAX_UPLOAD_SIZE_MB}MB.`,
+    );
+    expect(state.upload).not.toHaveBeenCalled();
+    expect(screen.queryByText("export.csv")).toBeNull();
+  });
+
+  it("accepts a file at the ceiling, so the boundary is not off by one", async () => {
+    const atLimit = CHAT_MAX_UPLOAD_SIZE_MB * 1024 * 1024;
+    state.upload.mockResolvedValue(uploaded({ filename: "atlimit.csv", size: atLimit }));
+    const { container } = render(<ChatInput onSend={vi.fn()} />);
+
+    await userEvent.upload(
+      container.querySelector<HTMLInputElement>('input[type="file"]')!,
+      new File([new Uint8Array(atLimit)], "atlimit.csv", { type: "text/csv" }),
+    );
+
+    expect(await screen.findByText("atlimit.csv")).toBeVisible();
+    expect(toast.error).not.toHaveBeenCalled();
   });
 });

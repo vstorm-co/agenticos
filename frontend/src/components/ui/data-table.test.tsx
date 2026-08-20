@@ -130,6 +130,32 @@ function renderRuns(props: Partial<Parameters<typeof DataTable<Run>>[0]> = {}) {
   );
 }
 
+describe("the row a panel beside the table is showing", () => {
+  it("marks it, so the list answers which of these is open", () => {
+    // A detail panel with nothing selected in the list behind it leaves the
+    // reader to find their own row again after every step.
+    renderTable({
+      rows: [
+        { id: "1", name: "Billing clerk" },
+        { id: "2", name: "Answers" },
+      ],
+      isRowActive: (row) => row.id === "2",
+    });
+
+    const rows = screen.getAllByRole("row").slice(1);
+    expect(rows[0]).not.toHaveAttribute("aria-selected", "true");
+    // Said in the accessibility tree as well as in the tint: a colour is not an
+    // answer to a screen reader.
+    expect(rows[1]).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("marks nothing when no panel is open", () => {
+    renderTable({ rows: [{ id: "1", name: "Billing clerk" }] });
+
+    expect(screen.getAllByRole("row")[1]).not.toHaveAttribute("aria-selected");
+  });
+});
+
 describe("DataTable client-side sorting", () => {
   it("sorts the rows it holds when a sortable header is pressed, descending first", async () => {
     const user = userEvent.setup();

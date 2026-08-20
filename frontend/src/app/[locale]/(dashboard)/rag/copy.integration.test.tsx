@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Suspense, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -167,6 +168,19 @@ function wrapper({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Select a section's tab.
+ *
+ * The three sections are tabs since #939, so a test asserting on the sync
+ * sources has to choose that tab first - previously they were all stacked and
+ * everything was on screen at once.
+ */
+async function openTab(name: string) {
+  // `find`, not `get`: the page draws a skeleton until its collection arrives, so
+  // a `get` here races the first render rather than the tab being absent.
+  await userEvent.click(await screen.findByRole("tab", { name }));
+}
+
 async function mountDetail() {
   await act(async () => {
     render(<KBDetailPage params={Promise.resolve({ id: "kb-1" })} />, { wrapper });
@@ -175,6 +189,10 @@ async function mountDetail() {
 }
 
 beforeEach(() => {
+  // The page writes its tab into the URL, and jsdom's location persists across
+  // tests in a file - so without this a test that opened Sync sources leaves the
+  // next one mounting on that tab. A browser gets a fresh URL per navigation.
+  window.history.replaceState({}, "", "/");
   vi.clearAllMocks();
   caller.holds = [Perm.collectionsView, Perm.collectionsEdit];
   serve();
@@ -231,6 +249,7 @@ describe("what a collection's own page says", () => {
 
   it("takes a sync source's schedule from the catalog", async () => {
     await mountDetail();
+    await openTab(`${MARK}Sync sources`);
 
     expect(screen.getByText(`${MARK}every 30m`)).toBeVisible();
   });

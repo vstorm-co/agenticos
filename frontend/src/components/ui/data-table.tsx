@@ -66,6 +66,26 @@ interface DataTableProps<T> {
    */
   error?: ReactNode;
   onRowClick?: (row: T) => void;
+  /**
+   * Which row is the one currently open somewhere else - a detail panel beside
+   * the table, usually.
+   *
+   * Without it a list that opens a panel gives no answer to "which of these am I
+   * looking at", and stepping through rows from inside the panel moves a
+   * selection nothing on screen shows.
+   */
+  isRowActive?: (row: T) => boolean;
+  /**
+   * Fill the height its container gives it, scrolling the rows rather than the
+   * page - and pinning the column headers while they scroll.
+   *
+   * For a list that shares the screen with something else: a wall of numbers
+   * whose headers have scrolled off says nothing, and a page-level scroll takes
+   * the filters and the pager with it. The header can only pin here because this
+   * component owns the scroll container - the horizontal one it already had
+   * becomes the vertical one too, and `sticky` resolves against it.
+   */
+  fillHeight?: boolean;
   /** Number of skeleton rows while loading. */
   skeletonRows?: number;
   className?: string;
@@ -110,6 +130,8 @@ export function DataTable<T>({
   empty,
   error,
   onRowClick,
+  isRowActive,
+  fillHeight = false,
   skeletonRows = 6,
   className,
   sort,
@@ -148,10 +170,21 @@ export function DataTable<T>({
   const showEmpty = !loading && !showError && visible && visible.length === 0;
 
   return (
-    <div className={cn("border-border bg-card overflow-hidden rounded-xl border", className)}>
-      <div className="scrollbar-thin overflow-x-auto">
+    <div
+      className={cn(
+        "border-border bg-card overflow-hidden rounded-xl border",
+        fillHeight && "flex min-h-0 flex-1 flex-col",
+        className,
+      )}
+    >
+      <div
+        className={cn(
+          "scrollbar-thin overflow-x-auto",
+          fillHeight && "min-h-0 flex-1 overflow-y-auto",
+        )}
+      >
         <table className="w-full border-collapse text-sm">
-          <thead>
+          <thead className={cn(fillHeight && "bg-card sticky top-0 z-10")}>
             <tr className="border-border border-b">
               {columns.map((col) => {
                 const sortsHere = col.sortable && (serverSorted || col.sortValue !== undefined);
@@ -210,9 +243,19 @@ export function DataTable<T>({
                 <tr
                   key={getRowKey(row, i)}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  // `aria-selected` as well as the tint, because "which row is
+                  // open" is an answer a screen reader needs too, and a colour
+                  // is not one.
+                  aria-selected={isRowActive ? isRowActive(row) : undefined}
                   className={cn(
                     "border-border/60 border-b transition-colors last:border-0",
                     onRowClick && "hover:bg-accent cursor-pointer",
+                    // A tint alone reads as hover - they were the same colour,
+                    // and a reader who has moved the mouse cannot tell which row
+                    // the panel beside them is showing. The rule down the left
+                    // edge is the part that does not move with the cursor.
+                    isRowActive?.(row) &&
+                      "bg-accent hover:bg-accent shadow-[inset_2px_0_0_0_var(--color-primary)]",
                   )}
                 >
                   {columns.map((col) => (

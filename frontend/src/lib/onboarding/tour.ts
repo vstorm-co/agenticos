@@ -152,22 +152,27 @@ export const TOUR_STEPS: readonly TourStep[] = [
     // catalog, so the card is taller than the screen and spotlighting it lit
     // everything — see the anchor's comment in the builder page.
     target: "agent-mcp-intro",
-    activate: "agent-tab-toolbox",
+    activate: "agent-tab-mcp",
     permission: Perm.agentsView,
   },
+  // What the agent is *given* - collections, skills - is picked inside the panel
+  // of the capability that reads it, so these point at the row that opens that
+  // panel rather than at the picker. The picker is two clicks in (tab, then row)
+  // and `activate` clicks one thing; the row is also the bounded element, where
+  // the panel runs past the bottom of the screen.
   {
     id: "agent-knowledge",
     page: AGENT_BUILDER,
-    target: "agent-collections",
-    activate: "agent-tab-knowledge",
+    target: "capability-knowledge",
+    activate: "agent-tab-toolbox",
     permission: Perm.agentsView,
     inTour: true,
   },
   {
     id: "agent-skills",
     page: AGENT_BUILDER,
-    target: "agent-skills",
-    activate: "agent-tab-skills",
+    target: "capability-skills",
+    activate: "agent-tab-toolbox",
     permission: Perm.agentsView,
     inTour: true,
   },
@@ -260,6 +265,17 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "activity-tab-spend",
     permission: Perm.runsView,
   },
+  // Inside the run drawer, which opens only when somebody has focused a run - so
+  // `optional`, like the MCP catalog's data-conditional controls. The walk skips
+  // it with the drawer closed and describes it in place when a reader presses "?"
+  // with a run open, which is exactly when the tab is worth explaining.
+  {
+    id: "run-detail-input",
+    page: ROUTES.RUNS,
+    target: "run-detail-input",
+    permission: Perm.runsView,
+    optional: true,
+  },
 
   {
     id: "knowledge-new",
@@ -282,6 +298,10 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "knowledge-integrations",
     page: ROUTES.RAG,
     target: "knowledge-integrations",
+    // Its own tab since #939, so the walk selects it first: a step pointing at a
+    // control inside an unselected tab waits four seconds for an element that
+    // never mounts.
+    activate: "knowledge-tab-integrations",
     permission: Perm.connectionsManage,
   },
   // Optional: the "Add integration" button renders only once the connector catalog
@@ -292,23 +312,44 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "knowledge-add-integration",
     page: ROUTES.RAG,
     target: "knowledge-add-integration",
+    activate: "knowledge-tab-integrations",
     permission: Perm.connectionsManage,
     optional: true,
   },
 
-  // The collection detail, entered from the Knowledge list. Stacked sections
-  // rather than tabs, so no `activate` — driver scrolls each into view.
+  // The collection detail, entered from the Knowledge list. Three tabs since
+  // #939, so each stop selects its own: the header and the stats strip are above
+  // them and need no `activate`, and the three sections below do.
   { id: "kb-header", page: KB_DETAIL, target: "kb-header", permission: Perm.collectionsView },
   {
     id: "kb-documents",
     page: KB_DETAIL,
     target: "kb-documents",
+    activate: "kb-tab-documents",
     permission: Perm.collectionsView,
     inTour: true,
   },
-  { id: "kb-ingestion", page: KB_DETAIL, target: "kb-ingestion", permission: Perm.collectionsView },
-  { id: "kb-rerank", page: KB_DETAIL, target: "kb-rerank", permission: Perm.collectionsView },
-  { id: "kb-sync", page: KB_DETAIL, target: "kb-sync", permission: Perm.collectionsView },
+  {
+    id: "kb-ingestion",
+    page: KB_DETAIL,
+    target: "kb-ingestion",
+    activate: "kb-tab-ingestion",
+    permission: Perm.collectionsView,
+  },
+  {
+    id: "kb-rerank",
+    page: KB_DETAIL,
+    target: "kb-rerank",
+    activate: "kb-tab-ingestion",
+    permission: Perm.collectionsView,
+  },
+  {
+    id: "kb-sync",
+    page: KB_DETAIL,
+    target: "kb-sync",
+    activate: "kb-tab-sync",
+    permission: Perm.collectionsView,
+  },
 
   { id: "orgs-new", page: ROUTES.ORGS, target: "orgs-new" },
 

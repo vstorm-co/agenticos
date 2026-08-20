@@ -10,6 +10,11 @@
  * a parser is *for*, which a generated form could not.
  */
 
+import { FileText, ScanText } from "lucide-react";
+import type { ComponentType } from "react";
+
+import { brandMark } from "@/components/icons/brand-icon";
+
 import type { Translate } from "@/lib/agent-step-captions";
 import type {
   ChunkingStrategy,
@@ -85,6 +90,19 @@ interface Choice<T extends string> {
   readonly labelKey: string;
   /** The one sentence that decides whether somebody picks this. */
   readonly hintKey: string;
+  /**
+   * The mark drawn beside the label, where the choice has one.
+   *
+   * A component rather than a name, so a brand and a lucide icon can sit in the
+   * same table: `brandMark("llamaparse")` builds one from the generated path
+   * data, and the two parsers with no public brand take a lucide icon. Only one
+   * of the three is a product, and pretending otherwise is how a menu ends up
+   * with one logo and two blanks (#940).
+   *
+   * Optional because most choices here are settings rather than products - an
+   * output format has nothing to draw.
+   */
+  readonly Icon?: ComponentType<{ className?: string }>;
 }
 
 export const PDF_PARSERS: readonly Choice<PdfParser>[] = [
@@ -92,16 +110,25 @@ export const PDF_PARSERS: readonly Choice<PdfParser>[] = [
     value: "pymupdf",
     labelKey: "parserPymupdf",
     hintKey: "parserPymupdfHint",
+    // A library, not a product with a mark. `FileText` says "reads the text
+    // that is already in the file", which is what it does.
+    Icon: FileText,
   },
   {
     value: "llamaparse",
     labelKey: "parserLlamaparse",
     hintKey: "parserLlamaparseHint",
+    // The only one of the three with a brand, generated from LlamaIndex's own
+    // mark by `bun run gen:brand-icons` - never a hand-authored path (#156).
+    Icon: brandMark("llamaparse"),
   },
   {
     value: "liteparse",
     labelKey: "parserLiteparse",
     hintKey: "parserLiteparseHint",
+    // Also no public mark. `ScanText` for the one that looks at the page rather
+    // than at the text layer.
+    Icon: ScanText,
   },
 ];
 

@@ -304,7 +304,9 @@ class KnowledgeBaseService:
         )
         embedding_model, embedding_dim = chosen_embedding(data.embedding_model)
         if data.embedding_secret_id is not None:
-            await self._check_embedding_secret(data.embedding_secret_id, organization_id=org_id)
+            await self._check_embedding_secret(
+                data.embedding_secret_id, ctx=ctx, organization_id=org_id
+            )
         self._check_rerank_pair(data.rerank_model, data.rerank_secret_id)
         if data.rerank_secret_id is not None:
             await self._check_rerank_secret(ctx, data.rerank_secret_id, organization_id=org_id)
@@ -325,13 +327,20 @@ class KnowledgeBaseService:
         )
 
     async def _check_embedding_secret(
-        self, secret_id: UUID, *, organization_id: UUID | None
+        self, secret_id: UUID, *, ctx: AuthContext, organization_id: UUID | None
     ) -> None:
         """Refuse a key the organization does not hold, or one of the wrong kind.
 
         Checked at creation, where the person choosing can fix it - the
         resolver deliberately degrades to the deployment key at embed time, so
         this is the only moment a wrong choice is visible.
+
+        Binding a key is lending it: the collection's embeddings bill it for
+        everyone who can write the collection. So the chooser has to be able to
+        reach the key themselves - the picker only offers what they can see, but
+        the API takes an id and an id is guessable. A key they cannot view is
+        phrased as one the vault does not hold, so a refusal cannot enumerate
+        another member's private secrets.
         """
         if organization_id is None:
             raise BadRequestError(
@@ -341,7 +350,9 @@ class KnowledgeBaseService:
         row = await organization_secret_repo.get(
             self.db, secret_id, organization_id=organization_id
         )
-        if row is None:
+        if row is None or not await resolve_access(
+            self.db, ctx, row, Perm.SECRETS_VIEW, resource_type=SECRET
+        ):
             raise BadRequestError(
                 message="That key is not in this organization's vault",
                 details={"embedding_secret_id": str(secret_id)},

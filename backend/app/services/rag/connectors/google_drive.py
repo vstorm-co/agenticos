@@ -1,16 +1,21 @@
 """Google Drive sync connector for RAG ingestion.
 
-Fetches files from Google Drive using a Google service account. Credentials are
-supplied per-source via the `service_account_json` config field (a copy of the
-JSON key file contents), and only that way - a source runs on the credential
-its own configuration carries or it does not run.
+Fetches files from Google Drive using a Google service account. The credential
+is a `GcpServiceAccountSecret` in the organization's vault, named by the
+source's `secret_id`, and there is no deployment-wide fallback: a source runs on
+the credential it names or it does not run.
+
+It used to be a `service_account_json` field inside the source's own `config` -
+the same JSON pasted once per source, encrypted with one deployment-wide key,
+invisible to the Vault page that lists every other credential this organization
+holds (#937).
 
 Setup:
 1. Create a service account in Google Cloud Console
 2. Download the JSON key file
 3. Share the target Drive folder with the service account email
-4. Paste the JSON contents into the "Service Account JSON" field when
-   creating a sync source
+4. Add the JSON to the Vault as a service account credential, once, and point
+   each Drive source at it
 """
 
 import asyncio
@@ -18,14 +23,21 @@ import json as _json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import ClassVar
 
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import Resource, build
 from googleapiclient.http import MediaIoBaseDownload
 
 from app.core.exceptions import BadRequestError
-from app.services.rag.connectors import BaseSyncConnector, RemoteFile
+from app.core.secret_kinds import GcpServiceAccountSecret, SecretKind, StorableSecret
+from app.schemas.sync_source import ConnectorConfigField
+from app.services.rag.connectors import (
+    BaseSyncConnector,
+    ConfigRefusal,
+    ConnectorConfig,
+    RemoteFile,
+)
 from app.services.rag.remote_names import checked_drive_folder_id
 
 logger = logging.getLogger(__name__)
@@ -48,77 +60,84 @@ GOOGLE_DOCS_EXPORT: dict[str, tuple[str, str]] = {
 class GoogleDriveConnector(BaseSyncConnector):
     """Google Drive connector using a service account.
 
-    Credentials are read from `config["service_account_json"]` (a JSON string)
-    and from nowhere else.
+    The credential is the vault secret the source names, unsealed by the caller
+    and handed in - never read from `config`, which holds only what is needed to
+    find the documents.
     """
 
     CONNECTOR_TYPE: ClassVar[str] = "gdrive"
     DISPLAY_NAME: ClassVar[str] = "Google Drive"
-    CONFIG_SCHEMA: ClassVar[dict[str, dict[str, Any]]] = {
-        "service_account_json": {
-            "type": "textarea",
-            "required": True,
-            "label": "Service Account JSON",
-            "help": "Paste the full contents of your Google service account JSON key file.",
-            "secret": True,
-        },
-        "folder_id": {
-            "type": "string",
-            "required": True,
-            "label": "Google Drive Folder ID",
-            "help": "The ID from the folder URL: drive.google.com/drive/folders/{THIS_ID}",
-        },
-        "include_subfolders": {
-            "type": "boolean",
-            "required": False,
-            "default": True,
-            "label": "Include subfolders",
-        },
+    SECRET_KIND: ClassVar[SecretKind] = SecretKind.GCP_SERVICE_ACCOUNT
+    CONFIG_SCHEMA: ClassVar[dict[str, ConnectorConfigField]] = {
+        "folder_id": ConnectorConfigField(
+            type="string",
+            label="Google Drive Folder ID",
+            help="The ID from the folder URL: drive.google.com/drive/folders/{THIS_ID}",
+            required=True,
+        ),
+        "include_subfolders": ConnectorConfigField(
+            type="boolean", label="Include subfolders", default=True
+        ),
     }
 
-    def _get_drive_service(self, config: dict) -> Resource:
-        """Build an authenticated Drive client from the source's own credential.
+    def _get_drive_service(self, credential: StorableSecret | None) -> Resource:
+        """Build an authenticated Drive client from the vault secret the source names.
 
         **There is no deployment-wide fallback.** A `GOOGLE_DRIVE_CREDENTIALS_FILE`
-        one used to stand in whenever the config field was absent, which meant a
+        one used to stand in whenever the credential was absent, which meant a
         tenant's `folder_id` chose what was listed under the *operator's* service
         account and whatever that account had been shared - turning a source's own
-        configuration into a reach across organizations. The field is required by
-        `CONFIG_SCHEMA`, so the fallback only ever covered rows written before it
-        existed.
+        configuration into a reach across organizations.
+
+        The credential used to arrive inside `config`, pasted into a JSONB column
+        and encrypted with one deployment-wide key. It is now a
+        `GcpServiceAccountSecret` unsealed from the organization's vault, so one
+        Drive credential feeding five collections is one secret rotated in one
+        place rather than the same JSON pasted five times (#937).
 
         Raises:
-            BadRequestError: the source carries no service account credential.
+            BadRequestError: the source names no credential, its secret has been
+                deleted, or the secret is not a service account.
         """
-        sa_json = config.get("service_account_json")
-        if not sa_json:
+        if credential is None:
             raise BadRequestError(
                 message=(
-                    "This Google Drive source has no service account credential. "
-                    "Add the service account JSON to the source configuration."
-                ),
-                details={"field": "service_account_json"},
+                    "This Google Drive source has no credential. Pick a service "
+                    "account in the Vault and point the source at it."
+                )
             )
-        info = _json.loads(sa_json) if isinstance(sa_json, str) else sa_json
+        if not isinstance(credential, GcpServiceAccountSecret):
+            raise BadRequestError(
+                message=(
+                    "A Google Drive source needs a service account credential, and "
+                    "the one it names is not one."
+                )
+            )
+        info = _json.loads(credential.service_account_json.get_secret_value())
         creds = Credentials.from_service_account_info(info, scopes=SCOPES)
         return build("drive", "v3", credentials=creds)
 
-    async def validate_config(self, config: dict) -> tuple[bool, str | None]:
+    async def validate_config(self, config: ConnectorConfig) -> ConfigRefusal | None:
         """Validate required fields and the shape of the folder id.
 
         Connectivity is still checked at sync time. The folder id is checked
         here as well as where the query is built, so a hostile value is answered
         by the route that accepted it rather than by a sync log an hour later.
         The two cannot disagree - both ask `checked_drive_folder_id`.
+
+        The field is named here rather than by `checked_drive_folder_id`, which
+        names none: it answers three sinks and only this one was sent a form to
+        mark - the other two are a worker reading a stored row and a sub-folder
+        id that was never typed anywhere.
         """
-        is_valid, error = await super().validate_config(config)
-        if not is_valid:
-            return False, error
+        refusal = await super().validate_config(config)
+        if refusal is not None:
+            return refusal
         try:
             checked_drive_folder_id(config["folder_id"])
         except BadRequestError as exc:
-            return False, exc.message
-        return True, None
+            return ConfigRefusal(message=exc.message, field="folder_id")
+        return None
 
     def _list_folder(
         self, service: Resource, folder_id: str, include_subfolders: bool
@@ -184,18 +203,26 @@ class GoogleDriveConnector(BaseSyncConnector):
 
         return files
 
-    async def list_files(self, config: dict) -> list[RemoteFile]:
+    async def list_files(
+        self, config: ConnectorConfig, credential: StorableSecret | None
+    ) -> list[RemoteFile]:
         """List all files in the configured Google Drive folder."""
         folder_id = config["folder_id"]
         include_subfolders = config.get("include_subfolders", True)
 
-        def _list():
-            service = self._get_drive_service(config)
+        def _list() -> list[RemoteFile]:
+            service = self._get_drive_service(credential)
             return self._list_folder(service, folder_id, include_subfolders)
 
         return await asyncio.to_thread(_list)
 
-    async def _fetch(self, file: RemoteFile, dest_path: Path, config: dict) -> None:
+    async def _fetch(
+        self,
+        file: RemoteFile,
+        dest_path: Path,
+        config: ConnectorConfig,
+        credential: StorableSecret | None,
+    ) -> None:
         """Download a file from Google Drive to the path the base class chose.
 
         For Google Docs formats, exports as PDF/XLSX/PPTX.
@@ -203,7 +230,7 @@ class GoogleDriveConnector(BaseSyncConnector):
         """
 
         def _download() -> None:
-            service = self._get_drive_service(config)
+            service = self._get_drive_service(credential)
 
             meta = service.files().get(fileId=file.id, fields="mimeType").execute()
             original_mime = meta.get("mimeType", "")

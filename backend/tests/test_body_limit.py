@@ -34,6 +34,21 @@ class TestTheCapItself:
 
         assert max_body_bytes() > fifty
 
+    def test_it_follows_the_chat_ceiling_when_that_is_the_larger(self, monkeypatch):
+        """This middleware is global; the upload ceilings are per surface.
+
+        The name of the test above is the invariant, and it stopped being true
+        the moment chat got a ceiling of its own: derived from
+        `MAX_UPLOAD_SIZE_MB` alone, a chat limit configured above the knowledge
+        base's would be unreachable - a 413 from here before the route that
+        enforces it ran, so the setting could not raise the limit it names
+        (#498).
+        """
+        monkeypatch.setattr(settings, "MAX_UPLOAD_SIZE_MB", 50)
+        monkeypatch.setattr(settings, "CHAT_MAX_UPLOAD_SIZE_MB", 100)
+
+        assert max_body_bytes() > 100 * 1024 * 1024
+
     def test_it_leaves_room_for_the_envelope_around_a_file(self, monkeypatch):
         """A multipart body is the file plus boundaries, part headers and any other
         field the form carries. A cap at exactly the file size refuses an upload at

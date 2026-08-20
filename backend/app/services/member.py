@@ -9,6 +9,7 @@ from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundErr
 from app.core.permissions import Perm, assignable_roles, role_has
 from app.db.models.organization import OrganizationMember, OrgRole
 from app.repositories import member_repo, user_repo
+from app.services.organization import OrganizationService
 
 logger = logging.getLogger(__name__)
 
@@ -180,6 +181,18 @@ class MemberService:
         """Transfer OWNER role to another member.
 
         Only the current OWNER may call this.
+
+        The deployment's ceiling on organizations owned per account is checked
+        against the *new* owner, because this is a transition into the counted state
+        and a ceiling enforced on `OrganizationService.create` alone is one an
+        account at its limit walks past by being handed somebody else's
+        organization.
+
+        Raises:
+            AuthorizationError: The requester is not the Owner.
+            BadRequestError: The requester named themselves, or the new owner
+                already owns as many organizations as the deployment allows.
+            NotFoundError: The named user is not a member of this organization.
         """
         requester = await member_repo.get(
             self.db, organization_id=organization_id, user_id=requester_id
@@ -199,6 +212,7 @@ class MemberService:
                 details={"user_id": str(new_owner_user_id)},
             )
 
+        await OrganizationService(self.db).refuse_past_the_ceiling(new_owner_user_id)
         await member_repo.update_role(self.db, requester, role=OrgRole.ADMIN.value)
         await member_repo.update_role(self.db, new_owner, role=OrgRole.OWNER.value)
         logger.info(

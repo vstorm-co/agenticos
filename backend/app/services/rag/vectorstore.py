@@ -33,11 +33,12 @@ logger = logging.getLogger(__name__)
 class BaseVectorStore(ABC):
     @abstractmethod
     async def aclose(self) -> None:
-        """Release any resources held for the process's lifetime.
+        """Release whatever this store holds, when the work that built it ends.
 
-        Called once on application shutdown. A store that owns nothing to
-        release implements this as a no-op; `PgVectorStore` disposes its
-        connection pool.
+        Whoever constructs a store closes it: at shutdown for one that lives as
+        long as the process, in a `finally` for one built for a single flow. A
+        store that owns nothing to release implements this as a no-op;
+        `PgVectorStore` disposes its connection pool.
         """
 
     @abstractmethod
@@ -163,6 +164,7 @@ class BaseVectorStore(ABC):
 
 import json
 from collections.abc import Awaitable, Callable
+from itertools import batched
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -190,6 +192,17 @@ EmbeddingResolver = Callable[[str], Awaitable[ResolvedEmbeddings | None]]
 # first upload, in a worker, with a 500 and no explanation on screen.
 _HNSW_MAX_VECTOR_DIM = 2000
 
+# How many chunks go into one `INSERT`. The statement used to run once per chunk,
+# so a 200-page PDF at the default `chunk_size` was one to three thousand
+# sequential round trips inside one open transaction - a second or two on a local
+# socket, five to fifteen against a managed Postgres at 3-5ms (#950).
+#
+# Batched rather than one statement for the whole document, because the parameter
+# list is held in memory and each row carries an embedding rendered as text: at
+# 3072 dimensions that is tens of kilobytes a row, so three thousand of them in
+# one statement is a parameter list measured in hundreds of megabytes.
+_CHUNK_INSERT_BATCH = 200
+
 
 class PgVectorStore(BaseVectorStore):
     """PostgreSQL + pgvector implementation.
@@ -197,10 +210,19 @@ class PgVectorStore(BaseVectorStore):
     Uses the existing PostgreSQL database with pgvector extension.
     No additional Docker services needed.
 
-    NOTE: This class creates its own SQLAlchemy engine per instance. In
-    production, prefer injecting a shared engine from app.db.session to
-    avoid multiple connection pools. Call `await self.aclose()` on shutdown
-    to release pool connections.
+    **Each instance owns a pooled SQLAlchemy engine, so whoever builds one
+    closes it.** `aclose()` is not a shutdown hook: the API's lifespan happens
+    to build a store that lives as long as the process, but the ingestion worker
+    builds one per flow, and one abandoned there keeps its checked-in
+    connections until the process exits - two hundred uploads reached
+    `max_connections` and then every query failed, including the ones that would
+    have marked a document failed (#948). A caller whose store is bounded by a
+    piece of work disposes it in a `finally`.
+
+    The pool is worth having *within* that work: `insert_document` writes a
+    document's chunks over one connection each, and a flow runs in one event
+    loop. Across flows it is not shared, for the reason
+    `get_worker_db_context` gives about cross-loop connections.
     """
 
     def __init__(
@@ -225,7 +247,7 @@ class PgVectorStore(BaseVectorStore):
         self.async_session = sessionmaker(self.engine, class_=AsyncSession, expire_on_commit=False)
 
     async def aclose(self) -> None:
-        """Dispose the connection pool. Call during application shutdown."""
+        """Dispose the connection pool. Called by whoever built this store."""
         await self.engine.dispose()
 
     def _table(self, name: str) -> str:
@@ -342,28 +364,49 @@ class PgVectorStore(BaseVectorStore):
             return result.scalar() is not None
 
     async def insert_document(self, collection_name: str, document: Document) -> None:
+        """Write a document's chunks, a batch of rows per statement.
+
+        One statement per `_CHUNK_INSERT_BATCH` chunks rather than one per chunk:
+        SQLAlchemy takes a list of parameter dictionaries and issues an
+        `executemany`, which asyncpg pipelines. What that replaces is a Python
+        loop of sequential round trips inside one open transaction, holding a
+        connection while it waited - and the number of them scaled with the
+        document, so the worst case was a long PDF against the slowest database
+        (#950).
+
+        **Each batch's rows are built inside the loop, not before it.** The
+        embedding is rendered as text here, and at 3072 dimensions that is tens
+        of kilobytes a row - so materialising every row first would hold a
+        three-thousand-chunk document's parameters, better than 100MB of live
+        strings, on top of the float vectors already in hand. Batching the
+        statements and not the rows would have bounded what asyncpg receives
+        while leaving the worker's memory exactly where it was.
+        """
         table = self._table(collection_name)
         await self._ensure_collection(collection_name)
         if not document.chunked_pages:
             raise ValueError("Document has no chunked pages.")
         embedder, _ = await self._for_collection(collection_name)
         vectors = embedder.embed_document(document)
+        statement = text(f"""
+            INSERT INTO {table} (id, parent_doc_id, content, embedding, metadata)
+            VALUES (:id, :parent_doc_id, :content, :embedding, :metadata)
+            ON CONFLICT (id) DO UPDATE SET content = :content, embedding = :embedding, metadata = :metadata
+        """)
         async with self.async_session() as session:
-            for i, chunk in enumerate(document.chunked_pages):
-                meta = self._build_chunk_metadata(chunk, document)
+            for batch in batched(enumerate(document.chunked_pages), _CHUNK_INSERT_BATCH):
                 await session.execute(
-                    text(f"""
-                        INSERT INTO {table} (id, parent_doc_id, content, embedding, metadata)
-                        VALUES (:id, :parent_doc_id, :content, :embedding, :metadata)
-                        ON CONFLICT (id) DO UPDATE SET content = :content, embedding = :embedding, metadata = :metadata
-                    """),
-                    {
-                        "id": chunk.chunk_id,
-                        "parent_doc_id": chunk.parent_doc_id,
-                        "content": chunk.chunk_content,
-                        "embedding": str(vectors[i]),
-                        "metadata": json.dumps(meta),
-                    },
+                    statement,
+                    [
+                        {
+                            "id": chunk.chunk_id,
+                            "parent_doc_id": chunk.parent_doc_id,
+                            "content": chunk.chunk_content,
+                            "embedding": str(vectors[i]),
+                            "metadata": json.dumps(self._build_chunk_metadata(chunk, document)),
+                        }
+                        for i, chunk in batch
+                    ],
                 )
             await session.commit()
 

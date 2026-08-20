@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { getLocale } from "next-intl/server";
 import localFont from "next/font/local";
 import "./globals.css";
+import { BrandingProvider } from "@/components/branding/branding-provider";
+import { readBranding } from "@/lib/branding-server";
 import { SITE } from "@/lib/seo";
 
 // Vendored, not `next/font/google`: that helper resolves a family against
@@ -117,47 +119,68 @@ const monoExt = localFont({
   ],
 });
 
-export const metadata: Metadata = {
-  metadataBase: new URL(SITE.url),
-  title: {
-    default: `${SITE.name} - ${SITE.tagline}`,
-    template: `%s | ${SITE.name}`,
-  },
-  description: SITE.description,
-  applicationName: SITE.name,
-  keywords: [...SITE.keywords],
-  authors: [{ name: SITE.name }],
-  creator: SITE.name,
-  publisher: SITE.name,
-  formatDetection: { email: false, address: false, telephone: false },
-  // Default OG; per-page generateMetadata can override.
-  openGraph: {
-    type: "website",
-    siteName: SITE.name,
-    title: `${SITE.name} - ${SITE.tagline}`,
-    description: SITE.description,
-    url: SITE.url,
-    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: SITE.name }],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: `${SITE.name} - ${SITE.tagline}`,
-    description: SITE.description,
-    images: ["/opengraph-image"],
-  },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
-  },
-  icons: {
-    // /icon.tsx + /apple-icon.tsx render PNGs via next/og - declare them as PNG
-    // so browsers don't reject the response on a Content-Type mismatch.
-    icon: [{ url: "/icon", sizes: "32x32", type: "image/png" }],
-    apple: [{ url: "/apple-icon", sizes: "180x180", type: "image/png" }],
-  },
-  manifest: "/manifest.webmanifest",
-};
+/**
+ * The page's identity, as the deployment's administrator set it.
+ *
+ * Generated rather than a constant, which is the whole of what makes renaming
+ * work: the browser tab, the OpenGraph card, the application name and the favicon
+ * all come from one row now, and a deployment called something else says so
+ * everywhere instead of only inside the console.
+ *
+ * The favicon is the one that needs saying twice. `icons.icon` points at the
+ * uploaded image when there is one and at `/icon` - the generated built-in mark -
+ * when there is not, and the uploaded one is served through this app's own proxy
+ * because the API is not on this origin.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const { appName, tagline, description, faviconUrl } = await readBranding();
+  const headline = `${appName} - ${tagline}`;
+  return {
+    metadataBase: new URL(SITE.url),
+    title: {
+      default: headline,
+      template: `%s | ${appName}`,
+    },
+    description,
+    applicationName: appName,
+    keywords: [...SITE.keywords],
+    authors: [{ name: appName }],
+    creator: appName,
+    publisher: appName,
+    formatDetection: { email: false, address: false, telephone: false },
+    // Default OG; per-page generateMetadata can override.
+    openGraph: {
+      type: "website",
+      siteName: appName,
+      title: headline,
+      description,
+      url: SITE.url,
+      images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: appName }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: headline,
+      description,
+      images: ["/opengraph-image"],
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
+    },
+    icons: {
+      // An uploaded favicon is served without a declared size or type: it is
+      // whatever the operator uploaded, and claiming 32x32 PNG for a 512px WebP is
+      // how a browser rejects an icon on a Content-Type mismatch. /icon.tsx and
+      // /apple-icon.tsx do render PNGs via next/og, so those keep their declaration.
+      icon: faviconUrl
+        ? [{ url: faviconUrl }]
+        : [{ url: "/icon", sizes: "32x32", type: "image/png" }],
+      apple: [{ url: "/apple-icon", sizes: "180x180", type: "image/png" }],
+    },
+    manifest: "/manifest.webmanifest",
+  };
+}
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -178,6 +201,10 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const locale = await getLocale();
+  // Read here and handed down, rather than fetched by each surface that draws the
+  // name: the brand link, the sign-in header and the footer are all in the first
+  // paint, and a client fetch shows `agenticos` for a frame before the real name.
+  const branding = await readBranding();
 
   return (
     <html
@@ -185,7 +212,9 @@ export default async function RootLayout({
       suppressHydrationWarning
       className={`${display.variable} ${displayExt.variable} ${body.variable} ${bodyExt.variable} ${mono.variable} ${monoExt.variable}`}
     >
-      <body className="font-body">{children}</body>
+      <body className="font-body">
+        <BrandingProvider branding={branding}>{children}</BrandingProvider>
+      </body>
     </html>
   );
 }

@@ -18,11 +18,12 @@ if TYPE_CHECKING:
     from app.services.rag.retrieval import BaseRetrievalService
 
 _retrieval_service: "BaseRetrievalService | None" = None
+_vector_store: PgVectorStore | None = None
 
 
 def get_retrieval_service() -> "BaseRetrievalService":
     """Get or create retrieval service singleton."""
-    global _retrieval_service
+    global _retrieval_service, _vector_store
     if _retrieval_service is not None:
         return _retrieval_service
 
@@ -31,6 +32,7 @@ def get_retrieval_service() -> "BaseRetrievalService":
     vector_store = PgVectorStore(
         rag_settings, embedding_service, resolver=embeddings_for_collection
     )
+    _vector_store = vector_store
     # The reranker resolver is wired here too, not only on the /rag/search
     # route: an agent's knowledge search reranks when its collection is
     # configured, and the run's open ledger books the cost - which is the
@@ -39,6 +41,27 @@ def get_retrieval_service() -> "BaseRetrievalService":
         vector_store, rag_settings, reranker_resolver=build_reranker
     )
     return _retrieval_service
+
+
+async def aclose_retrieval_service() -> None:
+    """Release the pool this module's store opened, at shutdown.
+
+    The store is built on the first knowledge search and then held for the life
+    of the process, which is right - rebuilding it per search would open a
+    connection pool per turn. What was missing is the other end: nothing
+    released it, so a second pool sat beside the one the lifespan built and
+    outlived the shutdown that disposed that one (#948).
+
+    Called from the lifespan rather than from a `finally` here, because the
+    singleton is deliberately process-wide. Resetting both globals makes the
+    next search build a fresh store, so a shutdown that is followed by more work
+    - a test, a reload - does not search through a disposed one.
+    """
+    global _retrieval_service, _vector_store
+    store, _vector_store = _vector_store, None
+    _retrieval_service = None
+    if store is not None:
+        await store.aclose()
 
 
 def _format_results(results: list[Any]) -> str:

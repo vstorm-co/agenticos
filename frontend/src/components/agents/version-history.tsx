@@ -7,6 +7,7 @@ import { stringify } from "yaml";
 import {
   Badge,
   Button,
+  PaginationBar,
   Select,
   SelectContent,
   SelectItem,
@@ -14,15 +15,19 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { LoadingState } from "@/components/states";
-import { useAgentVersion } from "@/hooks";
+import {
+  useAgentVersion,
+  useAgentVersions,
+  useAllAgentVersions,
+  VERSIONS_PAGE_SIZE,
+} from "@/hooks";
 import { collapseUnchanged, diffLines, diffStat } from "@/lib/diff";
-import { cn, formatDate } from "@/lib/utils";
+import { cn, formatDate, timeAgo } from "@/lib/utils";
 import type { AgentEnvironment, AgentSpec, AgentVersion } from "@/types/agents";
 import { useLocale, useTranslations } from "next-intl";
 
 interface VersionHistoryProps {
   agentId: string;
-  versions: AgentVersion[];
   /** The version that is live, so the list can say which one that is. */
   currentVersionId: string | null;
   /** The spec being edited, so a version can be compared against it. */
@@ -95,7 +100,6 @@ function PromoteMenu({
  */
 export function VersionHistory({
   agentId,
-  versions,
   currentVersionId,
   draftSpec,
   canRestore,
@@ -106,11 +110,34 @@ export function VersionHistory({
   promoting,
 }: VersionHistoryProps) {
   const t = useTranslations("agents");
+  // `timeAgo` reads its words from the shared `time` namespace, not this one.
+  const tTime = useTranslations("time");
   const locale = useLocale();
+  const [page, setPage] = useState(0);
+  const { versions, total, isLoading } = useAgentVersions(agentId, {
+    skip: page * VERSIONS_PAGE_SIZE,
+    limit: VERSIONS_PAGE_SIZE,
+  });
   // Newest against the one before it: the comparison somebody opening a history
-  // almost always wants, and the one that needs no explaining.
+  // almost always wants, and the one that needs no explaining. Adopted from the
+  // first page once it arrives, and only while nothing else has been picked -
+  // paging must not silently re-aim a comparison the reader set up.
   const [rightId, setRightId] = useState<string>(DRAFT);
-  const [leftId, setLeftId] = useState<string | null>(versions[0]?.id ?? null);
+  const [leftId, setLeftId] = useState<string | null>(null);
+  // The comparison must not depend on which page is on screen: picking v12 and
+  // then turning the page left the trigger blank and the version unpickable.
+  // Asked for only when the history is longer than a page - below that this
+  // page *is* every version, and a second request would fetch what is already
+  // here.
+  const paged = total > VERSIONS_PAGE_SIZE;
+  const { versions: allVersions } = useAllAgentVersions(paged ? agentId : null);
+  const pickable = paged ? allVersions : versions;
+  const newestId = versions[0]?.id ?? null;
+  const [seenNewest, setSeenNewest] = useState<string | null>(null);
+  if (page === 0 && newestId !== null && newestId !== seenNewest) {
+    setSeenNewest(newestId);
+    if (leftId === null) setLeftId(newestId);
+  }
 
   const left = useAgentVersion(agentId, leftId);
   const right = useAgentVersion(agentId, rightId === DRAFT ? null : rightId);
@@ -118,80 +145,133 @@ export function VersionHistory({
   const rightSpec = rightId === DRAFT ? draftSpec : right.version?.spec;
   const comparing = leftId !== null && (rightId === DRAFT || right.version !== undefined);
 
-  if (versions.length === 0) {
+  if (isLoading && versions.length === 0) return <LoadingState variant="skeleton-list" rows={3} />;
+  if (total === 0) {
     return <p className="text-muted-foreground text-sm">{t("neverPublished")}</p>;
   }
 
   return (
     <div className="space-y-4">
-      <ol className="divide-y rounded-md border">
-        {versions.map((version) => (
-          <li
-            key={version.id}
-            className={cn(
-              "flex flex-wrap items-center gap-3 p-3 text-sm",
-              // The live row is the one fact somebody scans this list for.
-              version.id === currentVersionId && "bg-brand-subtle/40",
-            )}
-          >
-            <span className="bg-muted w-12 shrink-0 rounded-md px-2 py-1 text-center font-mono text-xs font-semibold">
-              v{version.version}
-            </span>
-            <div className="min-w-0 flex-1">
-              {/* The note is the row's headline - it is the "why" somebody
-                  wrote at publish - and the who/when reads under it instead of
-                  competing with it on one line. */}
-              <p className={cn("truncate", !version.note && "text-muted-foreground italic")}>
+      {/* A rail rather than a table: this is a timeline, and the version a
+          reader is looking for is found by its place in it as often as by its
+          number. The row is one line at any width - the note truncates and the
+          controls keep their place, so twenty rows scan as twenty rows. */}
+      <ol className="relative rounded-md border">
+        {versions.map((version, index) => {
+          const live = version.id === currentVersionId;
+          const serving = environments.filter(
+            (environment) => environment.version_id === version.id,
+          );
+          return (
+            <li
+              key={version.id}
+              className={cn(
+                "relative flex items-center gap-3 py-2.5 pr-3 pl-11 text-sm",
+                index > 0 && "border-t",
+                live && "bg-brand-subtle/40",
+              )}
+            >
+              {/* The rail: a line down the card and a dot per publish, filled
+                  on the version that is serving. It stops at the last row so
+                  the timeline does not appear to continue past the page. */}
+              <span
+                aria-hidden
+                className={cn(
+                  "bg-border absolute top-0 left-[1.35rem] w-px",
+                  index === 0 ? "top-1/2" : "top-0",
+                  index === versions.length - 1 ? "h-1/2" : "h-full",
+                )}
+              />
+              <span
+                aria-hidden
+                className={cn(
+                  "absolute left-4 h-2.5 w-2.5 rounded-full border-2",
+                  live ? "border-brand bg-brand" : "border-border bg-card",
+                )}
+              />
+              <span className="w-10 shrink-0 font-mono text-xs font-semibold">
+                v{version.version}
+              </span>
+              {/* The note is the row's headline - the "why" somebody wrote at
+                  publish. Who and when follow it on the same line now: stacked,
+                  every row was two lines tall to carry one fact each. */}
+              <span
+                className={cn(
+                  "min-w-0 flex-1 truncate",
+                  !version.note && "text-muted-foreground italic",
+                )}
+                title={version.note ?? undefined}
+              >
                 {version.note ?? t("noNote")}
-              </p>
-              <p className="text-muted-foreground mt-0.5 text-xs">
+              </span>
+              <span className="text-muted-foreground hidden shrink-0 text-xs sm:inline">
                 {version.published_by_email ?? t("unknownAuthor")}
-                {version.created_at ? ` · ${formatDate(version.created_at, locale)}` : ""}
-              </p>
-            </div>
-            {/* Which environments serve this exact version - the fact that
-                turns "is dev ahead of prod" from archaeology into a glance. */}
-            {environments
-              .filter((environment) => environment.version_id === version.id)
-              .map((environment) => (
-                <Badge key={environment.id} variant="secondary" className="font-mono">
+              </span>
+              {version.created_at && (
+                <span
+                  className="text-muted-foreground shrink-0 text-xs"
+                  title={formatDate(version.created_at, locale)}
+                >
+                  {timeAgo(version.created_at, tTime, locale)}
+                </span>
+              )}
+              {/* Which environments serve this exact version - the fact that
+                  turns "is dev ahead of prod" from archaeology into a glance. */}
+              {serving.map((environment) => (
+                <Badge key={environment.id} variant="secondary" className="shrink-0 font-mono">
                   {environment.name}
                 </Badge>
               ))}
-            {version.id === currentVersionId && <Badge>{t("live")}</Badge>}
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setLeftId(version.id)}
-              aria-label={t("compareVersion", { version: version.version })}
-              aria-pressed={leftId === version.id}
-              className={cn(leftId === version.id && "bg-accent")}
-            >
-              <GitCompare className="h-4 w-4" />
-              {t("compareLabel")}
-            </Button>
-            {onPromote && canRestore && (
-              <PromoteMenu
-                version={version}
-                environments={environments}
-                onPromote={onPromote}
-                promoting={promoting}
-              />
-            )}
-            {canRestore && version.id !== currentVersionId && (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={restoring}
-                onClick={() => onRestore(version.id)}
-              >
-                <Undo2 className="h-4 w-4" />
-                {t("restore2")}
-              </Button>
-            )}
-          </li>
-        ))}
+              {live && <Badge className="shrink-0">{t("live")}</Badge>}
+              <div className="flex shrink-0 items-center gap-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setLeftId(version.id)}
+                  aria-label={t("compareVersion", { version: version.version })}
+                  aria-pressed={leftId === version.id}
+                  className={cn("h-8 w-8 p-0", leftId === version.id && "bg-accent")}
+                >
+                  <GitCompare className="h-4 w-4" />
+                </Button>
+                {onPromote && canRestore && (
+                  <PromoteMenu
+                    version={version}
+                    environments={environments}
+                    onPromote={onPromote}
+                    promoting={promoting}
+                  />
+                )}
+                {canRestore && !live && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={restoring}
+                    onClick={() => onRestore(version.id)}
+                    aria-label={t("restoreVersion", { version: version.version })}
+                    title={t("restore2")}
+                    className="h-8 w-8 p-0"
+                  >
+                    <Undo2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </li>
+          );
+        })}
       </ol>
+
+      {/* Only when there is more than one page of it. A history of four
+          versions is not a paged list, and a pager under it is furniture. */}
+      {total > VERSIONS_PAGE_SIZE && (
+        <PaginationBar
+          page={page}
+          pageSize={VERSIONS_PAGE_SIZE}
+          total={total}
+          isLoading={isLoading}
+          onPage={setPage}
+        />
+      )}
 
       <div className="space-y-2 rounded-md border p-3">
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -201,7 +281,7 @@ export function VersionHistory({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {versions.map((version) => (
+              {pickable.map((version) => (
                 <SelectItem key={version.id} value={version.id}>
                   v{version.version}
                 </SelectItem>
@@ -217,7 +297,7 @@ export function VersionHistory({
               {/* The draft is what most comparisons are against: "what have I
                   changed since the version that is running". */}
               <SelectItem value={DRAFT}>{t("draft")}</SelectItem>
-              {versions.map((version) => (
+              {pickable.map((version) => (
                 <SelectItem key={version.id} value={version.id}>
                   v{version.version}
                 </SelectItem>

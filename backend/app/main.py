@@ -14,6 +14,7 @@ from app import __version__
 from app.api.exception_handlers import register_exception_handlers
 from app.api.router import api_router
 from app.agents.capabilities import load_builtins
+from app.agents.capabilities.knowledge import aclose_retrieval_service
 from app.core.config import settings
 from app.db.session import close_db, get_db_context
 from app.core.logfire_setup import instrument_app, setup_logfire
@@ -23,6 +24,8 @@ from app.core.logfire_setup import instrument_httpx
 from app.core.logfire_setup import instrument_pydantic_ai
 from app.core.logging import setup_logging
 from app.core.body_limit import BodySizeLimitMiddleware
+from app.core import maintenance
+from app.core.maintenance import MaintenanceModeMiddleware
 from app.core.middleware import RequestIDMiddleware
 from app.core.watchdog import EventLoopWatchdog
 from app.clients.redis import RedisClient
@@ -104,6 +107,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # conversation service consults from inside a request but caches in the
     # Redis every worker shares (#641).
     channel_membership.configure(redis_client)
+    # And the maintenance gate, which runs above the dependency graph on every
+    # request and so has no `request.state` to read either.
+    maintenance.configure(redis_client)
     embedder: EmbeddingService | None = None
     try:
         embedder = EmbeddingService(settings=settings.rag)
@@ -160,18 +166,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # watched; app/core/watchdog.py says why.
     watchdog.start()
     yield state
-    if "vector_store" in state:
-        with suppress(Exception):
-            await state["vector_store"].aclose()
+    # The channel consumers stop first, and the stores go after them. Serving is
+    # already drained by the time this runs, but a polling task is work this
+    # process owns: an inbound Telegram or Slack message can start a run, and a
+    # run can search, so disposing a store while one is still turning both races
+    # a search in flight and lets the next one build a replacement pool that
+    # nothing is left to close.
     for _bid in list(_telegram_adapter._polling_tasks.keys()):
         await _telegram_adapter.stop_polling(_bid)
     for _sbid in list(_slack_adapter._socket_tasks.keys()):
         await _slack_adapter.stop_polling(_sbid)
     for _mbid in list(_mattermost_adapter._socket_tasks.keys()):
         await _mattermost_adapter.stop_polling(_mbid)
+    if "vector_store" in state:
+        with suppress(Exception):
+            await state["vector_store"].aclose()
+    # The knowledge capability holds a store of its own, built on the first
+    # search and reachable from no request, so the line above never saw it (#948).
+    with suppress(Exception):
+        await aclose_retrieval_service()
     channel_dedupe.configure(None)
     rate_limit.configure(None)
     channel_membership.configure(None)
+    maintenance.configure(None)
     if "redis" in state:
         await state["redis"].close()
 
@@ -276,6 +293,11 @@ OS for your agents.
     # body - a middleware under CORS or the session would run after the request had
     # already been received.
     app.add_middleware(BodySizeLimitMiddleware)
+
+    # Under the body limit and above everything else: a refused request should
+    # still be refused for being too large first, and a window that is open has
+    # to close the routes rather than the layers around them.
+    app.add_middleware(MaintenanceModeMiddleware)
 
     app.add_middleware(RequestIDMiddleware)
 

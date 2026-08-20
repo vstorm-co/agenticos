@@ -52,12 +52,20 @@ export interface QueuedMessage {
 interface UseChatOptions {
   conversationId?: string | null;
   onConversationCreated?: (conversationId: string) => void;
+  /**
+   * An assistant turn reached the database.
+   *
+   * Which agent a conversation was with is the server's answer, derived from
+   * the turns stored in it - so this is the first moment a listing fetched
+   * before the answer can be told who gave it.
+   */
+  onTurnSaved?: () => void;
 }
 
 export function useChat(options: UseChatOptions = {}) {
   const tErrors = useTranslations("errors");
 
-  const { conversationId, onConversationCreated } = options;
+  const { conversationId, onConversationCreated, onTurnSaved } = options;
   // `chat.unknownError` was in the catalog and read by nothing, while this hook
   // wrote the words out (#425). The `❌ Error:` in front of it is still English:
   // no catalog message holds it, so it belongs to the copy the guard has never
@@ -255,6 +263,9 @@ export function useChat(options: UseChatOptions = {}) {
               }));
             }
           }
+          // Whichever branch renamed the bubble, the row exists now - and with
+          // it the only record of which agent answered here.
+          onTurnSaved?.();
           break;
         }
 
@@ -537,6 +548,7 @@ export function useChat(options: UseChatOptions = {}) {
       setCurrentConversationId,
       setCurrentMessageId,
       onConversationCreated,
+      onTurnSaved,
       activeConversationId,
       refreshConversationCost,
       t,

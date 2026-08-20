@@ -33,6 +33,7 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import AgentStatus
 from app.db.models.resource_grant import GrantLevel, Visibility
+from app.schemas.deployment_settings import DeploymentLimits
 from app.services.agent_registry import AgentRegistryService, slugify
 
 REGISTRY_PATH = "app.services.agent_registry"
@@ -735,7 +736,7 @@ class TestCreate:
         ):
             await AgentRegistryService(_db()).create(ctx, _spec("Support!"))
 
-        assert refused.value.details == {"slug": "support", "field": "name"}
+        assert refused.value.details == {"slug": "support"}
         # The message has to tell them what to change. They typed a *name*; the
         # thing that collided is the handle derived from it, and a refusal that
         # only states the collision leaves them staring at an input that looks
@@ -1501,27 +1502,120 @@ class TestPublish:
             patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()) as audit,
         ):
             environments.get_default_for_agent = AsyncMock(return_value=None)
-            environments.create = AsyncMock()
+            environments.create = AsyncMock(
+                return_value=MagicMock(id=uuid.uuid4(), version_id=version.id)
+            )
             published = await AgentRegistryService(_db()).publish(ctx, agent.id, note="first cut")
 
         frozen = create_version.call_args.kwargs
         assert frozen["version"] == 3
         assert frozen["spec"] == spec.model_dump(mode="json")
         assert frozen["note"] == "first cut"
-        assert update.call_args.kwargs["update_data"] == {
-            "current_version_id": version.id,
-            "status": AgentStatus.PUBLISHED.value,
-        }
         assert audit.call_args.kwargs["details"] == {"version": 3, "note": "first cut"}
         assert published is version
         # A first publish mints the default environment, pinned to the version
-        # that just went live - so every published agent has one.
+        # that just went live - so every published agent has one, and has
+        # somewhere to run at all.
         created = environments.create.call_args.kwargs
         assert (created["name"], created["is_default"], created["version_id"]) == (
             "production",
             True,
             version.id,
         )
+        # Two writes to the agent row, and only one of them names a version: the
+        # status is publish's, the pointer is the default environment's.
+        assert [call.kwargs["update_data"] for call in update.await_args_list] == [
+            {"status": AgentStatus.PUBLISHED.value},
+            {"current_version_id": version.id},
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_default_that_follows_latest_takes_the_agents_pointer_with_it(self):
+        """`Agent.current_version_id` mirrors the default environment, and a default in
+        `tracks_latest` mode moves on every publish - so the pointer moves with it.
+
+        The two halves are one decision read twice: an environment says whether a
+        publish moves it, and the pointer says what a surface naming no environment
+        resolves through. A default that followed while the pointer stayed would run
+        the previous version everywhere the console said the newest was live."""
+        ctx = _ctx()
+        spec = _spec("Support", instructions="Be brief", model_profile_id=uuid.uuid4())
+        agent = _agent(ctx, draft_spec=spec.model_dump(mode="json"))
+        version = _version(agent.id, number=4, spec=spec)
+        default_id = uuid.uuid4()
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(f"{REGISTRY_PATH}.agent_repo.next_version_number", new=AsyncMock(return_value=4)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.create_version", new=AsyncMock(return_value=version)
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock(return_value=agent)
+            ) as update,
+            patch(f"{REGISTRY_PATH}.agent_environment_repo") as environments,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            # The same environment from both reads, as the repository answers: the
+            # default is the one following, and its own `version_id` has just been
+            # repointed at the version that went live.
+            following = MagicMock(id=default_id, version_id=version.id)
+            environments.get_default_for_agent = AsyncMock(
+                return_value=MagicMock(id=default_id, version_id=uuid.uuid4())
+            )
+            environments.following_latest = AsyncMock(return_value=[following])
+            environments.update = AsyncMock()
+            await AgentRegistryService(_db()).publish(ctx, agent.id)
+
+        assert environments.update.await_args.kwargs["update_data"] == {"version_id": version.id}
+        assert [call.kwargs["update_data"] for call in update.await_args_list] == [
+            {"status": AgentStatus.PUBLISHED.value},
+            {"current_version_id": version.id},
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_pinned_default_leaves_the_pointer_where_it_was(self):
+        """The behaviour the release mode exists for: publishing mints a version and
+        deploys nothing, so an author fixing a prompt does not change what the live
+        Slack bot answers with in the same action."""
+        ctx = _ctx()
+        spec = _spec("Support", instructions="Be brief", model_profile_id=uuid.uuid4())
+        agent = _agent(ctx, draft_spec=spec.model_dump(mode="json"))
+        version = _version(agent.id, number=4, spec=spec)
+        pinned_at = uuid.uuid4()
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(f"{REGISTRY_PATH}.agent_repo.next_version_number", new=AsyncMock(return_value=4)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.create_version", new=AsyncMock(return_value=version)
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock(return_value=agent)
+            ) as update,
+            patch(f"{REGISTRY_PATH}.agent_environment_repo") as environments,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            environments.get_default_for_agent = AsyncMock(
+                return_value=MagicMock(id=uuid.uuid4(), version_id=pinned_at)
+            )
+            environments.following_latest = AsyncMock(return_value=[])
+            environments.update = AsyncMock()
+            await AgentRegistryService(_db()).publish(ctx, agent.id)
+
+        environments.update.assert_not_awaited()
+        assert [call.kwargs["update_data"] for call in update.await_args_list] == [
+            {"status": AgentStatus.PUBLISHED.value},
+            {"current_version_id": pinned_at},
+        ]
 
     @pytest.mark.anyio
     async def test_a_draft_that_does_not_validate_freezes_nothing(self):
@@ -1575,8 +1669,9 @@ class TestRollback:
             patch(f"{REGISTRY_PATH}.agent_environment_repo") as environments,
             patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()) as audit,
         ):
-            default = MagicMock()
+            default = MagicMock(tracks_latest=False)
             environments.get_default_for_agent = AsyncMock(return_value=default)
+            environments.following_latest = AsyncMock(return_value=[])
             environments.update = AsyncMock()
             restored = await AgentRegistryService(_db()).rollback(
                 ctx, agent.id, to_version_id=source.id
@@ -1586,16 +1681,17 @@ class TestRollback:
         assert written["version"] == 5
         assert written["spec"] == source.spec
         assert written["note"] == "Rollback to v1"
-        assert update.call_args.kwargs["update_data"] == {
-            "current_version_id": fresh.id,
-            "status": AgentStatus.PUBLISHED.value,
-            "draft_spec": source.spec,
-        }
         assert audit.call_args.kwargs["details"] == {"from_version": 1, "new_version": 5}
         assert restored is fresh
-        # A rollback moves the default environment with the pointer - the new
-        # version is what the default audience now gets.
-        assert environments.update.call_args.kwargs["update_data"] == {"version_id": fresh.id}
+        # A rollback is a publish of an older spec, so it lands the same way: the
+        # version exists and a pinned environment stays where it is. Putting the
+        # old version back in front of people is a promotion - one click on its
+        # history row - rather than a side effect of restoring the draft.
+        environments.update.assert_not_awaited()
+        assert [call.kwargs["update_data"] for call in update.await_args_list] == [
+            {"status": AgentStatus.PUBLISHED.value, "draft_spec": source.spec},
+            {"current_version_id": default.version_id},
+        ]
 
     @pytest.mark.anyio
     async def test_a_version_belonging_to_another_agent_cannot_be_rolled_into_this_one(self):
@@ -1774,14 +1870,18 @@ class TestListVersions:
                 f"{REGISTRY_PATH}.agent_repo.list_versions",
                 new=AsyncMock(return_value=versions),
             ) as list_versions,
+            patch(f"{REGISTRY_PATH}.agent_repo.count_versions", new=AsyncMock(return_value=17)),
             patch(
                 f"{REGISTRY_PATH}.member_repo.get_emails_for_users",
                 new=AsyncMock(return_value={publisher: "builder@acme.test"}),
             ),
         ):
-            listed = await AgentRegistryService(_db()).list_versions(ctx, agent.id)
+            listed, total = await AgentRegistryService(_db()).list_versions(ctx, agent.id)
 
         assert [row.version for row in listed] == [v.version for v in versions]
+        # Counted, not measured off the page: a capped listing reporting its own
+        # length is how ten versions became unreachable and nobody could tell.
+        assert total == 17
         assert list_versions.call_args.kwargs["organization_id"] == ctx.organization_id
         # "Who changed this" is the reason a history is read; a uuid answers it
         # with another question.
@@ -1897,6 +1997,18 @@ class TestGetRunnableSpec:
             pytest.raises(BadRequestError, match="points at a missing version"),
         ):
             await AgentRegistryService(_db()).get_runnable_spec(ctx, agent.id)
+
+
+@pytest.fixture(autouse=True)
+def _uncapped():
+    """No deployment ceiling on agents, which is what an installation that never
+    set one has. Creating one reads it now, and these tests mock the repository
+    layer rather than the session it would be read through."""
+    with patch(
+        f"{REGISTRY_PATH}.DeploymentSettingsService.limits",
+        new=AsyncMock(return_value=DeploymentLimits()),
+    ):
+        yield
 
 
 class TestClone:
@@ -2673,7 +2785,7 @@ class TestASharedWorkspaceIsAnswerableAfterwards:
         with (
             patch.object(service, "get", new=AsyncMock(return_value=agent)),
             patch.object(service, "validate_spec", new=AsyncMock()),
-            patch.object(service, "_repoint_default_environment", new=AsyncMock()),
+            patch.object(service, "_move_environments_that_follow", new=AsyncMock()),
             patch(f"{REGISTRY_PATH}.agent_repo.next_version_number", new=AsyncMock(return_value=3)),
             patch(
                 f"{REGISTRY_PATH}.agent_repo.create_version",

@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.195"
+version = "0.0.216"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -534,6 +534,10 @@ include = [
     "app/services/knowledge_search.py",
     "app/services/mcp_catalog.py",
     "app/services/mcp_connection.py",
+    # Which providers can draw an image, derived from the SDK. What it decides is
+    # what the Builder offers, and a probe that quietly starts answering "no"
+    # would empty that picker without a single test failing.
+    "app/services/image_models.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
     # The rest of `app/services/rag/` came with the template and is reported
@@ -569,6 +573,7 @@ include = [
     "app/api/routes/v1/_workspace_bytes.py",
     "app/api/routes/v1/sharing.py",
     "app/api/routes/v1/stats.py",
+    "app/repositories/run_manifest.py",
     "app/repositories/dashboard_layout.py",
     "app/services/dashboard_layout.py",
     "app/api/routes/v1/me_dashboard_layout.py",
@@ -579,6 +584,30 @@ include = [
     "app/api/routes/v1/context.py",
     "app/services/generated_media.py",
     "app/api/routes/v1/generated_media.py",
+    # What this deployment calls itself, who may register, and whether it is open
+    # at all. The identity half is cosmetic; the other two are refusals - a sign-up
+    # policy applied on the only unauthenticated paths that mint an account, and a
+    # gate that decides whether the API answers at all - so a branch that never
+    # runs in normal operation is the whole point of them.
+    "app/db/models/deployment_settings.py",
+    "app/repositories/deployment_settings.py",
+    "app/schemas/deployment_settings.py",
+    "app/services/deployment_settings.py",
+    "app/services/signup_policy.py",
+    "app/core/maintenance.py",
+    "app/api/routes/v1/branding.py",
+    "app/api/routes/v1/_branding_bytes.py",
+    "app/api/routes/v1/_chat_file_bytes.py",
+    "app/api/routes/v1/admin_deployment_settings.py",
+    "app/db/locks.py",
+    "app/services/invitation_admission.py",
+    # One unguarded attribute in a dependency made every wrong-method request a 500
+    # on every route. Gated because it is a refusal path nobody exercises on purpose
+    # and because it goes away the moment upstream guards it.
+    "app/core/otel_compat.py",
+    # Where `HTTPException` joins the one error envelope. It answers a 405, an
+    # unmatched path, and twenty-two direct raises, none of which a happy path sees.
+    "app/api/exception_handlers.py",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
 # by tests/test_coverage_gate.py.
@@ -738,6 +767,10 @@ include = [
     "app/services/knowledge_search.py",
     "app/services/mcp_catalog.py",
     "app/services/mcp_connection.py",
+    # Which providers can draw an image, derived from the SDK. What it decides is
+    # what the Builder offers, and a probe that quietly starts answering "no"
+    # would empty that picker without a single test failing.
+    "app/services/image_models.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
     # The rest of `app/services/rag/` came with the template and is reported
@@ -773,6 +806,7 @@ include = [
     "app/api/routes/v1/_workspace_bytes.py",
     "app/api/routes/v1/sharing.py",
     "app/api/routes/v1/stats.py",
+    "app/repositories/run_manifest.py",
     "app/repositories/dashboard_layout.py",
     "app/services/dashboard_layout.py",
     "app/api/routes/v1/me_dashboard_layout.py",
@@ -783,6 +817,30 @@ include = [
     "app/api/routes/v1/context.py",
     "app/services/generated_media.py",
     "app/api/routes/v1/generated_media.py",
+    # What this deployment calls itself, who may register, and whether it is open
+    # at all. The identity half is cosmetic; the other two are refusals - a sign-up
+    # policy applied on the only unauthenticated paths that mint an account, and a
+    # gate that decides whether the API answers at all - so a branch that never
+    # runs in normal operation is the whole point of them.
+    "app/db/models/deployment_settings.py",
+    "app/repositories/deployment_settings.py",
+    "app/schemas/deployment_settings.py",
+    "app/services/deployment_settings.py",
+    "app/services/signup_policy.py",
+    "app/core/maintenance.py",
+    "app/api/routes/v1/branding.py",
+    "app/api/routes/v1/_branding_bytes.py",
+    "app/api/routes/v1/_chat_file_bytes.py",
+    "app/api/routes/v1/admin_deployment_settings.py",
+    "app/db/locks.py",
+    "app/services/invitation_admission.py",
+    # One unguarded attribute in a dependency made every wrong-method request a 500
+    # on every route. Gated because it is a refusal path nobody exercises on purpose
+    # and because it goes away the moment upstream guards it.
+    "app/core/otel_compat.py",
+    # Where `HTTPException` joins the one error envelope. It answers a 405, an
+    # unmatched path, and twenty-two direct raises, none of which a happy path sees.
+    "app/api/exception_handlers.py",
 ]
 branch = true
 omit = [

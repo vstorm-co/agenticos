@@ -402,13 +402,13 @@ stating exactly what a visitor can put where.
 
 **They can store a file**, and only if the operator ticked the switch. The bytes
 go through the same path a member's upload does — the MIME allowlist,
-`MAX_UPLOAD_SIZE` (the chat path's hardcoded 10 MiB, not `MAX_UPLOAD_SIZE_MB`,
-which is the knowledge-base cap), the parser, the storage backend, a `ChatFile`
-row — with three narrowings in front of it:
+`CHAT_MAX_UPLOAD_SIZE_MB` (10MB by default — the chat surface's own ceiling,
+not the knowledge base's larger `MAX_UPLOAD_SIZE_MB`), the parser, the storage
+backend, a `ChatFile` row — with three narrowings in front of it:
 
 | | |
 |---|---|
-| **A cap of this surface's own** | `EMBED_MAX_UPLOAD_SIZE_MB`, 5MB by default. A member uploading a fifty-megabyte export is somebody the organization employs; the same allowance on a public link is a way to fill a disk from an address nobody knows |
+| **A cap of this surface's own** | `EMBED_MAX_UPLOAD_SIZE_MB`, 5MB by default. A member uploading a fifty-megabyte export is somebody the organization employs; the same allowance on a public link is a way to fill a disk from an address nobody knows. It is a ceiling *on top of* `CHAT_MAX_UPLOAD_SIZE_MB`, never a way past it |
 | **A limit per address and per visitor** | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE`, in the shared Redis, and **both** have to allow it. Counting only the continuity key bounds nothing: the browser mints it and any 32 hex characters is a valid one, so a script varies it per file. Counting only the address lets one browser on a shared one spend everybody's |
 | **Three files to a message** | Which bounds how much of one turn's prompt is somebody else's document |
 

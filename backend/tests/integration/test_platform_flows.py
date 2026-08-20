@@ -55,7 +55,7 @@ from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
-from app.db.models.rag_document import RAGDocument
+from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.skill import Skill
 from app.db.models.sync_log import SyncLog
@@ -75,10 +75,12 @@ from app.repositories import (
     rag_document_repo,
 )
 from app.repositories.agent_run import RunFilters
+from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
 from app.schemas.mcp_connection import OrgMcpConnectionCreate, OrgMcpConnectionUpdate
 from app.services.access import AGENT, COLLECTION, SKILL, resolve_access
 from app.services.agent_chat import ChatAgentRunner
+from app.services.agent_environment import AgentEnvironmentService
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService, month_start
 from app.services.approvals import ApprovalService
@@ -531,7 +533,7 @@ async def _rag_document(db, *, collection_name: str, filename: str) -> RAGDocume
         filename=filename,
         filesize=12,
         filetype="txt",
-        status="done",
+        status=DocumentStatus.DONE,
         vector_document_id=str(uuid.uuid4()),
     )
     db.add(doc)
@@ -1737,24 +1739,30 @@ class TestWhatACollectionReportsItHolds:
 
         assert collection.collection_name not in counts
 
-    async def test_only_completed_documents_count_as_indexed(self, db) -> None:
+    async def test_only_finished_documents_count_as_indexed(self, db) -> None:
         """A failed upload stays in `documents` and drops out of `indexed`.
 
         This is what makes a half-broken collection legible on a listing: the
         two numbers disagreeing is the only signal that something died, since
         the vectors it never wrote leave no trace anywhere else.
+
+        The statuses are `DocumentStatus` members rather than strings, and that
+        is the whole of #148: this test used to set `"completed"` and
+        `"failed"`, neither of which anything in the product writes, so it
+        agreed with the query instead of with the pipeline and passed while
+        every knowledge base reported `indexed_count: 0`.
         """
         tenant = await _tenant(db, name="Partial")
         collection = await _collection_with(db, tenant, name="partial", config=IngestionConfig())
         done = await _rag_document(
             db, collection_name=collection.collection_name, filename="ok.txt"
         )
-        done.status = "completed"
+        done.status = DocumentStatus.DONE
         done.chunk_count = 7
         broken = await _rag_document(
             db, collection_name=collection.collection_name, filename="dead.txt"
         )
-        broken.status = "failed"
+        broken.status = DocumentStatus.ERROR
         broken.chunk_count = 0
         await db.flush()
 
@@ -1765,6 +1773,38 @@ class TestWhatACollectionReportsItHolds:
         assert counts[collection.collection_name].documents == 2
         assert counts[collection.collection_name].indexed == 1
         assert counts[collection.collection_name].chunks == 7
+
+    async def test_the_pipeline_marking_a_document_done_makes_it_count_as_indexed(self, db) -> None:
+        """The writer and the reader, in one test, with no status written by hand.
+
+        `complete_ingestion` is the only thing that finishes a document, and
+        `counts_by_collection` is what the listing reads - so a filter on a
+        value the pipeline does not write can only be caught by running both.
+        Nothing here names a status literal, which is the point: the two agree
+        or this fails.
+        """
+        tenant = await _tenant(db, name="Finished")
+        collection = await _collection_with(db, tenant, name="finished", config=IngestionConfig())
+        doc = await _rag_document(
+            db, collection_name=collection.collection_name, filename="handbook.md"
+        )
+        doc.status = DocumentStatus.PROCESSING
+        await db.flush()
+
+        await RAGDocumentService(db).complete_ingestion(
+            str(doc.id),
+            vector_document_id=doc.vector_document_id,
+            chunk_count=4,
+            replaced_document_id=None,
+        )
+
+        counts = await rag_document_repo.counts_by_collection(
+            db, collections=[collection.collection_name]
+        )
+
+        assert counts[collection.collection_name].documents == 1
+        assert counts[collection.collection_name].indexed == 1
+        assert counts[collection.collection_name].chunks == 4
 
     async def test_re_ingesting_a_document_does_not_count_it_twice(self, db) -> None:
         """The vector store keeps one document; `rag_documents` gained a second row.
@@ -1908,13 +1948,46 @@ class TestPublishAndRollback:
 
         third = await registry.rollback(tenant.ctx, agent.id, to_version_id=first.id)
 
-        versions = await registry.list_versions(tenant.ctx, agent.id)
+        versions, total = await registry.list_versions(tenant.ctx, agent.id)
         assert sorted(row.version for row in versions) == [1, 2, 3]
+        assert total == 3
         assert third.id not in (first.id, second.id)
-        assert agent.current_version_id == third.id
+        # And the pointer stays where the default environment is: a rollback is a
+        # publish of an older spec, so it lands the same way. Putting the old
+        # version back in front of people is a promotion, one click on its
+        # history row - not a side effect of restoring the draft.
+        assert agent.current_version_id == first.id
         restored = await db.get(AgentVersion, third.id)
         original = await db.get(AgentVersion, first.id)
         assert restored.spec == original.spec
+
+    async def test_the_oldest_versions_stay_reachable_a_page_at_a_time(self, db) -> None:
+        """The listing was capped at fifty with no offset, and reported the cap
+        as the total. An agent published past that had versions no page could
+        reach - including whichever one an environment is still pinned to."""
+        tenant = await _tenant(db, name="Prolific")
+        model = await _default_model(db, tenant)
+        registry = AgentRegistryService(db)
+        agent = await registry.create(
+            tenant.ctx, AgentSpec(name="Support", model_profile_id=model.id)
+        )
+        for turn in range(6):
+            await registry.save_draft(
+                tenant.ctx,
+                agent.id,
+                AgentSpec(
+                    name="Support", model_profile_id=model.id, instructions=f"attempt {turn}"
+                ),
+            )
+            await registry.publish(tenant.ctx, agent.id)
+
+        first, total = await registry.list_versions(tenant.ctx, agent.id, limit=4)
+        last, _ = await registry.list_versions(tenant.ctx, agent.id, skip=4, limit=4)
+
+        # Newest first, and the total is every version rather than this page's.
+        assert [row.version for row in first] == [6, 5, 4, 3]
+        assert [row.version for row in last] == [2, 1]
+        assert total == 6
 
     async def test_an_agent_that_was_never_published_cannot_be_run(self, db) -> None:
         tenant = await _tenant(db, name="Hasty")
@@ -4310,3 +4383,93 @@ class TestOneAgentPerBot:
         taken = await agent_exposure_repo.bound_agent_by_bot(db, channel_bot_ids=[bot.id])
 
         assert taken == {bot.id: estate.home_agent.id}
+
+
+class TestPublishingIsNotDeploying:
+    """Publishing mints a version; putting it somewhere is a separate decision.
+
+    It used to be one action: publish repointed the default environment, so an
+    author fixing a prompt changed what the live bot answered with, in the same
+    click, with nothing on screen saying so.
+    """
+
+    async def test_a_publish_leaves_a_pinned_environment_where_it_is(self, db) -> None:
+        tenant = await _tenant(db, name="Careful")
+        model = await _default_model(db, tenant)
+        registry = AgentRegistryService(db)
+        agent = await registry.create(
+            tenant.ctx, AgentSpec(name="Support", model_profile_id=model.id)
+        )
+        first = await registry.publish(tenant.ctx, agent.id)
+
+        second = await registry.publish(tenant.ctx, agent.id)
+
+        environments = await AgentEnvironmentService(db).list_for_agent(tenant.ctx, agent.id)
+        production = next(row for row in environments if row.is_default)
+        assert production.version_id == first.id
+        assert production.version_id != second.id
+        # And what a surface naming no environment gets is that environment's
+        # version, not the newest publish.
+        assert agent.current_version_id == first.id
+        assert production.behind_by == 1
+
+    async def test_an_environment_that_follows_latest_moves_with_every_publish(self, db) -> None:
+        tenant = await _tenant(db, name="Iterating")
+        model = await _default_model(db, tenant)
+        registry = AgentRegistryService(db)
+        environments = AgentEnvironmentService(db)
+        agent = await registry.create(
+            tenant.ctx, AgentSpec(name="Support", model_profile_id=model.id)
+        )
+        await registry.publish(tenant.ctx, agent.id)
+        await environments.create(
+            tenant.ctx, agent.id, EnvironmentCreate(name="dev", tracks_latest=True)
+        )
+
+        second = await registry.publish(tenant.ctx, agent.id)
+
+        listed = await environments.list_for_agent(tenant.ctx, agent.id)
+        dev = next(row for row in listed if row.name == "dev")
+        assert dev.version_id == second.id
+        assert dev.behind_by == 0
+
+    async def test_the_first_publish_has_somewhere_to_land(self, db) -> None:
+        """An agent with no environment has nowhere to run at all, so the first
+        publish creates the default rather than leaving it unreachable."""
+        tenant = await _tenant(db, name="Fresh")
+        model = await _default_model(db, tenant)
+        registry = AgentRegistryService(db)
+        agent = await registry.create(
+            tenant.ctx, AgentSpec(name="Support", model_profile_id=model.id)
+        )
+
+        version = await registry.publish(tenant.ctx, agent.id)
+
+        listed = await AgentEnvironmentService(db).list_for_agent(tenant.ctx, agent.id)
+        assert [(row.name, row.version_id, row.is_default) for row in listed] == [
+            ("production", version.id, True)
+        ]
+        assert agent.current_version_id == version.id
+
+    async def test_switching_an_environment_to_follow_adopts_the_newest_now(self, db) -> None:
+        """A mode that claims to follow and does not until something else
+        happens is the half-true state this setting exists to remove."""
+        tenant = await _tenant(db, name="Switcher")
+        model = await _default_model(db, tenant)
+        registry = AgentRegistryService(db)
+        environments = AgentEnvironmentService(db)
+        agent = await registry.create(
+            tenant.ctx, AgentSpec(name="Support", model_profile_id=model.id)
+        )
+        await registry.publish(tenant.ctx, agent.id)
+        newest = await registry.publish(tenant.ctx, agent.id)
+        listed = await environments.list_for_agent(tenant.ctx, agent.id)
+        production = next(row for row in listed if row.is_default)
+
+        await environments.update(
+            tenant.ctx, agent.id, production.id, EnvironmentUpdate(tracks_latest=True)
+        )
+
+        after = await environments.list_for_agent(tenant.ctx, agent.id)
+        assert next(row for row in after if row.is_default).version_id == newest.id
+        assert agent.current_version_id == newest.id

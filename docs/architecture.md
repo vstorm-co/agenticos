@@ -267,6 +267,53 @@ table in the schema. The index on `parent_run_id` serves
 [Governance](governance.md#what-run-history-shows) for why run history never lists
 the two kinds of row together.
 
+## What a run handed its model, and why it is a table
+
+`run_manifests` holds one row per run: the instructions as composed and sent,
+every tool definition as the provider was handed it, the settings, one entry per
+model request, and the last request's message list. It is written by
+`AgentRunnerService.finish` on every path out of a run, and read by
+`GET /runs/{id}/manifest` — see
+[Concepts](concepts.md#a-run-and-what-it-handed-the-model) for what is recorded
+and why it cannot be reconstructed from the spec.
+
+Three layering decisions are worth writing down, because each one is a place the
+obvious alternative is wrong.
+
+**A table, not a column on `agent_runs`.** That table is the most-listed in the
+product — run history, the spend tab, the dashboard figures, the CSV export — and
+a JSONB document holding every tool's JSON schema would be read by all of them to
+answer a question none of them asks. One row per run, `ON DELETE CASCADE` from
+both the run and the organization, read only by the detail view.
+
+**The recording happens in `app/agents/manifest.py`, not in the service.** The
+model the agent is built with is wrapped (`RecordingModel`, a `WrapperModel` —
+the same shape `MeteredModel` uses to book a sub-agent's spend), so what is
+written down is `ModelRequestParameters` as the provider received it: after every
+`prepare` hook, after tool search has hidden what it hides, after the output tool
+has been added. The service persists what the wrapper collected and decides
+nothing about its contents.
+
+**An attachment on the transcript is read through the run, not through its
+uploader.** `GET /files/{id}` is scoped to `ChatFile.user_id`, which is the right
+scope for the chat composer and the wrong one for a run review: reading a run is
+the organization's right rather than its starter's, so the attachment cards on a
+colleague's transcript rendered and every preview answered 404.
+`GET /runs/{run_id}/files/{file_id}` authorizes as the transcript does -
+organization, then `runs:view` - and then admits the file only where its
+`message_id` names a turn of the run's own conversation, which is the reach the
+transcript already grants and no wider. Both routes serve the bytes through
+`_chat_file_bytes.py`, so what a browser may *display* does not depend on which
+one authorized the read.
+
+**The write is guarded *and* nested.** It is reached from a `finally` block, so
+an exception raised while recording a failed run would replace the failure with
+itself. Swallowing it is not enough on its own: a failed flush leaves the session
+unusable, so the run's own terminal write would be lost to a record nobody asked
+for. It runs inside `begin_nested()` for the same reason
+`TranscriptService._attach` does — a SAVEPOINT is what makes "this write may fail
+harmlessly" true rather than aspirational.
+
 ## A refusal that names a field
 
 Every refusal leaves in one envelope, `{"error": {"code", "message", "details"}}`,
@@ -279,13 +326,25 @@ and a refusal about a *field* names it in one shape:
 `fieldProblems` in `frontend/src/lib/api-error.ts` reads that and nothing else,
 which is what lets a form mark the offending input rather than showing a sentence
 the reader has to re-scan the page for. `app/core/field_errors.py` is the only
-place it is built, and it has two entry points because **which caller you are
-decides what the first element of Pydantic's `loc` means**:
+place it is built, and it has three entry points. Two of them read Pydantic, and
+**which caller you are decides what the first element of `loc` means**:
 
 | | For | `loc` starts with |
 |---|---|---|
 | `request_field_problems` | `validation_exception_handler`, every `RequestValidationError` | where the value came from (`body`, `query`, …), which is dropped |
 | `field_problems(…, root=…)` | a service validating a document a route's schema cannot — a per-upload ingestion override, a hand-edited spec YAML, a capability's config blob | a field of that document, reported below `root` |
+| `refused_field(field, message, **context)` | a rule a service states in prose rather than in a model — an endpoint carrying a password, a Mattermost bot losing its server, a YAML document that never parsed | — it answers with the `BadRequestError` for the caller to raise |
+
+`refused_field` names the sentence once, because the envelope's `message` and the
+field's are the same sentence; a raiser needing another status builds the same
+`details` with `field_details`. Eighteen call sites answered
+`details={"field": "<name>"}` instead, singular, with the sentence on the
+envelope, and no form has ever read it — the same defect in a third shape
+([#891](https://github.com/vstorm-co/agenticos/issues/891)). A fourth spelling
+was `details={"<field>": <value>}`, where the key was the field name and the
+value was what the caller had just sent: `model_profile.py` answered a refused
+model id with the id, in a body and in the log line beside it
+([#898](https://github.com/vstorm-co/agenticos/issues/898)).
 
 Deciding by the string instead would misread a spec whose forbidden top-level
 key is literally called `body`, which is one shape standing in for two — the
@@ -315,6 +374,22 @@ delegate, because the Builder renders one form per specialist. Keeping only the
 sentence was the other half of #882: saving a draft does not validate a config
 schema at all, so publish validation is the only place a mistyped setting is ever
 refused.
+
+**Two kinds of refusal deliberately name no field**, and the line between them
+and the rest is what stops the one shape from meaning two things again:
+
+- **A refusal about a value no caller sent.** A remote file's name is chosen by
+  whoever can drop a file in the synced folder, and both checks in
+  `app/services/rag/remote_names.py` run inside a background sync, where the
+  reader is a log rather than a form. Same for a Google Drive source read back
+  without its credential: the row is stored, and `CONFIG_SCHEMA` is what refuses
+  it at the route.
+- **A conflict.** `AlreadyExistsError` reports a fact about a row that already
+  exists, not about the shape of what was sent — and which of a form's own
+  inputs produced the taken value is a thing only the form knows, since an
+  agent's handle is derived from a name nobody typed as a handle. That is
+  claimed by `submitFailure`'s `identifiedBy` on the client, so a 409 carries the
+  taken value and no field.
 
 ## Key Files
 
@@ -438,11 +513,19 @@ bounds a read; the user is what narrows it further.**
   silently applied.
 
 `ConversationService` makes the distinction impossible to omit: `organization_id`
-is a **required** keyword, and a caller that genuinely reads across tenants
-passes the `UNSCOPED` sentinel rather than leaving the argument out. There is one
-— `/admin/conversations/{id}`, gated on `CurrentAppAdmin` — and `rg UNSCOPED`
-finds it. The argument used to default to `None`, `None` meant unscoped, and an
-omission is indistinguishable from an intention.
+is a **required** `UUID` keyword on every read and write of a conversation. It
+used to default to `None`, `None` meant unscoped, and an omission is
+indistinguishable from an intention — two routes serving ordinary members simply
+left it out, and any signed-in user could read and append to any conversation in
+the deployment.
+
+There is **no way to read a conversation across tenants any more.** The sentinel
+that used to spell that out (`UNSCOPED`) had exactly one caller,
+`/admin/conversations/{id}`, and both went with the deployment-wide conversation
+browser — Activity answers "what happened" with the cost, the model, the trace
+and what the model was handed beside it, which is the question that screen was
+being used for. What is left of it is `GET /admin/conversations?user_id=`: one
+named account's threads, listed for the admin user drawer and never read.
 
 For full endpoint-level permissions, see `docs/permissions.md`.
 
@@ -483,7 +566,12 @@ and `parsed_content` (extracted text). Only the file owner can access their file
 
 ### Size Limits
 
-Maximum upload size is controlled by `MAX_UPLOAD_SIZE_MB` (default 50MB).
+There are two, because there are two surfaces. `MAX_UPLOAD_SIZE_MB` (default
+50MB) is the knowledge-base document cap; `CHAT_MAX_UPLOAD_SIZE_MB` (default
+10MB) is what may be attached in chat. They are separate settings rather than
+one, because a document is chunked and read back through retrieval while an
+attachment to an agent with no workspace is pasted whole into the prompt — the
+same size fails differently on each. `GET /api/v1/health` publishes both.
 
 ## RAG System
 
@@ -545,6 +633,10 @@ Each ingested document gets:
 
 ### Sync Connectors
 
-Remote document sources use pluggable connectors in `rag/connectors/`. Each
-connector implements `BaseSyncConnector` with `list_files()` and `download_file()`
-methods. See `docs/patterns.md` for how to add a new connector.
+Remote document sources use pluggable connectors in
+`app/services/rag/connectors/`. Each connector implements `BaseSyncConnector`
+with `list_files()` and `_fetch()`, declares a `SECRET_KIND` naming the vault
+secret that authenticates it, and declares a `CONFIG_SCHEMA` of
+`ConnectorConfigField`s saying how to find the documents. `download_file()` is
+concrete and decides where a file may land. See `docs/patterns.md` for how to
+add one, and `docs/howto/add-sync-connector.md` for a worked example.

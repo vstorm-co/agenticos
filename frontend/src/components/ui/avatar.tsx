@@ -10,7 +10,15 @@ const Avatar = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AvatarPrimitive.Root
     ref={ref}
-    className={cn("relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full", className)}
+    className={cn(
+      // The type scale lives here, on the same element as the diameter, because
+      // a font-size on the fallback would beat the one it inherits: every
+      // circle drew 12px initials whatever its size, so `text-[10px]` in a
+      // 16px circle rendered as an unreadable smudge and `text-lg` in an 80px
+      // one as two small letters in a lot of colour.
+      "relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full text-xs",
+      className,
+    )}
     {...props}
   />
 ));
@@ -37,8 +45,9 @@ const AvatarFallback = React.forwardRef<
     className={cn(
       // High-contrast neutral fallback - initials need to be readable on
       // every theme regardless of the brand color (low-saturation greens
-      // washed out the previous bg-muted/text-brand combo).
-      "bg-foreground/10 text-foreground flex h-full w-full items-center justify-center rounded-full text-xs font-semibold",
+      // washed out the previous bg-muted/text-brand combo). No font-size:
+      // the root's is inherited, and one here would override it.
+      "bg-foreground/10 text-foreground flex h-full w-full items-center justify-center rounded-full font-semibold",
       className,
     )}
     {...props}

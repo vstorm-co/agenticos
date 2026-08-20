@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Suspense, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -87,6 +88,7 @@ function source(id: string, status: string, error: string | null): SyncSourceRea
     connector_type: "gdrive",
     collection_name: "org_handbook",
     config: {},
+    secret_id: null,
     sync_mode: "full",
     schedule_minutes: 60,
     is_active: true,
@@ -123,6 +125,19 @@ function wrapper({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Select a section's tab.
+ *
+ * The three sections are tabs since #939, so a test asserting on the sync
+ * sources has to choose that tab first - previously they were all stacked and
+ * everything was on screen at once.
+ */
+async function openTab(name: string) {
+  // `find`, not `get`: the page draws a skeleton until its collection arrives, so
+  // a `get` here races the first render rather than the tab being absent.
+  await userEvent.click(await screen.findByRole("tab", { name }));
+}
+
 async function mount() {
   await act(async () => {
     render(<KBDetailPage params={Promise.resolve({ id: "kb-1" })} />, { wrapper });
@@ -132,12 +147,17 @@ async function mount() {
 
 describe("a status badge on a knowledge base", () => {
   beforeEach(() => {
+    // The page writes its tab into the URL, and jsdom's location persists across
+    // tests in a file - so without this a test that opened Sync sources leaves the
+    // next one mounting on that tab. A browser gets a fresh URL per navigation.
+    window.history.replaceState({}, "", "/");
     vi.clearAllMocks();
     serve();
   });
 
   it("colours a failed sync source unlike the one that worked", async () => {
     await mount();
+    await openTab("Sync sources");
 
     // The failure is found by the explanation hung off it, so this names the
     // sync source's badge and not the document's.
@@ -159,13 +179,22 @@ describe("a status badge on a knowledge base", () => {
   });
 
   it("says what happened in words rather than in the column's own token", async () => {
+    // One document and one source, and they are on different tabs since #939 -
+    // so the pair is asserted a tab at a time. What it is about survives: neither
+    // badge shows `error` or `done`, which is what the worker writes.
     await mount();
 
-    // `error` and `done` are what the worker writes; neither belongs on screen.
     expect(screen.queryByText("error")).toBeNull();
     expect(screen.queryByText("done")).toBeNull();
-    expect(screen.getAllByText("Failed").length).toBe(2); // one document, one source
-    expect(screen.getAllByText("Done").length).toBe(2);
+    expect(screen.getAllByText("Failed")).toHaveLength(1);
+    expect(screen.getAllByText("Done")).toHaveLength(1);
+
+    await openTab("Sync sources");
+
+    expect(screen.queryByText("error")).toBeNull();
+    expect(screen.queryByText("done")).toBeNull();
+    expect(screen.getAllByText("Failed")).toHaveLength(1);
+    expect(screen.getAllByText("Done")).toHaveLength(1);
   });
 
   it("keeps the server's own token for a status this build does not know", async () => {

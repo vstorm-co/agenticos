@@ -55,6 +55,12 @@ class AgentEnvironmentService:
             self.db, agent_id=agent.id, organization_id=ctx.organization_id
         )
         numbers = await self._version_numbers(ctx, environments)
+        # What "pinned" costs, counted once for the whole listing: an environment
+        # three versions behind is a decision somebody made or a thing somebody
+        # forgot, and the panel cannot say which without the number.
+        newest = await agent_repo.count_versions(
+            self.db, agent_id=agent.id, organization_id=ctx.organization_id
+        )
         return [
             EnvironmentRead(
                 id=environment.id,
@@ -63,6 +69,8 @@ class AgentEnvironmentService:
                 version_id=environment.version_id,
                 version=numbers[environment.version_id],
                 is_default=environment.is_default,
+                tracks_latest=environment.tracks_latest,
+                behind_by=max(newest - numbers[environment.version_id], 0),
                 logfire_token_secret_id=environment.logfire_token_secret_id,
                 service_name=environment.service_name,
                 created_at=environment.created_at,
@@ -105,6 +113,7 @@ class AgentEnvironmentService:
             agent_id=agent.id,
             name=data.name,
             version_id=version.id,
+            tracks_latest=data.tracks_latest,
             created_by_user_id=ctx.user_id,
             logfire_token_secret_id=data.logfire_token_secret_id,
             service_name=data.service_name,
@@ -178,20 +187,41 @@ class AgentEnvironmentService:
         version: AgentVersion | None = None
         if "version_id" in changes:
             version = await self._version_of(ctx, agent, changes["version_id"])
+        elif changes.get("tracks_latest") is True and agent.current_version_id is not None:
+            # Switching an environment to "follows latest" adopts the newest
+            # version now rather than at the next publish. The alternative is a
+            # mode that claims to follow and does not until something else
+            # happens, which is the kind of half-true state this whole setting
+            # exists to remove.
+            newest = await agent_repo.newest_version(
+                self.db, agent_id=agent.id, organization_id=ctx.organization_id
+            )
+            if newest is not None and newest.id != environment.version_id:
+                changes["version_id"] = newest.id
+                version = newest
 
         environment = await agent_environment_repo.update(
             self.db, environment=environment, update_data=changes
         )
+        if environment.is_default and version is not None:
+            # The denormalized pointer is this environment's, so promoting the
+            # default *is* the deploy every surface naming no environment reads.
+            # Publish used to keep the two in step by moving both; now that a
+            # publish moves neither, this is where they stay in step.
+            await agent_repo.update(
+                self.db, agent=agent, update_data={"current_version_id": environment.version_id}
+            )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
             organization_id=ctx.organization_id,
-            action="agent.environment_promoted" if version else "agent.environment_renamed",
+            action="agent.environment_promoted" if version else "agent.environment_updated",
             target_type="agent",
             target_id=str(agent.id),
             details={
                 "environment_id": str(environment.id),
                 "name": environment.name,
+                "fields": sorted(changes),
                 **({"version": version.version} if version else {}),
             },
         )

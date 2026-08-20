@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Download, ExternalLink, X } from "lucide-react";
 
 import { FileContent, FileIcon } from "@/components/files";
-import { useFileActions } from "@/hooks";
+import { useFileActions, useResizablePanel } from "@/hooks";
 import { useFilePreviewStore } from "@/stores";
 import { attachmentAccess } from "@/lib/file-api";
 import { resolveFileKind, suffixOf } from "@/lib/file-kinds";
@@ -31,45 +31,12 @@ export function FilePreviewPanel() {
   const file = useFilePreviewStore((s) => s.file);
   const close = useFilePreviewStore((s) => s.close);
 
-  // The stored width is read once, as the initial state, rather than written
-  // back from an effect - which rendered the panel at the default first and
-  // snapped it to the remembered width a frame later. Safe to read during
-  // render because the panel renders nothing until a file is selected, and
-  // nothing selects one on the server: there is no first paint to disagree with.
-  const [width, setWidth] = useState<number>(storedWidth);
-  const [isDragging, setIsDragging] = useState(false);
-
-  const onMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isDragging) return;
-    const onMove = (e: MouseEvent) => {
-      // Width = distance from cursor to right edge of viewport.
-      const next = clamp(window.innerWidth - e.clientX, MIN_WIDTH, MAX_WIDTH);
-      setWidth(next);
-    };
-    const onUp = () => {
-      setIsDragging(false);
-      try {
-        localStorage.setItem(STORAGE_KEY, String(width));
-      } catch {
-        /* private mode / quota - drop persistence silently */
-      }
-    };
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => {
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-  }, [isDragging, width]);
+  const { width, isDragging, onMouseDown } = useResizablePanel({
+    storageKey: STORAGE_KEY,
+    defaultWidth: DEFAULT_WIDTH,
+    min: MIN_WIDTH,
+    max: MAX_WIDTH,
+  });
 
   if (!file) return null;
 
@@ -166,15 +133,4 @@ function PanelBody({
       </div>
     </>
   );
-}
-
-function storedWidth(): number {
-  /* v8 ignore next -- an SSR guard, and the test environment is jsdom */
-  if (typeof window === "undefined") return DEFAULT_WIDTH;
-  const n = parseInt(localStorage.getItem(STORAGE_KEY) ?? "", 10);
-  return Number.isFinite(n) ? clamp(n, MIN_WIDTH, MAX_WIDTH) : DEFAULT_WIDTH;
-}
-
-function clamp(n: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, n));
 }

@@ -4,7 +4,17 @@ import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { ROUTES } from "@/lib/constants";
-import { Button, ConfirmDialog, Alert, AlertDescription, AlertTitle } from "@/components/ui";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Button,
+  ConfirmDialog,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui";
 import { SyncSourceWizard } from "@/components/rag/sync-source-wizard";
 import { KBDetailSkeleton } from "@/components/rag/kb-detail-skeleton";
 import { KBDetailHeader } from "@/components/rag/kb-detail-header";
@@ -19,7 +29,7 @@ import { IngestionPanel } from "@/components/kb/ingestion-panel";
 import { RerankDialog } from "@/components/kb/rerank-dialog";
 import { RerankPanel } from "@/components/kb/rerank-panel";
 import { UploadOverrideDialog } from "@/components/kb/upload-override-dialog";
-import { useKBDetail, usePermissions, usePollWhileIngesting } from "@/hooks";
+import { useKBDetail, usePermissions, usePollWhileIngesting, useUrlState } from "@/hooks";
 import { overrideSize } from "@/lib/ingestion-config";
 import type { SyncSourceRead } from "@/lib/rag-api";
 import type { IngestionOverride, KBDocument } from "@/types";
@@ -30,10 +40,34 @@ interface KBDetailPageProps {
   params: Promise<{ id: string }>;
 }
 
+/** Which section of a knowledge base is on screen. `?tab=` from the start (#939). */
+type KBTab = "documents" | "ingestion" | "sync";
+
+function parseTab(value: string | null): KBTab {
+  return value === "ingestion" || value === "sync" ? value : "documents";
+}
+
 export default function KBDetailPage({ params }: KBDetailPageProps) {
   const t = useTranslations("pages.kb");
   const router = useRouter();
   const { id } = use(params);
+
+  // Three sections that used to stack: the documents table, the parser panel and
+  // the sync sources. Each carried a comment explaining why it sat under the one
+  // above, and each argument was about *reading order on a first visit* - which is
+  // not where somebody returns to. Adjusting a parser meant scrolling past every
+  // document to reach it (#939).
+  //
+  // Addressable, so a link can name a section and a reload keeps it - the same
+  // reason `/rag`'s own tabs are in the URL.
+  //
+  // Through `useUrlState`, not a `useState` initializer reading `window`: that
+  // renders one value on the server and another in the browser, which costs a
+  // hydration mismatch and flashes the documents before the named section
+  // appears.
+  const [tabParam, setTabParam] = useUrlState("tab");
+  const tab = parseTab(tabParam);
+  const setTab = (next: KBTab) => setTabParam(next === "documents" ? null : next);
   const {
     kb,
     documents,
@@ -222,50 +256,73 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
 
       <UploadProgressList uploads={uploadProgress} />
 
-      <DocumentsTable
-        kbId={id}
-        documents={documents}
-        documentsTotal={documentsTotal}
-        hasMoreDocuments={hasMoreDocuments}
-        isLoading={isLoading}
-        isLoadingMoreDocs={isLoadingMoreDocs}
-        mayEdit={mayEdit}
-        onLoadMore={() => loadMoreDocuments()}
-        onPreview={setViewerDoc}
-        onRemove={setRemovingDocument}
-        onChooseFiles={() => fileInputRef.current?.click()}
-      />
+      {/* Under the stats strip and the override banner, which describe the
+          collection rather than any one section and stay above it (#939).
 
-      {/* Under the documents, because it is the answer to a question the table
-          above raises: the parser column says what read each file, and this says
-          what will read the next one. */}
-      <div className="mb-8" data-tour="kb-ingestion">
-        <IngestionPanel kb={kb} onEdit={mayEdit ? () => setIngestionOpen(true) : undefined} />
-      </div>
+          One `Tabs` root around the strip *and* the panels: a trigger points at
+          its panel with `aria-controls`, so a root that closed after the list
+          left those references dangling and the visible section with no
+          `role="tabpanel"` and no relationship to the tab that chose it. */}
+      <Tabs value={tab} onValueChange={(next) => setTab(next as KBTab)}>
+        <TabsList data-tour="kb-tabs">
+          <TabsTrigger value="documents" data-tour="kb-tab-documents">
+            {t("documents")}
+          </TabsTrigger>
+          <TabsTrigger value="ingestion" data-tour="kb-tab-ingestion">
+            {t("howDocumentsAreRead")}
+          </TabsTrigger>
+          <TabsTrigger value="sync" data-tour="kb-tab-sync">
+            {t("syncSources")}
+          </TabsTrigger>
+        </TabsList>
 
-      {/* After ingestion: reranking is the other per-collection retrieval knob,
-          and the only one changeable after creation. No Edit on an app-scoped
-          collection - it carries no organization_id, so it can hold no vault key
-          and the backend would refuse one; the panel stays as a read-only fact. */}
-      <div className="mb-8" data-tour="kb-rerank">
-        <RerankPanel
-          kb={kb}
-          onEdit={mayEdit && kb.scope !== "app" ? () => setRerankOpen(true) : undefined}
-        />
-      </div>
+        <TabsContent value="documents">
+          <DocumentsTable
+            kbId={id}
+            documents={documents}
+            documentsTotal={documentsTotal}
+            hasMoreDocuments={hasMoreDocuments}
+            isLoading={isLoading}
+            isLoadingMoreDocs={isLoadingMoreDocs}
+            mayEdit={mayEdit}
+            onLoadMore={() => loadMoreDocuments()}
+            onPreview={setViewerDoc}
+            onRemove={setRemovingDocument}
+            onChooseFiles={() => fileInputRef.current?.click()}
+          />
+        </TabsContent>
 
-      <SyncSourcesSection
-        kbId={id}
-        syncSources={syncSources}
-        connectors={connectors}
-        syncSourcesFailed={sectionFailures.syncSources}
-        connectorsFailed={sectionFailures.connectors}
-        mayEdit={mayEdit}
-        onConnect={() => setWizardOpen(true)}
-        onTrigger={(sourceId) => triggerSyncSource(sourceId)}
-        onDisconnect={setDisconnectingSource}
-        onRetry={() => refresh()}
-      />
+        <TabsContent value="ingestion">
+          <div className="mb-8" data-tour="kb-ingestion">
+            <IngestionPanel kb={kb} onEdit={mayEdit ? () => setIngestionOpen(true) : undefined} />
+          </div>
+          {/* Reranking is the other per-collection retrieval knob, and the only
+              one changeable after creation. No Edit on an app-scoped collection -
+              it carries no organization_id, so it can hold no vault key and the
+              backend would refuse one; the panel stays as a read-only fact. */}
+          <div className="mb-8" data-tour="kb-rerank">
+            <RerankPanel
+              kb={kb}
+              onEdit={mayEdit && kb.scope !== "app" ? () => setRerankOpen(true) : undefined}
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="sync">
+          <SyncSourcesSection
+            kbId={id}
+            syncSources={syncSources}
+            connectors={connectors}
+            syncSourcesFailed={sectionFailures.syncSources}
+            connectorsFailed={sectionFailures.connectors}
+            mayEdit={mayEdit}
+            onConnect={() => setWizardOpen(true)}
+            onTrigger={(sourceId) => triggerSyncSource(sourceId)}
+            onDisconnect={setDisconnectingSource}
+            onRetry={() => refresh()}
+          />
+        </TabsContent>
+      </Tabs>
 
       {/* The count is the collection's, not the table's. Documents page in
           twenty at a time, so `documents.length` would promise to destroy far
@@ -388,8 +445,6 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           try {
             await createSyncSource(data);
             setWizardOpen(false);
-          } catch {
-            /* toast handled in hook */
           } finally {
             setCreatingSource(false);
           }

@@ -83,13 +83,19 @@ Easy to violate, cross-cutting, and each one has been violated here at least onc
 - Route handlers return `-> Any`; `response_model` does the serialization (avoids double
   Pydantic validation).
 - Every secret at rest goes through `app/core/vault.py`. **There is no second
-  mechanism**, and adding one is the defect migration `0038` removed.
+  mechanism**, and adding one is the defect migrations `0038` and `0042` removed -
+  the second of them being `app/core/crypto.py`, which held RAG connector
+  credentials on one deployment-wide Fernet key and made this sentence untrue for
+  one table until #937 deleted it.
 - `datetime.now(UTC)`, never `datetime.utcnow()`.
 - `secrets.compare_digest()` for API key comparison, never `==`.
 - **Do not reintroduce what was deliberately removed:** `UserRole`, `User.has_role()`,
   `RoleChecker`, `CurrentAdmin`, `CurrentSuperuser` (dropped in `0066` — authority
   inside an organization is a membership row plus the permission catalog), or
-  `CHANNEL_ENCRYPTION_KEY` and the deployment-wide Fernet keys (dropped in `0038`).
+  `CHANNEL_ENCRYPTION_KEY` and the deployment-wide Fernet keys (dropped in `0038`),
+  or `app/core/crypto.py` and a `secret: true` field in a connector's
+  `CONFIG_SCHEMA` (dropped in `0042` - a connector credential is a vault secret the
+  source references by id).
 
 ## Read the matching rule before writing code
 
@@ -282,6 +288,7 @@ Trigger map — what changed → which page:
 | `app/services/spend.py`, `approvals.py`, `notifications.py` | `docs/governance.md` |
 | `app/services/channels/**`, `agent_exposure.py`, `agent_embed.py` | `docs/channels.md` |
 | `app/services/rag/**`, `file_upload.py`, `ingestion_config.py` | `docs/file-processing.md` |
+| `app/services/deployment_settings.py`, `signup_policy.py`, `invitation_admission.py`, `app/core/maintenance.py`, `otel_compat.py`, `app/api/exception_handlers.py` | `docs/deployment.md` |
 | `app/core/config.py` | `docs/configuration.md` |
 | `app/commands/**`, a new `make` target | `docs/commands.md` |
 | A new route, service or layering change | `docs/architecture.md` |
@@ -364,6 +371,7 @@ say so and move on. Run it yourself any time with
 | The automated pull request reviewer | `docs/code-review.md` |
 | Branches, rulesets and what protects `main` | `docs/branching.md` |
 | Recurring patterns | `docs/patterns.md` |
+| The deployment's identity, sign-up policy, notices | `docs/deployment.md` |
 | Settings and the production checklist | `docs/configuration.md` |
 
 Two things about the reference pages. They are generated from docstrings by

@@ -58,7 +58,7 @@ class SecretPurposeRead(BaseSchema):
 
     id: str
     label: str
-    category: Literal["model_provider", "search", "observability", "other"]
+    category: Literal["model_provider", "search", "observability", "connector", "other"]
     kind: SecretKind
     help_url: str | None = None
     description: str = ""

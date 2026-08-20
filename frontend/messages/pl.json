@@ -31,7 +31,8 @@
     "rangeOfTotal": "{start, number}–{end, number} z {total, number}",
     "removeNamed": "Usuń {name}",
     "removeNamedConfirm": "Usunąć {name}?",
-    "renameNamed": "Zmień nazwę {name}"
+    "renameNamed": "Zmień nazwę {name}",
+    "dismiss": "Odrzuć"
   },
   "navigation": {
     "home": "Strona główna",
@@ -92,7 +93,8 @@
     "searchJump": "Szukaj lub przejdź do…",
     "startNewChat": "Zacznij nowy czat",
     "untitledConversation": "Rozmowa bez tytułu",
-    "allOrganizations": "Wszystkie organizacje"
+    "allOrganizations": "Wszystkie organizacje",
+    "deploymentSettings": "Instalacja"
   },
   "auth": {
     "login": "Zaloguj się",
@@ -181,7 +183,12 @@
     "signUpWithGithub": "Załóż konto przez GitHub",
     "signUpWithMicrosoft": "Załóż konto przez Microsoft",
     "somethingWentWrongPlease": "Coś poszło nie tak. Spróbuj ponownie.",
-    "workspace": "workspace."
+    "workspace": "workspace.",
+    "signupInviteOnly": "Ta instalacja przyjmuje tylko zaproszone osoby. Zarejestrujesz adres, który ktoś zaprosił.",
+    "signupDomainsAllowed": "Zarejestrować się mogą tylko adresy w domenach {domains}.",
+    "signupClosedHeading": "Rejestracja jest zamknięta",
+    "signupClosedBody": "{app} nie przyjmuje nowych kont. Poproś administratora o zaproszenie.",
+    "signupWithInvitation": "Rejestrujesz się z zaproszeniem, więc ograniczenia rejestracji tej instalacji Cię nie dotyczą."
   },
   "profile": {
     "title": "Profil",
@@ -259,8 +266,6 @@
     "title": "Tytuł",
     "owner": "Właściciel",
     "messages": "Wiadomości",
-    "agentsColumn": "Agenci",
-    "generalAssistant": "Ogólny asystent",
     "created": "Utworzono",
     "status": "Status",
     "untitled": "Bez tytułu",
@@ -269,7 +274,6 @@
     "email": "Email",
     "name": "Imię",
     "joined": "Dołączył",
-    "total": "{count} łącznie",
     "likes": "Polubienia",
     "dislikes": "Nieprzydatne",
     "date": "Data",
@@ -323,7 +327,6 @@
     "deleted": "Baza wiedzy usunięta",
     "documentRemoved": "Dokument usunięty",
     "failedCloneIntegration": "Nie udało się skopiować integracji",
-    "failedCreateSyncSource": "Nie udało się utworzyć źródła synchronizacji",
     "failedDelete": "Nie udało się usunąć bazy wiedzy",
     "failedDeleteDocument": "Nie udało się usunąć dokumentu",
     "failedLoad": "Nie udało się wczytać bazy wiedzy",
@@ -1186,6 +1189,7 @@
       "video": "Wideo"
     },
     "modified": "zmodyfikowano {when}",
+    "namedSource": "Źródło: {name}",
     "open": "Otwórz",
     "openFile": "Otwórz {name}",
     "preview": "Podgląd",
@@ -1781,11 +1785,9 @@
     "hide": "Ukryj",
     "howModelRefersSkill": "Tak model odwołuje się do tego skilla. Później nie da się tego zmienić.",
     "howRefundsTheirExceptions": "Jak obsługiwane są zwroty i ich wyjątki.",
-    "loading": "Wczytywanie…",
     "markdownLoadedOnlyAfter": "Markdown. Wczytywany dopiero wtedy, gdy opis przekona model, żeby po niego sięgnął, więc długość nic nie kosztuje, dopóki nie jest potrzebna.",
     "markdownYouCanFill": "Markdown. Możesz uzupełnić to później — jest wczytywany dopiero wtedy, gdy opis przekona model, żeby po niego sięgnął.",
     "name": "Nazwa",
-    "namedSource": "Źródło: {name}",
     "new": "Nowy",
     "new2": "Nowy",
     "newCategory": "Nowa kategoria…",
@@ -1798,7 +1800,6 @@
     "onlyPartModelReads2": "Jedyna część, którą model czyta, zanim zdecyduje, czy w ogóle otworzyć skilla. Napisz, kiedy ma zastosowanie, a nie co jest w środku.",
     "optionalGroupsListingNever": "Opcjonalne. Grupuje listę. Nigdy nie dociera do modelu.",
     "path": "Ścieżka",
-    "preview": "Podgląd",
     "readConversationCameFrom": "Przeczytaj rozmowę, z której to pochodzi",
     "remove": "Usuń",
     "review": "Przejrzyj",
@@ -1808,7 +1809,6 @@
     "savingReachesEveryAgent": "Zapis dosięga każdego związanego z tym skillem agenta przy jego następnym runie. Nie ma wersji roboczej ani kroku publikacji.",
     "showWhatChangedIn": "Pokaż, co zmieniło się w {name}",
     "sizeUploadsWhenCreated": "{size} · zostanie przesłany przy tworzeniu skilla",
-    "source": "Źródło",
     "support": "support",
     "whatSoModelCan": "Co w nim jest, żeby model mógł zdecydować bez wczytywania go"
   },

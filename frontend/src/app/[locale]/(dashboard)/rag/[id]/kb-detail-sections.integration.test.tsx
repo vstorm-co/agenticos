@@ -139,6 +139,19 @@ function fulfilled<T>(value: T): Promise<T> {
   return thenable;
 }
 
+/**
+ * Select a section's tab.
+ *
+ * The three sections are tabs since #939, so a test asserting on the sync
+ * sources has to choose that tab first - previously they were all stacked and
+ * everything was on screen at once.
+ */
+async function openTab(name: string) {
+  // `find`, not `get`: the page draws a skeleton until its collection arrives, so
+  // a `get` here races the first render rather than the tab being absent.
+  await userEvent.click(await screen.findByRole("tab", { name }));
+}
+
 async function renderPage() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -155,6 +168,10 @@ async function renderPage() {
 }
 
 beforeEach(() => {
+  // The page writes its tab into the URL, and jsdom's location persists across
+  // tests in a file - so without this a test that opened Sync sources leaves the
+  // next one mounting on that tab. A browser gets a fresh URL per navigation.
+  window.history.replaceState({}, "", "/");
   vi.clearAllMocks();
   useOrgStore.setState({ activeOrgId: ORG_ID });
 });
@@ -164,6 +181,7 @@ describe("a failed section renders an error, not its empty state (#32)", () => {
     mockApi({ failing: "sync-sources" });
 
     await renderPage();
+    await openTab("pages.kb.syncSources");
 
     await waitFor(() =>
       expect(screen.getByText("pages.kb.syncSourcesFailedTitle")).toBeInTheDocument(),
@@ -176,6 +194,7 @@ describe("a failed section renders an error, not its empty state (#32)", () => {
     mockApi({ failing: "connectors" });
 
     await renderPage();
+    await openTab("pages.kb.syncSources");
 
     await waitFor(() =>
       expect(screen.getByText("pages.kb.connectorsFailedTitle")).toBeInTheDocument(),
@@ -187,6 +206,7 @@ describe("a failed section renders an error, not its empty state (#32)", () => {
     mockApi({ failing: "connectors", syncSources: [{ id: "src-1", name: "Drive folder" }] });
 
     await renderPage();
+    await openTab("pages.kb.syncSources");
 
     // The failure used to be reported only on the empty branch, so a base with
     // sources lost both the notice and - because the list is empty - the Connect
@@ -201,6 +221,7 @@ describe("a failed section renders an error, not its empty state (#32)", () => {
     mockApi();
 
     await renderPage();
+    await openTab("pages.kb.syncSources");
 
     await waitFor(() =>
       expect(screen.getByText("pages.kb.noConnectorsConfigured")).toBeInTheDocument(),
@@ -241,4 +262,52 @@ describe("a failed refresh says so instead of ageing the page silently", () => {
     // Stale, and still there: blanking the list would read as "no documents".
     expect(screen.getByText("onboarding.md")).toBeInTheDocument();
   });
+});
+
+describe("the three sections are tabs (#939)", () => {
+  it("shows the documents first and neither of the others", async () => {
+    mockApi({ documents: [DOC] });
+
+    await renderPage();
+
+    await waitFor(() => expect(screen.getByText("onboarding.md")).toBeInTheDocument());
+    // The parser panel and the sync sources are behind their own tabs, so
+    // adjusting a parser no longer means scrolling past every document.
+    expect(document.querySelector('[data-tour="kb-ingestion"]')).toBeNull();
+    expect(screen.queryByText("pages.kb.noSourcesConnected")).not.toBeInTheDocument();
+  });
+
+  it("keeps the stats strip above them, because it describes the collection", async () => {
+    // Not a tab's content: the document count and the scope are about the
+    // collection, so they stay put whichever section is chosen.
+    mockApi({ documents: [DOC] });
+
+    await renderPage();
+    const strip = await screen.findByText("pages.kb.scopeOrg");
+    await openTab("pages.kb.syncSources");
+
+    expect(strip).toBeInTheDocument();
+  });
+
+  it("shows one section at a time, and the parser panel is not one of the others", async () => {
+    mockApi({ documents: [DOC] });
+
+    await renderPage();
+    await openTab("pages.kb.howDocumentsAreRead");
+
+    await waitFor(() =>
+      expect(document.querySelector('[data-tour="kb-ingestion"]')).not.toBeNull(),
+    );
+    // The documents table is gone rather than pushed down the page, which is the
+    // whole point of the tabs.
+    expect(screen.queryByText("onboarding.md")).not.toBeInTheDocument();
+  });
+
+  // The URL round-trip itself is `useUrlState`'s, and
+  // `src/hooks/use-url-state.test.tsx` covers it - including a navigation that
+  // changes the parameter under the state. Asserting it again here would mean
+  // substituting either that hook or `useSearchParams`, and the global
+  // `next/navigation` mock in `vitest.setup.ts` answers an empty one and wins:
+  // a test written that way passed while the page was showing its default,
+  // which is worse than not having it.
 });

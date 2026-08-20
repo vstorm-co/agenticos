@@ -35,7 +35,9 @@ import {
   ingestionProblems,
   sameIngestion,
 } from "@/lib/ingestion-config";
+import { DIALOG_WIDE } from "@/lib/dialog-widths";
 import { DEFAULT_RERANK_MODEL, RERANK_KEY_PURPOSE, RERANK_OFF } from "@/lib/rerank-config";
+import { cn } from "@/lib/utils";
 import type { CreateKnowledgeBaseInput, IngestionConfig, KBScope } from "@/types";
 import { useTranslations } from "next-intl";
 
@@ -166,7 +168,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* A column with one scrolling part, so expanding the settings never
           pushes Create off the bottom of the screen. */}
-      <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-lg">
+      <DialogContent className={cn("flex max-h-[85vh] flex-col", DIALOG_WIDE)}>
         <DialogHeader>
           <DialogTitle>{t("createKnowledgeBase")}</DialogTitle>
         </DialogHeader>

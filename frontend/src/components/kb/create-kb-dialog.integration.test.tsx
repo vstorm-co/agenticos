@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CreateKBDialog } from "./create-kb-dialog";
 import { apiClient } from "@/lib/api-client";
+import { INGESTION_LIMITS } from "@/lib/ingestion-config";
 import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
 import { providerMarkIn } from "@/test-utils/brand-marks";
@@ -306,5 +307,37 @@ describe("the two keys this dialog can store", () => {
     // forms say it here, and the model panel says it in its own words because a
     // disabled Add model with nothing beside it explains nothing.
     expect(screen.getAllByText(/permission you do not hold/)).toHaveLength(3);
+  });
+});
+
+describe("the image-description prompt", () => {
+  it("is a markdown editor in this dialog too, not a bare textarea", async () => {
+    // The regression that matters: the field is easy to swap back, and it is a
+    // model prompt several sentences long - the same control the Builder uses
+    // for an agent's instructions (#940). `IngestionSettings` is embedded whole
+    // here, so this dialog and the standalone one get it or neither does.
+    show();
+    await openEmbeddings();
+    await openParsing();
+    await userEvent.click(screen.getByLabelText("Describe images"));
+
+    const prompt = await screen.findByLabelText("Prompt");
+    expect(prompt).toBeVisible();
+    expect(screen.getByRole("button", { name: "Preview" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Source" })).toBeVisible();
+  });
+
+  it("still caps what can be typed at the length the API enforces", async () => {
+    // Swapping the control must not drop the bound: a field the server refuses
+    // should not let somebody write past it and find out on submit.
+    show();
+    await openEmbeddings();
+    await openParsing();
+    await userEvent.click(screen.getByLabelText("Describe images"));
+
+    expect(await screen.findByLabelText("Prompt")).toHaveAttribute(
+      "maxlength",
+      String(INGESTION_LIMITS.prompt.maxLength),
+    );
   });
 });

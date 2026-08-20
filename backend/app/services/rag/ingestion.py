@@ -2,18 +2,59 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
 
-from app.core.config import settings
-from app.services.embedding_resolution import embeddings_for_collection
 from app.services.rag.documents import DocumentProcessor
-from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.failures import IngestionStage, failure_summary
 from app.services.rag.models import Document, DocumentInfo, IngestionResult, IngestionStatus
 from app.services.rag.vectorstore import BaseVectorStore
-from app.services.rag.vectorstore import PgVectorStore as VectorStore
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class StoredDocument:
+    """What a collection already holds for the file being ingested.
+
+    Both fields or neither: they are facts about one document, and returning
+    them together is what stops a caller pairing one document's id with
+    another's hash (#548). Absent means no match, not an empty document - a
+    stored hash of `""` is reported as `None` for the same reason every caller
+    gates on truthiness.
+    """
+
+    document_id: str | None = None
+    content_hash: str | None = None
+
+
+def _stored(doc: DocumentInfo) -> StoredDocument:
+    meta = doc.additional_info or {}
+    return StoredDocument(
+        document_id=doc.document_id,
+        content_hash=meta.get("content_hash") or None,
+    )
+
+
+def _unaddressed(doc: DocumentInfo) -> bool:
+    """Whether this document may be matched by its *name* alone.
+
+    Only one that does not already claim an address of its own. A file uploaded
+    through the browser stores its filename as its `source_path`, so the two
+    agree and it stays reachable by name - which is what the fallback is for: a
+    document uploaded once and later synced from the folder it came from should
+    be replaced rather than duplicated.
+
+    A document that names a *different* address is a different document, and
+    matching it by basename loses one of them. An S3 bucket holding
+    `a/readme.md` and `b/readme.md` is the case: the second key found the
+    first's document by name, so equal contents skipped it and unequal contents
+    replaced the first - either way a first sync could not keep both, silently
+    (#990). The same collision existed for two local files of the same name in
+    different directories.
+    """
+    stored_path = str((doc.additional_info or {}).get("source_path") or "")
+    return not stored_path or stored_path == doc.filename
 
 
 class IngestionService:
@@ -29,21 +70,6 @@ class IngestionService:
         self.store = vector_store
         self._on_event = on_event
 
-    @classmethod
-    def from_settings(
-        cls,
-        on_event: Callable[..., Awaitable[None]] | None = None,
-    ) -> IngestionService:
-        rag_settings = settings.rag
-        embed_service = EmbeddingService(settings=rag_settings)
-        vector_store = VectorStore(
-            settings=rag_settings,
-            embedding_service=embed_service,
-            resolver=embeddings_for_collection,
-        )
-        processor = DocumentProcessor(settings=rag_settings)
-        return cls(processor=processor, vector_store=vector_store, on_event=on_event)
-
     async def _emit(self, event: str, data: dict[str, object]) -> None:
         if self._on_event:
             try:
@@ -51,46 +77,55 @@ class IngestionService:
             except Exception as e:
                 logger.warning("Webhook event dispatch failed: %s", e)
 
-    async def _existing_by_source(
-        self, collection_name: str, source_path: str
-    ) -> tuple[str | None, str | None]:
-        """The stored document `source_path` refers to, as `(document_id, content_hash)`.
+    async def existing_document(
+        self, collection_name: str, source_path: str, *, content_hash: str = ""
+    ) -> StoredDocument:
+        """The stored document this file refers to, found in one pass.
 
-        One precedence for both answers: a `source_path` match anywhere in the
-        collection beats a `filename` match anywhere in it. The id lookup and
-        the hash lookup used to walk the documents with different rules, so the
-        sync modes compared a live file's hash against a different document's
-        `content_hash` than the one they were about to replace (#548).
+        **One scan, one precedence, both answers.** A `source_path` match
+        anywhere in the collection beats a `filename` match anywhere in it, and
+        a `content_hash` match is the last resort - the order the ingest already
+        applied by calling two helpers in sequence, each walking the whole
+        collection with a predicate of its own.
+
+        There were three lookups over one listing before this, and they cost two
+        things. The obvious one is the scans: the sync modes asked for an id and
+        then for a hash, and `ingest_file` then asked twice more, so ingesting
+        one changed file read the entire collection four times (#566, and #27
+        for why reading it once is still not cheap).
+
+        The other is the reason those two answers are returned together rather
+        than by two methods. They are answers about *one document*, and when
+        they were computed separately they disagreed: the id lookup checked every
+        document for a `source_path` match before falling back to `filename`
+        while the hash lookup interleaved the two, so a caller compared a live
+        file's hash against a different document's `content_hash` than the one it
+        was about to replace - an unchanged file re-embedded on every sync, or a
+        changed one skipped as current (#548). A caller that cannot ask for one
+        without the other cannot reintroduce that.
+
+        A store that refuses answers "no match", as it did before: a listing this
+        cannot read is not evidence that the document is absent, but treating it
+        as a match would delete a document on the strength of a failed query.
         """
         try:
             docs = await self.store.get_documents(collection_name)
         except Exception as exc:
             logger.warning("Could not check for existing document: %s", exc, exc_info=True)
-            return None, None
-        filename = Path(source_path).name
-        fallback: DocumentInfo | None = None
+            return StoredDocument()
+        filename = Path(source_path).name if source_path else ""
+        by_filename: DocumentInfo | None = None
+        by_hash: DocumentInfo | None = None
         for doc in docs:
             meta = doc.additional_info or {}
-            if meta.get("source_path") == source_path:
-                return doc.document_id, meta.get("content_hash") or None
-            if fallback is None and doc.filename and doc.filename == filename:
-                fallback = doc
-        if fallback is None:
-            return None, None
-        meta = fallback.additional_info or {}
-        return fallback.document_id, meta.get("content_hash") or None
-
-    async def _find_existing_by_hash(self, collection_name: str, content_hash: str) -> str | None:
-        """Find an existing document by content hash (exact duplicate check)."""
-        try:
-            docs = await self.store.get_documents(collection_name)
-            for doc in docs:
-                meta = doc.additional_info or {}
-                if meta.get("content_hash") == content_hash:
-                    return doc.document_id
-        except Exception as exc:
-            logger.warning("Could not check for existing document: %s", exc, exc_info=True)
-        return None
+            if source_path and meta.get("source_path") == source_path:
+                return _stored(doc)
+            if by_filename is None and filename and doc.filename == filename and _unaddressed(doc):
+                by_filename = doc
+            if by_hash is None and content_hash and meta.get("content_hash") == content_hash:
+                by_hash = doc
+        matched = by_filename or by_hash
+        return _stored(matched) if matched is not None else StoredDocument()
 
     async def ingest_file(
         self,
@@ -120,23 +155,30 @@ class IngestionService:
 
             existing_id = None
             if replace:
-                if document.metadata.source_path:
-                    existing_id, _ = await self._existing_by_source(
-                        collection_name, document.metadata.source_path
+                existing_id = (
+                    await self.existing_document(
+                        collection_name,
+                        document.metadata.source_path or "",
+                        content_hash=document.metadata.content_hash or "",
                     )
-                if not existing_id and document.metadata.content_hash:
-                    existing_id = await self._find_existing_by_hash(
-                        collection_name, document.metadata.content_hash
-                    )
+                ).document_id
 
-            if existing_id:
-                await self.store.delete_document(collection_name, existing_id)
-                logger.info("Replaced existing document %s for '%s'", existing_id, filepath.name)
-
+            # Inserted before the old one is removed, not after. `insert_document`
+            # is where the embeddings are computed, so a provider that refuses
+            # between the two statements used to leave the collection with
+            # *neither* document - permanently, since the failure is returned
+            # rather than raised and nothing retries it. This order fails the
+            # other way: a delete that does not happen leaves both, which is
+            # visible, searchable and fixable, where neither was none of those
+            # (#990).
             await self.store.insert_document(
                 collection_name=collection_name,
                 document=document,
             )
+
+            if existing_id:
+                await self.store.delete_document(collection_name, existing_id)
+                logger.info("Replaced existing document %s for '%s'", existing_id, filepath.name)
 
             action = "replaced" if existing_id else "ingested"
             chunk_count = len(document.chunked_pages or [])
@@ -181,14 +223,6 @@ class IngestionService:
             error_message=failure_summary(exc, stage=stage),
             message=f"Failed to process {filename}",
         )
-
-    async def find_existing(self, collection_name: str, source_path: str) -> str | None:
-        document_id, _ = await self._existing_by_source(collection_name, source_path)
-        return document_id
-
-    async def get_existing_hash(self, collection_name: str, source_path: str) -> str | None:
-        _, content_hash = await self._existing_by_source(collection_name, source_path)
-        return content_hash
 
     async def remove_document(self, collection_name: str, document_id: str) -> bool:
         """Wipes all traces of a document from the vector store."""

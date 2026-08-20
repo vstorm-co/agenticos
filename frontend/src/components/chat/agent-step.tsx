@@ -2,49 +2,12 @@
 
 import { Children, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import {
-  BarChart3,
-  BookOpen,
-  Check,
-  ChevronDown,
-  ChevronRight,
-  Code2,
-  FilePenLine,
-  FilePlus2,
-  FileText,
-  FolderOpen,
-  Globe,
-  ImageIcon,
-  PauseCircle,
-  Plug,
-  Search,
-  TerminalSquare,
-  Users,
-  Wrench,
-  X,
-} from "lucide-react";
+import { Check, ChevronDown, ChevronRight, PauseCircle, X } from "lucide-react";
 
 import { logoDataUri } from "@/lib/mcp-catalog";
 import { cn } from "@/lib/utils";
+import { STEP_ICONS } from "@/lib/step-icons";
 import type { StepKind } from "@/lib/tool-catalog";
-
-const ICONS: Record<StepKind, typeof FileText> = {
-  write: FilePlus2,
-  edit: FilePenLine,
-  read: FileText,
-  list: FolderOpen,
-  search: Search,
-  shell: TerminalSquare,
-  chart: BarChart3,
-  image: ImageIcon,
-  knowledge: BookOpen,
-  web: Globe,
-  skill: BookOpen,
-  code: Code2,
-  delegate: Users,
-  mcp: Plug,
-  tool: Wrench,
-};
 
 interface AgentStepsProps {
   children: ReactNode;
@@ -147,7 +110,7 @@ export function AgentStep({
   children,
 }: AgentStepProps) {
   const t = useTranslations("chat.steps");
-  const Icon = state === "parked" ? PauseCircle : ICONS[kind];
+  const Icon = state === "parked" ? PauseCircle : STEP_ICONS[kind];
   const openable = onToggle !== undefined;
   // The server's brand, where there is one, and the generic plug where there is not.
   // A step that says "Linear · Create issue" beside Linear's mark is legible at a

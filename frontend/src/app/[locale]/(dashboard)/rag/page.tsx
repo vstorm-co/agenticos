@@ -16,10 +16,11 @@ import {
   ListCardEmpty,
   Skeleton,
   Tabs,
+  TabsContent,
   TabsList,
   TabsTrigger,
 } from "@/components/ui";
-import { useKnowledgeBases, usePermissions } from "@/hooks";
+import { useKnowledgeBases, usePermissions, useUrlState } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import type { KBScope, KnowledgeBase } from "@/types";
 import { Perm } from "@/types/permissions";
@@ -37,7 +38,7 @@ const SCOPE_META: Record<KBScope, { labelKey: string; icon: LucideIcon }> = {
   app: { labelKey: "scopeApp", icon: Sparkles },
 };
 
-type RagTab = "bases" | "search";
+type RagTab = "bases" | "search" | "integrations";
 
 export default function RAGPage() {
   const t = useTranslations("pages.kb");
@@ -49,20 +50,14 @@ export default function RAGPage() {
   const { can } = usePermissions();
   const mayEdit = can(Perm.collectionsEdit);
 
-  const [tab, setTabState] = useState<RagTab>(() => {
-    if (typeof window !== "undefined") {
-      if (new URLSearchParams(window.location.search).get("tab") === "search") return "search";
-    }
-    return "bases";
-  });
-  // The tab belongs in the URL, so a search is a link somebody can send.
-  const setTab = (next: RagTab) => {
-    setTabState(next);
-    const url = new URL(window.location.href);
-    if (next === "bases") url.searchParams.delete("tab");
-    else url.searchParams.set("tab", next);
-    window.history.replaceState({}, "", url.toString());
-  };
+  // The tab belongs in the URL, so a search is a link somebody can send - and
+  // through `useUrlState` rather than reading `window` in a `useState`
+  // initializer, which renders one value on the server and another in the
+  // browser and costs a hydration mismatch: the bases flash before the named tab
+  // appears.
+  const [tabParam, setTabParam] = useUrlState("tab");
+  const tab: RagTab = tabParam === "search" || tabParam === "integrations" ? tabParam : "bases";
+  const setTab = (next: RagTab) => setTabParam(next === "bases" ? null : next);
 
   useEffect(() => {
     fetchKBs();
@@ -91,31 +86,43 @@ export default function RAGPage() {
         }
       />
 
-      {/* The shared underline strip - this page's look, now the primitive's. */}
+      {/* The shared underline strip - this page's look, now the primitive's.
+
+          The root wraps the panels as well as the list: a trigger points at its
+          panel with `aria-controls`, so a root closing after the list left those
+          references dangling and the visible section with no `role="tabpanel"`.
+          Pre-existing here; found reviewing the same change on the detail page. */}
       <Tabs value={tab} onValueChange={(next) => setTab(next as RagTab)}>
         <TabsList data-tour="knowledge-tabs">
           <TabsTrigger value="bases">{t("knowledgeBases")}</TabsTrigger>
           <TabsTrigger value="search">{t("search")}</TabsTrigger>
+          {/* A page-level concern, so a tab beside the other two rather than a
+              section below a grid three rows deep - and reachable without first
+              choosing Knowledge bases (#939). */}
+          <TabsTrigger value="integrations" data-tour="knowledge-tab-integrations">
+            {t("integrations")}
+          </TabsTrigger>
         </TabsList>
-      </Tabs>
 
-      {tab === "search" ? (
-        // The scope selector is built from the base list, so a failed list is a
-        // failed search tab: handing it an empty array would have it say there is
-        // nothing to search, which is the list's own error wearing a fact's face.
-        loading ? (
-          <Skeleton className="h-48 w-full rounded-xl" />
-        ) : listError ? (
-          <ErrorState
-            title={t("listFailedTitle")}
-            description={t("listFailedDescription")}
-            cta={{ label: t("retry"), onClick: () => fetchKBs() }}
-          />
-        ) : (
-          <SearchTab kbs={sorted} />
-        )
-      ) : (
-        <>
+        {/* The scope selector is built from the base list, so a failed list is a
+            failed search tab: handing it an empty array would have it say there
+            is nothing to search, which is the list's own error wearing a fact's
+            face. */}
+        <TabsContent value="search">
+          {loading ? (
+            <Skeleton className="h-48 w-full rounded-xl" />
+          ) : listError ? (
+            <ErrorState
+              title={t("listFailedTitle")}
+              description={t("listFailedDescription")}
+              cta={{ label: t("retry"), onClick: () => fetchKBs() }}
+            />
+          ) : (
+            <SearchTab kbs={sorted} />
+          )}
+        </TabsContent>
+
+        <TabsContent value="bases">
           <ListCard
             title={t("bases")}
             counted={loading || listError ? null : t("storedCount", { count: kbs.length })}
@@ -169,14 +176,18 @@ export default function RAGPage() {
               </div>
             )}
           </ListCard>
+        </TabsContent>
 
-          {/* Below the collections, because it is the thing they are fed from: a
-          connector configured once and cloned into each base that needs it. */}
+        {/* The thing the collections are fed from: a connector configured once
+            and cloned into each base that needs it. `targets` is the base list,
+            so this tab needs it loaded - which is why it is the same query
+            rather than a second one. */}
+        <TabsContent value="integrations">
           <div data-tour="knowledge-integrations">
             <ReusableIntegrations targets={kbs} />
           </div>
-        </>
-      )}
+        </TabsContent>
+      </Tabs>
 
       <CreateKBDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={() => fetchKBs()} />
     </div>

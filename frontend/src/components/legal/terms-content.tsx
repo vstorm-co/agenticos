@@ -6,18 +6,22 @@
  * Switch by locale at the page level. To add another locale, add a new export
  * here with the same shape and update the dispatch in the page.
  */
-import { APP_NAME } from "@/lib/constants";
 import { useTranslations } from "next-intl";
 
-export function TermsBodyEn() {
+/** The deployment's name, resolved by the page above and interpolated into the text. */
+interface LegalBodyProps {
+  appName: string;
+}
+
+export function TermsBodyEn({ appName }: LegalBodyProps) {
   const t = useTranslations("legal");
   return (
     <>
-      <p>{t("termsIntro", { appName: APP_NAME })}</p>
+      <p>{t("termsIntro", { appName })}</p>
       <p>{t("ifYouAposRe")}</p>
 
       <h2>{t("n1Service")}</h2>
-      <p>{t("serviceDescription", { appName: APP_NAME })}</p>
+      <p>{t("serviceDescription", { appName })}</p>
 
       <h2>{t("n2YourAccount")}</h2>
       <p>
@@ -83,15 +87,15 @@ export function TermsBodyEn() {
   );
 }
 
-export function TermsBodyPl() {
+export function TermsBodyPl({ appName }: LegalBodyProps) {
   const t = useTranslations("legal.pl");
   return (
     <>
-      <p>{t("termsIntro", { appName: APP_NAME })}</p>
+      <p>{t("termsIntro", { appName })}</p>
       <p>{t("jeLiKorzystaszZ")}</p>
 
       <h2>{t("n1UsUga")}</h2>
-      <p>{t("serviceDescription", { appName: APP_NAME })}</p>
+      <p>{t("serviceDescription", { appName })}</p>
 
       <h2>{t("n2TwojeKonto")}</h2>
       <p>

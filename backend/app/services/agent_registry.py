@@ -43,8 +43,9 @@ from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
 )
-from app.core.field_errors import field_problems
+from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm
+from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.credential import ModelProfile
 from app.repositories import (
@@ -72,6 +73,7 @@ from app.services.access import (
     visible_resource_ids,
 )
 from app.services.channels.base import ROOM_HANDLES
+from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import IMAGE_MIME_TYPES, MAX_AVATAR_SIZE, get_file_storage
 from app.services.sandbox_workspace import sandbox_config
 
@@ -555,7 +557,7 @@ def _window_of(profile: ModelProfile | None) -> int | None:
     return resolve_context_window(f"{profile.provider}:{profile.model}")
 
 
-def _yaml_location(exc: yaml.YAMLError) -> dict[str, Any]:
+def _yaml_refusal(exc: yaml.YAMLError) -> str:
     """Where the document stopped parsing, without quoting any of it.
 
     `str()` on a marked YAML error includes the offending source line, and the
@@ -565,11 +567,16 @@ def _yaml_location(exc: yaml.YAMLError) -> dict[str, Any]:
     (`.claude/rules/exceptions-security.md`). A `ReaderError` - a control
     character in the file - carries a byte offset and no mark, which is why the
     line is optional rather than assumed.
+
+    In the sentence rather than beside it: the position used to be `details`
+    keys of its own, which nothing has ever read (#891), and a line number is
+    only worth reporting to the reader who has the document open.
     """
+    refusal = "This spec is not valid YAML"
     mark = getattr(exc, "problem_mark", None)
     if mark is None:
-        return {"field": "yaml"}
-    return {"field": "yaml", "line": mark.line + 1, "column": mark.column + 1}
+        return refusal
+    return f"{refusal} - line {mark.line + 1}, column {mark.column + 1}"
 
 
 def _parse_spec_yaml(text: str) -> AgentSpec:
@@ -586,10 +593,10 @@ def _parse_spec_yaml(text: str) -> AgentSpec:
     Raises:
         BadRequestError: If the document does not parse, is not a mapping, or
             breaks a field rule - carrying the field path a form can mark, and
-            no copy of what was submitted. A field rule answers in the shape a
-            form marks an input from, `details["fields"]`; a document that never
-            parsed has no field of its own to name, so it is about the editor it
-            was typed into.
+            no copy of what was submitted. All three answer in the one shape,
+            `details["fields"]`: a field rule below `yaml`, and a document that
+            never parsed against `yaml` itself, since the editor it was typed
+            into is the only input there is to blame.
     """
     try:
         return AgentSpec.from_yaml(text)
@@ -599,11 +606,9 @@ def _parse_spec_yaml(text: str) -> AgentSpec:
             details={"fields": field_problems(exc.errors(), root="yaml")},
         ) from exc
     except yaml.YAMLError as exc:
-        raise BadRequestError(
-            message="This spec is not valid YAML", details=_yaml_location(exc)
-        ) from exc
+        raise refused_field("yaml", _yaml_refusal(exc)) from exc
     except ValueError as exc:
-        raise BadRequestError(message=str(exc), details={"field": "yaml"}) from exc
+        raise refused_field("yaml", str(exc)) from exc
 
 
 class AgentRegistryService:
@@ -763,7 +768,12 @@ class AgentRegistryService:
             AlreadyExistsError: If the derived slug is taken. Slugs are how agents are
                 mentioned in Slack, so silently disambiguating one would route
                 messages to the wrong agent.
+            BadRequestError: If the organization already holds as many agents as
+                the deployment allows. Null is no ceiling, which is what a
+                deployment that has never set one has - see
+                `DeploymentSettings.max_agents_per_organization`.
         """
+        await self._refuse_past_the_ceiling(ctx)
         # A new agent opens with a prompt rather than an empty box. An agent with
         # no instructions still answers - as whatever the underlying model is by
         # default, which is a different product on every provider and changes when
@@ -781,11 +791,11 @@ class AgentRegistryService:
                     "is what an @mention resolves to, so it has to be unique and cannot be "
                     "changed later - give this agent a name that produces a different handle."
                 ),
-                # `field` names the input a person is looking at, which is not
-                # what the server calls it: they typed a *name*, and the thing
-                # that collided is the handle derived from it. Without this the
-                # form has to guess where to put the message.
-                details={"slug": slug, "field": "name"},
+                # The handle, not the input that produced it: a conflict is a
+                # fact about a row, and which of its own fields derived the
+                # taken value is the form's to say - `submitFailure`'s
+                # `identifiedBy`, in `frontend/src/lib/api-error.ts` (#891).
+                details={"slug": slug},
             )
 
         agent = await agent_repo.create(
@@ -1478,14 +1488,11 @@ class AgentRegistryService:
             published_by_user_id=ctx.user_id,
         )
         await agent_repo.update(
-            self.db,
-            agent=agent,
-            update_data={
-                "current_version_id": version.id,
-                "status": AgentStatus.PUBLISHED.value,
-            },
+            self.db, agent=agent, update_data={"status": AgentStatus.PUBLISHED.value}
         )
-        await self._repoint_default_environment(ctx, agent=agent, version=version)
+        # `current_version_id` is the default environment's pointer, so the step
+        # that moves environments is the step that moves it - see below.
+        await self._move_environments_that_follow(ctx, agent=agent, version=version)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -1527,21 +1534,33 @@ class AgentRegistryService:
             },
         )
 
-    async def _repoint_default_environment(
+    async def _move_environments_that_follow(
         self, ctx: AuthContext, *, agent: Agent, version: AgentVersion
     ) -> None:
-        """Keep the default environment on the version that was just published.
+        """Repoint the environments that asked to follow publishes, and no others.
 
-        Publish moves exactly one pointer: the default. Named environments
-        somebody pinned - dev on v12, a client's env held back on v9 - stay
-        where they were put; promotion is `AgentEnvironmentService.update`,
-        on purpose and audited. An agent published for the first time gets its
-        `production` default here, so every published agent has one without a
-        backfill ever being anyone's job again.
+        **Publishing mints a version; putting it somewhere is a separate
+        decision.** This used to repoint the default whatever it was, so
+        "publish" and "deploy to production" were one click with nothing on
+        screen saying so - an author fixing a prompt changed what the live Slack
+        bot answered with, in the same action.
+
+        An environment in `tracks_latest` mode is the exception it asked to be:
+        a `dev` somebody is iterating in follows every publish, which is the
+        whole reason that mode exists.
+
+        The **first** publish is different, and has to be: an agent with no
+        environment has nowhere to run at all, so it gets its `production`
+        default here, pinned to the version that just appeared. Every publish
+        after that leaves it where it is until somebody promotes.
+
+        `Agent.current_version_id` mirrors the default environment, which is what
+        a surface naming no environment resolves through - so it moves when that
+        environment moves, and a publish that moves nothing moves it neither.
         """
         default = await agent_environment_repo.get_default_for_agent(self.db, agent_id=agent.id)
         if default is None:
-            await agent_environment_repo.create(
+            default = await agent_environment_repo.create(
                 self.db,
                 organization_id=ctx.organization_id,
                 agent_id=agent.id,
@@ -1550,9 +1569,17 @@ class AgentRegistryService:
                 is_default=True,
                 created_by_user_id=ctx.user_id,
             )
-            return
-        await agent_environment_repo.update(
-            self.db, environment=default, update_data={"version_id": version.id}
+        else:
+            for environment in await agent_environment_repo.following_latest(
+                self.db, agent_id=agent.id, organization_id=ctx.organization_id
+            ):
+                await agent_environment_repo.update(
+                    self.db, environment=environment, update_data={"version_id": version.id}
+                )
+                if environment.id == default.id:
+                    default = environment
+        await agent_repo.update(
+            self.db, agent=agent, update_data={"current_version_id": default.version_id}
         )
 
     async def rollback(
@@ -1589,12 +1616,15 @@ class AgentRegistryService:
             self.db,
             agent=agent,
             update_data={
-                "current_version_id": version.id,
                 "status": AgentStatus.PUBLISHED.value,
                 "draft_spec": source.spec,
             },
         )
-        await self._repoint_default_environment(ctx, agent=agent, version=version)
+        # A rollback is a publish of an older spec, so it lands the same way: the
+        # version exists, and what serves it is a promotion. Putting the old
+        # version back in front of people directly is one click on the history
+        # row - promote - rather than two here.
+        await self._move_environments_that_follow(ctx, agent=agent, version=version)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -1644,6 +1674,10 @@ class AgentRegistryService:
                 message=f"Agent '{agent.name}' is not archived",
                 details={"agent_id": str(agent.id), "status": agent.status},
             )
+        # Restoring is a transition into the counted state, since the ceiling counts
+        # live agents only: without this an organization at its limit archives one,
+        # creates a replacement and restores what it archived.
+        await self._refuse_past_the_ceiling(ctx)
         restored = (
             AgentStatus.PUBLISHED.value
             if agent.current_version_id is not None
@@ -1763,15 +1797,27 @@ class AgentRegistryService:
             )
         return version
 
-    async def list_versions(self, ctx: AuthContext, agent_id: UUID) -> list[AgentVersionRead]:
-        """The timeline, with who published each entry.
+    async def list_versions(
+        self, ctx: AuthContext, agent_id: UUID, *, skip: int = 0, limit: int = 25
+    ) -> tuple[list[AgentVersionRead], int]:
+        """One page of the timeline, with who published each entry, and the total.
 
-        Resolved here rather than left as ids: "who changed this" is the whole
-        reason a history is read, and a column of uuids answers it with another
-        question. One lookup for the page, not one per row.
+        The author is resolved here rather than left as an id: "who changed
+        this" is the whole reason a history is read, and a column of uuids
+        answers it with another question. One lookup for the page, not one per
+        row.
+
+        The total is counted rather than taken from the page. It used to be the
+        page's own length against a listing capped at fifty, so an agent
+        published sixty times reported fifty versions and the ten oldest could
+        not be reached at all - including whichever one an environment was still
+        pinned to.
         """
         agent = await self.get(ctx, agent_id)
         versions = await agent_repo.list_versions(
+            self.db, agent_id=agent.id, organization_id=ctx.organization_id, skip=skip, limit=limit
+        )
+        total = await agent_repo.count_versions(
             self.db, agent_id=agent.id, organization_id=ctx.organization_id
         )
         emails = await member_repo.get_emails_for_users(
@@ -1791,7 +1837,7 @@ class AgentRegistryService:
                 created_at=version.created_at,
             )
             for version in versions
-        ]
+        ], total
 
     async def delegation_tree(self, ctx: AuthContext, agent_id: UUID) -> DelegationTree:
         """The delegation tree under this agent's draft, in one response (#276).
@@ -1968,6 +2014,40 @@ class AgentRegistryService:
         if cache_key not in walk.pins:
             walk.pins[cache_key] = await self._resolve_pin(ctx, ref)
         return walk.pins[cache_key]
+
+    async def _refuse_past_the_ceiling(self, ctx: AuthContext) -> None:
+        """Refuse a transition that would put this organization over the limit.
+
+        Archived agents are not counted: archiving is how an agent is retired,
+        and a ceiling a retired agent went on occupying would make the only way
+        back under it a delete - which takes the version history and the run
+        attribution with it.
+
+        Which is exactly why **`unarchive` calls this too**. Counting only the live
+        rows means restoring one is a transition *into* the counted state, and a
+        ceiling enforced on creates alone is one an organization walks past by
+        archiving an agent, creating a replacement and restoring what it archived.
+
+        The lock is what makes the count mean anything: read and acted on without
+        one, two creates both pass it and both insert, so the ceiling is exceeded
+        deterministically by clicking twice - and no constraint can say "at most
+        five rows like this". Taken only where a limit exists, and released by the
+        transaction whichever way it ends.
+        """
+        limit = (await DeploymentSettingsService(self.db).limits()).agents_per_organization
+        if limit is None:
+            return
+        await hold_subject(self.db, LockScope.AGENTS_PER_ORGANIZATION, ctx.organization_id)
+        held = await agent_repo.count_for_organization(self.db, organization_id=ctx.organization_id)
+        if held >= limit:
+            raise BadRequestError(
+                message=(
+                    f"This deployment allows {limit} agents per organization, and this one "
+                    f"has {held}. Ask an administrator to raise the limit, or archive an "
+                    "agent you no longer run."
+                ),
+                details={"limit": limit, "held": held},
+            )
 
     async def get_runnable_spec(
         self, ctx: AuthContext, agent_id: UUID, *, environment_id: UUID | None = None

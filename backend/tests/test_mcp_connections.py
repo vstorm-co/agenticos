@@ -892,7 +892,9 @@ class TestMcpConnectionService:
         data = McpConnectionCreate(name="internal", url="http://127.0.0.1:8000/mcp")
         with pytest.raises(BadRequestError) as excinfo:
             await service.create(user_id=uuid4(), data=data)
-        assert excinfo.value.details == {"field": "url"}
+        assert excinfo.value.details == {
+            "fields": [{"field": "url", "message": excinfo.value.message}]
+        }
         assert excinfo.value.status_code == 400
         repo.create.assert_not_called()
 
@@ -1093,7 +1095,9 @@ class TestMcpConnectionService:
                 data=McpConnectionUpdate(url="http://169.254.169.254/mcp"),
             )
 
-        assert excinfo.value.details == {"field": "url"}
+        assert excinfo.value.details == {
+            "fields": [{"field": "url", "message": excinfo.value.message}]
+        }
         repo.update.assert_not_called()
 
     @pytest.mark.anyio
@@ -1255,7 +1259,9 @@ class TestMcpConnectionService:
             await service.oauth_start(
                 user_id=uuid4(), name="evil", url="http://169.254.169.254/mcp"
             )
-        assert excinfo.value.details == {"field": "url"}
+        assert excinfo.value.details == {
+            "fields": [{"field": "url", "message": excinfo.value.message}]
+        }
         repo.create.assert_not_called()
 
     @pytest.mark.anyio
@@ -1491,7 +1497,9 @@ class TestOrganizationConnections:
             await service.create_for_org(
                 ctx, OrgMcpConnectionCreate(name="internal", url="http://127.0.0.1:8000/mcp")
             )
-        assert excinfo.value.details == {"field": "url"}
+        assert excinfo.value.details == {
+            "fields": [{"field": "url", "message": excinfo.value.message}]
+        }
         repo.create_org_scoped.assert_not_called()
 
     @pytest.mark.anyio
@@ -1600,7 +1608,9 @@ class TestOrganizationConnections:
                 ctx, connection_id=conn.id, data=OrgMcpConnectionUpdate(url="http://[::1]/mcp")
             )
 
-        assert excinfo.value.details == {"field": "url"}
+        assert excinfo.value.details == {
+            "fields": [{"field": "url", "message": excinfo.value.message}]
+        }
         repo.update.assert_not_called()
 
     @pytest.mark.anyio
@@ -2114,6 +2124,187 @@ class TestOAuthRefusalsDoNotQuoteTheServer:
         assert "at-secret-9f2c" not in shown
         assert "ValidationError" in shown
         assert "at-secret-9f2c" in caplog.text
+
+
+class TestAUrlNoRequestCanBeBuiltFor:
+    """A discovery document may name a URL `httpx` will not parse at all, and
+    that is the third-party server being malformed rather than this platform
+    being broken - so it answers the 400 every other bad document answers.
+
+    `httpx.InvalidURL` derives from `Exception` rather than from
+    `httpx.HTTPError`, so it escaped all three of this module's catches and
+    reached the unhandled-exception handler as a 500 with an empty body (#889).
+    Neither `app.core.sanitize` nor `PinnedAsyncClient` could have stopped it:
+    both need a request, and this is the failure to build one.
+
+    Two shapes reach here, and both are the remote server's text. A bad port
+    survives `urlparse` and is quoted back by `InvalidURL` - `Invalid port:
+    'client_secret=…'` - which is what decides the wording. An endpoint over
+    64 KiB survives `AnyHttpUrl` too, so it is the shape that reaches a stored
+    `token_endpoint` and a `registration_endpoint` after discovery has already
+    accepted the document.
+    """
+
+    _SERVER = "https://93.184.216.34/mcp"
+    _BAD_PORT = (
+        "https://auth.example.com:client_secret=sh-9f2c/.well-known/oauth-protected-resource"
+    )
+    _TOO_LONG = "https://93.184.216.35/token?p=" + "p" * 70_000
+
+    @staticmethod
+    def _serving(monkeypatch, handler) -> None:
+        """Point every client `discover` opens at *handler* instead of a network."""
+        real = mcp_oauth._client
+        monkeypatch.setattr(mcp_oauth, "_client", lambda: real(httpx.MockTransport(handler)))
+
+    @classmethod
+    def _hinting_at_the_bad_port(cls, request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            return httpx.Response(
+                401,
+                headers={"WWW-Authenticate": f'Bearer resource_metadata="{cls._BAD_PORT}"'},
+                json={},
+            )
+        return httpx.Response(404, json={})
+
+    @staticmethod
+    def _metadata(token_endpoint: str) -> dict[str, object]:
+        return {
+            "issuer": "https://93.184.216.35",
+            "authorization_endpoint": "https://93.184.216.35/authorize",
+            "token_endpoint": token_endpoint,
+            "response_types_supported": ["code"],
+        }
+
+    @pytest.mark.anyio
+    async def test_a_www_authenticate_hint_with_an_unusable_port_does_not_crash_discovery(
+        self, monkeypatch
+    ):
+        """The header is remote-controlled text that reaches `httpx.Request`
+        before anything here sees it. It used to raise `InvalidURL` out of
+        `discover`; now the candidate is skipped and the flow gives the answer
+        it gives for a server with no metadata."""
+        seen: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(str(request.url))
+            return self._hinting_at_the_bad_port(request)
+
+        self._serving(monkeypatch, handler)
+        with pytest.raises(mcp_oauth.OAuthError) as exc_info:
+            await mcp_oauth.discover(self._SERVER)
+
+        assert "did not advertise OAuth metadata" in str(exc_info.value)
+        assert "sh-9f2c" not in str(exc_info.value)
+        # The hint was never requested; the well-known URIs after it still were.
+        assert seen == [
+            self._SERVER,
+            "https://93.184.216.34/.well-known/oauth-protected-resource/mcp",
+            "https://93.184.216.34/.well-known/oauth-protected-resource",
+            "https://93.184.216.34/.well-known/oauth-authorization-server",
+        ]
+
+    @pytest.mark.anyio
+    async def test_an_unusable_hint_ends_that_candidate_and_not_the_flow(self, monkeypatch):
+        """The hint is the first of three candidates and the other two are
+        derived from the URL an operator typed, so a server that writes its
+        `WWW-Authenticate` header badly and its well-known documents correctly
+        still connects."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/.well-known/oauth-protected-resource":
+                return httpx.Response(
+                    200,
+                    json={
+                        "resource": "https://93.184.216.34/mcp",
+                        "authorization_servers": ["https://93.184.216.35"],
+                    },
+                )
+            if request.url.path == "/.well-known/oauth-authorization-server":
+                return httpx.Response(200, json=self._metadata("https://93.184.216.35/token"))
+            return self._hinting_at_the_bad_port(request)
+
+        self._serving(monkeypatch, handler)
+        server = await mcp_oauth.discover(self._SERVER)
+
+        assert server.token_endpoint == "https://93.184.216.35/token"
+        assert server.authorization_endpoint == "https://93.184.216.35/authorize"
+
+    @pytest.mark.anyio
+    async def test_a_token_endpoint_discovery_accepted_but_httpx_will_not_build(
+        self, monkeypatch, caplog
+    ):
+        """`AnyHttpUrl` has no length limit and `httpx` stops at 64 KiB, which
+        is how an endpoint the metadata document was validated with reaches the
+        vault and comes back at every refresh. The refresh path answers `None`
+        on an `OAuthError` and a 500 on anything else."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/.well-known/oauth-protected-resource":
+                return httpx.Response(
+                    200,
+                    json={
+                        "resource": "https://93.184.216.34/mcp",
+                        "authorization_servers": ["https://93.184.216.35"],
+                    },
+                )
+            if request.url.path == "/.well-known/oauth-authorization-server":
+                return httpx.Response(200, json=self._metadata(self._TOO_LONG))
+            return httpx.Response(404, json={})
+
+        self._serving(monkeypatch, handler)
+        server = await mcp_oauth.discover(self._SERVER)
+        assert server.token_endpoint == self._TOO_LONG
+
+        with (
+            caplog.at_level(logging.WARNING, logger="app.agents.mcp_oauth"),
+            pytest.raises(mcp_oauth.OAuthError) as exc_info,
+        ):
+            await mcp_oauth._token_request(server.token_endpoint, {"grant_type": "refresh_token"})
+
+        assert "a token endpoint" in str(exc_info.value)
+        assert "URL too long" in caplog.text
+
+    @pytest.mark.anyio
+    async def test_a_registration_endpoint_no_request_can_be_built_for_is_refused(self):
+        """`create_client_registration_request` sits above the client, so this
+        one raised before the flow's `except httpx.HTTPError` was even entered."""
+        metadata = OAuthMetadata(
+            issuer=AnyUrl("https://auth.example.com"),
+            authorization_endpoint=AnyUrl("https://auth.example.com/authorize"),
+            token_endpoint=AnyUrl("https://auth.example.com/token"),
+            registration_endpoint=AnyUrl(self._TOO_LONG),
+            response_types_supported=["code"],
+        )
+        server = mcp_oauth.DiscoveredServer(
+            authorization_endpoint=str(metadata.authorization_endpoint),
+            token_endpoint=str(metadata.token_endpoint),
+            registration_endpoint=str(metadata.registration_endpoint),
+            resource="https://mcp.example.com/",
+            scope=None,
+            metadata=metadata,
+        )
+        with pytest.raises(mcp_oauth.OAuthError) as exc_info:
+            await mcp_oauth.register_client(server, "https://app.example.com/oauth/callback")
+
+        assert "a registration endpoint" in str(exc_info.value)
+
+    @pytest.mark.anyio
+    async def test_the_refusal_does_not_quote_the_port_it_could_not_parse(self, caplog):
+        """`InvalidURL` says `Invalid port: 'client_secret=sh-9f2c'`, and on this
+        flow that string was written by the server being refused. It stays in
+        the log; the browser is told which endpoint was unusable and no more."""
+        endpoint = "https://auth.example.com:client_secret=sh-9f2c/token"
+        with (
+            caplog.at_level(logging.WARNING, logger="app.agents.mcp_oauth"),
+            pytest.raises(mcp_oauth.OAuthError) as exc_info,
+        ):
+            await mcp_oauth._token_request(endpoint, {"grant_type": "authorization_code"})
+
+        shown = str(exc_info.value)
+        assert "sh-9f2c" not in shown
+        assert "auth.example.com" not in shown
+        assert "sh-9f2c" in caplog.text
 
 
 class TestReadSchema:

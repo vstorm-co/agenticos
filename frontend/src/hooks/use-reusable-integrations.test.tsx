@@ -31,6 +31,7 @@ function source(overrides: Partial<SyncSourceRead> = {}): SyncSourceRead {
     connector_type: "gdrive",
     collection_name: null,
     config: { folder_id: "abc" },
+    secret_id: null,
     sync_mode: "full",
     schedule_minutes: null,
     is_active: true,
@@ -125,10 +126,12 @@ describe("useReusableIntegrations", () => {
     );
   });
 
-  it("hands a rejected configuration back to the caller", async () => {
+  it("hands a rejected configuration back to the caller without announcing it", async () => {
     // The connector validates the config server-side, and its refusal names the
     // field. Swallowing it here would close the wizard on the step holding the
-    // answer and leave the reader with a list that did not grow.
+    // answer and leave the reader with a list that did not grow; toasting it
+    // would say the same thing where the input cannot be reached (#897).
+    const { toast } = await import("sonner");
     vi.mocked(apiClient.post).mockRejectedValue(new Error("Invalid connector config: bucket"));
     const { result } = await loaded([]);
 
@@ -136,6 +139,7 @@ describe("useReusableIntegrations", () => {
       result.current.create({ name: "S3", connector_type: "s3", config: {} }),
     ).rejects.toThrow("Invalid connector config: bucket");
     expect(result.current.integrations).toEqual([]);
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("clones through the destination knowledge base and keeps the original", async () => {
@@ -214,11 +218,6 @@ describe("useReusableIntegrations", () => {
     vi.mocked(apiClient.delete).mockRejectedValue("boom");
     const { result } = renderHook(() => useReusableIntegrations(ORG_ID), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    await expect(
-      result.current.create({ name: "x", connector_type: "gdrive", config: {} }),
-    ).rejects.toBeTruthy();
-    expect(toast.error).toHaveBeenCalledWith("Failed to save integration");
 
     await act(async () => {
       await result.current.remove("s1");

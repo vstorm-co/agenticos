@@ -24,6 +24,7 @@ vi.mock("@/hooks", () => ({
   usePermissions: () => ({ can: (p: string) => p !== "agents:view" || perm.agentsView }),
   useAgents: () => ({ agents: [{ id: "agent-1", name: "Support agent" }], isLoading: false }),
   useAgentVersions: () => ({ versions: [{ id: "ver-1", version: 1 }], isLoading: false }),
+  useAllAgentVersions: () => ({ versions: [{ id: "ver-1", version: 1 }], isLoading: false }),
   useMembers: () => ({ members: [] }),
   // The model facet's vocabulary is the window's own labels; an empty window
   // renders no select at all, which is what these gate specs expect.

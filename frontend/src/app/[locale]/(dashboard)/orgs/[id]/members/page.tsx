@@ -444,7 +444,16 @@ export default function OrgMembersPage({ params }: PageProps) {
                         wrong word for it and its limits are what matter. */}
                     {inv.email === null ? (
                       <>
-                        {t("usedOfMax", { used: inv.used_count ?? 0, max: inv.max_uses ?? "∞" })}
+                        {/* The sum, because that is what the ceiling compares:
+                            registering through a link spends a use, since joining
+                            needs a session and happens later. */}
+                        {t("usedOfMax", {
+                          used: (inv.used_count ?? 0) + (inv.reserved_count ?? 0),
+                          max: inv.max_uses ?? "∞",
+                        })}
+                        {inv.reserved_count ? (
+                          <> · {t("awaitingSignup", { count: inv.reserved_count })}</>
+                        ) : null}
                         {inv.email_domain && (
                           <> · {t("domainOnly", { domain: inv.email_domain })}</>
                         )}

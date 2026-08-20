@@ -25,7 +25,14 @@ export const qk = {
     /** `includeArchived` is part of the key: the two lists are different rows. */
     list: (includeArchived = false) => ["agents", "list", includeArchived] as const,
     detail: (id: string) => ["agents", id] as const,
-    versions: (id: string) => ["agents", id, "versions"] as const,
+    // The page is part of the key: a history past its page size is several
+    // answers, and caching one as another shows the wrong decade of the timeline.
+    versions: (id: string, skip = 0, limit = 50) =>
+      ["agents", id, "versions", skip, limit] as const,
+    // Every version, walked page by page - what the pickers read. Its own key
+    // rather than one page's, because it is one answer assembled from several and
+    // caching it as a page would hand a pager the whole history.
+    allVersions: (id: string) => ["agents", id, "versions", "all"] as const,
     delegationTree: (id: string) => ["agents", id, "delegation-tree"] as const,
     version: (id: string, versionId: string) => ["agents", id, "versions", versionId] as const,
     capabilityCatalog: () => ["agents", "capability-catalog"] as const,
@@ -60,6 +67,10 @@ export const qk = {
     // provider because that is what is fetched - a shared key would make
     // switching provider serve the previous one's list.
     models: (providerId: string) => ["providers", providerId, "models"] as const,
+    // Which providers can draw an image and what each may be asked to draw with.
+    // One request rather than the catalog plus a listing per provider: which
+    // models qualify is a rule the SDK enforces, so the server answers it.
+    imageModels: () => ["providers", "image-models"] as const,
   },
   secrets: {
     all: () => ["secrets"] as const,
@@ -121,6 +132,10 @@ export const qk = {
     // two different answers.
     transcript: (runId: string, scope: "run" | "conversation" = "run") =>
       ["runs", runId, "transcript", scope] as const,
+    // What the run handed its model. Its own key like the transcript's, and for
+    // the same reason: a different body from the run row, written once when the
+    // run ends and never invalidated by anything the run row is invalidated by.
+    manifest: (runId: string) => ["runs", runId, "manifest"] as const,
     // A separate key from `list`, because it is a separate question: `list`
     // answers "the top level", this answers "what did this run delegate", and
     // caching one as the other would show a run's children as the whole history.
@@ -256,6 +271,13 @@ export const qk = {
     // or a workspace - so it is keyed on nothing but the file's own id.
     text: (fileId: string) => ["attachment", fileId, "text"] as const,
     bytes: (fileId: string) => ["attachment", fileId, "bytes"] as const,
+    // The same file read through a run rather than through its uploader, and
+    // keyed apart on purpose: the two addresses authorise different callers, so a
+    // reviewer's 200 must not be answered from a cache entry a 404 wrote.
+    runText: (runId: string, fileId: string) =>
+      ["attachment", "run", runId, fileId, "text"] as const,
+    runBytes: (runId: string, fileId: string) =>
+      ["attachment", "run", runId, fileId, "bytes"] as const,
   },
   rag: {
     // Keyed on the organization: a sync source names a collection and a remote
@@ -364,5 +386,16 @@ export const qk = {
     // last one's chart.
     ratings: (params: { from?: string; to?: string }) => ["admin", "ratings", params] as const,
     organizations: () => ["admin", "organizations"] as const,
+    // This deployment's own identity and access policy, as its administrator
+    // edits it. Distinct from `branding.notice()` below, which is the same row
+    // read by everybody: invalidating one must not refetch the other, since the
+    // form and the banner answer different questions about it.
+    settings: () => ["admin", "settings"] as const,
+  },
+  branding: {
+    // The announcement banner. Not the public branding read - that one is
+    // resolved on the server above `[locale]` and handed down through a context,
+    // so it never enters the query cache at all.
+    notice: () => ["branding", "notice"] as const,
   },
 } as const;

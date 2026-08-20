@@ -1,15 +1,29 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, Calendar, Check, Cog, Copy, Plus, Plug } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Calendar,
+  Check,
+  Cog,
+  Copy,
+  KeyRound,
+  Plug,
+  Plus,
+} from "lucide-react";
+import { toast } from "sonner";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, Spinner } from "@/components/ui";
+import { getErrorMessage, submitFailure } from "@/lib/api-error";
 import { CloneStep } from "@/components/rag/sync-source-clone-step";
 import { ConfigureStep } from "@/components/rag/sync-source-configure-step";
+import { CredentialStep } from "@/components/rag/sync-source-credential-step";
 import { ConnectorStep } from "@/components/rag/sync-source-connector-step";
 import { ScheduleStep } from "@/components/rag/sync-source-schedule-step";
 import type { ConnectorInfo, SyncSourceCreate, SyncSourceRead } from "@/lib/rag-api";
 import { cn } from "@/lib/utils";
+import { DIALOG_FORM } from "@/lib/dialog-widths";
 import { useChanged } from "@/hooks/use-changed";
 import { useTranslations } from "next-intl";
 
@@ -38,20 +52,28 @@ interface SyncSourceWizardProps {
 }
 
 type Mode = "new" | "clone";
-type Step = "source" | "configure" | "schedule";
+type Step = "source" | "configure" | "credential" | "schedule";
 
 /** Each step's word is in the catalog; `words` names the key. */
 const STEPS: { id: Step; words: string; icon: typeof Plug }[] = [
   { id: "source", words: "stepSource", icon: Plug },
   { id: "configure", words: "stepConfigure", icon: Cog },
+  // Between the configuration and the schedule, because it is the one thing a
+  // source needs that is not configuration: the credential is a vault secret it
+  // references, not a field it carries (#937).
+  { id: "credential", words: "stepCredential", icon: KeyRound },
   { id: "schedule", words: "stepSchedule", icon: Calendar },
 ];
+
+/** One spelling of "nothing is wrong with this config", for all three places. */
+const NO_ERRORS: Readonly<Record<string, string>> = {};
 
 const EMPTY_FORM: SyncSourceCreate = {
   name: "",
   connector_type: "",
   collection_name: null,
   config: {},
+  secret_id: null,
   sync_mode: "full",
   schedule_minutes: null,
 };
@@ -70,6 +92,7 @@ export function SyncSourceWizard({
   submitting,
 }: SyncSourceWizardProps) {
   const t = useTranslations("rag");
+  const tErrors = useTranslations("errors");
   const [mode, setMode] = useState<Mode>("new");
   const [step, setStep] = useState<Step>("source");
   const [form, setForm] = useState<SyncSourceCreate>({
@@ -78,6 +101,21 @@ export function SyncSourceWizard({
   });
   const [cloneSourceId, setCloneSourceId] = useState<string>("");
   const [cloneName, setCloneName] = useState<string>("");
+  const [configErrors, setConfigErrors] = useState<Readonly<Record<string, string>>>(NO_ERRORS);
+  /**
+   * Which filling-in of this wizard is on screen, counted from the first.
+   *
+   * A submission is answered after an `await`, by which time the dialog may
+   * have been dismissed and reopened - the X and Escape stay live while a
+   * create is pending. A ref rather than state because the answer has to read
+   * what is true *now*, not the value its closure captured when it was sent;
+   * an effect rather than the reset below because a ref may not be written
+   * during render, and nothing renders from this one anyway.
+   */
+  const session = useRef(0);
+  useEffect(() => {
+    if (open) session.current += 1;
+  }, [open]);
 
   // Reopening starts from the beginning, during render - an effect would show
   // the last wizard's answers for a frame before clearing them.
@@ -93,11 +131,24 @@ export function SyncSourceWizard({
     setForm({ ...EMPTY_FORM, collection_name: defaultCollection ?? null });
     setCloneSourceId("");
     setCloneName("");
+    setConfigErrors(NO_ERRORS);
   }
 
   const selectedConnector = useMemo(
     () => connectors.find((c) => c.type === form.connector_type),
     [connectors, form.connector_type],
+  );
+
+  // Which of the server's complaints this wizard can show beside an input. The
+  // backend reports them below the document it was sent - `config.folder_id` -
+  // and `submitFailure` matches a path by its leaf as well as in full.
+  //
+  // `secret_id` is in the list because it is a field of the form now rather than
+  // a member of `config_schema`, and a refusal about a field nothing claims is a
+  // refusal that becomes a toast (#937).
+  const configFields = useMemo(
+    () => [...Object.keys(selectedConnector?.config_schema ?? {}), "secret_id"],
+    [selectedConnector],
   );
 
   const stepIdx = STEPS.findIndex((s) => s.id === step);
@@ -130,9 +181,57 @@ export function SyncSourceWizard({
         return v !== undefined && v !== null && v !== "";
       });
     }
+    if (step === "credential") {
+      // A connector needing no credential advances with nothing chosen; one that
+      // needs a kind will not sync without it, so the wizard asks here rather
+      // than letting the source be created and fail in a worker.
+      if (!selectedConnector) return false;
+      return selectedConnector.secret_kind === "none" || Boolean(form.secret_id);
+    }
     if (step === "schedule") return true;
     return false;
   })();
+
+  /**
+   * Submit, and put a refusal back where it can be answered.
+   *
+   * The mutation is three steps behind the field that caused it: a connector
+   * refusing a folder id is refusing something typed on the configure step,
+   * and the reader is looking at the schedule step when it answers. So the
+   * problems the server attributed to config fields go back to that step, with
+   * it, and only what belongs to no input is announced.
+   *
+   * Unless the reader left. Dismissing the dialog mid-flight and reopening it
+   * starts a new session, and the abandoned request's refusal is about a form
+   * that no longer exists: marking an input or moving a step on the strength of
+   * it would send somebody to fix a field they never filled in, on a wizard
+   * whose connector is not even chosen yet. It is still said - a create that
+   * failed is not nothing - and nothing else is touched.
+   */
+  const handleSubmit = async () => {
+    const submittedIn = session.current;
+    setConfigErrors(NO_ERRORS);
+    try {
+      await onSubmit({
+        ...form,
+        collection_name: form.collection_name ?? defaultCollection ?? null,
+      });
+    } catch (error) {
+      if (session.current !== submittedIn) {
+        toast.error(getErrorMessage(error, tErrors));
+        return;
+      }
+      const failure = submitFailure(error, { fields: configFields }, tErrors);
+      setConfigErrors(failure.fields);
+      // To the step that holds the field, not always to `configure`: the
+      // credential is its own step since #937, and jumping to the configuration
+      // for a refused `secret_id` marks an input that is not on screen - which
+      // is the same defect #897 fixed by moving the message out of a toast.
+      const named = Object.keys(failure.fields);
+      if (named.length > 0) setStep(named.includes("secret_id") ? "credential" : "configure");
+      if (failure.toast) toast.error(failure.toast);
+    }
+  };
 
   const handleNext = () => {
     if (!canAdvance) return;
@@ -141,21 +240,22 @@ export function SyncSourceWizard({
       return;
     }
     if (step === "source") setStep("configure");
-    else if (step === "configure") setStep("schedule");
-    else if (step === "schedule")
-      onSubmit({ ...form, collection_name: form.collection_name ?? defaultCollection ?? null });
+    else if (step === "configure") setStep("credential");
+    else if (step === "credential") setStep("schedule");
+    else if (step === "schedule") handleSubmit();
   };
 
   const handleBack = () => {
     if (step === "configure") setStep("source");
-    else if (step === "schedule") setStep("configure");
+    else if (step === "credential") setStep("configure");
+    else if (step === "schedule") setStep("credential");
   };
 
   const isLastStep = mode === "clone" || step === "schedule";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-hidden p-0 sm:max-w-2xl">
+      <DialogContent className={cn("max-h-[90vh] overflow-hidden p-0", DIALOG_FORM)}>
         <DialogHeader className="border-foreground/10 border-b px-6 py-4">
           <DialogTitle className="text-base font-semibold">{t("addSyncSource")}</DialogTitle>
 
@@ -258,7 +358,29 @@ export function SyncSourceWizard({
                 />
               )}
               {step === "configure" && selectedConnector && (
-                <ConfigureStep connector={selectedConnector} form={form} setForm={setForm} />
+                <ConfigureStep
+                  connector={selectedConnector}
+                  form={form}
+                  // Editing an input drops its mark, the way every other form
+                  // here does: a refusal about a value that has since been
+                  // changed is a refusal about nothing.
+                  setForm={(update) => {
+                    setConfigErrors(NO_ERRORS);
+                    setForm(update);
+                  }}
+                  errors={configErrors}
+                />
+              )}
+              {step === "credential" && selectedConnector && (
+                <CredentialStep
+                  connector={selectedConnector}
+                  form={form}
+                  setForm={(update) => {
+                    setConfigErrors(NO_ERRORS);
+                    setForm(update);
+                  }}
+                  error={configErrors.secret_id}
+                />
               )}
               {step === "schedule" && (
                 <ScheduleStep collections={collections} form={form} setForm={setForm} />

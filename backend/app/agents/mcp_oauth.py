@@ -64,6 +64,40 @@ class OAuthError(Exception):
     """A recoverable failure in the OAuth flow (surfaced to the user)."""
 
 
+def _unusable_url(exc: httpx.InvalidURL, what: str) -> OAuthError:
+    """The refusal for an endpoint no request can be built for.
+
+    `httpx.InvalidURL` derives from `Exception` rather than from
+    `httpx.HTTPError`, so a catch written for a request that failed does not see
+    one that was never made - and a discovery document naming
+    `https://host:client_secret=sh-key/token` answered 500 with an empty body
+    instead of the refusal every other malformed document gets (#889). No check
+    written here could have reached it: `httpx` gives up while parsing the URL,
+    above both `PinnedAsyncClient` and `app.core.sanitize`.
+
+    Deliberately not the blocked-address refusal :func:`_send` raises, the same
+    separation #875 made: that one says this server aimed the flow somewhere the
+    deployment will not go, and this one that it wrote an address nothing can
+    dial. Reporting either as the other is a confident claim about whose fault a
+    failure was.
+
+    `InvalidURL` quotes what it could not parse - `Invalid port:
+    'client_secret=sh-key'`, `Invalid IDNA hostname: ...` - and on this flow that
+    text was written by the server being refused, so it stays in the log line
+    here and what is shown names only which endpoint was unusable.
+    """
+    logger.warning("MCP OAuth: %s cannot be requested: %s", what, exc)
+    return OAuthError(f"This server named {what} that cannot be requested - it is malformed.")
+
+
+_DISCOVERY_FAILURES = (httpx.HTTPError, httpx.InvalidURL, OAuthError)
+"""What ends one discovery candidate rather than the whole flow.
+
+`httpx.InvalidURL` is named because it is not an `httpx.HTTPError` and a catch
+that omits it is #889 again - see :func:`_unusable_url`.
+"""
+
+
 def _flow_failed(exc: Exception, *, summary: str, advice: str) -> str:
     """The sentence a failed OAuth step may show, for an exception it may not.
 
@@ -186,6 +220,11 @@ async def discover(server_url: str) -> DiscoveredServer:
     Follows the SEP-985 / RFC 9728 discovery chain: read the protected-resource
     metadata (from the `WWW-Authenticate` header if present, else well-known
     URIs), then the authorization-server metadata (RFC 8414, OIDC fallbacks).
+
+    A candidate the server named so badly that no request can be built for it
+    ends that candidate rather than the flow, like a candidate that answered
+    404: the `WWW-Authenticate` hint is the first of three, and the well-known
+    URIs after it are derived from the URL an operator typed (#889).
     """
     async with _client() as client:
         # 1. Probe the server unauthenticated to surface the WWW-Authenticate hint.
@@ -210,7 +249,7 @@ async def discover(server_url: str) -> DiscoveredServer:
                 ),
             )
             www_auth_url = extract_resource_metadata_from_www_auth(probe)
-        except (httpx.HTTPError, OAuthError):
+        except _DISCOVERY_FAILURES:
             # Probe failed or was blocked - fall back to well-known discovery below.
             pass
 
@@ -222,7 +261,7 @@ async def discover(server_url: str) -> DiscoveredServer:
                 prm = await handle_protected_resource_response(
                     await _send(client, create_oauth_metadata_request(url))
                 )
-            except (httpx.HTTPError, OAuthError):
+            except _DISCOVERY_FAILURES:
                 continue
             if prm and prm.authorization_servers:
                 auth_server_url = str(prm.authorization_servers[0])
@@ -240,7 +279,7 @@ async def discover(server_url: str) -> DiscoveredServer:
                 keep_going, candidate = await handle_auth_metadata_response(
                     await _send(client, create_oauth_metadata_request(url))
                 )
-            except (httpx.HTTPError, OAuthError):
+            except _DISCOVERY_FAILURES:
                 continue
             if candidate is not None:
                 asm = candidate
@@ -285,9 +324,12 @@ async def register_client(server: DiscoveredServer, redirect_uri: str) -> tuple[
     secret and use PKCE alone.
     """
     metadata = client_metadata(redirect_uri, server.scope)
-    request = create_client_registration_request(
-        server.metadata, metadata, server.authorization_endpoint
-    )
+    try:
+        request = create_client_registration_request(
+            server.metadata, metadata, server.authorization_endpoint
+        )
+    except httpx.InvalidURL as exc:
+        raise _unusable_url(exc, "a registration endpoint") from exc
     async with _client() as client:
         try:
             info = await handle_registration_response(await _send(client, request))
@@ -390,15 +432,16 @@ async def refresh_tokens(
 async def _token_request(token_endpoint: str, data: dict[str, str]) -> OAuthToken:
     async with _client() as client:
         try:
-            response = await _send(
-                client,
-                client.build_request(
-                    "POST",
-                    token_endpoint,
-                    data=data,
-                    headers={"Content-Type": "application/x-www-form-urlencoded"},
-                ),
+            request = client.build_request(
+                "POST",
+                token_endpoint,
+                data=data,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
+        except httpx.InvalidURL as exc:
+            raise _unusable_url(exc, "a token endpoint") from exc
+        try:
+            response = await _send(client, request)
         except httpx.HTTPError as exc:
             logger.exception("MCP token request to %s failed", token_endpoint)
             raise OAuthError(

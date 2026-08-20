@@ -391,8 +391,13 @@ test-cov:
 # Everything, including template-inherited subsystems. Informational: those are
 # not held to the platform bar, because mock-heavy tests over code we did not
 # design buy a number rather than confidence.
+#
+# It runs across workers like every other suite here. It was the one that did not,
+# which made it the longest step in the `test` job - 14m46s of the 25 that job is
+# allowed, against 8m39s for the gated suite beside it - so a runner about three
+# times slower than usual took the whole job past its bound (#879).
 coverage-all:
-	uv run --directory backend pytest tests/ -q --cov=app --cov-report=term-missing --cov-fail-under=0
+	uv run --directory backend pytest tests/ -q --cov=app --cov-report=term-missing --cov-fail-under=0 -n auto --maxprocesses 4
 
 test-frontend:
 	cd frontend && bun run test:run
@@ -679,7 +684,7 @@ vercel-deploy:
 	@echo "   NEXT_PUBLIC_API_URL=https://api.your-domain.com"
 	@echo "   NEXT_PUBLIC_WS_URL=wss://api.your-domain.com"
 	@echo "   NEXT_PUBLIC_SITE_URL=https://app.your-domain.com"
-	@echo "   NEXT_PUBLIC_MAX_UPLOAD_SIZE_MB=50"
+	@echo "   NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB=10"
 	@echo "   NEXT_PUBLIC_OAUTH_PROVIDERS=google"
 	@echo "   NEXT_PUBLIC_RAG_ENABLED=true"
 

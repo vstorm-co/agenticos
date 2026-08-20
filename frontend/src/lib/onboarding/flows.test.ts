@@ -159,8 +159,10 @@ describe("FLOWS", () => {
     // answer happens rather than over the builder.
     expect(byId.get("flow-agent-knowledge-ask")?.page).toBe(ROUTES.RAG);
     expect(byId.get("flow-agent-skills-ask")?.page).toBe(ROUTES.SKILLS);
-    // MCP connects inline, so its "screen" is the Toolbox tab it reveals.
-    expect(byId.get("flow-agent-mcp-ask")?.activate).toBe("agent-tab-toolbox");
+    // MCP connects inline, so its "screen" is the tab it reveals - its own
+    // since the servers left the Toolbox, which is where the connect button
+    // the yes points at now lives.
+    expect(byId.get("flow-agent-mcp-ask")?.activate).toBe("agent-tab-mcp");
   });
 
   it("teaches the return leg by click, not by navigating for the reader", () => {

@@ -13,7 +13,7 @@ is why every write in this API used to be acknowledged before it was durable
 """
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from typing import Annotated
 
 from fastapi import Depends
@@ -874,13 +874,30 @@ def get_embedding_service(request: Request) -> EmbeddingService:
 EmbeddingSvc = Annotated[EmbeddingService, Depends(get_embedding_service)]
 
 
-def get_vectorstore(request: Request, embedder: EmbeddingSvc) -> BaseVectorStore:
-    """Get vector store client from lifespan state or create new."""
+async def get_vectorstore(
+    request: Request, embedder: EmbeddingSvc
+) -> AsyncGenerator[BaseVectorStore, None]:
+    """The store this request reads, from the lifespan or built for the request.
+
+    The lifespan builds one for the process and disposes it at shutdown. It is
+    absent when that construction failed - the lifespan catches and logs
+    "pgvector connection failed" and carries on serving - and then this builds
+    one per request, each with a pooled engine of its own. Undisposed, that is a
+    degraded deployment answering knowledge-base requests by consuming its
+    remaining Postgres connections a handful at a time (#948), so a store built
+    here is closed when the request ends. The lifespan's is not: it does not
+    belong to this request.
+    """
     if hasattr(request.state, "vector_store"):
-        return request.state.vector_store  # type: ignore[no-any-return]
-    return PgVectorStore(
+        yield request.state.vector_store
+        return
+    store = PgVectorStore(
         settings=settings.rag, embedding_service=embedder, resolver=embeddings_for_collection
     )
+    try:
+        yield store
+    finally:
+        await store.aclose()
 
 
 VectorStoreSvc = Annotated[BaseVectorStore, Depends(get_vectorstore)]
@@ -964,6 +981,16 @@ def get_admin_service(db: DBSession) -> AdminService:
 
 
 AdminSvc = Annotated[AdminService, Depends(get_admin_service)]
+from app.services.deployment_settings import DeploymentSettingsService
+
+
+def get_deployment_settings_service(db: DBSession) -> DeploymentSettingsService:
+    return DeploymentSettingsService(db)
+
+
+DeploymentSettingsSvc = Annotated[
+    DeploymentSettingsService, Depends(get_deployment_settings_service)
+]
 from app.services.mcp_connection import McpConnectionService
 
 

@@ -8,7 +8,12 @@ import { SchemaForm } from "@/components/agents/schema-form";
 import { SpecialistList } from "@/components/agents/specialist-list";
 import { Label, Switch } from "@/components/ui";
 import { useAgents, usePermissions } from "@/hooks";
-import { delegationNameClashes, readSubagentsConfig, SUBAGENTS_ID } from "@/lib/agent-spec";
+import {
+  delegationNameClashes,
+  readSubagentsConfig,
+  SUBAGENTS_ID,
+  unboundBinding,
+} from "@/lib/agent-spec";
 import type {
   CapabilityBindingSpec,
   CapabilityCatalogEntry,
@@ -41,6 +46,10 @@ interface SubagentsSectionProps {
   /** `spec.subagents` - top level, never in the config blob. */
   subagents: SubagentRef[];
   onChange: (binding: CapabilityBindingSpec) => void;
+  /** Forwarded to the panel, where the switch now lives - see `CapabilityDetail`. */
+  onToggleEnabled?: () => void;
+  /** Whether the caller may edit the spec at all - see `CapabilityDetail`. */
+  readOnly?: boolean;
   onSubagentsChange: (subagents: SubagentRef[]) => void;
   disabled?: boolean;
 }
@@ -69,6 +78,8 @@ export function SubagentsSection({
   subagents,
   onChange,
   onSubagentsChange,
+  onToggleEnabled,
+  readOnly,
   disabled,
 }: SubagentsSectionProps) {
   const t = useTranslations("agents");
@@ -94,7 +105,10 @@ export function SubagentsSection({
     onChange({ ...binding, config: { ...binding.config, ...patch } });
   };
 
-  return (
+  // Inside the panel's Settings tab rather than above the card, for the reason the
+  // workspace's are: these *are* delegation's configuration, and above the card
+  // they sat outside the one that names it.
+  const controls = (
     <div className="space-y-5">
       {/* The one state a switch cannot say on its own: the spec still carries
           delegates, publish still validates them, and none of them will ever be
@@ -159,19 +173,24 @@ export function SubagentsSection({
           onChange={(share_with_delegates) => setConfig({ share_with_delegates })}
         />
       </section>
-
-      {binding && (
-        <CapabilityDetail
-          binding={binding}
-          definition={definition}
-          onChange={onChange}
-          disabled={disabled}
-          // The three sections above *are* this capability's configuration; the
-          // generated form would draw the policy fields a second time.
-          hideConfigForm
-        />
-      )}
     </div>
+  );
+
+  // Rendered whether or not the capability is granted: the switch that grants it
+  // is on its title row, and the controls are inert until it is.
+  return (
+    <CapabilityDetail
+      binding={binding ?? unboundBinding(definition.id)}
+      definition={definition}
+      onChange={onChange}
+      onToggleEnabled={onToggleEnabled}
+      readOnly={readOnly}
+      disabled={disabled}
+      settingsExtra={controls}
+      // The three sections above *are* this capability's configuration; the
+      // generated form would draw the policy fields a second time.
+      hideConfigForm
+    />
   );
 }
 

@@ -16,13 +16,8 @@ import {
   Label,
 } from "@/components/ui";
 import { CategoryInput, categorySuggestions } from "@/components/skills/category-input";
-import {
-  FileTree,
-  FileViewer,
-  formatSize,
-  NewFileForm,
-  UploadButton,
-} from "@/components/skills/skill-files";
+import { FileEditor } from "@/components/files";
+import { FileTree, formatSize, NewFileForm, UploadButton } from "@/components/skills/skill-files";
 import { buildTree } from "@/lib/file-tree";
 import { readsAsText, resolveFileKind } from "@/lib/file-kinds";
 import { cn } from "@/lib/utils";
@@ -303,7 +298,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
                   onRemove={() => removeFile(pathOf(selected))}
                 />
               ) : (
-                <FileViewer
+                <FileEditor
                   name={BODY}
                   content={content}
                   canEdit
@@ -403,7 +398,7 @@ function PendingFilePane({ file, onRemove }: { file: File; onRemove: () => void 
   }
 
   return (
-    <FileViewer
+    <FileEditor
       name={path}
       content={text ?? ""}
       loading={text === null}

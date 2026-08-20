@@ -502,6 +502,42 @@ describe("registering, and resetting a password", () => {
     });
   });
 
+  it("forwards a refusal in the API's own envelope", async () => {
+    // Every refusal that matters here is an `AppException`, which answers
+    // `{"error": {...}}` and carries no `detail` - so reading `detail` and falling
+    // back to a generic code turned "this deployment is invite-only" into
+    // "registration failed", which says nothing about a rule somebody could satisfy.
+    vi.mocked(backendFetch).mockRejectedValue(
+      new BackendApiError(403, "Forbidden", {
+        error: {
+          code: "AUTHORIZATION_ERROR",
+          message: "This deployment is invite-only. Ask an administrator to invite you.",
+          details: null,
+        },
+      }),
+    );
+
+    const response = await register(request({}, { email: "a@example.com", password: "x" }));
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { message: expect.stringContaining("invite-only") },
+    });
+  });
+
+  it("forwards the invitation token the form was reached with", async () => {
+    // The body goes through whole, which is how the token reaches the sign-up policy
+    // without this route knowing what it is for.
+    vi.mocked(backendFetch).mockResolvedValue({ id: "u-3", email: "invited@acme.com" });
+
+    await register(
+      request({}, { email: "invited@acme.com", password: "secret", invitation_token: "tok" }),
+    );
+
+    const [, options] = vi.mocked(backendFetch).mock.calls.at(-1) ?? [];
+    expect(JSON.parse(String(options?.body))).toMatchObject({ invitation_token: "tok" });
+  });
+
   it("says registration failed when the refusal named no reason", async () => {
     vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(400, "Bad Request", null));
 

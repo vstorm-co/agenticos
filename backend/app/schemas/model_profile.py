@@ -113,6 +113,36 @@ class ProviderModelRead(BaseSchema):
     context_length: int | None = Field(
         default=None, description="Tokens the model accepts, where the provider says"
     )
+    output_modalities: list[str] = Field(
+        default_factory=list,
+        description=(
+            'What the model emits, where its provider states it - `["text"]`, '
+            '`["text", "image"]`. Empty means the listing says nothing, which is most of '
+            "them: absent is *not* text-only, so a client filtering on it must treat an empty "
+            "list as unknown rather than as a refusal."
+        ),
+    )
+
+
+class ImageModelRead(BaseSchema):
+    """One model that draws."""
+
+    id: str = Field(description="The id stored on the binding")
+    name: str = Field(description="What to show")
+    description: str = Field(description="When to reach for this one rather than another")
+
+
+class ImageProviderRead(BaseSchema):
+    """One provider that can draw, and what may be chosen on it."""
+
+    provider: str = Field(description="The catalog id, e.g. `openai`")
+    name: str = Field(description="What to show")
+    models: list[ImageModelRead]
+
+
+class ImageProviderList(BaseSchema):
+    items: list[ImageProviderRead]
+    total: int
 
 
 class ProviderModelList(BaseSchema):

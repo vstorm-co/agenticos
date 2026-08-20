@@ -82,15 +82,22 @@ async def _generate(toolset: Any, ctx: RunContext[AgentDeps], prompt: str = "a r
 
 
 def test_config_leaves_unset_settings_to_the_provider():
-    assert ImageGenerationConfig().to_tool_kwargs() == {}
+    # The default provider is OpenAI, which separates the model that calls the tool
+    # from the one that draws - so its `model` is always handed over, and it is the
+    # only kwarg an otherwise untouched config carries.
+    assert ImageGenerationConfig().to_tool_kwargs() == {"model": "gpt-image-2"}
+    assert ImageGenerationConfig(
+        provider="google", model="gemini-3-pro-image"
+    ).to_tool_kwargs() == ({})
     kwargs = ImageGenerationConfig(quality="high", size="1024x1024").to_tool_kwargs()
-    assert kwargs == {"quality": "high", "size": "1024x1024"}
+    assert kwargs == {"model": "gpt-image-2", "quality": "high", "size": "1024x1024"}
 
 
 def test_the_builder_reads_the_key_and_the_config():
     definition = get("image_generation")
     binding = CapabilityBinding(
-        capability_id="image_generation", config={"model": "google:gemini-3-pro-image"}
+        capability_id="image_generation",
+        config={"provider": "google", "model": "gemini-3-pro-image"},
     )
     built = definition.builder(
         _build_context(definition, binding, secret=ApiKeySecret(api_key="sk-image"))

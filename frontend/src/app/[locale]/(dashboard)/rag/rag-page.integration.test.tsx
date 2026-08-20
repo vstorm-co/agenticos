@@ -270,3 +270,42 @@ describe("search", () => {
     expect(screen.getByText("Vacations are requested through the portal.")).toBeInTheDocument();
   });
 });
+
+describe("the three tabs each show only their own section (#939)", () => {
+  it("shows the integrations panel instead of the base grid, not below it", async () => {
+    // The defect this covers: the base list used to render for *every* value
+    // that was not `search`, so choosing Integrations appended the panel under a
+    // grid three rows deep - which is the placement the tab exists to fix.
+    // The panel is gated on `connections:manage` - without it the section
+    // returns null and there would be nothing to tell apart from the grid.
+    perms.add("connections:manage");
+    mockApi([kb("kb-1", "Handbook", "handbook")]);
+    render(<RAGPage />, { wrapper });
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("tab", { name: "pages.kb.integrations" }));
+
+    expect(await screen.findByText("kb.reusableIntegrations")).toBeInTheDocument();
+    expect(screen.queryByText("pages.kb.bases")).not.toBeInTheDocument();
+  });
+
+  it("names the chosen tab in the URL, and leaves the default unnamed", async () => {
+    // The write half. `useUrlState` rewrites the query string through
+    // `setUrlParam`, so this reads the URL the page actually left behind.
+    mockApi([kb("kb-1", "Handbook", "handbook")]);
+    render(<RAGPage />, { wrapper });
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("tab", { name: "pages.kb.search" }));
+    expect(new URLSearchParams(window.location.search).get("tab")).toBe("search");
+
+    await user.click(screen.getByRole("tab", { name: "pages.kb.knowledgeBases" }));
+    expect(new URLSearchParams(window.location.search).get("tab")).toBeNull();
+  });
+
+  // The read half - a pasted `?tab=` opening that section - belongs to
+  // `useUrlState`, and `src/hooks/use-url-state.test.tsx` covers it. Asserting it
+  // here would mean substituting `useSearchParams`, which the global mock in
+  // `vitest.setup.ts` answers empty and wins: a test written that way passed
+  // while the page rendered its default, which is worse than not having it.
+});

@@ -11,7 +11,7 @@ from sqlalchemy import delete as sql_delete
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.rag_document import RAGDocument
+from app.db.models.rag_document import DocumentStatus, RAGDocument
 
 
 @dataclass(frozen=True)
@@ -84,7 +84,7 @@ async def create(
     filesize: int,
     filetype: str,
     storage_path: str,
-    status: str = "processing",
+    status: DocumentStatus = DocumentStatus.PROCESSING,
     organization_id: UUID | None = None,
     knowledge_base_id: UUID | None = None,
     ingestion_config: dict[str, object] | None = None,
@@ -116,7 +116,7 @@ async def update_status(
     db: AsyncSession,
     doc_id: UUID,
     *,
-    status: str,
+    status: DocumentStatus,
     error_message: str | None = None,
     vector_document_id: str | None = None,
     chunk_count: int | None = None,
@@ -200,7 +200,7 @@ async def counts_by_collection(
             RAGDocument.collection_name,
             func.count(),
             func.coalesce(func.sum(RAGDocument.chunk_count), 0),
-            func.count().filter(RAGDocument.status == "completed"),
+            func.count().filter(RAGDocument.status == DocumentStatus.DONE),
         )
         .where(RAGDocument.collection_name.in_(collections))
         .group_by(RAGDocument.collection_name)

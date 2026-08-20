@@ -6,7 +6,7 @@ import { Button, Spinner } from "@/components/ui";
 import { Send, Mic, MicOff, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { uploadFile, type FileUploadResponse } from "@/lib/file-api";
-import { MAX_UPLOAD_SIZE_MB } from "@/lib/utils";
+import { CHAT_MAX_UPLOAD_SIZE_MB } from "@/lib/utils";
 import { AttachmentCard, PendingAttachmentCard } from "./attachment-card";
 import {
   BUILTIN_COMMANDS,
@@ -16,7 +16,7 @@ import {
   type SlashCommandContext,
 } from "./slash-commands";
 import { SlashCommandPalette } from "./slash-command-palette";
-import { FileDropOverlay } from "./file-drop-overlay";
+import { FileDropOverlay } from "@/components/files";
 import { useChanged } from "@/hooks/use-changed";
 import { useFileDrop } from "@/hooks/use-file-drop";
 import { useTranslations } from "next-intl";
@@ -245,8 +245,8 @@ export function ChatInput({
   const uploadFiles = useCallback(
     async (files: File[], { pasted = false }: { pasted?: boolean } = {}) => {
       const accepted = files.filter((file) => {
-        if (file.size <= MAX_UPLOAD_SIZE_MB * 1024 * 1024) return true;
-        toast.error(t("fileTooLarge", { file: file.name, max: MAX_UPLOAD_SIZE_MB }));
+        if (file.size <= CHAT_MAX_UPLOAD_SIZE_MB * 1024 * 1024) return true;
+        toast.error(t("fileTooLarge", { file: file.name, max: CHAT_MAX_UPLOAD_SIZE_MB }));
         return false;
       });
       if (accepted.length === 0) return;
@@ -322,7 +322,11 @@ export function ChatInput({
 
   return (
     <form onSubmit={handleSubmit} className="relative">
-      <FileDropOverlay active={isDragging} maxSizeMb={MAX_UPLOAD_SIZE_MB} />
+      <FileDropOverlay
+        active={isDragging}
+        title={t("dropFilesAttach")}
+        hint={t("dropMaxSize", { max: CHAT_MAX_UPLOAD_SIZE_MB })}
+      />
       {showPalette && (
         <SlashCommandPalette
           commands={filteredCommands}

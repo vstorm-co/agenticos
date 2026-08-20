@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { attachmentAccess, getFileUrl, uploadFile } from "./file-api";
+import {
+  attachmentAccess,
+  getFileUrl,
+  getRunFileUrl,
+  runAttachmentAccess,
+  uploadFile,
+} from "./file-api";
 import { ApiError } from "./api-client";
 
 /**
@@ -134,5 +140,75 @@ describe("attachmentAccess", () => {
     const access = attachmentAccess(file);
 
     expect(access.textKey).not.toEqual(access.bytesKey);
+  });
+});
+
+/**
+ * The same attachment, addressed through the run whose turn it arrived with.
+ *
+ * `/files/{id}` is scoped to whoever uploaded it, so a colleague reviewing a
+ * run - which is the organization's right rather than its starter's - saw the
+ * cards and got a 404 from every preview. The run route authorises through the
+ * run and the conversation it sits in.
+ */
+describe("runAttachmentAccess", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const file = { id: "f-1", filename: "invoice.pdf" };
+
+  it("addresses the file through the run rather than through its uploader", () => {
+    expect(getRunFileUrl("r-9", "f-1")).toBe("/api/runs/r-9/files/f-1");
+  });
+
+  it("reads the bytes from the run's own route", async () => {
+    const blob = new Blob(["%PDF-"], { type: "application/pdf" });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, blob: () => Promise.resolve(blob) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await runAttachmentAccess("r-9", file).readBytes()).toBe(blob);
+    expect(fetchMock).toHaveBeenCalledWith("/api/runs/r-9/files/f-1", {
+      credentials: "include",
+    });
+  });
+
+  it("reads the text the same way", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 200, text: () => Promise.resolve("hello") }),
+    );
+
+    expect(await runAttachmentAccess("r-9", file).readText()).toEqual({
+      content: "hello",
+      truncated: false,
+    });
+  });
+
+  it("says a refused read was refused rather than rendering empty", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 403 }));
+
+    await expect(runAttachmentAccess("r-9", file).readText()).rejects.toThrow("HTTP 403");
+  });
+
+  it("downloads through the route, so the header decides the disposition", async () => {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+
+    await runAttachmentAccess("r-9", file).download();
+
+    const anchor = click.mock.instances[0] as HTMLAnchorElement;
+    expect(anchor.getAttribute("href")).toBe("/api/runs/r-9/files/f-1?disposition=attachment");
+    expect(anchor.download).toBe("invoice.pdf");
+    click.mockRestore();
+  });
+
+  it("keys apart from the uploader's own read of the same file", () => {
+    // Two addresses authorising different callers: a reviewer's 200 must not be
+    // answered from the cache entry the owner-scoped 404 wrote.
+    const throughRun = runAttachmentAccess("r-9", file);
+    const throughOwner = attachmentAccess(file);
+
+    expect(throughRun.bytesKey).not.toEqual(throughOwner.bytesKey);
+    expect(throughRun.textKey).not.toEqual(throughRun.bytesKey);
   });
 });

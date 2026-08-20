@@ -48,6 +48,7 @@ from app.agents.capabilities.compaction import (
 )
 from app.agents.capabilities.system_reminders import REMINDER_STATE_RESOURCE, ReminderState
 from app.agents.deps import AgentDeps, ApprovalCallback
+from app.agents.manifest import RecordingModel, RunRecorder
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import instrument_agent
 from app.agents.spec import AgentSpec
@@ -97,6 +98,10 @@ class BuiltAgent:
     # Callers introspect what an agent can actually do without knowing which
     # entries the factory adds unconditionally.
     capabilities: list[Any]
+    # What this agent handed its model, filled in as it runs. Read by whoever
+    # persists the run, for the same reason the ledger is: the surface that
+    # records what a run cost is the one that records what it was given.
+    recorder: RunRecorder
     model_label: str
     # What stops a tool loop. Pydantic AI applies its own default when a run is
     # started without limits, so this is never None: leaving it off would make
@@ -283,8 +288,12 @@ def build_agent(
     # parameter however it is spelled. See `ModelSettingsSpec`.
     model_settings = ModelSettings(**{**model_spec.params, **spec.model_settings.model_dump()})
 
+    # Wrapped, so what the provider is handed is written down as it is handed
+    # over. Reconstructing the prompt and the tool schemas from the spec
+    # afterwards would be a second implementation of everything above this line.
+    recorder = RunRecorder()
     agent = PydanticAgent[AgentDeps, str | DeferredToolRequests](
-        model=model_spec.build(),
+        model=RecordingModel(model_spec.build(), recorder),
         model_settings=model_settings,
         system_prompt=spec.instructions or "",
         # `str` first so the model answers in text; `DeferredToolRequests`
@@ -305,6 +314,7 @@ def build_agent(
         context=gauge,
         reminder_state=reminder_state,
         capabilities=configured,
+        recorder=recorder,
         model_label=model_spec.label,
         approval_required_tools=approval_required,
         usage_limits=UsageLimits(request_limit=spec.max_steps or DEFAULT_MAX_STEPS),

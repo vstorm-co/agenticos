@@ -1,12 +1,21 @@
 import type { MetadataRoute } from "next";
 
+import { readBranding } from "@/lib/branding-server";
 import { SITE } from "@/lib/seo";
 
-export default function manifest(): MetadataRoute.Manifest {
+/**
+ * The installed-app identity: what a home-screen icon is captioned with.
+ *
+ * Reads the settings row, like the root layout's metadata does, because a
+ * deployment somebody installed under its own name and finds captioned
+ * `agenticos` has been renamed everywhere except the one place it is a shortcut.
+ */
+export default async function manifest(): Promise<MetadataRoute.Manifest> {
+  const { appName, description } = await readBranding();
   return {
-    name: SITE.name,
-    short_name: SITE.name,
-    description: SITE.description,
+    name: appName,
+    short_name: appName,
+    description,
     start_url: "/",
     display: "standalone",
     orientation: "portrait",

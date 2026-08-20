@@ -63,8 +63,9 @@ async def create(
     name: str,
     connector_type: str,
     config: dict[str, object],
-    organization_id: UUID | None = None,
+    organization_id: UUID,
     collection_name: str | None = None,
+    secret_id: UUID | None = None,
     sync_mode: str = "new_only",
     schedule_minutes: int | None = None,
 ) -> SyncSource:
@@ -75,6 +76,7 @@ async def create(
         organization_id=organization_id,
         collection_name=collection_name,
         config=config,
+        secret_id=secret_id,
         sync_mode=sync_mode,
         schedule_minutes=schedule_minutes,
     )
@@ -88,12 +90,23 @@ async def update(
     source_id: UUID,
     **updates: object,
 ) -> SyncSource | None:
-    """Update a sync source with the given fields."""
+    """Update a sync source with the given fields.
+
+    A key that is present is written, `None` included. "Not provided" is a key
+    that is absent, which is what `app/db/updates.py` already decided before
+    calling: it keeps an explicit `None` for a nullable column and drops one a
+    `NOT NULL` column would refuse.
+
+    This used to skip every `None`, which made a nullable column unclearable -
+    `{"secret_id": null}` answered 200 and left the old credential attached, so a
+    source could not be detached from a vault secret through the API at all
+    (#937).
+    """
     source = await db.get(SyncSource, source_id)
     if not source:
         return None
     for key, value in updates.items():
-        if value is not None and hasattr(source, key):
+        if hasattr(source, key):
             setattr(source, key, value)
     await db.flush()
     return source

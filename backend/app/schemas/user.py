@@ -26,6 +26,21 @@ class UserCreate(UserBase):
 
     password: str = Field(min_length=8, max_length=128)
 
+    invitation_token: str | None = Field(default=None, max_length=64)
+    """The invitation this registration is arriving through, when there is one.
+
+    Only ever consulted by the sign-up policy, and only on a deployment that has
+    narrowed who may register: holding a live invitation is what admits an address
+    an `invite_only` deployment would otherwise refuse, and what overrides the
+    domain allow-list. It grants nothing else - joining the organization is still
+    `InvitationService.accept`, which the client calls once it has a session.
+
+    It exists because the token is the *only* proof available for a shareable link
+    with no address and no domain on it. Matching an invitation against the
+    submitted address cannot see one of those, so before this an operator who
+    closed sign-up had silently un-invited everybody holding one (#916).
+    """
+
 
 class UserUpdate(BaseSchema):
     """Schema for updating a user."""

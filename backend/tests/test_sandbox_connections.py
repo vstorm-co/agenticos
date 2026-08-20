@@ -36,7 +36,7 @@ from app.schemas.sandbox_connection import (
     SandboxConnectionCreate,
     SandboxConnectionUpdate,
     SandboxProbeRequest,
-    SandboxSessionList,
+    SandboxSessionUsage,
 )
 from app.services.sandbox_connection import (
     LOCAL_TOKEN_SECRET_NAME,
@@ -69,6 +69,27 @@ def _row(**overrides: object) -> MagicMock:
     for name, value in overrides.items():
         setattr(row, name, value)
     return row
+
+
+def _session(session_id: str, **overrides: object) -> dict[str, Any]:
+    """One session as `sandboxd` answers with it.
+
+    Whole rather than minimal, because the service builds a `SandboxSessionRead`
+    from it now instead of handing the mapping on for the route to validate
+    (#562) - so a fixture holding only the two keys a test asserts on describes a
+    payload that would already have failed at the response model.
+    """
+    session = {
+        "session_id": session_id,
+        "runtime": "coding",
+        "alive": True,
+        "state": "running",
+        "created_at": 1_756_000_000.0,
+        "last_activity": 1_756_000_060.0,
+        "idle_seconds": 60.0,
+    }
+    session.update(overrides)
+    return session
 
 
 def _service(monkeypatch, *, secret: Any = None) -> SandboxConnectionService:
@@ -161,7 +182,9 @@ class TestRegistering:
         with pytest.raises(BadRequestError) as refused:
             await service.create(_ctx(), SandboxConnectionCreate(name="Big box", kind="docker"))
 
-        assert refused.value.details["field"] == "base_url"
+        assert refused.value.details == {
+            "fields": [{"field": "base_url", "message": refused.value.message}]
+        }
 
     async def test_daytona_needs_no_address_of_its_own(self, monkeypatch):
         """Their API has one, and asking an operator to type it invites a typo in
@@ -384,8 +407,8 @@ class TestReadingThePolicy:
 
         policy = await service.policy(_ctx(), row.id)
 
-        assert policy["runtimes"] == [{"alias": "python"}]
-        assert policy["kind"] == "docker"
+        assert [runtime.alias for runtime in policy.runtimes] == ["python"]
+        assert policy.kind == "docker"
 
     async def test_the_token_is_sent_as_a_header_and_not_in_the_url(self, monkeypatch):
         """A token in a query string reaches every access log on the way."""
@@ -408,7 +431,8 @@ class TestReadingThePolicy:
 
         policy = await service.policy(_ctx(), row.id)
 
-        assert policy == {"runtimes": [], "kind": "daytona"}
+        assert policy.runtimes == []
+        assert policy.kind == "daytona"
 
     async def test_a_service_that_does_not_answer_is_distinguished_from_an_empty_one(
         self, monkeypatch
@@ -486,7 +510,7 @@ class TestWhatThisDeploymentCanAlreadySee:
 
         local = await service.local_service(_ctx())
 
-        assert local["url"] == "http://sandboxd:8080"
+        assert local.url == "http://sandboxd:8080"
         assert seen["urls"] == ["http://sandboxd:8080/healthz"]
 
     async def test_a_developer_running_the_api_on_their_host_is_found_too(self, monkeypatch):
@@ -498,7 +522,7 @@ class TestWhatThisDeploymentCanAlreadySee:
 
         local = await service.local_service(_ctx())
 
-        assert local["url"] == "http://localhost:8080"
+        assert local.url == "http://localhost:8080"
 
     async def test_no_service_is_no_url_rather_than_a_guess(self, monkeypatch):
         """A form that prefilled an address nothing answers on would send an
@@ -510,11 +534,11 @@ class TestWhatThisDeploymentCanAlreadySee:
         monkeypatch.setattr(settings, "SANDBOXD_TOKEN", "")
         _serve(monkeypatch, OSError("connection refused"))
 
-        assert await service.local_service(_ctx()) == {
-            "url": None,
-            "token_available": False,
-            "registered_connection_id": None,
-        }
+        local = await service.local_service(_ctx())
+
+        assert local.url is None
+        assert local.token_available is False
+        assert local.registered_connection_id is None
 
     async def test_the_token_this_deployment_holds_is_reported_as_available(self, monkeypatch):
         """Reported, never returned. What reaches the browser is a boolean; the
@@ -528,7 +552,7 @@ class TestWhatThisDeploymentCanAlreadySee:
 
         local = await service.local_service(_ctx())
 
-        assert local["token_available"] is True
+        assert local.token_available is True
         assert "sbx-local" not in repr(local)
 
     async def test_a_connection_already_pointing_there_is_named(self, monkeypatch):
@@ -543,7 +567,7 @@ class TestWhatThisDeploymentCanAlreadySee:
 
         local = await service.local_service(_ctx())
 
-        assert local["registered_connection_id"] == row.id
+        assert local.registered_connection_id == row.id
 
     async def test_a_connection_to_somewhere_else_is_not_it(self, monkeypatch):
         service = _service(monkeypatch)
@@ -554,7 +578,7 @@ class TestWhatThisDeploymentCanAlreadySee:
         )
         _serve(monkeypatch, _Response(200, {}))
 
-        assert (await service.local_service(_ctx()))["registered_connection_id"] is None
+        assert (await service.local_service(_ctx())).registered_connection_id is None
 
 
 class TestTheRuntimeCatalog:
@@ -569,26 +593,26 @@ class TestTheRuntimeCatalog:
 
         catalog = SandboxConnectionService.runtime_catalog()
 
-        assert {entry["alias"] for entry in catalog} == set(BUILTIN_RUNTIMES)
+        assert {entry.alias for entry in catalog} == set(BUILTIN_RUNTIMES)
 
     def test_a_ready_made_image_is_named_and_marked_as_not_building(self):
-        catalog = {entry["alias"]: entry for entry in SandboxConnectionService.runtime_catalog()}
+        catalog = {entry.alias: entry for entry in SandboxConnectionService.runtime_catalog()}
 
         node = catalog["node-minimal"]
 
-        assert node["image"] == "node:20-slim"
-        assert node["builds"] is False
+        assert node.image == "node:20-slim"
+        assert node.builds is False
 
     def test_a_built_runtime_says_what_it_starts_from_and_that_it_builds(self):
         """The first session pays for the build, so "coding" and "node-minimal" are
         not the same promise about how long the first message takes."""
-        catalog = {entry["alias"]: entry for entry in SandboxConnectionService.runtime_catalog()}
+        catalog = {entry.alias: entry for entry in SandboxConnectionService.runtime_catalog()}
 
         coding = catalog["coding"]
 
-        assert coding["image"] == "python:3.12-slim"
-        assert coding["builds"] is True
-        assert "git" in coding["description"]
+        assert coding.image == "python:3.12-slim"
+        assert coding.builds is True
+        assert "git" in coding.description
 
 
 class TestStoringTheLocalToken:
@@ -605,7 +629,9 @@ class TestStoringTheLocalToken:
 
         result = await service.store_local_credential(_ctx())
 
-        assert result == {"secret_id": stored.id, "name": LOCAL_TOKEN_SECRET_NAME, "hint": "oken"}
+        assert result.secret_id == stored.id
+        assert result.name == LOCAL_TOKEN_SECRET_NAME
+        assert result.hint == "oken"
         assert (
             service.secrets.create.await_args.kwargs["value"].api_key.get_secret_value()
             == "sbx-local-token"
@@ -617,7 +643,12 @@ class TestStoringTheLocalToken:
         service = _service(monkeypatch)
         monkeypatch.setattr(settings, "SANDBOXD_TOKEN", "sbx")
         monkeypatch.setattr(organization_secret_repo, "get_by_name", AsyncMock(return_value=None))
-        service.secrets.create = AsyncMock(return_value=MagicMock(id=uuid.uuid4(), hint="sbx"))
+        created = MagicMock(id=uuid.uuid4(), hint="sbx")
+        # Assigned rather than passed: `MagicMock(name=...)` names the mock
+        # instead of setting the attribute, and the answer is now a model whose
+        # `name` has to be a string.
+        created.name = LOCAL_TOKEN_SECRET_NAME
+        service.secrets.create = AsyncMock(return_value=created)
 
         await service.store_local_credential(_ctx())
 
@@ -640,7 +671,7 @@ class TestStoringTheLocalToken:
 
         result = await service.store_local_credential(_ctx())
 
-        assert result["secret_id"] == existing.id
+        assert result.secret_id == existing.id
         service.secrets.create.assert_not_called()
         assert service.secrets.update.await_args.args[1] == existing.id
 
@@ -675,8 +706,8 @@ class TestTestingAnAddressBeforeItIsSaved:
             _ctx(), SandboxProbeRequest(base_url="http://sandboxd:8080/", secret_id=secret_id)
         )
 
-        assert policy["runtimes"] == [{"alias": "python"}]
-        assert policy["kind"] == "docker"
+        assert [runtime.alias for runtime in policy.runtimes] == ["python"]
+        assert policy.kind == "docker"
         assert seen["url"] == "http://sandboxd:8080/policy"
 
     async def test_the_token_is_a_header_here_too(self, monkeypatch):
@@ -697,7 +728,9 @@ class TestTestingAnAddressBeforeItIsSaved:
         with pytest.raises(BadRequestError) as refused:
             await service.probe_policy(_ctx(), SandboxProbeRequest(base_url="http://s:8080"))
 
-        assert refused.value.details["field"] == "secret_id"
+        assert refused.value.details == {
+            "fields": [{"field": "secret_id", "message": refused.value.message}]
+        }
 
     async def test_a_credential_of_the_wrong_shape_cannot_authenticate_a_service(self, monkeypatch):
         secret_id = uuid.uuid4()
@@ -731,9 +764,39 @@ class TestTestingAnAddressBeforeItIsSaved:
             )
 
         assert "http://typo:8080 did not answer" in refused.value.message
-        # The message names the address the operator typed; `details` names the
-        # field, because it is logged as well as returned (agenticos#342).
-        assert refused.value.details == {"field": "base_url"}
+        # One sentence, in both places, so the dialog can mark the input rather
+        # than print a line under it (#891). It names the address the operator
+        # typed, and agenticos#342 stays shut because `SandboxProbeRequest`
+        # refuses a `user:pass@` one - see the test below.
+        assert refused.value.details == {
+            "fields": [{"field": "base_url", "message": refused.value.message}]
+        }
+
+    async def test_a_service_with_no_policy_endpoint_is_a_wrong_address_not_a_lost_session(
+        self, monkeypatch
+    ):
+        """The one failure the two callers of `_get_json` do not share.
+
+        A 404 reading a saved connection is a session that has ended. Here
+        nothing asked for a session: it is an address answering, but not as a
+        sandbox service - and marking the operator's Address box with "Sandbox
+        session not found" would be confident about the wrong thing.
+        """
+        secret_id = uuid.uuid4()
+        service = _service(monkeypatch, secret=(secret_id, ApiKeySecret(api_key="tok")))
+        _serve(monkeypatch, _Response(404))
+
+        with pytest.raises(NotFoundError) as refused:
+            await service.probe_policy(
+                _ctx(), SandboxProbeRequest(base_url="http://typo:8080", secret_id=secret_id)
+            )
+
+        assert refused.value.message == (
+            "No sandbox service answers at this address - check the address and the port"
+        )
+        assert refused.value.details == {
+            "fields": [{"field": "base_url", "message": refused.value.message}]
+        }
 
     async def test_an_address_carrying_a_password_is_refused_before_it_is_stored(self):
         """A `user:pass@` here would be echoed back by every refusal below.
@@ -771,8 +834,8 @@ class TestReadingTheSessions:
                 200,
                 {
                     "sessions": [
-                        {"session_id": "mine", "tenant": str(ctx.organization_id)},
-                        {"session_id": "theirs", "tenant": str(uuid.uuid4())},
+                        _session("mine", tenant=str(ctx.organization_id)),
+                        _session("theirs", tenant=str(uuid.uuid4())),
                     ],
                     "limit": 20,
                 },
@@ -781,8 +844,8 @@ class TestReadingTheSessions:
 
         listing = await service.sessions(ctx, row.id)
 
-        assert [entry["session_id"] for entry in listing["sessions"]] == ["mine"]
-        assert listing["limit"] == 20
+        assert [entry.session_id for entry in listing.sessions] == ["mine"]
+        assert listing.limit == 20
 
     async def test_a_session_with_no_tenant_label_is_not_assumed_to_be_ours(self, monkeypatch):
         """Something else opened it against the same service. Showing it would be
@@ -793,9 +856,9 @@ class TestReadingTheSessions:
         monkeypatch.setattr(
             agent_workspace_repo, "list_for_organization", AsyncMock(return_value=[])
         )
-        _serve(monkeypatch, _Response(200, {"sessions": [{"session_id": "stray"}]}))
+        _serve(monkeypatch, _Response(200, {"sessions": [_session("stray")]}))
 
-        assert (await service.sessions(_ctx(), row.id))["sessions"] == []
+        assert (await service.sessions(_ctx(), row.id)).sessions == []
 
     async def test_a_session_is_named_by_the_row_rather_than_by_decoding_its_id(self, monkeypatch):
         """Parsing the scope key back out would make its format a schema, and the
@@ -816,16 +879,14 @@ class TestReadingTheSessions:
         )
         _serve(
             monkeypatch,
-            _Response(
-                200, {"sessions": [{"session_id": "xc-1", "tenant": str(ctx.organization_id)}]}
-            ),
+            _Response(200, {"sessions": [_session("xc-1", tenant=str(ctx.organization_id))]}),
         )
 
-        [entry] = (await service.sessions(ctx, row.id))["sessions"]
+        [entry] = (await service.sessions(ctx, row.id)).sessions
 
-        assert entry["agent_id"] == str(agent_id)
-        assert entry["conversation_id"] == str(conversation_id)
-        assert entry["scope"] == "conversation"
+        assert entry.agent_id == agent_id
+        assert entry.conversation_id == conversation_id
+        assert entry.scope == "conversation"
 
     async def test_a_run_scoped_sandbox_keeps_its_id_and_nothing_else(self, monkeypatch):
         """It has no row by design, so an unmatched session is normal."""
@@ -838,14 +899,36 @@ class TestReadingTheSessions:
         ctx = _ctx()
         _serve(
             monkeypatch,
-            _Response(
-                200, {"sessions": [{"session_id": "xr-1", "tenant": str(ctx.organization_id)}]}
-            ),
+            _Response(200, {"sessions": [_session("xr-1", tenant=str(ctx.organization_id))]}),
         )
 
-        [entry] = (await service.sessions(ctx, row.id))["sessions"]
+        [entry] = (await service.sessions(ctx, row.id)).sessions
 
-        assert "agent_id" not in entry
+        assert entry.session_id == "xr-1"
+        assert entry.agent_id is None
+        assert entry.conversation_id is None
+        assert entry.scope is None
+
+    async def test_the_tenant_label_does_not_survive_into_a_row(self, monkeypatch):
+        """It is how the filter knows whose a session is, and it is another
+        organization's id when the session is theirs. A row is built from the
+        daemon's mapping rather than the mapping being passed on, so the label is
+        dropped once rather than by every caller remembering to (#562)."""
+        row = _row()
+        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
+        monkeypatch.setattr(
+            agent_workspace_repo, "list_for_organization", AsyncMock(return_value=[])
+        )
+        ctx = _ctx()
+        _serve(
+            monkeypatch,
+            _Response(200, {"sessions": [_session("mine", tenant=str(ctx.organization_id))]}),
+        )
+
+        listing = await service.sessions(ctx, row.id)
+
+        assert "tenant" not in listing.model_dump()["sessions"][0]
 
     async def test_sampling_usage_is_asked_for_explicitly(self, monkeypatch):
         """The service pays a daemon round trip per sandbox for it, so a listing
@@ -867,7 +950,10 @@ class TestReadingTheSessions:
         service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
 
-        assert await service.sessions(_ctx(), row.id) == {"sessions": [], "kind": "daytona"}
+        listing = await service.sessions(_ctx(), row.id)
+
+        assert listing.sessions == []
+        assert listing.kind == "daytona"
 
     async def test_a_service_that_did_not_answer_is_reported(self, monkeypatch):
         row = _row()
@@ -897,13 +983,9 @@ class TestReadingTheSessions:
                 200,
                 {
                     "sessions": [
-                        {
-                            "session_id": "mine",
-                            "tenant": str(ctx.organization_id),
-                            "state": "running",
-                        },
-                        {"session_id": "theirs-1", "tenant": str(uuid.uuid4()), "state": "running"},
-                        {"session_id": "theirs-2", "tenant": str(uuid.uuid4()), "state": "running"},
+                        _session("mine", tenant=str(ctx.organization_id)),
+                        _session("theirs-1", tenant=str(uuid.uuid4())),
+                        _session("theirs-2", tenant=str(uuid.uuid4())),
                     ],
                     "limit": 40,
                     "open_limit": 100,
@@ -913,9 +995,9 @@ class TestReadingTheSessions:
 
         listing = await service.sessions(ctx, row.id)
 
-        assert [entry["session_id"] for entry in listing["sessions"]] == ["mine"]
-        assert listing["host_session_count"] == 3
-        assert listing["host_open_count"] == 3
+        assert [entry.session_id for entry in listing.sessions] == ["mine"]
+        assert listing.host_session_count == 3
+        assert listing.host_open_count == 3
 
     async def test_open_counts_every_session_but_resident_counts_only_the_running_ones(
         self, monkeypatch
@@ -938,9 +1020,9 @@ class TestReadingTheSessions:
                 200,
                 {
                     "sessions": [
-                        {"session_id": "running", "state": "running", "alive": True},
-                        {"session_id": "hibernated", "state": "hibernated", "alive": False},
-                        {"session_id": "crashed", "state": "running", "alive": False},
+                        _session("running"),
+                        _session("hibernated", state="hibernated", alive=False),
+                        _session("crashed", alive=False),
                     ],
                     "limit": 40,
                     "open_limit": 100,
@@ -950,8 +1032,8 @@ class TestReadingTheSessions:
 
         listing = await service.sessions(_ctx(), row.id)
 
-        assert listing["host_open_count"] == 3
-        assert listing["host_session_count"] == 2
+        assert listing.host_open_count == 3
+        assert listing.host_session_count == 2
 
     async def test_daytona_has_no_host_wide_totals_to_divide(self, monkeypatch):
         """It enforces no ceilings of ours, so there is nothing to be a numerator
@@ -962,11 +1044,8 @@ class TestReadingTheSessions:
 
         listing = await service.sessions(_ctx(), row.id)
 
-        assert "host_session_count" not in listing
-        assert "host_open_count" not in listing
-        built = SandboxSessionList(**listing)
-        assert built.host_session_count is None
-        assert built.host_open_count is None
+        assert listing.host_session_count is None
+        assert listing.host_open_count is None
 
 
 class TestSamplingOneSandbox:
@@ -989,14 +1068,25 @@ class TestSamplingOneSandbox:
                 {
                     "session_id": "xc-1",
                     "tenant": str(ctx.organization_id),
-                    "usage": {"memory_bytes": 512, "memory_limit_bytes": 2048},
+                    "usage": {
+                        "memory_bytes": 512,
+                        "memory_limit_bytes": 2048,
+                        "cpu_percent": 12.5,
+                        "pids": 7,
+                    },
                 },
             ),
         )
 
         usage = await service.session_usage(ctx, row.id, "xc-1")
 
-        assert usage == {"memory_bytes": 512, "memory_limit_bytes": 2048}
+        # Every field the daemon sampled, because a model drops what it does not
+        # declare - so this is the assertion that a value stops reaching a client
+        # the moment somebody forgets to add it here (#562).
+        assert usage.memory_bytes == 512
+        assert usage.memory_limit_bytes == 2048
+        assert usage.cpu_percent == 12.5
+        assert usage.pids == 7
         assert seen["url"].endswith("/sessions/xc-1?usage=true")
 
     async def test_another_organizations_sandbox_reads_as_missing(self, monkeypatch):
@@ -1017,14 +1107,17 @@ class TestSamplingOneSandbox:
             monkeypatch, _Response(200, {"session_id": "xc-1", "tenant": str(ctx.organization_id)})
         )
 
-        assert await service.session_usage(ctx, row.id, "xc-1") == {}
+        usage = await service.session_usage(ctx, row.id, "xc-1")
+
+        assert usage.memory_bytes is None
+        assert usage.memory_limit_bytes is None
 
     async def test_daytona_reports_no_memory_of_ours(self, monkeypatch):
         row = _row(kind="daytona", base_url=None)
         service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
 
-        assert await service.session_usage(_ctx(), row.id, "any") == {}
+        assert await service.session_usage(_ctx(), row.id, "any") == SandboxSessionUsage()
 
 
 class TestReadingOneSessionsActivity:
@@ -1048,13 +1141,20 @@ class TestReadingOneSessionsActivity:
             monkeypatch,
             [
                 _Response(200, {"session_id": "xc-1", "tenant": str(ctx.organization_id)}),
-                _Response(200, {"events": [{"seq": 1, "op": "exec"}], "latest_seq": 1}),
+                _Response(
+                    200,
+                    {
+                        "events": [{"seq": 1, "at": 1.0, "op": "exec", "target": "/x", "ok": True}],
+                        "latest_seq": 1,
+                    },
+                ),
             ],
         )
 
         log = await service.session_events(ctx, row.id, "xc-1", after=0)
 
-        assert log["latest_seq"] == 1
+        assert log.latest_seq == 1
+        assert [event.op for event in log.events] == ["exec"]
         assert seen["url"].endswith("/sessions/xc-1/events?after=0")
 
     async def test_polling_asks_only_for_what_it_does_not_have(self, monkeypatch):
@@ -1089,10 +1189,10 @@ class TestReadingOneSessionsActivity:
         service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
 
-        assert await service.session_events(_ctx(), row.id, "any") == {
-            "events": [],
-            "latest_seq": 0,
-        }
+        log = await service.session_events(_ctx(), row.id, "any")
+
+        assert log.events == []
+        assert log.latest_seq == 0
 
 
 def test_the_read_model_carries_the_reference_and_not_the_secret():

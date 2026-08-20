@@ -48,7 +48,6 @@ SPREADSHEET_MIME_TYPES = {
 
 IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 
-MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 # Avatars are decoration rendered at 40px; the limit is what stops someone
 # storing a 40MB photograph to be scaled down on every page load.
 MAX_AVATAR_SIZE = 2 * 1024 * 1024
@@ -125,13 +124,22 @@ class LocalFileStorage(BaseFileStorage):
         rather than a `Path.parents` membership test: both refuse the same paths,
         but only the first is a barrier static analysis recognises, so the second
         read as an unguarded path expression (CodeQL `py/path-injection`).
+
+        It has to be the *whole* condition of its branch, which is why the root
+        itself is answered before it rather than beside it. `py/path-injection`
+        clears a normalised path where `startswith` alone decides the branch;
+        written as `candidate != base and not candidate.startswith(prefix)`, the
+        fall-through proves neither conjunct, so the guard stopped counting and
+        both sinks in `load` stayed flagged (#903).
         """
         base = os.path.realpath(self.base_dir)
+        candidate = os.path.realpath(Path(base) / storage_path)
+        if candidate == base:
+            return Path(base)
         # A filesystem root already ends in the separator, and `/` + `/` is a prefix
         # no descendant of it has.
         prefix = base if base.endswith(os.sep) else base + os.sep
-        candidate = os.path.realpath(Path(base) / storage_path)
-        if candidate != base and not candidate.startswith(prefix):
+        if not candidate.startswith(prefix):
             raise ValueError(f"Path escapes storage root: {storage_path}")
         return Path(candidate)
 
