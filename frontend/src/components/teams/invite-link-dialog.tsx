@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { useAssignableRoles, useInvitations } from "@/hooks";
+import { useAssignableRoles, useInvitations, useRoleCatalog } from "@/hooks";
 import { defaultAssignable } from "@/lib/assignable-roles";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import type { OrgRole } from "@/types";
@@ -49,6 +49,8 @@ export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialog
   const { createLink } = useInvitations(orgId);
   const { copy, copied } = useCopyToClipboard();
   const assignable = useAssignableRoles();
+  // Said rather than left to an empty picker (#1028).
+  const { error: rolesError } = useRoleCatalog();
 
   const [chosen, setChosen] = useState<OrgRole | "">("");
   const [maxUses, setMaxUses] = useState("25");
@@ -95,18 +97,22 @@ export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialog
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="link-role">{t("joinAs")}</Label>
-              <Select value={role} onValueChange={(value) => setChosen(value as OrgRole)}>
-                <SelectTrigger id="link-role" className="capitalize">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {assignable.map((option) => (
-                    <SelectItem key={option} value={option} className="capitalize">
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {rolesError ? (
+                <p className="text-destructive text-sm">{t("rolesUnavailable")}</p>
+              ) : (
+                <Select value={role} onValueChange={(value) => setChosen(value as OrgRole)}>
+                  <SelectTrigger id="link-role" className="capitalize">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {assignable.map((option) => (
+                      <SelectItem key={option} value={option} className="capitalize">
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">

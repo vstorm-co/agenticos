@@ -121,4 +121,17 @@ describe("InviteLinkDialog", () => {
 
     expect(screen.getByRole("button", { name: /create link/i })).toBeDisabled();
   });
+  it("says the role list could not be read, rather than offering an empty picker", async () => {
+    // A catalog that failed and a caller who may assign nothing render the same
+    // way, and only one of them is worth reloading the page over (#1028).
+    vi.mocked(apiClient.get).mockImplementation((url: string) =>
+      url === "/roles/catalog"
+        ? Promise.reject(new Error("nope"))
+        : Promise.resolve({ items: [], total: 0 }),
+    );
+    mount();
+
+    expect(await screen.findByText(/role list could not be loaded/i)).toBeVisible();
+    expect(screen.queryByLabelText("Join as")).toBeNull();
+  });
 });

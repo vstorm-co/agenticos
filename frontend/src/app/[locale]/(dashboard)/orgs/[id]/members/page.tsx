@@ -41,6 +41,7 @@ import {
   useMembers,
   useOrganizations,
   usePermissions,
+  useRoleCatalog,
 } from "@/hooks";
 import { Perm } from "@/types/permissions";
 import type { OrganizationMember, OrgRole } from "@/types";
@@ -85,6 +86,10 @@ export default function OrgMembersPage({ params }: PageProps) {
 
   const { can, isLoading: permissionsLoading } = usePermissions();
   const assignable = useAssignableRoles();
+  // Every row's role control is derived from the catalog, so a catalog that
+  // never arrived leaves the table showing labels - the same pixels a Viewer
+  // sees, and a different fact. Said, above the table (#1028).
+  const { error: rolesError } = useRoleCatalog();
   const org = orgs.find((o) => o.id === id);
   // Derived from the server's permission catalog rather than a role-name check,
   // so adding a role that may manage members needs no change here.
@@ -181,12 +186,7 @@ export default function OrgMembersPage({ params }: PageProps) {
         cell: (m) => {
           const isSelf = m.user_id === user?.id;
           const isOwner = m.role === "owner";
-          // The row's current role has to be one this caller may assign, not
-          // only the ones they may assign *to*: Radix draws the chosen item's
-          // text in the trigger, so a value the list does not hold renders an
-          // empty control - and a peer Admin is a row an Admin cannot reassign
-          // anyway (#1028). A label, then, which is what the other rows get.
-          if (canManage && !isOwner && !isSelf && assignable.includes(m.role)) {
+          if (canManage && !isOwner && !isSelf && assignable.length > 0) {
             return (
               <Select value={m.role} onValueChange={(v) => changeRole(m.user_id, v as OrgRole)}>
                 <SelectTrigger
@@ -196,6 +196,18 @@ export default function OrgMembersPage({ params }: PageProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  {/* The row's own role, when this caller cannot assign it -
+                      a peer Admin, to an Admin. Present because Radix draws the
+                      chosen item's text in the trigger, so without it the
+                      control renders blank; disabled because assigning it is
+                      what they may not do. Demoting that peer still is:
+                      `change_role` judges the role being handed out, not the
+                      one being replaced (#1028). */}
+                  {!assignable.includes(m.role) && (
+                    <SelectItem value={m.role} disabled className="capitalize">
+                      {m.role}
+                    </SelectItem>
+                  )}
                   {assignable.map((option) => (
                     <SelectItem key={option} value={option} className="capitalize">
                       {option}
@@ -393,6 +405,9 @@ export default function OrgMembersPage({ params }: PageProps) {
         }
         contentClassName="p-0"
       >
+        {rolesError && !error && (
+          <p className="text-destructive px-5 pt-4 text-sm">{t("rolesUnavailable")}</p>
+        )}
         {error ? (
           // Every organization has at least its owner, so "no members yet"
           // over a failed read is a sentence that cannot be true (#32).

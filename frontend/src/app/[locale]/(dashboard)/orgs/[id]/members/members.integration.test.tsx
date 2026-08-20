@@ -131,14 +131,49 @@ describe("the members table's role control", () => {
     expect(labels).toEqual(["builder", "operator", "member", "viewer"]);
   });
 
-  it("shows a peer Admin's role as a label, because it cannot be one of the options", async () => {
+  it("keeps a peer Admin demotable, showing the role it cannot re-assign", async () => {
+    // `change_role` judges the role being handed out, not the one being
+    // replaced, so an Admin may demote a peer Admin to Builder - and a control
+    // that offered no way to would remove a supported action. The current role
+    // is in the list so the trigger is not blank, and disabled because
+    // assigning it is the part they may not do.
     serve("admin");
     await mount();
 
     const row = await roleCell("peer@acme.test");
+    await waitFor(() => expect(within(row).getByRole("combobox")).toHaveTextContent("admin"));
 
-    await waitFor(() => expect(within(row).queryByRole("combobox")).toBeNull());
-    expect(within(row).getByText("admin")).toBeVisible();
+    await userEvent.click(within(row).getByRole("combobox"));
+
+    const options = screen.getAllByRole("option");
+    expect(options.map((option) => option.textContent?.trim())).toEqual([
+      "admin",
+      "builder",
+      "operator",
+      "member",
+      "viewer",
+    ]);
+    expect(options[0]).toHaveAttribute("data-disabled");
+  });
+
+  it("says so when the role catalog could not be read, rather than showing labels", async () => {
+    // Offering nothing and being unable to answer are the same pixels and a
+    // different fact.
+    vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      if (url === "/roles/catalog") return Promise.reject(new Error("nope"));
+      if (url.startsWith("/me/permissions")) return Promise.resolve(permissionsOf("admin"));
+      if (url === "/orgs")
+        return Promise.resolve({
+          items: [{ id: "org-1", name: "Acme", avatar_color: null }],
+          total: 1,
+        });
+      if (url.endsWith("/members"))
+        return Promise.resolve({ items: [member(ME, "me@acme.test", "admin")], total: 1 });
+      return Promise.resolve({ items: [], total: 0 });
+    });
+    await mount();
+
+    expect(await screen.findByText(/role list could not be loaded/i)).toBeVisible();
   });
 
   it("lets an Owner change a peer Admin, whose role they do outrank", async () => {

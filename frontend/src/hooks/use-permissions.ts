@@ -82,13 +82,17 @@ export function usePermissions() {
  * changes when the backend is redeployed.
  */
 export function useRoleCatalog() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: qk.organizations.roleCatalog(),
     queryFn: () => apiClient.get<RoleCatalog>("/roles/catalog"),
     staleTime: Infinity,
   });
 
-  return { catalog: data, isLoading };
+  // `error` is returned because every role picker is derived from this: a
+  // catalog that never arrives leaves them offering nothing, which is the same
+  // pixels as a caller who may assign nothing and a different fact. Whoever
+  // draws the picker says which (#1028).
+  return { catalog: data, isLoading, error };
 }
 
 /**
