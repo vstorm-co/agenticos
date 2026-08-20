@@ -305,8 +305,16 @@ are only for a container-backed one.
 
 | Variable | Default | Notes |
 |---|---|---|
-| `SANDBOX_STATE_MAX_BYTES` | 4 MiB | Per workspace. Past it a write is refused with a message the model reads |
+| `SANDBOX_STATE_MAX_BYTES` | 4 MiB | Per **stored** workspace. Past it a write is refused with a message the model reads |
 | `SANDBOX_INLINE_IMAGE_MAX_BYTES` | 5 MiB | Above this an attached image is written to the workspace and not also sent inline |
+
+**The percentage in the chat is two different ceilings, and it says which.** A
+stored workspace fills up against `SANDBOX_STATE_MAX_BYTES` above — bytes, and
+running out *refuses a write*. A container reports resident **memory** against the
+ceiling its host set for that runtime, which is `1g` unless the allowlist says
+otherwise, and running out of that is an OOM kill rather than a refusal. So the
+strip says `workspace 12% full` for the first and `sandbox memory 12% full` for the
+second; reporting either as the other would name a limit that does not apply.
 
 **Where sandboxes run is not a setting.** It is a row per organization — Sandboxes
 in the app, `sandbox_connections` in the database — with the service token in the
@@ -363,6 +371,111 @@ actually holds is `connections:manage` plus egress policy on the API container**
 whoever may register a host is trusted with one, and a deployment on a network
 holding unauthenticated internal APIs should say so at the network rather than here.
 
+### Which environments an agent may ask for
+
+Two lists, and they answer different questions. The **connection dialog's**
+`Default runtime` offers the fifteen image recipes the sandbox library ships, and
+they are recipes rather than promises: it is a list of what *could* be built. The
+**agent Builder's** `Runtime` offers what the service registered on that connection
+actually allows, read live from it, so an alias it names is an alias the next tool
+call will accept. Where the two disagree, the second one is right — and the dialog
+marks the difference once it has asked, which is what its `Test` button is for.
+
+What a service allows is `SANDBOXD_RUNTIMES` on the service, and there is no other
+place:
+
+```
+SANDBOXD_RUNTIMES=python=python:3.12-slim,data=@python-analytics;mem_limit=4g
+```
+
+`alias=image` starts a ready-made image. `alias=@name` names one of the library's
+recipes, whose packages are built into an image on first use and cached after.
+`;field=value` sets any field of that entry — `mem_limit`, `cpus`, `pids_limit`,
+`network_mode`. A JSON object is accepted instead, and is the only form that can
+name a package list of its own:
+
+```json
+{"documents": {"mem_limit": "2g",
+  "runtime": {"name": "documents", "base_image": "python:3.12-slim",
+              "packages": ["liteparse", "pypdf", "python-docx", "openpyxl"]}}}
+```
+
+Three things about that variable are worth knowing before editing it:
+
+- **The first entry is the default** for an agent whose spec names none.
+- **`network_mode` is not inherited.** `SANDBOXD_NETWORK_MODE` is the service-wide
+  default and this project's compose sets it to `none`, so an entry whose purpose is
+  installing what a project declares has to say `bridge` for itself. The shipped
+  `coding` runtime carries its own `bridge`; an allowlist written by hand does not
+  inherit that, and the failure is an agent whose `uv pip install` times out.
+- **Adding one is a deployment action, not a form.** `PUT /policy` changes ceilings
+  and lifetimes without a restart and deliberately refuses the *membership* of this
+  list, along with `network_mode`, `oci_runtime`, `sandbox_uid`, `work_dir` and
+  `persist_containers`: naming an image is a decision about isolation, and the
+  service token is held by an application rather than by whoever runs the host.
+
+What the shipped compose files allow — `coding`, `polyglot`, `python`, `node`,
+`documents`, `data` — is a starting point rather than a recommendation: a deployment
+whose agents write Go wants `@go` in there, and one on a small host wants fewer
+things that build.
+
+### The service's own settings
+
+Every field of the service's configuration is `SANDBOXD_` plus its name, so this is
+a subset rather than a vocabulary. These are the ones the shipped compose files set
+or that decide whether files survive:
+
+| Variable | Shipped | What it decides |
+|---|---|---|
+| `SANDBOXD_WORKSPACE_ROOT` | a host path | Where each session's work directory lives, bind-mounted from the *host*. **Unset, files exist only inside a running container** — an idle reaping discards them and the next request opens an empty workspace, with nothing in a log. It is also what makes browsing possible: reading a workspace never starts a container |
+| `SANDBOXD_PERSIST_CONTAINERS` | `true` | A closed session's container is kept rather than removed, so the next session on that workspace starts without a build. Costs a stopped container per workspace; `SANDBOXD_CONTAINER_TTL` bounds it |
+| `SANDBOXD_MAX_SESSIONS_PER_TENANT` | `5` | One organization cannot take the pool. `SANDBOXD_MAX_SESSIONS` (20) is the pool |
+| `SANDBOXD_NETWORK_MODE` | `none` | The default network for a sandbox. `none` is no network at all; a runtime may name `bridge` for itself |
+| `SANDBOXD_UI_ENABLED` | `0` | The service's own dashboard. Off because it asks a human to paste a root-equivalent token into a browser |
+| `SANDBOXD_IDLE_TIMEOUT` | 1800s | How long an idle session lives before it is closed and reaped |
+| `SANDBOXD_MEM_LIMIT` | `1g` | The default memory ceiling, and therefore the number the chat's `sandbox memory` percentage is a share of |
+
+### Running the service on another host
+
+Nothing about a connection assumes a local address — it is a row holding a URL and
+a vault credential, and the form probes whatever it is given. A host somewhere else
+needs three things and no code:
+
+1. **The Docker socket**, because the service starts containers. That is root on
+   that machine, which is why the token below is worth what it is.
+2. **`SANDBOXD_WORKSPACE_ROOT` on real disk, mounted at the same path on both
+   sides.** The service creates the directory and then asks the *daemon* to
+   bind-mount it, and the daemon resolves the path on the host — so a named volume,
+   or a path existing only inside the service's container, is refused with `mounts
+   denied`.
+3. **TLS and a token nobody shares.** Inside compose the address is
+   `http://sandboxd:8080` on a private network; across the internet it is a service
+   that will run commands for whoever holds the token, so it belongs behind HTTPS
+   with its own value.
+
+Then register it in Sandboxes like any other, and point an agent at it by name. The
+compose service is one deployment of the same image.
+
+### When a session is open
+
+The **Running** tab lists the sessions the service holds, refetched every ten
+seconds, and a session is one workspace on one host. Three states, and only the
+first two appear:
+
+- **running** — the container exists and is resident. Opened by an agent's first
+  tool call in a conversation, not when the conversation starts.
+- **hibernated** — the row exists and the container does not. A session idle past
+  `SANDBOXD_EVICT_IDLE_AFTER` is hibernated to free a slot, and its next request
+  wakes it. This needs `WORKSPACE_ROOT`, or waking one would open an empty
+  workspace, and the service refuses the combination rather than doing that.
+- **gone** — past `SANDBOXD_IDLE_TIMEOUT` the session is closed and reaped. With
+  `PERSIST_CONTAINERS` the container survives that, so the next session on the same
+  workspace starts without a build.
+
+So an empty Running tab means no agent has used a shell recently, not that nothing
+is configured — and a workspace with files in it and no session is the normal
+resting state.
+
 The service runs behind the `sandbox` compose profile, which is on by default in
 local dev and off elsewhere until an operator opts in — mounting the Docker socket
 on a shared host is a deliberate act. `COMPOSE_DEV_PROFILES` in the Makefile is
@@ -375,9 +488,12 @@ the `state` workspace needs none.
 Sandboxes, which is about *hosts*. Each row names the agent, the conversation the
 files belong to (or how many chats reach them, for a workspace no single
 conversation owns), who can see them, how big it is and when it was last used.
-**Open** goes to that workspace's own page: folders walked one at a time, a search
-box over the whole tree rather than the folder on screen, tiles for the files, and
-every file downloadable. A second view on the listing flattens every file the reader
+**Open** goes to that workspace's own page, in the shape the skills editor uses:
+the tree on the left — folders walked one at a time, a search box over the whole
+tree rather than the folder on screen — and the file itself rendered beside it, so
+reading three files is three clicks and the list never closes. Downloading is on
+the row rather than beside the reader, because selecting a file reads it and a
+large archive is one somebody wants a copy of without paying for that. A second view on the listing flattens every file the reader
 can see into one grid — the "who is holding a copy of that CSV" question the
 per-workspace page cannot answer.
 
