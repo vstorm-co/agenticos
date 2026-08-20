@@ -445,3 +445,37 @@ class TestUpdatingKeepsTheRowsKeyVersion:
             )
             == "a-new-bot-token"
         )
+
+    async def test_a_null_token_leaves_the_stored_one_rather_than_blanking_it(self):
+        """`token_encrypted` is NOT NULL, and the schema field and the column have
+        different names - so `writable` cannot drop a `{"token": null}`. Sealing it
+        would put None into the column and fail the write; the update drops it and
+        the token is left unchanged."""
+        org_id = uuid.uuid4()
+        bot = ChannelBot(
+            id=uuid.uuid4(),
+            organization_id=org_id,
+            platform="telegram",
+            name="bot",
+            token_encrypted=seal(
+                "keep-this-token", scope=VaultScope.organization(org_id), key_version=1
+            ).ciphertext,
+            secret_key_version=1,
+        )
+        with (
+            patch(
+                "app.services.channel_bot.channel_bot_repo.get_for_org",
+                new=AsyncMock(return_value=bot),
+            ),
+            patch(
+                "app.services.channel_bot.channel_bot_repo.update",
+                new=AsyncMock(return_value=bot),
+            ) as repo_update,
+        ):
+            service = ChannelBotService(MagicMock(), organization_id=org_id)
+            await service.update(bot.id, ChannelBotUpdate(token=None, name="renamed"))
+
+        update_data = repo_update.call_args.kwargs["update_data"]
+        assert "token_encrypted" not in update_data
+        assert "token" not in update_data
+        assert update_data["name"] == "renamed"
