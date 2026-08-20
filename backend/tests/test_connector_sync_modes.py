@@ -49,6 +49,12 @@ def _stored(*, content_hash: str, source_path: str = SOURCE_PATH) -> MagicMock:
     )
 
 
+def _result(*, replaced: str | None = None) -> MagicMock:
+    """What `ingest_file` answers. `replaced_document_id` is what the flow reads
+    to tell an update from a first ingestion, so it is never a bare mock here."""
+    return MagicMock(replaced_document_id=replaced)
+
+
 def _connector(*, written: bytes = BODY) -> MagicMock:
     """A connector answering one file, whose download writes real bytes.
 
@@ -72,7 +78,13 @@ def _connector(*, written: bytes = BODY) -> MagicMock:
 
 
 @asynccontextmanager
-async def _syncing(*, mode: str, listing: list[MagicMock], connector: MagicMock) -> Any:
+async def _syncing(
+    *,
+    mode: str,
+    listing: list[MagicMock],
+    connector: MagicMock,
+    replaced: str | None = None,
+) -> Any:
     """The connector flow with its store, database and ingest replaced.
 
     `IngestionService` stays real: `existing_document` is what decides whether a
@@ -95,7 +107,7 @@ async def _syncing(*, mode: str, listing: list[MagicMock], connector: MagicMock)
         update_after_sync=AsyncMock(),
         trigger_sync=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
     )
-    ingest = AsyncMock()
+    ingest = AsyncMock(return_value=_result(replaced=replaced))
 
     @asynccontextmanager
     async def _db() -> Any:
@@ -118,8 +130,16 @@ async def _syncing(*, mode: str, listing: list[MagicMock], connector: MagicMock)
         yield ingest
 
 
-async def _sync(*, mode: str, listing: list[MagicMock], connector: MagicMock) -> Any:
-    async with _syncing(mode=mode, listing=listing, connector=connector) as ingest:
+async def _sync(
+    *,
+    mode: str,
+    listing: list[MagicMock],
+    connector: MagicMock,
+    replaced: str | None = None,
+) -> Any:
+    async with _syncing(
+        mode=mode, listing=listing, connector=connector, replaced=replaced
+    ) as ingest:
         answer = await rag_tasks._run_source_sync(str(uuid.uuid4()), sync_log_id=str(uuid.uuid4()))
     return answer, ingest
 
@@ -139,9 +159,10 @@ class TestAnIngestAlwaysReplaces:
             mode=mode,
             listing=[_stored(content_hash="a-different-file-entirely")],
             connector=_connector(),
+            replaced="vector-doc-1",
         )
 
-        assert answer["ingested"] == 1
+        assert answer["updated"] == 1
         assert ingest.await_args.kwargs["replace"] is True
 
 
@@ -174,10 +195,11 @@ class TestAnUnchangedFile:
             mode="full",
             listing=[_stored(content_hash=BODY_HASH)],
             connector=_connector(),
+            replaced="vector-doc-1",
         )
 
         ingest.assert_awaited_once()
-        assert answer["ingested"] == 1
+        assert answer["updated"] == 1
         assert answer["skipped"] == 0
 
 
@@ -190,11 +212,33 @@ class TestAChangedFile:
             mode="new_only",
             listing=[_stored(content_hash="what-it-was-yesterday")],
             connector=_connector(),
+            replaced="vector-doc-1",
         )
 
         ingest.assert_awaited_once()
-        assert answer["ingested"] == 1
+        assert answer["updated"] == 1
         assert answer["skipped"] == 0
+
+
+class TestWhatTheSyncLogIsTold:
+    """A replacement is an update. Every successful sync used to be reported as a
+    first ingestion, with `updated` left at zero in the history - and the mode
+    that replaces was unreachable before #990, so nothing had ever noticed."""
+
+    async def test_a_replacement_counts_as_an_update_not_an_ingestion(self):
+        answer, _ = await _sync(
+            mode="new_only",
+            listing=[_stored(content_hash="what-it-was-yesterday")],
+            connector=_connector(),
+            replaced="vector-doc-1",
+        )
+
+        assert (answer["updated"], answer["ingested"]) == (1, 0)
+
+    async def test_a_first_ingestion_counts_as_one(self):
+        answer, _ = await _sync(mode="new_only", listing=[], connector=_connector())
+
+        assert (answer["updated"], answer["ingested"]) == (0, 1)
 
 
 class TestAFileNeverSeenBefore:
@@ -226,9 +270,10 @@ class TestAStoredDocumentWithNoHash:
             mode="new_only",
             listing=[_stored(content_hash="")],
             connector=_connector(),
+            replaced="vector-doc-1",
         )
 
-        assert answer["ingested"] == 1
+        assert answer["updated"] == 1
         assert ingest.await_args.kwargs["replace"] is True
 
 
@@ -256,7 +301,7 @@ class TestAListingTheStoreCannotAnswer:
             update_after_sync=AsyncMock(),
             trigger_sync=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
         )
-        ingest = AsyncMock()
+        ingest = AsyncMock(return_value=_result())
 
         @asynccontextmanager
         async def _db() -> Any:

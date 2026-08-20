@@ -684,7 +684,26 @@ seen, so that answer is given before the download; a hash needs them, so an
 unchanged file is recognised after one and before the embedding, which is the
 expensive half. A stored document carrying no `content_hash` is re-ingested
 rather than assumed current: skipping a file that may have changed is the answer
-nothing later corrects.
+nothing later corrects. A file that was replaced is counted as an **update**
+rather than an ingestion, read off `replaced_document_id` rather than off the
+result's own sentence.
+
+**Two things about matching, both of which decide whether a document survives.**
+`existing_document`'s last-but-one resort is a *filename* match, and it exists so
+a file uploaded through the browser and later synced from the folder it came from
+is replaced rather than duplicated — an upload stores its filename as its
+`source_path`, so the two agree and it stays reachable by name. A document naming
+a **different** address is not a candidate for it: a bucket holding
+`a/readme.md` beside `b/readme.md` had the second key find the first's document
+by name, so equal contents skipped it and unequal contents replaced the first —
+either way a first sync could not keep both, and said nothing. The same
+collision applied to two local files of one name in different directories.
+
+And a replacement **inserts before it deletes**. `insert_document` is where the
+embeddings are computed, so a provider that refused between the two statements
+used to leave the collection holding neither document — permanently, because a
+failed ingest is returned rather than raised and nothing retries it. Both for the
+length of an insert is a state a search survives; neither is not.
 
 One source's own history is `GET /kb/{kb_id}/sync-sources/{source_id}/logs`. The
 source is resolved against that knowledge base first, so a source belonging to

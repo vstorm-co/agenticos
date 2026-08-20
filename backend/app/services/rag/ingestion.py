@@ -36,6 +36,27 @@ def _stored(doc: DocumentInfo) -> StoredDocument:
     )
 
 
+def _unaddressed(doc: DocumentInfo) -> bool:
+    """Whether this document may be matched by its *name* alone.
+
+    Only one that does not already claim an address of its own. A file uploaded
+    through the browser stores its filename as its `source_path`, so the two
+    agree and it stays reachable by name - which is what the fallback is for: a
+    document uploaded once and later synced from the folder it came from should
+    be replaced rather than duplicated.
+
+    A document that names a *different* address is a different document, and
+    matching it by basename loses one of them. An S3 bucket holding
+    `a/readme.md` and `b/readme.md` is the case: the second key found the
+    first's document by name, so equal contents skipped it and unequal contents
+    replaced the first - either way a first sync could not keep both, silently
+    (#990). The same collision existed for two local files of the same name in
+    different directories.
+    """
+    stored_path = str((doc.additional_info or {}).get("source_path") or "")
+    return not stored_path or stored_path == doc.filename
+
+
 class IngestionService:
     """File → Parse/Chunk → Deduplicate → Embed/Store → Query-Ready."""
 
@@ -97,9 +118,10 @@ class IngestionService:
         by_hash: DocumentInfo | None = None
         for doc in docs:
             meta = doc.additional_info or {}
-            if source_path and meta.get("source_path") == source_path:
+            stored_path = str(meta.get("source_path") or "")
+            if source_path and stored_path == source_path:
                 return _stored(doc)
-            if by_filename is None and filename and doc.filename == filename:
+            if by_filename is None and filename and doc.filename == filename and _unaddressed(doc):
                 by_filename = doc
             if by_hash is None and content_hash and meta.get("content_hash") == content_hash:
                 by_hash = doc
@@ -142,14 +164,21 @@ class IngestionService:
                     )
                 ).document_id
 
-            if existing_id:
-                await self.store.delete_document(collection_name, existing_id)
-                logger.info("Replaced existing document %s for '%s'", existing_id, filepath.name)
-
+            # Inserted before the old one is removed, not after. `insert_document`
+            # is where the embeddings are computed, so a provider that refuses
+            # between the two statements used to leave the collection with
+            # *neither* document - permanently, since the failure is returned
+            # rather than raised and nothing retries it. In this order the worst
+            # case is both for as long as the insert takes, which a search
+            # survives and a reader can see (#990).
             await self.store.insert_document(
                 collection_name=collection_name,
                 document=document,
             )
+
+            if existing_id:
+                await self.store.delete_document(collection_name, existing_id)
+                logger.info("Replaced existing document %s for '%s'", existing_id, filepath.name)
 
             action = "replaced" if existing_id else "ingested"
             chunk_count = len(document.chunked_pages or [])

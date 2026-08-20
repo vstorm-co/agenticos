@@ -621,7 +621,8 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
 
     connector = connector_cls()
 
-    ingested = skipped = failed = total = 0
+    ingested = updated = skipped = failed = 0
+    total = 0
     ledger = SpendLedger(organization_id=organization_id)
 
     try:
@@ -670,7 +671,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                         continue
 
                     with metered_by(ledger):
-                        await ingestion_svc.ingest_file(
+                        result = await ingestion_svc.ingest_file(
                             filepath=local_path,
                             collection_name=collection_name,
                             # Unconditional, as in `sync_local_flow`: once this
@@ -679,7 +680,13 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                             replace=True,
                             source_path=remote_file.source_path,
                         )
-                    ingested += 1
+                    # On `replaced_document_id`, not on the result's sentence:
+                    # `sync_local_flow` reads its own message for the word
+                    # "replaced", which is a string it has to keep agreeing with.
+                    if result.replaced_document_id:
+                        updated += 1
+                    else:
+                        ingested += 1
                 except Exception as e:
                     logger.warning("Failed to sync %s: %s", remote_file.name, e)
                     failed += 1
@@ -702,6 +709,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                 status="done" if not failed else "error",
                 total_files=total,
                 ingested=ingested,
+                updated=updated,
                 skipped=skipped,
                 failed=failed,
             )
@@ -714,10 +722,11 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
             logger.error("Failed to update sync status for source %s", source_id)
 
     logger.info(
-        "Source sync complete: %s - total=%d, ingested=%d, skipped=%d, failed=%d",
+        "Source sync complete: %s - total=%d, ingested=%d, updated=%d, skipped=%d, failed=%d",
         source_id,
         total,
         ingested,
+        updated,
         skipped,
         failed,
     )
@@ -725,6 +734,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
         "status": "done" if not failed else "error",
         "total": total,
         "ingested": ingested,
+        "updated": updated,
         "skipped": skipped,
         "failed": failed,
     }
