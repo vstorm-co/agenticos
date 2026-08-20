@@ -326,10 +326,11 @@ trail and the approval gate all key on one.
 - `.permissions` returns `{}` when there is no subject - checked on the subject
   rather than on the role string, because a subject-less context built with
   `"owner"` would otherwise reach every row in the organization.
-- `.subject_id` raises `AuthorizationError` rather than returning `None`, because
-  the audit actor column is `NOT NULL` and letting the absence travel surfaces
-  several layers down as an `IntegrityError` - by which point the audit entry is
-  lost and the request has half happened.
+- `.subject_id` raises `AuthorizationError` rather than returning `None`: an
+  authenticated path that got this far has a person, and letting the absence
+  travel writes an entry naming nobody - indistinguishable from the two writers
+  that legitimately do, and by then the request has half happened. A caller with
+  no session at all reads `.user_id` and says so.
 
 The surfaces open to people this deployment cannot name do not use that
 constructor. A hosted page, a widget and a channel each run the turn under

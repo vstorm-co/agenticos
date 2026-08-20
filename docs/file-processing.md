@@ -891,14 +891,22 @@ the source cannot widen. Pointing a broad credential at a `personal` collection
 narrows the readers but not what was ingested; a narrow credential on an `org`
 collection is the shape to aim for.
 
-Two things this rule owes and does not yet have, each filed:
-[#982](https://github.com/vstorm-co/agenticos/issues/982) states the consequence
-in the wizard where the collection is chosen, and re-asks when a source is
-repointed at a different one; [#983](https://github.com/vstorm-co/agenticos/issues/983)
-records creating and repointing a source in the audit log, which is what gives
-"who decided this collection gets that credential's reach" an answer after the
-fact. Today both are silent, which is exactly the implicitness this section
-exists to name.
+**Who decided it is recorded.** Creating, cloning, repointing and deleting a
+source each write an audit entry - `sync_source.created`, `.updated`,
+`.deleted` - naming the actor, the connector, the collection and the *id* of the
+secret, never the config document. An update that moves the source to a
+different collection also records the one it left, because a rename and a change
+of audience are otherwise the same entry. A clone is recorded as a creation
+naming the row it came from: it points a credential somebody already scoped at a
+different collection, so its audience changes while nothing about the credential
+does (#983).
+
+What this rule still owes, and does not yet have, is the other half - saying the
+consequence *before* the fact rather than after it:
+[#982](https://github.com/vstorm-co/agenticos/issues/982) states it in the
+wizard where the collection is chosen, and re-asks when a source is repointed at
+a different one. Today that step is silent, which is exactly the implicitness
+this section exists to name.
 
 ### What a new connector owes
 

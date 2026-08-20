@@ -109,7 +109,7 @@ async def delete_org_integration(
 ) -> None:
     """Delete an org integration by ID."""
     source = await access.sync_source(ctx, str(source_id))
-    await sync_source_svc.delete_source(str(source.id))
+    await sync_source_svc.delete_source(str(source.id), ctx=ctx)
 
 
 @router.post(

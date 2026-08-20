@@ -950,9 +950,15 @@ ended must not fail again because SMTP was down.
 
 ## Audit
 
-Actions that change access or spend money are recorded with an actor, and the
-actor column is `NOT NULL` - which is why a context with no subject raises rather
-than letting the absence travel. A privileged bulk read is recorded too: each CSV
+Actions that change access or spend money are recorded with an actor, and a
+context with no subject raises rather than letting the absence travel - so an
+entry naming nobody means exactly two things, and the `action` says which: the
+approval expiry sweep, and an operator command at the deployment's shell.
+Binding a credential to a collection is one of those actions: `sync_source`
+entries record creating, cloning, repointing and deleting a source, because the
+row decides who ends up able to read what it ingests
+([File processing](file-processing.md#who-ends-up-able-to-read-what-a-source-ingested)).
+A privileged bulk read is recorded too: each CSV
 export writes a `runs.export`, `approvals.export` or `spend.export` entry naming
 the window and the row count, because who took the whole table off the screen is a
 question that is cheap to answer now and impossible to reconstruct later.
