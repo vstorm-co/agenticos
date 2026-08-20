@@ -1,7 +1,7 @@
 """Portal lineage on a trigger, and the scope an account consented to
 
-Revision ID: 0045_portal_triggers
-Revises: 0044_agent_trigger_name
+Revision ID: 0046_portal_triggers
+Revises: 0045_agent_trigger_name
 Create Date: 2026-08-17
 
 The setup layer for trigger portals - an event trigger built from a preset,
@@ -35,8 +35,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision = "0045_portal_triggers"
-down_revision = "0044_agent_trigger_name"
+revision = "0046_portal_triggers"
+down_revision = "0045_agent_trigger_name"
 branch_labels = None
 depends_on = None
 
