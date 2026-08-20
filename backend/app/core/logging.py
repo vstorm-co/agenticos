@@ -67,7 +67,28 @@ class PiiRedactionFilter(logging.Filter):
 
 
 def setup_logging() -> None:
-    """Configure root logger with PII redaction filter."""
-    root_logger = logging.getLogger()
-    if not any(isinstance(f, PiiRedactionFilter) for f in root_logger.filters):
-        root_logger.addFilter(PiiRedactionFilter())
+    """Redact PII from everything this application logs, in every process.
+
+    The filter goes on the root logger's **handlers**, not on the root logger.
+    A filter on a logger runs only for a record logged on *that* logger
+    (`Logger.handle`); a record from a module logger - which is every log line in
+    this codebase - reaches the ancestors' *handlers* through
+    `Logger.callHandlers` and never touches their filters. Attached to the logger,
+    as it was, the filter scrubbed nothing the application actually logs (#440).
+
+    `logging.lastResort` is covered too, because a process that has configured no
+    root handler at all - the CLI, a Prefect flow subprocess before anything sets
+    logging up - emits `WARNING`+ records through it, and a credential in a
+    `logger.exception` is exactly such a record. That is the third handler-timing
+    answer the three processes give.
+
+    Idempotent: safe to call from each entrypoint, and a second call covers a
+    handler added since the first.
+    """
+    root = logging.getLogger()
+    handlers: list[logging.Handler] = list(root.handlers)
+    if logging.lastResort is not None:
+        handlers.append(logging.lastResort)
+    for handler in handlers:
+        if not any(isinstance(f, PiiRedactionFilter) for f in handler.filters):
+            handler.addFilter(PiiRedactionFilter())
