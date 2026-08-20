@@ -358,9 +358,15 @@ class ChannelBotService:
                 update_data.pop("slack_app_token"), key_version=bot.secret_key_version
             )
         if "token" in update_data:
-            sealed = seal_bot_token(update_data.pop("token"), organization_id=self._org_id)
-            update_data["token_encrypted"] = sealed.ciphertext
-            update_data["secret_key_version"] = sealed.key_version
+            # Sealed at the row's existing version, beside its other envelopes, and
+            # the version column is left alone. Re-sealing the token afresh (at the
+            # default v1) and resetting `secret_key_version` to match left the
+            # column disagreeing with any sibling envelope sealed at a rotated
+            # version - latent until a master-key rotation runs, then unreadable
+            # (#552). One version per row, and an update never resets it.
+            update_data["token_encrypted"] = self._seal_at(
+                update_data.pop("token"), key_version=bot.secret_key_version
+            )
         if "webhook_secret" in update_data:
             update_data["webhook_secret_encrypted"] = self._seal_at(
                 update_data.pop("webhook_secret"), key_version=bot.secret_key_version
