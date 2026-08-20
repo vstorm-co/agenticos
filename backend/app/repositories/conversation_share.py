@@ -2,11 +2,12 @@
 
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.conversation import Conversation
 from app.db.models.conversation_share import ConversationShare
+from app.db.models.organization import OrganizationMember
 
 
 async def get_by_id(db: AsyncSession, share_id: UUID) -> ConversationShare | None:
@@ -36,12 +37,28 @@ async def get_by_token(db: AsyncSession, token: str) -> ConversationShare | None
 
 
 async def get_shares_for_conversation(
-    db: AsyncSession, conversation_id: UUID
+    db: AsyncSession, conversation_id: UUID, *, organization_id: UUID
 ) -> list[ConversationShare]:
-    """List all shares for a conversation."""
+    """List a conversation's shares, dropping any written to a non-member.
+
+    A share to somebody outside `organization_id` is unreadable - the read path
+    refuses on the tenant before it ever consults the share (#930) - so listing
+    it would show access nobody has. A public-link share carries no `shared_with`
+    and is kept.
+    """
     result = await db.execute(
         select(ConversationShare)
-        .where(ConversationShare.conversation_id == conversation_id)
+        .where(
+            ConversationShare.conversation_id == conversation_id,
+            or_(
+                ConversationShare.shared_with.is_(None),
+                ConversationShare.shared_with.in_(
+                    select(OrganizationMember.user_id).where(
+                        OrganizationMember.organization_id == organization_id
+                    )
+                ),
+            ),
+        )
         .order_by(ConversationShare.created_at.desc())
     )
     return list(result.scalars().all())
