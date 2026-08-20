@@ -17,6 +17,41 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.213] - 2026-08-20
+
+Both RAG pages get tabs, and the tab is in the URL.
+
+### Changed
+
+- **Integrations is `/rag`'s third tab.** `ReusableIntegrations` sat under the base
+  grid - the right relationship, since the collections are fed from it, and the
+  wrong placement: on an organization with a dozen bases it was below a grid three
+  rows deep, and reachable *only* from the Knowledge bases tab, which makes a
+  page-level concern something you find by first choosing one of two tabs. (#939)
+- **A knowledge base has three tabs** - Documents, How documents are read, Sync
+  sources. Each section carried a comment justifying its place under the one above,
+  and each argument was about reading order on a first visit, which is not where
+  somebody returns to: adjusting a parser meant scrolling past every document. The
+  stats strip and the override banner stay above the tabs, because they describe
+  the collection rather than any one section. (#939)
+- **Both pages carry `?tab=`**, read through the SSR-aware `useUrlState` rather
+  than a `useState` initializer touching `window` - which renders one value on the
+  server and another in the browser, so the default tab flashed before the named
+  one arrived. A link can name a section and a reload keeps it. (#939)
+- **The onboarding walk selects a tab before spotlighting what is inside it.** Four
+  steps gained `activate`; without it a stop waits four seconds for an element that
+  never mounts. (#939)
+
+### Fixed
+
+- **Each tab shows only its own section.** The base list rendered for every value
+  that was not `search`, so choosing Integrations appended the panel *below* the
+  grid rather than replacing it - the placement the tab exists to escape. (#939)
+- **A tab's panel lives inside its `Tabs` root**, on both RAG pages. A
+  `TabsTrigger` points at its panel with `aria-controls`, and a root that closed
+  after the trigger list left those references dangling and the visible section
+  with no `role="tabpanel"`. Pre-existing on `/rag`; fixed there too. (#939)
+
 ## [0.0.212] - 2026-08-20
 
 The RAG dialogs: a real editor for a model prompt, one width scale, and a mark on
