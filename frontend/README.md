@@ -43,7 +43,7 @@ image**, not restarting the container.
 | `NEXT_PUBLIC_API_URL` | What the *browser* calls. Must be publicly reachable, not a container name |
 | `NEXT_PUBLIC_WS_URL` | The chat WebSocket, which the browser opens against the backend directly |
 | `NEXT_PUBLIC_SITE_URL` | This app's own public URL, for OAuth redirects and metadata |
-| `NEXT_PUBLIC_MAX_UPLOAD_SIZE_MB` | Client-side upload limit. Keep it at or below the backend's |
+| `NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB` | What the composer refuses before uploading. Set it to the backend's `CHAT_MAX_UPLOAD_SIZE_MB` — the knowledge base's larger `MAX_UPLOAD_SIZE_MB` is a different surface and does not apply here |
 | `NEXT_PUBLIC_OAUTH_PROVIDERS` | Comma-separated. `google` is the one wired up |
 | `NEXT_PUBLIC_RAG_ENABLED` | Show the knowledge-base UI |
 

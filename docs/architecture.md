@@ -566,7 +566,12 @@ and `parsed_content` (extracted text). Only the file owner can access their file
 
 ### Size Limits
 
-Maximum upload size is controlled by `MAX_UPLOAD_SIZE_MB` (default 50MB).
+There are two, because there are two surfaces. `MAX_UPLOAD_SIZE_MB` (default
+50MB) is the knowledge-base document cap; `CHAT_MAX_UPLOAD_SIZE_MB` (default
+10MB) is what may be attached in chat. They are separate settings rather than
+one, because a document is chunked and read back through retrieval while an
+attachment to an agent with no workspace is pasted whole into the prompt — the
+same size fails differently on each. `GET /api/v1/health` publishes both.
 
 ## RAG System
 

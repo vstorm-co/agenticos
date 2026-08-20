@@ -6,12 +6,12 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.db.models.chat_file import ChatFile
 from app.repositories import chat_file as chat_file_repo
 from app.services.file_storage import (
     ALLOWED_MIME_TYPES,
-    MAX_UPLOAD_SIZE,
     classify_file,
     get_file_storage,
 )
@@ -52,22 +52,34 @@ class FileUploadService:
     """Service for file upload validation, parsing, and persistence."""
 
     ALLOWED_MIME_TYPES = ALLOWED_MIME_TYPES
-    MAX_UPLOAD_SIZE = MAX_UPLOAD_SIZE
 
     def __init__(self, db: AsyncSession):
         self.db = db
 
     @staticmethod
     def validate_upload(content_type: str | None, size: int) -> tuple[bool, str | None]:
-        """Validate file type and size.
+        """Validate a chat attachment's type and size.
+
+        The ceiling is `CHAT_MAX_UPLOAD_SIZE_MB`, and it is a setting because it
+        was a literal: `MAX_UPLOAD_SIZE` in `file_storage.py`, 10 MiB, which no
+        operator could raise while `/health` published the knowledge base's 50
+        and the composer checked against that. A 20MB attachment passed the
+        client check, was read into memory, crossed the wire in full and was
+        refused here by a number no configuration produced (#498).
+
+        It is a *different* setting from the knowledge base's rather than the
+        same one, because the two surfaces fail differently at the same size: a
+        document is chunked and read back through retrieval, while an attachment
+        to an agent with no workspace is pasted whole into the prompt.
 
         Returns:
             Tuple of (is_valid, error_message).
         """
         if content_type not in ALLOWED_MIME_TYPES:
             return False, f"File type '{content_type}' is not supported."
-        if size > MAX_UPLOAD_SIZE:
-            return False, f"File too large. Maximum size is {MAX_UPLOAD_SIZE // (1024 * 1024)}MB."
+        limit_mb = settings.CHAT_MAX_UPLOAD_SIZE_MB
+        if size > limit_mb * 1024 * 1024:
+            return False, f"File too large. Maximum size is {limit_mb}MB."
         return True, None
 
     @staticmethod

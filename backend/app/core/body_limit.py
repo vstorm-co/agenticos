@@ -23,10 +23,11 @@ ones that hold. A deployment that wants the guarantee rather than the courtesy s
 `client_max_body_size` on the proxy in front of it, which is what
 `docs/configuration.md` says.
 
-*The cap is derived, not configured.* It is the largest upload the API accepts plus
-the slack a multipart envelope needs, so raising `MAX_UPLOAD_SIZE_MB` raises this
-with it. A second number to keep in step with the first is a number that ends up
-below it.
+*The cap is derived, not configured.* It is the largest upload the API accepts on
+any surface plus the slack a multipart envelope needs, so raising any upload ceiling
+raises this with it. A second number to keep in step with the first is a number that
+ends up below it - and this middleware is global while the ceilings are per surface,
+so it has to follow the largest of them or the highest one becomes unreachable.
 """
 
 from __future__ import annotations
@@ -49,10 +50,21 @@ _ENVELOPE_ALLOWANCE = 5 * 1024 * 1024
 def max_body_bytes() -> int:
     """The largest request body this API will accept.
 
-    Derived from `MAX_UPLOAD_SIZE_MB` rather than set beside it, so the two cannot
-    disagree: a deployment that raises the upload limit has raised this.
+    Derived from the upload ceilings rather than set beside them, so they cannot
+    disagree: a deployment that raises one has raised this.
+
+    The *largest* of them, because this middleware is global and they are not.
+    It followed `MAX_UPLOAD_SIZE_MB` alone, which was the only one until chat
+    got a ceiling of its own - and a chat limit configured above the knowledge
+    base's would then have been unreachable, refused with a 413 before the route
+    that enforces it ever ran (#498).
     """
-    return settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024 + _ENVELOPE_ALLOWANCE
+    largest_mb = max(
+        settings.MAX_UPLOAD_SIZE_MB,
+        settings.CHAT_MAX_UPLOAD_SIZE_MB,
+        settings.EMBED_MAX_UPLOAD_SIZE_MB,
+    )
+    return largest_mb * 1024 * 1024 + _ENVELOPE_ALLOWANCE
 
 
 class BodySizeLimitMiddleware:
