@@ -124,9 +124,16 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
         key: "state",
         header: t("state"),
         cell: (session) => (
-          // Hibernated is not dead: the sandbox was stopped to free
-          // a slot and its files and log are still there.
-          <Badge variant={session.alive ? "secondary" : "outline"}>{session.state}</Badge>
+          // Hibernated is not dead: the sandbox was stopped to free a slot and its
+          // files and log are still there. Said in words on hover, because the
+          // state name alone reads as a failure to anybody who has not read the
+          // service's documentation (#1039).
+          <Badge
+            variant={session.alive ? "secondary" : "outline"}
+            title={session.alive ? t("stateRunningMeans") : t("stateHibernatedMeans")}
+          >
+            {session.state}
+          </Badge>
         ),
       },
       {
@@ -231,6 +238,13 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
         <ListCardControlsRow>
           <SearchInput value={query} onChange={setQuery} placeholder={t("searchSessions")} />
         </ListCardControlsRow>
+        {/* What this table is, once, where somebody who opened the tab is looking.
+            "Nothing running" and "nothing configured" are the same empty grid, and
+            a session opening on the first tool call rather than when a chat starts
+            is the part nobody guesses (#1039). */}
+        <p className="text-muted-foreground border-border border-t px-5 py-2 text-xs">
+          {t("whatSessionsAre")}
+        </p>
         <DataTable<SandboxSession>
           columns={columns}
           rows={visible}

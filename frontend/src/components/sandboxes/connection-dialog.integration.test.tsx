@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConnectionDialog } from "./connection-dialog";
@@ -19,16 +20,18 @@ import type { Permission } from "@/types/permissions";
 const state = vi.hoisted(() => ({
   permissions: [] as Permission[],
   create: { mutate: vi.fn(), isPending: false },
+  secrets: [] as { id: string; name: string; kind: string }[],
+  probe: vi.fn(),
 }));
 
 vi.mock("@/hooks", () => ({
-  useSecrets: () => ({ secrets: [], create: state.create }),
+  useSecrets: () => ({ secrets: state.secrets, create: state.create }),
   useLocalSandboxService: () => ({
     local: null,
     runtimes: [],
     isLoading: false,
     storeCredential: vi.fn(),
-    probe: vi.fn(),
+    probe: state.probe,
   }),
   usePermissions: () => ({
     can: (permission: Permission) => state.permissions.includes(permission),
@@ -49,6 +52,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.permissions = [Perm.connectionsManage, Perm.secretsEdit];
   state.create = { mutate: vi.fn(), isPending: false };
+  state.secrets = [];
+  state.probe = vi.fn().mockResolvedValue({ runtimes: [] });
 });
 
 describe("storing a sandbox service's token from the connection dialog", () => {
@@ -72,5 +77,39 @@ describe("storing a sandbox service's token from the connection dialog", () => {
     // a write, and the dialog is still usable for one.
     expect(screen.getByLabelText("Credential")).toBeInTheDocument();
     expect(screen.getByText(/permission you do not hold/)).toBeInTheDocument();
+  });
+});
+
+/**
+ * The runtime list is the sandbox library's catalogue until a host has answered,
+ * and a service may have been started with three of its fifteen aliases. The field
+ * marks the difference - but only once somebody has asked, so a form filled in and
+ * saved without pressing `Test` registered a default the first tool call refuses
+ * (#1039).
+ */
+describe("asking the host what it allows", () => {
+  beforeEach(() => {
+    state.secrets = [{ id: "s-1", name: "Sandbox token", kind: "api_key" }];
+  });
+
+  it("asks as soon as there is an address and a credential", async () => {
+    mount();
+
+    await userEvent.type(screen.getByLabelText("Address"), "http://sandboxd:8080");
+    await userEvent.click(screen.getByLabelText("Credential"));
+    await userEvent.click(await screen.findByRole("option", { name: /Sandbox token/ }));
+
+    await waitFor(() => expect(state.probe).toHaveBeenCalledWith("http://sandboxd:8080", "s-1"));
+  });
+
+  it("asks nothing with only half of what it needs", async () => {
+    // A request per keystroke would ask about `htt` and be wrong about it; a
+    // request with no credential cannot be authorised at all.
+    mount();
+
+    await userEvent.type(screen.getByLabelText("Address"), "http://sandboxd:8080");
+
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    expect(state.probe).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   Button,
@@ -140,6 +140,41 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
   // would refill it every time somebody cleared it to type another host. `touched`
   // is what separates "not filled in yet" from "deliberately empty".
   const baseUrl = form.urlTouched ? form.baseUrl : form.baseUrl || (local?.url ?? "");
+
+  const address = baseUrl.trim();
+  const secretId = form.secretId;
+  const ask = useCallback(async () => {
+    setTesting(true);
+    setFailure(NO_FAILURE);
+    try {
+      setAllowed((await probe(address, secretId)).runtimes);
+    } catch (error) {
+      setFailure(submitFailure(error, FORM, tErrors));
+    } finally {
+      setTesting(false);
+    }
+  }, [address, secretId, probe, tErrors]);
+
+  /**
+   * Ask as soon as there is something to ask with.
+   *
+   * The runtime list is the library's catalogue until a host has answered, and
+   * twelve of its fifteen entries may be aliases this service was never started
+   * with - which the field marks, but only after somebody presses `Test`. So a
+   * form filled in and saved without pressing it registered a default the first
+   * tool call refuses, and the button that would have said so looked optional
+   * (#1039).
+   *
+   * Debounced, because the address is typed: a request per keystroke would ask
+   * about `htt`, `http`, `http:` and be wrong about all of them. The explicit
+   * button stays - it is what an operator reaches for after restarting a service
+   * with a different allowlist, where nothing in this form has changed.
+   */
+  useEffect(() => {
+    if (!address || !secretId) return;
+    const timer = setTimeout(() => void ask(), 600);
+    return () => clearTimeout(timer);
+  }, [address, secretId, ask]);
 
   const usable = secrets.filter((secret) => secret.kind === "api_key");
 
@@ -322,22 +357,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
               // Nothing to ask with until there is an address and a key, and a
               // button that answers "fill both in first" is a button that wasted
               // somebody's click.
-              onTest={
-                baseUrl.trim() && form.secretId
-                  ? async () => {
-                      setTesting(true);
-                      setFailure(NO_FAILURE);
-                      try {
-                        const policy = await probe(baseUrl.trim(), form.secretId);
-                        setAllowed(policy.runtimes);
-                      } catch (error) {
-                        setFailure(submitFailure(error, FORM, tErrors));
-                      } finally {
-                        setTesting(false);
-                      }
-                    }
-                  : null
-              }
+              onTest={address && secretId ? ask : null}
               testing={testing}
             />
           ) : (

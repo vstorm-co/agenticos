@@ -4139,7 +4139,10 @@
       "sharedBy": "Shared by",
       "show": "Show",
       "state": "State",
-      "target": "Target"
+      "stateHibernatedMeans": "Stopped to free a slot. The files and the log are still there, and the next request wakes it.",
+      "stateRunningMeans": "The container exists and is resident.",
+      "target": "Target",
+      "whatSessionsAre": "One row is one workspace on one host. A session opens on an agent's first tool call, not when a chat starts, and is reaped once it has been idle long enough."
     },
     "someUnreadable": "{count} could not be read; their host may be down.",
     "sortByAgent": "By agent",
