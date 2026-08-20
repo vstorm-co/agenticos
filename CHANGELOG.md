@@ -17,6 +17,63 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.211] - 2026-08-20
+
+The last second mechanism for secrets at rest is gone.
+
+### Upgrading
+
+**A sync source's credential is no longer a `config` field.** Migration `0042`
+handles it, and it is not silent:
+
+- A source holding an encrypted credential has it **removed** from `config` and is
+  **named in the migration's output**. Nothing readable is lost - the value was a
+  Fernet token over `SECRET_KEY`, and the release that could read it is the one
+  being replaced - and leaving it would leave a credential at rest under a
+  deployment-wide key, which is the whole point of the change. Each named source
+  then has no credential and refuses to sync until one is attached.
+- **Add the credential to the organization's Vault** - a `gcp_service_account` for
+  Drive, an `aws_credentials` pair for S3, both now offered under a new *Document
+  source* group - and point each source at it.
+- **A source with no organization stops the upgrade.** `sync_sources.organization_id`
+  is `NOT NULL` now, and anything `rag-source-add` created before #707 has none.
+  Set it or delete the row, then upgrade.
+- **API callers** posting `service_account_json`, `access_key_id` or
+  `secret_access_key` under `config` get a 400 naming the field. `rag-source-add`
+  takes `--secret-id`.
+
+### Changed
+
+- **A sync source references a vault secret by id.** `sync_sources.config` held the
+  credential, encrypted by `app/core/crypto.py`: one deployment-wide Fernet key
+  over every tenant's secret, which is the weakness the vault exists to remove and
+  the one place `CLAUDE.md`'s "there is no second mechanism" was untrue. That module
+  is **deleted**. `config` now says only how to *find* the documents, and each
+  connector declares the kind of credential it takes. A credential is added once and
+  reused - five collections fed from one Drive folder used to mean the same JSON
+  pasted five times and rotated in five places - and it appears on the Vault page
+  like everything else. (#937)
+- **The sync wizard asks for a credential as its own step**, offering the
+  organization's matching secrets and linking to the Vault when there are none. It
+  distinguishes a vault that holds nothing from one that could not be read. (#937)
+- **`app/worker/background/rag.py` is deleted.** Its three in-process handlers had no
+  caller in `app/` at all, and the connector interface change made them
+  uncompilable. `IngestionService.from_settings` went with them. (#959)
+
+### Fixed
+
+- **Binding a sync credential checks that the binder can see it.** A secret can be
+  private to a member, and a sync runs for everyone who can reach the collection -
+  so binding one is lending it. A Builder with `connections:manage` but shared-only
+  secret visibility could post the id of another member's private credential and
+  have the worker unseal it. The row now goes through
+  `resolve_access(..., Perm.SECRETS_VIEW, resource_type=SECRET)`, refused in the
+  same words as an id that does not exist so the refusal cannot enumerate the
+  vault - the same fix #918 made for embedding keys. (#937)
+- **A nullable sync-source column can be cleared.** The repository skipped every
+  `None`, so `{"secret_id": null}` answered 200 and left the old credential
+  attached, and a source that recovered kept its previous `last_error`. (#937)
+
 ## [0.0.210] - 2026-08-20
 
 `rag-source-add` accepted any collection name, including another tenant's.
