@@ -14,7 +14,7 @@ from app.schemas.organization import (
     OrganizationRead,
     OrganizationUpdate,
 )
-from app.services.file_storage import image_media_type_for
+from app.services.file_storage import sniff_image_media_type
 
 router = APIRouter()
 
@@ -106,7 +106,7 @@ async def get_organization_avatar(
     # from the stored filename's suffix, and the upload kept whatever suffix the
     # caller chose, so a stored `x.html` was served as `text/html` - a script on
     # the app's own origin rather than a picture (#702).
-    media_type = image_media_type_for(file_path)
+    media_type = sniff_image_media_type(file_path)
     if media_type is None:
         raise HTTPException(status_code=404, detail="Avatar file missing")
     return FileResponse(
