@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Literal
 
 import click
 
@@ -55,6 +56,24 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
 
+def compose_value(*, network_mode: Literal["none", "bridge"] = "none") -> str:
+    """The allowlist as a compose file must hold it, which is not as JSON holds it.
+
+    **Compose interpolates the value.** `$arch` and `${node_arch}` in a setup
+    command are variables to it, undefined ones, so it substitutes the empty
+    string and the service is handed `case "" in amd64) ... esac` - which fails
+    the build with `no Node build for `, on every session, as a 502 with the
+    mangled command quoted back. Nothing in the chain says the word "compose":
+    the library passes a setup command through verbatim, and Docker does not
+    expand `$` in a `RUN`.
+
+    `$$` is compose's escape for a literal `$`, so this is the whole difference
+    between the catalogue and the file generated from it -
+    `test_a_shell_variable_survives_composes_interpolation` is what keeps it true.
+    """
+    return allowlist_value(network_mode=network_mode).replace("$", "$$")
+
+
 def _rendered(text: str) -> str:
     """The line this file should carry, for the network default it sets.
 
@@ -67,7 +86,7 @@ def _rendered(text: str) -> str:
     mode = "bridge" if found is not None and found.group(1) == "bridge" else "none"
     # Single-quoted, because a YAML plain scalar may not open with `{` and the
     # JSON itself holds no single quote to escape.
-    return f"{_INDENT}{_KEY}: '{allowlist_value(network_mode=mode)}'\n"
+    return f"{_INDENT}{_KEY}: '{compose_value(network_mode=mode)}'\n"
 
 
 @command("sandbox-runtimes", help="Write the runtime allowlist into the compose files")

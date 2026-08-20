@@ -179,11 +179,11 @@ class TestWithAWorkspace:
     async def test_a_file_too_large_to_store_is_not_pasted_whole(self, storage):
         """The degradation used to run backwards.
 
-        A write is refused when the document has no room, so this branch only
-        runs for a file too large to store - and with a 50 MB upload limit
-        against a 4 MB document, falling back to the paste put up to fifty
-        megabytes of text into one message. A file small enough to paste safely
-        would have fitted in the workspace in the first place.
+        A file the workspace would not take is not a file to put in a prompt:
+        with a 50 MB upload limit against a 4 MB document, falling back to the
+        paste put up to fifty megabytes of text into one message. A file small
+        enough to paste safely would have fitted in the workspace in the first
+        place.
         """
         body = "\n".join(f"row-{n},{n}" for n in range(500))
         chat_file = _file(parsed_content=body)
@@ -194,7 +194,7 @@ class TestWithAWorkspace:
         assert "row-0" in prompt
         # The head, not the file: twenty lines of it and no more.
         assert "row-499" not in prompt
-        assert "not stored" in prompt
+        assert "could not be written" in prompt
 
     async def test_an_unparsed_file_too_large_to_store_is_still_named(self, storage):
         """A zip has no text to sample, so all there is to say is that it arrived
@@ -205,7 +205,7 @@ class TestWithAWorkspace:
 
         assert isinstance(prompt, str)
         assert "dump.zip" in prompt
-        assert "not stored" in prompt
+        assert "could not be written" in prompt
 
     async def test_a_file_that_was_not_stored_is_given_no_path_to_open(self, storage):
         """Naming a path the write did not create costs the agent a tool call to
@@ -452,3 +452,32 @@ class TestLoadingTheRows:
 
         assert await module.load_attached_files(object(), [uuid4()], user_id=caller) == ["row"]
         assert service.list_attached_files.await_args.kwargs["user_id"] == caller
+
+
+class TestWhatTheModelIsToldAboutAFailedWrite:
+    """It says what happened. It used to say why, and be wrong.
+
+    The sentence read "too large for the workspace", reasoned from the `state`
+    backend's four-megabyte document - and a container write fails for reasons
+    that have nothing to do with size. A 782 KB PDF attached while `sandboxd` was
+    down was reported to the model as too large; the model told the person who
+    attached it exactly that, and offered to work around a limit that was never
+    the problem.
+    """
+
+    async def test_it_does_not_blame_the_size(self, storage):
+        chat_file = _file()
+
+        prompt = await AttachmentRouter(_workspace(max_bytes=1)).build_prompt("go", [chat_file])
+
+        assert isinstance(prompt, str)
+        assert "too large" not in prompt
+        assert "could not be written" in prompt
+
+    async def test_it_tells_the_model_not_to_invent_one(self, storage):
+        """The model fills a gap where a cause is missing - it offered "because of
+        its size" unprompted once the sentence stopped saying so."""
+        prompt = await AttachmentRouter(_workspace(max_bytes=1)).build_prompt("go", [_file()])
+
+        assert isinstance(prompt, str)
+        assert "Do not guess at why" in prompt

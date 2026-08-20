@@ -15,7 +15,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from app.commands.sandbox_runtimes import COMPOSE_FILES, _repo_root
+from app.commands.sandbox_runtimes import COMPOSE_FILES, _repo_root, compose_value
 from app.services.sandbox_runtimes import (
     CATALOG,
     SandboxRuntimeDefinition,
@@ -39,7 +39,7 @@ def test_a_compose_file_carries_exactly_what_the_catalogue_describes(name: str) 
     """
     environment = _sandboxd_environment(name)
     mode = environment["SANDBOXD_NETWORK_MODE"]
-    assert environment["SANDBOXD_RUNTIMES"] == allowlist_value(network_mode=mode), (
+    assert environment["SANDBOXD_RUNTIMES"] == compose_value(network_mode=mode), (
         f"{name} has drifted from app/core/catalog/sandbox_runtimes.json. "
         f"Run `make sandbox-runtimes`."
     )
@@ -54,7 +54,7 @@ def test_a_runtime_that_needs_a_network_is_given_one(name: str) -> None:
     if the JSON says `bridge` for itself.
     """
     environment = _sandboxd_environment(name)
-    entries = json.loads(environment["SANDBOXD_RUNTIMES"])
+    entries = json.loads(environment["SANDBOXD_RUNTIMES"].replace("$$", "$"))
     service_wide = environment["SANDBOXD_NETWORK_MODE"]
     for runtime in CATALOG:
         reachable = (
@@ -244,7 +244,7 @@ class TestWritingTheComposeFiles:
         sandbox_runtimes.callback(write=True)
 
         written = (tmp_path / COMPOSE_FILES[0]).read_text()
-        assert f"      SANDBOXD_RUNTIMES: '{allowlist_value()}'\n" in written
+        assert f"      SANDBOXD_RUNTIMES: '{compose_value()}'\n" in written
         assert ">-" not in written
 
     def test_a_file_already_carrying_it_is_left_alone(self, tmp_path, monkeypatch) -> None:
@@ -406,3 +406,20 @@ class TestTheRunsInstructions:
         assert result.instructions.startswith("You are an analyst.")
         assert result.instructions.endswith("- pandas")
         assert spec.instructions == "You are an analyst."
+
+
+def test_a_shell_variable_survives_composes_interpolation() -> None:
+    """The defect that made every session a 502, and the only reason `$$` exists.
+
+    Compose interpolates its own values, so `$arch` in a setup command is an
+    undefined variable to it and the service is handed `case "" in amd64) ...` -
+    a build that fails with `no Node build for `, quoted back through a 502, with
+    nothing in the chain naming compose as the cause.
+    """
+    from app.commands.sandbox_runtimes import _repo_root as root
+
+    written = (root() / COMPOSE_FILES[0]).read_text()
+    line = next(one for one in written.splitlines() if "SANDBOXD_RUNTIMES:" in one)
+
+    assert "$$(dpkg" in line or "$${node_arch}" in line, "a `$` reached compose unescaped"
+    assert "$arch" not in line.replace("$$arch", "")

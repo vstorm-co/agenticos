@@ -178,19 +178,27 @@ def _too_large_to_show(chat_file: ChatFile) -> str:
 def _unstored(chat_file: ChatFile) -> str:
     """Named and sampled, with no path offered because there is nothing at one.
 
-    Never `_pasted`. This is only reached when the workspace refused the write,
-    which for a full workspace means the file was too large to store - and a file
-    too large for a four-megabyte document is too large to put in a prompt. The
-    head is the usable part; the whole thing is the paste this module exists to
-    replace.
+    **It says what happened and not why**, which it used to get wrong in the one
+    way that matters. The sentence read "too large for the workspace", reasoned
+    from the `state` backend's four-megabyte document - and a container write
+    fails for reasons that have nothing to do with size: an unreachable host
+    answers `could not write 'uploads/x.pdf'`, worded identically to a refusal. So
+    a 782 KB PDF attached while `sandboxd` was down was reported to the model as
+    too large, the model repeated that to the person who attached it, and the two
+    of them spent a conversation on a size limit that was never the problem. The
+    real error is in the `attachment_not_written` log line beside the caller.
+
+    Never `_pasted`. A file the workspace would not take is not a file to put in a
+    prompt: with a 50 MB upload limit against a 4 MB document, that is up to fifty
+    megabytes of text in one message. The head is the usable part.
 
     And no path, because the write failed: naming one the agent cannot open would
     cost it a tool call to discover a file that is not there.
     """
     parts = [
         f"\n---\nAttached file: {chat_file.filename} "
-        f"({_size(chat_file)}, {chat_file.file_type}) - too large for the workspace, "
-        "so it was not stored and cannot be opened as a file"
+        f"({_size(chat_file)}, {chat_file.file_type}) - it could not be written to "
+        "your workspace, so there is no file to open. Do not guess at why"
     ]
     if chat_file.parsed_content:
         parts.append(f"\nFirst {HEAD_LINES} lines:\n```\n{_head(chat_file.parsed_content)}\n```")
