@@ -14,6 +14,7 @@ or GCS connector is a client rather than a second copy of them (#988).
 """
 
 import logging
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 from typing import Any, ClassVar
@@ -117,8 +118,11 @@ class S3Connector(ObjectStoreConnector):
         prefix: str,
         config: ConnectorConfig,
         credential: StorableSecret | None,
-    ) -> list[StoredObject]:
+    ) -> Iterator[StoredObject]:
         """One page at a time, as `list_objects_v2` hands them over.
+
+        A generator, so a bucket of a million keys is one page in memory rather
+        than a list of all of them beside the one the caller is building.
 
         `Prefix` is omitted rather than sent empty, which is what the connector
         did before this became a subclass: boto3 accepts `Prefix=""` and means
@@ -134,16 +138,12 @@ class S3Connector(ObjectStoreConnector):
         if prefix:
             params["Prefix"] = prefix
 
-        objects: list[StoredObject] = []
         for page in client.get_paginator("list_objects_v2").paginate(**params):
             for obj in page.get("Contents", []):
                 modified_at = obj.get("LastModified")
                 if isinstance(modified_at, str):
                     modified_at = datetime.fromisoformat(modified_at)
-                objects.append(
-                    StoredObject(key=obj["Key"], size=obj.get("Size"), modified_at=modified_at)
-                )
-        return objects
+                yield StoredObject(key=obj["Key"], size=obj.get("Size"), modified_at=modified_at)
 
     def _download(
         self,

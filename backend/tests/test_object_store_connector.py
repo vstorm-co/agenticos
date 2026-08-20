@@ -19,6 +19,7 @@ only correct if a stored source syncs exactly the way it did before it.
 from __future__ import annotations
 
 import datetime
+import inspect
 from pathlib import Path
 from typing import Any, ClassVar
 from unittest.mock import MagicMock, patch
@@ -213,6 +214,19 @@ class TestTheS3ConnectorStillListsWhatItListed:
             await S3Connector().list_files({"bucket": "acme", "prefix": ""}, self._credential())
 
         client.get_paginator.return_value.paginate.assert_called_once_with(Bucket="acme")
+
+    def test_the_listing_is_never_materialized_beside_the_one_it_builds(self):
+        """`_objects` yields, and this is the guard on that.
+
+        The shared `_listing` builds the `RemoteFile` list the sync path reads;
+        a `_objects` that returned a list of `StoredObject` would hold a second
+        copy of the largest thing a sync ever holds, live at the same time - a
+        bucket of a million keys is the case where that stops being academic and
+        starts being the reason a previously-working sync runs out of memory.
+        Asserted on the function rather than on a measurement, because the shape
+        is what is easy to revert by accident.
+        """
+        assert inspect.isgeneratorfunction(S3Connector._objects)
 
     async def test_a_download_asks_the_client_for_the_key_it_listed(self, tmp_path: Path):
         client = MagicMock()

@@ -21,6 +21,7 @@ the reason its own docstring gives).
 import asyncio
 import logging
 from abc import abstractmethod
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
 from typing import ClassVar
@@ -73,16 +74,36 @@ class ObjectStoreConnector(BaseSyncConnector):
     async def list_files(
         self, config: ConnectorConfig, credential: StorableSecret | None
     ) -> list[RemoteFile]:
-        """Every document under the configured prefix, newest state as listed.
-
-        A key ending in `/` is skipped here rather than in each client: a
-        console that creates a "folder" writes a zero-byte object with that name,
-        and ingesting one is a document with no bytes and a name of `''`.
-        """
-        container = config[self.CONTAINER_FIELD]
-        objects = await asyncio.to_thread(
-            self._objects, container, config.get("prefix", ""), config, credential
+        """Every document under the configured prefix, newest state as listed."""
+        return await asyncio.to_thread(
+            self._listing,
+            config[self.CONTAINER_FIELD],
+            config.get("prefix", ""),
+            config,
+            credential,
         )
+
+    def _listing(
+        self,
+        container: str,
+        prefix: str,
+        config: ConnectorConfig,
+        credential: StorableSecret | None,
+    ) -> list[RemoteFile]:
+        """The listing converted as it arrives, on the thread that fetched it.
+
+        One list in memory rather than two: `_objects` yields, so a bucket of a
+        million keys holds the `RemoteFile` list this returns and one
+        `StoredObject` at a time - which is what the connector held before it had
+        a shared class, and a peak worth not doubling on the largest sync anyone
+        runs. Converting here rather than in `list_files` is what keeps the
+        pagination *inside* the thread; a generator handed back to the event loop
+        would do the next page's network round trip on it.
+
+        A key ending in `/` is skipped here rather than in each client: a console
+        that creates a "folder" writes a zero-byte object with that name, and
+        ingesting one is a document with no bytes and a name of `''`.
+        """
         return [
             RemoteFile(
                 id=obj.key,
@@ -91,7 +112,7 @@ class ObjectStoreConnector(BaseSyncConnector):
                 modified_at=obj.modified_at,
                 source_path=f"{self.SCHEME}://{container}/{obj.key}",
             )
-            for obj in objects
+            for obj in self._objects(container, prefix, config, credential)
             if not obj.key.endswith("/")
         ]
 
@@ -120,10 +141,13 @@ class ObjectStoreConnector(BaseSyncConnector):
         prefix: str,
         config: ConnectorConfig,
         credential: StorableSecret | None,
-    ) -> list[StoredObject]:
+    ) -> Iterable[StoredObject]:
         """This store's listing, paginated the way its SDK paginates.
 
-        Blocking, and called on a worker thread by `list_files`.
+        Blocking, consumed on a worker thread by `_listing`, and a **generator**
+        rather than a list wherever the SDK pages: nothing needs every object at
+        once, and materializing them is a second copy of the largest thing a sync
+        holds.
         """
 
     @abstractmethod
