@@ -901,12 +901,25 @@ naming the row it came from: it points a credential somebody already scoped at a
 different collection, so its audience changes while nothing about the credential
 does (#983).
 
-What this rule still owes, and does not yet have, is the other half - saying the
-consequence *before* the fact rather than after it:
-[#982](https://github.com/vstorm-co/agenticos/issues/982) states it in the
-wizard where the collection is chosen, and re-asks when a source is repointed at
-a different one. Today that step is silent, which is exactly the implicitness
-this section exists to name.
+**And it is said before the fact, not only after it.** The wizard's last step -
+the one that decides the collection - names the credential and the audience
+together, because the pair is the decision: *"<credential> can read whatever it
+has been granted, and everything it ingests becomes searchable in <collection>
+by ..."*. A connector that authenticates with nothing has no credential to name
+and the sentence does not invent one; nor does it name one whose reader holds no
+`secrets:view`. Each scope ends that sentence differently - `personal` is its owner,
+`org` is everyone who can view the collection, `app` is anybody in the
+deployment - and an integration filed under no knowledge base says that nothing
+can search it yet. The sentence does not wait for the collection *picker*, which
+only appears where there is more than one collection to choose from: the case
+this was filed from is a knowledge base offering exactly one, where there is
+nothing to pick and the consequence is the same (#982).
+
+Cloning says it too, and for the reason above: it is the only way to change a
+source's audience from this product's own UI. Repointing an existing one is a
+`PATCH` on `collection_name`, which no screen sends today - there is no source
+editor - so it is reachable through the API and the CLI, where the audit entry
+above is what records it.
 
 ### What a new connector owes
 
