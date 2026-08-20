@@ -452,10 +452,14 @@ uv run agenticos cmd rag-sync-s3 --collection docs --bucket my-bucket
 # List configured sync sources
 uv run agenticos cmd rag-sources
 
-# Add a new sync source
+# Add a new sync source. `--org` is required and the collection has to be one
+# that organization already holds: a sync *writes into* the collection it names,
+# so a source pointing at a name nobody owns fails later in a worker, and one
+# pointing at another tenant's is an injection rather than a read.
 uv run agenticos cmd rag-source-add \
     --name "My Drive" \
     --type gdrive \
+    --org 0c8f2b1e-... \
     --collection docs \
     --config '{"folder_id": "abc123"}' \
     --sync-mode new_only \
