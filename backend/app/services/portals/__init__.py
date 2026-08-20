@@ -9,6 +9,7 @@ from __future__ import annotations
 from app.services.portals.base import PortalAdapter, PortalTarget, RegisteredWebhook
 from app.services.portals.exceptions import (
     PortalError,
+    PortalUnreachable,
     WebhookRegistrationForbidden,
     WebhookRegistrationUnavailable,
 )
@@ -18,6 +19,7 @@ __all__ = [
     "PortalAdapter",
     "PortalError",
     "PortalTarget",
+    "PortalUnreachable",
     "RegisteredWebhook",
     "WebhookRegistrationForbidden",
     "WebhookRegistrationUnavailable",

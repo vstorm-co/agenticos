@@ -727,6 +727,15 @@ class AgentTriggerService:
         the account can no longer register it - a revoked scope, a provider refusal,
         the portal gone from the catalog - the trigger falls back to manual and the
         revealed secret is what the person re-pastes, exactly as create's fallback.
+
+        The new ciphertext is flushed *before* the provider hook is touched, on
+        purpose. In the other order, any failure between the provider call and
+        the commit rolled the row back to the old secret while the provider was
+        already signing with a new one that then existed nowhere - unrecoverable
+        without redoing the whole integration. This way the one residual window
+        (a crash between the flush and the provider call) leaves a hook signing
+        with the old secret and a row holding the new: deliveries 403 until
+        somebody rotates again, which is exactly the action that repairs it.
         """
         trigger = await self._owned(ctx, agent_id, trigger_id)
         if trigger.trigger_type != TriggerType.EVENT.value:
@@ -736,8 +745,6 @@ class AgentTriggerService:
             )
         plaintext = secrets.token_urlsafe(32)
         sealed = seal(plaintext, scope=VaultScope.organization(ctx.organization_id))
-        if _is_auto_webhook(trigger):
-            await self._reregister_hook(ctx, trigger, secret=plaintext)
         updated = await agent_trigger_repo.update(
             self.db,
             trigger=trigger,
@@ -746,6 +753,8 @@ class AgentTriggerService:
                 "secret_key_version": sealed.key_version,
             },
         )
+        if _is_auto_webhook(updated):
+            await self._reregister_hook(ctx, updated, secret=plaintext)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,

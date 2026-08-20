@@ -11,11 +11,13 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import patch
 
+import httpx
 import pytest
 
 from app.services.portals import get_adapter
 from app.services.portals.base import PortalAdapter, PortalTarget, RegisteredWebhook
 from app.services.portals.exceptions import (
+    PortalUnreachable,
     WebhookRegistrationForbidden,
     WebhookRegistrationUnavailable,
 )
@@ -34,10 +36,14 @@ class _Resp:
 
 
 class _FakeClient:
-    """An async-context httpx stand-in returning one canned response per verb."""
+    """An async-context httpx stand-in playing canned responses in order.
 
-    def __init__(self, response: _Resp, calls: list[tuple[str, str]]) -> None:
-        self._response = response
+    The last entry repeats, so a single response still answers every call; an
+    entry that is an exception is raised, standing in for a transport failure.
+    """
+
+    def __init__(self, responses: list[_Resp | Exception], calls: list[tuple[str, str]]) -> None:
+        self._responses = responses
         self._calls = calls
 
     async def __aenter__(self) -> _FakeClient:
@@ -46,21 +52,28 @@ class _FakeClient:
     async def __aexit__(self, *_exc: object) -> bool:
         return False
 
+    def _next(self) -> _Resp:
+        item = self._responses.pop(0) if len(self._responses) > 1 else self._responses[0]
+        if isinstance(item, Exception):
+            raise item
+        return item
+
     async def get(self, url: str, **_kw: Any) -> _Resp:
         self._calls.append(("GET", url))
-        return self._response
+        return self._next()
 
     async def post(self, url: str, **_kw: Any) -> _Resp:
         self._calls.append(("POST", url))
-        return self._response
+        return self._next()
 
     async def delete(self, url: str, **_kw: Any) -> _Resp:
         self._calls.append(("DELETE", url))
-        return self._response
+        return self._next()
 
 
-def _patch_client(response: _Resp, calls: list[tuple[str, str]]):
-    return patch("httpx.AsyncClient", lambda **_kw: _FakeClient(response, calls))
+def _patch_client(response: _Resp | Exception | list[_Resp | Exception], calls):
+    responses = response if isinstance(response, list) else [response]
+    return patch("httpx.AsyncClient", lambda **_kw: _FakeClient(responses, calls))
 
 
 class TestTheBaseIsManualByDefault:
@@ -105,6 +118,34 @@ class TestTheGithubAdapter:
         with _patch_client(_Resp(401), []):
             assert await GitHubPortalAdapter().list_preset_targets(access_token="t") == []
 
+    async def test_the_listing_follows_pagination_past_the_first_hundred(self) -> None:
+        """An account administering more than 100 repositories used to lose every
+        one past the first page: the dialog offers a select whenever any targets
+        come back, so the missing repos were unpickable, not merely unlisted."""
+        calls: list[tuple[str, str]] = []
+        first = [
+            {"full_name": f"acme/repo-{i}", "permissions": {"admin": True}} for i in range(100)
+        ]
+        second = [{"full_name": "acme/repo-last", "permissions": {"admin": True}}]
+        with _patch_client([_Resp(200, first), _Resp(200, second)], calls):
+            targets = await GitHubPortalAdapter().list_preset_targets(access_token="t")
+        assert len(targets) == 101
+        assert targets[-1].id == "acme/repo-last"
+        assert calls == [("GET", "/user/repos"), ("GET", "/user/repos")]
+
+    async def test_the_listing_stops_at_its_page_cap_rather_than_looping(self) -> None:
+        # Every page full forever: the cap bounds the loop and keeps what it read.
+        full = _Resp(200, [{"full_name": "acme/r", "permissions": {"admin": True}}] * 100)
+        calls: list[tuple[str, str]] = []
+        with _patch_client(full, calls):
+            targets = await GitHubPortalAdapter().list_preset_targets(access_token="t")
+        assert len(calls) == 10
+        assert len(targets) == 1000
+
+    async def test_an_unreachable_provider_lists_nothing_rather_than_500ing(self) -> None:
+        with _patch_client(httpx.ConnectError("boom"), []):
+            assert await GitHubPortalAdapter().list_preset_targets(access_token="t") == []
+
     async def test_a_created_hook_returns_its_provider_id(self) -> None:
         calls: list[tuple[str, str]] = []
         with _patch_client(_Resp(201, {"id": 987654}), calls):
@@ -122,6 +163,18 @@ class TestTheGithubAdapter:
 
     async def test_a_rejected_registration_falls_back_to_forbidden(self) -> None:
         with _patch_client(_Resp(403), []), pytest.raises(WebhookRegistrationForbidden):
+            await GitHubPortalAdapter().register_webhook(
+                access_token="t", target="acme/api", webhook_url="https://x/hook", secret="s"
+            )
+
+    async def test_an_unreachable_provider_registers_as_a_portal_error(self) -> None:
+        """A timeout or broken connection must reach the create flow as a
+        `PortalError` - its one except-clause is what degrades the create to the
+        documented manual fallback instead of rolling the trigger back with a 500."""
+        with (
+            _patch_client(httpx.TimeoutException("slow"), []),
+            pytest.raises(PortalUnreachable),
+        ):
             await GitHubPortalAdapter().register_webhook(
                 access_token="t", target="acme/api", webhook_url="https://x/hook", secret="s"
             )

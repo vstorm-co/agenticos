@@ -2001,6 +2001,48 @@ class TestRotatingTheSecret:
         # The platform holds the new secret, so nothing is revealed.
         assert result.reveal_secret is None
 
+    async def test_the_new_ciphertext_is_persisted_before_the_provider_hook_moves(self):
+        """Order is the safety property here: were the provider re-registered
+        first, any later failure rolled the row back to the old secret while the
+        provider already signed with a new one that then existed nowhere. With
+        the write first, the worst crash leaves a hook on the old secret and a
+        row on the new - repaired by simply rotating again."""
+        agent = _agent()
+        service = _service(agent)
+        service.connections.webhook_access_token = AsyncMock(return_value="tok")
+        order: list[str] = []
+        adapter = MagicMock()
+        adapter.delete_webhook = AsyncMock(side_effect=lambda **_kw: order.append("provider"))
+        adapter.register_webhook = AsyncMock(
+            return_value=RegisteredWebhook(provider_webhook_id="hook-2")
+        )
+        trigger = _event_trigger(
+            agent_id=agent.id,
+            delivery_mode="auto_webhook",
+            provider_webhook_id="hook-1",
+            connection_id=uuid.uuid4(),
+            portal_key="github",
+            provider_target="acme/api",
+        )
+
+        async def update(_db, **kwargs):
+            order.append("db-update")
+            return trigger
+
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch(
+                "app.services.agent_trigger.seal",
+                return_value=MagicMock(ciphertext="CT", key_version=2),
+            ),
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock(side_effect=update)
+            await service.rotate_secret(_ctx(), agent.id, trigger.id)
+        assert order == ["db-update", "provider"]
+
     async def test_an_auto_rotation_the_provider_refuses_falls_back_to_manual(self):
         agent = _agent()
         service = _service(agent)

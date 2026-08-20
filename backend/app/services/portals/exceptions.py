@@ -40,3 +40,16 @@ class WebhookRegistrationForbidden(PortalError):
 
     message = "The connected account may not register this webhook"
     code = "PORTAL_WEBHOOK_FORBIDDEN"
+
+
+class PortalUnreachable(PortalError):
+    """The provider could not be reached at all - a timeout or a broken connection.
+
+    Raised in place of the raw `httpx` transport error so the create flow's
+    one `except PortalError` covers it: a provider that is down while a trigger
+    is being created must degrade to the documented manual fallback (a URL and
+    a reveal-once secret), not roll the trigger back with a 500.
+    """
+
+    message = "The portal's provider could not be reached"
+    code = "PORTAL_UNREACHABLE"
