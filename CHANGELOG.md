@@ -17,6 +17,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.228] - 2026-08-20
+
+The MCP connection dialog owns its own form.
+
+### Changed
+
+- **`McpConnectionDialog` was a controlled shell.** `McpServerList` held its five
+  form fields as state and drilled a value *and* a setter each into it - thirteen
+  props - seeding them by hand when a draft opened. The dialog owns those fields
+  now, in an inner form keyed on the draft, so switching servers remounts it with
+  freshly seeded state instead of carrying the previous server's name and token
+  across. The list keeps which server is being edited and reads the values back on
+  submit; `handleSubmit` stays with the list, because it drives the connection
+  mutations, the tool refresh and the OAuth redirect, none of which are the
+  dialog's. Prop surface: 13 to 5. Behaviour unchanged, and the integration suite
+  that drives the dialog through the DOM asserts the same API payloads untouched.
+  (#569)
+
 ## [0.0.227] - 2026-08-20
 
 An attachment the router cannot read is named rather than dropped.
