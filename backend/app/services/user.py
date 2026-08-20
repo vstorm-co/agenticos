@@ -6,7 +6,12 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import AlreadyExistsError, AuthenticationError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthenticationError,
+    AuthorizationError,
+    NotFoundError,
+)
 from app.core.security import (
     create_magic_link_token,
     create_password_reset_token,
@@ -269,6 +274,44 @@ class UserService:
                 details={"user_id": user_id},
             )
         return user
+
+    async def admin_update(
+        self, user_id: UUID, user_in: UserUpdate, *, acting_admin_id: UUID
+    ) -> User:
+        """An app admin updating another user's row, refusing self-suspension.
+
+        `is_active` is enforced on the very next request, so an admin flipping
+        their own to false is signed out of a deployment they administer - and on
+        a single-admin install that ends administration until somebody reaches a
+        terminal (#941). An admin genuinely leaving does it through another admin,
+        which is also what keeps the audit trail readable.
+
+        Only `is_active` is guarded because it is the only privilege this schema
+        carries: `is_app_admin` is not a `UserUpdate` field - the one global
+        privilege is granted by CLI, never over a surface a request can reach - so
+        there is no self-demotion here to refuse.
+        """
+        if user_id == acting_admin_id and user_in.is_active is False:
+            raise AuthorizationError(
+                message="You cannot suspend your own account; ask another app admin to."
+            )
+        return await self.update(user_id, user_in)
+
+    async def admin_delete(self, user_id: UUID, *, acting_admin_id: UUID) -> User:
+        """An app admin deleting a user, refusing self-deletion.
+
+        Deleting your own row takes the account and its conversations with it, and
+        on a single-admin install leaves the deployment with no administrator (#941).
+        Because `is_app_admin` cannot be cleared over the API, the set of app admins
+        only ever shrinks by deletion - so refusing self-deletion is what keeps the
+        last admin from being the one removed: any other admin deleting the *last*
+        one would have to be deleting themselves.
+        """
+        if user_id == acting_admin_id:
+            raise AuthorizationError(
+                message="You cannot delete your own account; ask another app admin to."
+            )
+        return await self.delete(user_id)
 
     async def issue_password_reset_token(self, email: str) -> tuple[User, str] | None:
         """Returns None (not raises) to avoid leaking whether the email is registered."""

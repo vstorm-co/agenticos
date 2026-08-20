@@ -86,17 +86,17 @@ async def update_user_by_id(
     user_id: UUID,
     user_in: UserUpdate,
     user_service: UserSvc,
-    _: CurrentAppAdmin,
+    admin: CurrentAppAdmin,
 ) -> Any:
     """Update user by ID (admin only)."""
-    return await user_service.update(user_id, user_in)
+    return await user_service.admin_update(user_id, user_in, acting_admin_id=admin.id)
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_user_by_id(
     user_id: UUID,
     user_service: UserSvc,
-    _: CurrentAppAdmin,
+    admin: CurrentAppAdmin,
 ) -> None:
     """Delete user by ID (admin only)."""
-    await user_service.delete(user_id)
+    await user_service.admin_delete(user_id, acting_admin_id=admin.id)

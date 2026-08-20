@@ -5,7 +5,12 @@ from uuid import uuid4
 
 import pytest
 
-from app.core.exceptions import AlreadyExistsError, AuthenticationError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthenticationError,
+    AuthorizationError,
+    NotFoundError,
+)
 from app.schemas.user import UserCreate, UserUpdate
 from app.services.user import UserService
 
@@ -234,3 +239,56 @@ class TestUserServicePostgresql:
 
             with pytest.raises(NotFoundError):
                 await user_service.delete(uuid4())
+
+    @pytest.mark.anyio
+    async def test_an_admin_cannot_suspend_their_own_account(self, user_service: UserService):
+        """is_active is enforced on the next request, so this signs the admin out
+        of a deployment they administer - refused before the repo is touched (#941)."""
+        me = uuid4()
+        with patch("app.services.user.user_repo") as mock_repo:
+            mock_repo.update = AsyncMock()
+
+            with pytest.raises(AuthorizationError):
+                await user_service.admin_update(me, UserUpdate(is_active=False), acting_admin_id=me)
+
+            mock_repo.update.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_an_admin_may_suspend_another_user(
+        self, user_service: UserService, mock_user: MockUser
+    ):
+        """The refusal is about your own row, not about suspension."""
+        with patch("app.services.user.user_repo") as mock_repo:
+            mock_repo.get_by_id = AsyncMock(return_value=mock_user)
+            mock_repo.update = AsyncMock(return_value=mock_user)
+
+            await user_service.admin_update(
+                mock_user.id, UserUpdate(is_active=False), acting_admin_id=uuid4()
+            )
+
+            mock_repo.update.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_an_admin_cannot_delete_their_own_account(self, user_service: UserService):
+        """Deleting your own row takes administration with it on a single-admin
+        install; because is_app_admin cannot be cleared over the API, refusing this
+        is what keeps the last admin from being removed (#941)."""
+        me = uuid4()
+        with patch("app.services.user.user_repo") as mock_repo:
+            mock_repo.delete = AsyncMock()
+
+            with pytest.raises(AuthorizationError):
+                await user_service.admin_delete(me, acting_admin_id=me)
+
+            mock_repo.delete.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_an_admin_may_delete_another_user(
+        self, user_service: UserService, mock_user: MockUser
+    ):
+        with patch("app.services.user.user_repo") as mock_repo:
+            mock_repo.delete = AsyncMock(return_value=mock_user)
+
+            await user_service.admin_delete(mock_user.id, acting_admin_id=uuid4())
+
+            mock_repo.delete.assert_awaited_once()

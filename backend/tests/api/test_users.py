@@ -63,6 +63,8 @@ def mock_user_service(mock_user: MockUser) -> MagicMock:
     service.get_multi = ServiceMock(return_value=[mock_user])
     service.update = ServiceMock(return_value=mock_user)
     service.delete = ServiceMock(return_value=mock_user)
+    service.admin_update = ServiceMock(return_value=mock_user)
+    service.admin_delete = ServiceMock(return_value=mock_user)
     return service
 
 
@@ -239,7 +241,8 @@ async def test_update_user_by_id(
         json={"full_name": "Admin Updated"},
     )
     assert response.status_code == 200
-    mock_user_service.update.assert_called_once()
+    # The admin-by-id route goes through the self-action guard, not the bare update.
+    mock_user_service.admin_update.assert_called_once()
 
 
 @pytest.mark.anyio
@@ -251,7 +254,7 @@ async def test_delete_user_by_id(
     """Test deleting user by ID as superuser."""
     response = await superuser_client.delete(f"{settings.API_V1_STR}/users/{mock_user.id}")
     assert response.status_code == 204
-    mock_user_service.delete.assert_called_once()
+    mock_user_service.admin_delete.assert_called_once()
 
 
 @pytest.mark.anyio
@@ -261,7 +264,9 @@ async def test_delete_user_by_id_not_found(
 ):
     """Test deleting non-existent user."""
 
-    mock_user_service.delete = ServiceMock(side_effect=NotFoundError(message="User not found"))
+    mock_user_service.admin_delete = ServiceMock(
+        side_effect=NotFoundError(message="User not found")
+    )
 
     response = await superuser_client.delete(f"{settings.API_V1_STR}/users/{uuid4()}")
     assert response.status_code == 404
