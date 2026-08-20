@@ -43,6 +43,7 @@ uv run agenticos cmd rag-sources
 uv run agenticos cmd rag-source-add \
   --name "Legal docs" \
   --type gdrive \
+  --org 0c8f2b1e-... \
   --collection legal \
   --config '{"folder_id": "1abc123def", "include_subfolders": true}' \
   --sync-mode new_only \
@@ -55,6 +56,7 @@ uv run agenticos cmd rag-source-add \
 uv run agenticos cmd rag-source-add \
   --name "Marketing" \
   --type s3 \
+  --org 0c8f2b1e-... \
   --collection marketing \
   --config '{"bucket": "my-docs", "prefix": "marketing/"}' \
   --sync-mode full \

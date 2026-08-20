@@ -17,12 +17,15 @@ import asyncio
 import hashlib
 import json
 from pathlib import Path
+from uuid import UUID
 
 import click
 
 from app.commands import command, error, info, success, warning
 from app.core.background import drain
+from app.core.exceptions import AppException
 from app.db.session import get_db_context
+from app.repositories import knowledge_base_repo, organization_repo
 from app.schemas.sync_source import SyncSourceCreate
 from app.services.embedding_resolution import embeddings_for_collection
 from app.services.rag.config import DEFAULT_COLLECTION_NAME, DocumentExtensions, RAGSettings
@@ -552,6 +555,7 @@ def rag_sources() -> None:
 @command("rag-source-add", help="Add a new sync source")
 @click.option("--name", required=True, help="Source name")
 @click.option("--type", "connector_type", required=True, help="Connector type (e.g. gdrive, s3)")
+@click.option("--org", "org_id", required=True, help="Organization id that owns the collection")
 @click.option("--collection", required=True, help="Target collection name")
 @click.option("--config", "config_json", required=True, help="Config JSON string")
 @click.option(
@@ -570,6 +574,7 @@ def rag_sources() -> None:
 def rag_source_add(
     name: str,
     connector_type: str,
+    org_id: str,
     collection: str,
     config_json: str,
     sync_mode: str,
@@ -578,14 +583,30 @@ def rag_source_add(
     """
     Add a new sync source configuration.
 
+    `--org` is required, and the collection has to be one that organization
+    already holds. A sync *writes into* the collection it names, so a row
+    pointing at a name nobody owns is a source that fails in a worker, and one
+    pointing at another tenant's is an injection rather than a read - the same
+    reason the HTTP route resolves the collection through
+    `CollectionAccessService.writable` before creating anything. This command
+    had no ctx and so asked neither question: it wrote whatever name it was
+    given, into a row with no organization at all (#707).
+
     Example:
-        project cmd rag-source-add --name "My Drive" --type gdrive --collection docs \\
+        project cmd rag-source-add --name "My Drive" --type gdrive \\
+            --org 0c8f... --collection docs \\
             --config '{"folder_id": "abc123"}' --sync-mode new_only
     """
     try:
         config_dict = json.loads(config_json)
     except json.JSONDecodeError as e:
         error(f"Invalid JSON config: {e}")
+        return
+
+    try:
+        organization_id = UUID(org_id)
+    except ValueError:
+        error(f"Not an organization id: {org_id}")
         return
 
     data = SyncSourceCreate(
@@ -599,11 +620,29 @@ def rag_source_add(
 
     async def _create() -> None:
         async with get_db_context() as db:
+            organization = await organization_repo.get_by_id(db, organization_id)
+            if organization is None:
+                error(f"No such organization: {org_id}")
+                return
+            # `list_by_collection_name`, not `get_by_collection_name`: the column
+            # is not unique, so the singular lookup answers with whichever row
+            # the database returns first and would hand this organization
+            # another's collection (#913). The candidates are filtered here, by
+            # the organization the operator named.
+            candidates = await knowledge_base_repo.list_by_collection_name(db, collection)
+            owned = [kb for kb in candidates if kb.organization_id == organization_id]
+            if not owned:
+                error(
+                    f"No collection '{collection}' in {organization.name}. "
+                    "A sync writes into the collection it names, so it has to exist first."
+                )
+                return
+
             svc = SyncSourceService(db)
             try:
-                source = await svc.create_source(data)
+                source = await svc.create_source(data, organization_id=organization_id)
                 success(f"Sync source created: {source.name} (id={source.id})")
-            except ValueError as e:
+            except (ValueError, AppException) as e:
                 error(f"Failed to create source: {e}")
 
     asyncio.run(_create())

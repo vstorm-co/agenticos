@@ -174,6 +174,154 @@ class TestRagSourceSyncWaitsForItsWork:
         )
 
 
+class TestRagSourceAddRefusesWhatItCannotOwn:
+    """#707. The command wrote a caller-supplied collection name straight into a
+    `sync_sources` row without asking whether it was a legal identifier, whether
+    a knowledge base of that name existed, or whose it was. The HTTP route for
+    the same thing asks all three, and its docstring says why: "a sync writes
+    into the collection, so pointing one at another tenant's is an injection,
+    not a read".
+
+    The row also had no organization - `create_source` was called without one and
+    the column is nullable - while the model's docstring opens "Belongs to an
+    organization". `--org` is now required and is what answers the ownership
+    question the CLI has no `ctx` for.
+    """
+
+    ORG = uuid4()
+
+    @staticmethod
+    def _run(monkeypatch, *, organization, candidates, service=None):
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.commands import rag as rag_command
+
+        created: list[dict[str, object]] = []
+
+        class RecordingService:
+            def __init__(self, db: object) -> None:
+                self.db = db
+
+            async def create_source(self, data, organization_id=None):
+                created.append({"data": data, "organization_id": organization_id})
+                return SimpleNamespace(name=data.name, id=uuid4())
+
+        @asynccontextmanager
+        async def session() -> AsyncGenerator[object, None]:
+            yield object()
+
+        monkeypatch.setattr(rag_command, "get_db_context", session)
+        monkeypatch.setattr(
+            rag_command.organization_repo, "get_by_id", AsyncMock(return_value=organization)
+        )
+        monkeypatch.setattr(
+            rag_command.knowledge_base_repo,
+            "list_by_collection_name",
+            AsyncMock(return_value=candidates),
+        )
+        monkeypatch.setattr(rag_command, "SyncSourceService", service or RecordingService)
+        return created, MagicMock
+
+    def _invoke(self, collection: str, org: str | None = None):
+        from app.commands import rag as rag_command
+
+        return CliRunner().invoke(
+            rag_command.rag_source_add,
+            [
+                "--name",
+                "My Drive",
+                "--type",
+                "gdrive",
+                "--org",
+                org or str(self.ORG),
+                "--collection",
+                collection,
+                "--config",
+                '{"folder_id": "abc123"}',
+            ],
+        )
+
+    def test_a_collection_the_organization_holds_is_accepted_and_owns_the_row(
+        self, monkeypatch
+    ) -> None:
+        """And the row carries the organization, which every row this command
+        made used to lack."""
+        organization = SimpleNamespace(id=self.ORG, name="Acme")
+        kb = SimpleNamespace(collection_name="docs", organization_id=self.ORG)
+        created, _ = self._run(monkeypatch, organization=organization, candidates=[kb])
+
+        result = self._invoke("docs")
+
+        assert result.exit_code == 0, result.output
+        assert len(created) == 1
+        assert created[0]["organization_id"] == self.ORG
+        assert created[0]["data"].collection_name == "docs"
+
+    def test_a_collection_no_knowledge_base_claims_is_refused(self, monkeypatch) -> None:
+        """It was accepted, and then failed in a worker - attributed to the sync
+        rather than to the configuration that caused it."""
+        organization = SimpleNamespace(id=self.ORG, name="Acme")
+        created, _ = self._run(monkeypatch, organization=organization, candidates=[])
+
+        result = self._invoke("absent")
+
+        assert created == []
+        assert "No collection 'absent'" in result.output
+
+    def test_another_organizations_collection_is_refused(self, monkeypatch) -> None:
+        """The injection the route's docstring names. `collection_name` is not
+        unique, so a name can exist and still not be this organization's - which
+        is why the command filters the candidates rather than taking the first
+        row the database returns (#913).
+        """
+        organization = SimpleNamespace(id=self.ORG, name="Acme")
+        theirs = SimpleNamespace(collection_name="docs", organization_id=uuid4())
+        created, _ = self._run(monkeypatch, organization=organization, candidates=[theirs])
+
+        result = self._invoke("docs")
+
+        assert created == []
+        assert "No collection 'docs'" in result.output
+
+    def test_an_organization_that_does_not_exist_is_refused(self, monkeypatch) -> None:
+        created, _ = self._run(monkeypatch, organization=None, candidates=[])
+
+        result = self._invoke("docs")
+
+        assert created == []
+        assert "No such organization" in result.output
+
+    def test_something_that_is_not_an_organization_id_is_refused_before_any_query(
+        self, monkeypatch
+    ) -> None:
+        """Left to `UUID()` inside the coroutine this was a `ValueError`
+        traceback rather than a sentence."""
+        created, _ = self._run(monkeypatch, organization=None, candidates=[])
+
+        result = self._invoke("docs", org="acme")
+
+        assert created == []
+        assert "Not an organization id" in result.output
+
+    def test_a_name_no_table_can_be_called_is_refused_by_the_service(self, monkeypatch) -> None:
+        """The shape check lives in `create_source`, so the route and the CLI
+        share it. The command reports it rather than raising a traceback.
+        """
+        from app.services.sync_source import SyncSourceService
+
+        organization = SimpleNamespace(id=self.ORG, name="Acme")
+        kb = SimpleNamespace(collection_name="Bad Name!", organization_id=self.ORG)
+        self._run(
+            monkeypatch, organization=organization, candidates=[kb], service=SyncSourceService
+        )
+
+        result = self._invoke("Bad Name!")
+
+        assert result.exit_code == 0, result.output
+        assert "Failed to create source" in result.output
+        assert "collection name" in result.output
+
+
 class TestSeedSkillsSurvivesARacingListing:
     """A listing top-up can commit the same skill between the command's name
     check and its flush. That surfaces as `IntegrityError`, not

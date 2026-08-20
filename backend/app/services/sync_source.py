@@ -12,7 +12,9 @@ from app.core.config import settings
 from app.core.crypto import decrypt_value, encrypt_value, is_encrypted
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.field_errors import refused_field
+from app.db.base import Base
 from app.db.models.sync_source import SyncSource
+from app.db.vector_tables import validate_collection_name
 from app.services.rag.connectors import CONNECTOR_REGISTRY
 from app.repositories import sync_log as sync_log_repo
 from app.repositories import sync_source as sync_source_repo
@@ -199,14 +201,32 @@ class SyncSourceService:
         `collection_name` is optional - omit to create an org-level integration
         not yet linked to a knowledge base.
 
+        The name's *shape* is judged here rather than only at the routes,
+        because a sync writes into whatever collection this row names and the
+        store will interpolate it into DDL. A name no table can be called was
+        accepted and then failed in a worker, attributed to the sync rather than
+        to the configuration that caused it - which is the same class of failure
+        #371 and #368 fixed on the route side, reaching the row through the CLI
+        instead (#707).
+
+        Whose collection it is remains the caller's question, because only the
+        caller knows who is asking: the route resolves it with
+        `CollectionAccessService.writable`, and `rag-source-add` resolves the
+        organization it was given. This method cannot answer it - `organization_id`
+        is a keyword here and `None` is a legal value for it.
+
         Raises:
-            BadRequestError: unknown connector or invalid config.
+            BadRequestError: unknown connector, invalid config, or a collection
+                name that cannot safely become an identifier.
         """
         if data.connector_type not in CONNECTOR_REGISTRY:
             raise BadRequestError(
                 message=f"Unknown connector type: {data.connector_type}",
                 details={"connector_type": data.connector_type},
             )
+
+        if data.collection_name is not None:
+            validate_collection_name(data.collection_name, metadata=Base.metadata)
 
         await _refuse_an_invalid_config(data.config, data.connector_type)
 
