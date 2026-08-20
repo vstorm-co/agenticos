@@ -147,6 +147,14 @@ Derived from the catalog rather than from a role name, so a custom role (Phase
 against the literal `"admin"` and could not see one at all - on the invitation
 paths as well as on `change_role`, which is what #696 closed.
 
+**A page's organization is the one in its URL.** `X-Organization-Id` travels on
+every request from the console and names the *active* organization, so a page
+that acts on an org from its path - `/orgs/{id}/members` - has two notions of
+"which tenant" and the organizations list opens that page without switching. They
+are one now: the dashboard's `ActiveOrgGuard` adopts the organization a path
+names, before the page asks anything, so what a caller may do there is what they
+may do *there* (#1032).
+
 **The console computes the same relation rather than being told it.** Every role
 picker - the two invite dialogs and the members table - offers what
 `assignableRoles` in `frontend/src/lib/assignable-roles.ts` answers, over the

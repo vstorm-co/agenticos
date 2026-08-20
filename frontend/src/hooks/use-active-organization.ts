@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { localePrefixOf } from "@/lib/locale-routing";
 import { usePermissions } from "@/hooks/use-permissions";
 import { preferredOrg, useOrganizationList } from "@/hooks/use-organizations";
 import { ApiError } from "@/lib/api-client";
@@ -32,6 +34,38 @@ export function refusesOrganization(failure: unknown, activeOrgId: string | null
   if (activeOrgId === null) return false;
   if (!(failure instanceof ApiError) || failure.status !== 404) return false;
   return failure.details?.org_id === activeOrgId;
+}
+
+/**
+ * The organization a path names, when it names one.
+ *
+ * `/orgs/{id}/members` and `/orgs/{id}/roles` act on the organization in their
+ * URL, while every request they make carries the *active* one in
+ * `X-Organization-Id` - and nothing kept the two the same: the organizations
+ * list opens either page through an overlay link, where *switching* is a
+ * separate button that navigates to the dashboard. So the ordinary way to reach
+ * another organization's members page was the way that left the active
+ * organization behind, and the page then judged Acme's members by the caller's
+ * role in Globex (#1032).
+ *
+ * A UUID, deliberately, rather than any second segment: a later `/orgs/new`
+ * would otherwise be adopted as a tenant id and refused on every request the
+ * page made.
+ *
+ * The prefix is tolerated because this reads `next/navigation`'s pathname, which
+ * keeps one: `/pl/orgs/{id}/members` names the same organization as
+ * `/orgs/{id}/members`. Reading rather than navigating, so the rule against
+ * reaching for that module holds - it is about switching locale, which loses the
+ * cookie.
+ */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function organizationInPath(pathname: string): string | null {
+  const segments = pathname.split("/").filter(Boolean);
+  const start = localePrefixOf(pathname) === null ? 0 : 1;
+  if (segments[start] !== "orgs") return null;
+  const id = segments[start + 1];
+  return id !== undefined && UUID.test(id) ? id : null;
 }
 
 /**
@@ -137,10 +171,33 @@ export function useActiveOrganizationRecovery(): void {
   const markOrgRefused = useOrgStore((state) => state.markOrgRefused);
   const { error } = usePermissions();
   const { data: orgs } = useOrganizationList();
+  const named = organizationInPath(usePathname());
+  // A refused organization is not adopted from a URL either, or opening its
+  // page would hand the selection straight back to the one the recovery below
+  // has just moved off - the shape an infinite switch loop takes.
+  const adopted = named !== null && !refusedOrgIds.includes(named) ? named : null;
 
-  // Whatever moved the selection - the switcher, the recovery below, or a
-  // path that does not exist yet - the cache follows it.
-  useTenantCacheReset(activeOrgId);
+  /**
+   * A page that names an organization *is* that organization.
+   *
+   * A **layout effect**, and before the queries: the API client stamps
+   * `X-Organization-Id` when a request is made, and react-query starts one from
+   * a passive effect - which runs after every layout effect in the commit. So
+   * the selection is already the URL's by the time the page asks anything, and
+   * this component is rendered before `{children}` in the dashboard layout,
+   * which is what puts it before the page's own effects rather than beside them.
+   */
+  useLayoutEffect(() => {
+    if (adopted === null || adopted === activeOrgId) return;
+    setActiveOrgId(adopted);
+  }, [adopted, activeOrgId, setActiveOrgId]);
+
+  // Whatever moved the selection - the switcher, the URL above, or the recovery
+  // below - the cache follows it. The URL's organization is passed rather than
+  // the stored one so that a direct load of another organization's page records
+  // *it* as the tenant the cache belongs to: the reset would otherwise fire one
+  // commit later, cancelling the requests the page had already started.
+  useTenantCacheReset(adopted ?? activeOrgId);
 
   useEffect(() => {
     if (activeOrgId === null || orgs === undefined) return;

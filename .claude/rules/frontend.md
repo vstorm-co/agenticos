@@ -252,6 +252,20 @@ control the caller may not use is **not rendered** — not rendered and then 403
 Prove it with an integration test (`*.integration.test.tsx`, Testing Library against a
 mocked API), not with Playwright.
 
+**Which roles a picker offers is arithmetic, not a list.** `assignableRoles` in
+`lib/assignable-roles.ts` mirrors the server's `assignable_roles` over the catalog's
+permission sets: a role is offered only when the caller's own strictly outranks it.
+A list of "every role but owner" is what offered an Admin the Admin option and 403'd
+after the email address was typed (#1028).
+
+**And a page that names an organization in its URL *is* that organization.**
+`apiClient` stamps `X-Organization-Id: activeOrgId` on every request, so a page acting
+on the org in its path while reading permissions for the active one decides Acme's
+members by the caller's role in Globex — which is what `/orgs/{id}/members` did, because
+the organizations list opens it without switching (#1032). The adoption lives in
+`ActiveOrgGuard`, once, beside the tenant cache reset it has to happen before; a page
+does not do it for itself.
+
 ## An empty page is ambiguous
 
 Every dashboard page fans out to several queries and renders its empty state when one
