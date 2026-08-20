@@ -9,6 +9,7 @@ import { SyncSourceWizard } from "./sync-source-wizard";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 import type { ConnectorInfo, SyncSourceCreate } from "@/lib/rag-api";
+import type { KBScope } from "@/types/knowledge-base";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/api-client", () => ({
@@ -89,7 +90,7 @@ const CONNECTOR: ConnectorInfo = {
 
 /** Walk the wizard from its first step to the last, where the collection is chosen. */
 async function openScheduleStep(props: {
-  collections: { name: string }[];
+  collections: { name: string; scope: KBScope }[];
   defaultCollection?: string;
   onSubmit: (data: SyncSourceCreate) => void;
 }) {
@@ -116,7 +117,10 @@ async function openScheduleStep(props: {
 describe("the sync wizard's target collection", () => {
   it("is on screen, and starts on the one the caller suggested", async () => {
     await openScheduleStep({
-      collections: [{ name: "handbook" }, { name: "contracts" }],
+      collections: [
+        { name: "handbook", scope: "org" },
+        { name: "contracts", scope: "personal" },
+      ],
       defaultCollection: "contracts",
       onSubmit: vi.fn(),
     });
@@ -130,7 +134,10 @@ describe("the sync wizard's target collection", () => {
   it("files the source under the collection that was chosen, not the suggestion", async () => {
     const onSubmit = vi.fn();
     await openScheduleStep({
-      collections: [{ name: "handbook" }, { name: "contracts" }],
+      collections: [
+        { name: "handbook", scope: "org" },
+        { name: "contracts", scope: "personal" },
+      ],
       defaultCollection: "contracts",
       onSubmit,
     });
@@ -146,7 +153,7 @@ describe("the sync wizard's target collection", () => {
     // `kb/[id]`, whose sources belong to that base and nowhere else.
     const onSubmit = vi.fn();
     await openScheduleStep({
-      collections: [{ name: "org_handbook" }],
+      collections: [{ name: "org_handbook", scope: "org" }],
       defaultCollection: "org_handbook",
       onSubmit,
     });
@@ -169,6 +176,115 @@ describe("the sync wizard's target collection", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /Create source/ }));
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ collection_name: null }));
+  });
+});
+
+/**
+ * The wizard says who will be able to read what the source ingests.
+ *
+ * Access is decided at the collection and there is no per-document isolation
+ * inside one, so the pair - this credential, that collection - *is* the decision.
+ * The wizard used to make it in silence, which is #982: a token issued for a
+ * whole Confluence instance, pointed at an `org` collection, published the
+ * instance to every member holding `collections:view` and no step said a word.
+ */
+describe("the audience of what a source ingests", () => {
+  it("is stated on the step that decides it, even where the collection is pinned", async () => {
+    // The issue's own repro: `kb/[id]` offers one collection, so there is no
+    // picker - which is exactly why the sentence cannot be conditional on one.
+    await openScheduleStep({
+      collections: [{ name: "org_handbook", scope: "org" }],
+      defaultCollection: "org_handbook",
+      onSubmit: vi.fn(),
+    });
+
+    expect(screen.getByText("Who will be able to read this")).toBeVisible();
+    expect(
+      screen.getByText(/everyone in this organization who can view that collection/),
+    ).toHaveTextContent("org_handbook");
+  });
+
+  it("follows the picker, so a personal collection reads differently", async () => {
+    await openScheduleStep({
+      collections: [
+        { name: "handbook", scope: "org" },
+        { name: "contracts", scope: "personal" },
+      ],
+      defaultCollection: "handbook",
+      onSubmit: vi.fn(),
+    });
+
+    expect(screen.getByText(/who can view that collection/)).toBeVisible();
+
+    await userEvent.click(screen.getByRole("combobox"));
+    await userEvent.click(await screen.findByRole("option", { name: "contracts" }));
+
+    expect(screen.getByText(/by you alone/)).toHaveTextContent("contracts");
+    expect(screen.queryByText(/who can view that collection/)).toBeNull();
+  });
+
+  it("names the credential that was chosen", async () => {
+    const view = withQuery(wizard(vi.fn()));
+    await userEvent.type(screen.getByLabelText("Source name"), "Engineering docs");
+    await userEvent.click(screen.getByRole("button", { name: /Google Drive/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
+    await userEvent.type(screen.getByLabelText(/Google Drive Folder ID/), "1AbC_-def");
+    await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
+    await pickTheCredential();
+    await userEvent.click(screen.getByRole("button", { name: /Continue/ }));
+
+    expect(await screen.findByText(/Drive service account/)).toHaveTextContent("handbook");
+    view.unmount();
+  });
+
+  it("says an unassigned org integration can be searched by nobody yet", async () => {
+    await openScheduleStep({ collections: [], onSubmit: vi.fn() });
+
+    expect(screen.getByText(/filed under no knowledge base yet/)).toBeVisible();
+  });
+
+  it("is stated for a clone too, which repoints somebody else's credential", async () => {
+    // A clone references the same vault secret and names a different collection,
+    // so the audience changes while nothing about the credential does - and it
+    // is the only way to change one from this product's own UI.
+    withQuery(
+      <SyncSourceWizard
+        open
+        onOpenChange={vi.fn()}
+        connectors={[CONNECTOR]}
+        collections={[{ name: "org_handbook", scope: "org" }]}
+        defaultCollection="org_handbook"
+        orgIntegrations={[
+          {
+            id: "src-1",
+            organization_id: "org-1",
+            name: "Company Drive",
+            connector_type: "gdrive",
+            collection_name: null,
+            config: {},
+            secret_id: DRIVE_CREDENTIAL.id,
+            secret_hint: DRIVE_CREDENTIAL.hint,
+            sync_mode: "full",
+            schedule_minutes: null,
+            is_active: true,
+            last_sync_at: null,
+            last_sync_status: null,
+            last_error: null,
+            created_at: null,
+          },
+        ]}
+        onSubmit={vi.fn()}
+        onClone={vi.fn()}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Use existing/ }));
+    // Nothing is said before a source is picked: there is no credential to name.
+    expect(screen.queryByText("Who will be able to read this")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: /Company Drive/ }));
+
+    expect(await screen.findByText(/Drive service account/)).toHaveTextContent("org_handbook");
   });
 });
 
@@ -207,7 +323,7 @@ function wizard(onSubmit: (data: SyncSourceCreate) => Promise<void>, open = true
       open={open}
       onOpenChange={vi.fn()}
       connectors={[GDRIVE]}
-      collections={[{ name: "handbook" }]}
+      collections={[{ name: "handbook", scope: "org" }]}
       defaultCollection="handbook"
       onSubmit={onSubmit}
     />

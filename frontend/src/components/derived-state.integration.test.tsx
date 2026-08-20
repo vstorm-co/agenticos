@@ -54,7 +54,10 @@ describe("the sync source wizard", () => {
       open: true,
       onOpenChange: vi.fn(),
       connectors: CONNECTORS,
-      collections: [{ name: "alpha" }, { name: "beta" }],
+      collections: [
+        { name: "alpha", scope: "org" as const },
+        { name: "beta", scope: "org" as const },
+      ],
       orgIntegrations: [],
       onSubmit: vi.fn(),
       onClone: vi.fn(),

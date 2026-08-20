@@ -16,15 +16,18 @@ import { toast } from "sonner";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, Spinner } from "@/components/ui";
 import { getErrorMessage, submitFailure } from "@/lib/api-error";
+import { SourceAudienceNotice } from "@/components/rag/sync-source-audience-notice";
 import { CloneStep } from "@/components/rag/sync-source-clone-step";
 import { ConfigureStep } from "@/components/rag/sync-source-configure-step";
 import { CredentialStep } from "@/components/rag/sync-source-credential-step";
 import { ConnectorStep } from "@/components/rag/sync-source-connector-step";
 import { ScheduleStep } from "@/components/rag/sync-source-schedule-step";
 import type { ConnectorInfo, SyncSourceCreate, SyncSourceRead } from "@/lib/rag-api";
+import type { KBScope } from "@/types/knowledge-base";
 import { cn } from "@/lib/utils";
 import { DIALOG_FORM } from "@/lib/dialog-widths";
 import { useChanged } from "@/hooks/use-changed";
+import { useSecrets } from "@/hooks";
 import { useTranslations } from "next-intl";
 
 interface SyncSourceWizardProps {
@@ -36,8 +39,13 @@ interface SyncSourceWizardProps {
    *
    * One entry pins it; more than one draws a picker on the schedule step. An
    * empty list is an integration no collection owns yet.
+   *
+   * The scope travels with the name because it is what decides the audience:
+   * `personal` is its owner, `org` is everyone who can view the collection, and
+   * `app` is anybody in the deployment - which the last step now says out loud
+   * (#982).
    */
-  collections: { name: string }[];
+  collections: { name: string; scope: KBScope }[];
   /** Which of {@link collections} the picker starts on, and what clone mode fills. */
   defaultCollection?: string;
   /** Existing org integrations (without this KB's collection_name) for "pick existing" flow. */
@@ -156,6 +164,28 @@ export function SyncSourceWizard({
   const hasOrgIntegrations = orgIntegrations.length > 0;
 
   const selectedIntegration = orgIntegrations.find((i) => i.id === cloneSourceId);
+
+  /**
+   * The collection this source will be filed under, and who that lets read it.
+   *
+   * Read from the picker's value where there is a picker and from
+   * `defaultCollection` where the collection is pinned - which is the case the
+   * issue's repro walks, so the sentence cannot be conditional on a control that
+   * only appears when there is more than one collection to choose from (#982).
+   */
+  const target = collections.find(
+    (c) =>
+      c.name ===
+      (mode === "clone" ? defaultCollection : (form.collection_name ?? defaultCollection)),
+  );
+  // The same list the credential step offers, so the name shown is the name that
+  // was chosen there. `undefined` covers both a caller who may not read the
+  // vault and a credential the org no longer holds; the sentence then does not
+  // name one rather than naming an empty string.
+  const { secrets } = useSecrets();
+  const credentialName = secrets.find(
+    (secret) => secret.id === (mode === "clone" ? selectedIntegration?.secret_id : form.secret_id),
+  )?.name;
 
   const handleCloneSubmit = async () => {
     if (!cloneSourceId || !defaultCollection) return;
@@ -386,6 +416,18 @@ export function SyncSourceWizard({
                 <ScheduleStep collections={collections} form={form} setForm={setForm} />
               )}
             </>
+          )}
+
+          {/* On the step that decides the collection, and on the clone step,
+              which decides the same thing for a credential somebody else
+              scoped. Not on the earlier steps: the sentence names a collection
+              and a credential, and neither is chosen yet. */}
+          {(mode === "clone" ? Boolean(cloneSourceId) : step === "schedule") && (
+            <SourceAudienceNotice
+              scope={target?.scope}
+              collectionName={target?.name}
+              credentialName={credentialName}
+            />
           )}
         </div>
 

@@ -3913,6 +3913,11 @@
   },
   "rag": {
     "addSyncSource": "Add sync source",
+    "audienceApp": "{named, select, no {The credential this source uses} other {{credential}}} can read whatever it has been granted, and everything it ingests becomes searchable in {collection} by anybody in this deployment.",
+    "audienceOrg": "{named, select, no {The credential this source uses} other {{credential}}} can read whatever it has been granted, and everything it ingests becomes searchable in {collection} by everyone in this organization who can view that collection.",
+    "audiencePersonal": "{named, select, no {The credential this source uses} other {{credential}}} can read whatever it has been granted, and everything it ingests becomes searchable in {collection} — by you alone.",
+    "audienceTitle": "Who will be able to read this",
+    "audienceUnassigned": "This integration is filed under no knowledge base yet, so nothing can search what it ingests. Who can read it is decided when it is cloned into one.",
     "back": "Back",
     "cadenceDaily": "Daily",
     "cadenceManual": "Manual",
