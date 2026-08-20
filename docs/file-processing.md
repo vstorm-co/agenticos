@@ -924,8 +924,17 @@ above is what records it.
 ### What a new connector owes
 
 A connector is `list_files` + `_fetch` + a `CONFIG_SCHEMA`, and the API calls are
-the cheap part. Three things are not, and a connector without them is a bill or a
-surprise rather than a feature:
+the cheap part. **An object store is less than that**: S3, Azure Blob and GCS are
+one connector with three clients, so `ObjectStoreConnector` holds the listing
+loop, the `<scheme>://<container>/<key>` address and the directory-marker skip,
+and a subclass supplies a client, a `SCHEME`, and which `CONFIG_SCHEMA` field
+names the container - `bucket` for S3 and GCS, `container` for Azure. `S3Connector`
+is that subclass ([#988](https://github.com/vstorm-co/agenticos/issues/988)); its
+two hooks are deliberately blocking, because all three SDKs are, and the shared
+class runs them on a worker thread.
+
+Three things are not cheap, and a connector without them is a bill or a surprise
+rather than a feature:
 
 - **A change signal.** The sync path compares one since
   [#990](https://github.com/vstorm-co/agenticos/issues/990), and what it compares
@@ -959,8 +968,10 @@ Which connectors are being built, and in what order, is decided in
 OneDrive ([#985](https://github.com/vstorm-co/agenticos/issues/985)), Confluence
 ([#986](https://github.com/vstorm-co/agenticos/issues/986)), a git repository's
 documentation ([#987](https://github.com/vstorm-co/agenticos/issues/987)), and
-then Azure Blob and GCS once `S3Connector` is an object store rather than an S3
-one ([#988](https://github.com/vstorm-co/agenticos/issues/988)). Notion, Slack
+then Azure Blob and GCS, whose condition is met: `S3Connector` is an
+`ObjectStoreConnector` subclass, so each of those is a client and a
+`CONNECTOR_TYPE` rather than a second copy of the listing loop
+([#988](https://github.com/vstorm-co/agenticos/issues/988)). Notion, Slack
 and email archives are decided **against** for now, each for a reason recorded
 there — the last two because a conversation retrieves badly and the channel
 integrations already put an agent *in* Slack.
