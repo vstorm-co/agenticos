@@ -91,6 +91,10 @@ class OrganizationMemberRead(BaseSchema):
     avatar_url: str | None = None
     avatar_color: int | None = None
     joined_at: datetime
+    can_change_role: bool = False
+    """Whether the caller listing may change this member's role - the server's
+    own answer to `change_role`'s rule, so the client renders a selector only
+    where a change would be accepted rather than one that 403s (#700)."""
 
 
 class OrganizationMemberUpdate(BaseSchema):

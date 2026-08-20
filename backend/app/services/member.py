@@ -25,8 +25,9 @@ class MemberService:
         *,
         skip: int = 0,
         limit: int = 100,
-    ) -> tuple[list[tuple[OrganizationMember, str, str | None, str | None, int | None]], int]:
-        """List members with their joined user info. Any org member may list."""
+    ) -> tuple[list[tuple[OrganizationMember, str, str | None, str | None, int | None, bool]], int]:
+        """List members with their joined user info and whether the caller may
+        change each one's role. Any org member may list."""
         membership = await member_repo.get(
             self.db, organization_id=organization_id, user_id=requester_id
         )
@@ -37,7 +38,17 @@ class MemberService:
 
         rows = await member_repo.list_for_org(self.db, organization_id, skip=skip, limit=limit)
         total = await member_repo.count_for_org(self.db, organization_id)
-        return rows, total
+        # Whether the requester may change each member's role, decided here rather
+        # than in the client: the rule is catalog-derived (`assignable_roles`), so
+        # a client reimplementing it would drift, and a selector offered on a row
+        # the server then refuses is a control whose only result is a 403 (#700).
+        # The same two checks `change_role` makes - the requester holds
+        # `roles:manage`, and their role strictly outranks the target's current
+        # one. An Owner target is excluded because no role assigns `owner`.
+        may_manage = role_has(membership.role, Perm.ROLES_MANAGE)
+        assignable = assignable_roles(membership.role)
+        rows_with_flag = [(*row, may_manage and row[0].role in assignable) for row in rows]
+        return rows_with_flag, total
 
     async def change_role(
         self,
@@ -68,8 +79,12 @@ class MemberService:
         if not requester or not role_has(requester.role, Perm.ROLES_MANAGE):
             raise AuthorizationError(message="You cannot change member roles")
 
+        # Locked for the rest of this transaction: the role checked below is the
+        # one being replaced. Without the lock an Owner could promote this target
+        # between the check and the write, and this update would overwrite the
+        # promotion with a role the requester no longer outranks (#700).
         target = await member_repo.get(
-            self.db, organization_id=organization_id, user_id=target_user_id
+            self.db, organization_id=organization_id, user_id=target_user_id, for_update=True
         )
         if not target:
             raise NotFoundError(

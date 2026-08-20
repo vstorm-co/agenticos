@@ -44,6 +44,57 @@ class TestMemberService:
             await service.list_for_org(uuid.uuid4(), uuid.uuid4())
 
     @pytest.mark.anyio
+    async def test_list_flags_which_rows_the_caller_may_change(self, service):
+        """An Admin outranks a member but not a peer Admin, so the row-level flag
+        is the server's own answer to `change_role` - not a rule the client
+        reimplements and gets wrong (#700)."""
+
+        def _row(role: str) -> tuple:
+            member = MagicMock()
+            member.role = role
+            member.user_id = uuid.uuid4()
+            return (member, f"{role}@example.com", None, None, None)
+
+        requester = MagicMock()
+        requester.role = "admin"
+        with (
+            patch("app.services.member.member_repo.get", new=AsyncMock(return_value=requester)),
+            patch(
+                "app.services.member.member_repo.list_for_org",
+                new=AsyncMock(return_value=[_row("member"), _row("admin")]),
+            ),
+            patch("app.services.member.member_repo.count_for_org", new=AsyncMock(return_value=2)),
+        ):
+            rows, _ = await service.list_for_org(uuid.uuid4(), uuid.uuid4())
+
+        assert {row[0].role: row[-1] for row in rows} == {"member": True, "admin": False}
+
+    @pytest.mark.anyio
+    async def test_list_flags_nothing_changeable_for_a_member_without_roles_manage(self, service):
+        """A viewer sees roles but may change none - the flag mirrors both of
+        `change_role`'s checks, roles:manage and the outrank rule."""
+
+        def _row(role: str) -> tuple:
+            member = MagicMock()
+            member.role = role
+            member.user_id = uuid.uuid4()
+            return (member, f"{role}@example.com", None, None, None)
+
+        requester = MagicMock()
+        requester.role = "viewer"
+        with (
+            patch("app.services.member.member_repo.get", new=AsyncMock(return_value=requester)),
+            patch(
+                "app.services.member.member_repo.list_for_org",
+                new=AsyncMock(return_value=[_row("member"), _row("viewer")]),
+            ),
+            patch("app.services.member.member_repo.count_for_org", new=AsyncMock(return_value=2)),
+        ):
+            rows, _ = await service.list_for_org(uuid.uuid4(), uuid.uuid4())
+
+        assert all(row[-1] is False for row in rows)
+
+    @pytest.mark.anyio
     async def test_change_role_raises_if_requester_not_admin_or_owner(self, service):
         mock_member = MagicMock()
         mock_member.role = "member"

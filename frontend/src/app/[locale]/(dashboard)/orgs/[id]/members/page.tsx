@@ -181,7 +181,12 @@ export default function OrgMembersPage({ params }: PageProps) {
         cell: (m) => {
           const isSelf = m.user_id === user?.id;
           const isOwner = m.role === "owner";
-          if (canManage && !isOwner && !isSelf) {
+          // `can_change_role` is the server's own answer to whether this change
+          // would be accepted - the requester holds roles:manage and outranks the
+          // target's current role. Gating on it rather than on `canManage` alone
+          // keeps a selector off a peer the requester cannot outrank, whose only
+          // result would be a 403 toast (#700).
+          if (canManage && !isOwner && !isSelf && m.can_change_role) {
             return (
               <Select value={m.role} onValueChange={(v) => changeRole(m.user_id, v as OrgRole)}>
                 <SelectTrigger
