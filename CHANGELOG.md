@@ -17,6 +17,60 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.209] - 2026-08-20
+
+A chat attachment was refused by a 10 MiB limit no operator could see or raise.
+
+### Added
+
+- **`CHAT_MAX_UPLOAD_SIZE_MB`, default 10** - what may be attached in chat, and a
+  *different* setting from the knowledge base's `MAX_UPLOAD_SIZE_MB` rather than the
+  same one. A knowledge-base document is chunked, embedded and read back through
+  retrieval; an attachment to an agent with no workspace is pasted whole into the
+  prompt, so the same size fails differently on each surface and one ceiling cannot
+  be right for both. The default is what the hardcoded limit already enforced, so
+  nothing changes on upgrade except that it can now be raised. `GET /health`
+  publishes both ceilings, because a client that reads one cannot know the other.
+  (#498)
+
+### Fixed
+
+- **The chat upload limit is a setting rather than a literal.** Three numbers
+  claimed to be it and they disagreed: `MAX_UPLOAD_SIZE` (10 MiB in
+  `file_storage.py`) was what refused, `MAX_UPLOAD_SIZE_MB` (50) was what `/health`
+  published and what RAG ingestion used, and the frontend defaulted its own check to
+  50. So a 20MB attachment passed the client check, was read into memory, crossed
+  the wire in full and came back refused by a number that appeared in no
+  configuration file - while `frontend/README.md` told the operator to keep the
+  client value "at or below the backend's", which was advice they could not follow.
+  (#498)
+- **The whole-request body ceiling follows the largest upload limit, not the first
+  one.** `BodySizeLimitMiddleware` is global and derived its cap from
+  `MAX_UPLOAD_SIZE_MB` alone, so a chat limit configured above the knowledge base's
+  would have been unreachable - a 413 before the code that enforces it ran. It now
+  takes the largest of the three, including the embed ceiling, which is the smallest
+  today and would have been the same latent defect for whoever raised it next.
+  (#498)
+- **A `sonner` mock in `chat-input.test.tsx` was never reset**, so a toast asserted
+  in one test was still recorded in the next one asserting none. Found because it
+  would have made a new test lie. (#498)
+
+### Changed
+
+- **The composer's own ceiling is `NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB`**, defaulting
+  to 10 and named for its surface. It was `MAX_UPLOAD_SIZE_MB` defaulting to 50 - and
+  it is the only reader of that value in the frontend, so it was already the chat
+  limit by usage with the wrong number in it. The three compose files, the frontend
+  `Dockerfile`, `.env.example` and the `vercel-deploy` recipe all named the old
+  variable; each now passes the configured value through. **An operator setting
+  `NEXT_PUBLIC_MAX_UPLOAD_SIZE_MB` must rename it**, or the composer silently takes
+  the 10MB default. (#498)
+- **Four pages described the old split** - `configuration.md`, `channels.md`,
+  `architecture.md` and `file-processing.md` - and each now names the setting for the
+  surface it describes. `file-processing.md`'s "Size Limits" sits under a chat
+  heading and led with the knowledge base's number; it leads with the chat one now.
+  (#498)
+
 ## [0.0.208] - 2026-08-20
 
 Ingesting one changed file read the whole collection four times.
