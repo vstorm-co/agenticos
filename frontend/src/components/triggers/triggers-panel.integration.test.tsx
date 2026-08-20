@@ -115,7 +115,7 @@ describe("TriggersPanel", () => {
     await user.click(await screen.findByRole("button", { name: "New event trigger" }));
 
     // The portal grid is the default event path; the raw form is demoted to its
-    // "Advanced: custom webhook" hatch, so the panel opens the grid, not the form.
+    // "Advanced: API trigger" hatch, so the panel opens the grid, not the form.
     expect(await screen.findByRole("dialog", { name: "New event trigger" })).toBeInTheDocument();
   });
 
@@ -217,6 +217,38 @@ describe("TriggersPanel", () => {
       // Two hours, in seconds.
       interval_seconds: 7200,
     });
+  });
+
+  it("refuses a run-every value that is not a whole number in range, and says so", async () => {
+    const user = userEvent.setup();
+    serve([]);
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "New schedule" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    await user.type(within(dialog).getByLabelText("Message"), "Do the thing");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    await user.click(within(dialog).getByRole("tab", { name: "Every so often" }));
+    const count = within(dialog).getByLabelText<HTMLInputElement>("Run every");
+
+    // Text and signs never reach the value - the field only takes digits.
+    await user.clear(count);
+    await user.type(count, "-5abc");
+    expect(count.value).toBe("5");
+
+    // Out of range names the rule beside the field instead of a silently
+    // disabled button, and Create stays refused until it is fixed.
+    await user.type(count, "9999");
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "Enter a whole number between 1 and 999.",
+    );
+    expect(within(dialog).getByRole("button", { name: "Create" })).toBeDisabled();
+    await user.clear(count);
+    expect(within(dialog).getByRole("alert")).toBeInTheDocument();
+    await user.type(count, "30");
+    expect(within(dialog).queryByRole("alert")).toBeNull();
+    expect(within(dialog).getByRole("button", { name: "Create" })).toBeEnabled();
   });
 
   it("edits only the message and the environment of an existing trigger", async () => {
@@ -380,7 +412,7 @@ describe("TriggersPanel", () => {
     // A preset is a shortcut into the builder, not a mode: editing the interval
     // underneath unlights the pill and wins.
     const count = within(dialog).getByLabelText("Run every");
-    expect(count).toHaveValue(6);
+    expect(count).toHaveValue("6");
     await user.clear(count);
     await user.type(count, "8");
     expect(pill).toHaveAttribute("aria-pressed", "false");

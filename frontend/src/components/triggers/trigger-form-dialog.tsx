@@ -113,6 +113,17 @@ function clampInt(value: string, min: number, max: number, fallback: number): nu
   return Math.min(max, Math.max(min, parsed));
 }
 
+// The most of any unit "Run every" accepts. The server's ceiling is the int32
+// the column stores; this one exists for the reader - 999 days is already a
+// cadence nobody scheduled on purpose, and a smaller bound makes the field's
+// error message concrete instead of quoting a 10-digit number.
+const INTERVAL_MAX = 999;
+
+/** Whether the "Run every" count is a whole number the schedule can take. */
+function intervalCountValid(value: string): boolean {
+  return /^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= INTERVAL_MAX;
+}
+
 /** The builder state a cron expression seeds, for editing an existing schedule. */
 interface ParsedCron {
   freq: CronFrequency;
@@ -189,7 +200,7 @@ interface TriggerFormDialogProps {
  * The one form behind creating and editing a trigger, on every surface.
  *
  * Creating walks the same stepper chrome as the KB sync-source wizard: a
- * schedule defines the task then its cadence, a custom webhook picks what
+ * schedule defines the task then its cadence, an API trigger picks what
  * fires it then the task. Editing keeps a single panel - see below.
  *
  * A trigger's shape is set once: creating chooses schedule-or-event and its
@@ -231,7 +242,7 @@ export function TriggerFormDialog({
 
   // A trigger's kind is fixed once the dialog opens: editing keeps the row's type,
   // and creating takes whichever kind the entry point chose - "New schedule" opens
-  // this on a schedule, the portal grid's "Advanced: custom webhook" hatch on an
+  // this on a schedule, the portal grid's "Advanced: API trigger" hatch on an
   // event. There is no in-dialog switch, because event triggers are created from
   // the portal grid by default, not this raw form.
   const type = trigger?.trigger_type ?? initialType;
@@ -390,7 +401,7 @@ export function TriggerFormDialog({
     }
     return {
       schedule_kind: "interval",
-      interval_seconds: unitToSeconds(intervalUnit, Math.max(1, Number(intervalCount) || 1)),
+      interval_seconds: unitToSeconds(intervalUnit, clampInt(intervalCount, 1, INTERVAL_MAX, 1)),
     };
   }
 
@@ -451,7 +462,7 @@ export function TriggerFormDialog({
   // A preset always composes a valid expression; only the raw "advanced" escape
   // hatch can be left empty, so it is the one cron shape worth guarding.
   const cronValid = cronFreq !== "advanced" || cronAdvanced.trim().length > 0;
-  const scheduleValid = scheduleKind === "cron" ? cronValid : Number(intervalCount) > 0;
+  const scheduleValid = scheduleKind === "cron" ? cronValid : intervalCountValid(intervalCount);
   const taskValid = prompt.trim().length > 0 && effectiveAgentId !== null;
   // Editing a schedule can change its cadence, so the cadence is guarded then
   // too; an event edit has no cadence and only its prompt/name to check.
@@ -923,10 +934,11 @@ function ScheduleFields({
           <div className="flex gap-2">
             <Input
               id="trigger-interval"
-              type="number"
-              min={1}
+              type="text"
+              inputMode="numeric"
               value={intervalCount}
-              onChange={(event) => onIntervalCount(event.target.value)}
+              aria-invalid={!intervalCountValid(intervalCount)}
+              onChange={(event) => onIntervalCount(event.target.value.replace(/\D/g, ""))}
               className="w-24"
             />
             <Select
@@ -943,6 +955,11 @@ function ScheduleFields({
               </SelectContent>
             </Select>
           </div>
+          {!intervalCountValid(intervalCount) && (
+            <p className="text-destructive text-xs" role="alert">
+              {t("runEveryInvalid", { max: INTERVAL_MAX })}
+            </p>
+          )}
         </div>
       ) : (
         <CronBuilder {...cron} />

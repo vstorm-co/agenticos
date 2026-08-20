@@ -58,7 +58,7 @@ function serve() {
   vi.mocked(apiClient.get).mockImplementation(async () => ({ items: [], total: 0 }));
 }
 
-/** The event form, as reached from the portal grid's "Advanced: custom webhook". */
+/** The event form, as reached from the portal grid's "Advanced: API trigger". */
 async function openEvent() {
   render(<TriggerFormDialog agentId={AGENT_ID} open initialType="event" onOpenChange={vi.fn()} />, {
     wrapper,
@@ -80,7 +80,7 @@ beforeEach(() => {
 });
 
 /**
- * The raw source-and-secret event form - the "Advanced: custom webhook" hatch for
+ * The raw source-and-secret event form - the "Advanced: API trigger" hatch for
  * a provider no portal covers. It is no longer a default create path (the portal
  * grid is), so it is exercised here directly rather than through a panel button.
  */

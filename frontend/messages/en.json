@@ -4595,6 +4595,7 @@
     "kindInterval": "Every so often",
     "kindCron": "At a set time",
     "runEvery": "Run every",
+    "runEveryInvalid": "Enter a whole number between 1 and {max}.",
     "unitMinutes": "minutes",
     "unitHours": "hours",
     "unitDays": "days",

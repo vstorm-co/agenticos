@@ -58,8 +58,8 @@ interface PortalCatalogProps {
  * permissions load, so the grid reveals actions rather than flashing ones that
  * would 403.
  *
- * The raw source-and-secret form is still reachable, as "Advanced: custom
- * webhook" - the escape hatch for a provider no portal covers.
+ * The raw source-and-secret form is still reachable, as "Advanced: API
+ * trigger" - the escape hatch for a provider no portal covers.
  */
 export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogProps) {
   const t = useTranslations("portals");

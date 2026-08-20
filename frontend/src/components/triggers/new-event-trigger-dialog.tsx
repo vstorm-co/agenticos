@@ -25,7 +25,7 @@ interface NewEventTriggerDialogProps {
  * It embeds the portal grid in place: picking a portal proceeds into
  * `PortalTriggerDialog` with its own agent picker, so no context is lost even from
  * the sidebar, and the raw source-and-secret form is demoted to the grid's
- * "Advanced: custom webhook" hatch rather than a default button. The two
+ * "Advanced: API trigger" hatch rather than a default button. The two
  * abilities the grid should not decide for itself are resolved here - creating a
  * trigger is gated on the same per-agent floor as the buttons that open this
  * dialog (`useCanCreateTrigger`, true for a Viewer holding a run grant on one

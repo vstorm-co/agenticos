@@ -210,7 +210,7 @@ describe("PortalCatalog", () => {
     expect(screen.queryByRole("button", { name: "Create trigger" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Re-authorize" })).toBeNull();
     // The raw-webhook escape hatch is also a create, so it is gated the same way.
-    expect(screen.queryByRole("button", { name: "Advanced: custom webhook" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Advanced: API trigger" })).toBeNull();
   });
 
   it("connects GitHub through the org OAuth App endpoint, keyed by the portal", async () => {

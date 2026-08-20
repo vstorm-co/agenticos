@@ -1989,6 +1989,7 @@
     "kindInterval": "Co jakiś czas",
     "kindCron": "O ustalonej porze",
     "runEvery": "Uruchamiaj co",
+    "runEveryInvalid": "Podaj liczbę całkowitą od 1 do {max}.",
     "unitMinutes": "minut",
     "unitHours": "godzin",
     "unitDays": "dni",
