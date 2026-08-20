@@ -102,6 +102,16 @@ export const FAKE_KEY_HINT = "9XZ7";
  * that can be rotated, since there is no PATCH for a provider credential.
  */
 export const SEEDED_SECRET_NAME = "e2e-capability-token";
+
+/**
+ * The AWS key pair an S3 sync source authenticates with.
+ *
+ * A sync source's credential is a vault secret it references rather than a field
+ * it carries (#937), so the integration spec needs one in the vault before it can
+ * create a source at all - and it has to be an `aws_credentials` pair, since the
+ * wizard offers only the kind the connector takes.
+ */
+export const SEEDED_AWS_SECRET_NAME = "e2e-s3-key-pair";
 export const SEEDED_SECRET_VALUE = "sk-e2eSECRETnotarealtokenP7KD";
 export const SEEDED_SECRET_HINT = "P7KD";
 

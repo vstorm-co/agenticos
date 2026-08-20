@@ -92,7 +92,7 @@ async def create_org_integration(
     into multiple knowledge bases later.  Pass a `collection_name` to
     immediately wire it to a specific KB collection.
     """
-    return await sync_source_svc.create_source(data, organization_id=ctx.organization_id)
+    return await sync_source_svc.create_source(data, ctx=ctx)
 
 
 @router.delete(

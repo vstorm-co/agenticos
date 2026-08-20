@@ -243,10 +243,11 @@ class TestAConnectorSyncsStore:
             config={"folder_id": "abc"},
             collection_name="docs",
             sync_mode="full",
-            # A string, the way `SyncSourceRead` carries it, and never `None`:
-            # the column is NOT NULL since #937 and the worker unseals this
-            # organization's credential from it.
-            organization_id=str(uuid.uuid4()),
+            # A `UUID`, not a string: `get_source` answers with the *model*, whose
+            # columns are `PG_UUID(as_uuid=True)`. A fixture holding a string is
+            # what let `UUID(source.organization_id)` past review, and that raises
+            # on every real sync.
+            organization_id=uuid.uuid4(),
             secret_id=None,
         )
         sources = MagicMock(
@@ -275,10 +276,11 @@ class TestAConnectorSyncsStore:
             config={"folder_id": "abc"},
             collection_name="docs",
             sync_mode="full",
-            # A string, the way `SyncSourceRead` carries it, and never `None`:
-            # the column is NOT NULL since #937 and the worker unseals this
-            # organization's credential from it.
-            organization_id=str(uuid.uuid4()),
+            # A `UUID`, not a string: `get_source` answers with the *model*, whose
+            # columns are `PG_UUID(as_uuid=True)`. A fixture holding a string is
+            # what let `UUID(source.organization_id)` past review, and that raises
+            # on every real sync.
+            organization_id=uuid.uuid4(),
             secret_id=None,
         )
         sources = MagicMock(

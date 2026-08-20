@@ -10,9 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.updates import writable
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.field_errors import refused_field
+from app.core.permissions import AuthContext, Perm
 from app.db.base import Base
 from app.db.models.sync_source import SyncSource
 from app.db.vector_tables import validate_collection_name
+from app.services.access import SECRET, resolve_access
 from app.services.rag.connectors import CONNECTOR_REGISTRY
 from app.repositories import organization_secret_repo
 from app.repositories import sync_log as sync_log_repo
@@ -192,9 +194,7 @@ class SyncSourceService:
         ]
         return RAGSyncLogList(items=items, total=len(items))
 
-    async def create_source(
-        self, data: SyncSourceCreate, *, organization_id: UUID
-    ) -> SyncSourceRead:
+    async def create_source(self, data: SyncSourceCreate, *, ctx: AuthContext) -> SyncSourceRead:
         """Create a new sync source.
 
         Secret fields are Fernet-encrypted before persisting.
@@ -212,8 +212,7 @@ class SyncSourceService:
         Whose collection it is remains the caller's question, because only the
         caller knows who is asking: the route resolves it with
         `CollectionAccessService.writable`, and `rag-source-add` resolves the
-        organization it was given. This method cannot answer it - `organization_id`
-        is a keyword here and `None` is a legal value for it.
+        organization it was given.
 
         Raises:
             BadRequestError: unknown connector, invalid config, or a collection
@@ -230,13 +229,13 @@ class SyncSourceService:
 
         await _refuse_a_credential_in_the_config(data.config, data.connector_type)
         await _refuse_an_invalid_config(data.config, data.connector_type)
-        hint = await self._checked_secret(data.secret_id, data.connector_type, organization_id)
+        hint = await self._checked_secret(data.secret_id, data.connector_type, ctx)
 
         source = await sync_source_repo.create(
             self.db,
             name=data.name,
             connector_type=data.connector_type,
-            organization_id=organization_id,
+            organization_id=ctx.organization_id,
             collection_name=data.collection_name,
             config=data.config,
             secret_id=data.secret_id,
@@ -246,19 +245,35 @@ class SyncSourceService:
         return self._to_read(source, secret_hint=hint)
 
     async def _checked_secret(
-        self, secret_id: UUID | None, connector_type: str, organization_id: UUID
+        self, secret_id: UUID | None, connector_type: str, ctx: AuthContext
     ) -> str | None:
-        """The credential's hint, having checked it is one this source may use.
+        """The credential's hint, having checked it is one this caller may bind.
 
-        Three questions, and the tenant one is why this cannot be left to the
-        foreign key. `organization_secrets.id` is unique across the deployment,
-        so a caller who guesses one binds another organization's credential and
-        the database is satisfied - the same shape as #918, where an embedding
-        key was bound by id without asking whether the chooser could see it.
+        Three questions, and neither of the first two can be left to the foreign
+        key. `organization_secrets.id` is unique across the deployment, so a
+        caller who guesses one binds another organization's credential and the
+        database is satisfied.
+
+        **And the organization is not the whole of it.** A secret can be
+        *private to a member*, and a sync runs for everyone who can reach the
+        collection - so binding one is lending it, exactly as binding a
+        capability's key is. A Builder holding `connections:manage` but only
+        shared-secret visibility could otherwise post the id of another member's
+        private credential and have the worker unseal it. That is #918 in this
+        table, and `AgentRegistryService._binding_problems` is the shape of the
+        answer: `resolve_access(..., Perm.SECRETS_VIEW, resource_type=SECRET)`,
+        with the refusal phrased as a miss so it cannot enumerate the vault.
 
         The kind is asked because a connector cannot use the wrong one: an S3
         source given a service account fails at sync time, in a worker, with the
         reason in a log rather than on the form that chose it.
+
+        **A context with no subject is checked for the tenant only**, because
+        there is nobody to evaluate: `resolve_access` refuses a subjectless
+        context outright, and the one caller that has none is `rag-source-add`,
+        run by whoever has a shell on the deployment. The vault's visibility
+        model is about members of an organization, not about the operator hosting
+        it.
 
         Answers the vault's four-character hint so a reader can tell which
         credential a source uses without being shown it.
@@ -266,12 +281,17 @@ class SyncSourceService:
         if secret_id is None:
             return None
         row = await organization_secret_repo.get(
-            self.db, secret_id, organization_id=organization_id
+            self.db, secret_id, organization_id=ctx.organization_id
         )
+        # Refused as one the vault does not hold rather than as one belonging to
+        # somebody else: the refusal must not confirm that an id exists.
+        missing = refused_field("secret_id", "No such credential in this organization's vault")
         if row is None:
-            # Refused as one the vault does not hold rather than as one belonging
-            # to somebody else: the refusal must not confirm that an id exists.
-            raise refused_field("secret_id", "No such credential in this organization's vault")
+            raise missing
+        if ctx.user_id is not None and not await resolve_access(
+            self.db, ctx, row, Perm.SECRETS_VIEW, resource_type=SECRET
+        ):
+            raise missing
         required = CONNECTOR_REGISTRY[connector_type].SECRET_KIND
         if row.kind != required.value:
             raise refused_field(
@@ -310,7 +330,9 @@ class SyncSourceService:
         )
         return self._to_read(source)
 
-    async def update_source(self, source_id: str, data: SyncSourceUpdate) -> SyncSourceRead:
+    async def update_source(
+        self, source_id: str, data: SyncSourceUpdate, *, ctx: AuthContext
+    ) -> SyncSourceRead:
         """Update an existing sync source.
 
         No `••••••` round-trip any more: the config holds no credential, so a
@@ -329,9 +351,7 @@ class SyncSourceService:
         hint: str | None = None
 
         if "secret_id" in updates:
-            hint = await self._checked_secret(
-                updates["secret_id"], existing.connector_type, existing.organization_id
-            )
+            hint = await self._checked_secret(updates["secret_id"], existing.connector_type, ctx)
 
         if "config" in updates and updates["config"] is not None:
             raw_existing = _raw_config(existing)

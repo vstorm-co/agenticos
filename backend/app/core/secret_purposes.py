@@ -40,6 +40,11 @@ class PurposeCategory(StrEnum):
     MODEL_PROVIDER = "model_provider"
     SEARCH = "search"
     OBSERVABILITY = "observability"
+    # What a RAG sync connector authenticates with. Its own category because a
+    # Drive service account is not a model provider's credential and grouping it
+    # under Vertex AI - which takes the same *kind* - would file it by the shape
+    # of the secret rather than by what it is for (#937).
+    CONNECTOR = "connector"
     OTHER = "other"
 
 

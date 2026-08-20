@@ -12,15 +12,31 @@ from its owner's id, so a ciphertext needs an owner - and `organization_id` was
 nullable, because the CLI created rows without one. #707 gave `rag-source-add` an
 organization; this makes the column say so.
 
-**A row holding an encrypted credential stops this migration rather than being
-guessed at.** Decrypting inside Alembic would mean importing the application's
-crypto into a schema migration and writing a vault envelope from it, and a
-half-moved credential is worse than a refused upgrade: the operator would have a
-row pointing at a secret nobody can open and no way to tell which. The refusal
-names the sources, and the fix is to re-add their credential through the vault -
-which is one screen, and the last time anyone has to paste it. The same applies
-to a row with no organization: there is nothing to bind its credential to and
-nothing to migrate it into.
+**An encrypted credential is cleared out of `config`, not decrypted and not
+refused.** Three options and only one of them is followable:
+
+* *Decrypt and re-seal here.* That means importing the application's crypto into
+  a schema migration and writing a vault envelope from it. A half-moved
+  credential is worse than either alternative - the operator gets a row pointing
+  at a secret nobody can open, and no way to tell which.
+* *Refuse the upgrade until the operator re-points each source.* This is what
+  this migration did before review, and the instruction cannot be carried out:
+  before the migration there is no `secret_id` column to point at. It asked for
+  something impossible and left deleting the source as the only way forward.
+* *Clear the ciphertext and leave the source without a credential.* Nothing
+  readable is lost - the value is a Fernet token over `SECRET_KEY`, and the
+  application that could read it is the one being replaced - and the source then
+  says exactly what it needs: "this source has no credential. Pick one in the
+  Vault and point the source at it." Which is now possible, because the column
+  exists.
+
+So the affected sources are **named in the log** and their credential fields
+removed. What is left is inert rather than secret: a `config` with no credential
+in it, and a `secret_id` of `NULL` that every sync refuses on.
+
+A row with no organization is a different matter and still stops the upgrade:
+`organization_id` is about to be `NOT NULL`, there is nothing to derive one from,
+and the fix - set it, or delete the row - can be carried out before running this.
 
 Revision ID: 0042_sync_source_secret_id
 Revises: 0041_invitation_reservations
@@ -71,6 +87,18 @@ def upgrade() -> None:
             "since #707, so these were written before that.",
         )
 
+    op.alter_column(
+        "sync_sources",
+        "organization_id",
+        existing_type=postgresql.UUID(as_uuid=True),
+        nullable=False,
+    )
+    op.add_column(
+        "sync_sources",
+        sa.Column("secret_id", postgresql.UUID(as_uuid=True), nullable=True),
+    )
+
+    # The column exists now, which is what makes the instruction below possible.
     encrypted = connection.execute(
         sa.text(
             "SELECT id::text, name FROM sync_sources"
@@ -82,24 +110,35 @@ def upgrade() -> None:
         {"prefix": f"{_CIPHERTEXT_PREFIX}%"},
     ).all()
     if encrypted:
-        _refuse(
-            [(row[0], row[1]) for row in encrypted],
-            "hold a credential encrypted in `config`",
-            "Re-add each one's credential in the Vault and point the source at it, "
-            "then re-run this migration. The old value is a Fernet token over "
-            "`SECRET_KEY` and is not readable from here.",
+        # `-` on a jsonb object removes a key. Only the ciphertext keys go: the
+        # folder id, bucket and prefix beside them are how the source finds its
+        # documents and are not secret.
+        connection.execute(
+            sa.text(
+                "UPDATE sync_sources SET config = ("
+                "  SELECT coalesce(jsonb_object_agg(entry.key, entry.value), '{}'::jsonb)"
+                "  FROM jsonb_each(config) AS entry(key, value)"
+                "  WHERE entry.value::text NOT LIKE :quoted_prefix"
+                ")"
+                " WHERE EXISTS ("
+                "   SELECT 1 FROM jsonb_each_text(config) AS inner_entry(key, value)"
+                "   WHERE inner_entry.value LIKE :prefix"
+                " )"
+            ),
+            {"prefix": f"{_CIPHERTEXT_PREFIX}%", "quoted_prefix": f'"{_CIPHERTEXT_PREFIX}%'},
         )
-
-    op.alter_column(
-        "sync_sources",
-        "organization_id",
-        existing_type=postgresql.UUID(as_uuid=True),
-        nullable=False,
-    )
-    op.add_column(
-        "sync_sources",
-        sa.Column("secret_id", postgresql.UUID(as_uuid=True), nullable=True),
-    )
+        listed = "\n".join(f"  - {name} ({source_id})" for source_id, name in encrypted)
+        print(  # noqa: T201 - alembic's own output is how a migration talks
+            f"\n{len(encrypted)} sync source(s) held a credential encrypted in `config`.\n"
+            f"{listed}\n\n"
+            "The ciphertext has been removed: it was a Fernet token over `SECRET_KEY`, "
+            "readable only by the release being replaced, and leaving it would leave a "
+            "credential at rest under a deployment-wide key - which is what this change "
+            "removes.\n"
+            "Each of these sources now has no credential and will refuse to sync. Add "
+            "the credential to the organization's Vault - a `gcp_service_account` for "
+            "Drive, an `aws_credentials` pair for S3 - and point the source at it.\n"
+        )
     # The name the metadata's convention gives it - `alembic check` compares
     # against that, not against whatever this file happens to call it.
     op.create_index("sync_sources_secret_id_idx", "sync_sources", ["secret_id"])

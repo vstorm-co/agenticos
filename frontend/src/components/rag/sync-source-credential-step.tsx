@@ -47,7 +47,7 @@ export function CredentialStep({
   error?: string;
 }) {
   const t = useTranslations("rag");
-  const { secrets } = useSecrets();
+  const { secrets, isLoading, listError } = useSecrets();
   const { can } = usePermissions();
 
   if (connector.secret_kind === "none") {
@@ -66,6 +66,18 @@ export function CredentialStep({
   // empty, and saying so is the difference between "ask somebody" and "add one".
   if (!can(Perm.secretsView)) {
     return <p className="text-muted-foreground text-sm">{t("credentialNeedsPermission")}</p>;
+  }
+
+  // Three states, not two. `secrets` is `[]` while the request is in flight and
+  // `[]` when it failed, so deriving straight from it tells somebody the vault
+  // holds no credential when the truth is that it could not be read - and sends
+  // them to add a duplicate. `.claude/rules/frontend.md` has the rule: an empty
+  // page is ambiguous.
+  if (isLoading) {
+    return <p className="text-muted-foreground text-sm">{t("credentialLoading")}</p>;
+  }
+  if (listError) {
+    return <p className="text-destructive text-sm">{t("credentialUnreadable")}</p>;
   }
 
   const usable = secrets.filter((secret) => secret.kind === connector.secret_kind);

@@ -28,6 +28,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.core.exceptions import BadRequestError
+from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories import organization_secret_repo
 from app.schemas.sync_source import SyncSourceCreate, SyncSourceUpdate
 from app.services import sync_source as sync_source_module
@@ -37,10 +38,28 @@ pytestmark = pytest.mark.anyio
 
 _ORG = uuid.uuid4()
 _OTHER_ORG = uuid.uuid4()
+_CALLER = uuid.uuid4()
 
 
-def _service(monkeypatch: pytest.MonkeyPatch, *, secret=None) -> SyncSourceService:
-    """The real service, with the repositories it reaches mocked at the boundary."""
+def _ctx(organization_id: uuid.UUID) -> AuthContext:
+    """An owner, so a refusal here is about the credential rather than the role."""
+    return AuthContext(
+        user_id=_CALLER,
+        organization_id=organization_id,
+        role=OrgRoleName.OWNER.value,
+    )
+
+
+def _service(
+    monkeypatch: pytest.MonkeyPatch, *, secret=None, visible: bool = True
+) -> SyncSourceService:
+    """The real service, with the repositories it reaches mocked at the boundary.
+
+    `visible` stands in for `resolve_access`, which is tested on its own and
+    needs a real row and a real grant table. What matters here is that this
+    service *asks* it, and refuses when the answer is no.
+    """
+    monkeypatch.setattr(sync_source_module, "resolve_access", AsyncMock(return_value=visible))
     monkeypatch.setattr(
         organization_secret_repo, "get", AsyncMock(return_value=secret), raising=False
     )
@@ -94,7 +113,7 @@ class TestTheCredentialIsReferencedNotCarried:
         service = _service(monkeypatch, secret=row)
         secret_id = uuid.uuid4()
 
-        read = await service.create_source(_drive(secret_id=secret_id), organization_id=_ORG)
+        read = await service.create_source(_drive(secret_id=secret_id), ctx=_ctx(_ORG))
 
         assert read.secret_id == str(secret_id)
         # The hint travels so a reader can tell which credential without seeing it.
@@ -107,10 +126,29 @@ class TestTheCredentialIsReferencedNotCarried:
         service = _service(monkeypatch, secret=None)
 
         with pytest.raises(BadRequestError) as exc:
-            await service.create_source(_drive(secret_id=uuid.uuid4()), organization_id=_OTHER_ORG)
+            await service.create_source(_drive(secret_id=uuid.uuid4()), ctx=_ctx(_OTHER_ORG))
 
         assert exc.value.details is not None
         assert exc.value.details["fields"][0]["field"] == "secret_id"
+        assert "no such credential" in exc.value.details["fields"][0]["message"].lower()
+
+    async def test_a_credential_the_caller_cannot_see_is_refused(self, monkeypatch):
+        """A secret can be private to a member, and a sync runs for everyone who
+        can reach the collection - so binding one is lending it. A Builder holding
+        `connections:manage` but only shared-secret visibility could otherwise
+        post the id of another member's private credential and have the worker
+        unseal it (#918, in this table).
+
+        Refused as a miss, in the same words as an id that does not exist: a
+        refusal that differs is a way to enumerate the vault.
+        """
+        service = _service(
+            monkeypatch, secret=_vault_row(kind="gcp_service_account"), visible=False
+        )
+
+        with pytest.raises(BadRequestError) as exc:
+            await service.create_source(_drive(secret_id=uuid.uuid4()), ctx=_ctx(_ORG))
+
         assert "no such credential" in exc.value.details["fields"][0]["message"].lower()
 
     async def test_a_credential_of_the_wrong_kind_is_refused(self, monkeypatch):
@@ -119,7 +157,7 @@ class TestTheCredentialIsReferencedNotCarried:
         service = _service(monkeypatch, secret=_vault_row(kind="aws_credentials"))
 
         with pytest.raises(BadRequestError) as exc:
-            await service.create_source(_drive(secret_id=uuid.uuid4()), organization_id=_ORG)
+            await service.create_source(_drive(secret_id=uuid.uuid4()), ctx=_ctx(_ORG))
 
         problem = exc.value.details["fields"][0]
         assert problem["field"] == "secret_id"
@@ -131,7 +169,7 @@ class TestTheCredentialIsReferencedNotCarried:
         creation. What is *not* allowed is inventing a fallback for it."""
         service = _service(monkeypatch)
 
-        read = await service.create_source(_drive(), organization_id=_ORG)
+        read = await service.create_source(_drive(), ctx=_ctx(_ORG))
 
         assert read.secret_id is None
         assert read.secret_hint is None
@@ -162,7 +200,7 @@ class TestACredentialInTheConfigIsRefused:
         with pytest.raises(BadRequestError) as exc:
             await service.create_source(
                 SyncSourceCreate(name="Legacy", connector_type=connector_type, config=config),
-                organization_id=_ORG,
+                ctx=_ctx(_ORG),
             )
 
         assert field in exc.value.details["fields"]
@@ -177,7 +215,7 @@ class TestACredentialInTheConfigIsRefused:
                 connector_type="s3",
                 config={"bucket": "docs", "prefix": "marketing/"},
             ),
-            organization_id=_ORG,
+            ctx=_ctx(_ORG),
         )
 
         assert read.config == {"bucket": "docs", "prefix": "marketing/"}
@@ -189,7 +227,7 @@ class TestACredentialInTheConfigIsRefused:
         service = _service(monkeypatch)
         existing = SimpleNamespace(
             connector_type="gdrive",
-            organization_id=_ORG,
+            ctx=_ctx(_ORG),
             config={"folder_id": "1AbC"},
             secret_id=None,
         )
@@ -199,6 +237,7 @@ class TestACredentialInTheConfigIsRefused:
             await service.update_source(
                 str(uuid.uuid4()),
                 SyncSourceUpdate(config={"service_account_json": "{}"}),
+                ctx=_ctx(_ORG),
             )
 
         assert "service_account_json" in exc.value.details["fields"]
@@ -216,7 +255,7 @@ class TestWhatTheReadCarries:
                 connector_type="s3",
                 config={"bucket": "docs", "prefix": "marketing/"},
             ),
-            organization_id=_ORG,
+            ctx=_ctx(_ORG),
         )
 
         assert "••••••" not in str(read.config)

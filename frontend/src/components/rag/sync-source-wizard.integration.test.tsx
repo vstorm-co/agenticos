@@ -412,4 +412,24 @@ describe("the credential step", () => {
     expect(await screen.findByText(/cannot see this organization's credentials/)).toBeVisible();
     expect(screen.queryByLabelText(/Vault credential/)).toBeNull();
   });
+  it("says the vault could not be read rather than that it is empty", async () => {
+    // The two look identical in `secrets`, and they mean opposite things: one
+    // sends somebody to the Vault to add a duplicate, the other to try again.
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === "/secrets") throw new Error("502 Bad Gateway");
+      if (path === "/me/permissions")
+        return {
+          organization_id: "org-1",
+          role: "builder",
+          is_app_admin: false,
+          permissions: [{ permission: "secrets:view", scope: "all" }],
+        };
+      return {};
+    });
+    await openCredentialStep();
+
+    expect(await screen.findByText(/vault could not be read/)).toBeVisible();
+    expect(screen.queryByText(/holds no credential/)).toBeNull();
+    expect(screen.getByRole("button", { name: /Continue/ })).toBeDisabled();
+  });
 });

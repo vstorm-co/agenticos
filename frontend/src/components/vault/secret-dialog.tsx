@@ -74,6 +74,11 @@ const PURPOSE_GROUPS = [
   { id: "model_provider", words: "purposeModelProvider" },
   { id: "search", words: "purposeSearch" },
   { id: "observability", words: "purposeObservability" },
+  // What a RAG sync connector reads documents with. Its own group because a
+  // Drive service account is not a model provider's credential, and filing it
+  // under Vertex AI - which takes the same *kind* - would group by the shape of
+  // the secret rather than by what it is for (#937).
+  { id: "connector", words: "purposeConnector" },
   { id: "other", words: "purposeOther" },
 ] as const;
 

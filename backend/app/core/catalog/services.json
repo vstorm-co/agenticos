@@ -53,5 +53,21 @@
     "kind": "api_key",
     "help_url": "https://app.daytona.io/dashboard/keys",
     "description": "Cloud sandboxes an agent works in, billed to this organization's own Daytona account."
+  },
+  {
+    "id": "gdrive",
+    "label": "Google Drive",
+    "category": "connector",
+    "kind": "gcp_service_account",
+    "help_url": "https://console.cloud.google.com/iam-admin/serviceaccounts",
+    "description": "A service account a Google Drive sync source reads documents with."
+  },
+  {
+    "id": "s3",
+    "label": "S3 / MinIO",
+    "category": "connector",
+    "kind": "aws_credentials",
+    "help_url": "https://console.aws.amazon.com/iam/home#/security_credentials",
+    "description": "A key pair an S3 or MinIO sync source reads objects with."
   }
 ]

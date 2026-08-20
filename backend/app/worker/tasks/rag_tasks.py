@@ -519,9 +519,15 @@ async def _update_sync_log(sync_log_id: str, status: str, error_message: str | N
 
 
 async def _connector_credential(
-    db: AsyncSession, secret_id: str | None, organization_id: UUID
+    db: AsyncSession, secret_id: UUID | None, organization_id: UUID
 ) -> StorableSecret | None:
     """The unsealed credential a sync source names, or `None`.
+
+    Both ids arrive as `uuid.UUID` - `get_source` answers with the model, whose
+    columns are `PG_UUID(as_uuid=True)` - so nothing here re-parses them. Passing
+    one to `UUID()` raises `AttributeError: 'UUID' object has no attribute
+    'replace'`, which is what this did before review and what a fixture holding a
+    string instead of a UUID hid.
 
     `None` for three reasons, and the connector treats them alike because a
     caller cannot act on the difference: the source names no credential, the
@@ -537,7 +543,7 @@ async def _connector_credential(
     """
     if secret_id is None:
         return None
-    row = await organization_secret_repo.get(db, UUID(secret_id), organization_id=organization_id)
+    row = await organization_secret_repo.get(db, secret_id, organization_id=organization_id)
     if row is None:
         logger.warning("sync_source_secret_missing", extra={"organization": str(organization_id)})
         return None
@@ -575,7 +581,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
         config = source.config if isinstance(source.config, dict) else json.loads(source.config)
         collection_name = source.collection_name
         sync_mode = source.sync_mode
-        organization_id = UUID(source.organization_id)
+        organization_id = source.organization_id
         # The credential, unsealed from this organization's vault while there is
         # still a session. It travels beside the config rather than inside it:
         # `config` says how to find the documents and holds nothing that has to
