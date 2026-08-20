@@ -368,7 +368,6 @@ async def upload_agent_avatar(
         ctx,
         agent_id,
         file_data=await file.read(),
-        filename=file.filename or "avatar.jpg",
         content_type=file.content_type,
     )
 
