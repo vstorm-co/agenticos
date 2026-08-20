@@ -19,6 +19,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import GithubOAuthAppSecret, SecretKind, unseal_secret
 from app.core.vault import VaultScope
 from app.db.models.organization import Organization
+from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
 from app.repositories import organization_secret as organization_secret_repo
 from app.services.organization_secret import OrganizationSecretService
@@ -112,10 +113,13 @@ class TestGetByKindReadsTheOrgsSecretOfThatKind:
     async def test_it_finds_the_org_own_secret_and_none_for_another_org_or_kind(self, db) -> None:
         """The lookup the GitHub connect flow reaches the OAuth App credentials by.
 
-        It is org-scoped and kind-scoped: the organization's own github_oauth_app
-        row comes back, while another organization's identical kind and a kind this
-        organization never stored are both `None`. A mock would only restate the
-        query; this proves the `WHERE` against a real row.
+        It is org-scoped, kind-scoped and visibility-scoped: the organization's
+        own org-visible github_oauth_app row comes back, while another
+        organization's identical kind, a kind this organization never stored, and
+        a member's *private* row of the right kind are all absent - the last one
+        because a private credential must never be silently spent for the whole
+        organization's connection. A mock would only restate the query; this
+        proves the `WHERE` against real rows.
         """
         mine, mine_owner = await _org(db, name="Kindful")
         theirs, _ = await _org(db, name="Otherkind")
@@ -129,24 +133,32 @@ class TestGetByKindReadsTheOrgsSecretOfThatKind:
             ),
             purpose="github_oauth_app",
         )
+        # A member's private OAuth App of the same kind, named to sort first: an
+        # unfiltered lookup ordered by name would pick it over the org's own.
+        await OrganizationSecretService(db).create(
+            ctx,
+            name="AAA private app",
+            value=GithubOAuthAppSecret(client_id="Iv1.privateprivate", client_secret="ghs-priv"),
+            purpose="github_oauth_app",
+            visibility=Visibility.PRIVATE,
+        )
 
-        found = await organization_secret_repo.get_by_kind(
+        found = await organization_secret_repo.list_org_visible_by_kind(
             db, organization_id=mine.id, kind=SecretKind.GITHUB_OAUTH_APP.value
         )
-        assert found is not None
-        assert found.id == stored.id
+        assert [row.id for row in found] == [stored.id]
 
         # Another organization does not see it - the org filter.
         assert (
-            await organization_secret_repo.get_by_kind(
+            await organization_secret_repo.list_org_visible_by_kind(
                 db, organization_id=theirs.id, kind=SecretKind.GITHUB_OAUTH_APP.value
             )
-            is None
+            == []
         )
         # Nor does a kind this organization has never stored - the kind filter.
         assert (
-            await organization_secret_repo.get_by_kind(
+            await organization_secret_repo.list_org_visible_by_kind(
                 db, organization_id=mine.id, kind=SecretKind.API_KEY.value
             )
-            is None
+            == []
         )

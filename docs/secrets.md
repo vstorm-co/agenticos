@@ -69,6 +69,13 @@ decides which fields exist.
 | `github_oauth_app` | A GitHub OAuth App's public client id and its secret |
 | `none` | Not a secret — the marker for an endpoint needing no credential |
 
+`github_oauth_app` is spent by the platform rather than picked by a person — the
+GitHub connect flow reads it server-side to run the token exchange — so it must be
+**org-visible, and there must be exactly one**: a member's private credential is
+never silently used for the whole organization's connection, and with two org-visible
+apps stored the connect is refused (naming both) rather than keyed to whichever name
+sorts first.
+
 `aws_credentials` is the clearest case for kinds existing at all: the access key id
 is not secret and the secret access key is, and a single field cannot express that.
 `gcp_service_account` is validated at paste time because the failure mode of a

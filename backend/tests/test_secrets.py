@@ -654,9 +654,9 @@ class TestTheGithubOAuthAppReader:
         )
 
         with patch(
-            "app.services.organization_secret.organization_secret_repo.get_by_kind",
-            new=AsyncMock(return_value=row),
-        ) as get_by_kind:
+            "app.services.organization_secret.organization_secret_repo.list_org_visible_by_kind",
+            new=AsyncMock(return_value=[row]),
+        ) as by_kind:
             value = await OrganizationSecretService(_db()).github_oauth_app(ctx)
 
         assert isinstance(value, GithubOAuthAppSecret)
@@ -664,7 +664,7 @@ class TestTheGithubOAuthAppReader:
         assert value.client_secret.get_secret_value() == "ghsec-42"
         # Read org-scoped and by the GitHub kind - never another tenant's, never
         # another shape.
-        assert get_by_kind.await_args.kwargs == {
+        assert by_kind.await_args.kwargs == {
             "organization_id": ctx.organization_id,
             "kind": SecretKind.GITHUB_OAUTH_APP.value,
         }
@@ -674,9 +674,31 @@ class TestTheGithubOAuthAppReader:
         """The connect UI shows this as "add a GitHub OAuth App secret first"."""
         with (
             patch(
-                "app.services.organization_secret.organization_secret_repo.get_by_kind",
-                new=AsyncMock(return_value=None),
+                "app.services.organization_secret.organization_secret_repo.list_org_visible_by_kind",
+                new=AsyncMock(return_value=[]),
             ),
             pytest.raises(NotFoundError),
         ):
             await OrganizationSecretService(_db()).github_oauth_app(_ctx())
+
+    @pytest.mark.anyio
+    async def test_two_org_visible_apps_are_refused_not_picked_by_name_order(self):
+        """With two org-visible OAuth Apps stored, the connect flow must not key
+        the organization's GitHub connection to whichever name sorts first - the
+        refusal names both candidates so the operator knows which rows collide,
+        and no secret value rides in it."""
+        ctx = _ctx()
+        rows = [
+            _row(ctx, GithubOAuthAppSecret(client_id="Iv1.a", client_secret="s1"), name="aaa"),
+            _row(ctx, GithubOAuthAppSecret(client_id="Iv1.b", client_secret="s2"), name="bbb"),
+        ]
+        with (
+            patch(
+                "app.services.organization_secret.organization_secret_repo.list_org_visible_by_kind",
+                new=AsyncMock(return_value=rows),
+            ),
+            pytest.raises(BadRequestError) as excinfo,
+        ):
+            await OrganizationSecretService(_db()).github_oauth_app(ctx)
+        assert excinfo.value.details["names"] == ["aaa", "bbb"]
+        assert "s1" not in str(excinfo.value.details)

@@ -367,22 +367,46 @@ class OrganizationSecretService:
         member reading the vault. The caller's `mcp:manage` on the connect route is
         what authorizes reaching it.
 
+        Only an *org-visible* credential qualifies, and only an unambiguous one: a
+        member's private `github_oauth_app` must never be spent for the whole
+        organization's connection behind their back, and with two org-visible apps
+        stored, silently taking whichever name sorts first would key the connection
+        to a credential nobody chose.
+
         Raises:
-            NotFoundError: If the organization has stored no `github_oauth_app`
-                secret. A 4xx the connect UI shows as "add a GitHub OAuth App secret
-                first", never a 500 - a missing prerequisite is the operator's to
-                fix, not a bug.
+            NotFoundError: If the organization has stored no org-visible
+                `github_oauth_app` secret. A 4xx the connect UI shows as "add a
+                GitHub OAuth App secret first", never a 500 - a missing
+                prerequisite is the operator's to fix, not a bug.
+            BadRequestError: If more than one org-visible `github_oauth_app` is
+                stored - the fix (keep exactly one) is named, with the candidate
+                names so the operator knows which rows collide.
         """
-        row = await organization_secret_repo.get_by_kind(
+        rows = await organization_secret_repo.list_org_visible_by_kind(
             self.db,
             organization_id=ctx.organization_id,
             kind=SecretKind.GITHUB_OAUTH_APP.value,
         )
-        if row is None:
+        if not rows:
             raise NotFoundError(
-                message=("Connect GitHub after adding a GitHub OAuth App secret in Vault."),
+                message=(
+                    "Connect GitHub after adding an org-visible GitHub OAuth App secret in Vault."
+                ),
                 details={"kind": SecretKind.GITHUB_OAUTH_APP.value},
             )
+        if len(rows) > 1:
+            raise BadRequestError(
+                message=(
+                    "More than one org-visible GitHub OAuth App secret is stored; "
+                    "keep exactly one so the connection is keyed to a credential "
+                    "somebody chose."
+                ),
+                details={
+                    "kind": SecretKind.GITHUB_OAUTH_APP.value,
+                    "names": [row.name for row in rows],
+                },
+            )
+        row = rows[0]
         value = unseal_secret(
             row.sealed_secret,
             kind=SecretKind.GITHUB_OAUTH_APP,
