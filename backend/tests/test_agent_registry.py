@@ -412,6 +412,66 @@ class TestList:
         assert rows[1].budget_monthly_usd is None
 
     @pytest.mark.anyio
+    async def test_a_published_agents_model_rides_the_listing_and_a_drafts_does_not(self):
+        """What the chat's model picker prefills from - the published version's
+        model, read off the frozen spec, not the draft the Builder is editing and
+        which may name a different one than the conversation runs on."""
+        ctx = _ctx(OrgRoleName.OWNER)
+        version_id = uuid.uuid4()
+        profile_id = uuid.uuid4()
+        published = _agent(ctx, current_version_id=version_id)
+        draft = _agent(ctx)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([published, draft], 2)),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_budget_caps",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_compaction_windows",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_model_profiles",
+                new=AsyncMock(return_value={version_id: profile_id}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profiles_by_ids",
+                new=AsyncMock(
+                    return_value={
+                        profile_id: MagicMock(
+                            id=profile_id,
+                            provider="anthropic",
+                            model="claude-sonnet-4-5",
+                            label="Claude Sonnet",
+                            context_length=200_000,
+                        )
+                    }
+                ),
+            ),
+        ):
+            rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
+
+        assert rows[0].published_model is not None
+        assert rows[0].published_model.profile_id == profile_id
+        assert rows[0].published_model.provider == "anthropic"
+        assert rows[0].published_model.model == "claude-sonnet-4-5"
+        assert rows[0].published_model.label == "Claude Sonnet"
+        assert rows[1].published_model is None
+
+    @pytest.mark.anyio
     async def test_the_window_a_listed_agents_model_accepts_rides_along(self):
         """What a chat divides its context gauge by.
 
@@ -454,7 +514,11 @@ class TestList:
                 new=AsyncMock(
                     return_value={
                         profile_id: MagicMock(
-                            context_length=128_000, provider="openai", model="gpt-4o"
+                            id=profile_id,
+                            label="GPT-4o",
+                            context_length=128_000,
+                            provider="openai",
+                            model="gpt-4o",
                         )
                     }
                 ),
@@ -504,7 +568,11 @@ class TestList:
                 new=AsyncMock(
                     return_value={
                         profile_id: MagicMock(
-                            context_length=None, provider="openai", model="gpt-4o"
+                            id=profile_id,
+                            label="GPT-4o",
+                            context_length=None,
+                            provider="openai",
+                            model="gpt-4o",
                         )
                     }
                 ),
@@ -554,7 +622,11 @@ class TestList:
                 new=AsyncMock(
                     return_value={
                         profile_id: MagicMock(
-                            context_length=None, provider="ollama", model="llama3.3"
+                            id=profile_id,
+                            label="Llama 3.3",
+                            context_length=None,
+                            provider="ollama",
+                            model="llama3.3",
                         )
                     }
                 ),
@@ -610,7 +682,11 @@ class TestList:
                 new=AsyncMock(
                     return_value={
                         profile_id: MagicMock(
-                            context_length=1_050_000, provider="openrouter", model="openai/gpt-5.5"
+                            id=profile_id,
+                            label="GPT-5.5",
+                            context_length=1_050_000,
+                            provider="openrouter",
+                            model="openai/gpt-5.5",
                         )
                     }
                 ),
@@ -662,6 +738,9 @@ class TestList:
             rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
 
         assert rows[0].context_window_tokens is None
+        # Same gap seen by the picker: a spec that names a deleted profile prefills
+        # from nothing rather than from a model the profile no longer is.
+        assert rows[0].published_model is None
 
     @pytest.mark.anyio
     async def test_the_listing_returns_the_page_and_the_total(self):
