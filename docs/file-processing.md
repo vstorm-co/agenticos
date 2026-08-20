@@ -163,8 +163,19 @@ not define.
 
 ### Size Limits
 
-- Maximum file size: `MAX_UPLOAD_SIZE_MB` environment variable (default: **50 MB**). A chat attachment is a different surface with a ceiling of its own, `CHAT_MAX_UPLOAD_SIZE_MB` (default **10 MB**)
-- The limit is enforced server-side after reading the file content.
+- Maximum attachment size: `CHAT_MAX_UPLOAD_SIZE_MB` (default: **10 MB**). This is
+  the section's own limit — a chat attachment is refused by this number, not by the
+  knowledge base's larger `MAX_UPLOAD_SIZE_MB`, and the two are separate settings
+  because an attachment to an agent with no workspace is pasted whole into the prompt
+  while a knowledge-base document is chunked and embedded.
+- A knowledge-base document is capped by `MAX_UPLOAD_SIZE_MB` (default: **50 MB**)
+  instead.
+- The whole request body is capped above both, at the larger of them plus a multipart
+  allowance, so raising either ceiling raises that with it.
+- The limit is enforced server-side after reading the file content. The browser's own
+  check is `NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB`, which should be set to match: too
+  high and the composer accepts a file the API refuses, too low and it refuses one the
+  API would take.
 
 ### Storage
 
