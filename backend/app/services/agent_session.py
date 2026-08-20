@@ -97,6 +97,10 @@ class AgentSession:
         self.current_conversation_id: str | None = None
         self._turn_task: asyncio.Task[None] | None = None
         self._ask_user_future: asyncio.Future[list[dict[str, Any]]] | None = None
+        # The running turn's timeline, so `_ask_one` can record a mid-turn
+        # question and its answer as a part of the turn it happened in (#502).
+        # None between turns; set and cleared by `process_message`.
+        self._current_timeline: TurnTimeline | None = None
         # One question round on the wire at a time. The client renders a single
         # `ask_user` form and its `ask_user_response` carries no correlation, and
         # `_ask_user_future` is one slot - so two delegates asking at once (a
@@ -232,6 +236,7 @@ class AgentSession:
         # which path a turn is on, and the alternative is throwing away a
         # half-written answer on exactly the runs somebody opens afterwards.
         timeline = TurnTimeline()
+        self._current_timeline = timeline
         # The run row, as soon as `prepare` opens one. A list because the
         # callback is `list.append` and a turn opens at most one run - it is
         # empty when the run was refused before it existed.
@@ -378,6 +383,7 @@ class AgentSession:
             logger.exception("Error processing agent request")
             await send_event(self.websocket, "error", {"message": _turn_failed(exc)})
         finally:
+            self._current_timeline = None
             if not answered:
                 await self._persist_partial_turn(
                     opened,
@@ -444,7 +450,12 @@ class AgentSession:
         """
         item = QuestionItem(question=question, options=options)
         answers = await self._ask_user([item.model_dump()])
-        return render_answer(answers[0] if answers else None)
+        answer = render_answer(answers[0] if answers else None)
+        # Recorded on the turn it happened in, so a reopened conversation shows the
+        # question and the answer the agent acted on rather than neither (#502).
+        if self._current_timeline is not None:
+            self._current_timeline.add_ask_user(question, answer)
+        return answer
 
     async def _ask_user(self, questions: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Pause the run: ask the client questions and block until they answer.

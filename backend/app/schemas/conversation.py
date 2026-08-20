@@ -33,6 +33,12 @@ class MessagePart(BaseSchema):
     `tool_call_id` refers to the `tool_calls` row carrying the arguments and the
     result. It is not repeated here - a tool call is written once, and a copy in
     JSONB is a copy that disagrees the first time one is re-run or redacted.
+
+    An `ask_user` entry is the exception that stores its own payload: a mid-turn
+    question and the person's answer have no column of their own - unlike text
+    (`content`), reasoning (`thinking`) or a tool call (its `tool_calls` row) - so
+    without this entry a reopened conversation shows neither the question the agent
+    put nor the answer it acted on (#502).
     """
 
     # The one schema in this module that must not strip its strings. `BaseSchema`
@@ -47,12 +53,18 @@ class MessagePart(BaseSchema):
         str_strip_whitespace=False,
     )
 
-    type: Literal["text", "thinking", "tool"] = Field(description="What this entry is.")
+    type: Literal["text", "thinking", "tool", "ask_user"] = Field(description="What this entry is.")
     text: str | None = Field(
         default=None, description="The words, for a `text` or `thinking` entry."
     )
     tool_call_id: str | None = Field(
         default=None, description="Which tool call this entry is, for a `tool` entry."
+    )
+    question: str | None = Field(
+        default=None, description="What the agent asked, for an `ask_user` entry."
+    )
+    answer: str | None = Field(
+        default=None, description="What the person answered, for an `ask_user` entry."
     )
 
 

@@ -1094,6 +1094,41 @@ class TestAskingTheUser:
 
         assert await asking == "eu"
 
+    async def test_an_answered_question_is_recorded_on_the_turns_timeline(self):
+        """The whole point of #502: the question and the answer land on the running
+        turn's timeline, so they are persisted and a reopened conversation shows
+        them rather than neither."""
+        session = _session()
+        session._current_timeline = TurnTimeline()
+        asked = _next_frame(session)
+
+        asking = asyncio.create_task(session._ask_one("Which region?", ["eu", "us"]))
+        await _wait(asked)
+        await session.handle_frame(
+            {"type": "ask_user_response", "answers": [{"answer": "eu", "skipped": False}]}
+        )
+        assert await asking == "eu"
+
+        stored = session._current_timeline.stored()
+        assert stored is not None
+        assert [(part.type, part.question, part.answer) for part in stored] == [
+            ("ask_user", "Which region?", "eu")
+        ]
+
+    async def test_a_question_asked_between_turns_records_nothing(self):
+        """`_ask_one` is safe to reach with no turn running - the timeline is None
+        between turns - so a stray question is answered without a place to record it
+        rather than raising."""
+        session = _session()
+        asked = _next_frame(session)
+
+        asking = asyncio.create_task(session._ask_one("Which region?", ["eu"]))
+        await _wait(asked)
+        await session.handle_frame({"type": "ask_user_response", "answers": [{"answer": "eu"}]})
+
+        assert await asking == "eu"
+        assert session._current_timeline is None
+
     async def test_a_delegates_question_left_unanswered_reads_as_no_answer(self):
         """An empty answers payload releases the delegate with "(no answer)" rather
         than hanging it: the delegate goes on with what it already had."""
