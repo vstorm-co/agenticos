@@ -17,6 +17,49 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.210] - 2026-08-20
+
+`rag-source-add` accepted any collection name, including another tenant's.
+
+### Fixed
+
+- **`rag-source-add` refuses a collection it cannot legally own.** The command
+  wrote a caller-supplied collection name straight into a `sync_sources` row
+  without asking whether it was a legal identifier, whether a knowledge base of
+  that name existed, or whose it was - while the HTTP route for the same thing
+  asks all three, for the reason its docstring gives: "a sync writes into the
+  collection, so pointing one at another tenant's is an injection, not a read".
+  The name's *shape* is now judged in `create_source`, so the route and the CLI
+  share one rule and a name no table can be called is refused where it enters
+  rather than failing later in a worker. Ownership is answered in the command,
+  which is the only place that knows who is asking. (#707)
+- **The rows the command creates have an organization.** `create_source` was
+  called without one and the column is nullable, so every source the CLI ever
+  made was org-less - while the model's docstring opens "Belongs to an
+  organization". The organization now comes from the collection's own knowledge
+  base, which is also step 1 of #937: converging `sync_sources.config` onto the
+  vault needs an owner to bind a ciphertext to. (#707)
+- **A personal collection is refused, not just another organization's.** A
+  personal knowledge base carries the organization's id too, so "same tenant" is
+  not ownership: `writable_kb` lets only its owner write to one. Accepted, it
+  would have pointed an *organization-owned* sync source at a member's private
+  collection, which every member holding `connections:manage` can see and
+  trigger. An app-scoped base is refused for the mirror reason - it belongs to
+  the deployment and takes an app admin. (#707)
+- **A refused `rag-source-add` exits non-zero.** `error` is `click.secho` and
+  nothing more, so a command that printed a refusal and returned exited **0** and
+  a shell script carried on as though the source had been created. (#707, and
+  #972 for the other 23 call sites across `app/commands/`)
+
+### Changed
+
+- **`rag-source-add` requires `--org`.** A script calling it without one now gets
+  click's usage error instead of creating an org-less row pointed at a collection
+  that may not exist or may be another tenant's. Existing rows are untouched;
+  moving them is #937's business. `docs/commands.md` and
+  `docs/howto/configure-sync-sources.md` carry the flag in all three documented
+  invocations. (#707)
+
 ## [0.0.209] - 2026-08-20
 
 A chat attachment was refused by a 10 MiB limit no operator could see or raise.
