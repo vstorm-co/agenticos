@@ -21,7 +21,7 @@ from app.schemas.conversation_share import AdminUserList, AdminUserRead
 from app.schemas.user import UserCreate, UserUpdate
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
-from app.services.file_storage import get_file_storage
+from app.services.file_storage import avatar_filename, get_file_storage
 from app.services.organization import OrganizationService
 from app.services.signup_policy import check_may_register
 
@@ -236,9 +236,7 @@ class UserService:
 
         return await user_repo.update(self.db, db_user=user, update_data=update_data)
 
-    async def update_avatar(
-        self, user_id: UUID, file_data: bytes, filename: str, content_type: str
-    ) -> User:
+    async def update_avatar(self, user_id: UUID, file_data: bytes, content_type: str) -> User:
         ALLOWED_AVATAR_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
         if content_type not in ALLOWED_AVATAR_TYPES:
             raise ValueError("Only JPEG, PNG, WebP, and GIF images are allowed")
@@ -252,7 +250,13 @@ class UserService:
             with contextlib.suppress(Exception):
                 await storage.delete(user.avatar_url)
 
-        storage_path = await storage.save(f"avatars/{user_id}", filename, file_data)
+        # Stored under a suffix from the validated type, not the caller's
+        # filename: the served type is guessed from the name on disk, so a valid
+        # image uploaded as `avatar` or `avatar.txt` would otherwise be
+        # unrenderable (#702).
+        storage_path = await storage.save(
+            f"avatars/{user_id}", avatar_filename(content_type), file_data
+        )
         return await user_repo.update(
             self.db, db_user=user, update_data={"avatar_url": storage_path}
         )

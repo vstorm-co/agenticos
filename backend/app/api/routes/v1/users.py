@@ -52,9 +52,7 @@ async def upload_avatar(
     """Upload or replace avatar image for the current user."""
     data = await file.read()
     try:
-        user = await user_service.update_avatar(
-            current_user.id, data, file.filename or "avatar.jpg", file.content_type or ""
-        )
+        user = await user_service.update_avatar(current_user.id, data, file.content_type or "")
     except ValueError as e:
         raise BadRequestError(message=str(e)) from None
     return user
