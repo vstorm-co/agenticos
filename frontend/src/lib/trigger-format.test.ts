@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { intervalToUnit, triggerSummary, unitToSeconds } from "./trigger-format";
+import {
+  intervalToUnit,
+  parseCron,
+  triggerSummary,
+  unitToSeconds,
+  weekdayKey,
+} from "./trigger-format";
 import type { Trigger } from "@/types/triggers";
 
 function trigger(overrides: Partial<Trigger> = {}): Trigger {
@@ -54,6 +60,41 @@ describe("unitToSeconds", () => {
   });
 });
 
+describe("parseCron", () => {
+  const advanced = (expression: string) => expect(parseCron(expression).freq).toBe("advanced");
+
+  it("recognises exactly the shapes the builder writes", () => {
+    expect(parseCron("0 9 * * *")).toMatchObject({ freq: "daily", time: "09:00" });
+    expect(parseCron("5 7 */3 * *")).toMatchObject({
+      freq: "everyNDays",
+      time: "07:05",
+      everyDays: "3",
+    });
+    expect(parseCron("0 9 * * 1,3,5")).toMatchObject({ freq: "weekly", weekdays: [1, 3, 5] });
+    expect(parseCron("0 9 31 * *")).toMatchObject({ freq: "monthly", dayOfMonth: "31" });
+  });
+
+  it("falls back to advanced for anything else", () => {
+    advanced(""); // not five fields
+    advanced("0 9 * *"); // four fields
+    advanced("*/5 * * * *"); // no fixed minute
+    advanced("0 24 * * *"); // hour out of range
+    advanced("0 9 * 6 *"); // a fixed month is not a builder shape
+    advanced("0 9 * * 9"); // weekday out of range
+    advanced("0 9 * * 1-5"); // a range is not the builder's comma list
+    advanced("0 9 15 * 1"); // day-of-month and weekday together
+    advanced("0 9 0 * *"); // day-of-month out of range
+    advanced("0 9 */2 * 1"); // every-N-days combined with a weekday
+  });
+});
+
+describe("weekdayKey", () => {
+  it("names a weekday and defaults to Monday off-range", () => {
+    expect(weekdayKey(0)).toBe("weekdaySun");
+    expect(weekdayKey(7)).toBe("weekdayMon");
+  });
+});
+
 describe("triggerSummary", () => {
   it("describes an interval schedule by its largest unit", () => {
     expect(triggerSummary(trigger({ interval_seconds: 3600 }))).toEqual({
@@ -63,12 +104,26 @@ describe("triggerSummary", () => {
     });
   });
 
-  it("carries a cron expression through verbatim", () => {
+  it("reads a builder-shaped cron in plain language, not notation", () => {
+    const cron = (expression: string) =>
+      triggerSummary(
+        trigger({ schedule_kind: "cron", interval_seconds: null, cron_expression: expression }),
+      );
+    expect(cron("0 9 * * *")).toEqual({ kind: "cronDaily", time: "09:00" });
+    expect(cron("30 18 * * 1,2")).toEqual({ kind: "cronWeekly", time: "18:30", weekdays: [1, 2] });
+    expect(cron("0 9 15 * *")).toEqual({ kind: "cronMonthly", time: "09:00", day: 15 });
+    // Every N days reads exactly like an interval in days - same label, same key.
+    expect(cron("0 9 */2 * *")).toEqual({ kind: "interval", unit: "days", count: 2 });
+  });
+
+  it("carries a hand-written cron expression through verbatim", () => {
+    // Only an expression the builder could not have produced keeps its raw
+    // notation - that user chose Advanced and wants to see what they wrote.
     expect(
       triggerSummary(
-        trigger({ schedule_kind: "cron", interval_seconds: null, cron_expression: "0 9 * * *" }),
+        trigger({ schedule_kind: "cron", interval_seconds: null, cron_expression: "*/5 * * * *" }),
       ),
-    ).toEqual({ kind: "cron", expression: "0 9 * * *" });
+    ).toEqual({ kind: "cron", expression: "*/5 * * * *" });
   });
 
   it("reads a portal preset as its portal and target when both are known", () => {

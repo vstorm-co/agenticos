@@ -345,6 +345,45 @@ describe("TriggersPanel", () => {
     expect(row?.querySelector("svg")).not.toBeNull();
   });
 
+  it("leads a schedule row with the clock mark, so a mixed list stays aligned", async () => {
+    serve([trigger({ interval_seconds: 900 })]);
+    await mount({ canCreate: false });
+
+    const summary = await screen.findByText("Every 15 minutes");
+    const row = summary.closest("div.rounded-md");
+    expect(row?.querySelector("svg")).not.toBeNull();
+  });
+
+  it("leads an event row with a generic mark even when its source is unknown", async () => {
+    serve([trigger({ trigger_type: "event", event_source: null, interval_seconds: null })]);
+    await mount({ canCreate: false });
+
+    const summary = await screen.findByText("On new GitHub issues");
+    const row = summary.closest("div.rounded-md");
+    expect(row?.querySelector("svg")).not.toBeNull();
+  });
+
+  it("reads a weekday cron on the row in plain language, not notation", async () => {
+    serve([
+      trigger({ schedule_kind: "cron", interval_seconds: null, cron_expression: "0 9 * * 1,2" }),
+    ]);
+    await mount();
+
+    await waitFor(() => expect(screen.getByText("At 09:00 UTC on Mon, Tue")).toBeVisible());
+    expect(screen.queryByText("Cron 0 9 * * 1,2 (UTC)")).toBeNull();
+  });
+
+  it("titles the edit dialog by the trigger's kind, not a generic word", async () => {
+    const user = userEvent.setup();
+    serve([trigger()]);
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Edit schedule")).toBeVisible();
+    expect(within(dialog).queryByText("Edit trigger")).toBeNull();
+  });
+
   it("fires an every-N-days preset as a continuous interval, not a day-of-month step", async () => {
     const user = userEvent.setup();
     serve([]);

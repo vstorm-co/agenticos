@@ -48,7 +48,7 @@ describe("TriggerSummary", () => {
     expect(screen.getByText("Every day")).toBeInTheDocument();
   });
 
-  it("reads a cron schedule by its expression", () => {
+  it("reads a daily cron in plain language", () => {
     render(
       <TriggerSummary
         trigger={trigger({
@@ -58,7 +58,60 @@ describe("TriggerSummary", () => {
         })}
       />,
     );
-    expect(screen.getByText("Cron 0 9 * * * (UTC)")).toBeInTheDocument();
+    expect(screen.getByText("Daily at 09:00 UTC")).toBeInTheDocument();
+  });
+
+  it("reads a weekday cron as its days, Monday-first", () => {
+    render(
+      <TriggerSummary
+        trigger={trigger({
+          schedule_kind: "cron",
+          interval_seconds: null,
+          // Cron numbers Sunday 0, but the summary lists the picker's order.
+          cron_expression: "0 9 * * 0,1,2",
+        })}
+      />,
+    );
+    expect(screen.getByText("At 09:00 UTC on Mon, Tue, Sun")).toBeInTheDocument();
+  });
+
+  it("reads a monthly cron by its day", () => {
+    render(
+      <TriggerSummary
+        trigger={trigger({
+          schedule_kind: "cron",
+          interval_seconds: null,
+          cron_expression: "30 18 15 * *",
+        })}
+      />,
+    );
+    expect(screen.getByText("Monthly on day 15 at 18:30 UTC")).toBeInTheDocument();
+  });
+
+  it("reads an every-N-days cron exactly like an interval in days", () => {
+    render(
+      <TriggerSummary
+        trigger={trigger({
+          schedule_kind: "cron",
+          interval_seconds: null,
+          cron_expression: "0 9 */2 * *",
+        })}
+      />,
+    );
+    expect(screen.getByText("Every 2 days")).toBeInTheDocument();
+  });
+
+  it("shows raw notation only for a hand-written Advanced expression", () => {
+    render(
+      <TriggerSummary
+        trigger={trigger({
+          schedule_kind: "cron",
+          interval_seconds: null,
+          cron_expression: "*/5 * * * *",
+        })}
+      />,
+    );
+    expect(screen.getByText("Cron */5 * * * * (UTC)")).toBeInTheDocument();
   });
 
   it("names a GitHub event trigger", () => {

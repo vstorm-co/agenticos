@@ -38,11 +38,15 @@ import { useAgentEnvironments, useAgents } from "@/hooks";
 import { useTriggers } from "@/hooks/use-triggers";
 import { useAgentSelectionStore } from "@/stores";
 import {
+  type CronFrequency,
   eventFilterConfig,
   FILTER_KEYS,
   type IntervalUnit,
   intervalToUnit,
+  parseCron,
   unitToSeconds,
+  WEEKDAYS,
+  weekdayKey,
 } from "@/lib/trigger-format";
 import type {
   EventSource,
@@ -66,14 +70,6 @@ function generateSecret(): string {
 }
 
 /**
- * How the "at a set time" builder repeats, before it is compiled to cron. Each
- * maps to a crontab shape: daily `M H * * *`, every-N-days `M H * / N * *`, weekly
- * `M H * * <days>`, monthly `M H <dom> * *`. `advanced` is the escape hatch that
- * takes a raw expression for the cases the presets do not cover.
- */
-type CronFrequency = "daily" | "everyNDays" | "weekly" | "monthly" | "advanced";
-
-/**
  * The create wizard's steps. A schedule walks configure → message → schedule;
  * an event walks event → configure → message. "configure" carries the short
  * fields (agent, name, environment) and "message" only the prompt - a message
@@ -89,22 +85,6 @@ const CRON_FREQUENCIES: readonly { value: CronFrequency; key: string }[] = [
   { value: "monthly", key: "freqMonthly" },
   { value: "advanced", key: "freqAdvanced" },
 ];
-
-/** The weekdays, in cron's numbering (0 = Sunday), Monday-first for display. */
-const WEEKDAYS: readonly { value: number; key: string }[] = [
-  { value: 1, key: "weekdayMon" },
-  { value: 2, key: "weekdayTue" },
-  { value: 3, key: "weekdayWed" },
-  { value: 4, key: "weekdayThu" },
-  { value: 5, key: "weekdayFri" },
-  { value: 6, key: "weekdaySat" },
-  { value: 0, key: "weekdaySun" },
-];
-
-/** The translation key for a weekday value, defaulting to Monday off-range. */
-function weekdayKey(value: number): string {
-  return WEEKDAYS.find((day) => day.value === value)?.key ?? "weekdayMon";
-}
 
 /** A bounded integer from a form string, or the fallback when it is not one. */
 function clampInt(value: string, min: number, max: number, fallback: number): number {
@@ -122,63 +102,6 @@ const INTERVAL_MAX = 999;
 /** Whether the "Run every" count is a whole number the schedule can take. */
 function intervalCountValid(value: string): boolean {
   return /^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= INTERVAL_MAX;
-}
-
-/** The builder state a cron expression seeds, for editing an existing schedule. */
-interface ParsedCron {
-  freq: CronFrequency;
-  time: string;
-  everyDays: string;
-  weekdays: number[];
-  dayOfMonth: string;
-}
-
-/**
- * A cron expression read back into the builder's choices, or "advanced" when no
- * preset represents it. Only the shapes `composeCron` produces are recognised - a
- * fixed minute and hour, a wildcard month, and one of daily / every-N-days /
- * weekdays / day-of-month - so a builder-made schedule round-trips on edit, and a
- * hand-written one opens on its raw expression rather than a wrong preset.
- */
-function parseCron(expression: string): ParsedCron {
-  const fallback: ParsedCron = {
-    freq: "advanced",
-    time: "09:00",
-    everyDays: "2",
-    weekdays: [1],
-    dayOfMonth: "1",
-  };
-  const parts = expression.trim().split(/\s+/);
-  if (parts.length !== 5) return fallback;
-  const [rawMinute, rawHour, dom, month, dow] = parts as [string, string, string, string, string];
-  const minute = Number(rawMinute);
-  const hour = Number(rawHour);
-  const timed =
-    Number.isInteger(minute) &&
-    minute >= 0 &&
-    minute <= 59 &&
-    Number.isInteger(hour) &&
-    hour >= 0 &&
-    hour <= 23;
-  if (!timed || month !== "*") return fallback;
-  const time = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-  if (dom === "*" && dow === "*") return { ...fallback, freq: "daily", time };
-  const everyN = /^\*\/([0-9]+)$/.exec(dom)?.[1];
-  if (everyN !== undefined && dow === "*") {
-    return { ...fallback, freq: "everyNDays", time, everyDays: everyN };
-  }
-  if (dom === "*" && dow !== "*") {
-    const days = dow.split(",").map(Number);
-    if (days.every((day) => Number.isInteger(day) && day >= 0 && day <= 6)) {
-      return { ...fallback, freq: "weekly", time, weekdays: days };
-    }
-    return fallback;
-  }
-  const day = Number(dom);
-  if (dow === "*" && Number.isInteger(day) && day >= 1 && day <= 31) {
-    return { ...fallback, freq: "monthly", time, dayOfMonth: String(day) };
-  }
-  return fallback;
 }
 
 interface TriggerFormDialogProps {
@@ -590,8 +513,12 @@ export function TriggerFormDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{t("editTitle")}</DialogTitle>
-            <DialogDescription>{t("editDescription")}</DialogDescription>
+            <DialogTitle>
+              {type === "event" ? t("editTitleEvent") : t("editTitleSchedule")}
+            </DialogTitle>
+            <DialogDescription>
+              {type === "event" ? t("editDescriptionEvent") : t("editDescriptionSchedule")}
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">

@@ -1953,7 +1953,10 @@
       "everyMinutes": "{count, plural, =1 {Co minutę} few {Co # minuty} many {Co # minut} other {Co # minuty}}",
       "everyHours": "{count, plural, =1 {Co godzinę} few {Co # godziny} many {Co # godzin} other {Co # godziny}}",
       "everyDays": "{count, plural, =1 {Codziennie} other {Co # dni}}",
-      "cron": "Cron {expression} (UTC)"
+      "cron": "Cron {expression} (UTC)",
+      "cronDaily": "Codziennie o {time} UTC",
+      "cronWeekly": "O {time} UTC w {days}",
+      "cronMonthly": "Co miesiąc {day}. dnia o {time} UTC"
     },
     "event": {
       "github": "Przy nowym zgłoszeniu GitHub",
@@ -1977,9 +1980,11 @@
     "newEvent": "Nowy wyzwalacz",
     "newEventTitle": "Nowy wyzwalacz zdarzenia",
     "newEventDescription": "Wybierz usługę, aby uruchomić agenta, gdy coś się w niej wydarzy. Nie ma jej tu? Wyzwól go z własnego kodu.",
-    "editTitle": "Edytuj wyzwalacz",
+    "editTitleSchedule": "Edytuj harmonogram",
+    "editTitleEvent": "Edytuj wyzwalacz zdarzeniowy",
     "createDescription": "Agent uruchamia się sam, bez nikogo przy klawiaturze.",
-    "editDescription": "Zmień wiadomość, kadencję, filtr lub środowisko. Aby wskazać inne źródło, usuń ten i utwórz nowy.",
+    "editDescriptionSchedule": "Zmień wiadomość, kadencję lub środowisko.",
+    "editDescriptionEvent": "Zmień wiadomość, filtr lub środowisko. Aby wskazać inne źródło, usuń ten i utwórz nowy.",
     "prompt": "Wiadomość",
     "promptHelp": "Co agent dostaje przy każdym uruchomieniu.",
     "promptPlaceholder": "Podsumuj, co zmieniło się od wczoraj.",

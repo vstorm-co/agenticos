@@ -4559,7 +4559,10 @@
       "everyMinutes": "{count, plural, =1 {Every minute} other {Every # minutes}}",
       "everyHours": "{count, plural, =1 {Every hour} other {Every # hours}}",
       "everyDays": "{count, plural, =1 {Every day} other {Every # days}}",
-      "cron": "Cron {expression} (UTC)"
+      "cron": "Cron {expression} (UTC)",
+      "cronDaily": "Daily at {time} UTC",
+      "cronWeekly": "At {time} UTC on {days}",
+      "cronMonthly": "Monthly on day {day} at {time} UTC"
     },
     "event": {
       "github": "On new GitHub issues",
@@ -4583,9 +4586,11 @@
     "newEvent": "New event trigger",
     "newEventTitle": "New event trigger",
     "newEventDescription": "Pick a service to run your agent when something happens there. Not listed? Trigger it from your own code instead.",
-    "editTitle": "Edit trigger",
+    "editTitleSchedule": "Edit schedule",
+    "editTitleEvent": "Edit event trigger",
     "createDescription": "The agent runs itself with nobody at the keyboard.",
-    "editDescription": "Change the message, cadence, filter or environment. To point at a different source, delete this and create a new one.",
+    "editDescriptionSchedule": "Change the message, cadence or environment.",
+    "editDescriptionEvent": "Change the message, filter or environment. To point at a different source, delete this and create a new one.",
     "prompt": "Message",
     "promptHelp": "What the agent is told each time it fires.",
     "promptPlaceholder": "Summarise what changed since yesterday.",

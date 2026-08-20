@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Pause, Pencil, Play, Trash2, Zap } from "lucide-react";
+import { CalendarClock, Pause, Pencil, Play, Trash2, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -15,19 +15,23 @@ import { useTriggers } from "@/hooks/use-triggers";
 import type { Trigger } from "@/types/triggers";
 
 /**
- * The mark for an event trigger: a portal keeps its own brand (Slack, Notion,
- * whichever the preset is for); a raw trigger draws its event source's mark from
- * the shared lookup, so the row and the "Fires on" picker never disagree.
+ * The mark every row leads with, so a mixed list stays aligned: a schedule gets
+ * the clock, and an event trigger its provenance - a portal keeps its own brand
+ * (Slack, Notion, whichever the preset is for), a raw trigger draws its event
+ * source's mark from the shared lookup, so the row and the "Fires on" picker
+ * never disagree.
  */
 function TriggerMark({ trigger, className }: { trigger: Trigger; className?: string }) {
-  if (trigger.trigger_type !== "event") return null;
+  if (trigger.trigger_type !== "event") {
+    return <CalendarClock aria-hidden className={className} />;
+  }
   if (trigger.portal_key && isBrandName(trigger.portal_key)) {
     return <BrandIcon name={trigger.portal_key} aria-hidden className={className} />;
   }
   if (trigger.event_source) {
     return <EventSourceMark source={trigger.event_source} className={className} />;
   }
-  return null;
+  return <Zap aria-hidden className={className} />;
 }
 
 interface TriggerRowProps {
