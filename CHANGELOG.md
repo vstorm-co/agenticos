@@ -17,6 +17,51 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.219] - 2026-08-20
+
+A tracking row says which file it tracks, so a failed attempt stops piling up.
+
+### Fixed
+
+- **A file that failed to parse on one sync and succeeded on the next left both
+  rows.** `complete_ingestion`'s retirement matches on `vector_document_id` and a
+  failed parse writes none, so the succeeding run had nothing to name and every
+  repeated failure added another row that counted toward the collection's
+  `document_count` for good. `rag_documents` gained a `source_path` (`0043`) -
+  `gdrive://<id>`, `s3://bucket/key`, or an absolute path for a local or CLI sync
+  - and a new attempt retires the previous *failed* one by that address. (#996)
+- **Not by filename**, which is the trap and the collision #990 removed on the
+  vector side reached from the other direction: `a/readme.md` and `b/readme.md`
+  in one bucket share a basename, so a name match deletes the other file's row.
+  (#996)
+- **Not a `PROCESSING` row either.** "Has no vector id" is also true of an
+  attempt still running, and nothing serialises two manual triggers on one
+  source - the second would delete the first's live row, after which the first
+  finishes, replaces the vectors and finds no row to complete. Retirement matches
+  `status == ERROR`. (#996)
+- **A failed *supersede* is no longer reported as a failed ingest.**
+  `ingest_file` inserts the new document before deleting the one it replaces, so
+  a delete that raised returned an error while the vectors sat in the store - an
+  `ERROR` row with no vector id, which the next attempt then retired and
+  orphaned them. The insert succeeding is the answer; the lingering old document
+  is logged. (#996)
+- **The CLI sync records its address too.** `rag-ingest` called both
+  `create_document` and `ingest_file` without the resolved path it had already
+  computed, so its rows got `NULL` and a file failing there repeatedly kept
+  inflating the count. (#996)
+
+### Changed
+
+- **An upload stores no address and retires nothing.** Its only name is a
+  basename, and two people can upload different `report.pdf`s meaning both to
+  exist, since `replace` defaults to false. Retiring by that name would delete
+  the first one's failed row - its diagnosis, its retry and its stored file - for
+  a caller who asked for no such thing. (#996)
+- `source_path` is `Text` with a **hash** index rather than `String(1024)`: an S3
+  key alone reaches 1024 bytes before the scheme and bucket are added and a
+  filesystem path reaches 4096, and a btree index refuses a key over about 2700
+  bytes at insert time. Equality is the only way the column is read. (#996)
+
 ## [0.0.218] - 2026-08-20
 
 Every ingest path writes its tracking row before the file is indexed.
