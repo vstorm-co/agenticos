@@ -22,7 +22,7 @@ services:
         - NEXT_PUBLIC_API_URL=http://localhost:8000
         - NEXT_PUBLIC_WS_URL=ws://localhost:8000
         - NEXT_PUBLIC_SITE_URL=http://localhost:3000
-        - NEXT_PUBLIC_MAX_UPLOAD_SIZE_MB=50
+        - NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB=${CHAT_MAX_UPLOAD_SIZE_MB:-10}
         - NEXT_PUBLIC_OAUTH_PROVIDERS=google
         - NEXT_PUBLIC_RAG_ENABLED=true
     container_name: agenticos_frontend

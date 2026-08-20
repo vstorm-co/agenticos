@@ -33,6 +33,10 @@ async def health_check() -> dict[str, Any]:
     return {
         "status": "healthy",
         "max_upload_size_mb": settings.MAX_UPLOAD_SIZE_MB,
+        # The chat surface has a ceiling of its own, and it used to be a literal
+        # no operator could see: this probe published the knowledge base's number
+        # while a chat attachment was refused by another (#498).
+        "chat_max_upload_size_mb": settings.CHAT_MAX_UPLOAD_SIZE_MB,
     }
 
 

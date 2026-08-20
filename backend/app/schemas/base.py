@@ -52,8 +52,18 @@ class ErrorResponse(BaseModel):
 
 
 class HealthResponse(BaseModel):
+    """What a client can learn about this deployment's limits before uploading.
+
+    Two upload ceilings, because there are two: a knowledge-base document is
+    chunked and embedded, a chat attachment may be pasted whole into a prompt,
+    and they are configured separately (#498). A client that reads only the
+    first will refuse a file the chat surface would have taken, or accept one it
+    will not.
+    """
+
     status: str
     max_upload_size_mb: int | None = None
+    chat_max_upload_size_mb: int | None = None
 
 
 class HealthDetailResponse(BaseModel):

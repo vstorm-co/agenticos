@@ -7,7 +7,7 @@ agent answered about a document it never received.
 
 **Inbound is the web upload path, reached differently.** The bytes arrive from a
 platform instead of a browser, and then go through exactly what
-`FileUploadService.upload` applies: the MIME allowlist, `MAX_UPLOAD_SIZE`, the
+`FileUploadService.upload` applies: the MIME allowlist, `CHAT_MAX_UPLOAD_SIZE_MB`, the
 parser, storage, and a `ChatFile` row. A bot is the most permissive edge this
 platform has - anyone in a Slack channel can drop a file on it - so it must not
 also become the lenient one.

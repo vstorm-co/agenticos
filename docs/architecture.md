@@ -575,7 +575,12 @@ and `parsed_content` (extracted text). Only the file owner can access their file
 
 ### Size Limits
 
-Maximum upload size is controlled by `MAX_UPLOAD_SIZE_MB` (default 50MB).
+There are two, because there are two surfaces. `MAX_UPLOAD_SIZE_MB` (default
+50MB) is the knowledge-base document cap; `CHAT_MAX_UPLOAD_SIZE_MB` (default
+10MB) is what may be attached in chat. They are separate settings rather than
+one, because a document is chunked and read back through retrieval while an
+attachment to an agent with no workspace is pasted whole into the prompt — the
+same size fails differently on each. `GET /api/v1/health` publishes both.
 
 ## RAG System
 
@@ -637,6 +642,10 @@ Each ingested document gets:
 
 ### Sync Connectors
 
-Remote document sources use pluggable connectors in `rag/connectors/`. Each
-connector implements `BaseSyncConnector` with `list_files()` and `download_file()`
-methods. See `docs/patterns.md` for how to add a new connector.
+Remote document sources use pluggable connectors in
+`app/services/rag/connectors/`. Each connector implements `BaseSyncConnector`
+with `list_files()` and `_fetch()`, declares a `SECRET_KIND` naming the vault
+secret that authenticates it, and declares a `CONFIG_SCHEMA` of
+`ConnectorConfigField`s saying how to find the documents. `download_file()` is
+concrete and decides where a file may land. See `docs/patterns.md` for how to
+add one, and `docs/howto/add-sync-connector.md` for a worked example.

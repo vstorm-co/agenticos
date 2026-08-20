@@ -117,6 +117,19 @@ function wrapper({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Select a section's tab.
+ *
+ * The three sections are tabs since #939, so a test asserting on the sync
+ * sources has to choose that tab first - previously they were all stacked and
+ * everything was on screen at once.
+ */
+async function openTab(name: string) {
+  // `find`, not `get`: the page draws a skeleton until its collection arrives, so
+  // a `get` here races the first render rather than the tab being absent.
+  await userEvent.click(await screen.findByRole("tab", { name }));
+}
+
 async function mount() {
   // Awaited, because `use(params)` suspends on the first render and React warns
   // - then leaves the fallback on screen - if that resolution lands outside an
@@ -129,6 +142,10 @@ async function mount() {
 
 describe("deleting a collection from its own page", () => {
   beforeEach(() => {
+    // The page writes its tab into the URL, and jsdom's location persists across
+    // tests in a file - so without this a test that opened Sync sources leaves the
+    // next one mounting on that tab. A browser gets a fresh URL per navigation.
+    window.history.replaceState({}, "", "/");
     vi.clearAllMocks();
     vi.mocked(apiClient.delete).mockResolvedValue(undefined);
     held = [Perm.collectionsView, Perm.collectionsEdit];
@@ -230,6 +247,7 @@ describe("the other two confirmations on the page", () => {
   it("asks before disconnecting a sync source, and says what stays behind", async () => {
     serve({ sources: [{ id: "src-1", name: "Drive", connector_type: "gdrive" }] });
     await mount();
+    await openTab("Sync sources");
 
     await userEvent.click(await screen.findByRole("button", { name: "Remove source" }));
 

@@ -51,7 +51,16 @@ export function getPasswordStrength(pw: string): { score: number; label: string;
 
 export const MAX_AVATAR_SIZE_BYTES = 2 * 1024 * 1024;
 
-export const MAX_UPLOAD_SIZE_MB = parseInt(process.env.NEXT_PUBLIC_MAX_UPLOAD_SIZE_MB || "50", 10);
+// The chat composer's ceiling, and the only place this number is read: an
+// attachment is refused by `CHAT_MAX_UPLOAD_SIZE_MB` on the server, not by the
+// knowledge base's larger cap. Named for its surface because it was not - it was
+// `MAX_UPLOAD_SIZE_MB`, defaulted to 50, and checked files against a server that
+// refused them at 10, so the client accepted a file, read it, sent it in full and
+// showed a toast naming a limit no configuration held (#498).
+export const CHAT_MAX_UPLOAD_SIZE_MB = parseInt(
+  process.env.NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB || "10",
+  10,
+);
 
 export function formatBytes(bytes: number): string {
   if (!bytes || bytes < 0) return "0 B";

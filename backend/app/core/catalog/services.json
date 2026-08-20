@@ -61,5 +61,21 @@
     "kind": "github_oauth_app",
     "help_url": "https://github.com/settings/developers",
     "description": "A GitHub OAuth App's client id and secret, used to connect a GitHub account for repository webhooks."
+  },
+  {
+    "id": "gdrive",
+    "label": "Google Drive",
+    "category": "connector",
+    "kind": "gcp_service_account",
+    "help_url": "https://console.cloud.google.com/iam-admin/serviceaccounts",
+    "description": "A service account a Google Drive sync source reads documents with."
+  },
+  {
+    "id": "s3",
+    "label": "S3 / MinIO",
+    "category": "connector",
+    "kind": "aws_credentials",
+    "help_url": "https://console.aws.amazon.com/iam/home#/security_credentials",
+    "description": "A key pair an S3 or MinIO sync source reads objects with."
   }
 ]

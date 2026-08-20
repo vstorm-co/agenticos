@@ -4,11 +4,32 @@ Every provider key, channel bot token, MCP credential and third-party API key in
 this platform passes through one module, and there is deliberately no second
 mechanism.
 
-That is a decision with history. Three mechanisms used to hold secrets at rest and
-only one of them bound a ciphertext to its owner: provider keys went through the
-vault, channel bot tokens through a single deployment-wide Fernet key, MCP tokens
-through another. A Slack token could be copied out of one organization's row into
-another's and it decrypted. Migration `0038` is what removed that.
+That is a decision with history, and it took two rounds to become true. Three
+mechanisms used to hold secrets at rest and only one of them bound a ciphertext to
+its owner: provider keys went through the vault, channel bot tokens through a
+single deployment-wide Fernet key, MCP tokens through another. A Slack token could
+be copied out of one organization's row into another's and it decrypted. Migration
+`0038` removed those two.
+
+A fourth survived `0038` and outlived the sentence above it by some months:
+`app/core/crypto.py`, one deployment-wide Fernet key over the credential fields of
+`sync_sources.config` — the Google service account JSON and the AWS key pair a RAG
+sync connector authenticates with. It was honest about itself in its own docstring
+and it was still a second mechanism, so a reader who believed "there is no second
+mechanism" was wrong about one table. What kept it alive was an ordering problem
+rather than a disagreement: an envelope is derived from its owner's id, and
+`sync_sources.organization_id` was nullable because the CLI created rows without
+one. [#707](https://github.com/vstorm-co/agenticos/issues/707) gave
+`rag-source-add` an organization, `0042` made the column say so, and
+[#937](https://github.com/vstorm-co/agenticos/issues/937) deleted the module.
+
+**A sync source now references a vault secret by id**, the way
+`ModelProfile.secret_id` and `CapabilityBindingSpec.secret_id` do, and its `config`
+holds only what a connector needs to *find* the documents. Two consequences beyond
+the crypto, and they are the ones an operator notices: a credential is added once
+and reused by every source that needs it, rather than pasted per source and rotated
+in as many places; and it appears on the Vault page like everything else, so "does
+this organization hold a Google credential" has an answer.
 
 ## Envelope encryption
 

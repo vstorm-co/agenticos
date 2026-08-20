@@ -163,8 +163,19 @@ not define.
 
 ### Size Limits
 
-- Maximum file size: `MAX_UPLOAD_SIZE_MB` environment variable (default: **50 MB**)
-- The limit is enforced server-side after reading the file content.
+- Maximum attachment size: `CHAT_MAX_UPLOAD_SIZE_MB` (default: **10 MB**). This is
+  the section's own limit — a chat attachment is refused by this number, not by the
+  knowledge base's larger `MAX_UPLOAD_SIZE_MB`, and the two are separate settings
+  because an attachment to an agent with no workspace is pasted whole into the prompt
+  while a knowledge-base document is chunked and embedded.
+- A knowledge-base document is capped by `MAX_UPLOAD_SIZE_MB` (default: **50 MB**)
+  instead.
+- The whole request body is capped above both, at the larger of them plus a multipart
+  allowance, so raising either ceiling raises that with it.
+- The limit is enforced server-side after reading the file content. The browser's own
+  check is `NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB`, which should be set to match: too
+  high and the composer accepts a file the API refuses, too low and it refuses one the
+  API would take.
 
 ### Storage
 
@@ -234,6 +245,13 @@ different pipeline handles parsing, chunking, and embedding.
 Over the API the order is the other way round: the `RAGDocument` row is written
 first and steps 2–5 run in a background task against a session of their own,
 which is why an upload answers `{"status": "processing"}` rather than waiting.
+There are two addresses an upload can arrive at — `POST /rag/collections/{name}/ingest`
+and `POST /kb/{kb_id}/documents` — and both answer **202** with the same
+`RAGIngestResponse`, every field of it, `"document_id": null` included: the vector
+store's id for the document does not exist until the worker has indexed it. One of
+the two used to omit the key rather than send it null, so a client normalising the
+answer got a different shape from each
+([#560](https://github.com/vstorm-co/agenticos/issues/560)).
 That task is started **after the request's transaction commits** — it is handed
 over with `spawn_after_commit`, not `spawn`, and started by the session itself
 once the row is durable. Dispatched any earlier it would look for the document
@@ -241,6 +259,20 @@ by id, find nothing, and stop, leaving the upload it had already acknowledged in
 `processing` forever ([#417](https://github.com/vstorm-co/agenticos/issues/417)).
 The same applies to a sync: the `SyncLog` row exists before its flow does. See
 [Dispatching background work from a request](architecture.md#dispatching-background-work-from-a-request).
+
+**Each flow builds its own vector store, and closes it.** The store owns a
+pooled SQLAlchemy engine, so one built per uploaded document and left behind
+keeps its connections until the worker process exits: two hundred uploads used to
+mean two hundred abandoned pools, and somewhere short of a hundred documents the
+worker reached the database's `max_connections` and every query after that failed
+— including the one that would have marked the document failed, so the upload sat
+at `processing` with the reason only in a log
+([#948](https://github.com/vstorm-co/agenticos/issues/948)). Pooling *within* one
+flow is worth having, because a document's chunks are written over that
+connection; across flows it is not shared, for the same cross-event-loop reason
+`get_worker_db_context` creates a `NullPool` engine per call. **If ingestion
+starts failing part-way through a large batch with a connection error, this is
+the shape to look for.**
 
 ### Supported Formats
 
@@ -326,6 +358,17 @@ Three things about them are worth knowing before tuning the numbers:
 Chunk boundaries are what a search matches against, so a collection ingested
 before that change keeps the chunks it was ingested with. Re-upload a document,
 or re-run `uv run agenticos cmd rag-ingest`, to re-chunk it.
+
+**How many chunks a document has decides how long storing it takes, but no longer
+how many round trips.** `insert_document` writes them 200 rows to a statement
+(`executemany`, which asyncpg pipelines), where it used to issue one `INSERT` per
+chunk in a Python loop inside one open transaction — so a 200-page PDF at the
+default `chunk_size` was one to three thousand sequential round trips, five to
+fifteen seconds against a managed Postgres at 3-5ms before a single embedding was
+paid for ([#950](https://github.com/vstorm-co/agenticos/issues/950)). It is
+batched rather than one statement for the whole document because the parameter
+list is held in memory and each row carries its embedding rendered as text: at
+3072 dimensions that is tens of kilobytes a row.
 
 **An override is checked against the merged pair, not against its own value.** A
 per-upload `ingestion` field carries only what it changes, so `chunk_overlap:
@@ -524,7 +567,7 @@ Ingested documents are tracked in the SQL database via the `RAGDocument` model:
 | `filename` | Original filename |
 | `filesize` | File size in bytes |
 | `filetype` | File extension (without dot) |
-| `status` | `processing`, `done`, or `error` |
+| `status` | `processing`, `done`, or `error` — the `DocumentStatus` members, and the only three values the column holds. A collection's *indexed* count filters on `done`; it filtered on a fourth value nothing has ever written until [#148](https://github.com/vstorm-co/agenticos/issues/148), so every knowledge base reported `indexed_count: 0` however many documents had finished |
 | `error_message` | What failed, if `status` is `error` — see below |
 | `vector_document_id` | ID in the vector store |
 | `chunk_count` | Number of chunks created. Recorded since [#147](https://github.com/vstorm-co/agenticos/issues/147); a document ingested before it holds `0` and its collection's card under-reports until it is re-ingested |
@@ -602,6 +645,66 @@ Sync operations are tracked via the `SyncLog` model, recording source, mode,
 total files, ingested/updated/skipped/failed counts, and timing. View sync
 history via `GET /rag/sync/logs`.
 
+**Which stored document a file corresponds to is one question, asked once.**
+`IngestionService.existing_document` reads the collection's document listing a
+single time and answers with both the document's id and its stored
+`content_hash`, in one precedence: a `source_path` match beats a `filename`
+match, and a `content_hash` match is the last resort. The two answers come back
+together on purpose — they are facts about *one* document, and while they were
+computed by separate lookups they could disagree, so a sync compared a live
+file's hash against a different document's and either re-embedded an unchanged
+file every night or skipped a changed one as current
+([#548](https://github.com/vstorm-co/agenticos/issues/548)). That also made
+ingesting one changed file read the whole collection up to four times; it is now
+once for the decision and once inside the ingest
+([#566](https://github.com/vstorm-co/agenticos/issues/566)). Reading it at all is
+still a full scan — [#27](https://github.com/vstorm-co/agenticos/issues/27) is the
+pagination that would fix that.
+
+`new_only` skips a file whose stored hash matches, `update_only` skips one that
+is unchanged and ignores one that is new, and `full` replaces whatever it
+matches. A store that cannot answer the listing is treated as "no match" rather
+than as a match: a failed query is not evidence that a document is absent, but
+acting on it as though a document *were* present would delete one.
+
+**Both flows, and they have to agree** — one `sync_mode` column feeds a local
+directory and a connector alike, so a mode meaning one thing for each is the
+defect whatever either does alone. A connector sync implemented none of it until
+[#990](https://github.com/vstorm-co/agenticos/issues/990): `sync_mode` reached
+only `ingest_file`'s `replace` argument and `ingest_file` never skips, so on the
+default `new_only` the previous document was neither found nor deleted and a
+*second copy* was inserted every run — a week of nightly syncs was seven copies
+of every chunk, ranked against each other in every search and each one paid for
+in embeddings. The `skipped` counter beside it was initialised and never
+incremented, which is a sync log truthfully reporting `skipped=0` every night.
+
+Where the decision is taken differs between them, because a remote file's bytes
+cost something to fetch. `update_only` needs no bytes to skip a file it has never
+seen, so that answer is given before the download; a hash needs them, so an
+unchanged file is recognised after one and before the embedding, which is the
+expensive half. A stored document carrying no `content_hash` is re-ingested
+rather than assumed current: skipping a file that may have changed is the answer
+nothing later corrects. A file that was replaced is counted as an **update**
+rather than an ingestion, read off `replaced_document_id` rather than off the
+result's own sentence.
+
+**Two things about matching, both of which decide whether a document survives.**
+`existing_document`'s last-but-one resort is a *filename* match, and it exists so
+a file uploaded through the browser and later synced from the folder it came from
+is replaced rather than duplicated — an upload stores its filename as its
+`source_path`, so the two agree and it stays reachable by name. A document naming
+a **different** address is not a candidate for it: a bucket holding
+`a/readme.md` beside `b/readme.md` had the second key find the first's document
+by name, so equal contents skipped it and unequal contents replaced the first —
+either way a first sync could not keep both, and said nothing. The same
+collision applied to two local files of one name in different directories.
+
+And a replacement **inserts before it deletes**. `insert_document` is where the
+embeddings are computed, so a provider that refused between the two statements
+used to leave the collection holding neither document — permanently, because a
+failed ingest is returned rather than raised and nothing retries it. Both for the
+length of an insert is a state a search survives; neither is not.
+
 One source's own history is `GET /kb/{kb_id}/sync-sources/{source_id}/logs`. The
 source is resolved against that knowledge base first, so a source belonging to
 another base answers **404** rather than an empty list — the two render the same
@@ -646,6 +749,134 @@ connector used to fall back to `GOOGLE_DRIVE_CREDENTIALS_FILE` whenever
 was listed under the *operator's* service account and whatever that account had
 been shared. The fallback is gone; the setting now serves only the
 `rag-sync-gdrive` CLI command, which an operator runs from their own shell.
+
+### The credential is a vault secret, not a config field
+
+`sync_sources.config` says how to *find* the documents — a folder id, a bucket, a
+prefix — and holds nothing that has to be kept. What authenticates is a vault
+secret the source names in `secret_id`: a `gcp_service_account` for Drive, an
+`aws_credentials` pair for S3, declared by the connector as `SECRET_KIND` and
+offered to the wizard as `secret_kind` on the connector listing.
+
+It used to be in `config`, encrypted by `app/core/crypto.py` — one
+deployment-wide Fernet key over every tenant's credential, which is the weakness
+the vault exists to remove, and the one place `CLAUDE.md`'s "there is no second
+mechanism" was untrue. That module is gone
+([#937](https://github.com/vstorm-co/agenticos/issues/937)). Three things follow:
+
+- **A credential is added once and referenced.** Five knowledge bases fed from one
+  Drive folder used to mean the same JSON pasted five times, rotated five times and
+  revoked in five places. Cloning an integration now copies the reference.
+- **The wizard offers what the organization holds**, filtered to the kind the
+  connector needs, and links to the Vault when there is none — `InlineSecret` is
+  not used here because it handles `api_key` only, and a service account is a
+  multi-field form whose honest place is the Vault.
+- **The service refuses a config carrying a credential.** Posting the old field
+  names is answered with "a credential does not go in a source's configuration",
+  rather than being dropped so the source stores and then cannot authenticate.
+
+Reading it happens where there is a session and a tenant: the worker unseals the
+secret for the source's own organization and hands it to the connector beside the
+config. A connector cannot reach the vault itself, and a source whose secret was
+deleted syncs no further — the connectors have no deployment-wide fallback and
+must not grow one.
+
+### Who ends up able to read what a source ingested
+
+**The collection is the permission boundary, and a source's reach is its
+credential's permissions narrowed by its own configuration.** A sync source
+ingests into exactly one collection, access is decided at the collection (see
+[Who may reach a collection](#who-may-reach-a-collection)), and there is no
+per-document isolation inside one — so **everything that source reads becomes
+readable by everyone who can read that collection.**
+
+The two halves of that reach are not equally reliable, which is the part worth
+knowing. A Drive source is bounded by its `folder_id` and an S3 source by its
+`bucket` and `prefix`, so a broad credential pointed at one folder ingests one
+folder. But `config` is a field on the row, editable by anyone holding
+`collections:edit` on that collection — so **configuration narrows the reach and
+cannot be relied on to keep it narrow**, while the credential's own permissions
+are a ceiling nothing in this product can raise. A Confluence token good for the
+whole instance, on a source somebody later repoints at a wider space, publishes
+the whole instance to every member holding `collections:view`; the same token
+scoped to one space cannot, whatever the config says.
+
+That is a decision somebody has to make, and the platform's answer is to make it
+**explicit rather than clever**. The alternative — mirroring each source's own
+ACLs into the store and filtering at retrieval — is not on the roadmap, and the
+reasons are worth stating so it is not proposed again as an obvious win:
+
+- **There is no identity map.** A SharePoint ACL names Entra principals, a
+  Confluence one names Atlassian accounts, and neither is an `organization_members`
+  row. Guessing the correspondence by email address is how a platform grants the
+  wrong person access to the right document.
+- **An ACL is a moving target.** A permission changed in the source is invisible
+  here until the next sync, so a mirrored ACL is *stale authorization* — worse
+  than none, because it looks like an answer.
+- **A crawler has no ACL at all**, and a git repository's is the hosting
+  platform's rather than the document's. A model that only works for two of the
+  candidate connectors is not the model.
+
+So the rule for whoever creates a source, and the thing a wizard step has to
+say: **scope the credential, not just the config.** A service account shared into
+one folder, an Entra app consented to one site rather than a tenant, a
+Confluence token limited to a space — that is the half of the reach an edit to
+the source cannot widen. Pointing a broad credential at a `personal` collection
+narrows the readers but not what was ingested; a narrow credential on an `org`
+collection is the shape to aim for.
+
+Two things this rule owes and does not yet have, each filed:
+[#982](https://github.com/vstorm-co/agenticos/issues/982) states the consequence
+in the wizard where the collection is chosen, and re-asks when a source is
+repointed at a different one; [#983](https://github.com/vstorm-co/agenticos/issues/983)
+records creating and repointing a source in the audit log, which is what gives
+"who decided this collection gets that credential's reach" an answer after the
+fact. Today both are silent, which is exactly the implicitness this section
+exists to name.
+
+### What a new connector owes
+
+A connector is `list_files` + `_fetch` + a `CONFIG_SCHEMA`, and the API calls are
+the cheap part. Three things are not, and a connector without them is a bill or a
+surprise rather than a feature:
+
+- **A change signal.** The sync path compares one since
+  [#990](https://github.com/vstorm-co/agenticos/issues/990), and what it compares
+  is a `content_hash` of the bytes — which means it downloads a file to find out
+  it was unchanged. That saves the embedding and not the transfer. A connector
+  that can answer "changed?" *without* the bytes should say so in its docstring —
+  a Graph `delta` token, a page's `version.number`, a commit sha, an HTTP `ETag` —
+  because a signal the flow can read before the download is the difference
+  between a nightly sync that costs a listing and one that costs the whole
+  folder. `content_hash` is the fallback where the remote system genuinely offers
+  none.
+- **A credential scoped at the source.** See the section above. A connector's
+  `SECRET_KIND` says what shape the credential is; nothing in the platform can
+  say how wide it was issued, which is why the guidance belongs where the source
+  is created.
+- **A file count somebody has thought about.** Reading a collection's document
+  listing is still a full scan
+  ([#27](https://github.com/vstorm-co/agenticos/issues/27)), so a connector that
+  brings thousands of files makes that pagination urgent rather than tidy.
+
+**A sync connector is not an MCP server.** MCP is how an agent reaches a product
+*live*, mid-run; a sync source is a scheduled bulk pull with change detection
+whose output is chunks in pgvector. Notion-as-a-tool is an MCP server;
+Notion-as-a-corpus is a connector. Several candidates are honestly both, and the
+question to answer before writing one is which half is being built — see
+[mcp](mcp.md).
+
+Which connectors are being built, and in what order, is decided in
+[#938](https://github.com/vstorm-co/agenticos/issues/938): a web crawler
+([#984](https://github.com/vstorm-co/agenticos/issues/984)), SharePoint and
+OneDrive ([#985](https://github.com/vstorm-co/agenticos/issues/985)), Confluence
+([#986](https://github.com/vstorm-co/agenticos/issues/986)), a git repository's
+documentation ([#987](https://github.com/vstorm-co/agenticos/issues/987)), and
+then Azure Blob and GCS once `S3Connector` is an object store rather than an S3
+one ([#988](https://github.com/vstorm-co/agenticos/issues/988)). Notion, Slack
+and email archives are decided **against** for now, each for a reason recorded
+there — the last two because a conversation retrieves badly and the channel
+integrations already put an agent *in* Slack.
 
 ### A connector's refusal names the field it is about
 

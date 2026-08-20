@@ -339,7 +339,7 @@ async def create_kb_sync_source(
     """
     kb = await service.get_for_write(kb_id, ctx=ctx)
     payload = data.model_copy(update={"collection_name": kb.collection_name})
-    return await sync_source_svc.create_source(payload, organization_id=ctx.organization_id)
+    return await sync_source_svc.create_source(payload, ctx=ctx)
 
 
 @router.post(

@@ -17,6 +17,519 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.216] - 2026-08-20
+
+A scheduled sync stops duplicating everything it has already ingested.
+
+### Fixed
+
+- **`sync_mode` is implemented for a connector sync.** It reached exactly one
+  argument - `ingest_file`'s `replace` - and `ingest_file` never skips anything,
+  so a scheduled Google Drive or S3 source re-embedded every file every night;
+  and on the default `new_only` it passed `replace=False`, which skips the
+  lookup, leaves the old document in place and inserts a second copy. A week of
+  nightly syncs was seven copies of every chunk, ranked against each other in
+  every search and each one paid for on the organization's own embedding key.
+  `skipped` sat beside the loop, initialised and never incremented, which is a
+  sync log truthfully reporting `skipped=0` every night. The logic is
+  `sync_local_flow`'s, which had it right all along: one `sync_mode` column feeds
+  both flows and a mode meaning one thing for a server directory and another for
+  a Drive folder is the defect whatever either does alone. (#990)
+- **A basename no longer claims a document that names its own address.**
+  `existing_document` falls back from `source_path` to *filename*, so a bucket
+  holding `a/readme.md` beside `b/readme.md` had the second key find the first
+  key's document - equal contents skipped the second file, unequal contents
+  deleted the first, and either way a first sync could not keep both. The
+  fallback is narrowed rather than removed, because it is what stops a file
+  uploaded through the browser and later synced from its own folder being
+  duplicated: an upload stores its filename *as* its `source_path`, so the two
+  agree and it stays reachable by name. Same collision fixed for two local files
+  of one name in different directories. (#990)
+- **A replacement inserts before it deletes.** `insert_document` is where the
+  embeddings are computed, so a provider refusing between the two statements left
+  the collection holding *neither* document - permanently, since a failed ingest
+  is returned rather than raised and nothing retries it. This order fails the
+  recoverable way instead. (#990)
+- **A replaced file is counted as an update.** The connector loop reported every
+  success as a first ingestion and passed no `updated` to `complete_sync`, so the
+  sync history read zero updates forever - unnoticed, because the mode that
+  replaces was unreachable. Read off `replaced_document_id` rather than off the
+  result's own sentence. (#990)
+
+### Changed
+
+- Where a sync decides differs between the two flows, because remote bytes cost
+  something: `update_only` skips a file it has never seen *before* the download,
+  while an unchanged file is recognised after one and before the embedding. A
+  stored document with no `content_hash` is re-ingested rather than assumed
+  current - skipping a file that may have changed is the answer nothing later
+  corrects. (#990)
+
+## [0.0.215] - 2026-08-20
+
+Which sync connectors come after Google Drive and S3, and who ends up able to
+read what one ingests.
+
+### Documentation
+
+- **A source's reach, and who decides it.** A sync source ingests into exactly
+  one collection, access is decided at the collection, and there is no
+  per-document isolation inside one - so everything a source reads becomes
+  readable by everyone who can read that collection. The two halves of that
+  reach are not equally reliable: `config` narrows it but is a row field anyone
+  with `collections:edit` can widen, while the credential's own permissions are a
+  ceiling nothing in the product can raise. Hence the rule - scope the
+  credential, not just the config. (#938)
+- **Mirroring each source's ACLs and filtering at retrieval is decided
+  against**, with the reasons written down so it is not proposed again as an
+  obvious win: there is no identity map between an Entra or Atlassian principal
+  and an `organization_members` row, a permission changed in the source is
+  invisible until the next sync so a mirrored ACL is stale authorization, and a
+  crawler has no ACL at all. (#938)
+- **The connector list is cut and ordered**: #990 first, because every connector
+  below names a change signal and the sync path consults none; then a web crawler
+  (#984), SharePoint and OneDrive (#985), Confluence (#986), a git repository's
+  documentation (#987), and Azure Blob and GCS only once `S3Connector` is an
+  object store rather than an S3 one (#988). Notion is decided against for now -
+  MCP covers Notion-as-a-tool - and Slack and email archives stay off, because a
+  conversation retrieves badly and the channel integrations already put an agent
+  *in* Slack. (#938)
+- **What a new connector owes** is stated alongside: a change signal named in the
+  docstring, a credential scoped where the source is created, and a file count
+  somebody has thought about while reading a collection's listing is still a full
+  scan (#27). (#938)
+
+### Fixed
+
+- **The page no longer states the local sync's behaviour as the rule for both.**
+  `sync_mode`'s hash comparison and skip counters exist in `sync_local_flow` and
+  nowhere else; a connector sync implements none of it, which is #990 - filed
+  severity high, and found reviewing this change. (#938)
+- **`create_source`'s docstring stopped claiming its secret fields are
+  Fernet-encrypted**, which has been untrue since #937 deleted
+  `app/core/crypto.py`. (#938)
+
+## [0.0.214] - 2026-08-20
+
+The sandbox and connector service contracts are typed.
+
+### Changed
+
+- **A sandbox service returns the schema its route declares.** Every route named
+  a `response_model` and the service handed back a `dict[str, Any]` for FastAPI
+  to validate into it, so the service→route contract was a mapping the type
+  checker could not read and a renamed key was a 500 rather than a red `ty` run.
+  `runtime_catalog`, `local_service`, `store_local_credential`, `probe_policy`,
+  `policy`, `sessions`, `session_events` and `session_usage` all answer models
+  now. `_read` keeps `dict[str, Any]` and is the only one left in the module,
+  with a docstring saying why: it is `sandboxd`'s answer, not ours. (#562)
+- **A connector's `CONFIG_SCHEMA` is `dict[str, ConnectorConfigField]`** - the
+  model that described it at the API edge is now its own type, so a misspelled
+  key is a type error where it is written. `type` is a `Literal` of the four
+  widgets the wizard draws, mirrored in `rag-api.ts`; its fall-through is a text
+  input, so a connector inventing a fifth got a field the form collects wrongly
+  with nothing reporting it. `label` is required, since it is what the form
+  draws. (#562)
+- **The four `sandbox_workspace.py` helpers that read a stored workspace say
+  `FileData`** - the backend library's own type, which `StateBackend.__init__`
+  has always been annotated with. `_get_s3_client` gained the return type it
+  never had. (#562)
+
+### Fixed
+
+- **`usage_report.py` reads `sampled.memory_bytes`, not
+  `sampled.get("memory_bytes")`.** Those two keys are the whole of what a usage
+  footer shows for a container, and they were unchecked in the one place a
+  rename reads as a missing number rather than an error. (#562)
+- **A session's `tenant` label is dropped where the filter reads it**, rather
+  than by every caller remembering to. It is another organization's id when the
+  session is theirs; the listing schema has always said it is absent, and now
+  one place makes that true. (#562)
+
+### Documentation
+
+- **`docs/howto/add-rag-source.md` is removed.** It was
+  `docs/howto/add-sync-connector.md` a second time, adjacent to it in the nav,
+  and stale in the same pre-#937 way: a credential inside `CONFIG_SCHEMA`,
+  `list_files(self, config)` with no credential parameter, and a closing tip
+  that per-source credentials are stored per sync source in the database. It
+  also told the reader to edit the generator's `post_gen_project.py`. (#562)
+- **The connector walkthrough teaches the credential model it has had since
+  #937**: `SECRET_KIND`, a `credential` argument, no fallback, and a
+  `validate_config` that checks the shape of what was typed because it does not
+  see the credential. Its CLI and API examples name flags and fields that
+  exist. `docs/patterns.md` and two `app/rag/connectors/` paths in
+  `docs/architecture.md` and `docs/howto/configure-sync-sources.md` went the
+  same way. (#562)
+
+## [0.0.213] - 2026-08-20
+
+Both RAG pages get tabs, and the tab is in the URL.
+
+### Changed
+
+- **Integrations is `/rag`'s third tab.** `ReusableIntegrations` sat under the base
+  grid - the right relationship, since the collections are fed from it, and the
+  wrong placement: on an organization with a dozen bases it was below a grid three
+  rows deep, and reachable *only* from the Knowledge bases tab, which makes a
+  page-level concern something you find by first choosing one of two tabs. (#939)
+- **A knowledge base has three tabs** - Documents, How documents are read, Sync
+  sources. Each section carried a comment justifying its place under the one above,
+  and each argument was about reading order on a first visit, which is not where
+  somebody returns to: adjusting a parser meant scrolling past every document. The
+  stats strip and the override banner stay above the tabs, because they describe
+  the collection rather than any one section. (#939)
+- **Both pages carry `?tab=`**, read through the SSR-aware `useUrlState` rather
+  than a `useState` initializer touching `window` - which renders one value on the
+  server and another in the browser, so the default tab flashed before the named
+  one arrived. A link can name a section and a reload keeps it. (#939)
+- **The onboarding walk selects a tab before spotlighting what is inside it.** Four
+  steps gained `activate`; without it a stop waits four seconds for an element that
+  never mounts. (#939)
+
+### Fixed
+
+- **Each tab shows only its own section.** The base list rendered for every value
+  that was not `search`, so choosing Integrations appended the panel *below* the
+  grid rather than replacing it - the placement the tab exists to escape. (#939)
+- **A tab's panel lives inside its `Tabs` root**, on both RAG pages. A
+  `TabsTrigger` points at its panel with `aria-controls`, and a root that closed
+  after the trigger list left those references dangling and the visible section
+  with no `role="tabpanel"`. Pre-existing on `/rag`; fixed there too. (#939)
+
+## [0.0.212] - 2026-08-20
+
+The RAG dialogs: a real editor for a model prompt, one width scale, and a mark on
+each parser.
+
+### Changed
+
+- **The image-description prompt is a `MarkdownEditor`.** It is a model prompt,
+  several sentences long, and it was a bare three-row textarea - while the product
+  already has the control for that, the one the Builder uses for an agent's
+  instructions, an exposure prompt and a capability's generated form. The editor
+  gained `maxLength` so the swap did not quietly drop the hard cap: a field whose
+  length the API refuses should not let somebody write past it and find out on
+  submit. `IngestionSettings` is embedded whole in the create dialog, so both
+  dialogs get it. (#940)
+- **The four RAG dialogs agree on a width scale.** The same `IngestionSettings` was
+  given 768px in two of them and 512px in the one that also carries four fields
+  above it - not a judgement call but a disagreement, since nobody had decided and
+  each had picked. `src/lib/dialog-widths.ts` holds the three sizes with the rule on
+  each, so the create dialog is no longer the narrowest thing holding the widest
+  form. (#940)
+- **Each PDF parser choice draws a mark.** Three lines of text where every other
+  picker in the product draws one. Only LlamaParse is a product, so it takes
+  LlamaIndex's own mark - a row in `scripts/gen-brand-icons.ts`, generated, never a
+  hand-authored path - and PyMuPDF and liteparse take a lucide icon rather than one
+  row getting special treatment and two getting blanks. (#940)
+
+## [0.0.211] - 2026-08-20
+
+The last second mechanism for secrets at rest is gone.
+
+### Upgrading
+
+**A sync source's credential is no longer a `config` field.** Migration `0042`
+handles it, and it is not silent:
+
+- A source holding an encrypted credential has it **removed** from `config` and is
+  **named in the migration's output**. Nothing readable is lost - the value was a
+  Fernet token over `SECRET_KEY`, and the release that could read it is the one
+  being replaced - and leaving it would leave a credential at rest under a
+  deployment-wide key, which is the whole point of the change. Each named source
+  then has no credential and refuses to sync until one is attached.
+- **Add the credential to the organization's Vault** - a `gcp_service_account` for
+  Drive, an `aws_credentials` pair for S3, both now offered under a new *Document
+  source* group - and point each source at it.
+- **A source with no organization stops the upgrade.** `sync_sources.organization_id`
+  is `NOT NULL` now, and anything `rag-source-add` created before #707 has none.
+  Set it or delete the row, then upgrade.
+- **API callers** posting `service_account_json`, `access_key_id` or
+  `secret_access_key` under `config` get a 400 naming the field. `rag-source-add`
+  takes `--secret-id`.
+
+### Changed
+
+- **A sync source references a vault secret by id.** `sync_sources.config` held the
+  credential, encrypted by `app/core/crypto.py`: one deployment-wide Fernet key
+  over every tenant's secret, which is the weakness the vault exists to remove and
+  the one place `CLAUDE.md`'s "there is no second mechanism" was untrue. That module
+  is **deleted**. `config` now says only how to *find* the documents, and each
+  connector declares the kind of credential it takes. A credential is added once and
+  reused - five collections fed from one Drive folder used to mean the same JSON
+  pasted five times and rotated in five places - and it appears on the Vault page
+  like everything else. (#937)
+- **The sync wizard asks for a credential as its own step**, offering the
+  organization's matching secrets and linking to the Vault when there are none. It
+  distinguishes a vault that holds nothing from one that could not be read. (#937)
+- **`app/worker/background/rag.py` is deleted.** Its three in-process handlers had no
+  caller in `app/` at all, and the connector interface change made them
+  uncompilable. `IngestionService.from_settings` went with them. (#959)
+
+### Fixed
+
+- **Binding a sync credential checks that the binder can see it.** A secret can be
+  private to a member, and a sync runs for everyone who can reach the collection -
+  so binding one is lending it. A Builder with `connections:manage` but shared-only
+  secret visibility could post the id of another member's private credential and
+  have the worker unseal it. The row now goes through
+  `resolve_access(..., Perm.SECRETS_VIEW, resource_type=SECRET)`, refused in the
+  same words as an id that does not exist so the refusal cannot enumerate the
+  vault - the same fix #918 made for embedding keys. (#937)
+- **A nullable sync-source column can be cleared.** The repository skipped every
+  `None`, so `{"secret_id": null}` answered 200 and left the old credential
+  attached, and a source that recovered kept its previous `last_error`. (#937)
+
+## [0.0.210] - 2026-08-20
+
+`rag-source-add` accepted any collection name, including another tenant's.
+
+### Fixed
+
+- **`rag-source-add` refuses a collection it cannot legally own.** The command
+  wrote a caller-supplied collection name straight into a `sync_sources` row
+  without asking whether it was a legal identifier, whether a knowledge base of
+  that name existed, or whose it was - while the HTTP route for the same thing
+  asks all three, for the reason its docstring gives: "a sync writes into the
+  collection, so pointing one at another tenant's is an injection, not a read".
+  The name's *shape* is now judged in `create_source`, so the route and the CLI
+  share one rule and a name no table can be called is refused where it enters
+  rather than failing later in a worker. Ownership is answered in the command,
+  which is the only place that knows who is asking. (#707)
+- **The rows the command creates have an organization.** `create_source` was
+  called without one and the column is nullable, so every source the CLI ever
+  made was org-less - while the model's docstring opens "Belongs to an
+  organization". The organization now comes from the collection's own knowledge
+  base, which is also step 1 of #937: converging `sync_sources.config` onto the
+  vault needs an owner to bind a ciphertext to. (#707)
+- **A personal collection is refused, not just another organization's.** A
+  personal knowledge base carries the organization's id too, so "same tenant" is
+  not ownership: `writable_kb` lets only its owner write to one. Accepted, it
+  would have pointed an *organization-owned* sync source at a member's private
+  collection, which every member holding `connections:manage` can see and
+  trigger. An app-scoped base is refused for the mirror reason - it belongs to
+  the deployment and takes an app admin. (#707)
+- **A refused `rag-source-add` exits non-zero.** `error` is `click.secho` and
+  nothing more, so a command that printed a refusal and returned exited **0** and
+  a shell script carried on as though the source had been created. (#707, and
+  #972 for the other 23 call sites across `app/commands/`)
+
+### Changed
+
+- **`rag-source-add` requires `--org`.** A script calling it without one now gets
+  click's usage error instead of creating an org-less row pointed at a collection
+  that may not exist or may be another tenant's. Existing rows are untouched;
+  moving them is #937's business. `docs/commands.md` and
+  `docs/howto/configure-sync-sources.md` carry the flag in all three documented
+  invocations. (#707)
+
+## [0.0.209] - 2026-08-20
+
+A chat attachment was refused by a 10 MiB limit no operator could see or raise.
+
+### Added
+
+- **`CHAT_MAX_UPLOAD_SIZE_MB`, default 10** - what may be attached in chat, and a
+  *different* setting from the knowledge base's `MAX_UPLOAD_SIZE_MB` rather than the
+  same one. A knowledge-base document is chunked, embedded and read back through
+  retrieval; an attachment to an agent with no workspace is pasted whole into the
+  prompt, so the same size fails differently on each surface and one ceiling cannot
+  be right for both. The default is what the hardcoded limit already enforced, so
+  nothing changes on upgrade except that it can now be raised. `GET /health`
+  publishes both ceilings, because a client that reads one cannot know the other.
+  (#498)
+
+### Fixed
+
+- **The chat upload limit is a setting rather than a literal.** Three numbers
+  claimed to be it and they disagreed: `MAX_UPLOAD_SIZE` (10 MiB in
+  `file_storage.py`) was what refused, `MAX_UPLOAD_SIZE_MB` (50) was what `/health`
+  published and what RAG ingestion used, and the frontend defaulted its own check to
+  50. So a 20MB attachment passed the client check, was read into memory, crossed
+  the wire in full and came back refused by a number that appeared in no
+  configuration file - while `frontend/README.md` told the operator to keep the
+  client value "at or below the backend's", which was advice they could not follow.
+  (#498)
+- **The whole-request body ceiling follows the largest upload limit, not the first
+  one.** `BodySizeLimitMiddleware` is global and derived its cap from
+  `MAX_UPLOAD_SIZE_MB` alone, so a chat limit configured above the knowledge base's
+  would have been unreachable - a 413 before the code that enforces it ran. It now
+  takes the largest of the three, including the embed ceiling, which is the smallest
+  today and would have been the same latent defect for whoever raised it next.
+  (#498)
+- **A `sonner` mock in `chat-input.test.tsx` was never reset**, so a toast asserted
+  in one test was still recorded in the next one asserting none. Found because it
+  would have made a new test lie. (#498)
+
+### Changed
+
+- **The composer's own ceiling is `NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB`**, defaulting
+  to 10 and named for its surface. It was `MAX_UPLOAD_SIZE_MB` defaulting to 50 - and
+  it is the only reader of that value in the frontend, so it was already the chat
+  limit by usage with the wrong number in it. The three compose files, the frontend
+  `Dockerfile`, `.env.example` and the `vercel-deploy` recipe all named the old
+  variable; each now passes the configured value through. **An operator setting
+  `NEXT_PUBLIC_MAX_UPLOAD_SIZE_MB` must rename it**, or the composer silently takes
+  the 10MB default. (#498)
+- **Four pages described the old split** - `configuration.md`, `channels.md`,
+  `architecture.md` and `file-processing.md` - and each now names the setting for the
+  surface it describes. `file-processing.md`'s "Size Limits" sits under a chat
+  heading and led with the knowledge base's number; it leads with the chat one now.
+  (#498)
+
+## [0.0.208] - 2026-08-20
+
+Ingesting one changed file read the whole collection four times.
+
+### Changed
+
+- **One document lookup, one scan, both answers.** Three lookups walked the same
+  document listing with three predicates - `source_path`-then-`filename`, content
+  hash, and two public methods each projecting one field from the first - and every
+  one of them read the whole collection. So ingesting a changed file in `new_only`
+  mode read it four times (the sync asked for an id, then a hash, and `ingest_file`
+  asked for both again) and an unchanged one twice; it is now once for the sync's
+  decision and once inside the ingest. Both sync callers, the worker flow and
+  `rag-sync` in the CLI, did the identical two-call dance and now do one. (#566)
+- **The id and the hash come back together, so they cannot disagree.**
+  `IngestionService.existing_document` answers with a frozen `StoredDocument`
+  carrying both, and `find_existing` / `get_existing_hash` are gone rather than
+  kept as wrappers. While the two were computed separately they *could* name
+  different documents - the id lookup checked every document for a `source_path`
+  match before falling back to `filename` while the hash lookup interleaved the
+  two - so a sync compared a live file's hash against a different document's and
+  either re-embedded an unchanged file every night or skipped a changed one as
+  current. That was fixed in #548; a caller that cannot ask for one answer without
+  the other cannot write it again. (#566)
+- **`docs/file-processing.md`** states the precedence, the read count, and that a
+  store which cannot answer the listing is treated as "no match" - a failed query
+  is not evidence a document is absent, and acting as though one were present
+  would delete it. (#566)
+
+## [0.0.207] - 2026-08-20
+
+The two addresses an upload can arrive at answered with different shapes.
+
+### Fixed
+
+- **Both upload routes serialize `RAGIngestResponse` identically.**
+  `POST /rag/collections/{name}/ingest` carried `response_model_exclude_none=True`
+  and `POST /kb/{kb_id}/documents` did not - same schema, same operation, both
+  feeding the same upload UI. `document_id` is `str | None` and is `None` on every
+  accepted upload, because the vector store's id does not exist until the worker
+  has indexed the file, so one address omitted the key and the other sent it as
+  `null`: a client normalising the answer got a different shape depending on which
+  it had called. The flag is gone rather than added to the other route - `null` is
+  the honest answer, the id is pending rather than absent, and it was the only use
+  of `response_model_exclude_none` in the tree. No client is affected: nothing in
+  the frontend reads `document_id` from an upload response. (#560)
+
+### Changed
+
+- **`docs/file-processing.md`** names both upload addresses and says they answer
+  202 with every field of the schema, `"document_id": null` included. (#560)
+
+## [0.0.206] - 2026-08-20
+
+Storing a long document's chunks cost one database round trip per chunk.
+
+### Changed
+
+- **A document's chunks are written a batch of rows to a statement, not one
+  statement each.** `insert_document` issued one `INSERT` per chunk in a Python
+  loop inside one open transaction, so at the default `chunk_size` of 512 a
+  200-page PDF was one to three thousand *sequential* asyncpg round trips: a
+  second or two on a local socket, five to fifteen seconds against a managed
+  Postgres at 3-5ms - spent holding a connection while it waited. The rows now go
+  200 at a time through an `executemany`, which asyncpg pipelines. The statement
+  itself is unchanged, `ON CONFLICT (id) DO UPDATE` included, and it still behaves
+  per row: a re-ingest of an unchanged document updates its rows rather than
+  duplicating them. (#950)
+- **Each batch's rows are built where its statement runs.** Batching the
+  statements alone would have bounded what asyncpg receives while leaving the
+  worker's memory where it was: the embedding is rendered as text in these rows,
+  tens of kilobytes each at 3072 dimensions, so materialising a
+  three-thousand-chunk document first meant better than 100MB of live strings on
+  top of the float vectors already in hand - an OOM kill rather than a slow
+  ingest. 200 rather than one statement per document is the same reason. (#950)
+- **`docs/file-processing.md`** says how many round trips storing a document costs
+  and why the batch is bounded, in the chunking section where `chunk_size` is set.
+  (#950)
+
+## [0.0.205] - 2026-08-20
+
+Ingesting a large batch of documents exhausted the worker's database
+connections, and the failure that followed could not be recorded.
+
+### Fixed
+
+- **Every vector store the ingestion worker builds is disposed with the work
+  that built it.** `PgVectorStore.__init__` creates a pooled SQLAlchemy engine,
+  and the three flows in `app/worker/tasks/rag_tasks.py` each built one and
+  disposed none. One flow runs per uploaded document, so two hundred uploads
+  meant two hundred pooled engines abandoned in one worker process, each holding
+  its checked-in connections until the process exited - and somewhere short of a
+  hundred documents the worker reached `max_connections`, after which every
+  query raised, including the ones that would have marked a document failed. The
+  symptom was an upload stuck at `processing` with a connection error in a log
+  nobody reads, indistinguishable from four other failure modes. Two further
+  paths went with it: `_run_sync` built its store *before* validating the path,
+  so the cheapest refusal - "path not found" - leaked a pool, and
+  `_ingestion_service_for` built the store *before* the processor, so a
+  collection asking for a parser this build cannot provide left a pool no
+  `finally` could reach. (#948)
+- **A store built for one request is closed when the request ends.**
+  `get_vectorstore` reads the store the lifespan built and, when there is none,
+  builds one - and there is none whenever that construction failed, because the
+  lifespan logs "Vector store will not be available" and carries on serving. A
+  degraded deployment therefore answered every knowledge-base request by building
+  a pooled engine and abandoning it, at request rate. The lifespan's own store is
+  passed through untouched: it belongs to the process. (#948)
+- **The knowledge capability's store is released at shutdown**, and the channel
+  consumers stop before either store is disposed. The capability holds a
+  process-wide store built on the first search an agent runs, reachable from no
+  request, so the lifespan's `aclose` never saw it. Disposing it while the
+  Telegram, Slack and Mattermost polling loops were still turning raced a search
+  in flight and let the next one rebuild a pool nothing was left to close, so the
+  three stop loops now run first. (#948)
+
+### Changed
+
+- **`docs/file-processing.md` states the rule for all three stores** - the
+  worker's per flow, the request's, and the capability's per process - and says
+  what to look for when ingestion starts failing part-way through a large batch.
+  Pooling *within* one flow is kept deliberately: a document's chunks are written
+  over that connection, and a flow runs in one event loop. (#948)
+
+## [0.0.204] - 2026-08-20
+
+Every knowledge base in the product reported nothing indexed, however many
+documents had finished ingesting.
+
+### Fixed
+
+- **A collection's indexed count filters on the status the pipeline writes.**
+  `counts_by_collection` counted rows whose `status` was `"completed"`, and
+  nothing has ever written that value: an upload creates a row `processing` and
+  the pipeline moves it to `done` or `error`, which is what the model default,
+  `docs/file-processing.md` and the frontend's status map all say. The `FILTER`
+  clause therefore could not match a row, so `indexed_count` was `0` on every
+  knowledge base and a collection where everything succeeded read as entirely
+  unindexed. The literal is now an enum: `DocumentStatus` sits beside the column
+  in `app/db/models/rag_document.py` - the shape `RunStatus`, `AgentStatus` and
+  `InvitationStatus` already take - and the writer (`RAGDocumentService`) and the
+  reader name the same member rather than two strings free to drift.
+  `rag_document_repo.create` and `update_status` take `DocumentStatus` instead of
+  `str`, so the next typo is a type error rather than a count that silently
+  reports nothing. (#148)
+
+### Changed
+
+- **`docs/file-processing.md`** says the three status values are the
+  `DocumentStatus` members and that the indexed count filters on `done`, so a
+  reader of that table knows where the vocabulary lives.
+
 ## [0.0.203] - 2026-08-19
 
 A Member could pay for a collection's embeddings with another member's private

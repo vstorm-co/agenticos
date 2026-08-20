@@ -16,6 +16,7 @@ import {
   FAKE_KEY_LABEL,
   FAKE_KEY_SECRET,
   SEEDED_KB_NAME,
+  SEEDED_AWS_SECRET_NAME,
   SEEDED_SECRET_NAME,
   SEEDED_SECRET_VALUE,
   SEEDED_ORG_MCP_NAME,
@@ -241,6 +242,37 @@ setup("a secret is stored", async ({ page }) => {
     name: SEEDED_SECRET_NAME,
     value: SEEDED_SECRET_VALUE,
   });
+});
+
+setup("an S3 key pair is stored", async ({ page }) => {
+  // A sync source references a vault credential rather than carrying one, so the
+  // integration spec cannot create an S3 source until one exists. Its own step
+  // because `storeSecret` fills a single "API key" box and an AWS pair is three
+  // fields generated from the kind's own schema.
+  if (await alreadyThere(page.request, "/api/secrets", "name", SEEDED_AWS_SECRET_NAME)) return;
+
+  await page.goto("/vault");
+  await expect(pageHeading(page, "Vault")).toBeVisible();
+
+  await page.getByRole("button", { name: "Add key" }).first().click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("Add a secret")).toBeVisible();
+
+  await dialog.getByRole("button", { name: /^Document source/ }).click();
+  await dialog.getByLabel(/^(Which one|Service)$/).click();
+  await page.getByRole("option", { name: "S3 / MinIO", exact: true }).click();
+
+  await dialog.getByLabel("Name").fill(SEEDED_AWS_SECRET_NAME);
+  await dialog.getByRole("textbox", { name: /Access key ID/i }).fill("AKIAE2ENOTAREALKEY");
+  await dialog.getByRole("textbox", { name: /Secret access key/i }).fill("e2e-not-a-real-secret");
+  await dialog.getByRole("textbox", { name: /Region/i }).fill("us-east-1");
+  await submitDialog(page, {
+    dialog,
+    submit: dialog.getByRole("button", { name: "Store secret" }),
+    path: "/api/secrets",
+  });
+
+  await nowThere(page, "/api/secrets", "name", SEEDED_AWS_SECRET_NAME);
 });
 
 setup("the organization has connected an MCP server", async ({ page }) => {

@@ -29,6 +29,7 @@ import pytest
 from app.agents.capabilities.compaction import ContextGauge
 from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories import agent_workspace_repo
+from app.schemas.sandbox_connection import SandboxSessionUsage
 from app.services.usage_report import (
     ContextFill,
     SandboxUsage,
@@ -290,7 +291,9 @@ class TestAssemblingIt:
             agent_workspace_repo, "list_for_conversation", AsyncMock(return_value=[row])
         )
         service = UsageReportService(mock_db_session)
-        sampled = AsyncMock(return_value={"memory_bytes": 512, "memory_limit_bytes": 2048})
+        sampled = AsyncMock(
+            return_value=SandboxSessionUsage(memory_bytes=512, memory_limit_bytes=2048)
+        )
         service.connections = MagicMock(session_usage=sampled)
 
         report = await service.for_run(_ctx(), _run(), include_sandbox=True)

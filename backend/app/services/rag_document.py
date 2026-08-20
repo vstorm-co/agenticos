@@ -14,7 +14,7 @@ from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.knowledge_base import KnowledgeBase
-from app.db.models.rag_document import RAGDocument
+from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.services.rag.config import get_supported_formats
 from app.services.rag.documents import has_indexable_text
 from app.services.rag.vectorstore import BaseVectorStore
@@ -243,7 +243,7 @@ class RAGDocumentService:
 
         return RAGIngestResponse(
             id=str(doc_id),
-            status="processing",
+            status=DocumentStatus.PROCESSING,
             filename=filename,
             collection=collection_name,
             message="File accepted. Processing in background.",
@@ -311,7 +311,7 @@ class RAGDocumentService:
         await rag_document_repo.update_status(
             self.db,
             doc.id,
-            status="done",
+            status=DocumentStatus.DONE,
             vector_document_id=vector_document_id,
             chunk_count=chunk_count,
             completed_at=datetime.now(UTC),
@@ -360,7 +360,7 @@ class RAGDocumentService:
         await rag_document_repo.update_status(
             self.db,
             doc.id,
-            status="error",
+            status=DocumentStatus.ERROR,
             error_message=error_message,
             completed_at=datetime.now(UTC),
         )
@@ -386,7 +386,7 @@ class RAGDocumentService:
                 before uploads kept their file and so has nothing to re-read.
         """
         doc = await self.get_document(doc_id)
-        if doc.status != "error":
+        if doc.status != DocumentStatus.ERROR:
             raise BadRequestError(
                 message="Only failed documents can be retried",
                 details={"doc_id": doc_id, "status": doc.status},
@@ -400,7 +400,7 @@ class RAGDocumentService:
         updated = await rag_document_repo.update_status(
             self.db,
             doc.id,
-            status="processing",
+            status=DocumentStatus.PROCESSING,
             error_message="",
             completed_at=None,
         )
@@ -470,7 +470,7 @@ class RAGDocumentService:
                 parsed content to show.
         """
         doc = await self.get_document(doc_id)
-        if doc.status != "done" or not doc.vector_document_id:
+        if doc.status != DocumentStatus.DONE or not doc.vector_document_id:
             raise NotFoundError(
                 message="No parsed content for this document",
                 details={"doc_id": doc_id, "status": doc.status},

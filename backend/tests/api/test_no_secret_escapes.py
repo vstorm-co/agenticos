@@ -96,6 +96,10 @@ _PATTERN_ALLOWED: dict[str, str] = {
         "the listing) has no such field, so it is never re-exposed"
     ),
     "secret_id": "a reference to a stored secret, not the secret",
+    "secret_hint": (
+        "the vault's own four characters, so a reader can tell which credential a "
+        "sync source uses without being shown it - the same shape as `token_hint`"
+    ),
     "llamaparse_secret_id": (
         "a collection's pointer at the vault key its parses are billed to - an id, never the key"
     ),

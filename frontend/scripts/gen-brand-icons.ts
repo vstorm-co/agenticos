@@ -93,6 +93,7 @@ const BRANDS: Readonly<Record<string, Source>> = {
   intercom: simple("intercom"),
   linear: simple("linear"),
   linkedin: fontawesome("linkedin"),
+  llamaparse: lobehub("llamaindex"),
   loom: simple("loom"),
   lucid: simple("lucid"),
   mailchimp: simple("mailchimp"),

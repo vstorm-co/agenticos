@@ -115,7 +115,7 @@ function ConfigField({
         <>
           <Input
             id={id}
-            type={field.secret ? "password" : field.type === "integer" ? "number" : "text"}
+            type={field.type === "integer" ? "number" : "text"}
             placeholder={placeholder}
             value={text}
             onChange={(e) =>

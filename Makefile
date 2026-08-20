@@ -684,7 +684,7 @@ vercel-deploy:
 	@echo "   NEXT_PUBLIC_API_URL=https://api.your-domain.com"
 	@echo "   NEXT_PUBLIC_WS_URL=wss://api.your-domain.com"
 	@echo "   NEXT_PUBLIC_SITE_URL=https://app.your-domain.com"
-	@echo "   NEXT_PUBLIC_MAX_UPLOAD_SIZE_MB=50"
+	@echo "   NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB=10"
 	@echo "   NEXT_PUBLIC_OAUTH_PROVIDERS=google"
 	@echo "   NEXT_PUBLIC_RAG_ENABLED=true"
 

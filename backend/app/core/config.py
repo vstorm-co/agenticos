@@ -38,15 +38,25 @@ class Settings(BaseSettings):
     TIMEZONE: str = "UTC"  # IANA timezone (e.g. "UTC", "Europe/Warsaw", "America/New_York")
     MODELS_CACHE_DIR: Path = Path("./models_cache")
     MEDIA_DIR: Path = Path("./media")
-    # The knowledge-base document cap. Chat and embed uploads are bounded by the
-    # hardcoded `MAX_UPLOAD_SIZE` in `file_storage.py` (10 MiB), not by this.
+    # The knowledge-base document cap: a file that will be parsed, chunked and
+    # embedded, and read back through retrieval rather than in one piece.
     MAX_UPLOAD_SIZE_MB: int = 50
+    # What may be attached in chat, and deliberately a different number rather
+    # than the one above. A knowledge-base document is chunked; an attachment to
+    # an agent with no workspace is pasted whole into the prompt
+    # (`app/services/attachments.py`), so the two surfaces fail differently at
+    # the same size and one ceiling cannot be right for both. This was a
+    # hardcoded 10 MiB in `file_storage.py` that no operator could raise, while
+    # `/health` published the 50 above and the composer checked against it, so a
+    # 20MB attachment passed the client, crossed the wire and was refused by a
+    # limit no configuration produced (#498).
+    CHAT_MAX_UPLOAD_SIZE_MB: int = 10
     # What a *stranger* may upload to a hosted page, in megabytes. Its own
     # setting and much smaller, because the two callers are not comparable: a
     # member uploading a fifty-megabyte export is somebody the organization
     # employs, and the same allowance on a public link is a way to fill a disk
     # from an address nobody knows. It is a ceiling on top of the allowlist and
-    # the chat path's `MAX_UPLOAD_SIZE`, never a way past either.
+    # the chat path's own ceiling, never a way past either.
     EMBED_MAX_UPLOAD_SIZE_MB: int = 5
     STORAGE_SOFT_LIMIT_BYTES: int = 5 * 1024 * 1024 * 1024
 

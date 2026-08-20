@@ -43,8 +43,9 @@ explicitly is also what lets stored secrets survive a `SECRET_KEY` rotation.
 | `TIMEZONE` | `UTC` | IANA timezone (e.g. `UTC`, `Europe/Warsaw`, `America/New_York`) |
 | `MODELS_CACHE_DIR` | `./models_cache` | Directory for cached ML models |
 | `MEDIA_DIR` | `./media` | Directory for uploaded files |
-| `MAX_UPLOAD_SIZE_MB` | `50` | Knowledge-base document cap, and the number the whole-request ceiling below is derived from. Chat and embed uploads are bounded by the hardcoded `MAX_UPLOAD_SIZE` (10 MiB in `file_storage.py`), not by this |
-| `EMBED_MAX_UPLOAD_SIZE_MB` | `5` | What a **stranger** may upload to a hosted page. A ceiling on top of the chat path's `MAX_UPLOAD_SIZE`, never a way past it |
+| `MAX_UPLOAD_SIZE_MB` | `50` | Knowledge-base document cap, and the number the whole-request ceiling below is derived from. A document at this size is chunked and embedded, not held in one piece |
+| `CHAT_MAX_UPLOAD_SIZE_MB` | `10` | What may be attached in chat. Its own setting rather than the one above, because an attachment to an agent with no workspace is pasted whole into the prompt — so the two surfaces fail differently at the same size. Was a hardcoded 10 MiB no operator could raise ([#498](https://github.com/vstorm-co/agenticos/issues/498)); set the frontend's `NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB` to match, or the composer refuses a file the server would take |
+| `EMBED_MAX_UPLOAD_SIZE_MB` | `5` | What a **stranger** may upload to a hosted page. A ceiling on top of `CHAT_MAX_UPLOAD_SIZE_MB`, never a way past it |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | The monthly spend ceiling a **new** organization starts with, in USD, so it is not one runaway agent away from a surprise bill. Applies at creation only; existing organizations are untouched and any organization can be cleared back to no cap afterwards. Must be positive; leave **empty** to start organizations uncapped (the older opt-in posture) |
 
 ### The size of a request, as opposed to the size of a file
@@ -269,9 +270,11 @@ belongs to no collection, so there is no stored configuration to read.
 | `GOOGLE_DRIVE_CREDENTIALS_FILE` | `credentials/google-drive-sa.json` | Path to Google service account credentials, for `rag-sync-gdrive` only |
 
 **This is the CLI's credential, not a fallback for a sync source.** A `gdrive`
-sync source carries its own `service_account_json` and runs on that or does not
-run: a deployment-wide key standing in for a missing field meant a tenant's
-`folder_id` chose what was listed under the operator's service account.
+sync source names a `gcp_service_account` secret in its organization's vault and
+runs on that or does not run: a deployment-wide key standing in for a missing one
+meant a tenant's `folder_id` chose what was listed under the operator's service
+account. The source's credential is not a setting and not a config field — see
+[Secrets and the vault](secrets.md).
 
 The file is a service account's key: [Cloud console](https://console.cloud.google.com/iam-admin/serviceaccounts)
 → create a service account → Keys → Add key → JSON. Then **share the Drive
@@ -283,11 +286,16 @@ refused.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `S3_RAG_ENDPOINT` | (none) | S3/MinIO endpoint URL |
-| `S3_RAG_ACCESS_KEY` | (empty) | Access key |
-| `S3_RAG_SECRET_KEY` | (empty) | Secret key |
+| `S3_RAG_ENDPOINT` | (none) | S3/MinIO endpoint URL. A sync source may override it |
+| `S3_RAG_ACCESS_KEY` | (empty) | Access key, for the `rag-sync-s3` CLI command only |
+| `S3_RAG_SECRET_KEY` | (empty) | Secret key, same |
 | `S3_RAG_BUCKET` | `agenticos-rag` | Bucket name |
-| `S3_RAG_REGION` | `us-east-1` | AWS region |
+| `S3_RAG_REGION` | `us-east-1` | AWS region. A credential's own region wins where it has one |
+
+**The key pair here is the CLI's, not a sync source's.** An `s3` sync source names
+an `aws_credentials` secret in its organization's vault, the same way a `gdrive` one
+names a service account. The endpoint and region still fall back to these settings
+because neither names a principal — they say where the store is, not who is asking.
 
 ## Agent workspaces
 

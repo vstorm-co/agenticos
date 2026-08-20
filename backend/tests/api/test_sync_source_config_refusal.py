@@ -104,11 +104,7 @@ class TestTheRefusalNamesTheInput:
         self, client
     ) -> None:
         async with client() as opened:
-            response = await _create(
-                opened,
-                "gdrive",
-                {"service_account_json": "{}", "folder_id": _HOSTILE_FOLDER_ID},
-            )
+            response = await _create(opened, "gdrive", {"folder_id": _HOSTILE_FOLDER_ID})
 
         assert response.status_code == 400
         error = response.json()["error"]
@@ -141,11 +137,25 @@ class TestTheRefusalNamesTheInput:
 
     async def test_a_missing_required_field_is_blamed_on_that_field(self, client) -> None:
         async with client() as opened:
-            response = await _create(opened, "s3", {"bucket": "docs"})
+            response = await _create(opened, "s3", {})
 
         assert response.status_code == 400
         fields = response.json()["error"]["details"]["fields"]
-        assert [problem["field"] for problem in fields] == ["config.access_key_id"]
+        assert [problem["field"] for problem in fields] == ["config.bucket"]
+
+    async def test_a_credential_in_the_config_is_refused_by_its_own_name(self, client) -> None:
+        """The credential is a vault secret the source references, so the field
+        names it used to carry are refused rather than dropped - a stripped
+        credential is a source that stores and then cannot authenticate (#937)."""
+        async with client() as opened:
+            response = await _create(
+                opened, "gdrive", {"folder_id": "1AbC", "service_account_json": "{}"}
+            )
+
+        assert response.status_code == 400
+        error = response.json()["error"]
+        assert error["details"]["fields"] == ["service_account_json"]
+        assert "does not go in a source's configuration" in error["message"]
 
     async def test_a_connector_naming_no_field_still_refuses_in_words(
         self, client, monkeypatch: pytest.MonkeyPatch

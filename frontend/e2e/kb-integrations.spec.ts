@@ -2,7 +2,7 @@ import type { APIRequestContext } from "@playwright/test";
 
 import { expect, test } from "./fixtures";
 
-import { AUTH_STATE, SEEDED_KB_NAME, pageHeading } from "./helpers";
+import { AUTH_STATE, SEEDED_AWS_SECRET_NAME, SEEDED_KB_NAME, pageHeading } from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
 
@@ -74,6 +74,8 @@ test.describe("Reusable integrations", () => {
     await expect(pageHeading(page, "Knowledge bases")).toBeVisible();
     await expect(page.getByText(SEEDED_KB_NAME, { exact: true }).first()).toBeVisible();
 
+    // Its own tab since #939, rather than a section under the base grid.
+    await page.getByRole("tab", { name: "Integrations" }).click();
     await page.getByRole("button", { name: "Add integration" }).click();
     const wizard = page.getByRole("dialog");
     await wizard.getByLabel("Source name").fill(REUSABLE_NAME);
@@ -81,8 +83,13 @@ test.describe("Reusable integrations", () => {
     await wizard.getByRole("button", { name: "Continue" }).click();
 
     await wizard.getByLabel("Bucket Name").fill("e2e-bucket");
-    await wizard.getByLabel("Access Key ID").fill("AKIAE2ENOTAREALKEY");
-    await wizard.getByLabel("Secret Access Key").fill("e2e-not-a-real-secret");
+    await wizard.getByRole("button", { name: "Continue" }).click();
+
+    // The credential is a vault secret this source references rather than two
+    // fields it carries, so the step offers what the organization holds - and
+    // only the `aws_credentials` one, which is what an S3 connector takes (#937).
+    await wizard.getByLabel("Vault credential").click();
+    await page.getByRole("option", { name: new RegExp(SEEDED_AWS_SECRET_NAME) }).click();
     await wizard.getByRole("button", { name: "Continue" }).click();
 
     // No collection step: an integration made here belongs to none, which is
@@ -104,7 +111,9 @@ test.describe("Reusable integrations", () => {
     await expect(page.getByText(REUSABLE_NAME)).toBeVisible();
 
     const kbId = await seededKbId(page.request);
-    await page.goto(`/rag/${kbId}`);
+    // Straight to the section, which the URL can name since #939 - rather than
+    // landing on the documents and clicking across.
+    await page.goto(`/rag/${kbId}?tab=sync`);
     await expect(pageHeading(page, SEEDED_KB_NAME)).toBeVisible();
     await expect(page.getByText(CLONE_NAME)).toBeVisible();
   });
