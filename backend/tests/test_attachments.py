@@ -316,6 +316,67 @@ class TestWhereAnAttachmentLands:
         assert "/uploads/" not in prompt
 
 
+class TestWhatTheModelIsToldAboutAPath:
+    """Where the file is, said so a model does not have to guess.
+
+    The reference read `report.pdf (uploads/8b1e-report.pdf, 280 KB, pdf)` - the
+    path one of three facts in a bracket - and the failure that started #1039 was
+    a model answering "the directory is empty" after a single `ls`, about a file it
+    had summarised a turn earlier.
+    """
+
+    async def test_the_path_gets_its_own_clause(self, storage):
+        chat_file = _file(filename="report.csv", file_type="spreadsheet", parsed_content="a,b\n1,2")
+
+        prompt = await AttachmentRouter(_workspace()).build_prompt("read it", [chat_file])
+
+        assert f"in your workspace at {workspace_path(chat_file)}" in prompt
+
+    async def test_the_extracted_text_beside_a_pdf_is_named(self, storage):
+        # Written since the workspace existed and never mentioned: a shell has no
+        # PDF library, so that sibling is the only half it can read.
+        chat_file = _file(filename="report.pdf", file_type="pdf", parsed_content="page one")
+        backend = _workspace()
+
+        prompt = await AttachmentRouter(backend).build_prompt("read it", [chat_file])
+
+        assert backend.exists(f"{workspace_path(chat_file)}.txt")
+        assert f"beside it at {workspace_path(chat_file)}.txt" in prompt
+
+    async def test_a_file_re_attached_still_has_its_text_named(self, storage):
+        """The write is skipped on a later turn, and the sibling is still there.
+
+        Keyed on whether *this* turn wrote it, the reference stopped naming a file
+        that had not gone anywhere.
+        """
+        chat_file = _file(filename="report.pdf", file_type="pdf", parsed_content="page one")
+        backend = _workspace()
+        await AttachmentRouter(backend).build_prompt("read it", [chat_file])
+
+        prompt = await AttachmentRouter(backend).build_prompt("again", [chat_file])
+
+        assert f"beside it at {workspace_path(chat_file)}.txt" in prompt
+
+    async def test_a_plain_text_file_is_named_without_inventing_a_sibling(self, storage):
+        chat_file = _file(filename="notes.txt", file_type="text", parsed_content="hello")
+
+        prompt = await AttachmentRouter(_workspace()).build_prompt("read it", [chat_file])
+
+        assert f"in your workspace at {workspace_path(chat_file)}" in prompt
+        assert "beside it at" not in prompt
+
+    async def test_an_image_is_told_where_it_is_as_well_as_shown(self, storage):
+        # Both, and the path is the half that lets it be resized, converted or read
+        # by something the model writes.
+        chat_file = _file(filename="chart.png", file_type="image")
+
+        prompt = await AttachmentRouter(_workspace()).build_prompt("look", [chat_file])
+
+        assert isinstance(prompt, list)
+        assert f"in your workspace at {workspace_path(chat_file)}" in prompt[0]
+        assert any(isinstance(part, BinaryContent) for part in prompt)
+
+
 class TestFilenamesAreNotTrusted:
     @pytest.mark.parametrize(
         "hostile",

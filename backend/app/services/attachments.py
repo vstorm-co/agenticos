@@ -119,11 +119,43 @@ def _pasted(chat_file: ChatFile) -> str:
     return f"\n---\nAttached file: {chat_file.filename}\n```\n{chat_file.parsed_content}\n```"
 
 
+def _text_sibling(chat_file: ChatFile, path: str) -> str | None:
+    """Where this file's extracted text sits, when one was written beside it.
+
+    Derived from the file rather than from whether *this* turn did the writing:
+    re-attaching a file on a later turn skips the write, and a reference that only
+    named the sibling on the turn that created it would stop naming a file that is
+    still there.
+    """
+    if chat_file.file_type in {"pdf", "docx", "spreadsheet"} and chat_file.parsed_content:
+        return f"{path}.txt"
+    return None
+
+
 def _referenced(chat_file: ChatFile, path: str) -> str:
+    """What the model is told about a file that is in its workspace.
+
+    **The path is a sentence, not a parenthesis.** It read
+    `report.pdf (uploads/8b1e-report.pdf, 280 KB, pdf)` - the path one of three
+    facts in a bracket - and a model skimming that answered "the directory is
+    empty" after one `ls`, on a file it had summarised a turn earlier. Where it is
+    gets its own clause (#1039).
+
+    **And the extracted text is named.** A PDF, a `.docx` and a spreadsheet get
+    their text written beside them, and nothing ever said so - so a model holding
+    `report.pdf` in a shell had bytes it has no tool for while the readable half
+    sat next to it, unmentioned. `run_python` has no filesystem and the workspace
+    shell has no PDF library, which makes that sibling the only half a shell can
+    read.
+    """
     parts = [
         f"\n---\nAttached file: {chat_file.filename} "
-        f"({path}, {_size(chat_file)}, {chat_file.file_type})"
+        f"({_size(chat_file)}, {chat_file.file_type}), "
+        f"in your workspace at {path}"
     ]
+    sibling = _text_sibling(chat_file, path)
+    if sibling is not None:
+        parts.append(f"\nIts text, extracted for you, is beside it at {sibling}")
     if chat_file.parsed_content:
         parts.append(f"\nFirst {HEAD_LINES} lines:\n```\n{_head(chat_file.parsed_content)}\n```")
     return "".join(parts)
@@ -330,8 +362,9 @@ class AttachmentRouter:
         zip of XML that `read_file` returns as mojibake. The `.txt` beside it is
         the only readable half.
         """
-        if chat_file.file_type in {"pdf", "docx", "spreadsheet"} and chat_file.parsed_content:
-            await backend.write(f"{path}.txt", chat_file.parsed_content)
+        sibling = _text_sibling(chat_file, path)
+        if sibling is not None and chat_file.parsed_content:
+            await backend.write(sibling, chat_file.parsed_content)
 
     async def _inline_image(self, chat_file: ChatFile, data: bytes | None) -> BinaryContent | None:
         """The picture itself, when it is small enough to be worth sending twice.
