@@ -246,6 +246,32 @@ class TestMemberService:
             await service.remove(uuid.uuid4(), uuid.uuid4(), requester_id=uuid.uuid4())
 
     @pytest.mark.anyio
+    async def test_change_role_admin_cannot_demote_admin(self, service):
+        """The other half of test_remove_admin_cannot_remove_admin: demoting a
+        peer Admin to Viewer strips the same authority `remove` refuses to touch,
+        so change_role must refuse it too (#700). The demotion target's role is
+        `viewer`, which the assignment ceiling alone would allow."""
+        mock_requester = MagicMock()
+        mock_requester.role = "admin"
+        mock_target = MagicMock()
+        mock_target.role = "admin"
+
+        call_count = 0
+
+        async def mock_get(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            return mock_requester if call_count == 1 else mock_target
+
+        with (
+            patch("app.services.member.member_repo.get", new=mock_get),
+            pytest.raises(AuthorizationError),
+        ):
+            await service.change_role(
+                uuid.uuid4(), uuid.uuid4(), "viewer", requester_id=uuid.uuid4()
+            )
+
+    @pytest.mark.anyio
     async def test_leave_owner_blocked_if_others_exist(self, service):
         mock_membership = MagicMock()
         mock_membership.role = "owner"

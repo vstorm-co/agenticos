@@ -50,9 +50,11 @@ class MemberService:
 
         Rules:
         - The requester needs `roles:manage`.
-        - They may only assign a role their own strictly outranks, which is
-          :func:`app.core.permissions.assignable_roles` - so no requester can
-          hand out `owner`, and none can promote a peer to their own level.
+        - They may only touch a member their own role strictly outranks, and only
+          assign a role their own strictly outranks - both
+          :func:`app.core.permissions.assignable_roles`. So no requester hands out
+          `owner` or promotes a peer to their own level, and no Admin demotes a
+          peer Admin (the same authority `remove` refuses to let one Admin take).
         - OWNER cannot be demoted via this method (use transfer_ownership).
         """
         requester = await member_repo.get(
@@ -76,6 +78,19 @@ class MemberService:
 
         if target.role == OrgRole.OWNER.value:
             raise BadRequestError(message="Use transfer-ownership to change the Owner role")
+
+        # Whose role may be touched, not only which role may be offered. The
+        # ceiling below bounds the *new* role; without this, an Admin could demote
+        # a peer Admin to Viewer - stripping the authority `remove` refuses to let
+        # one Admin take from another (#700). A member is only administrable by a
+        # role that strictly outranks their current one, which is what
+        # `assignable_roles` already means, so the Admin-vs-Admin rule is the same
+        # rule as the assignment ceiling rather than a second one beside it.
+        if target.role not in assignable_roles(requester.role):
+            raise AuthorizationError(
+                message="You cannot change the role of a member your own does not outrank",
+                details={"target_role": target.role},
+            )
 
         if new_role not in assignable_roles(requester.role):
             raise AuthorizationError(
