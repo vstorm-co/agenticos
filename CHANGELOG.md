@@ -17,6 +17,39 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.223] - 2026-08-20
+
+An object store's connector is a client, not a copy of the listing loop.
+
+### Changed
+
+- **`S3Connector` is an `ObjectStoreConnector` subclass**, with no behaviour
+  change: a stored source lists and downloads exactly what it did before.
+  #938 made Azure Blob and GCS conditional on this shape existing first, and the
+  condition is now met - each of those is a client, a `SCHEME` and a
+  `CONNECTOR_TYPE` rather than a second copy of the listing. The shared class
+  holds the pagination, the `<scheme>://<container>/<key>` address the sync path
+  matches a row on, the skip for a key ending in `/` (a console's "folder", which
+  would ingest as a document with no bytes and no name), and the destination,
+  which is the base class's answer and the property a new store most easily
+  loses. (#988)
+- A subclass says which `CONFIG_SCHEMA` field names its container - `bucket` for
+  S3 and GCS, `container` for Azure - because a form should say what the store's
+  own console says. Both of its hooks are blocking, run on a worker thread,
+  because all three SDKs are synchronous. (#988)
+- `S3Connector.validate_config` is gone: an override that called `super()` and
+  added nothing. (#988)
+
+### Performance
+
+- **An object listing is converted as it arrives.** The refactor first built a
+  complete list of the shared listing type and then allocated the complete
+  `RemoteFile` list beside it, where the connector before it kept only the
+  second - on a bucket of a million keys, a previously working sync running out
+  of memory. The listing yields, and the conversion happens inside the same
+  worker thread, so one entry exists at a time beside the list being built.
+  Found by the automated review on the branch. (#988)
+
 ## [0.0.222] - 2026-08-20
 
 The sync wizard says who will be able to read what a source ingests.
