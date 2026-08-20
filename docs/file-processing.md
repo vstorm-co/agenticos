@@ -841,7 +841,10 @@ question to answer before writing one is which half is being built — see
 [mcp](mcp.md).
 
 Which connectors are being built, and in what order, is decided in
-[#938](https://github.com/vstorm-co/agenticos/issues/938): a web crawler
+[#938](https://github.com/vstorm-co/agenticos/issues/938). First
+[#990](https://github.com/vstorm-co/agenticos/issues/990), because every
+connector below names a change signal and the sync path consults none of them:
+then a web crawler
 ([#984](https://github.com/vstorm-co/agenticos/issues/984)), SharePoint and
 OneDrive ([#985](https://github.com/vstorm-co/agenticos/issues/985)), Confluence
 ([#986](https://github.com/vstorm-co/agenticos/issues/986)), a git repository's
