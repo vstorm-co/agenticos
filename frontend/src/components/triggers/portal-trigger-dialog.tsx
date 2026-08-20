@@ -201,7 +201,9 @@ export function PortalTriggerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-hidden p-0 sm:max-w-2xl">
+      {/* Near-full-screen for the same reason as the raw form's wizard: the
+          message step is where the trigger is actually written. */}
+      <DialogContent className="h-[90vh] w-[95vw] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden p-0 sm:max-w-5xl">
         <DialogHeader className="border-foreground/10 border-b px-6 py-4">
           <DialogTitle className="text-base font-semibold">
             {t("dialogTitle", { portal: portal.name })}
@@ -217,7 +219,7 @@ export function PortalTriggerDialog({
           />
         </DialogHeader>
 
-        <div className="max-h-[60vh] scrollbar-thin overflow-y-auto px-6 py-5">
+        <div className="min-h-0 scrollbar-thin overflow-y-auto px-6 py-5">
           {step === "preset" && (
             <div className="space-y-2">
               {portal.presets.map((entry) => {
@@ -373,7 +375,7 @@ export function PortalTriggerDialog({
                   value={prompt}
                   onChange={setPrompt}
                   placeholder={tt("promptPlaceholder")}
-                  rows={12}
+                  rows={18}
                   describedBy="portal-prompt-desc"
                 />
                 <p

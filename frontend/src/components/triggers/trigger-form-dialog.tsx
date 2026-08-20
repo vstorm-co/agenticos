@@ -605,7 +605,10 @@ export function TriggerFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-hidden p-0 sm:max-w-2xl">
+      {/* Near-full-screen, unlike the edit panel: a trigger's whole payload is a
+          prompt, so the message step needs the room of a page, not a modal. The
+          grid rows pin the header and nav and give the body everything between. */}
+      <DialogContent className="h-[90vh] w-[95vw] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden p-0 sm:max-w-5xl">
         <DialogHeader className="border-foreground/10 border-b px-6 py-4">
           <DialogTitle className="text-base font-semibold">
             {type === "event" ? t("newEvent") : t("newSchedule")}
@@ -614,7 +617,7 @@ export function TriggerFormDialog({
           <WizardSteps steps={steps} current={step} />
         </DialogHeader>
 
-        <div className="max-h-[60vh] scrollbar-thin overflow-y-auto px-6 py-5">
+        <div className="min-h-0 scrollbar-thin overflow-y-auto px-6 py-5">
           {step === "event" && (
             <EventFields
               eventSource={eventSource}
@@ -679,7 +682,7 @@ export function TriggerFormDialog({
 
               {/* The step is the message's own, so the editor gets the room a
                   long prompt needs. */}
-              <PromptField value={prompt} onChange={setPrompt} rows={12} />
+              <PromptField value={prompt} onChange={setPrompt} rows={18} />
             </div>
           )}
 
