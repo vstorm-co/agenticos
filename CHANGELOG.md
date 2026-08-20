@@ -17,6 +17,34 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.230] - 2026-08-20
+
+A role picker offers what the caller may actually assign.
+
+### Fixed
+
+- **Every role picker offered every role in the catalog bar `owner`, whoever was
+  asking.** Both invite dialogs and the members table, with the service refusing
+  what the caller could not assign - so an Admin was offered Admin and got a 403
+  after typing the email address. `assignableRoles` is the client's copy of
+  `app.core.permissions.assignable_roles`, over the permissions
+  `GET /roles/catalog` already returns: a role is offered only when the caller's
+  own strictly outranks it. Pre-existing, and 0.0.229 widened who it happened to
+  - with the server's ceiling derived from what a role holds, every custom role
+  composed with `members:manage` met the same offer-then-refuse. (#1028)
+- **A picker seeded with a role it did not offer.** Both dialogs held Member as
+  their initial value and never reconciled it with the list; Member is kept where
+  it is on offer - which for every built-in role that may invite at all, it is -
+  and otherwise the least privileged role that is. (#1028)
+- **A peer Admin's row keeps its picker**, with that role in the list and
+  disabled. `change_role` judges the role being handed out rather than the one
+  being replaced, so an Admin may demote a peer Admin - and the row needs the
+  current role present or the trigger renders blank, because the chosen item's
+  text is what a trigger shows. (#1028)
+- **A role catalog that cannot be read says so**, in both dialogs and above the
+  members table. Offering nothing and being unable to answer are the same pixels
+  and a different fact, and the second one is permanent. (#1028)
+
 ## [0.0.229] - 2026-08-20
 
 The invitation ceiling is what the requester holds, not whether they are Admin.
