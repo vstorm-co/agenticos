@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAssignableRoles, useInvitations } from "@/hooks";
+import { defaultAssignable } from "@/lib/assignable-roles";
 import type { OrgRole } from "@/types";
 import { useTranslations } from "next-intl";
 
@@ -32,20 +33,24 @@ interface InviteMemberDialogProps {
 export function InviteMemberDialog({ open, onOpenChange, orgId }: InviteMemberDialogProps) {
   const t = useTranslations("teams");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<OrgRole>("member");
+  const [chosen, setChosen] = useState<OrgRole | "">("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { invite } = useInvitations(orgId);
   const assignable = useAssignableRoles();
+  // The picker starts on Member where this caller may offer it, and never on a
+  // role their own does not outrank - a value the list does not hold renders an
+  // empty trigger and submits what the server refuses (#1028).
+  const role = chosen === "" ? defaultAssignable(assignable, "member") : chosen;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
+    if (!email.trim() || role === "") return;
     setIsSubmitting(true);
     const result = await invite({ email: email.trim(), role });
     setIsSubmitting(false);
     if (result) {
       setEmail("");
-      setRole("member");
+      setChosen("");
       onOpenChange(false);
     }
   };
@@ -69,7 +74,7 @@ export function InviteMemberDialog({ open, onOpenChange, orgId }: InviteMemberDi
           </FormField>
           <div className="space-y-1.5">
             <Label htmlFor="invite-role">{t("role")}</Label>
-            <Select value={role} onValueChange={(v) => setRole(v as OrgRole)}>
+            <Select value={role} onValueChange={(v) => setChosen(v as OrgRole)}>
               <SelectTrigger id="invite-role" className="capitalize">
                 <SelectValue />
               </SelectTrigger>
@@ -86,7 +91,7 @@ export function InviteMemberDialog({ open, onOpenChange, orgId }: InviteMemberDi
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {t("cancel3")}
             </Button>
-            <Button type="submit" disabled={!email.trim() || isSubmitting}>
+            <Button type="submit" disabled={!email.trim() || role === "" || isSubmitting}>
               {isSubmitting ? t("sending2") : t("sendInvite")}
             </Button>
           </DialogFooter>

@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { InviteMemberDialog } from "./invite-member-dialog";
 import { apiClient } from "@/lib/api-client";
+import { permissionsOf, ROLE_CATALOG } from "@/test-utils/role-catalog";
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
@@ -27,27 +28,21 @@ function mount() {
   render(<InviteMemberDialog open onOpenChange={vi.fn()} orgId="org-1" />, { wrapper });
 }
 
+/** Answer the three requests the dialog makes, as a caller holding `role`. */
+function serve(role: string) {
+  vi.mocked(apiClient.get).mockImplementation((url: string) => {
+    if (url === "/roles/catalog") return Promise.resolve(ROLE_CATALOG);
+    if (url.startsWith("/me/permissions")) return Promise.resolve(permissionsOf(role));
+    return Promise.resolve({ items: [], total: 0 });
+  });
+}
+
 describe("InviteMemberDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // The dialog fetches two things: the invitation list and the role catalog
-    // the picker is derived from.
-    vi.mocked(apiClient.get).mockImplementation((url: string) =>
-      url === "/roles/catalog"
-        ? Promise.resolve({
-            all_permissions: [],
-            resource_permissions: [],
-            roles: [
-              { name: "owner", permissions: [] },
-              { name: "admin", permissions: [] },
-              { name: "builder", permissions: [] },
-              { name: "operator", permissions: [] },
-              { name: "member", permissions: [] },
-              { name: "viewer", permissions: [] },
-            ],
-          })
-        : Promise.resolve({ items: [], total: 0 }),
-    );
+    // Three things: the invitation list, the role catalog, and who is asking -
+    // the picker is derived from the last two together.
+    serve("owner");
     vi.mocked(apiClient.post).mockResolvedValue({
       id: "inv-1",
       organization_id: "org-1",
@@ -81,6 +76,40 @@ describe("InviteMemberDialog", () => {
     await userEvent.click(screen.getByLabelText("Role"));
 
     expect(screen.queryByRole("option", { name: /^owner$/i })).toBeNull();
+  });
+
+  it("offers an Admin no way to invite another Admin", async () => {
+    // The defect: the picker offered every catalog role bar owner, whoever was
+    // asking, and the service refused the ones the caller could not assign -
+    // after the email address had been typed (#1028). `assignable_roles` on the
+    // server is the same relation this is derived from.
+    serve("admin");
+    mount();
+
+    await userEvent.click(screen.getByLabelText("Role"));
+
+    const labels = screen.getAllByRole("option").map((option) => option.textContent?.trim());
+    expect(labels).toEqual(["builder", "operator", "member", "viewer"]);
+  });
+
+  it("still starts an Admin's invite on Member", async () => {
+    // The default is preserved where it is on offer, which for every built-in
+    // role that may invite at all it is.
+    serve("admin");
+    mount();
+
+    await waitFor(() => expect(screen.getByLabelText("Role")).toHaveTextContent("member"));
+  });
+
+  it("offers nothing, and sends nothing, until it knows who is asking", async () => {
+    // A picker that offers nothing for a beat is a control somebody waits for;
+    // one that offers too much is a refusal they walk into.
+    vi.mocked(apiClient.get).mockReturnValue(new Promise(() => {}));
+    mount();
+
+    await userEvent.type(screen.getByLabelText("Email address"), "colleague@acme.test");
+
+    expect(screen.getByRole("button", { name: "Send invite" })).toBeDisabled();
   });
 
   it("sends the role the administrator chose", async () => {

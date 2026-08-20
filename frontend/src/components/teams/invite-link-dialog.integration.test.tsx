@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { InviteLinkDialog } from "./invite-link-dialog";
 import { apiClient } from "@/lib/api-client";
+import { permissionsOf, ROLE_CATALOG } from "@/test-utils/role-catalog";
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
@@ -27,27 +28,21 @@ function mount() {
   render(<InviteLinkDialog open onOpenChange={vi.fn()} orgId="org-1" />, { wrapper });
 }
 
+/** Answer the three requests the dialog makes, as a caller holding `role`. */
+function serve(role: string) {
+  vi.mocked(apiClient.get).mockImplementation((url: string) => {
+    if (url === "/roles/catalog") return Promise.resolve(ROLE_CATALOG);
+    if (url.startsWith("/me/permissions")) return Promise.resolve(permissionsOf(role));
+    return Promise.resolve({ items: [], total: 0 });
+  });
+}
+
 describe("InviteLinkDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // The dialog fetches two things: the invitation list and the role catalog
-    // the picker is derived from.
-    vi.mocked(apiClient.get).mockImplementation((url: string) =>
-      url === "/roles/catalog"
-        ? Promise.resolve({
-            all_permissions: [],
-            resource_permissions: [],
-            roles: [
-              { name: "owner", permissions: [] },
-              { name: "admin", permissions: [] },
-              { name: "builder", permissions: [] },
-              { name: "operator", permissions: [] },
-              { name: "member", permissions: [] },
-              { name: "viewer", permissions: [] },
-            ],
-          })
-        : Promise.resolve({ items: [], total: 0 }),
-    );
+    // Three things: the invitation list, the role catalog, and who is asking -
+    // the picker is derived from the last two together.
+    serve("owner");
     vi.mocked(apiClient.post).mockResolvedValue({
       id: "inv-1",
       organization_id: "org-1",
@@ -105,5 +100,25 @@ describe("InviteLinkDialog", () => {
 
     expect(screen.queryByRole("option", { name: /^owner$/i })).toBeNull();
     expect(screen.getByRole("option", { name: /^builder$/i })).toBeInTheDocument();
+  });
+
+  it("offers an Admin no way to mint a link that joins as Admin", async () => {
+    // A link is the wider of the two paths - one URL, many joiners - and it took
+    // the same offer-then-refuse as the email invite: the picker listed every
+    // catalog role bar owner whoever was asking (#1028).
+    serve("admin");
+    mount();
+
+    await userEvent.click(screen.getByLabelText("Join as"));
+
+    const labels = screen.getAllByRole("option").map((option) => option.textContent?.trim());
+    expect(labels).toEqual(["builder", "operator", "member", "viewer"]);
+  });
+
+  it("mints nothing until it knows who is asking", async () => {
+    vi.mocked(apiClient.get).mockReturnValue(new Promise(() => {}));
+    mount();
+
+    expect(screen.getByRole("button", { name: /create link/i })).toBeDisabled();
   });
 });

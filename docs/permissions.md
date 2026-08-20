@@ -144,7 +144,19 @@ not. Two consequences, and both are the point:
 
 Derived from the catalog rather than from a role name, so a custom role (Phase
 2) is bounded by what it actually holds. The ceiling this replaced compared
-against the literal `"admin"` and could not see one at all.
+against the literal `"admin"` and could not see one at all - on the invitation
+paths as well as on `change_role`, which is what #696 closed.
+
+**The console computes the same relation rather than being told it.** Every role
+picker - the two invite dialogs and the members table - offers what
+`assignableRoles` in `frontend/src/lib/assignable-roles.ts` answers, over the
+role catalog `GET /roles/catalog` already returns with each role's permissions.
+It is arithmetic on the client for the same reason it is on the server: a picker
+holding a *list* offered every role bar `owner` whoever was asking, so an Admin
+was offered Admin and refused after typing the email address (#1028). A role the
+caller cannot assign is also a role the members table will not draw a picker for,
+because the trigger shows the chosen item's text and a value absent from the list
+renders blank.
 
 Custom roles are Phase 2 and may only ever recombine the permissions above;
 clients cannot invent new ones.

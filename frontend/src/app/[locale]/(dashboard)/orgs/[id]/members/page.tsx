@@ -181,7 +181,12 @@ export default function OrgMembersPage({ params }: PageProps) {
         cell: (m) => {
           const isSelf = m.user_id === user?.id;
           const isOwner = m.role === "owner";
-          if (canManage && !isOwner && !isSelf) {
+          // The row's current role has to be one this caller may assign, not
+          // only the ones they may assign *to*: Radix draws the chosen item's
+          // text in the trigger, so a value the list does not hold renders an
+          // empty control - and a peer Admin is a row an Admin cannot reassign
+          // anyway (#1028). A label, then, which is what the other rows get.
+          if (canManage && !isOwner && !isSelf && assignable.includes(m.role)) {
             return (
               <Select value={m.role} onValueChange={(v) => changeRole(m.user_id, v as OrgRole)}>
                 <SelectTrigger
