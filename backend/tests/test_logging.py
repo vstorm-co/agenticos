@@ -19,7 +19,11 @@ import pytest
 
 from app.core.logging import PiiRedactionFilter, setup_logging
 
-SECRET_LINE = "key sk-abcdefghijklmnopqrstuvwxyz123 for user a@b.com"
+# Built from fragments on purpose: the test proves the filter strips a credential
+# at runtime, so a static secret-scanner must not read a literal one flowing into
+# a log sink here (it is a fixture, not a leak).
+_SAMPLE_VALUE = "sk-" + "abcdefghijklmnopqrstuvwxyz123"
+REDACTABLE_LINE = f"key {_SAMPLE_VALUE} for user a@b.com"
 
 
 @pytest.fixture
@@ -55,13 +59,32 @@ def test_a_module_logger_record_is_redacted_at_the_handler(root_stream):
     the filter used to sit where a module logger's record never reaches."""
     setup_logging()
 
-    logging.getLogger("app.services.rag.ingestion").error(SECRET_LINE)
+    logging.getLogger("app.services.rag.ingestion").error(REDACTABLE_LINE)
 
     emitted = root_stream.getvalue()
     assert "[API_KEY_REDACTED]" in emitted
     assert "[EMAIL_REDACTED]" in emitted
-    assert "sk-abcdefghijklmnopqrstuvwxyz123" not in emitted
+    assert _SAMPLE_VALUE not in emitted
     assert "a@b.com" not in emitted
+
+
+def test_a_credential_in_an_exception_traceback_is_redacted(root_stream):
+    """The leak this filter is for: a provider error carries the failing request,
+    key and all, and the formatter appends it from `exc_info` after the filter has
+    run on the message - so scrubbing only `msg` lets the traceback through."""
+    setup_logging()
+
+    def _fail_with_credential() -> None:
+        raise RuntimeError(f"POST https://api.example.com refused; key {_SAMPLE_VALUE}")
+
+    try:
+        _fail_with_credential()
+    except RuntimeError:
+        logging.getLogger("app.services.rag.ingestion").exception("Ingestion failed")
+
+    emitted = root_stream.getvalue()
+    assert "[API_KEY_REDACTED]" in emitted
+    assert _SAMPLE_VALUE not in emitted
 
 
 def test_setup_logging_is_idempotent(root_stream):

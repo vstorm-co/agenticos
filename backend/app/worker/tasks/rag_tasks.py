@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import BudgetExceeded, SpendLedger, metered_by
 from app.core.config import settings
+from app.core.logging import setup_logging
 from app.core.secret_kinds import SecretKind, StorableSecret, unseal_secret
 from app.core.vault import VaultScope
 from app.db.models.knowledge_base import KnowledgeBase
@@ -232,6 +233,10 @@ async def ingest_document_flow(
     itself is in this flow's log twice over - the line below, and the traceback
     Prefect records because the failure is re-raised.
     """
+    # `serve()` runs each flow in its own subprocess, which imports this module but
+    # never ran the redaction setup `prefect_app.main` does - so without this the
+    # traceback below reaches the aggregator as clear text (#440).
+    setup_logging()
     logger.info("Starting ingestion: %s -> %s", source_path, collection_name)
     try:
         return await _run_ingestion(
@@ -251,6 +256,7 @@ async def sync_collection_flow(
     sync_log_id: str, source: str, collection_name: str, mode: str, path: str
 ) -> dict[str, Any]:
     """Sync a collection from a local directory."""
+    setup_logging()
     logger.info("Starting sync: %s -> %s (mode=%s)", source, collection_name, mode)
     try:
         return await _run_sync(sync_log_id, source, collection_name, mode, path)
@@ -265,6 +271,7 @@ async def sync_collection_flow(
 @flow(name="sync-single-source", log_prints=True)
 async def sync_single_source_flow(source_id: str, sync_log_id: str | None = None) -> dict[str, Any]:
     """Sync a single connector source. If sync_log_id provided, use existing log."""
+    setup_logging()
     logger.info("Starting source sync: %s", source_id)
     return await _run_source_sync(source_id, sync_log_id=sync_log_id)
 

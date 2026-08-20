@@ -46,7 +46,7 @@ class PiiRedactionFilter(logging.Filter):
     ]
 
     def filter(self, record: logging.LogRecord) -> bool:
-        """Redact PII from log record message and args."""
+        """Redact PII from a record's message, its args, and its rendered traceback."""
         if isinstance(record.msg, str):
             record.msg = self._redact(record.msg)
         if record.args:
@@ -58,6 +58,18 @@ class PiiRedactionFilter(logging.Filter):
                 record.args = tuple(
                     self._redact(a) if isinstance(a, str) else a for a in record.args
                 )
+        # The traceback is the leak this filter exists for: `logger.exception` on a
+        # provider SDK error carries the failing request - URL, bearer token and
+        # all - and the formatter appends it from `exc_info` *after* the filter has
+        # run, so scrubbing only `msg`/`args` lets it through. Render it here and
+        # store the redacted text, which the formatter then reuses instead of
+        # re-rendering the original (#440).
+        if record.exc_info and not record.exc_text:
+            record.exc_text = logging.Formatter().formatException(record.exc_info)
+        if record.exc_text:
+            record.exc_text = self._redact(record.exc_text)
+        if record.stack_info:
+            record.stack_info = self._redact(record.stack_info)
         return True
 
     def _redact(self, value: str) -> str:
@@ -77,10 +89,14 @@ def setup_logging() -> None:
     as it was, the filter scrubbed nothing the application actually logs (#440).
 
     `logging.lastResort` is covered too, because a process that has configured no
-    root handler at all - the CLI, a Prefect flow subprocess before anything sets
-    logging up - emits `WARNING`+ records through it, and a credential in a
-    `logger.exception` is exactly such a record. That is the third handler-timing
-    answer the three processes give.
+    root handler at all - the CLI before anything sets logging up - emits
+    `WARNING`+ records through it, and a credential in a `logger.exception` is
+    exactly such a record.
+
+    A Prefect flow runs in a subprocess that imports the flow module but never ran
+    this, and Prefect installs its own handlers there - so `lastResort` does not
+    fire and the filter would be absent. The flows call this themselves for that
+    reason; being idempotent is what makes that safe.
 
     Idempotent: safe to call from each entrypoint, and a second call covers a
     handler added since the first.
