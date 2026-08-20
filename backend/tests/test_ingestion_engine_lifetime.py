@@ -145,7 +145,7 @@ class TestAnUploadsStore:
         ):
             with (
                 patch("app.services.rag_document.RAGDocumentService", return_value=documents),
-                patch.object(rag_tasks, "_update_status", new=AsyncMock()),
+                patch.object(rag_tasks, "_fail_document", new=AsyncMock()),
                 pytest.raises(RuntimeError),
             ):
                 await rag_tasks._run_ingestion(
