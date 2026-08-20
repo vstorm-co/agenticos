@@ -17,6 +17,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.229] - 2026-08-20
+
+The invitation ceiling is what the requester holds, not whether they are Admin.
+
+### Fixed
+
+- **A custom role composed with `members:manage` could invite a new Admin.**
+  `InvitationService` capped who may be invited by comparing the requester's role
+  against the literal string `admin`, so the ceiling applied to a built-in Admin
+  and to nobody else - and the catalog is explicitly built to let a Phase 2 role
+  hold that permission. Both call sites, the email invite and the invite link, now
+  read `assignable_roles(requester.role)`: the same catalog-derived relation
+  `change_role` uses, where a role may be offered only when the requester's own
+  *strictly* outranks it. This is the invitation half of what #672 removed from
+  `change_role`. (#696)
+- Behaviour for the built-in roles is unchanged - `assignable_roles("admin")` is
+  exactly the set the literal check allowed, and an Owner still invites Admins.
+  An Owner may no longer invite an Owner, which the invite schemas already
+  refused and which is what "nobody at all assigns `owner`" means: ownership moves
+  through `transfer_ownership`, which demotes the outgoing owner in the same
+  breath. (#696)
+
 ## [0.0.228] - 2026-08-20
 
 The MCP connection dialog owns its own form.
