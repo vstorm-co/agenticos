@@ -262,7 +262,7 @@ class TestAConnectorSyncsStore:
                 patch.object(rag_tasks, "SyncSourceService", return_value=sources),
                 patch.dict(rag_tasks.CONNECTOR_REGISTRY, {"gdrive": lambda: connector}),
                 patch("app.services.rag_sync.RAGSyncService", return_value=MagicMock()),
-                patch.object(rag_tasks, "_config_for_collection", new=AsyncMock()),
+                patch.object(rag_tasks, "_knowledge_base_for", new=AsyncMock(return_value=None)),
             ):
                 await rag_tasks._run_source_sync(str(uuid.uuid4()), sync_log_id=str(uuid.uuid4()))
 
@@ -293,7 +293,7 @@ class TestAConnectorSyncsStore:
                 patch.object(rag_tasks, "SyncSourceService", return_value=sources),
                 patch.dict(rag_tasks.CONNECTOR_REGISTRY, {"gdrive": lambda: connector}),
                 patch("app.services.rag_sync.RAGSyncService", return_value=MagicMock()),
-                patch.object(rag_tasks, "_config_for_collection", new=AsyncMock()),
+                patch.object(rag_tasks, "_knowledge_base_for", new=AsyncMock(return_value=None)),
             ):
                 answer = await rag_tasks._run_source_sync(
                     str(uuid.uuid4()), sync_log_id=str(uuid.uuid4())

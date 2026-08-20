@@ -585,11 +585,30 @@ vector document it replaced, along with their stored copies of the file. Without
 that a directory synced nightly reported a collection growing by its own size
 every night.
 
+**A synced document keeps no original, and says so.** The upload path stores a
+copy under `rag/{collection}` and a sync does not: a synced file's bytes live in
+the system it came from, and mirroring every one of them onto this deployment's
+disk to make one button work is a cost per corpus rather than per failure. So
+`storage_path` is empty for these and `has_file` is false, which is what a
+surface offering a download has to read. **Re-running the sync is the retry** —
+since [#990](https://github.com/vstorm-co/agenticos/issues/990) it skips
+everything unchanged and re-fetches exactly what has no document, so retrying
+four failures out of forty costs four transfers rather than forty.
+
+The connector sync wrote no row at all until
+[#992](https://github.com/vstorm-co/agenticos/issues/992) — the sentence above
+was true of the upload, the CLI and the *local* sync only. A document from a
+Drive folder was searchable and invisible: absent from the knowledge base's
+Documents tab (`GET /kb/{kb_id}/documents` reads `get_for_kb`), absent from the
+collection's own `document_count`, unreachable by delete, and a failure was a
+number in the sync log with no per-file reason anywhere.
+
 Failed ingestions can be retried via `POST /rag/documents/{id}/retry`. It
 re-reads `storage_path` — the copy the upload kept for exactly this — and
 dispatches the parse again, replacing whatever the failed attempt indexed. A
-document that did not fail, or that predates uploads keeping their file, is
-refused with a 400 rather than moved to `processing`
+document that did not fail, or that has no stored file — one that predates
+uploads keeping theirs, or one a sync ingested — is refused with a 400 rather
+than moved to `processing`
 ([#441](https://github.com/vstorm-co/agenticos/issues/441)).
 
 ### What a failed ingest says
