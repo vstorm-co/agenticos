@@ -11,6 +11,7 @@ import type { Translate } from "@/lib/agent-step-captions";
 import { apiClient } from "@/lib/api-client";
 import { ApiError, submitFailure } from "@/lib/api-error";
 import { DEFAULT_INGESTION_CONFIG, INGESTION_FORM_FIELDS } from "@/lib/ingestion-config";
+import { brandMarkIn } from "@/test-utils/brand-marks";
 import type { IngestionConfig } from "@/types";
 
 /** The real `errors` copy, for the one part of a refusal a form cannot show. */
@@ -333,5 +334,24 @@ describe("IngestionSettings", () => {
       expect(screen.getByText(message)).toBeInTheDocument();
       expect(failure.toast).toBeNull();
     });
+  });
+});
+
+describe("the PDF parser choices", () => {
+  it("draws something beside every one of them, and the brand for the one that has one", async () => {
+    // Three lines of text where every other picker in the product draws a mark.
+    // Only LlamaParse is a product: the other two take a lucide icon rather than
+    // one row getting special treatment and two getting blanks (#940).
+    show();
+
+    await userEvent.click(screen.getByLabelText("PDF parser"));
+
+    const options = await screen.findAllByRole("option");
+    expect(options).toHaveLength(3);
+    for (const option of options) {
+      expect(option.querySelector("svg")).not.toBeNull();
+    }
+    const llamaparse = options.find((option) => option.textContent?.includes("LlamaParse"));
+    expect(brandMarkIn(llamaparse ?? null)).toBe("llamaparse");
   });
 });
