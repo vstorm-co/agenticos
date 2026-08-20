@@ -60,12 +60,39 @@ def image_media_type_for(path: str) -> str | None:
     """The image media type this file may be served as, or `None` to refuse it.
 
     Guessed from the name on disk and checked against `IMAGE_MIME_TYPES`. An
-    avatar is stored under whatever suffix the uploader's filename had, so a file
-    saved as `x.html` guesses to `text/html` and is refused here rather than
-    served as a script on the app's own origin (#702, and #634 for the logo).
+    avatar is stored under a suffix derived from its validated type (see
+    `avatar_filename`), so a file saved as `x.html` guesses to `text/html` and is
+    refused here rather than served as a script on the app's own origin (#702,
+    and #634 for the logo).
     """
     media_type = mimetypes.guess_type(path)[0]
     return media_type if media_type in IMAGE_MIME_TYPES else None
+
+
+_AVATAR_EXTENSIONS = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/gif": "gif",
+    "image/webp": "webp",
+}
+
+
+def avatar_filename(content_type: str) -> str:
+    """The name to store an avatar under, its suffix taken from its type.
+
+    The served type is guessed from the name on disk, so storing an avatar under
+    the caller's own filename made a valid image unrenderable whenever that name
+    had no extension, the wrong one, or a `.jpg` on a PNG - it would 404 or serve
+    under a type the bytes are not. The extension comes from the content type the
+    upload already validated instead, so a valid image always names itself
+    honestly and a non-image was refused before it reached here (#702).
+
+    Raises:
+        KeyError: If `content_type` is not one of the validated image types - the
+            upload validates it first, so reaching this with anything else is a
+            caller that skipped the check, and failing loudly is right.
+    """
+    return f"avatar.{_AVATAR_EXTENSIONS[content_type]}"
 
 
 # Avatars are decoration rendered at 40px; the limit is what stops someone

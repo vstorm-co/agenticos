@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from app.services.file_storage import LocalFileStorage, image_media_type_for
+from app.services.file_storage import LocalFileStorage, avatar_filename, image_media_type_for
 
 pytestmark = pytest.mark.anyio
 
@@ -35,6 +35,26 @@ def test_a_non_image_is_refused_rather_than_served(name: str) -> None:
     # script on the app's own origin (#702). A PDF is refused too - an avatar is
     # an image, and this helper serves only images.
     assert image_media_type_for(f"/uploads/{name}") is None
+
+
+@pytest.mark.parametrize(
+    ("content_type", "expected"),
+    [
+        ("image/jpeg", "avatar.jpg"),
+        ("image/png", "avatar.png"),
+        ("image/gif", "avatar.gif"),
+        ("image/webp", "avatar.webp"),
+    ],
+)
+def test_an_avatar_is_named_from_its_type_not_the_callers_filename(
+    content_type: str, expected: str
+) -> None:
+    """The served type is guessed from the name on disk, so the stored suffix has
+    to match the validated type - or a valid image uploaded as `avatar.txt` (or no
+    extension) becomes unrenderable (#702)."""
+    stored = avatar_filename(content_type)
+    assert stored == expected
+    assert image_media_type_for(f"/uploads/{stored}") == content_type
 
 
 @pytest.fixture

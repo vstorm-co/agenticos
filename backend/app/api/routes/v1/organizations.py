@@ -84,7 +84,6 @@ async def upload_organization_avatar(
         org_id,
         requester_id=user.id,
         file_data=data,
-        filename=file.filename or "avatar.jpg",
         content_type=file.content_type,
     )
     return await service.read_for_user(updated.id, user.id)
