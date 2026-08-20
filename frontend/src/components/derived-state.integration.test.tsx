@@ -6,7 +6,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UserDetailDrawer } from "./admin/user-detail-drawer";
 import { SyncSourceWizard } from "./rag/sync-source-wizard";
-import type { AdminUser } from "@/types";
+import type { AdminUser, User } from "@/types";
+import { useAuthStore } from "@/stores/auth-store";
 
 /**
  * Two components that read a row somebody else derives for them.
@@ -86,17 +87,23 @@ describe("the admin user drawer", () => {
     created_at: "2026-07-01T00:00:00Z",
   };
 
+  const props = {
+    open: true,
+    onOpenChange: vi.fn(),
+    onUpdate: vi.fn(),
+    onDelete: vi.fn(),
+    onImpersonate: vi.fn(),
+  };
+
+  function signedInAs(id: string) {
+    useAuthStore.setState({ user: { id, email: "who@example.com" } as unknown as User });
+  }
+
   it("keeps showing the row it was given while the sheet closes", () => {
     // The page holds the id and derives the row, so deleting the user takes it
     // away mid-animation. Returning null then rips the sheet off the screen
     // instead of letting it slide.
-    const props = {
-      open: true,
-      onOpenChange: vi.fn(),
-      onUpdate: vi.fn(),
-      onDelete: vi.fn(),
-      onImpersonate: vi.fn(),
-    };
+    signedInAs("someone-else");
     const { rerender } = mount(<UserDetailDrawer {...props} user={user} />);
     expect(screen.getAllByText("kacper@example.com").length).toBeGreaterThan(0);
 
@@ -111,5 +118,26 @@ describe("the admin user drawer", () => {
     );
 
     expect(screen.getAllByText("kacper@example.com").length).toBeGreaterThan(0);
+  });
+
+  it("does not offer suspend, demote or impersonate on your own row", () => {
+    // Suspending or demoting yourself ends your own administration of the
+    // deployment (#941); impersonating yourself is meaningless. Delete stays,
+    // visible and refused by the API.
+    signedInAs(user.id);
+    mount(<UserDetailDrawer {...props} user={user} />);
+
+    expect(screen.queryByRole("button", { name: "Suspend" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Promote to admin" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Impersonate" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+  });
+
+  it("offers them on somebody else's row", () => {
+    signedInAs("another-admin");
+    mount(<UserDetailDrawer {...props} user={user} />);
+
+    expect(screen.getByRole("button", { name: "Suspend" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Impersonate" })).toBeInTheDocument();
   });
 });
