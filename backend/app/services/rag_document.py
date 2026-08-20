@@ -129,12 +129,19 @@ class RAGDocumentService:
         """Create a new RAG document tracking record.
 
         `source_path` is how the ingest addressed the file, and it is what lets a
-        later run find this row again - `discard_unindexed` retires a previous
+        later run find this row again - `discard_failed` retires a previous
         attempt at the *same file* rather than at the same basename, which two
         keys in one bucket share (#996).
+
+        An **upload passes none**, and that is the point of the argument being
+        optional. A browser upload's only name is its basename, which is not an
+        address: two people can upload different `report.pdf`s and, with
+        `replace=false`, mean both to exist. Retiring by that name would delete
+        the first one's failed row - its diagnosis, its retry and its stored file
+        - for a caller who asked for no such thing.
         """
         if source_path:
-            await rag_document_repo.discard_unindexed(
+            await rag_document_repo.discard_failed(
                 self.db, collection_name=collection_name, source_path=source_path
             )
         return await rag_document_repo.create(
@@ -235,12 +242,6 @@ class RAGDocumentService:
             filesize=len(file_data),
             filetype=ext.lstrip("."),
             storage_path=storage_path,
-            # The same value `ingest_document_flow` is dispatched with below, so
-            # the row and the stored document agree on which file this is. An
-            # upload has no address of its own, which is why it is the filename -
-            # and why a document uploaded once and later synced from the folder it
-            # came from is still reachable by name (`_unaddressed`).
-            source_path=filename,
             organization_id=organization_id,
             knowledge_base_id=knowledge_base_id,
             ingestion_config=config,

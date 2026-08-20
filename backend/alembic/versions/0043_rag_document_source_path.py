@@ -7,10 +7,11 @@ is the collision `0042`'s successor removed on the *vector* side (#990), reached
 from the other direction: retiring "the previous row for this file" by name would
 delete the other file's row.
 
-So the address the ingest used is stored: `gdrive://<id>`, `s3://bucket/key`, an
-absolute path for a local-directory sync, and the filename itself for an upload,
-which has no address of its own. With it, a file that failed to parse on one sync
-and succeeded on the next stops leaving both rows behind (#996).
+So the address the ingest used is stored: `gdrive://<id>`, `s3://bucket/key`, or
+an absolute path for a local or CLI sync. An upload stores none - its only name
+is a basename, and two people can upload different files sharing one. With it, a
+file that failed to parse on one sync and succeeded on the next stops leaving
+both rows behind (#996).
 
 **Nullable, and nothing is backfilled.** A row written before this column is a
 row whose address nobody recorded, and inventing one from its filename is exactly
@@ -38,8 +39,21 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column("rag_documents", sa.Column("source_path", sa.String(length=1024), nullable=True))
-    op.create_index("rag_documents_source_path_idx", "rag_documents", ["source_path"], unique=False)
+    # `Text`, not `String(n)`: an S3 key alone reaches 1024 bytes before the
+    # scheme and the bucket are added, and a filesystem path reaches 4096, so any
+    # length picked here is a truncation error on a file that used to ingest fine.
+    op.add_column("rag_documents", sa.Column("source_path", sa.Text(), nullable=True))
+    # A hash index for the same reason. Equality is the only way this column is
+    # ever read - `discard_failed` and nothing else - and a btree refuses a key
+    # over about 2700 bytes at insert time, which would reintroduce the error the
+    # `Text` avoids.
+    op.create_index(
+        "rag_documents_source_path_idx",
+        "rag_documents",
+        ["source_path"],
+        unique=False,
+        postgresql_using="hash",
+    )
 
 
 def downgrade() -> None:

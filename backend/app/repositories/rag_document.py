@@ -165,20 +165,22 @@ async def get_superseded(
     return list(result.scalars().all())
 
 
-async def discard_unindexed(db: AsyncSession, *, collection_name: str, source_path: str) -> int:
-    """Drop rows for this file that point at no vector document, and count them.
+async def discard_failed(db: AsyncSession, *, collection_name: str, source_path: str) -> int:
+    """Drop this file's *failed* attempts, and count them.
 
     A failed parse writes no vectors, so the row it leaves has no
     `vector_document_id` - and `complete_ingestion`'s retirement matches on
     exactly that, which is why a file failing one sync and succeeding the next
     used to leave both rows and inflate the collection's count for good (#996).
-    A stale `processing` row from a run that died mid-ingest is the same shape and
-    goes the same way.
 
-    **Only rows with no vector document.** One that has vectors is retired by
-    `complete_ingestion` after the replacement is written, and deleting it here -
-    before an ingest that may fail - would drop the only record of a document the
-    store still holds.
+    **`ERROR`, not "has no vector id".** Those are not the same set, and treating
+    them as one is a race: a `PROCESSING` row belongs to an attempt that is still
+    running, and two overlapping ingestions of one source - two manual triggers,
+    nothing serialising them - would have the second delete the first's live row.
+    The first would then finish, replace the vectors, and find no row to complete,
+    leaving one row pointing at deleted vectors and the new vectors tracked by
+    nothing. A row left `PROCESSING` by a run that died is a different problem
+    with a different fix, and it may describe vectors that exist.
 
     Matched on `source_path` rather than `filename`, which is the whole reason
     the column exists: `a/readme.md` and `b/readme.md` in one bucket share a
@@ -188,6 +190,7 @@ async def discard_unindexed(db: AsyncSession, *, collection_name: str, source_pa
         sql_delete(RAGDocument).where(
             RAGDocument.collection_name == collection_name,
             RAGDocument.source_path == source_path,
+            RAGDocument.status == DocumentStatus.ERROR,
             RAGDocument.vector_document_id.is_(None),
         )
     )

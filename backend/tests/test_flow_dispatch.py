@@ -134,9 +134,6 @@ async def test_an_uploaded_document_is_parsed_after_its_row_is_committed(
 
     monkeypatch.setattr(settings, "MEDIA_DIR", str(tmp_path))
     monkeypatch.setattr(rag_document_repo, "create", AsyncMock(return_value=document))
-    # An upload's row now retires a previous unindexed attempt at the same file
-    # before writing its own (#996), so this boundary is mocked like `create`.
-    monkeypatch.setattr(rag_document_repo, "discard_unindexed", AsyncMock(return_value=0))
     monkeypatch.setattr(
         IngestionConfigService, "resolved_image_model", AsyncMock(return_value=None)
     )

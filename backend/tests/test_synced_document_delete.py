@@ -17,6 +17,8 @@ half.
 from __future__ import annotations
 
 import uuid
+from contextlib import asynccontextmanager
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -137,7 +139,7 @@ class TestRetiringAPreviousAttempt:
 
     async def test_a_previous_attempt_at_the_same_file_is_discarded(self, monkeypatch):
         discard = AsyncMock(return_value=1)
-        monkeypatch.setattr(rag_document_repo, "discard_unindexed", discard)
+        monkeypatch.setattr(rag_document_repo, "discard_failed", discard)
         monkeypatch.setattr(rag_document_repo, "create", AsyncMock(return_value=MagicMock()))
 
         await RAGDocumentService(MagicMock()).create_document(
@@ -153,12 +155,36 @@ class TestRetiringAPreviousAttempt:
             "source_path": "s3://bucket/a/readme.md",
         }
 
+    async def test_an_upload_retires_nothing(self, monkeypatch):
+        """An upload's only name is a basename, which is not an address: two
+        people can upload different `report.pdf`s and, with `replace=false`, mean
+        both to exist. Retiring by that name would delete the first one's failed
+        row - its diagnosis, its retry and its stored file - for a caller who
+        asked for no such thing."""
+        discard = AsyncMock()
+        monkeypatch.setattr(rag_document_repo, "discard_failed", discard)
+        monkeypatch.setattr(rag_document_repo, "create", AsyncMock(return_value=MagicMock()))
+        monkeypatch.setattr(
+            "app.services.rag_document.get_file_storage",
+            lambda: MagicMock(save=AsyncMock(return_value="rag/docs/report.pdf")),
+        )
+
+        await RAGDocumentService(MagicMock()).create_document(
+            collection_name="docs",
+            filename="report.pdf",
+            filesize=4,
+            filetype="pdf",
+            storage_path="rag/docs/report.pdf",
+        )
+
+        discard.assert_not_awaited()
+
     async def test_a_row_with_no_address_discards_nothing(self, monkeypatch):
         """One written before the column existed, or by a path that has no
         address to give. Guessing an address from its filename is the guess the
         column exists to avoid."""
         discard = AsyncMock()
-        monkeypatch.setattr(rag_document_repo, "discard_unindexed", discard)
+        monkeypatch.setattr(rag_document_repo, "discard_failed", discard)
         monkeypatch.setattr(rag_document_repo, "create", AsyncMock(return_value=MagicMock()))
 
         await RAGDocumentService(MagicMock()).create_document(
@@ -168,7 +194,7 @@ class TestRetiringAPreviousAttempt:
         discard.assert_not_awaited()
 
     async def test_the_address_is_recorded_on_the_row(self, monkeypatch):
-        monkeypatch.setattr(rag_document_repo, "discard_unindexed", AsyncMock(return_value=0))
+        monkeypatch.setattr(rag_document_repo, "discard_failed", AsyncMock(return_value=0))
         created = AsyncMock(return_value=MagicMock())
         monkeypatch.setattr(rag_document_repo, "create", created)
 
@@ -181,3 +207,68 @@ class TestRetiringAPreviousAttempt:
         )
 
         assert created.await_args.kwargs["source_path"] == "gdrive://file-1"
+
+
+class TestTheCLISync:
+    """`agenticos cmd rag-ingest` is the third ingest path, and it was the one
+    left out. Its rows got `NULL` for an address, so a file failing there
+    repeatedly kept inflating the collection's count - the defect #996 fixed for
+    the two worker flows (found reviewing #1001)."""
+
+    async def test_it_records_the_address_it_already_looks_documents_up_by(
+        self, monkeypatch, tmp_path
+    ):
+        from app.commands import rag as rag_command
+
+        (tmp_path / "handbook.md").write_text("body")
+        created = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+        documents = MagicMock(
+            create_document=created,
+            complete_ingestion=AsyncMock(),
+            fail_ingestion=AsyncMock(),
+        )
+        ingestion = MagicMock(
+            existing_document=AsyncMock(
+                return_value=MagicMock(document_id=None, content_hash=None)
+            ),
+            ingest_file=AsyncMock(
+                return_value=MagicMock(
+                    status=MagicMock(value="done"),
+                    document_id="vector-doc-1",
+                    chunk_count=2,
+                    replaced_document_id=None,
+                    message="Successfully ingested 'handbook.md'",
+                    error_message=None,
+                )
+            ),
+        )
+
+        @asynccontextmanager
+        async def _db() -> Any:
+            yield MagicMock()
+
+        monkeypatch.setattr(rag_command, "get_db_context", _db)
+        monkeypatch.setattr(rag_command, "RAGDocumentService", lambda _db: documents)
+        monkeypatch.setattr(
+            rag_command,
+            "RAGSyncService",
+            lambda _db: MagicMock(
+                create_sync_log=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+                complete_sync=AsyncMock(),
+            ),
+        )
+
+        await rag_command.ingest_path_async(
+            path=str(tmp_path),
+            collection="docs",
+            recursive=True,
+            vector_store=MagicMock(create_collection=AsyncMock()),
+            processor=MagicMock(),
+            ingestion=ingestion,
+        )
+
+        expected = str((tmp_path / "handbook.md").resolve())
+        assert created.await_args.kwargs["source_path"] == expected
+        # And the stored document identifies itself the same way, so the row and
+        # the vector agree on which file this is.
+        assert ingestion.ingest_file.await_args.kwargs["source_path"] == expected

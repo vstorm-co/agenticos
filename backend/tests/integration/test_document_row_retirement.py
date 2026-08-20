@@ -74,7 +74,7 @@ class TestWhatANewAttemptRetires:
             vector_document_id=None,
         )
 
-        discarded = await rag_document_repo.discard_unindexed(
+        discarded = await rag_document_repo.discard_failed(
             db, collection_name=COLLECTION, source_path="s3://bucket/a/readme.md"
         )
 
@@ -97,7 +97,7 @@ class TestWhatANewAttemptRetires:
             vector_document_id=None,
         )
 
-        discarded = await rag_document_repo.discard_unindexed(
+        discarded = await rag_document_repo.discard_failed(
             db, collection_name=COLLECTION, source_path="s3://bucket/a/readme.md"
         )
 
@@ -116,7 +116,28 @@ class TestWhatANewAttemptRetires:
             status=DocumentStatus.DONE,
         )
 
-        discarded = await rag_document_repo.discard_unindexed(
+        discarded = await rag_document_repo.discard_failed(
+            db, collection_name=COLLECTION, source_path="s3://bucket/a/readme.md"
+        )
+
+        assert discarded == 0
+        assert await _surviving(db) == {"readme.md@s3://bucket/a/readme.md"}
+
+    async def test_an_attempt_still_running_stays(self, db: AsyncSession):
+        """The race the predicate used to have. Two overlapping ingestions of one
+        source - two manual triggers, nothing serialising them - and the second
+        deleted the first's live `PROCESSING` row. The first then finished,
+        replaced the vectors, and found no row to complete: one row pointing at
+        deleted vectors, and the new vectors tracked by nothing."""
+        await _row(
+            db,
+            filename="readme.md",
+            source_path="s3://bucket/a/readme.md",
+            vector_document_id=None,
+            status=DocumentStatus.PROCESSING,
+        )
+
+        discarded = await rag_document_repo.discard_failed(
             db, collection_name=COLLECTION, source_path="s3://bucket/a/readme.md"
         )
 
@@ -129,7 +150,7 @@ class TestWhatANewAttemptRetires:
         is the behaviour wanted rather than one to work around."""
         await _row(db, filename="readme.md", source_path=None, vector_document_id=None)
 
-        discarded = await rag_document_repo.discard_unindexed(
+        discarded = await rag_document_repo.discard_failed(
             db, collection_name=COLLECTION, source_path="s3://bucket/a/readme.md"
         )
 
@@ -154,7 +175,7 @@ class TestWhatANewAttemptRetires:
         db.add(theirs)
         await db.flush()
 
-        discarded = await rag_document_repo.discard_unindexed(
+        discarded = await rag_document_repo.discard_failed(
             db, collection_name=COLLECTION, source_path="s3://bucket/a/readme.md"
         )
 
@@ -175,7 +196,7 @@ class TestWhatANewAttemptRetires:
                 vector_document_id=None,
             )
 
-        discarded = await rag_document_repo.discard_unindexed(
+        discarded = await rag_document_repo.discard_failed(
             db, collection_name=COLLECTION, source_path="s3://bucket/a/readme.md"
         )
 
