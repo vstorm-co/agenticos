@@ -64,14 +64,31 @@ async def get_shares_for_conversation(
     return list(result.scalars().all())
 
 
+def _shared_with_member(user_id: UUID) -> tuple:
+    """The recipient holds the share *and* belongs to the conversation's org.
+
+    The read path refuses a share whose conversation is in an organization the
+    recipient does not belong to (#930), so listing or counting it here shows a
+    conversation - its title, its owner, its organization - that opening only
+    denies. The same tenant condition the owner's listing applies, from the
+    recipient's side. Requires the query to join `Conversation`.
+    """
+    return (
+        ConversationShare.shared_with == user_id,
+        Conversation.organization_id.in_(
+            select(OrganizationMember.organization_id).where(OrganizationMember.user_id == user_id)
+        ),
+    )
+
+
 async def get_conversations_shared_with_user(
     db: AsyncSession, user_id: UUID, *, skip: int = 0, limit: int = 50
 ) -> list[Conversation]:
-    """Get conversations shared with a specific user."""
+    """Get conversations shared with a specific user, within their own tenants."""
     result = await db.execute(
         select(Conversation)
         .join(ConversationShare, ConversationShare.conversation_id == Conversation.id)
-        .where(ConversationShare.shared_with == user_id)
+        .where(*_shared_with_member(user_id))
         .order_by(Conversation.updated_at.desc())
         .offset(skip)
         .limit(limit)
@@ -80,11 +97,12 @@ async def get_conversations_shared_with_user(
 
 
 async def count_conversations_shared_with_user(db: AsyncSession, user_id: UUID) -> int:
-    """Count conversations shared with a specific user."""
+    """Count conversations shared with a specific user, within their own tenants."""
     result = await db.scalar(
         select(func.count())
         .select_from(ConversationShare)
-        .where(ConversationShare.shared_with == user_id)
+        .join(Conversation, ConversationShare.conversation_id == Conversation.id)
+        .where(*_shared_with_member(user_id))
     )
     return result or 0
 

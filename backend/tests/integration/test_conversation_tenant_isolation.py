@@ -240,3 +240,48 @@ class TestListingSharesDropsCrossOrgRows:
         assert outsider.id not in shared_with
         # The public link carries no member and is not a cross-org row.
         assert None in shared_with
+
+
+class TestSharedWithMeDropsCrossOrgRows:
+    """The recipient's own "Shared with me" list must not present a conversation
+    from an organization they do not belong to - opening it is denied on the
+    tenant (#930), so listing and counting it would show a title, an owner and an
+    organization the recipient has no access to."""
+
+    async def test_a_conversation_from_another_org_is_neither_listed_nor_counted(self, db) -> None:
+        organization = await _org(db, name="Acme")
+        owner = await _member(db)
+        await _membership(db, organization, owner)
+        conversation = await _conversation(db, organization, owner)
+
+        colleague = await _member(db)
+        await _membership(db, organization, colleague)
+
+        other = await _org(db, name="Other")
+        outsider = await _member(db)
+        await _membership(db, other, outsider)
+
+        # A row already in the cross-org state the share-time guard now refuses.
+        await conversation_share_repo.create(
+            db, conversation_id=conversation.id, shared_by=owner.id, shared_with=colleague.id
+        )
+        await conversation_share_repo.create(
+            db, conversation_id=conversation.id, shared_by=owner.id, shared_with=outsider.id
+        )
+
+        for_colleague = await conversation_share_repo.get_conversations_shared_with_user(
+            db, colleague.id
+        )
+        assert [c.id for c in for_colleague] == [conversation.id]
+        assert (
+            await conversation_share_repo.count_conversations_shared_with_user(db, colleague.id)
+            == 1
+        )
+
+        for_outsider = await conversation_share_repo.get_conversations_shared_with_user(
+            db, outsider.id
+        )
+        assert for_outsider == []
+        assert (
+            await conversation_share_repo.count_conversations_shared_with_user(db, outsider.id) == 0
+        )
