@@ -30,7 +30,16 @@ import { cn, formatBytes } from "@/lib/utils";
  */
 
 interface FileCardProps {
-  /** Shown in full, wrapped rather than truncated: a name is how somebody checks. */
+  /**
+   * Wrapped over two lines, clamped after them, and always occupying both.
+   *
+   * A name is how somebody checks they have the right file, so it wraps rather
+   * than truncating at the first `_`. Two lines *reserved* because the band below
+   * was already fixed for exactly this reason and the name was not: one card
+   * called `report.pdf` beside one called `1773207574972.jpg` was two cards of
+   * two heights in one strip, which reads as two kinds of thing. The full name is
+   * on `title` either way.
+   */
   name: string;
   /** What the origin says it is, where it knows. A name is only a suggestion. */
   mimeType?: string | null;
@@ -91,8 +100,15 @@ export function FileCard({
             its content, so without it a long unbroken name refuses to shrink and
             runs out past the card's border rather than wrapping inside it.
             `break-all` because a filename has no spaces to break at -
-            `Hiszpanski_od_zera_do_B1.xlsx` is one word to the browser. */}
-        <span className="min-w-0 flex-1 text-xs leading-snug font-medium break-all">{name}</span>
+            `Hiszpanski_od_zera_do_B1.xlsx` is one word to the browser. `h-8` is
+            two lines of `leading-snug` at this size, held whether the name needs
+            one or both. */}
+        <span
+          title={name}
+          className="line-clamp-2 h-8 min-w-0 flex-1 text-xs leading-snug font-medium break-all"
+        >
+          {name}
+        </span>
       </div>
 
       {/* The middle band is the point of the card, and it is *reserved* whether or
@@ -164,7 +180,12 @@ export function PendingFileCard({ name, size }: { name: string; size: number }) 
     <div className={CARD}>
       <div className="flex items-start gap-1.5">
         <Spinner className="text-muted-foreground mt-px h-3.5 w-3.5 shrink-0" />
-        <span className="min-w-0 flex-1 text-xs leading-snug font-medium break-all">{name}</span>
+        <span
+          title={name}
+          className="line-clamp-2 h-8 min-w-0 flex-1 text-xs leading-snug font-medium break-all"
+        >
+          {name}
+        </span>
       </div>
       <div className="h-16 w-full" />
       <p className="text-muted-foreground font-mono text-[10px] tracking-wider uppercase">

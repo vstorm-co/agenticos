@@ -51,15 +51,50 @@ describe("the file preview panel", () => {
   };
 
   it("is closed until a file is opened into it, and closed again after", () => {
-    // `null` is the closed state rather than a separate flag, so the panel cannot
-    // be open with nothing in it.
-    expect(useFilePreviewStore.getState().file).toBeNull();
+    // A null id is the closed state rather than a separate flag, so the dialog
+    // cannot be open with nothing in it.
+    useFilePreviewStore.getState().setAvailable([file]);
+    expect(useFilePreviewStore.getState().openId).toBeNull();
 
     useFilePreviewStore.getState().open(file);
-    expect(useFilePreviewStore.getState().file).toEqual(file);
+    expect(useFilePreviewStore.getState().openId).toBe(file.id);
 
     useFilePreviewStore.getState().close();
-    expect(useFilePreviewStore.getState().file).toBeNull();
+    expect(useFilePreviewStore.getState().openId).toBeNull();
+  });
+
+  it("pages within the conversation's files rather than the caller's", () => {
+    // Where a file was clicked is not a fact about which other files exist. The
+    // panel used to pass the conversation's list and a message its own, so the
+    // same file paged from one surface and not from the other.
+    const other = { ...file, id: "f-2", filename: "notes.txt" };
+    useFilePreviewStore.getState().setAvailable([file, other]);
+
+    useFilePreviewStore.getState().open(other);
+    expect(useFilePreviewStore.getState().openId).toBe("f-2");
+
+    useFilePreviewStore.getState().select(0);
+    expect(useFilePreviewStore.getState().openId).toBe(file.id);
+  });
+
+  it("holds an index the set does not have rather than opening nothing", () => {
+    useFilePreviewStore.getState().setAvailable([file]);
+    useFilePreviewStore.getState().open(file);
+
+    useFilePreviewStore.getState().select(4);
+
+    expect(useFilePreviewStore.getState().openId).toBe(file.id);
+  });
+
+  it("opens a file the conversation does not carry, alone", () => {
+    // A surface can hold one the transcript does not; refusing to show it would
+    // be worse than showing it by itself.
+    useFilePreviewStore.getState().setAvailable([{ ...file, id: "f-9" }]);
+
+    useFilePreviewStore.getState().open(file);
+
+    expect(useFilePreviewStore.getState().available).toEqual([file]);
+    expect(useFilePreviewStore.getState().openId).toBe(file.id);
   });
 });
 

@@ -378,6 +378,28 @@ describe("WorkspaceSection", () => {
   });
 
   describe("the runtime", () => {
+    it("distinguishes deferring to the connection from pinning the same alias", async () => {
+      // Both rows read `python` once the connection's default was python: one
+      // meaning "whatever this host says", the other "this exact image, in the
+      // spec". Two options, one word, and no way to tell which is which.
+      state.connections = [connection({ default_runtime: "python" })];
+      render(
+        <WorkspaceSection
+          definition={SANDBOX}
+          binding={binding({ backend: "service", connection_id: "c1" })}
+          onChange={vi.fn()}
+        />,
+        { wrapper },
+      );
+
+      await userEvent.click(screen.getByRole("combobox", { name: "Runtime" }));
+
+      expect(
+        screen.getByRole("option", { name: "The connection's default — python" }),
+      ).toBeVisible();
+      expect(screen.getByRole("option", { name: "python" })).toBeVisible();
+    });
+
     it("offers what the service allows rather than free text", async () => {
       // Free text is a promise nothing keeps: an alias the service does not know
       // is accepted, published, and refused on the first tool call.

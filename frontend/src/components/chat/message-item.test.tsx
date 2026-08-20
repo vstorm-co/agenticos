@@ -113,6 +113,12 @@ beforeEach(() => {
  * mid-way says so, with the version that answered, because "why did it say that"
  * is a question about one frozen spec rather than about the agent as it is now.
  */
+/** What the store has open, resolved through the set the container publishes. */
+function openedFile() {
+  const state = useFilePreviewStore.getState();
+  return state.available.find((one) => one.id === state.openId);
+}
+
 describe("a turn in the transcript", () => {
   it("marks an answer whose run was stopped part-way through", () => {
     // A cancelled run leaves whatever had been written when the socket closed,
@@ -464,7 +470,7 @@ describe("what a person attached", () => {
 
     await userEvent.click(screen.getByTitle("Open logo.png"));
 
-    expect(useFilePreviewStore.getState().file?.filename).toBe("logo.png");
+    expect(openedFile()?.filename).toBe("logo.png");
   });
 
   it("treats a file the server did not classify as an image by its MIME type", async () => {
@@ -482,7 +488,7 @@ describe("what a person attached", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /invoice\.pdf/ }));
 
-    expect(useFilePreviewStore.getState().file?.id).toBe("f-1");
+    expect(openedFile()?.id).toBe("f-1");
   });
 
   it("names the type on the card", () => {

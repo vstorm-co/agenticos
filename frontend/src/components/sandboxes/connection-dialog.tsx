@@ -79,9 +79,12 @@ interface FormState {
   isActive: boolean;
 }
 
-function initialState(editing: SandboxConnectionRecord | null): FormState {
+function initialState(editing: SandboxConnectionRecord | null, defaultName: string): FormState {
   return {
-    name: editing?.name ?? "",
+    // Filled in rather than suggested. A placeholder is a name nobody has typed,
+    // so the form opened invalid and the first thing an operator did was type
+    // the two words the box was already showing them. Editing keeps its own.
+    name: editing?.name ?? defaultName,
     kind: editing?.kind ?? "docker",
     baseUrl: editing?.base_url ?? "",
     urlTouched: editing !== null,
@@ -131,7 +134,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
   // already decided which host it points at, and probing on their behalf would be
   // offering to change it.
   const { local, runtimes, storeCredential, probe } = useLocalSandboxService(editing === null);
-  const [form, setForm] = useState<FormState>(() => initialState(editing));
+  const [form, setForm] = useState<FormState>(() => initialState(editing, t("namePlaceholder")));
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [allowed, setAllowed] = useState<SandboxRuntime[] | null>(null);

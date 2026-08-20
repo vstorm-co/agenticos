@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Download } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import type { Translate } from "@/lib/agent-step-captions";
@@ -22,7 +22,7 @@ import {
 import { useFileActions } from "@/hooks";
 import type { FileAccess } from "@/lib/file-access";
 import { hasSourceView, resolveFileKind, suffixOf, type FileKind } from "@/lib/file-kinds";
-import { formatBytes, timeAgo } from "@/lib/utils";
+import { cn, formatBytes, timeAgo } from "@/lib/utils";
 
 /** What is known about a file before anything is fetched. */
 export interface ViewerFile {
@@ -49,10 +49,25 @@ export interface ViewerTab {
   content: ReactNode;
 }
 
+/**
+ * The other files this one was opened from, so the dialog can move between them.
+ *
+ * The surface owns the list because only it knows what "the other files" means -
+ * a message's attachments, a conversation's workspace, a directory. Absent, or
+ * holding one entry, and the dialog draws no navigation at all.
+ */
+export interface ViewerNavigation {
+  /** Every file in the set, in the order the surface shows them. */
+  names: string[];
+  index: number;
+  onSelect: (index: number) => void;
+}
+
 interface FileViewerProps {
   file: ViewerFile;
   /** How to reach the bytes. The viewer never learns which of the four origins it is. */
   access: FileAccess;
+  navigation?: ViewerNavigation;
   /**
    * Views belonging to the surface rather than to the file.
    *
@@ -81,13 +96,33 @@ interface FileViewerProps {
  * viewport; the width is the only thing the kind decides, because a PDF read in a
  * column as wide as a paragraph is a PDF nobody can read.
  */
-export function FileViewer({ file, access, extraTabs = [], onClose }: FileViewerProps) {
+export function FileViewer({ file, access, navigation, extraTabs = [], onClose }: FileViewerProps) {
   const t = useTranslations("files");
   const tTime = useTranslations("time");
   const locale = useLocale();
   const kind = resolveFileKind(file.name, file.mimeType);
   const { download, error } = useFileActions(access);
   const [view, setView] = useState("preview");
+  const strip = navigation !== undefined && navigation.names.length > 1 ? navigation : null;
+
+  /**
+   * The arrow keys, because this is a carousel and a carousel is paged with them.
+   *
+   * On the dialog rather than on the buttons: somebody reading the third of five
+   * attachments has their hands nowhere near the strip, and Radix has already
+   * moved focus inside this content. Left alone when the event came from a text
+   * box - a source view holds one, and stealing its caret keys would be worse
+   * than not having the shortcut.
+   */
+  function onKeyDown(event: React.KeyboardEvent): void {
+    if (strip === null) return;
+    const target = event.target as HTMLElement;
+    if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+    if (event.key === "ArrowLeft" && strip.index > 0) strip.onSelect(strip.index - 1);
+    if (event.key === "ArrowRight" && strip.index < strip.names.length - 1) {
+      strip.onSelect(strip.index + 1);
+    }
+  }
 
   const tabs: ViewerTab[] = [
     { value: "preview", label: t("preview"), content: null },
@@ -103,7 +138,10 @@ export function FileViewer({ file, access, extraTabs = [], onClose }: FileViewer
           an agent laid out for a browser, a PDF, a spreadsheet and a 200-character
           line of source all want the room, and prose does not suffer from having it.
           A flex column so the body takes whatever the two rows of chrome leave. */}
-      <DialogContent className="flex h-[calc(100vh-4rem)] max-h-none w-[calc(100vw-4rem)] max-w-none flex-col gap-3 overflow-hidden p-4 sm:max-w-none sm:p-6">
+      <DialogContent
+        onKeyDown={onKeyDown}
+        className="flex h-[calc(100vh-4rem)] max-h-none w-[calc(100vw-4rem)] max-w-none flex-col gap-3 overflow-hidden p-4 sm:max-w-none sm:p-6"
+      >
         {/* Two rows, not four. The header used to stack a title, a metadata line and
             the path, with the tabs and the actions on a fourth - four bands of chrome
             above the file somebody opened the dialog to look at. The path belongs
@@ -144,6 +182,8 @@ export function FileViewer({ file, access, extraTabs = [], onClose }: FileViewer
                 screen reader reads twice. */}
             <DialogDescription className="truncate text-xs">
               {describe(file, kind, t, tTime, locale)}
+              {strip !== null &&
+                ` · ${t("fileOfTotal", { index: strip.index + 1, total: strip.names.length })}`}
             </DialogDescription>
           </div>
           {/* Download alone. "Open in new tab" sat beside it doing very nearly the
@@ -172,6 +212,8 @@ export function FileViewer({ file, access, extraTabs = [], onClose }: FileViewer
             />
           )}
         </div>
+
+        {strip !== null && <Carousel strip={strip} />}
       </DialogContent>
     </Dialog>
   );
@@ -211,4 +253,74 @@ function describe(
     if (when !== "") parts.push(t("modified", { when }));
   }
   return parts.join(" · ");
+}
+
+/**
+ * Moving between the files a surface opened this one from.
+ *
+ * Under the file rather than over it: what somebody is looking at stays where it
+ * was when they arrived, and the row they page with is the row nearest their
+ * hand. Names rather than dots, because five attachments are five *names* - a dot
+ * says how many there are and nothing about which one is the spreadsheet.
+ *
+ * **As little of it as possible.** The first version drew a bordered bar with
+ * bordered buttons and bordered chips - four rectangles of chrome under a
+ * document, competing with it. What is left is text: ghost chevrons that appear
+ * on hover, names in muted type, and one of them lit. The row is the width of its
+ * content and centred, so two files look like two files rather than like a
+ * toolbar with a gap in it.
+ */
+function Carousel({ strip }: { strip: ViewerNavigation }) {
+  const t = useTranslations("files");
+  const last = strip.names.length - 1;
+
+  return (
+    <div className="flex shrink-0 items-center justify-center gap-1">
+      <button
+        type="button"
+        disabled={strip.index === 0}
+        aria-label={t("previousFile")}
+        onClick={() => strip.onSelect(strip.index - 1)}
+        className="text-muted-foreground hover:text-foreground hover:bg-accent/60 rounded-md p-1 transition-colors disabled:pointer-events-none disabled:opacity-25"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+
+      {/* Scrollable rather than wrapping: a conversation with twenty attachments
+          is a row that scrolls, not a block that pushes the document up. */}
+      <ul className="flex min-w-0 items-center gap-0.5 overflow-x-auto">
+        {strip.names.map((name, index) => (
+          <li key={`${index}-${name}`} className="shrink-0">
+            <button
+              type="button"
+              aria-current={index === strip.index ? "true" : undefined}
+              title={name}
+              onClick={(event) => {
+                strip.onSelect(index);
+                event.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" });
+              }}
+              className={cn(
+                "max-w-[12rem] truncate rounded-md px-2 py-1 text-xs transition-colors",
+                index === strip.index
+                  ? "bg-accent text-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+              )}
+            >
+              {name}
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      <button
+        type="button"
+        disabled={strip.index === last}
+        aria-label={t("nextFile")}
+        onClick={() => strip.onSelect(strip.index + 1)}
+        className="text-muted-foreground hover:text-foreground hover:bg-accent/60 rounded-md p-1 transition-colors disabled:pointer-events-none disabled:opacity-25"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
+    </div>
+  );
 }

@@ -495,7 +495,7 @@ describe("the workspace panel", () => {
       await openPanel();
       await userEvent.click(screen.getByText("invoice.pdf"));
 
-      expect(useFilePreviewStore.getState().file).toMatchObject({ filename: "invoice.pdf" });
+      expect(useFilePreviewStore.getState().openId).toBe(attachment().id);
     });
   });
 });

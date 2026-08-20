@@ -94,3 +94,30 @@ describe("a file on a card", () => {
     expect(screen.getByText(/4\.8 MB/)).toBeVisible();
   });
 });
+
+describe("cards in a strip beside each other", () => {
+  it("reserves two lines for the name whether it needs one or two", () => {
+    // `report.pdf` beside `1773207574972.jpg` was two cards of two heights in one
+    // strip, which reads as two kinds of thing. The band below was already fixed
+    // for exactly this reason; the name was not.
+    render(<FileCard name="a.pdf" />);
+
+    expect(screen.getByTitle("a.pdf")).toHaveClass("h-8", "line-clamp-2");
+  });
+
+  it("keeps the whole name reachable when it clamps", () => {
+    const long = "Jak_zdobyc_przyjaciol_i_zjednac_sobie_ludzi_wydanie_rozszerzone.pdf";
+
+    render(<FileCard name={long} />);
+
+    expect(screen.getByTitle(long)).toBeInTheDocument();
+  });
+
+  it("draws the picture for an image it was given an address for", () => {
+    // A grey glyph standing in for a photograph is the one case where the card
+    // knows enough to show the thing itself.
+    render(<FileCard name="conf.jpg" mimeType="image/jpeg" imageUrl="/api/files/f-1" />);
+
+    expect(screen.getByAltText("conf.jpg")).toBeInTheDocument();
+  });
+});

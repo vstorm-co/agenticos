@@ -353,8 +353,16 @@ function RuntimeField({ connection, runtime, disabled, onChange }: RuntimeFieldP
           <SelectValue placeholder={isLoading ? t("askingService") : t("connectionSDefault")} />
         </SelectTrigger>
         <SelectContent>
+          {/* What this option *means*, then what it currently resolves to - never
+              the alias alone. Labelled with the connection's default it read
+              `workbench`, and the allowlist below it read `workbench` too: two
+              rows, one word, one of them meaning "whatever the host says" and the
+              other "this exact image, pinned in the spec". Invisible while the
+              catalogue held fifteen differently-named recipes. */}
           <SelectItem value="default">
-            {connection?.default_runtime ?? t("serviceSOwnDefault")}
+            {connection?.default_runtime == null
+              ? t("serviceSOwnDefault")
+              : t("connectionSDefaultIs", { alias: connection.default_runtime })}
           </SelectItem>
           {runtimes.map((entry) => (
             <SelectItem

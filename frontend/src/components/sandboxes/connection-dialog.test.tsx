@@ -91,10 +91,13 @@ beforeEach(() => {
 });
 
 describe("ConnectionDialog", () => {
-  it("opens empty for a new connection and refuses to save nothing", () => {
+  it("opens with a name already in it, and still refuses an address of nothing", () => {
+    // The name was a placeholder, so the form opened invalid and the first thing
+    // an operator did was type the two words the box was showing them. The
+    // address is the field that genuinely cannot be guessed until a host answers.
     mount();
 
-    expect(screen.getByLabelText("Name")).toHaveValue("");
+    expect(screen.getByLabelText("Name")).toHaveValue("Local Docker");
     expect(screen.getByRole("button", { name: "Add connection" })).toBeDisabled();
   });
 
@@ -103,6 +106,7 @@ describe("ConnectionDialog", () => {
     // somebody's conversation rather than in this form.
     mount();
 
+    await userEvent.clear(screen.getByLabelText("Name"));
     await userEvent.type(screen.getByLabelText("Name"), "Big box");
 
     expect(screen.getByRole("button", { name: "Add connection" })).toBeDisabled();
@@ -111,6 +115,7 @@ describe("ConnectionDialog", () => {
   it("saves once it has a name and somewhere to reach", async () => {
     const { onSubmit } = mount();
 
+    await userEvent.clear(screen.getByLabelText("Name"));
     await userEvent.type(screen.getByLabelText("Name"), "Big box");
     await userEvent.type(screen.getByLabelText("Address"), "http://big:8080");
     await userEvent.click(screen.getByRole("button", { name: "Add connection" }));

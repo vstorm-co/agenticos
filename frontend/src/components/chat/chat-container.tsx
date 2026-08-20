@@ -11,7 +11,7 @@ import { ChatEmptyState } from "./chat-empty-state";
 import { ChatInput } from "./chat-input";
 import { UsageStrip } from "./usage-strip";
 import { WorkspaceFiles } from "./workspace-files";
-import { FilePreviewPanel } from "./file-preview-panel";
+import { FilePreviewDialog } from "./file-preview-dialog";
 import { SourcesPanel } from "./sources-panel";
 import { MessageList } from "./message-list";
 import { DelegationPanels } from "./delegation-panel";
@@ -32,7 +32,12 @@ import type {
 } from "@/types";
 import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
 import { latestUsage } from "@/lib/message-usage";
-import { useAgentSelectionStore, useConversationStore, useChatStore } from "@/stores";
+import {
+  useAgentSelectionStore,
+  useChatStore,
+  useConversationStore,
+  useFilePreviewStore,
+} from "@/stores";
 import { useConversations } from "@/hooks";
 import { useSlashCommands } from "@/hooks";
 
@@ -155,6 +160,15 @@ export function ChatContainer() {
     for (const message of messages) for (const file of message.files ?? []) seen.set(file.id, file);
     return [...seen.values()];
   }, [messages]);
+
+  // Handed to the store as well as to the panel, so the file dialog's carousel
+  // pages through the conversation wherever a file was clicked. In an effect
+  // rather than during render: writing to a store while rendering is a side
+  // effect, and React is entitled to render this twice.
+  const setAvailableFiles = useFilePreviewStore((state) => state.setAvailable);
+  useEffect(() => {
+    setAvailableFiles(attachments);
+  }, [attachments, setAvailableFiles]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -563,7 +577,7 @@ function ChatUI({
           </div>
         </div>
       </div>
-      <FilePreviewPanel />
+      <FilePreviewDialog />
       <SourcesPanel />
       {/* Beside the transcript rather than under it: what the agent is holding is
           something you glance at while reading, and a list that pushed the input
