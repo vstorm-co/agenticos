@@ -52,6 +52,13 @@ export function refusesOrganization(failure: unknown, activeOrgId: string | null
  * would otherwise be adopted as a tenant id and refused on every request the
  * page made.
  *
+ * Lower-cased, because the id is *stored*. The server serialises UUIDs in
+ * canonical lower case and `activeOrg` is found by `===`, so an upper-case
+ * spelling in the URL would be held as the selection, match no organization in
+ * the list - the switcher then showing `orgs[0]` while requests carried another
+ * tenant - and be unrecoverable, since `refusesOrganization` compares the same
+ * two strings.
+ *
  * The prefix is tolerated because this reads `next/navigation`'s pathname, which
  * keeps one: `/pl/orgs/{id}/members` names the same organization as
  * `/orgs/{id}/members`. Reading rather than navigating, so the rule against
@@ -65,7 +72,7 @@ export function organizationInPath(pathname: string): string | null {
   const start = localePrefixOf(pathname) === null ? 0 : 1;
   if (segments[start] !== "orgs") return null;
   const id = segments[start + 1];
-  return id !== undefined && UUID.test(id) ? id : null;
+  return id !== undefined && UUID.test(id) ? id.toLowerCase() : null;
 }
 
 /**
@@ -171,7 +178,8 @@ export function useActiveOrganizationRecovery(): void {
   const markOrgRefused = useOrgStore((state) => state.markOrgRefused);
   const { error } = usePermissions();
   const { data: orgs } = useOrganizationList();
-  const named = organizationInPath(usePathname());
+  const pathname = usePathname();
+  const named = organizationInPath(pathname);
   // A refused organization is not adopted from a URL either, or opening its
   // page would hand the selection straight back to the one the recovery below
   // has just moved off - the shape an infinite switch loop takes.
@@ -186,11 +194,20 @@ export function useActiveOrganizationRecovery(): void {
    * the selection is already the URL's by the time the page asks anything, and
    * this component is rendered before `{children}` in the dashboard layout,
    * which is what puts it before the page's own effects rather than beside them.
+   *
+   * **Once per path, not once per change of selection.** Keyed on the selection,
+   * this wrote back whatever else moved it: the organization switcher sets the
+   * id and does not navigate, so on `/orgs/{B}/members` the store went to A and
+   * was snapped to B before the menu had closed - the product's primary switcher,
+   * inoperative on two pages, silently. Adoption is what a *navigation* means;
+   * `OrgSwitcher` handles the other direction by taking the scoped route with it.
    */
+  const adoptedFor = useRef<string | null>(null);
   useLayoutEffect(() => {
-    if (adopted === null || adopted === activeOrgId) return;
-    setActiveOrgId(adopted);
-  }, [adopted, activeOrgId, setActiveOrgId]);
+    if (adopted === null || pathname === adoptedFor.current) return;
+    adoptedFor.current = pathname;
+    if (adopted !== activeOrgId) setActiveOrgId(adopted);
+  }, [adopted, activeOrgId, pathname, setActiveOrgId]);
 
   // Whatever moved the selection - the switcher, the URL above, or the recovery
   // below - the cache follows it. The URL's organization is passed rather than

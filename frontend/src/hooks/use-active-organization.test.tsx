@@ -131,6 +131,14 @@ describe("organizationInPath", () => {
     expect(organizationInPath(`/agents/${ORG}`)).toBeNull();
   });
 
+  it("answers in canonical lower case, because the answer is stored", () => {
+    // The server serialises UUIDs lower-cased and `activeOrg` is found by
+    // `===`, so holding an upper-case spelling would match no organization in
+    // the list - the switcher showing the first one while requests carried
+    // another tenant - and `refusesOrganization` could not recover it either.
+    expect(organizationInPath(`/orgs/${ORG.toUpperCase()}/members`)).toBe(ORG);
+  });
+
   it("takes a UUID and nothing else", () => {
     // A later `/orgs/new` would otherwise be adopted as a tenant id and
     // refused on every request the page made.
@@ -351,6 +359,25 @@ describe("useActiveOrganizationRecovery", () => {
     expect(client.getQueryData(["agents", "list", false])).toEqual([
       { id: "a-1", name: "The page's own read" },
     ]);
+  });
+
+  it("leaves a deliberate switch standing on a page that names an organization", async () => {
+    // Keyed on the selection rather than the path, the adoption wrote back
+    // whatever else moved it - so the organization switcher, which sets the id
+    // without navigating, was inoperative on `/orgs/{id}/members`: the store
+    // went to the chosen organization and was snapped back before the menu
+    // closed. `OrgSwitcher` takes the route with it; this is the other half.
+    const OTHER = "33333333-3333-3333-3333-333333333333";
+    answerWith([{ id: PERSONAL, is_personal: true }], { permissions: [] });
+    useOrgStore.setState({ activeOrgId: PERSONAL });
+    path.mockReturnValue(`/orgs/${OTHER}/members`);
+    const { rerender } = renderHook(() => useActiveOrganizationRecovery(), { wrapper });
+    await waitFor(() => expect(useOrgStore.getState().activeOrgId).toBe(OTHER));
+
+    useOrgStore.setState({ activeOrgId: PERSONAL });
+    rerender();
+
+    expect(useOrgStore.getState().activeOrgId).toBe(PERSONAL);
   });
 
   it("leaves a working organization alone", async () => {
