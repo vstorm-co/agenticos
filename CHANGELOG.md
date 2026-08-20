@@ -17,6 +17,54 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.216] - 2026-08-20
+
+A scheduled sync stops duplicating everything it has already ingested.
+
+### Fixed
+
+- **`sync_mode` is implemented for a connector sync.** It reached exactly one
+  argument - `ingest_file`'s `replace` - and `ingest_file` never skips anything,
+  so a scheduled Google Drive or S3 source re-embedded every file every night;
+  and on the default `new_only` it passed `replace=False`, which skips the
+  lookup, leaves the old document in place and inserts a second copy. A week of
+  nightly syncs was seven copies of every chunk, ranked against each other in
+  every search and each one paid for on the organization's own embedding key.
+  `skipped` sat beside the loop, initialised and never incremented, which is a
+  sync log truthfully reporting `skipped=0` every night. The logic is
+  `sync_local_flow`'s, which had it right all along: one `sync_mode` column feeds
+  both flows and a mode meaning one thing for a server directory and another for
+  a Drive folder is the defect whatever either does alone. (#990)
+- **A basename no longer claims a document that names its own address.**
+  `existing_document` falls back from `source_path` to *filename*, so a bucket
+  holding `a/readme.md` beside `b/readme.md` had the second key find the first
+  key's document - equal contents skipped the second file, unequal contents
+  deleted the first, and either way a first sync could not keep both. The
+  fallback is narrowed rather than removed, because it is what stops a file
+  uploaded through the browser and later synced from its own folder being
+  duplicated: an upload stores its filename *as* its `source_path`, so the two
+  agree and it stays reachable by name. Same collision fixed for two local files
+  of one name in different directories. (#990)
+- **A replacement inserts before it deletes.** `insert_document` is where the
+  embeddings are computed, so a provider refusing between the two statements left
+  the collection holding *neither* document - permanently, since a failed ingest
+  is returned rather than raised and nothing retries it. This order fails the
+  recoverable way instead. (#990)
+- **A replaced file is counted as an update.** The connector loop reported every
+  success as a first ingestion and passed no `updated` to `complete_sync`, so the
+  sync history read zero updates forever - unnoticed, because the mode that
+  replaces was unreachable. Read off `replaced_document_id` rather than off the
+  result's own sentence. (#990)
+
+### Changed
+
+- Where a sync decides differs between the two flows, because remote bytes cost
+  something: `update_only` skips a file it has never seen *before* the download,
+  while an unchanged file is recognised after one and before the embedding. A
+  stored document with no `content_hash` is re-ingested rather than assumed
+  current - skipping a file that may have changed is the answer nothing later
+  corrects. (#990)
+
 ## [0.0.215] - 2026-08-20
 
 Which sync connectors come after Google Drive and S3, and who ends up able to
