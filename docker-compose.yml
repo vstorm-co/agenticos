@@ -248,6 +248,42 @@ services:
       # -d -o`. The cost is that a reboot sweeps it - fine for local dev, wrong
       # for a host somebody's work lives on. See docker-compose-prod.yml.
       SANDBOXD_WORKSPACE_ROOT: ${SANDBOX_WORKSPACE_ROOT:-/tmp/agenticos-sandbox-workspaces}
+      # Which environments an agent may ask for, and the only place they are
+      # decided. `SANDBOXD_RUNTIMES` is `alias=image` or `alias=@recipe` in its
+      # compact form; this is the JSON form, which is the only one that can name
+      # a package list of its own - which is what `documents` needs.
+      #
+      # Adding one is an edit here and a restart, not a form in the product, and
+      # that is upstream's decision rather than an omission: `PUT /policy`
+      # changes ceilings and lifetimes at run time and deliberately refuses
+      # `runtimes` membership, because naming an image is a decision about
+      # isolation and the service token belongs to an application rather than to
+      # whoever runs the host.
+      #
+      # Two things to know before editing it. **The first entry is the default**
+      # for an agent whose spec names none. And `network_mode` is *not*
+      # inherited: `SANDBOXD_NETWORK_MODE: none` below is the service-wide
+      # default, so an entry that installs anything at run time has to say
+      # `bridge` for itself - which `coding` and `polyglot` do, because
+      # installing what a project declares is what they are for. The rest have
+      # their packages baked in at build time and get no network at all.
+      #
+      # Restarting with a changed list rebuilds what it names: `prewarm` builds
+      # every recipe as the service starts rather than inside somebody's first
+      # request, which is minutes on a cold cache.
+      SANDBOXD_RUNTIMES: >-
+        {"coding": {"runtime": "coding", "network_mode": "bridge", "mem_limit": "1g",
+        "description": "Python with git, ripgrep, fd, jq and uv - installs what a project declares"},
+        "polyglot": {"runtime": "polyglot", "network_mode": "bridge", "mem_limit": "1g",
+        "description": "Python and Node together, with curl and git"},
+        "python": {"image": "python:3.12-slim", "description": "Python 3.12, standard library only"},
+        "node": {"image": "node:20-slim", "description": "Node.js 20, no extra packages"},
+        "documents": {"mem_limit": "2g", "description": "Read and write documents - LiteParse, pypdf, python-docx, openpyxl, Pillow",
+        "runtime": {"name": "documents", "base_image": "python:3.12-slim",
+        "description": "LiteParse, pypdf, python-docx, openpyxl and Pillow",
+        "packages": ["liteparse", "pypdf", "python-docx", "openpyxl", "pillow"]}},
+        "data": {"runtime": "python-analytics", "mem_limit": "2g",
+        "description": "DuckDB and Polars - the same work as pandas in a third of the memory"}}
       SANDBOXD_PERSIST_CONTAINERS: "true"
       # One organization cannot occupy the pool of the whole installation.
       SANDBOXD_MAX_SESSIONS_PER_TENANT: "5"

@@ -1,6 +1,6 @@
 "use client";
 
-import { Coins, Gauge, HardDrive } from "lucide-react";
+import { Coins, Gauge, HardDrive, MemoryStick } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
@@ -209,7 +209,13 @@ function WorkspaceSegment({
 
   return (
     <span className="flex items-center gap-1.5" title={fill.detail}>
-      <HardDrive className="h-3 w-3" aria-hidden />
+      {/* The icon carries the same distinction as the words: a chip for memory,
+          a disk for bytes kept. */}
+      {fill.kind === "memory" ? (
+        <MemoryStick className="h-3 w-3" aria-hidden />
+      ) : (
+        <HardDrive className="h-3 w-3" aria-hidden />
+      )}
       {fill.percent === null ? (
         <span>{t("workspaceInUse")}</span>
       ) : (
@@ -220,7 +226,9 @@ function WorkspaceSegment({
               fill.percent >= 80 && fill.percent < 90 && "text-amber-600",
             )}
           >
-            {t("workspaceFull", { percent: fill.percent })}
+            {fill.kind === "memory"
+              ? t("sandboxMemoryFull", { percent: fill.percent })
+              : t("workspaceFull", { percent: fill.percent })}
           </span>
           {/* A bar as well as the number: 84% and 8% read the same at a glance in
               a line of small grey text, and the whole point of showing this is to
@@ -256,6 +264,17 @@ function WorkspaceSegment({
 interface Fill {
   percent: number | null;
   detail: string;
+  /**
+   * Which ceiling this is a share of, because they are not the same thing.
+   *
+   * A container's number is resident **memory** against the ceiling its host
+   * set; a stored workspace's is bytes against a cap this platform holds. Both
+   * used to read `workspace {percent}% full`, so a sandbox using a tenth of its
+   * gigabyte of RAM reported a workspace that was almost empty of *disk* - a
+   * sentence about a limit that does not apply, next to a number that is right
+   * (#1039).
+   */
+  kind: "memory" | "stored";
 }
 
 /** How full the workspace is, from whichever source can say. */
@@ -265,7 +284,14 @@ function fillOf(
   t: Translate,
 ): Fill | null {
   const sandbox = usage.sandbox;
-  if (sandbox !== null) return { percent: sandbox.percent, detail: reportedDetail(sandbox, t) };
+  if (sandbox !== null)
+    return {
+      percent: sandbox.percent,
+      detail: reportedDetail(sandbox, t),
+      // Bytes first, matching `SandboxUsage.percent` on the server: whichever
+      // pair it measured is the pair this describes.
+      kind: sandbox.bytes_used !== null && sandbox.bytes_limit !== null ? "stored" : "memory",
+    };
   // No turn has reported one - a reopened conversation. A stored workspace can still
   // be measured from the listing; a container cannot, and "in use" would claim a
   // sandbox is running when the last one may have been reaped weeks ago.
@@ -277,6 +303,7 @@ function fillOf(
       used: size(workspace.bytes_total),
       limit: size(workspace.bytes_limit),
     }),
+    kind: "stored",
   };
 }
 

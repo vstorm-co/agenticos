@@ -312,10 +312,19 @@ async def _workspace_paths(backend: AsyncBackendProtocol) -> set[str]:
     Awaited rather than called: a container-backed workspace answers a glob over the
     network with a synchronous client, so two of them from a coroutine held the event
     loop for two round trips - once before the turn and once after.
+
+    **The root is named, and it is `.`** - the working directory. Omitting it took
+    the client's default of `/`, which a backend addressing files by virtual path
+    reads as the top of its namespace and a shell reads as the machine: on a
+    container this snapshot was 2540 paths of `/proc` and `/usr`, taken twice per
+    turn, so "what did the agent write" was decided by whether `/proc` had
+    changed. `pydantic-ai-backend` 0.2.27 makes the two agree, and saying `.`
+    here is also what keeps this correct against a service that has not been
+    updated yet (#1039).
     """
     return {
         str(entry["path"])
         for pattern in ("**/*", "**/.*")
-        for entry in await backend.glob_info(pattern)
+        for entry in await backend.glob_info(pattern, ".")
         if not entry.get("is_dir")
     }
