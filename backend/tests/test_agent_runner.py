@@ -1073,7 +1073,10 @@ class TestRunAccounting:
             "The run did not finish (RuntimeError) - retry it, and check the agent's "
             "model profile if it keeps failing. The server log has the full error."
         )
-        assert vendor_text in caplog.text
+        # The endpoint and status stay in the log; the credential in the query
+        # string is redacted there by the PII filter when installed (#440), so this
+        # asserts the part present either way.
+        assert "401 from https://llm.acme.internal/v1/chat" in caplog.text
 
 
 class TestWhatAFailedRunIsAllowedToSay:
