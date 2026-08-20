@@ -23,6 +23,7 @@ import { ConnectorStep } from "@/components/rag/sync-source-connector-step";
 import { ScheduleStep } from "@/components/rag/sync-source-schedule-step";
 import type { ConnectorInfo, SyncSourceCreate, SyncSourceRead } from "@/lib/rag-api";
 import { cn } from "@/lib/utils";
+import { DIALOG_FORM } from "@/lib/dialog-widths";
 import { useChanged } from "@/hooks/use-changed";
 import { useTranslations } from "next-intl";
 
@@ -254,7 +255,7 @@ export function SyncSourceWizard({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-hidden p-0 sm:max-w-2xl">
+      <DialogContent className={cn("max-h-[90vh] overflow-hidden p-0", DIALOG_FORM)}>
         <DialogHeader className="border-foreground/10 border-b px-6 py-4">
           <DialogTitle className="text-base font-semibold">{t("addSyncSource")}</DialogTitle>
 

@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
   Switch,
-  Textarea,
+  MarkdownEditor,
 } from "@/components/ui";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
@@ -129,8 +129,18 @@ export function IngestionSettings({
               </SelectTrigger>
               <SelectContent>
                 {PDF_PARSERS.map((choice) => (
-                  <SelectItem key={choice.value} value={choice.value}>
-                    {t(choice.labelKey)}
+                  <SelectItem
+                    key={choice.value}
+                    value={choice.value}
+                    textValue={t(choice.labelKey)}
+                  >
+                    {/* `textValue` because the child is no longer a bare string:
+                        the trigger and the type-ahead both read it, and without
+                        it a Radix item renders its own markup into the trigger. */}
+                    <span className="flex items-center gap-2">
+                      {choice.Icon && <choice.Icon className="text-foreground/60 h-4 w-4" />}
+                      <span>{t(choice.labelKey)}</span>
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -452,15 +462,20 @@ export function IngestionSettings({
               resetLabel={t("useStandardPrompt")}
               disabled={disabled}
             >
-              <Textarea
+              {/* A model prompt, several sentences long, so the control the
+                  Builder uses for an agent's instructions rather than a bare
+                  textarea: source/preview, and the same one an exposure prompt
+                  and a capability's generated form already get (#940). */}
+              <MarkdownEditor
                 id={id("prompt")}
+                label={t("prompt")}
                 rows={3}
                 value={value.image_description.prompt}
                 disabled={disabled}
                 maxLength={INGESTION_LIMITS.prompt.maxLength}
-                aria-invalid={errors.prompt !== undefined}
-                aria-describedby={errors.prompt === undefined ? undefined : `${id("prompt")}-error`}
-                onChange={(event) => setImage("prompt", event.target.value)}
+                invalid={errors.prompt !== undefined}
+                describedBy={errors.prompt === undefined ? undefined : `${id("prompt")}-error`}
+                onChange={(next) => setImage("prompt", next)}
               />
             </OptionalSetting>
 
