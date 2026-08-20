@@ -17,6 +17,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.226] - 2026-08-20
+
+A malformed file id on the socket is a refusal, not a crash in the log.
+
+### Fixed
+
+- **A file id that is not a UUID crashed the turn handler.** `list_attached_files`
+  called `UUID(fid)` on ids that arrive in an untyped socket payload, so a
+  malformed one raised `ValueError` into the handler's infrastructure net and
+  resurfaced a step later as a generic failed turn, logged as a server error. It
+  is client input, so it is refused as validation naming `file_ids` - the same
+  loud refusal `link_files_to_message` already gave. (#749)
+
 ## [0.0.225] - 2026-08-20
 
 The chat says which model the conversation runs on.
