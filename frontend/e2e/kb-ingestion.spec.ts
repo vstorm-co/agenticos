@@ -116,7 +116,7 @@ test.describe("Ingestion settings", () => {
     // nobody touched alongside the one that was.
     // Scoped to this panel: the page also carries a Reranking section with its
     // own Edit, so a page-wide "Edit" is now two buttons.
-    await howItReads(page).getByRole("button", { name: "Edit" }).click();
+    await (await howItReads(page)).getByRole("button", { name: "Edit" }).click();
     const settings = page.getByRole("dialog");
     await settings.getByLabel("Chunk size").fill("2048");
     await settings.getByRole("button", { name: "Save" }).click();
