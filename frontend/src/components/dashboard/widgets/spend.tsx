@@ -38,6 +38,17 @@ export function SpendWidget({ title, hint, period, seeAll, options }: DashboardW
           const current = Number(cost?.period_usd ?? 0);
           const previous = Number(cost?.previous_period_usd ?? 0);
           const delta = deltaPercent(current, previous);
+          // The bill's parts, shown only where they spent: models always, then
+          // indexing and search when a knowledge base was used. A deployment
+          // with none reads no split at all, and the parts join rather than
+          // sitting in the provider bars below, which break down the model half.
+          const splitParts = [t("splitModels", { amount: formatUsd(cost?.model_usd) })];
+          if (Number(cost?.ingestion_usd ?? 0) > 0) {
+            splitParts.push(t("splitIndexing", { amount: formatUsd(cost?.ingestion_usd) }));
+          }
+          if (Number(cost?.retrieval_usd ?? 0) > 0) {
+            splitParts.push(t("splitSearch", { amount: formatUsd(cost?.retrieval_usd) }));
+          }
           return (
             <div className="flex h-full flex-col justify-between gap-3">
               <Figure
@@ -48,20 +59,10 @@ export function SpendWidget({ title, hint, period, seeAll, options }: DashboardW
                     <DeltaChip delta={delta} label={t("delta")} rising="bad" />
                   ) : undefined
                 }
-                // The two halves of the bill, and only when indexing spent
-                // anything: a deployment with no knowledge base should not
-                // read a line about a subsystem it does not use. The bars
-                // below break down the model half, so the split rides the
-                // headline rather than joining them - two denominators in one
-                // list read as one.
-                caption={
-                  Number(cost?.ingestion_usd ?? 0) > 0
-                    ? t("split", {
-                        models: formatUsd(cost?.model_usd),
-                        ingestion: formatUsd(cost?.ingestion_usd),
-                      })
-                    : undefined
-                }
+                // The parts of the bill, shown only once something beyond model
+                // spend was billed: a deployment with no knowledge base should
+                // not read a line about a subsystem it does not use.
+                caption={splitParts.length > 1 ? splitParts.join(" · ") : undefined}
               />
               <BarList
                 items={(cost?.by_provider ?? []).map((row) => ({

@@ -111,15 +111,19 @@ class ProviderCost(BaseSchema):
 class CostBlock(BaseSchema):
     """The window's whole bill, and the two halves it is made of.
 
-    `period_usd` is models **plus ingestion**, which is the same arithmetic
-    `spend.organization_spend_since` measures a monthly cap on. It used to be
-    models alone, so the dashboard's headline and the month-to-date line under
-    it were two different definitions of cost sitting on one card with nothing
-    saying so - on a deployment that indexes documents they simply disagreed.
+    `period_usd` is models **plus ingestion plus retrieval**, which is the same
+    arithmetic `spend.organization_spend_since` measures a monthly cap on. It
+    used to be models alone, so the dashboard's headline and the month-to-date
+    line under it were two different definitions of cost sitting on one card with
+    nothing saying so - on a deployment that indexes documents they simply
+    disagreed.
 
-    `model_usd` and `ingestion_usd` sum to it. They are separate fields rather
-    than a computed split because the two are answered by different tables and
-    a reader deciding where the money went should not have to subtract.
+    `model_usd`, `ingestion_usd` and `retrieval_usd` sum to it. They are separate
+    fields rather than a computed split because they are answered by different
+    tables and sources, and a reader deciding where the money went should not
+    have to subtract. `retrieval_usd` is what a metered `POST /rag/search` spent
+    on embeddings and reranking - kept apart from `ingestion_usd` so a search is
+    not reported as indexing.
 
     `previous_period_usd` is the whole bill too, so the change against the last
     window compares like with like.
@@ -132,6 +136,7 @@ class CostBlock(BaseSchema):
     previous_period_usd: Decimal
     model_usd: Decimal
     ingestion_usd: Decimal
+    retrieval_usd: Decimal
     by_provider: list[ProviderCost]
 
 

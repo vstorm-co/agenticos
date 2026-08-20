@@ -23,6 +23,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from app.agents.capabilities.budget import SpendLedger, metered_by
+from app.db.models.ingestion_spend import SpendSource
 from app.db.session import get_db_context
 from app.repositories import ingestion_spend_repo
 from app.services.spend import assert_organization_within_budget
@@ -120,6 +121,8 @@ class KnowledgeSearchService:
         organization is what a monthly budget reads this back against. Priced by
         the reranker and by embeddings independently, so a partial cost is one
         the embedding half could not price, exactly as ingestion records it.
+        Tagged `RETRIEVAL` so the dashboard reports it as search, not indexing;
+        it still counts toward the monthly budget alongside indexing.
         """
         if not ledger.entries:
             return
@@ -134,4 +137,5 @@ class KnowledgeSearchService:
                 output_tokens=sum(entry.output_tokens for entry in entries),
                 cost_usd=sum((entry.cost_usd for entry in entries), Decimal(0)),
                 cost_is_partial=any(not entry.priced for entry in entries),
+                source=SpendSource.RETRIEVAL,
             )

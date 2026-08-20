@@ -1572,7 +1572,9 @@
         "title": "Spend",
         "unit": "in this period",
         "description": "What the period cost, and this calendar month to date. The month figure reconciles with the invoice, so it deliberately ignores the period filter.",
-        "split": "{models} on models · {ingestion} on indexing"
+        "splitModels": "{amount} on models",
+        "splitIndexing": "{amount} on indexing",
+        "splitSearch": "{amount} on search"
       },
       "surfaces": {
         "empty": {

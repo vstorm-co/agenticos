@@ -21,6 +21,7 @@ from app.agents.capabilities.budget import (
     SpendEntry,
     book_ambient_spend,
 )
+from app.db.models.ingestion_spend import SpendSource
 from app.schemas.rag import RAGSearchRequest
 from app.services.knowledge_search import KnowledgeSearchService
 from app.services.rag.models import SearchResult
@@ -109,6 +110,7 @@ class TestMetering:
         assert kwargs["rag_document_id"] is None
         assert kwargs["cost_usd"] == Decimal("0.002")
         assert kwargs["cost_is_partial"] is False
+        assert kwargs["source"] is SpendSource.RETRIEVAL
 
     async def test_a_search_that_spends_nothing_writes_no_row(self):
         service, _ = _service(readable=[_kb("c1")])
