@@ -129,6 +129,20 @@ describe("a turn in the transcript", () => {
     expect(screen.queryByText("stopped")).toBeNull();
   });
 
+  it("marks a stopped ask-only turn, whose only body is the answered question", () => {
+    // Stopped after answering a question and before any text: content is empty
+    // and the timeline is just the ask_user part, so the footer must key on the
+    // parts, not on content, or the stopped indicator vanishes (#502).
+    item({
+      role: "assistant",
+      content: "",
+      wasStopped: true,
+      parts: [{ id: "q-1", type: "ask_user", question: "Which region?", answer: "eu-west-1" }],
+    });
+
+    expect(screen.getByText("stopped")).toBeVisible();
+  });
+
   it("never marks the question, only the answer", () => {
     // A user's turn is not produced by a run; a marker there would attribute the
     // agent's failure to what somebody typed.

@@ -1116,6 +1116,27 @@ class TestAskingTheUser:
             ("ask_user", "Which region?", "eu")
         ]
 
+    async def test_the_answer_is_recorded_when_the_frame_arrives_not_when_the_run_resumes(self):
+        """A `stop` sent right behind the answer cancels the turn before `_ask_one`
+        resumes past its await; recording in the frame handler is what keeps the
+        answered question from being lost in that race (#502). Here the run is never
+        resumed and the pair is on the timeline anyway."""
+        session = _session()
+        session._current_timeline = TurnTimeline()
+        asked = _next_frame(session)
+
+        asking = asyncio.create_task(session._ask_one("Which region?", ["eu"]))
+        await _wait(asked)
+        await session.handle_frame({"type": "ask_user_response", "answers": [{"answer": "eu"}]})
+
+        stored = session._current_timeline.stored()
+        assert stored is not None
+        assert [(part.type, part.answer) for part in stored] == [("ask_user", "eu")]
+
+        asking.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await asking
+
     async def test_a_question_asked_between_turns_records_nothing(self):
         """`_ask_one` is safe to reach with no turn running - the timeline is None
         between turns - so a stray question is answered without a place to record it
