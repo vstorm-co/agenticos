@@ -17,6 +17,59 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.214] - 2026-08-20
+
+The sandbox and connector service contracts are typed.
+
+### Changed
+
+- **A sandbox service returns the schema its route declares.** Every route named
+  a `response_model` and the service handed back a `dict[str, Any]` for FastAPI
+  to validate into it, so the service→route contract was a mapping the type
+  checker could not read and a renamed key was a 500 rather than a red `ty` run.
+  `runtime_catalog`, `local_service`, `store_local_credential`, `probe_policy`,
+  `policy`, `sessions`, `session_events` and `session_usage` all answer models
+  now. `_read` keeps `dict[str, Any]` and is the only one left in the module,
+  with a docstring saying why: it is `sandboxd`'s answer, not ours. (#562)
+- **A connector's `CONFIG_SCHEMA` is `dict[str, ConnectorConfigField]`** - the
+  model that described it at the API edge is now its own type, so a misspelled
+  key is a type error where it is written. `type` is a `Literal` of the four
+  widgets the wizard draws, mirrored in `rag-api.ts`; its fall-through is a text
+  input, so a connector inventing a fifth got a field the form collects wrongly
+  with nothing reporting it. `label` is required, since it is what the form
+  draws. (#562)
+- **The four `sandbox_workspace.py` helpers that read a stored workspace say
+  `FileData`** - the backend library's own type, which `StateBackend.__init__`
+  has always been annotated with. `_get_s3_client` gained the return type it
+  never had. (#562)
+
+### Fixed
+
+- **`usage_report.py` reads `sampled.memory_bytes`, not
+  `sampled.get("memory_bytes")`.** Those two keys are the whole of what a usage
+  footer shows for a container, and they were unchecked in the one place a
+  rename reads as a missing number rather than an error. (#562)
+- **A session's `tenant` label is dropped where the filter reads it**, rather
+  than by every caller remembering to. It is another organization's id when the
+  session is theirs; the listing schema has always said it is absent, and now
+  one place makes that true. (#562)
+
+### Documentation
+
+- **`docs/howto/add-rag-source.md` is removed.** It was
+  `docs/howto/add-sync-connector.md` a second time, adjacent to it in the nav,
+  and stale in the same pre-#937 way: a credential inside `CONFIG_SCHEMA`,
+  `list_files(self, config)` with no credential parameter, and a closing tip
+  that per-source credentials are stored per sync source in the database. It
+  also told the reader to edit the generator's `post_gen_project.py`. (#562)
+- **The connector walkthrough teaches the credential model it has had since
+  #937**: `SECRET_KIND`, a `credential` argument, no fallback, and a
+  `validate_config` that checks the shape of what was typed because it does not
+  see the credential. Its CLI and API examples name flags and fields that
+  exist. `docs/patterns.md` and two `app/rag/connectors/` paths in
+  `docs/architecture.md` and `docs/howto/configure-sync-sources.md` went the
+  same way. (#562)
+
 ## [0.0.213] - 2026-08-20
 
 Both RAG pages get tabs, and the tab is in the URL.
