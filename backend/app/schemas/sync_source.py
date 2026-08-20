@@ -1,13 +1,30 @@
 """Sync source configuration schemas."""
 
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from app.schemas.base import BaseSchema
 
+ConnectorFieldType = Literal["string", "boolean", "integer", "textarea"]
+"""What the wizard draws for a field, and the whole vocabulary it can draw.
+
+A `Literal` because the four are the four cases `SyncSourceConfigureStep`
+renders: a switch, a textarea, a number input, and text for anything else. A
+connector inventing a fifth got the text input silently, which is a field the
+form cannot collect correctly and nothing anywhere reported.
+"""
+
 
 class ConnectorConfigField(BaseSchema):
     """Describes a single configuration field for a connector.
+
+    **This is `CONFIG_SCHEMA`'s own type, not a copy of it.** A connector
+    declares its fields as these, so a key misspelled in a declaration is a type
+    error where it is written. It used to be `dict[str, dict[str, Any]]` there
+    and this model only at the edge, which meant `validate_config` read
+    `field_spec.get("required")` from an untyped mapping - a declaration that
+    said `require` disabled that field's check silently, and the wizard drew a
+    required field as optional (#562).
 
     No `secret` flag any more. A connector's configuration says how to *find*
     the documents; the credential is a vault secret the source references by id,
@@ -15,7 +32,7 @@ class ConnectorConfigField(BaseSchema):
     `••••••` (#937).
     """
 
-    type: str
+    type: ConnectorFieldType
     required: bool = False
     label: str = ""
     help: str | None = None

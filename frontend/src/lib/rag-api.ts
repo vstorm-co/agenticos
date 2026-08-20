@@ -125,8 +125,18 @@ export async function listSyncSources(collectionName?: string): Promise<SyncSour
   return apiClient.get<SyncSourceList>(`/rag/sync/sources${params}`);
 }
 
+/**
+ * What the wizard draws for a field, and the whole vocabulary it can draw.
+ *
+ * Mirrors `ConnectorFieldType` in `app/schemas/sync_source.py`, where a
+ * connector's declaration is typed rather than a bare mapping: the fall-through
+ * below is a text input, so a connector inventing a fifth type got a field the
+ * form collects wrongly and nothing reported it.
+ */
+export type ConnectorFieldType = "string" | "boolean" | "integer" | "textarea";
+
 export interface ConnectorConfigField {
-  type: string;
+  type: ConnectorFieldType;
   required: boolean;
   label: string;
   help?: string;

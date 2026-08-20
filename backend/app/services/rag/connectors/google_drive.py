@@ -23,7 +23,7 @@ import json as _json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import ClassVar
 
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import Resource, build
@@ -31,7 +31,13 @@ from googleapiclient.http import MediaIoBaseDownload
 
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import GcpServiceAccountSecret, SecretKind, StorableSecret
-from app.services.rag.connectors import BaseSyncConnector, ConfigRefusal, RemoteFile
+from app.schemas.sync_source import ConnectorConfigField
+from app.services.rag.connectors import (
+    BaseSyncConnector,
+    ConfigRefusal,
+    ConnectorConfig,
+    RemoteFile,
+)
 from app.services.rag.remote_names import checked_drive_folder_id
 
 logger = logging.getLogger(__name__)
@@ -62,19 +68,16 @@ class GoogleDriveConnector(BaseSyncConnector):
     CONNECTOR_TYPE: ClassVar[str] = "gdrive"
     DISPLAY_NAME: ClassVar[str] = "Google Drive"
     SECRET_KIND: ClassVar[SecretKind] = SecretKind.GCP_SERVICE_ACCOUNT
-    CONFIG_SCHEMA: ClassVar[dict[str, dict[str, Any]]] = {
-        "folder_id": {
-            "type": "string",
-            "required": True,
-            "label": "Google Drive Folder ID",
-            "help": "The ID from the folder URL: drive.google.com/drive/folders/{THIS_ID}",
-        },
-        "include_subfolders": {
-            "type": "boolean",
-            "required": False,
-            "default": True,
-            "label": "Include subfolders",
-        },
+    CONFIG_SCHEMA: ClassVar[dict[str, ConnectorConfigField]] = {
+        "folder_id": ConnectorConfigField(
+            type="string",
+            required=True,
+            label="Google Drive Folder ID",
+            help="The ID from the folder URL: drive.google.com/drive/folders/{THIS_ID}",
+        ),
+        "include_subfolders": ConnectorConfigField(
+            type="boolean", default=True, label="Include subfolders"
+        ),
     }
 
     def _get_drive_service(self, credential: StorableSecret | None) -> Resource:
@@ -114,7 +117,7 @@ class GoogleDriveConnector(BaseSyncConnector):
         creds = Credentials.from_service_account_info(info, scopes=SCOPES)
         return build("drive", "v3", credentials=creds)
 
-    async def validate_config(self, config: dict) -> ConfigRefusal | None:
+    async def validate_config(self, config: ConnectorConfig) -> ConfigRefusal | None:
         """Validate required fields and the shape of the folder id.
 
         Connectivity is still checked at sync time. The folder id is checked
@@ -200,12 +203,14 @@ class GoogleDriveConnector(BaseSyncConnector):
 
         return files
 
-    async def list_files(self, config: dict, credential: StorableSecret | None) -> list[RemoteFile]:
+    async def list_files(
+        self, config: ConnectorConfig, credential: StorableSecret | None
+    ) -> list[RemoteFile]:
         """List all files in the configured Google Drive folder."""
         folder_id = config["folder_id"]
         include_subfolders = config.get("include_subfolders", True)
 
-        def _list():
+        def _list() -> list[RemoteFile]:
             service = self._get_drive_service(credential)
             return self._list_folder(service, folder_id, include_subfolders)
 
@@ -215,7 +220,7 @@ class GoogleDriveConnector(BaseSyncConnector):
         self,
         file: RemoteFile,
         dest_path: Path,
-        config: dict,
+        config: ConnectorConfig,
         credential: StorableSecret | None,
     ) -> None:
         """Download a file from Google Drive to the path the base class chose.

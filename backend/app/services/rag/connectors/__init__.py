@@ -9,9 +9,22 @@ from typing import Any, ClassVar
 from pydantic import BaseModel
 
 from app.core.secret_kinds import SecretKind, StorableSecret
+from app.schemas.sync_source import ConnectorConfigField
 from app.services.rag.remote_names import destination_within
 
 logger = logging.getLogger(__name__)
+
+
+ConnectorConfig = dict[str, Any]
+"""How to *find* a source's documents, as the wizard posted it.
+
+`Any` and meant: this is the source's own JSONB column, and what a connector
+accepts is described by its `CONFIG_SCHEMA` rather than by a model per
+connector - which is what lets the wizard draw a form for a connector it has
+never heard of. What is typed is the *shape of a declared field*, in
+`ConnectorConfigField`, because that is where a key typo silently disabled a
+check (#562). A credential never arrives here (#937).
+"""
 
 
 class RemoteFile(BaseModel):
@@ -63,7 +76,7 @@ class BaseSyncConnector(ABC):
 
     CONNECTOR_TYPE: ClassVar[str] = ""
     DISPLAY_NAME: ClassVar[str] = ""
-    CONFIG_SCHEMA: ClassVar[dict[str, dict[str, Any]]] = {}
+    CONFIG_SCHEMA: ClassVar[dict[str, ConnectorConfigField]] = {}
     # Which vault secret authenticates this connector. `CONFIG_SCHEMA` describes
     # how to *find* the documents and holds nothing that has to be kept: the
     # credential arrives separately, unsealed from the organization's vault by
@@ -72,7 +85,9 @@ class BaseSyncConnector(ABC):
     SECRET_KIND: ClassVar[SecretKind] = SecretKind.NONE
 
     @abstractmethod
-    async def list_files(self, config: dict, credential: StorableSecret | None) -> list[RemoteFile]:
+    async def list_files(
+        self, config: ConnectorConfig, credential: StorableSecret | None
+    ) -> list[RemoteFile]:
         """List files available for sync from this source.
 
         `credential` is the unsealed vault secret, or `None` when the source has
@@ -86,7 +101,7 @@ class BaseSyncConnector(ABC):
         self,
         file: RemoteFile,
         dest_dir: Path,
-        config: dict | None = None,
+        config: ConnectorConfig | None = None,
         credential: StorableSecret | None = None,
     ) -> Path:
         """Download one file into `dest_dir` and answer the local path it landed at.
@@ -109,12 +124,12 @@ class BaseSyncConnector(ABC):
         self,
         file: RemoteFile,
         dest_path: Path,
-        config: dict,
+        config: ConnectorConfig,
         credential: StorableSecret | None,
     ) -> None:
         """Write `file`'s bytes to `dest_path`, which is already inside the sync directory."""
 
-    async def validate_config(self, config: dict) -> ConfigRefusal | None:
+    async def validate_config(self, config: ConnectorConfig) -> ConfigRefusal | None:
         """Why this config would not be accepted, or `None` if it would.
 
         The required-field check knows the name of the field it is refusing, so
@@ -122,9 +137,11 @@ class BaseSyncConnector(ABC):
         returns what it answers, unchanged.
         """
         for field_name, field_spec in self.CONFIG_SCHEMA.items():
-            if field_spec.get("required") and not config.get(field_name):
-                label = field_spec.get("label", field_name)
-                return ConfigRefusal(message=f"Missing required field: {label}", field=field_name)
+            if field_spec.required and not config.get(field_name):
+                return ConfigRefusal(
+                    message=f"Missing required field: {field_spec.label or field_name}",
+                    field=field_name,
+                )
         return None
 
 

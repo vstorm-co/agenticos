@@ -303,8 +303,8 @@ class UsageReportService:
             return usage
         return SandboxUsage(
             kind="service",
-            memory_bytes=sampled.get("memory_bytes"),
-            memory_limit_bytes=sampled.get("memory_limit_bytes"),
+            memory_bytes=sampled.memory_bytes,
+            memory_limit_bytes=sampled.memory_limit_bytes,
         )
 
 

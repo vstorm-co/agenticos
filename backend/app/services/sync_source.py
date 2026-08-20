@@ -21,7 +21,6 @@ from app.repositories import sync_log as sync_log_repo
 from app.repositories import sync_source as sync_source_repo
 from app.schemas.rag import RAGSyncLogItem, RAGSyncLogList
 from app.schemas.sync_source import (
-    ConnectorConfigField,
     ConnectorInfo,
     ConnectorList,
     SyncSourceClone,
@@ -439,19 +438,15 @@ class SyncSourceService:
         a `secret: true` field in `config_schema`, which is the whole of what
         #937 removed.
         """
-        items = []
-        for _connector_type, connector_cls in CONNECTOR_REGISTRY.items():
-            schema_fields = {
-                field_name: ConnectorConfigField(**field_spec)
-                for field_name, field_spec in connector_cls.CONFIG_SCHEMA.items()
-            }
-            items.append(
+        return ConnectorList(
+            items=[
                 ConnectorInfo(
                     type=connector_cls.CONNECTOR_TYPE,
                     name=connector_cls.DISPLAY_NAME,
-                    config_schema=schema_fields,
+                    config_schema=dict(connector_cls.CONFIG_SCHEMA),
                     secret_kind=connector_cls.SECRET_KIND.value,
                     enabled=True,
                 )
-            )
-        return ConnectorList(items=items)
+                for connector_cls in CONNECTOR_REGISTRY.values()
+            ]
+        )
