@@ -36,6 +36,22 @@ export interface DraftState {
   existing: McpConnectionRecord | null;
 }
 
+/**
+ * The fields the connection dialog collects, handed to the list on submit.
+ *
+ * The dialog owns this while it is open and seeds it from the `DraftState`; the
+ * list reads it back in one object rather than holding a `useState` per field
+ * and drilling a setter each into the dialog.
+ */
+export interface ConnectionFormValues {
+  name: string;
+  url: string;
+  token: string;
+  auth: DraftAuth;
+  clearToken: boolean;
+  scope: Scope;
+}
+
 /** A probed connection and which of its tools are currently checked. */
 export interface ToolPickerState {
   scope: Scope;
