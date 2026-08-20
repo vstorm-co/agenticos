@@ -161,8 +161,11 @@ export function RuntimeField({
         <p className="text-xs text-amber-600">{t("selectedNotOnThisHost")}</p>
       )}
 
-      <p className="text-muted-foreground text-xs">{t("imageAliasAgentGets")}</p>
+      {/* One line, not three. What the field is for and what the host said are
+          one sentence, and "press Test to find out" stopped being true when the
+          dialog started asking on its own (#1039). */}
       <p className="text-muted-foreground text-xs">
+        {t("imageAliasAgentGets")}{" "}
         {allowed === null ? t("shipped") : t("allowedCount", { count: allowed.length })}
       </p>
 

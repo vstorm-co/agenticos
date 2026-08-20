@@ -374,6 +374,18 @@ describe("ConnectionDialog", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  it("draws each kind's own mark beside it", async () => {
+    // Docker's from the generated set; Daytona has none in any source the
+    // generator reads, and a mark that is not the brand's is worse than a
+    // neutral one (#1039).
+    mount();
+
+    await userEvent.click(screen.getByLabelText("Kind"));
+
+    const docker = await screen.findByRole("option", { name: /Container service/ });
+    expect(docker.querySelector("svg")).not.toBeNull();
+  });
+
   describe("a service this deployment is already running", () => {
     it("fills in the address that answered", async () => {
       // Nobody should have to know that a `make dev` sandbox service answers at
@@ -438,10 +450,11 @@ describe("ConnectionDialog", () => {
   });
 
   describe("the token this deployment already holds", () => {
-    it("stores it in the vault and selects it, rather than asking for the value", async () => {
+    it("stores it as part of adding the connection, with no button to press", async () => {
       // `make sandbox-token` wrote it to `backend/.env` and compose handed it to
-      // the service. Asking somebody to go and copy it back out is friction with
-      // nothing behind it.
+      // the service. Asking somebody to go and copy it back out was friction with
+      // nothing behind it, and so was asking them to press a button about a value
+      // this deployment is already running on (#1039).
       state.local = {
         url: "http://sandboxd:8080",
         token_available: true,
@@ -450,30 +463,42 @@ describe("ConnectionDialog", () => {
       const { onSubmit } = mount();
       await userEvent.type(screen.getByLabelText("Name"), "Local Docker");
 
-      await userEvent.click(
-        await screen.findByRole("button", { name: /Store it in the vault and use it/ }),
-      );
       await userEvent.click(screen.getByRole("button", { name: "Add connection" }));
 
       expect(state.storeCredential).toHaveBeenCalled();
       expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ secret_id: "s-local" }));
     });
 
-    it("says why storing it failed instead of leaving the button dead", async () => {
+    it("writes nothing to the vault until the connection is created", async () => {
+      // A dialog somebody opened and cancelled must not leave a key behind.
+      state.local = {
+        url: "http://sandboxd:8080",
+        token_available: true,
+        registered_connection_id: null,
+      };
+      mount();
+      await screen.findByLabelText("Address");
+
+      await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+      expect(state.storeCredential).not.toHaveBeenCalled();
+    });
+
+    it("says why storing it failed rather than creating a connection without it", async () => {
       state.local = { url: "http://s:8080", token_available: true, registered_connection_id: null };
       state.storeCredential = vi.fn(async () => {
         throw new Error("This deployment carries no sandbox service token");
       });
-      mount();
+      const { onSubmit } = mount();
+      await userEvent.type(screen.getByLabelText("Name"), "Local Docker");
 
-      await userEvent.click(
-        await screen.findByRole("button", { name: /Store it in the vault and use it/ }),
-      );
+      await userEvent.click(screen.getByRole("button", { name: "Add connection" }));
 
       expect(screen.getByText("This deployment carries no sandbox service token")).toBeVisible();
+      expect(onSubmit).not.toHaveBeenCalled();
     });
 
-    it("offers nothing when the deployment holds no token", () => {
+    it("says nothing about it when the deployment holds no token", () => {
       state.local = {
         url: "http://s:8080",
         token_available: false,
@@ -481,7 +506,25 @@ describe("ConnectionDialog", () => {
       };
       mount();
 
-      expect(screen.queryByRole("button", { name: /Store it in the vault/ })).toBeNull();
+      expect(screen.queryByText(/is stored in the vault and used/)).toBeNull();
+    });
+
+    it("leaves a key somebody chose alone", async () => {
+      // Picking one from the vault is a decision; overriding it with the local
+      // token would undo it.
+      state.local = { url: "http://s:8080", token_available: true, registered_connection_id: null };
+      state.secrets = [
+        { id: "s-1", name: "Another token", kind: "api_key", purpose: "custom", hint: "ab12" },
+      ];
+      const { onSubmit } = mount();
+      await userEvent.type(screen.getByLabelText("Name"), "Local Docker");
+      await userEvent.click(screen.getByLabelText("Credential"));
+      await userEvent.click(await screen.findByRole("option", { name: /Another token/ }));
+
+      await userEvent.click(screen.getByRole("button", { name: "Add connection" }));
+
+      expect(state.storeCredential).not.toHaveBeenCalled();
+      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ secret_id: "s-1" }));
     });
   });
 

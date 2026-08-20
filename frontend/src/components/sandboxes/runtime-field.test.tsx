@@ -69,12 +69,13 @@ describe("the default runtime", () => {
 
   it("says plainly that no host has been checked yet", () => {
     // Offering fifteen aliases as though all fifteen will work is a promise this
-    // cannot make until the service has answered.
+    // cannot make until the service has answered. It no longer says "press Test
+    // to find out", because the dialog asks on its own once it has an address and
+    // a credential (#1039).
     field();
 
-    expect(
-      screen.getByText(/Test the connection to see which ones this host allows/),
-    ).toBeVisible();
+    expect(screen.getByText(/These are the runtimes the sandbox library ships/)).toBeVisible();
+    expect(screen.queryByText(/Test the connection to see/)).toBeNull();
   });
 
   it("marks what this host does not allow rather than dropping it", async () => {
@@ -88,7 +89,8 @@ describe("the default runtime", () => {
     // badge is `trailing`, and Radix names an item by its `ItemText` alone.
     const marked = await screen.findByRole("option", { name: /node-minimal/ });
     expect(within(marked).getByText("not on this host")).toBeVisible();
-    expect(screen.getByText("This host allows 1 of them.")).toBeVisible();
+    // One line now: what the field is for, then what the host said.
+    expect(screen.getByText(/This host allows 1 of them\./)).toBeVisible();
   });
 
   it("keeps a runtime the host named that the library does not ship", async () => {

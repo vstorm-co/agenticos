@@ -20,6 +20,9 @@ import {
   SelectValue,
   Switch,
 } from "@/components/ui";
+import { Cloud } from "lucide-react";
+
+import { BrandIcon } from "@/components/icons/brand-icon";
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
@@ -130,7 +133,6 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
   const { local, runtimes, storeCredential, probe } = useLocalSandboxService(editing === null);
   const [form, setForm] = useState<FormState>(() => initialState(editing));
   const [saving, setSaving] = useState(false);
-  const [storing, setStoring] = useState(false);
   const [testing, setTesting] = useState(false);
   const [allowed, setAllowed] = useState<SandboxRuntime[] | null>(null);
   const [failure, setFailure] = useState(NO_FAILURE);
@@ -178,17 +180,31 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
 
   const usable = secrets.filter((secret) => secret.kind === "api_key");
 
+  /**
+   * Whether creating this connection will store this deployment's own token.
+   *
+   * Only where there is one to store, the kind that uses it, and nothing already
+   * chosen - picking a key from the vault is a decision, and overriding it with
+   * the local token would undo it.
+   */
+  const usesDeploymentToken =
+    form.kind === "docker" && local?.token_available === true && form.secretId === null;
+
   async function submit(): Promise<void> {
     setSaving(true);
     setFailure(NO_FAILURE);
     try {
+      // Before the connection, because the connection names it. A failure here is
+      // reported the same way a refused form is, rather than leaving a row whose
+      // credential does not exist.
+      const secretId = usesDeploymentToken ? await storeCredential() : form.secretId;
       await onSubmit({
         name: form.name.trim(),
         kind: form.kind,
         // Daytona has an address of its own, so ours is deliberately cleared
         // rather than left holding whatever was typed before the kind changed.
         base_url: form.kind === "docker" ? baseUrl.trim() : null,
-        secret_id: form.secretId,
+        secret_id: secretId,
         default_runtime: form.defaultRuntime.trim() || null,
         is_default: form.isDefault,
         is_active: form.isActive,
@@ -206,46 +222,67 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      {/* Wider and two-up rather than one field per row down a page: with a
+          paragraph under every input this dialog was 1150 pixels tall, which on a
+          laptop is a form somebody scrolls to find the button of (#1039). Wide
+          enough that `Container service - a sandboxd you run` fits its trigger,
+          because a truncated kind is the one field nobody can guess. */}
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{editing ? t("editTitle") : t("addTitle")}</DialogTitle>
           <DialogDescription>{t("whereOrganizationAposS")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          <FormField
-            htmlFor="connection-name"
-            label={t("name")}
-            description={t("whatAgentAuthorsWill")}
-            error={failure.fields.name}
-          >
-            <Input
-              id="connection-name"
-              value={form.name}
-              placeholder={t("namePlaceholder")}
-              onChange={(event) => {
-                setForm({ ...form, name: event.target.value });
-                setFailure(NO_FAILURE);
-              }}
-            />
-          </FormField>
-
-          <div className="space-y-2">
-            <Label htmlFor="connection-kind">{t("kind")}</Label>
-            <Select
-              value={form.kind}
-              onValueChange={(kind) =>
-                setForm({ ...form, kind: kind as SandboxConnectionKind, secretId: null })
-              }
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField
+              htmlFor="connection-name"
+              label={t("name")}
+              description={t("whatAgentAuthorsWill")}
+              error={failure.fields.name}
             >
-              <SelectTrigger id="connection-kind">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="docker">{t("kindDocker")}</SelectItem>
-                <SelectItem value="daytona">{t("kindDaytona")}</SelectItem>
-              </SelectContent>
-            </Select>
+              <Input
+                id="connection-name"
+                value={form.name}
+                placeholder={t("namePlaceholder")}
+                onChange={(event) => {
+                  setForm({ ...form, name: event.target.value });
+                  setFailure(NO_FAILURE);
+                }}
+              />
+            </FormField>
+
+            <div className="space-y-2">
+              <Label htmlFor="connection-kind">{t("kind")}</Label>
+              <Select
+                value={form.kind}
+                onValueChange={(kind) =>
+                  setForm({ ...form, kind: kind as SandboxConnectionKind, secretId: null })
+                }
+              >
+                <SelectTrigger id="connection-kind">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {/* Docker's own mark, from the generated set. Daytona has none
+                      in any source the generator reads - neither Simple Icons nor
+                      lobehub ships one - and a mark that is not the brand's is
+                      worse than a neutral glyph, so it gets a cloud. */}
+                  <SelectItem value="docker">
+                    <span className="flex items-center gap-2">
+                      <BrandIcon name="docker" className="h-4 w-4 shrink-0" aria-hidden />
+                      {t("kindDocker")}
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="daytona">
+                    <span className="flex items-center gap-2">
+                      <Cloud className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
+                      {t("kindDaytona")}
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {form.kind === "docker" && (
@@ -307,38 +344,12 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
             </p>
             {/* The token is not something to go and find: `make sandbox-token`
                 generated it into `backend/.env`, and that is the file the service
-                was started from. This stores the value this deployment already
-                holds, so nobody has to copy a secret out of a file to describe a
-                service their own stack is running. */}
-            {form.kind === "docker" && local?.token_available === true && (
-              <div className="bg-muted/40 space-y-2 rounded-md p-3">
-                <p className="text-xs">
-                  {t.rich("deploymentHoldsToken", {
-                    command: t("makeSandboxToken"),
-                    file: "backend/.env",
-                    mono: (chunks) => <span className="font-mono">{chunks}</span>,
-                  })}
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={storing}
-                  onClick={async () => {
-                    setStoring(true);
-                    setFailure(NO_FAILURE);
-                    try {
-                      const secretId = await storeCredential();
-                      setForm((current) => ({ ...current, secretId }));
-                    } catch (error) {
-                      setFailure(submitFailure(error, FORM, tErrors));
-                    } finally {
-                      setStoring(false);
-                    }
-                  }}
-                >
-                  {storing ? t("storing") : t("storeInVault")}
-                </Button>
-              </div>
+                was started from. So it is stored when the connection is created
+                and nobody is asked to press a button first - and *at* creation
+                rather than on open, or a dialog somebody opened and cancelled
+                would leave a vault entry nobody asked for. */}
+            {usesDeploymentToken && (
+              <p className="text-muted-foreground text-xs">{t("willUseDeploymentToken")}</p>
             )}
             <InlineSecret
               kind="api_key"
