@@ -5,8 +5,9 @@ import { Suspense, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import MembersPage from "./page";
+import { ActiveOrgGuard } from "@/components/layout/active-org-guard";
 import { apiClient } from "@/lib/api-client";
-import { useAuthStore } from "@/stores";
+import { useAuthStore, useOrgStore } from "@/stores";
 import { permissionsOf, ROLE_CATALOG } from "@/test-utils/role-catalog";
 
 /**
@@ -33,6 +34,17 @@ vi.mock("@/lib/api-client", async () => {
   };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+// The tenant is the organization in the path, so this file needs to move it.
+// The rest are what `vitest.setup.ts` provides, and for its reason.
+const path = vi.fn(() => "/");
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => path(),
+  useParams: () => ({}),
+  redirect: vi.fn(),
+  permanentRedirect: vi.fn(),
+}));
 
 const ME = "user-me";
 
@@ -83,17 +95,21 @@ function serve(role: string) {
  * suspends - and a suspension inside a synchronous `act` never resolves. Awaited
  * here, which is what React's own warning asks for.
  */
-async function mount() {
+async function mount(orgId = "org-1") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>
+      {/* Before the page, as the dashboard layout has it: the guard adopts the
+          organization the path names, and it has to happen before the page's
+          own requests go out (#1032). */}
+      <ActiveOrgGuard />
       <Suspense>{children}</Suspense>
     </QueryClientProvider>
   );
   await act(async () => {
-    render(<MembersPage params={Promise.resolve({ id: "org-1" })} />, { wrapper });
+    render(<MembersPage params={Promise.resolve({ id: orgId })} />, { wrapper });
   });
 }
 
@@ -107,6 +123,8 @@ async function roleCell(email: string): Promise<HTMLElement> {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  path.mockReturnValue("/orgs/org-1/members");
+  useOrgStore.setState({ activeOrgId: "org-1", refusedOrgIds: [] });
   useAuthStore.setState({
     user: {
       id: ME,
@@ -154,6 +172,61 @@ describe("the members table's role control", () => {
       "viewer",
     ]);
     expect(options[0]).toHaveAttribute("data-disabled");
+  });
+
+  it("judges the organization in its URL, not whichever one is active", async () => {
+    // #1032: `X-Organization-Id` names the *active* organization on every
+    // request, and the organizations list opens any org's members page without
+    // switching - so this page judged Acme's members by the caller's role in
+    // Globex. The guard adopts the path's organization, so what the page offers
+    // is what the caller may do *there*.
+    //
+    // The mock answers per organization, which is what makes the difference
+    // visible: an Owner of the org in the URL, an Admin of the active one.
+    const URL_ORG = "22222222-2222-2222-2222-222222222222";
+    path.mockReturnValue(`/orgs/${URL_ORG}/members`);
+    useOrgStore.setState({ activeOrgId: "org-1", refusedOrgIds: [] });
+    vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      if (url === "/roles/catalog") return Promise.resolve(ROLE_CATALOG);
+      if (url.startsWith("/me/permissions")) {
+        const asked = useOrgStore.getState().activeOrgId;
+        return Promise.resolve(permissionsOf(asked === URL_ORG ? "owner" : "admin"));
+      }
+      if (url === "/orgs")
+        return Promise.resolve({
+          items: [
+            { id: "org-1", name: "Globex", avatar_color: null },
+            { id: URL_ORG, name: "Acme", avatar_color: null },
+          ],
+          total: 2,
+        });
+      if (url.endsWith("/members"))
+        return Promise.resolve({
+          items: [
+            member(ME, "me@acme.test", "owner"),
+            member("user-peer", "peer@acme.test", "admin"),
+          ],
+          total: 2,
+        });
+      return Promise.resolve({ items: [], total: 0 });
+    });
+
+    await mount(URL_ORG);
+
+    const row = await roleCell("peer@acme.test");
+    await userEvent.click(within(row).getByRole("combobox"));
+
+    // An Owner's five, not an Admin's four - and `admin` selectable rather than
+    // the disabled placeholder an Admin would see on this row.
+    const options = screen.getAllByRole("option");
+    expect(options.map((option) => option.textContent?.trim())).toEqual([
+      "admin",
+      "builder",
+      "operator",
+      "member",
+      "viewer",
+    ]);
+    expect(options[0]).not.toHaveAttribute("data-disabled");
   });
 
   it("says so when the role catalog could not be read, rather than showing labels", async () => {
