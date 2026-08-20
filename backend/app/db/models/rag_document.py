@@ -4,7 +4,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -41,6 +41,25 @@ class RAGDocument(TimestampMixin, Base):
     filesize: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     filetype: Mapped[str] = mapped_column(String(20), nullable=False)
     storage_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Which file this row tracks, as the ingest addressed it: `gdrive://<id>`,
+    # `s3://bucket/key`, or an absolute path for a local or CLI sync. An upload
+    # has no address - its only name is a basename, which two different files can
+    # share - so it stores none (#996).
+    #
+    # `Text`, because an address has no length this can promise: an S3 key alone
+    # reaches 1024 bytes before the scheme and bucket are added, and a filesystem
+    # path reaches 4096. A `String(n)` here is a truncation error on a file that
+    # used to ingest fine.
+    #
+    # The index is a **hash** index for the same reason. Equality is the only way
+    # this column is ever read - `discard_failed` and nothing else - and a btree
+    # refuses a key over about 2700 bytes at insert time, which would turn a long
+    # path into the error the `Text` was chosen to avoid.
+    source_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (
+        Index("rag_documents_source_path_idx", "source_path", postgresql_using="hash"),
+    )
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default=DocumentStatus.PROCESSING
     )

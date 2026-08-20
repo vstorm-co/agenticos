@@ -18,6 +18,7 @@ from app.agents.capabilities.budget import BudgetExceeded, SpendLedger, metered_
 from app.core.config import settings
 from app.core.secret_kinds import SecretKind, StorableSecret, unseal_secret
 from app.core.vault import VaultScope
+from app.db.models.knowledge_base import KnowledgeBase
 from app.db.session import get_worker_db_context
 from app.repositories import ingestion_spend_repo, knowledge_base_repo, organization_secret_repo
 from app.repositories import sync_source as sync_source_repo
@@ -35,7 +36,7 @@ from app.services.rag.connectors import CONNECTOR_REGISTRY
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.failures import IngestionStage, failure_summary
 from app.services.rag.ingestion import IngestionService, StoredDocument
-from app.services.rag.models import IngestionStatus
+from app.services.rag.models import IngestionResult, IngestionStatus
 from app.services.rag.vectorstore import EmbeddingResolver
 from app.services.rag.vectorstore import PgVectorStore as VectorStore
 from app.services.spend import assert_organization_within_budget
@@ -165,6 +166,37 @@ async def _record_embedding_spend(
             )
 
 
+async def _knowledge_base_for(
+    db: AsyncSession, collection_name: str | None, organization_id: UUID | None
+) -> KnowledgeBase | None:
+    """The knowledge base behind a collection name, or `None` if none claims it.
+
+    The organization narrows the candidates because `collection_name` is not
+    unique across tenants - and the caller's own row wins over a deployment-wide
+    one of the same name, which is the reason for two passes rather than one
+    condition.
+
+    An `app`-scoped collection belongs to no organization, so it is matched on
+    the second pass rather than skipped. Skipping it meant a source pointed at
+    one was parsed with the deployment defaults instead of the settings that
+    collection had chosen, and - once a sync started recording documents - filed
+    them under no knowledge base, which is the invisibility this was fixing
+    (#992).
+
+    Two callers still reach `None`: a local-directory sync, which names a path on
+    the server rather than a collection somebody configured, and a sync source
+    with no collection at all - an org-level integration template that exists to
+    be cloned and should never have been run.
+    """
+    if collection_name is None:
+        return None
+    candidates = await knowledge_base_repo.list_by_collection_name(db, collection_name)
+    for kb in candidates:
+        if organization_id is None or kb.organization_id == organization_id:
+            return kb
+    return next((kb for kb in candidates if kb.organization_id is None), None)
+
+
 async def _config_for_collection(
     db: AsyncSession, collection_name: str | None, organization_id: UUID | None
 ) -> IngestionConfig:
@@ -173,21 +205,15 @@ async def _config_for_collection(
     A sync writes into a collection the same way an upload does, so it has to
     read documents the same way too - a collection set to LiteParse that gets
     PyMuPDF whenever the file arrives from Google Drive is configured in name
-    only. The organization narrows the candidates because `collection_name` is
-    not unique across tenants.
+    only.
 
     Falls back to the deployment defaults when no knowledge base claims the
-    name. Two cases reach that: a local-directory sync, which names a path on
-    the server rather than a collection somebody configured, and a sync source
-    with no collection at all - an org-level integration template that exists to
-    be cloned and should never have been run.
+    name; `_knowledge_base_for` says which callers that is.
     """
-    if collection_name is None:
-        return deployment_defaults()
-    for kb in await knowledge_base_repo.list_by_collection_name(db, collection_name):
-        if organization_id is None or kb.organization_id == organization_id:
-            return IngestionConfig.model_validate(kb.ingestion_config)
-    return deployment_defaults()
+    kb = await _knowledge_base_for(db, collection_name, organization_id)
+    return (
+        deployment_defaults() if kb is None else IngestionConfig.model_validate(kb.ingestion_config)
+    )
 
 
 @flow(name="ingest-document", log_prints=True)
@@ -349,7 +375,6 @@ async def _run_ingestion(
 async def _run_sync(
     sync_log_id: str, source: str, collection_name: str, mode: str, path: str
 ) -> dict[str, Any]:
-    from app.services.rag_document import RAGDocumentService
     from app.services.rag_sync import RAGSyncService
 
     target_path = Path(path).resolve()
@@ -376,10 +401,12 @@ async def _run_sync(
     # store owns a pooled engine, so one built before an early return is a pool
     # nothing ever closes (#948).
     async with get_worker_db_context() as db:
+        # Kept, not just passed through: every row this sync writes records which
+        # parser read the document, and the rows used to carry no configuration at
+        # all - so `parser` read `null` for every locally-synced file (#997).
+        ingestion_config = await _config_for_collection(db, collection_name, None)
         ingestion_service = await _ingestion_service_for(
-            db,
-            config=await _config_for_collection(db, collection_name, None),
-            organization_id=None,
+            db, config=ingestion_config, organization_id=None
         )
 
     try:
@@ -422,28 +449,53 @@ async def _run_sync(
                         skipped += 1
                         continue
             try:
+                # Opened before the ingest, as the upload and the connector sync
+                # do (#992). Written afterwards it could fail afterwards - a
+                # database blip, a name longer than the column - leaving the
+                # vector document stored and untracked, and the next `new_only`
+                # run then matched its unchanged hash and skipped the file before
+                # reaching the write, for good (#997).
+                row_id = await _open_document_row(
+                    filename=filepath.name,
+                    filesize=filepath.stat().st_size,
+                    collection_name=collection_name,
+                    # The same address it hands `existing_document` above, so the
+                    # row and the lookup name one file (#996).
+                    source_path=source_path,
+                    # A path on the server belongs to no tenant and to no
+                    # knowledge base; `POST /rag/sync/local` is the one route
+                    # that still carries `is_app_admin` for exactly that reason.
+                    organization_id=None,
+                    knowledge_base_id=None,
+                    ingestion_config=ingestion_config,
+                    image_description_model=None,
+                    embedding_model=None,
+                )
+
                 with metered_by(ledger):
                     result = await ingestion_service.ingest_file(
-                        filepath=filepath, collection_name=collection_name, replace=True
+                        filepath=filepath,
+                        collection_name=collection_name,
+                        replace=True,
+                        # The address this flow already looks documents up by. It
+                        # was omitted, so the stored document identified itself by
+                        # filename while the lookup asked for a path - the
+                        # `existing_document` call above only ever matched through
+                        # the filename fallback, and the row and the vector would
+                        # now disagree about which file this is (#996).
+                        source_path=source_path,
                     )
-                if result.status.value == "done":
-                    if result.message and "replaced" in result.message:
+
+                # Either way, which is the other half of #997: a file that failed
+                # to parse used to leave no row and no reason, so a sync log
+                # saying four of forty failed named none of the four.
+                await _settle_document_row(row_id, result)
+
+                if result.status is IngestionStatus.DONE:
+                    if result.replaced_document_id:
                         updated += 1
                     else:
                         ingested += 1
-                    async with get_worker_db_context() as db:
-                        doc = await RAGDocumentService(db).create_document(
-                            collection_name=collection_name,
-                            filename=filepath.name,
-                            filesize=filepath.stat().st_size,
-                            filetype=filepath.suffix.lstrip(".").lower(),
-                        )
-                        await RAGDocumentService(db).complete_ingestion(
-                            str(doc.id),
-                            vector_document_id=result.document_id,
-                            chunk_count=result.chunk_count,
-                            replaced_document_id=result.replaced_document_id,
-                        )
                 else:
                     failed += 1
             except Exception as e:
@@ -559,6 +611,76 @@ async def _connector_credential(
         return None
 
 
+async def _open_document_row(
+    *,
+    filename: str,
+    filesize: int,
+    collection_name: str,
+    source_path: str,
+    organization_id: UUID | None,
+    knowledge_base_id: UUID | None,
+    ingestion_config: IngestionConfig,
+    image_description_model: str | None,
+    embedding_model: str | None,
+) -> str:
+    """Record a document a sync is about to ingest, and answer its row id.
+
+    A connector sync used to create no `rag_documents` row at all, so its
+    documents were searchable and invisible: absent from the knowledge base's
+    Documents tab, from a collection's own `document_count`, and from delete -
+    a file ingested from a Drive folder could be removed only by dropping the
+    whole collection (#992). A failure was counted in the sync log and recorded
+    nowhere per-file, so "which four of the forty failed, and why" had no answer.
+
+    No original is stored, unlike an upload, and that holds for both callers:
+    a connector's file lives in the system it was synced from and a local one is
+    already on this host's disk at the path the sync named, so keeping a second
+    copy to make a retry button work is a cost per corpus rather than per
+    failure. `has_file` is false for these, and **re-running the sync is the
+    retry** - which since #990 skips everything unchanged and re-fetches exactly
+    what has no document.
+    """
+    from app.services.rag_document import RAGDocumentService
+
+    async with get_worker_db_context() as db:
+        row = await RAGDocumentService(db).create_document(
+            collection_name=collection_name,
+            filename=filename,
+            filesize=filesize,
+            filetype=Path(filename).suffix.lstrip(".").lower(),
+            source_path=source_path,
+            organization_id=organization_id,
+            knowledge_base_id=knowledge_base_id,
+            ingestion_config=ingestion_config,
+            image_description_model=image_description_model,
+            embedding_model=embedding_model,
+        )
+        return str(row.id)
+
+
+async def _settle_document_row(row_id: str, result: IngestionResult) -> None:
+    """Move an open row to what the ingest actually did.
+
+    The failure branch is not an afterthought: a document that failed to parse
+    is the one a reader most needs to see, and its reason is a `failure_summary`
+    already, built by `ingest_file` rather than by a caller stringifying a
+    vendor's exception (#423).
+    """
+    from app.services.rag_document import RAGDocumentService
+
+    async with get_worker_db_context() as db:
+        documents = RAGDocumentService(db)
+        if result.status is IngestionStatus.DONE and result.document_id:
+            await documents.complete_ingestion(
+                row_id,
+                vector_document_id=result.document_id,
+                chunk_count=result.chunk_count,
+                replaced_document_id=result.replaced_document_id,
+            )
+        else:
+            await documents.fail_ingestion(row_id, result.error_message or "Ingestion failed")
+
+
 async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> dict[str, Any]:
     """Core sync logic for connector-based sources (shared between all task frameworks).
 
@@ -613,10 +735,28 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                 await source_svc.update_after_sync(source_id, status="error", error=reason)
                 return {"status": "error", "message": reason}
 
+        # One lookup for both answers, in the session that is already open: the
+        # collection's parser settings, and the knowledge base id every document
+        # this sync creates has to carry. Without the second, a synced document
+        # was absent from the knowledge base's Documents tab, from delete and
+        # from a collection's own stats, while search over it worked (#992).
+        knowledge_base = await _knowledge_base_for(db, collection_name, organization_id)
+        ingestion_config = (
+            deployment_defaults()
+            if knowledge_base is None
+            else IngestionConfig.model_validate(knowledge_base.ingestion_config)
+        )
+        knowledge_base_id = None if knowledge_base is None else knowledge_base.id
+        # Both models, resolved once for the collection rather than per file, and
+        # recorded on every row this sync writes - the provenance the documents
+        # page reads. An upload has carried them since it started tracking; a
+        # sync reported neither.
+        embedding_model = None if knowledge_base is None else knowledge_base.embedding_model
+        image_description_model = await IngestionConfigService(db).resolved_image_model(
+            organization_id, ingestion_config
+        )
         ingestion_svc = await _ingestion_service_for(
-            db,
-            config=await _config_for_collection(db, collection_name, organization_id),
-            organization_id=organization_id,
+            db, config=ingestion_config, organization_id=organization_id
         )
 
     connector = connector_cls()
@@ -670,6 +810,25 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                         skipped += 1
                         continue
 
+                    # Opened before the ingest, which is the order the upload
+                    # path uses and the only one that cannot leave the state this
+                    # removes: a row written afterwards and failing - a database
+                    # blip, a remote name longer than the column - left the
+                    # vector document stored and untracked, and the next
+                    # `new_only` run then matched its hash and skipped the file
+                    # before reaching the write, for good.
+                    row_id = await _open_document_row(
+                        filename=remote_file.name,
+                        filesize=local_path.stat().st_size,
+                        collection_name=collection_name,
+                        source_path=remote_file.source_path,
+                        organization_id=organization_id,
+                        knowledge_base_id=knowledge_base_id,
+                        ingestion_config=ingestion_config,
+                        image_description_model=image_description_model,
+                        embedding_model=embedding_model,
+                    )
+
                     with metered_by(ledger):
                         result = await ingestion_svc.ingest_file(
                             filepath=local_path,
@@ -680,6 +839,9 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                             replace=True,
                             source_path=remote_file.source_path,
                         )
+
+                    await _settle_document_row(row_id, result)
+
                     # On `replaced_document_id`, not on the result's sentence:
                     # `sync_local_flow` reads its own message for the word
                     # "replaced", which is a string it has to keep agreeing with.

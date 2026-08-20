@@ -207,12 +207,24 @@ async def ingest_path_async(
                     filename=filepath.name,
                     filesize=filepath.stat().st_size,
                     filetype=filepath.suffix.lstrip(".").lower(),
+                    # The address this command already looks documents up by, a
+                    # few lines above. Omitted, the row got `NULL` and a repeated
+                    # failure here kept inflating the collection's count - the
+                    # defect #996 fixed for the two worker flows and not for this
+                    # one.
+                    source_path=source_path,
                 )
                 doc_id = str(rag_doc.id)
 
             try:
                 result = await ingestion.ingest_file(
-                    filepath=filepath, collection_name=collection, replace=replace
+                    filepath=filepath,
+                    collection_name=collection,
+                    replace=replace,
+                    # So the stored document identifies itself the way this
+                    # command's own `existing_document` call asks for it, and the
+                    # row and the vector agree on which file this is.
+                    source_path=source_path,
                 )
                 if result.status.value == "done":
                     success_count += 1

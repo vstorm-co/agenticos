@@ -638,11 +638,77 @@ vector document it replaced, along with their stored copies of the file. Without
 that a directory synced nightly reported a collection growing by its own size
 every night.
 
+**A synced document keeps no original, and says so.** The upload path stores a
+copy under `rag/{collection}` and a sync does not: a synced file's bytes live in
+the system it came from, and mirroring every one of them onto this deployment's
+disk to make one button work is a cost per corpus rather than per failure. So
+`storage_path` is empty for these and `has_file` is false, which is what a
+surface offering a download has to read. **Re-running the sync is the retry** —
+since [#990](https://github.com/vstorm-co/agenticos/issues/990) it skips
+everything unchanged and re-fetches exactly what has no document, so retrying
+four failures out of forty costs four transfers rather than forty.
+
+**Every path opens the row before the file is indexed.** Written afterwards, a
+row whose write failed — a database blip, a name longer than the column — left the
+vector document stored and untracked, and the next `new_only` run then matched
+its hash and *skipped* the file before reaching the write, so it stayed
+searchable, invisible and undeletable for good. This order's worst case is a row
+that says `processing` beside a document that finished, which is visible and can
+be deleted. The connector sync stopped writing afterwards in
+[#992](https://github.com/vstorm-co/agenticos/issues/992) and the
+local-directory one in
+[#997](https://github.com/vstorm-co/agenticos/issues/997), which also gave a
+locally-synced file that fails to parse a row and a reason — it had neither, so a
+sync log saying four of forty failed named none of them.
+
+**A synced row says which file it tracks**, in `source_path`: `gdrive://<id>`,
+`s3://bucket/key`, or an absolute path for a local or CLI sync. That is what
+retires a previous attempt at the *same file* — a failed parse writes no vectors,
+so `complete_ingestion`'s retirement has nothing to match and both rows used to
+survive, one more per failure, each counting toward the collection's
+`document_count` ([#996](https://github.com/vstorm-co/agenticos/issues/996)).
+
+**An upload stores no address**, and so retires nothing. Its only name is a
+basename, which is not an address: two people can upload different `report.pdf`s
+and, with `replace=false`, mean both to exist. Retiring by that name would delete
+the first one's failed row — its diagnosis, its retry and its stored file — for a
+caller who asked for no such thing. A `NULL` address matches no comparison, which
+is the answer wanted rather than one to work around, and it is what every row
+written before the column has.
+
+Three things decide what a retirement may take, and each of them was got wrong
+first:
+
+- **By address, never by filename.** That is the collision
+  [#990](https://github.com/vstorm-co/agenticos/issues/990) removed on the vector
+  side reached from the other direction: `a/readme.md` and `b/readme.md` in one
+  bucket share a basename, so a name match deletes the other file's row.
+- **`ERROR`, not "has no vector id".** Those are different sets, and treating
+  them as one is a race: a `PROCESSING` row belongs to an attempt still running,
+  and two overlapping ingestions of one source would have the second delete the
+  first's live row — after which the first finishes, replaces the vectors and
+  finds no row to complete.
+- **A failed *supersede* is not a failed ingest.** `ingest_file` inserts the new
+  document before deleting the one it replaces, so a delete that raises used to
+  return an error while the vectors were sitting there — an `ERROR` row with no
+  vector id, which the next attempt would retire and orphan them. The insert
+  having succeeded is the whole answer: the lingering old document is logged, and
+  a duplicate somebody can see and delete is not a failure to report.
+
+The connector sync wrote no row at all until
+[#992](https://github.com/vstorm-co/agenticos/issues/992) — the sentence above
+was true of the upload, the CLI and the *local* sync only. A document from a
+Drive folder was searchable and invisible: absent from the knowledge base's
+Documents tab (`GET /kb/{kb_id}/documents` reads `get_for_kb`), absent from the
+collection's own `document_count`, unreachable by delete, and a failure was a
+number in the sync log with no per-file reason anywhere.
+
 Failed ingestions can be retried via `POST /rag/documents/{id}/retry`. It
 re-reads `storage_path` — the copy the upload kept for exactly this — and
 dispatches the parse again, replacing whatever the failed attempt indexed. A
-document that did not fail, or that predates uploads keeping their file, is
-refused with a 400 rather than moved to `processing`
+document that did not fail, or that has no stored file — one that predates
+uploads keeping theirs, or one a sync ingested — is refused with a 400 rather
+than moved to `processing`
 ([#441](https://github.com/vstorm-co/agenticos/issues/441)).
 
 ### What a failed ingest says

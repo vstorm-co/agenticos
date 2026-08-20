@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse
 from app.api.deps import (
     Auth,
     CollectionAccessSvc,
+    IngestionSvc,
     KnowledgeBaseSvc,
     RAGDocumentSvc,
     SyncSourceSvc,
@@ -257,6 +258,7 @@ async def delete_kb_document(
     doc_id: UUID,
     service: KnowledgeBaseSvc,
     rag_doc_service: RAGDocumentSvc,
+    ingestion_service: IngestionSvc,
     ctx: Auth,
 ) -> None:
     """Remove a document from the KB (cascades to vectors + file storage).
@@ -264,6 +266,13 @@ async def delete_kb_document(
     Verifies the doc actually belongs to this KB's collection - without that
     check a KB owner could pass any doc_id and remove docs from KBs they
     don't own.
+
+    The ingestion service is what removes the *vectors*, and this route did not
+    take one: it deleted the tracking row and left the content searchable, so a
+    collection held a document nobody could see, delete or re-ingest - the next
+    `new_only` sync matched its unchanged hash and skipped it (#992). The
+    argument has no default on the service any more, which is what stops a third
+    route repeating it.
     """
     kb = await service.get_for_write(kb_id, ctx=ctx)
     doc = await rag_doc_service.get_document(str(doc_id))
@@ -272,7 +281,7 @@ async def delete_kb_document(
             message="Document not found in this knowledge base",
             details={"kb_id": str(kb_id), "doc_id": str(doc_id)},
         )
-    await rag_doc_service.delete_document(str(doc_id))
+    await rag_doc_service.delete_document(str(doc_id), ingestion_service)
 
 
 @router.get("/{kb_id}/sync-sources", response_model=SyncSourceList)
