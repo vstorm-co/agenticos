@@ -421,8 +421,14 @@ class AgentSession:
         run existed - an unpublished agent, a membership revoked mid-session - has
         an empty `opened` and no output, and a blank assistant message would read
         as the agent having answered with silence.
+
+        A stored timeline counts as produced content: a turn that only asked a
+        question and was then stopped before answering has no `output` and no
+        tool call, but its `ask_user` part is the whole of what happened and has
+        no column to fall back to - so leaving it out of this guard loses it on
+        reload (#502).
         """
-        if not opened or not (output or tool_calls):
+        if not opened or not (output or tool_calls or parts):
             return
         run = opened[0]
         if self.current_conversation_id is None:

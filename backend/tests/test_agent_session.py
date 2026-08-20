@@ -98,6 +98,7 @@ from app.agents.subagent_runtime import (
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.db.models.agent_run import RunStatus
 from app.repositories import conversation as conversation_repo
+from app.schemas.conversation import MessagePart
 from app.services.agent import PersistedPrompt
 from app.services.agent_chat import ChatTurn, OpenedRun
 from app.services.agent_runner import ParkedApproval, PreparedRun
@@ -1492,6 +1493,30 @@ class TestATurnThatDidNotFinishStillKeepsWhatItSaid:
             await session.process_message(_message())
 
         chat.answer.assert_not_awaited()
+
+    async def test_a_partial_turn_that_only_asked_a_question_still_records_it(self):
+        """A turn that put a question, got an answer, then stopped before any text
+        or tool call has only its `ask_user` part - which has no column to fall
+        back to, so the partial-turn guard must treat a stored timeline as
+        produced content or the question and answer are lost on reload (#502)."""
+        session = _session()
+        session.current_conversation_id = str(uuid4())
+        part = MessagePart(type="ask_user", question="Which region?", answer="eu")
+
+        with patch(
+            "app.services.agent_session.persist_assistant_turn", new=AsyncMock()
+        ) as persisted:
+            await session._persist_partial_turn(
+                [self._opened()],
+                agent_id=uuid4(),
+                output="",
+                tool_calls=[],
+                thinking=None,
+                parts=[part],
+            )
+
+        persisted.assert_awaited_once()
+        assert persisted.await_args.kwargs["parts"] == [part]
 
     async def test_a_turn_that_finished_is_written_once_and_not_twice(self):
         """The `finally` cannot read `turn` to decide - that is the whole reason it

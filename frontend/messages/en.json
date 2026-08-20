@@ -3654,6 +3654,8 @@
       "turnAgent": "Agent",
       "turnSystem": "System",
       "reasoning": "Reasoning",
+      "askedUser": "Asked the user",
+      "answered": "They answered",
       "ratedDownCount": "{count, plural, =1 {Rated down once} other {Rated down # times}}",
       "previousRun": "Previous run",
       "nextRun": "Next run",

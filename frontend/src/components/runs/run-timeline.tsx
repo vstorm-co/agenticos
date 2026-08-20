@@ -283,6 +283,16 @@ function TimelineTurn({
                 <summary className="cursor-pointer select-none">{t("reasoning")}</summary>
                 <div className="mt-1 whitespace-pre-wrap">{part.content}</div>
               </details>
+            ) : part.type === "ask_user" ? (
+              <div
+                key={part.id}
+                className="border-foreground/10 text-muted-foreground space-y-1 border-l pl-3 text-sm"
+              >
+                <div className="font-medium">{t("askedUser")}</div>
+                <div className="text-foreground/80 whitespace-pre-wrap">{part.question}</div>
+                <div className="font-medium">{t("answered")}</div>
+                <div className="text-foreground/80 whitespace-pre-wrap">{part.answer}</div>
+              </div>
             ) : (
               <div key={part.id} className="text-sm whitespace-pre-wrap">
                 {part.content}
