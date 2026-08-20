@@ -17,6 +17,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.220] - 2026-08-20
+
+A status parameter with one value stops pretending to be a choice.
+
+### Changed
+
+- **`_update_status` in the ingestion flow is `_fail_document`, and takes no
+  status.** It branched on two values and all four callers passed `"error"`; the
+  `elif status == "done"` was a `pass` whose comment explained why nothing takes
+  it - reaching `DONE` needs the vector document's id, which only
+  `_run_ingestion` holds, so it calls `complete_ingestion` itself. The name now
+  says what the function does: record the *first* failure and refuse to overwrite
+  it (#423). `vulture` could not see the dead branch, because the parameter was
+  read. (#956)
+- **The guard compares `DocumentStatus.ERROR`, not the string.** Two spellings of
+  one value set is how #148 happened - a fourth status nothing had ever written,
+  filtered on by the listing, so every knowledge base reported `indexed_count:
+  0`. (#956)
+
+### Added
+
+- A test for the guard's other half: a row that has not failed yet does take the
+  failure. It was covered only incidentally, through `_run_ingestion`. (#956)
+
 ## [0.0.219] - 2026-08-20
 
 A tracking row says which file it tracks, so a failed attempt stops piling up.
