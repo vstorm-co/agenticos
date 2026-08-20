@@ -83,12 +83,12 @@ What separates one tenant from another:
 **One runtime ships, and it is defined in this repository** —
 `backend/app/core/catalog/sandbox_runtimes.json`:
 
-| | `workbench` — 1.26 GB, built in about 55 s on a warm host |
+| | `workbench` — 1.3 GB, built in about 45 s on a warm host |
 |---|---|
 | Built on | `python:3.12-slim` |
 | Languages | Python 3.12; Node 24.19.0 LTS with npm 11 and `tsx` for TypeScript |
-| Tools | `git`, `curl`, `ripgrep`, `fd`, `jq`, `less`, `procps`, `unzip`, `zip`, `uv` |
-| Reading | **liteparse** (`lit`) — PDFs and images to text or markdown, OCR included |
+| Tools | `git`, `curl`, `ripgrep`, `fd`, `jq`, `less`, `procps`, `unzip`, `zip`, `uv`, `pdftotext`/`pdfinfo` |
+| Reading | **liteparse** (`lit`) — PDFs and images to text or markdown, OCR included; `poppler-utils` for the fast text-layer path and a page count |
 | Documents | `pypdf`, `python-docx`, `openpyxl`, `python-pptx`, `reportlab` |
 | Data | `pandas`, `duckdb`, `tabulate` |
 | Charts and images | `matplotlib` (Agg), `pillow` |
@@ -131,6 +131,19 @@ Measured on `python:3.12-slim` (205 MB), arm64:
   ships npm 9; the official tarball is +239 MB *and* current — and Node 20, which
   this recipe first pinned, has been end-of-life since April 2026. The arch is
   detected in the command, because the same catalogue builds on amd64 and arm64.
+- **`poppler-utils` (+67 MB) beside liteparse, not instead of it.** `lit` is the
+  better reader — layout, tables, markdown — and `pdftotext` is the faster one on a
+  PDF that already has text: a 120-page book in under a second. `pdfinfo` is why it
+  is really here, because a page count in milliseconds is what turns "extract this
+  book" into a plan.
+- **OCR is the cost that matters, and it is measured.** `lit` OCRs only pages with
+  no text layer, so 120 generated pages cost a fraction of a second — but a
+  *scanned* page costs **8.8 s**, so a 300-page scan is about 44 minutes against a
+  300-second command ceiling: killed, with nothing to show. `--target-pages 1-40`
+  bounds it (three scanned pages in 1.6 s), and `--no-ocr` on a scan **succeeds and
+  returns 179 bytes** — a silent near-empty answer, which is the worse of the two
+  failures. Both are in the briefing below, because this is exactly the request a
+  user makes: "summarise this book".
 - **No `build-essential` (+94 MB) and no `scikit-learn`/`scipy` (~200 MB).** Both
   are `uv pip install` away on a runtime that has a network. The cost of leaving
   them out is a first-time install; the cost of baking them in is paid by every
@@ -151,6 +164,15 @@ A container is useless to an agent that does not know what is in it. Before
 #1040 an agent asked for a chart would `import plotly`, and one handed a PDF
 would write its own extractor beside the `lit` that reads it — each learning
 otherwise by failing inside somebody's request.
+
+**And it is told how to work, not only what is installed.** The instruction that
+earns its place is the one nothing else can teach: *do not read a large file to
+look through it*. Extract it once to a text file, `rg -n` for the places that
+matter, `sed -n '400,460p'` to read one. A book is thousands of lines and an
+answer needs tens of them, and a model that pulls the whole thing into its own
+context spends the run's budget on pages nobody asked about. The same paragraph
+carries the two OCR traps above, because a scanned book is where both of them
+land at once.
 
 So every run on a runtime this deployment ships has a paragraph appended to its
 instructions: which runtime it got, the package list, the `lit` line, the two

@@ -4,7 +4,7 @@
     "description": "Python 3.12 and Node 24 with the tools and libraries to read, write and plot the files a conversation is about",
     "base_image": "python:3.12-slim",
     "setup_commands": [
-      "apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates ripgrep fd-find jq less procps xz-utils unzip zip tzdata fonts-dejavu-core && ln -s /usr/bin/fdfind /usr/local/bin/fd && rm -rf /var/lib/apt/lists/*",
+      "apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates ripgrep fd-find jq less procps xz-utils poppler-utils unzip zip tzdata fonts-dejavu-core && ln -s /usr/bin/fdfind /usr/local/bin/fd && rm -rf /var/lib/apt/lists/*",
       "arch=\"$(dpkg --print-architecture)\"; case \"$arch\" in amd64) node_arch=x64 ;; arm64) node_arch=arm64 ;; *) echo \"no Node build for $arch\" >&2; exit 1 ;; esac; curl -fsSL \"https://nodejs.org/dist/v24.19.0/node-v24.19.0-linux-${node_arch}.tar.xz\" | tar -xJ -C /usr/local --strip-components=1 --exclude CHANGELOG.md --exclude README.md --exclude LICENSE && npm install -g tsx && npm cache clean --force",
       "curl -fsSL https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin INSTALLER_NO_MODIFY_PATH=1 sh"
     ],
@@ -36,7 +36,10 @@
     },
     "briefing": [
       "Python 3.12 (`python3`) and Node 24 (`node`, `npm`, `tsx` for TypeScript). Shell tools: `git`, `rg`, `fd`, `jq`, `curl`, `unzip`, and `uv` for installing Python packages fast.",
-      "`lit parse <file> -o out.md` reads PDFs and images into text or markdown, OCR included - use it rather than writing a PDF extractor.",
+      "**Never read a large file into your reply to look through it.** Extract it to a text file once, then work on that file: `rg -n <pattern> file.txt` to find the places that matter and `sed -n '400,460p' file.txt` to read one of them. A book is thousands of lines; you need tens of them.",
+      "PDFs and images: `lit parse <file> -o out.md` gives text or markdown, OCR included - use it rather than writing an extractor. `pdfinfo <file>` gives the page count first, which is worth knowing before you start.",
+      "A page with no text layer has to be OCR'd, which is seconds per page, and any single command is killed at the service's timeout (five minutes by default). So for a scan of more than a few dozen pages, work in ranges - `lit parse --target-pages 1-40 book.pdf -o part1.md` - rather than in one call that gets killed with nothing to show.",
+      "`--no-ocr` is much faster and is right for a PDF that already has text, but on a scan it succeeds and returns almost nothing. If the output is suspiciously short, that is why.",
       "Office files can be written (`python-docx`, `openpyxl`, `python-pptx`) and `.xlsx`/`.docx` read the same way, but `lit` cannot convert them: there is no LibreOffice here, so `.doc`, `.ppt` and `.odt` cannot be read at all.",
       "There is no C compiler, so a package with no prebuilt wheel will fail to install."
     ],
