@@ -11,6 +11,7 @@ import {
   Button,
   ConfirmDialog,
   Tabs,
+  TabsContent,
   TabsList,
   TabsTrigger,
 } from "@/components/ui";
@@ -26,7 +27,7 @@ import { FileViewer } from "@/components/kb/file-viewer";
 import { IngestionDialog } from "@/components/kb/ingestion-dialog";
 import { IngestionPanel } from "@/components/kb/ingestion-panel";
 import { UploadOverrideDialog } from "@/components/kb/upload-override-dialog";
-import { useKBDetail, usePermissions, usePollWhileIngesting } from "@/hooks";
+import { useKBDetail, usePermissions, usePollWhileIngesting, useUrlState } from "@/hooks";
 import { overrideSize } from "@/lib/ingestion-config";
 import type { SyncSourceRead } from "@/lib/rag-api";
 import type { IngestionOverride, KBDocument } from "@/types";
@@ -57,18 +58,14 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   //
   // Addressable, so a link can name a section and a reload keeps it - the same
   // reason `/rag`'s own tabs are in the URL.
-  const [tab, setTabState] = useState<KBTab>(() =>
-    parseTab(
-      typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("tab"),
-    ),
-  );
-  const setTab = (next: KBTab) => {
-    setTabState(next);
-    const url = new URL(window.location.href);
-    if (next === "documents") url.searchParams.delete("tab");
-    else url.searchParams.set("tab", next);
-    window.history.replaceState({}, "", url.toString());
-  };
+  //
+  // Through `useUrlState`, not a `useState` initializer reading `window`: that
+  // renders one value on the server and another in the browser, which costs a
+  // hydration mismatch and flashes the documents before the named section
+  // appears.
+  const [tabParam, setTabParam] = useUrlState("tab");
+  const tab = parseTab(tabParam);
+  const setTab = (next: KBTab) => setTabParam(next === "documents" ? null : next);
   const {
     kb,
     documents,
@@ -256,7 +253,12 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
       <UploadProgressList uploads={uploadProgress} />
 
       {/* Under the stats strip and the override banner, which describe the
-          collection rather than any one section and stay above it (#939). */}
+          collection rather than any one section and stay above it (#939).
+
+          One `Tabs` root around the strip *and* the panels: a trigger points at
+          its panel with `aria-controls`, so a root that closed after the list
+          left those references dangling and the visible section with no
+          `role="tabpanel"` and no relationship to the tab that chose it. */}
       <Tabs value={tab} onValueChange={(next) => setTab(next as KBTab)}>
         <TabsList data-tour="kb-tabs">
           <TabsTrigger value="documents" data-tour="kb-tab-documents">
@@ -269,44 +271,44 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
             {t("syncSources")}
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="documents">
+          <DocumentsTable
+            kbId={id}
+            documents={documents}
+            documentsTotal={documentsTotal}
+            hasMoreDocuments={hasMoreDocuments}
+            isLoading={isLoading}
+            isLoadingMoreDocs={isLoadingMoreDocs}
+            mayEdit={mayEdit}
+            onLoadMore={() => loadMoreDocuments()}
+            onPreview={setViewerDoc}
+            onRemove={setRemovingDocument}
+            onChooseFiles={() => fileInputRef.current?.click()}
+          />
+        </TabsContent>
+
+        <TabsContent value="ingestion">
+          <div className="mb-8" data-tour="kb-ingestion">
+            <IngestionPanel kb={kb} onEdit={mayEdit ? () => setIngestionOpen(true) : undefined} />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="sync">
+          <SyncSourcesSection
+            kbId={id}
+            syncSources={syncSources}
+            connectors={connectors}
+            syncSourcesFailed={sectionFailures.syncSources}
+            connectorsFailed={sectionFailures.connectors}
+            mayEdit={mayEdit}
+            onConnect={() => setWizardOpen(true)}
+            onTrigger={(sourceId) => triggerSyncSource(sourceId)}
+            onDisconnect={setDisconnectingSource}
+            onRetry={() => refresh()}
+          />
+        </TabsContent>
       </Tabs>
-
-      {tab === "documents" && (
-        <DocumentsTable
-          kbId={id}
-          documents={documents}
-          documentsTotal={documentsTotal}
-          hasMoreDocuments={hasMoreDocuments}
-          isLoading={isLoading}
-          isLoadingMoreDocs={isLoadingMoreDocs}
-          mayEdit={mayEdit}
-          onLoadMore={() => loadMoreDocuments()}
-          onPreview={setViewerDoc}
-          onRemove={setRemovingDocument}
-          onChooseFiles={() => fileInputRef.current?.click()}
-        />
-      )}
-
-      {tab === "ingestion" && (
-        <div className="mb-8" data-tour="kb-ingestion">
-          <IngestionPanel kb={kb} onEdit={mayEdit ? () => setIngestionOpen(true) : undefined} />
-        </div>
-      )}
-
-      {tab === "sync" && (
-        <SyncSourcesSection
-          kbId={id}
-          syncSources={syncSources}
-          connectors={connectors}
-          syncSourcesFailed={sectionFailures.syncSources}
-          connectorsFailed={sectionFailures.connectors}
-          mayEdit={mayEdit}
-          onConnect={() => setWizardOpen(true)}
-          onTrigger={(sourceId) => triggerSyncSource(sourceId)}
-          onDisconnect={setDisconnectingSource}
-          onRetry={() => refresh()}
-        />
-      )}
 
       {/* The count is the collection's, not the table's. Documents page in
           twenty at a time, so `documents.length` would promise to destroy far

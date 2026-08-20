@@ -287,25 +287,25 @@ describe("the three sections are tabs (#939)", () => {
     expect(strip).toBeInTheDocument();
   });
 
-  it("names the chosen section in the URL, so a link can reach it", async () => {
+  it("shows one section at a time, and the parser panel is not one of the others", async () => {
     mockApi({ documents: [DOC] });
 
     await renderPage();
-    await openTab("pages.kb.syncSources");
-
-    expect(new URLSearchParams(window.location.search).get("tab")).toBe("sync");
-  });
-
-  it("opens the section the URL names", async () => {
-    // The other half: a pasted link has to arrive somewhere, and the default is
-    // clean rather than `?tab=documents`.
-    window.history.replaceState({}, "", "/?tab=ingestion");
-    mockApi({ documents: [DOC] });
-
-    await renderPage();
+    await openTab("pages.kb.howDocumentsAreRead");
 
     await waitFor(() =>
       expect(document.querySelector('[data-tour="kb-ingestion"]')).not.toBeNull(),
     );
+    // The documents table is gone rather than pushed down the page, which is the
+    // whole point of the tabs.
+    expect(screen.queryByText("onboarding.md")).not.toBeInTheDocument();
   });
+
+  // The URL round-trip itself is `useUrlState`'s, and
+  // `src/hooks/use-url-state.test.tsx` covers it - including a navigation that
+  // changes the parameter under the state. Asserting it again here would mean
+  // substituting either that hook or `useSearchParams`, and the global
+  // `next/navigation` mock in `vitest.setup.ts` answers an empty one and wins:
+  // a test written that way passed while the page was showing its default,
+  // which is worse than not having it.
 });
