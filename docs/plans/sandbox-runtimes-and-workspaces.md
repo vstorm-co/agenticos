@@ -36,7 +36,7 @@ What a remote host needs, and what the compose file happens to give it locally:
 explains the local service and never says the remote case is the same three
 variables plus TLS in front. Write it.
 
-- [ ] Document running `sandboxd` on a separate host, with the three
+- [x] Document running `sandboxd` on a separate host, with the three
       requirements above and the one thing that differs (the address is not
       `http://sandboxd:8080`, so it needs TLS and a token nobody shares).
 
@@ -75,12 +75,12 @@ presses a button. Two changes, neither of which touches the reasoning above:
 - probe automatically once the form holds an address and a credential, so the
   marks appear without a deliberate press.
 
-- [ ] Probe on the address/credential pair being complete, debounced, without
+- [x] Probe on the address/credential pair being complete, debounced, without
       removing the explicit `Test` button.
-- [ ] Say in the dialog, before any probe, that the marks come from asking the
+- [x] Say in the dialog, before any probe, that the marks come from asking the
       host — the current copy says nothing has been checked and not what would
       check it.
-- [ ] `docs/sandboxes.md`: the two lists, in a table like the one above.
+- [x] `docs/sandboxes.md`: the two lists, in a table like the one above.
 
 ---
 
@@ -127,17 +127,17 @@ installs what the project declares. `DEFAULT_RUNTIMES["coding"]` carries
 that, so every entry that installs anything needs `;network_mode=bridge`
 explicitly.
 
-- [ ] Ship an allowlist in `docker-compose.yml`: `coding` (bridge), `python`,
+- [x] Ship an allowlist in `docker-compose.yml`: `coding` (bridge), `python`,
       `node`, `documents` (`@python-documents`), `data` (`@python-analytics`),
       `polyglot` (bridge). Ceilings per entry rather than one global number.
-- [ ] The same for `docker-compose-dev.yml` and `docker-compose-prod.yml`, where
+- [x] The same for `docker-compose-dev.yml` and `docker-compose-prod.yml`, where
       the ceilings differ.
-- [ ] A LiteParse runtime — decide between a `@python-documents` entry with
+- [x] A LiteParse runtime — decide between a `@python-documents` entry with
       `packages` and a new recipe in the library. If the library, that is a
       `pydantic-ai-backend` release.
-- [ ] `docs/sandboxes.md`: the syntax, the suggested set, and the
+- [x] `docs/sandboxes.md`: the syntax, the suggested set, and the
       `network_mode` trap.
-- [ ] `docs/configuration.md`: the variables this deployment sets and why.
+- [x] `docs/configuration.md`: the variables this deployment sets and why.
 
 ---
 
@@ -158,14 +158,14 @@ with the flat *All files* tab kept for the question it answers ("where is that
 file, in whichever workspace"). `FileViewer` stays what it is — one file, from
 anywhere — and the tree is the new part.
 
-- [ ] A workspace detail surface: a path tree on the left, `FileContent` on the
+- [x] A workspace detail surface: a path tree on the left, `FileContent` on the
       right, the workspace's own facts in the header (backend, owner, bytes, the
       conversation behind it).
-- [ ] Fold real folders out of the flat paths — the browser has `path` strings
+- [x] Fold real folders out of the flat paths — the browser has `path` strings
       today, so the tree is derived, not fetched.
-- [ ] Tidy the listing: the columns that earn their width, an access label, a
+- [~] Tidy the listing: the columns that earn their width, an access label, a
       link to the conversation, and the empty and failed states distinguished.
-- [ ] A tour stop and a `CreationFlow` entry if the surface is new (`tour.ts`,
+- [x] A tour stop and a `CreationFlow` entry if the surface is new (`tour.ts`,
       `flows.ts`, `detail-targets.ts` for a detail view with no route).
 
 ---
@@ -183,10 +183,10 @@ is why images work and PDFs do not.
 **Decision.** One directive. `frame-src 'self' blob:` — not `data:`, which is the
 one that lets an attacker's document be framed as same-origin, and not `*`.
 
-- [ ] `frame-src 'self' blob:` in the CSP.
-- [ ] A test on the header, because a directive nobody asserts is a directive the
+- [x] `frame-src 'self' blob:` in the CSP.
+- [x] A test on the header, because a directive nobody asserts is a directive the
       next edit drops.
-- [ ] Check the other viewers against the same list — HTML preview is an iframe
+- [x] Check the other viewers against the same list — HTML preview is an iframe
       too.
 
 ---
@@ -212,9 +212,9 @@ and the states are the library's:
 **Decision.** Nothing is wrong here, and nothing on the screen says any of it.
 Documentation, plus the two words the table is missing.
 
-- [ ] `docs/sandboxes.md`: the three states, what opens a session and what ends
+- [x] `docs/sandboxes.md`: the three states, what opens a session and what ends
       one, and which variable moves each boundary.
-- [ ] The tab explains itself in one line, and a hibernated row says what
+- [x] The tab explains itself in one line, and a hibernated row says what
       hibernated means rather than showing a state name.
 
 ---
@@ -234,7 +234,7 @@ Documentation, plus the two words the table is missing.
 | `NETWORK_MODE` | `none` | The service-wide default for a sandbox's network. `none` is no network at all; a runtime may name `bridge` for itself, and `coding` does. |
 | `UI_ENABLED` | `0` | The service's own dashboard, which asks a human to paste a root-equivalent token into a browser. Off because AgenticOS proxies the same data behind its own authorization. |
 
-- [ ] `docs/configuration.md` or `docs/sandboxes.md`: this table, plus
+- [x] `docs/configuration.md` or `docs/sandboxes.md`: this table, plus
       `WORKSPACE_ROOT` and `IDLE_TIMEOUT`, which matter more than three of these
       four and are not mentioned anywhere.
 
@@ -259,9 +259,9 @@ container"; the visible words say `workspace 1% full`, which reads as disk.
 **Decision.** The number is right and the sentence is wrong. Say memory when it
 is memory.
 
-- [ ] Distinguish the two in the usage strip's copy: memory for a container,
+- [x] Distinguish the two in the usage strip's copy: memory for a container,
       stored bytes for a stored workspace.
-- [ ] Name where each ceiling is set, in `docs/configuration.md`.
+- [x] Name where each ceiling is set, in `docs/configuration.md`.
 
 ---
 
@@ -304,11 +304,11 @@ the head sample in the prompt, not from the file.
 the service resolves it under `work_dir` whatever that is configured to be.
 Absolute paths stay legal for anything that means them.
 
-- [ ] `UPLOAD_DIR` relative, and `workspace_path` returning a relative path.
-- [ ] Check every reader of that path: the reference given to the model, the
+- [x] `UPLOAD_DIR` relative, and `workspace_path` returning a relative path.
+- [x] Check every reader of that path: the reference given to the model, the
       workspace browser's addressing, `_write_extracted_text`, and the tests that
       assert `/uploads/`.
-- [ ] A test that an attachment lands where a shell's `ls` finds it — the
+- [x] A test that an attachment lands where a shell's `ls` finds it — the
       assertion the current suite cannot make, because it mocks the backend.
 - [ ] Say in the capability's prompt where attachments are, so a model that
       starts with `ls` looks in the right place.
@@ -322,3 +322,36 @@ Absolute paths stay legal for anything that means them.
   with (topic 3). If it is wanted anyway, it is a library change first: a
   curated image allowlist the service accepts over the wire, not free text.
 - Anything about `/chat`'s attachment upload path itself, which works.
+
+---
+
+## Where this landed
+
+Everything above is in one branch, `feat/sandbox-runtimes-and-workspaces`, with
+the reasoning per part in the pull request's comments rather than in one wall of
+commit messages.
+
+Verified end to end against the running deployment after the image was pulled:
+
+```
+allowed: coding(1g,bridge) data(2g,none) documents(2g,none)
+         node(1g,none) polyglot(1g,bridge) python(1g,none)
+default: coding | work_dir: /workspace
+write uploads/proof.txt -> /workspace/uploads/proof.txt
+glob('**/*')            -> ['uploads/proof.txt']
+```
+
+and on the host: `s-…/workspace/uploads/proof.txt`, holding what was written. The
+same glob answered 2540 paths of `/proc` and `/usr` before.
+
+Two things deliberately left, both said out loud rather than quietly dropped:
+
+- **`- [~]` on the listing table.** Its columns already answer real questions and
+  the thing that made the page feel poor was the reader. A file count is the one
+  column worth adding and cannot be added honestly - `WorkspaceSummary` carries
+  none, and a container's would cost a round trip per row, which browsing never
+  does.
+- **The capability's prompt still does not say where attachments are.** With
+  `uploads/` inside the work directory an agent's own `ls` now finds them, which
+  is the failure that started this; naming the directory in the prompt is a
+  separate change to what every agent is told, and belongs in its own diff.
