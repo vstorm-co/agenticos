@@ -750,7 +750,7 @@
       "explainDescription": "Ask the agent to explain its last response in simpler terms.",
       "explainPrompt": "Explain your last response again, in simpler terms - assume I don't have technical background.",
       "regenDescription": "Regenerate the last assistant response.",
-      "settingsDescription": "Open chat settings (model, temperature, thinking).",
+      "settingsDescription": "Open chat settings (the model for this conversation).",
       "summarizeDescription": "Ask the agent to summarize the conversation so far.",
       "summarizePrompt": "Please give me a concise summary of our conversation so far - key topics, decisions, and any open questions."
     },
@@ -2732,7 +2732,7 @@
       },
       "chat-model-picker": {
         "title": "Tune the model",
-        "body": "Pick the model behind the agent and dial its thinking effort or temperature — just for this conversation."
+        "body": "Pick which of the organization's models answers — just for this conversation, without changing the agent."
       },
       "agents-new": {
         "title": "Build an agent",
