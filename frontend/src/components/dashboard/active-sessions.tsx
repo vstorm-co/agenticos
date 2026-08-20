@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Globe, Monitor, Smartphone, Trash2 } from "lucide-react";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Globe, Monitor, Smartphone, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -16,6 +16,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
   Button,
+  PaginationBar,
 } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
 import { SectionCard } from "@/components/settings/settings-section";
@@ -48,7 +49,6 @@ function DeviceIcon({ type }: { type?: string | null }) {
 export function ActiveSessions() {
   const tErrors = useTranslations("errors");
   const t = useTranslations("dashboard");
-  const tc = useTranslations("common");
   const tTime = useTranslations("time");
   const locale = useLocale();
   const [page, setPage] = useState(0);
@@ -63,7 +63,7 @@ export function ActiveSessions() {
   // session management does not expose this endpoint at all, and "hide the
   // section" is a different answer from "you have no other devices". That
   // stays an explicit shape rather than an error string somebody has to parse.
-  const { data, isPending, error } = useQuery({
+  const { data, isPending, isFetching, isPlaceholderData, error } = useQuery({
     queryKey: qk.sessions.list(page),
     queryFn: async (): Promise<SessionListResponse | "unavailable"> => {
       try {
@@ -75,6 +75,9 @@ export function ActiveSessions() {
         throw err;
       }
     },
+    // A page change is a new key. Without this the previous rows blank to
+    // skeletons mid-navigation, the card collapses, and the scroll jumps (#944).
+    placeholderData: keepPreviousData,
   });
 
   const available = data !== "unavailable";
@@ -96,8 +99,6 @@ export function ActiveSessions() {
     const lastPage = Math.max(0, Math.ceil(remaining / PAGE_SIZE) - 1);
     if (page > lastPage) setPage(lastPage);
   };
-
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const handleRevoke = async (sessionId: string) => {
     try {
@@ -161,7 +162,13 @@ export function ActiveSessions() {
         <p className="text-muted-foreground text-sm">{t("noSessionDataAvailable")}</p>
       ) : (
         <>
-          <ul className="space-y-2">
+          <ul
+            aria-busy={isPlaceholderData || undefined}
+            className={cn(
+              "space-y-2 transition-opacity",
+              isPlaceholderData && "pointer-events-none opacity-50",
+            )}
+          >
             {sessions.map((session) => (
               <li
                 key={session.id}
@@ -205,40 +212,15 @@ export function ActiveSessions() {
             ))}
           </ul>
 
-          {totalPages > 1 && (
-            <div className="mt-3 flex items-center justify-between">
-              <span className="text-muted-foreground text-xs">
-                {tc("rangeOfTotal", {
-                  start: page * PAGE_SIZE + 1,
-                  end: Math.min(total, (page + 1) * PAGE_SIZE),
-                  total,
-                })}
-              </span>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
-                  disabled={page === 0 || loading}
-                  aria-label={t("previousPage")}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-muted-foreground px-2 text-sm">
-                  {page + 1} / {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                  disabled={page >= totalPages - 1 || loading}
-                  aria-label={t("nextPage")}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          )}
+          <div className="mt-3">
+            <PaginationBar
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={total}
+              isLoading={isFetching}
+              onPage={setPage}
+            />
+          </div>
         </>
       )}
     </SectionCard>
