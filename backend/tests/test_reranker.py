@@ -111,6 +111,29 @@ class TestClientConstruction:
         assert reranker.client is not None
 
 
+class TestConfigEquality:
+    """Two rerankers are equal when they name the same model and key.
+
+    Retrieval leans on this to decide whether a multi-collection union shares
+    one reranker; the client is irrelevant to the comparison.
+    """
+
+    def test_same_model_and_key_are_equal(self):
+        assert CohereReranker("rerank-v3.5", "k") == CohereReranker("rerank-v3.5", "k")
+
+    def test_the_client_does_not_affect_equality(self):
+        a = CohereReranker("rerank-v3.5", "k", client=AsyncMock())
+        b = CohereReranker("rerank-v3.5", "k")
+        assert a == b
+        assert hash(a) == hash(b)
+
+    def test_a_different_key_is_not_equal(self):
+        assert CohereReranker("rerank-v3.5", "k1") != CohereReranker("rerank-v3.5", "k2")
+
+    def test_a_non_reranker_is_not_equal(self):
+        assert CohereReranker("rerank-v3.5", "k") != object()
+
+
 class TestBuildReranker:
     """The one composition point both retrieval paths share."""
 

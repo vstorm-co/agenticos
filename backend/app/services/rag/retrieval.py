@@ -134,6 +134,21 @@ class RetrievalService(BaseRetrievalService):
         return await self._reranker_resolver(collection_name)
 
     @staticmethod
+    def _shared_reranker(rerankers: list[BaseReranker | None]) -> BaseReranker | None:
+        """The one reranker every collection agrees on, or None if they do not.
+
+        None the moment any collection resolves to a different reranker or to
+        none at all: a union is reranked only when all of its collections share
+        one, so a disabled or differently-keyed collection in the set turns
+        reranking off for the whole union rather than reordering it on a
+        credential that is not its own.
+        """
+        first = rerankers[0] if rerankers else None
+        if first is None:
+            return None
+        return first if all(r == first for r in rerankers) else None
+
+    @staticmethod
     async def _rank_and_truncate(
         reranker: BaseReranker | None,
         query: str,
@@ -297,17 +312,22 @@ class RetrievalService(BaseRetrievalService):
         When a reranker is configured it runs once over the union of every
         collection's candidates, not per collection: reranking each collection
         separately then merging the winners would rank against the wrong pool.
-        The *first* collection's configuration decides which reranker, if any.
-        On the agent-run path that is unambiguous - an agent's bound collections
-        share one organization and one configuration - but `/rag/search` may pass
-        any readable set of one organization, and there the first collection
-        governs the whole union: a set led by a reranking collection pays for and
-        reorders all of them, one led by a plain collection leaves them in
-        distance order. Absent a reranker this is byte-for-byte the previous
+
+        One reranker reorders the union only when *every* collection resolves to
+        the same one - same model, same key. On the agent-run path that always
+        holds: an agent's bound collections share one organization and one
+        configuration. But `/rag/search` may pass any readable set of one
+        organization, and a set whose collections disagree - one reranking, one
+        not, or two on different keys - is not reranked at all: reranking a
+        disabled collection's candidates on another collection's credential would
+        send content that opted out to Cohere and bill it to the wrong key. A
+        mixed set falls back to the by-distance union rather than picking a winner
+        by position. Absent a shared reranker this is byte-for-byte the previous
         merge - each collection's top `limit`, fused, sorted, deduplicated,
         truncated.
         """
-        reranker = await self._reranker_for(collection_names[0]) if collection_names else None
+        rerankers = [await self._reranker_for(name) for name in collection_names]
+        reranker = self._shared_reranker(rerankers)
         multiplier = _RERANK_FETCH_MULTIPLIER if reranker else _DEFAULT_FETCH_MULTIPLIER
 
         all_results: list[SearchResult] = []

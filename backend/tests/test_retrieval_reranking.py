@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.services.rag.models import SearchResult
-from app.services.rag.reranker import BaseReranker
+from app.services.rag.reranker import BaseReranker, CohereReranker
 from app.services.rag.retrieval import RetrievalService
 
 pytestmark = pytest.mark.anyio
@@ -57,6 +57,17 @@ def _service(store: MagicMock, reranker: BaseReranker | None) -> RetrievalServic
     return RetrievalService(vector_store=store, settings=settings, reranker_resolver=resolver)
 
 
+def _service_by_name(store: MagicMock, mapping: dict[str, BaseReranker | None]) -> RetrievalService:
+    """A retrieval service whose reranker depends on which collection is asked."""
+    settings = MagicMock()
+    settings.enable_hybrid_search = False
+
+    async def resolver(name: str) -> BaseReranker | None:
+        return mapping.get(name)
+
+    return RetrievalService(vector_store=store, settings=settings, reranker_resolver=resolver)
+
+
 def _hits(*names: str) -> list[SearchResult]:
     return [SearchResult(content=name, score=score) for score, name in enumerate(names)]
 
@@ -96,3 +107,51 @@ class TestMultiCollection:
         store = _store_returning(_hits("a"))
         results = await _service(store, _ReverseReranker()).retrieve("q", "handbook", limit=1)
         assert results[0].metadata["collection"] == "handbook"
+
+
+class TestMixedRerankConfig:
+    """A union is reranked only when every collection agrees on one reranker.
+
+    A set whose collections disagree - one reranking, one not, or two on
+    different keys - is left in distance order rather than reranked on a
+    credential that is not the collection's own.
+    """
+
+    async def test_a_differently_keyed_set_is_not_reranked(self):
+        store = _store_returning(_hits("a", "b"))
+        r1, r2 = _ReverseReranker(), _ReverseReranker()
+        svc = _service_by_name(store, {"kb_a": r1, "kb_b": r2})
+        await svc.retrieve_multi("q", collection_names=["kb_a", "kb_b"], limit=3)
+        assert r1.calls == 0
+        assert r2.calls == 0
+
+    async def test_one_unconfigured_collection_disables_reranking_for_the_union(self):
+        store = _store_returning(_hits("a", "b"))
+        r = _ReverseReranker()
+        svc = _service_by_name(store, {"kb_a": r, "kb_b": None})
+        await svc.retrieve_multi("q", collection_names=["kb_a", "kb_b"], limit=3)
+        assert r.calls == 0
+
+
+class TestSharedReranker:
+    """`_shared_reranker` decides whether one reranker may reorder the union."""
+
+    def test_distinct_objects_with_one_config_are_shared(self):
+        a = CohereReranker("rerank-v3.5", "k")
+        b = CohereReranker("rerank-v3.5", "k")
+        assert RetrievalService._shared_reranker([a, b]) is a
+
+    def test_a_differing_key_is_not_shared(self):
+        a = CohereReranker("rerank-v3.5", "k1")
+        b = CohereReranker("rerank-v3.5", "k2")
+        assert RetrievalService._shared_reranker([a, b]) is None
+
+    def test_an_unconfigured_collection_in_the_set_disables_it(self):
+        a = CohereReranker("rerank-v3.5", "k")
+        assert RetrievalService._shared_reranker([a, None]) is None
+
+    def test_an_all_unconfigured_set_has_no_reranker(self):
+        assert RetrievalService._shared_reranker([None, None]) is None
+
+    def test_an_empty_set_has_no_reranker(self):
+        assert RetrievalService._shared_reranker([]) is None

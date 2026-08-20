@@ -436,11 +436,14 @@ model scores each candidate against the query directly and reorders them, so a
 better answer sitting well below the top by distance can surface. Retrieval
 overfetches a wider candidate net (four times the limit rather than two),
 reranks, then truncates — for a multi-collection search, once over the union of
-every collection's candidates. Which reranker is the *first* collection's: an
-agent's bound collections share one organization and one configuration, so the
-choice is unambiguous there, but `POST /rag/search` may pass any readable set of
-one organization, and a union led by a plain collection is left in distance
-order even if a later one reranks.
+every collection's candidates. That one reranker reorders the union only when
+*every* collection resolves to the same one — same model, same key. An agent's
+bound collections share one organization and one configuration, so the choice is
+unambiguous there, but `POST /rag/search` may pass any readable set of one
+organization; a set whose collections disagree — one reranking, one not, or two
+on different keys — is left in distance order rather than reranked, so a
+collection that opted out never has its candidates sent to Cohere on another
+collection's credential.
 
 Configured **per knowledge base**, mirroring embeddings, by
 `app/services/rerank_resolution.py`:

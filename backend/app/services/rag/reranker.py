@@ -78,6 +78,18 @@ class CohereReranker(BaseReranker):
         self._api_key = api_key
         self._client = client
 
+    def __eq__(self, other: object) -> bool:
+        # Two rerankers are the same reranker when they name the same model and
+        # pay with the same key. Retrieval compares them across a multi-collection
+        # union to decide whether the bound collections share one configuration -
+        # only then may one reranker reorder the whole union on one credential.
+        if not isinstance(other, CohereReranker):
+            return NotImplemented
+        return self.model == other.model and self._api_key == other._api_key
+
+    def __hash__(self) -> int:
+        return hash((self.model, self._api_key))
+
     @property
     def client(self) -> AsyncClientV2:
         if self._client is None:
