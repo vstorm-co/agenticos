@@ -194,16 +194,24 @@ class SandboxPolicyRead(BaseSchema):
 class SandboxSessionUsage(BaseSchema):
     """What one sandbox is using, sampled from the host.
 
-    Three named fields rather than the daemon's mapping. `usage_report.py` read
+    Named fields rather than the daemon's mapping. `usage_report.py` read
     `sampled.get("memory_bytes")` off a `dict[str, Any]`, so the two keys it
     depends on were unchecked in the one place a rename would show up as a
     missing number rather than as an error (#562). Every field is optional
     because a sample can fail for one sandbox while the rest answer.
+
+    The field list is the whole of what a caller is told, since a model drops
+    what it does not declare - so a value the daemon starts reporting has to be
+    added here as well as read. `pids` is declared for that reason and no other:
+    nothing renders it yet, but it is in the contract
+    `sandbox-connections-api.ts` publishes, and the mapping this replaced
+    carried it.
     """
 
     memory_bytes: int | None = None
     memory_limit_bytes: int | None = None
     cpu_percent: float | None = None
+    pids: int | None = None
 
 
 class SandboxSessionRead(BaseSchema):

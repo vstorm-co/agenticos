@@ -361,7 +361,7 @@ CONFIG_SCHEMA: ClassVar[dict[str, ConnectorConfigField]] = {
 
 - Set `RemoteFile.source_path` to a unique URI (e.g., `notion://page_id`) — this is used for deduplication across syncs
 - Use `asyncio.to_thread()` to wrap blocking SDK calls so they don't block the event loop
-- Implement `validate_config()` to test connectivity when users create sync sources — it prevents misconfigured sources, and a `ConfigRefusal` naming a `field` is what makes the wizard mark that input rather than show a sentence over four of them
+- Implement `validate_config()` to refuse a config the wizard can still fix — a `ConfigRefusal` naming a `field` is what makes it mark that input rather than show a sentence over four of them. It sees the config and not the credential, so "can this key reach the service" is a question for the first sync, not for this method
 - Declare `SECRET_KIND` and read the credential from the `credential` argument. A credential never goes in `CONFIG_SCHEMA`, and there is no deployment-wide fallback to fall back to
 - Settings in `app/core/config.py` and `.env` are for values that name no principal — where a store is, not who is asking (`S3_RAG_ENDPOINT` is the shape)
 - `_fetch()` writes to the `dest_path` it is handed and returns nothing — the base class answers where that is, and the ingestion pipeline handles everything from there

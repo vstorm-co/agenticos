@@ -1068,15 +1068,25 @@ class TestSamplingOneSandbox:
                 {
                     "session_id": "xc-1",
                     "tenant": str(ctx.organization_id),
-                    "usage": {"memory_bytes": 512, "memory_limit_bytes": 2048},
+                    "usage": {
+                        "memory_bytes": 512,
+                        "memory_limit_bytes": 2048,
+                        "cpu_percent": 12.5,
+                        "pids": 7,
+                    },
                 },
             ),
         )
 
         usage = await service.session_usage(ctx, row.id, "xc-1")
 
+        # Every field the daemon sampled, because a model drops what it does not
+        # declare - so this is the assertion that a value stops reaching a client
+        # the moment somebody forgets to add it here (#562).
         assert usage.memory_bytes == 512
         assert usage.memory_limit_bytes == 2048
+        assert usage.cpu_percent == 12.5
+        assert usage.pids == 7
         assert seen["url"].endswith("/sessions/xc-1?usage=true")
 
     async def test_another_organizations_sandbox_reads_as_missing(self, monkeypatch):
