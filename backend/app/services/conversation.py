@@ -828,7 +828,15 @@ class ConversationService:
             )
 
     async def list_attached_files(self, file_ids: list[str], *, user_id: UUID) -> list[Any]:
-        """The caller's rows behind the ids a client sent; anybody else's resolve to nothing (#706)."""
-        return await chat_file_repo.get_many(
-            self.db, [UUID(fid) for fid in file_ids], user_id=user_id
-        )
+        """The caller's rows behind the ids a client sent; anybody else's resolve to nothing (#706).
+
+        The ids come off an untyped socket payload, so one that is not a UUID is
+        refused as validation naming `file_ids` - the same loud refusal
+        `link_files_to_message` gives. A bare `UUID()` here raised a `ValueError`
+        that the turn handler caught in its infrastructure net and resurfaced a
+        step later as a generic failed turn, logged as a server error.
+        """
+        ids, malformed = _file_uuids(file_ids)
+        if malformed:
+            raise BadRequestError(message="Invalid file id", details={"file_ids": malformed})
+        return await chat_file_repo.get_many(self.db, ids, user_id=user_id)

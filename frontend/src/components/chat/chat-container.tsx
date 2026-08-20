@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { ChatMessageFile } from "@/types";
+import type { PublishedModel } from "@/types/agents";
 import { useAgents, useChat, useConversationWorkspace, useModelProviders } from "@/hooks";
 import { AgentPicker } from "./agent-picker";
 import { ChatControls } from "./chat-controls";
@@ -75,6 +76,9 @@ export function ChatContainer() {
   // is a share of *its* window rather than of the agent's default.
   const [modelProfileId, setModelProfileId] = useState<string | null>(null);
   const contextWindow = useContextWindow(modelProfileId);
+  const { agents } = useAgents({ includeArchived: true });
+  const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
+  const agentModel = agents.find((agent) => agent.id === selectedAgentId)?.published_model ?? null;
   // Deliberately unfiltered, which is what calling this with no arguments
   // means. The sidebar's copy of this list is narrowed by whatever is in its
   // search box, and reading the two facts below off *that* would flip the
@@ -270,6 +274,7 @@ export function ChatContainer() {
       // conversation somebody has just reopened instead of after their next message.
       lastUsage={lastUsage ?? latestUsage(currentMessages, currentConversationId)}
       contextWindow={contextWindow}
+      agentModel={agentModel}
       // Only for the thread that is actually open. The store keeps the transcript
       // it last loaded, so between clicking another conversation and its messages
       // arriving this figure belongs to the one just left - the same reason
@@ -324,6 +329,8 @@ interface ChatUIProps {
   conversationCost: ConversationCost | null;
   /** The window the context gauge is a share of, or null when nobody knows it. */
   contextWindow: number | null;
+  /** The selected agent's published model, shown as current in the model picker. */
+  agentModel: PublishedModel | null;
   /**
    * The turn's delegations, drawn under the transcript.
    *
@@ -376,6 +383,7 @@ function ChatUI({
   lastUsage,
   conversationCost,
   contextWindow,
+  agentModel,
   delegations,
   conversationId,
   turns,
@@ -534,6 +542,7 @@ function ChatUI({
                   <div data-tour="chat-model-picker">
                     <ChatControls
                       onModelProfileChange={onModelProfileChange}
+                      agentModel={agentModel}
                       onTemperatureChange={onTemperatureChange}
                       onThinkingEffortChange={onThinkingEffortChange}
                     />

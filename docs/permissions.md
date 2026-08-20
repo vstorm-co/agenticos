@@ -144,7 +144,27 @@ not. Two consequences, and both are the point:
 
 Derived from the catalog rather than from a role name, so a custom role (Phase
 2) is bounded by what it actually holds. The ceiling this replaced compared
-against the literal `"admin"` and could not see one at all.
+against the literal `"admin"` and could not see one at all - on the invitation
+paths as well as on `change_role`, which is what #696 closed.
+
+**A page's organization is the one in its URL.** `X-Organization-Id` travels on
+every request from the console and names the *active* organization, so a page
+that acts on an org from its path - `/orgs/{id}/members` - has two notions of
+"which tenant" and the organizations list opens that page without switching. They
+are one now: the dashboard's `ActiveOrgGuard` adopts the organization a path
+names, before the page asks anything, so what a caller may do there is what they
+may do *there* (#1032).
+
+**The console computes the same relation rather than being told it.** Every role
+picker - the two invite dialogs and the members table - offers what
+`assignableRoles` in `frontend/src/lib/assignable-roles.ts` answers, over the
+role catalog `GET /roles/catalog` already returns with each role's permissions.
+It is arithmetic on the client for the same reason it is on the server: a picker
+holding a *list* offered every role bar `owner` whoever was asking, so an Admin
+was offered Admin and refused after typing the email address (#1028). A role the
+caller cannot assign is also a role the members table will not draw a picker for,
+because the trigger shows the chosen item's text and a value absent from the list
+renders blank.
 
 Custom roles are Phase 2 and may only ever recombine the permissions above;
 clients cannot invent new ones.
@@ -335,10 +355,11 @@ trail and the approval gate all key on one.
 - `.permissions` returns `{}` when there is no subject - checked on the subject
   rather than on the role string, because a subject-less context built with
   `"owner"` would otherwise reach every row in the organization.
-- `.subject_id` raises `AuthorizationError` rather than returning `None`, because
-  the audit actor column is `NOT NULL` and letting the absence travel surfaces
-  several layers down as an `IntegrityError` - by which point the audit entry is
-  lost and the request has half happened.
+- `.subject_id` raises `AuthorizationError` rather than returning `None`: an
+  authenticated path that got this far has a person, and letting the absence
+  travel writes an entry naming nobody - indistinguishable from the two writers
+  that legitimately do, and by then the request has half happened. A caller with
+  no session at all reads `.user_id` and says so.
 
 The surfaces open to people this deployment cannot name do not use that
 constructor. A hosted page, a widget and a channel each run the turn under

@@ -267,6 +267,14 @@ export interface AgentSpec {
   observability?: ObservabilitySpec | null;
 }
 
+/** The model an agent's published version runs on. Enough to prefill a picker. */
+export interface PublishedModel {
+  profile_id: string;
+  provider: string;
+  model: string;
+  label: string;
+}
+
 export interface Agent {
   id: string;
   slug: string;
@@ -311,6 +319,13 @@ export interface Agent {
    * only.
    */
   context_window_tokens?: number | null;
+  /**
+   * The model the published version runs on, so the chat's model picker can open
+   * showing what the conversation is on and offer a way back after an override.
+   * Read off the frozen spec, not the draft; null for a draft agent and when the
+   * profile has been deleted. Listing only.
+   */
+  published_model?: PublishedModel | null;
   created_at?: string;
   /**
    * `null` until the row is first updated - `TimestampSchema.updated_at` is

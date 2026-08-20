@@ -1582,6 +1582,25 @@ class TestConversationServiceLinkFiles:
         assert refusal.value.details == {"file_ids": [spent]}
         repo.link_to_message.assert_not_awaited()
 
+    @pytest.mark.anyio
+    async def test_listing_attached_files_refuses_a_malformed_id(
+        self, service: ConversationService
+    ):
+        """The read path for a message with no text of its own. A `UUID(fid)` here
+        raised a `ValueError` that the socket handler logged as its own error and
+        answered with a generic failed turn; the id is client input, so it is
+        refused as validation naming `file_ids` instead."""
+        good = uuid4()
+
+        with patch("app.services.conversation.chat_file_repo") as repo:
+            repo.get_many = AsyncMock()
+
+            with pytest.raises(BadRequestError) as refusal:
+                await service.list_attached_files([str(good), "not-a-uuid"], user_id=uuid4())
+
+        assert refusal.value.details == {"file_ids": ["not-a-uuid"]}
+        repo.get_many.assert_not_awaited()
+
 
 class TestSayingATurnWasStopped:
     """`run_status` on a listed message.

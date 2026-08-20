@@ -70,12 +70,16 @@ class TestWithoutAWorkspace:
         assert isinstance(prompt, list)
         assert isinstance(prompt[1], BinaryContent)
 
-    async def test_a_file_nothing_could_parse_contributes_nothing(self, storage):
+    async def test_a_file_nothing_could_parse_is_named_not_dropped(self, storage):
+        # Silence reads as the model denying a file the transcript says arrived,
+        # so the reference names it and why it cannot be read.
         prompt = await AttachmentRouter().build_prompt(
-            "look", [_file(file_type="binary", parsed_content=None)]
+            "look", [_file(filename="dump.zip", file_type="binary", parsed_content=None)]
         )
 
-        assert prompt == "look"
+        assert isinstance(prompt, str)
+        assert "dump.zip" in prompt
+        assert "could not be extracted" in prompt
 
     async def test_no_attachments_is_the_message_unchanged(self):
         assert await AttachmentRouter().build_prompt("hello", []) == "hello"
@@ -253,18 +257,24 @@ class TestWithAWorkspace:
         assert isinstance(prompt, list)
         assert any(isinstance(part, BinaryContent) for part in prompt)
 
-    async def test_a_file_the_store_cannot_load_is_skipped_rather_than_fatal(self, monkeypatch):
-        """The person asked a question; answering without the file beats not
-        answering at all."""
+    async def test_a_file_the_store_cannot_load_is_named_rather_than_fatal(self, monkeypatch):
+        """A routing failure must not fail the turn - the person asked a question
+        and answering without the file beats not answering. But the model is told
+        the file arrived and could not be processed, not left denying it."""
         monkeypatch.setattr(
             attachments_module,
             "get_file_storage",
             lambda: SimpleNamespace(load=AsyncMock(side_effect=OSError("gone"))),
         )
 
-        prompt = await AttachmentRouter(_workspace()).build_prompt("summarise", [_file()])
+        prompt = await AttachmentRouter(_workspace()).build_prompt(
+            "summarise", [_file(filename="raport.csv")]
+        )
 
-        assert prompt == "summarise"
+        assert isinstance(prompt, str)
+        assert prompt.startswith("summarise")
+        assert "raport.csv" in prompt
+        assert "could not be processed" in prompt
 
 
 class TestFilenamesAreNotTrusted:

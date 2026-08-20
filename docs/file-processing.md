@@ -891,20 +891,50 @@ the source cannot widen. Pointing a broad credential at a `personal` collection
 narrows the readers but not what was ingested; a narrow credential on an `org`
 collection is the shape to aim for.
 
-Two things this rule owes and does not yet have, each filed:
-[#982](https://github.com/vstorm-co/agenticos/issues/982) states the consequence
-in the wizard where the collection is chosen, and re-asks when a source is
-repointed at a different one; [#983](https://github.com/vstorm-co/agenticos/issues/983)
-records creating and repointing a source in the audit log, which is what gives
-"who decided this collection gets that credential's reach" an answer after the
-fact. Today both are silent, which is exactly the implicitness this section
-exists to name.
+**Who decided it is recorded.** Creating, cloning, repointing and deleting a
+source each write an audit entry - `sync_source.created`, `.updated`,
+`.deleted` - naming the actor, the connector, the collection and the *id* of the
+secret, never the config document. An update that moves the source to a
+different collection also records the one it left, because a rename and a change
+of audience are otherwise the same entry. A clone is recorded as a creation
+naming the row it came from: it points a credential somebody already scoped at a
+different collection, so its audience changes while nothing about the credential
+does (#983).
+
+**And it is said before the fact, not only after it.** The wizard's last step -
+the one that decides the collection - names the credential and the audience
+together, because the pair is the decision: *"<credential> can read whatever it
+has been granted, and everything it ingests becomes searchable in <collection>
+by ..."*. A connector that authenticates with nothing has no credential to name
+and the sentence does not invent one; nor does it name one whose reader holds no
+`secrets:view`. Each scope ends that sentence differently - `personal` is its owner,
+`org` is everyone who can view the collection, `app` is anybody in the
+deployment - and an integration filed under no knowledge base says that nothing
+can search it yet. The sentence does not wait for the collection *picker*, which
+only appears where there is more than one collection to choose from: the case
+this was filed from is a knowledge base offering exactly one, where there is
+nothing to pick and the consequence is the same (#982).
+
+Cloning says it too, and for the reason above: it is the only way to change a
+source's audience from this product's own UI. Repointing an existing one is a
+`PATCH` on `collection_name`, which no screen sends today - there is no source
+editor - so it is reachable through the API and the CLI, where the audit entry
+above is what records it.
 
 ### What a new connector owes
 
 A connector is `list_files` + `_fetch` + a `CONFIG_SCHEMA`, and the API calls are
-the cheap part. Three things are not, and a connector without them is a bill or a
-surprise rather than a feature:
+the cheap part. **An object store is less than that**: S3, Azure Blob and GCS are
+one connector with three clients, so `ObjectStoreConnector` holds the listing
+loop, the `<scheme>://<container>/<key>` address and the directory-marker skip,
+and a subclass supplies a client, a `SCHEME`, and which `CONFIG_SCHEMA` field
+names the container - `bucket` for S3 and GCS, `container` for Azure. `S3Connector`
+is that subclass ([#988](https://github.com/vstorm-co/agenticos/issues/988)); its
+two hooks are deliberately blocking, because all three SDKs are, and the shared
+class runs them on a worker thread.
+
+Three things are not cheap, and a connector without them is a bill or a surprise
+rather than a feature:
 
 - **A change signal.** The sync path compares one since
   [#990](https://github.com/vstorm-co/agenticos/issues/990), and what it compares
@@ -938,8 +968,10 @@ Which connectors are being built, and in what order, is decided in
 OneDrive ([#985](https://github.com/vstorm-co/agenticos/issues/985)), Confluence
 ([#986](https://github.com/vstorm-co/agenticos/issues/986)), a git repository's
 documentation ([#987](https://github.com/vstorm-co/agenticos/issues/987)), and
-then Azure Blob and GCS once `S3Connector` is an object store rather than an S3
-one ([#988](https://github.com/vstorm-co/agenticos/issues/988)). Notion, Slack
+then Azure Blob and GCS, whose condition is met: `S3Connector` is an
+`ObjectStoreConnector` subclass, so each of those is a client and a
+`CONNECTOR_TYPE` rather than a second copy of the listing loop
+([#988](https://github.com/vstorm-co/agenticos/issues/988)). Notion, Slack
 and email archives are decided **against** for now, each for a reason recorded
 there — the last two because a conversation retrieves badly and the channel
 integrations already put an agent *in* Slack.

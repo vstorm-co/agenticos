@@ -354,6 +354,47 @@ class TestInvitationService:
             )
 
     @pytest.mark.anyio
+    async def test_a_custom_role_holding_members_manage_cannot_invite_an_admin(
+        self, service, monkeypatch
+    ):
+        """The ceiling is what the requester holds, not whether they are `admin`.
+
+        Keyed on the literal role name, this let a custom role (Phase 2) composed
+        with `members:manage` invite a new Admin unchecked - the invitation half of
+        the defect #672 removed from `change_role` (#696). The membership half is
+        `test_a_custom_role_holding_roles_manage_cannot_mint_an_owner`.
+        """
+        from app.core.permissions import ROLE_PERMS, Perm, Scope
+
+        monkeypatch.setitem(ROLE_PERMS, "test:inviter", {Perm.MEMBERS_MANAGE: Scope.ALL})
+        requester = MagicMock(role="test:inviter")
+
+        with (
+            patch("app.services.invitation.member_repo.get", new=AsyncMock(return_value=requester)),
+            pytest.raises(AuthorizationError),
+        ):
+            await service.invite(
+                uuid.uuid4(), "user@example.com", "admin", requester_id=uuid.uuid4()
+            )
+
+    @pytest.mark.anyio
+    async def test_a_custom_role_holding_members_manage_cannot_link_an_admin(
+        self, service, monkeypatch
+    ):
+        """The same ceiling on the invite-link path, the second call site keyed on
+        the literal `admin` (#696)."""
+        from app.core.permissions import ROLE_PERMS, Perm, Scope
+
+        monkeypatch.setitem(ROLE_PERMS, "test:inviter", {Perm.MEMBERS_MANAGE: Scope.ALL})
+        requester = MagicMock(role="test:inviter")
+
+        with (
+            patch("app.services.invitation.member_repo.get", new=AsyncMock(return_value=requester)),
+            pytest.raises(AuthorizationError),
+        ):
+            await service.create_link(uuid.uuid4(), "admin", requester_id=uuid.uuid4())
+
+    @pytest.mark.anyio
     async def test_invite_raises_on_duplicate_pending(self, service):
         mock_requester = MagicMock()
         mock_requester.role = "owner"

@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.updates import writable
+from app.core.audit import record_audit
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
@@ -243,7 +244,54 @@ class SyncSourceService:
             sync_mode=data.sync_mode,
             schedule_minutes=data.schedule_minutes,
         )
+        await self._record(source, "created", ctx=ctx)
         return self._to_read(source, secret_hint=hint)
+
+    async def _record(
+        self,
+        source: SyncSource,
+        event: str,
+        *,
+        ctx: AuthContext,
+        extra: dict[str, object] | None = None,
+    ) -> None:
+        """Leave a trail for the decision this row *is*.
+
+        A sync source binds a credential to a collection, which is the platform's
+        authorization decision for everything it ingests: access is decided at
+        the collection and the credential's reach is the source's reach
+        (`docs/file-processing.md#who-ends-up-able-to-read-what-a-source-ingested`).
+        Nothing recorded it, so "who made this credential's reach searchable by
+        this collection's readers" had no answer after the fact, and neither did
+        "when did it start pointing at the org collection instead of my personal
+        one" (#983).
+
+        What lands in `details` is the decision and not the payload: the
+        connector, the collection, and the *id* of the secret. Never the config
+        document - a place a credential has been posted before (#937) - and never
+        the row.
+
+        `ctx.user_id` rather than `ctx.subject_id`, which raises: `rag-source-add`
+        and `rag-source-remove` are operator commands with nobody at a keyboard,
+        and an entry naming no actor is a truer record of one than no entry at
+        all. The action is what tells such an entry from the approval expiry
+        sweep's, the other writer that names nobody.
+        """
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.user_id,
+            organization_id=source.organization_id,
+            action=f"sync_source.{event}",
+            target_type="sync_source",
+            target_id=str(source.id),
+            details={
+                "name": source.name,
+                "connector_type": source.connector_type,
+                "collection_name": source.collection_name,
+                "secret_id": str(source.secret_id) if source.secret_id else None,
+                **(extra or {}),
+            },
+        )
 
     async def _checked_secret(
         self, secret_id: UUID | None, connector_type: str, ctx: AuthContext
@@ -303,7 +351,7 @@ class SyncSourceService:
         return row.hint
 
     async def clone_source(
-        self, source_id: str, data: SyncSourceClone, *, organization_id: UUID
+        self, source_id: str, data: SyncSourceClone, *, ctx: AuthContext
     ) -> SyncSourceRead:
         """Clone an existing integration into a different knowledge base.
 
@@ -311,6 +359,11 @@ class SyncSourceService:
         credential. That is the point of the id: one Drive credential feeding
         five collections is one secret, rotated once, and revoking it stops all
         five - where five encrypted copies had to be found first (#937).
+
+        Which makes a clone the very decision #983 is about, and the one most
+        easily missed: it points a credential somebody already scoped at a
+        *different* collection, so its audience changes while nothing about the
+        credential does. The entry says which row it was cloned from.
         """
         existing = await self.get_source(source_id)
         raw = _raw_config(existing)
@@ -322,13 +375,14 @@ class SyncSourceService:
             self.db,
             name=data.name or f"{existing.name} (copy)",
             connector_type=existing.connector_type,
-            organization_id=organization_id,
+            organization_id=ctx.organization_id,
             collection_name=data.collection_name,
             config=raw,
             secret_id=existing.secret_id,
             sync_mode=existing.sync_mode,
             schedule_minutes=existing.schedule_minutes,
         )
+        await self._record(source, "created", ctx=ctx, extra={"cloned_from": source_id})
         return self._to_read(source)
 
     async def update_source(
@@ -368,19 +422,31 @@ class SyncSourceService:
             await _refuse_an_invalid_config(merged, existing.connector_type)
             updates["config"] = merged
 
+        previous_collection = existing.collection_name
         source = await sync_source_repo.update(self.db, UUID(source_id), **updates)
         if source is None:
             raise NotFoundError(message="Sync source not found", details={"source_id": source_id})
+        repointed = (
+            {"previous_collection_name": previous_collection}
+            if source.collection_name != previous_collection
+            else {}
+        )
+        # The field names, never their values: one of them is `config`, and a
+        # patch is a place a credential has been posted before (#937, #412).
+        await self._record(
+            source, "updated", ctx=ctx, extra={"fields": sorted(updates), **repointed}
+        )
         return self._to_read(source, secret_hint=hint)
 
-    async def delete_source(self, source_id: str) -> None:
+    async def delete_source(self, source_id: str, *, ctx: AuthContext) -> None:
         """Delete a sync source.
 
         Raises:
             NotFoundError: If sync source does not exist.
         """
-        await self.get_source(source_id)
+        source = await self.get_source(source_id)
         await sync_source_repo.delete(self.db, UUID(source_id))
+        await self._record(source, "deleted", ctx=ctx)
 
     async def trigger_sync(self, source_id: str) -> object:
         """Trigger a manual sync - persists a SyncLog and dispatches the task.

@@ -17,6 +17,285 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.231] - 2026-08-20
+
+The organization in the URL is the tenant.
+
+### Fixed
+
+- **`/orgs/{id}/members` acted on the organization in its path and judged
+  permissions from the active one.** `X-Organization-Id` travels on every request
+  and names the active organization, while the organizations list opens any org's
+  members page through a link and *switching* is a separate button that navigates
+  to the dashboard - so the ordinary route to another organization's members page
+  was the one that left the active organization behind, and the page then judged
+  Acme's members by the caller's role in Globex. `ActiveOrgGuard` adopts the
+  organization a path names, before the page asks anything. (#1032)
+- Not only the role picker: `canManage` decides whether any role control, invite
+  button or spending field renders at all, and it read the same wrong answer long
+  before the picker did. (#1032)
+- **Switching organization from a page that names one now takes the route with
+  it** - Globex picked on Acme's members page lands on Globex's members page.
+  Adoption happens once per path, so a deliberate switch is not written back; the
+  two together are what keep the primary switcher working on those pages while
+  the URL still decides the tenant. (#1032)
+- An organization id in a URL is adopted lower-cased. The server serialises them
+  canonically and the active organization is found by identity, so an upper-case
+  spelling would be held as the selection, match nothing in the list - the
+  switcher showing the first organization while requests carried another - and be
+  unrecoverable, since the refusal check compares the same two strings. (#1032)
+
+### Changed
+
+- `OrgSwitcher` navigates through `@/lib/locale-navigation` rather than
+  `next/navigation`, so its pushes keep the locale prefix instead of sending a
+  Polish reader to the English `/orgs`. (#1032)
+
+## [0.0.230] - 2026-08-20
+
+A role picker offers what the caller may actually assign.
+
+### Fixed
+
+- **Every role picker offered every role in the catalog bar `owner`, whoever was
+  asking.** Both invite dialogs and the members table, with the service refusing
+  what the caller could not assign - so an Admin was offered Admin and got a 403
+  after typing the email address. `assignableRoles` is the client's copy of
+  `app.core.permissions.assignable_roles`, over the permissions
+  `GET /roles/catalog` already returns: a role is offered only when the caller's
+  own strictly outranks it. Pre-existing, and 0.0.229 widened who it happened to
+  - with the server's ceiling derived from what a role holds, every custom role
+  composed with `members:manage` met the same offer-then-refuse. (#1028)
+- **A picker seeded with a role it did not offer.** Both dialogs held Member as
+  their initial value and never reconciled it with the list; Member is kept where
+  it is on offer - which for every built-in role that may invite at all, it is -
+  and otherwise the least privileged role that is. (#1028)
+- **A peer Admin's row keeps its picker**, with that role in the list and
+  disabled. `change_role` judges the role being handed out rather than the one
+  being replaced, so an Admin may demote a peer Admin - and the row needs the
+  current role present or the trigger renders blank, because the chosen item's
+  text is what a trigger shows. (#1028)
+- **A role catalog that cannot be read says so**, in both dialogs and above the
+  members table. Offering nothing and being unable to answer are the same pixels
+  and a different fact, and the second one is permanent. (#1028)
+
+## [0.0.229] - 2026-08-20
+
+The invitation ceiling is what the requester holds, not whether they are Admin.
+
+### Fixed
+
+- **A custom role composed with `members:manage` could invite a new Admin.**
+  `InvitationService` capped who may be invited by comparing the requester's role
+  against the literal string `admin`, so the ceiling applied to a built-in Admin
+  and to nobody else - and the catalog is explicitly built to let a Phase 2 role
+  hold that permission. Both call sites, the email invite and the invite link, now
+  read `assignable_roles(requester.role)`: the same catalog-derived relation
+  `change_role` uses, where a role may be offered only when the requester's own
+  *strictly* outranks it. This is the invitation half of what #672 removed from
+  `change_role`. (#696)
+- Behaviour for the built-in roles is unchanged - `assignable_roles("admin")` is
+  exactly the set the literal check allowed, and an Owner still invites Admins.
+  An Owner may no longer invite an Owner, which the invite schemas already
+  refused and which is what "nobody at all assigns `owner`" means: ownership moves
+  through `transfer_ownership`, which demotes the outgoing owner in the same
+  breath. (#696)
+
+## [0.0.228] - 2026-08-20
+
+The MCP connection dialog owns its own form.
+
+### Changed
+
+- **`McpConnectionDialog` was a controlled shell.** `McpServerList` held its five
+  form fields as state and drilled a value *and* a setter each into it - thirteen
+  props - seeding them by hand when a draft opened. The dialog owns those fields
+  now, in an inner form keyed on the draft, so switching servers remounts it with
+  freshly seeded state instead of carrying the previous server's name and token
+  across. The list keeps which server is being edited and reads the values back on
+  submit; `handleSubmit` stays with the list, because it drives the connection
+  mutations, the tool refresh and the OAuth redirect, none of which are the
+  dialog's. Prop surface: 13 to 5. Behaviour unchanged, and the integration suite
+  that drives the dialog through the DOM asserts the same API payloads untouched.
+  (#569)
+
+## [0.0.227] - 2026-08-20
+
+An attachment the router cannot read is named rather than dropped.
+
+### Fixed
+
+- **A file no parser could read contributed nothing to the prompt**, so the model
+  answered as though nothing had arrived - which reads as it denying a file the
+  transcript plainly shows. The reference now names the file and says its text
+  could not be extracted and that the agent has no workspace to open it from,
+  which is the same principle the too-large-image case already followed. (#746)
+- **A routing failure was silent too.** It still does not fail the turn - the
+  person asked a question, and answering without the file beats not answering -
+  but the model is told the file arrived and could not be processed. The error's
+  own text stays in the log line beside the raise, never in the prompt. (#746)
+
+## [0.0.226] - 2026-08-20
+
+A malformed file id on the socket is a refusal, not a crash in the log.
+
+### Fixed
+
+- **A file id that is not a UUID crashed the turn handler.** `list_attached_files`
+  called `UUID(fid)` on ids that arrive in an untyped socket payload, so a
+  malformed one raised `ValueError` into the handler's infrastructure net and
+  resurfaced a step later as a generic failed turn, logged as a server error. It
+  is client input, so it is refused as validation naming `file_ids` - the same
+  loud refusal `link_files_to_message` already gave. (#749)
+
+## [0.0.225] - 2026-08-20
+
+The chat says which model the conversation runs on.
+
+### Added
+
+- **`published_model` on a listed agent** - the profile id, provider, model id
+  and label of the model its published version runs on. Read off the **frozen
+  spec's** profile rather than the draft's, which may name a model the agent does
+  not run; `null` for a draft agent and for a profile that has been deleted,
+  because a picker prefilled from a gap would name a model the profile no longer
+  is. Filled by the listing only, the same bargain `budget_monthly_usd` and
+  `context_window_tokens` take. (#926)
+- The two lookups behind it - version to published profile, profile to row - are
+  the ones `_context_windows` already made, and they are now loaded once and fed
+  to both, so the summary costs no extra query. (#926)
+
+### Fixed
+
+- **The chat's Model tab opened without saying which model the conversation runs
+  on** - the one thing the panel is named after. It keyed its "currently running"
+  line on the *override*, which is `null` until somebody sets one, so every
+  conversation before its first override rendered blank and asked the reader to
+  choose against a baseline it never showed. The summary now reads the agent's
+  published model when there is no override and the override's profile when there
+  is, labelled *Agent's model* or *Just this chat*. (#926)
+- **A caller without `connections:manage` got a refusal in place of the whole
+  panel.** Creating a model profile needs that permission; *reading* which model
+  an agent runs on is `agents:view`, which opening the conversation already
+  implies - and the person who may not change it is the one most likely to want to
+  know. The summary renders above the gate now and only the fields that write are
+  withheld. (#926)
+
+## [0.0.224] - 2026-08-20
+
+Only the thumb whose request is in flight spins.
+
+### Fixed
+
+- **Rating an answer spun both thumbs.** The spinner was keyed on
+  `isLoading && currentRating !== <the other value>`, and an unrated message has
+  `currentRating === null` - true for both thumbs at once, which is the normal
+  case rather than an edge one. It is keyed on *which* button's request is in
+  flight now, so the other thumb stays a thumb. (#928)
+
+## [0.0.223] - 2026-08-20
+
+An object store's connector is a client, not a copy of the listing loop.
+
+### Changed
+
+- **`S3Connector` is an `ObjectStoreConnector` subclass**, with no behaviour
+  change: a stored source lists and downloads exactly what it did before.
+  #938 made Azure Blob and GCS conditional on this shape existing first, and the
+  condition is now met - each of those is a client, a `SCHEME` and a
+  `CONNECTOR_TYPE` rather than a second copy of the listing. The shared class
+  holds the pagination, the `<scheme>://<container>/<key>` address the sync path
+  matches a row on, the skip for a key ending in `/` (a console's "folder", which
+  would ingest as a document with no bytes and no name), and the destination,
+  which is the base class's answer and the property a new store most easily
+  loses. (#988)
+- A subclass says which `CONFIG_SCHEMA` field names its container - `bucket` for
+  S3 and GCS, `container` for Azure - because a form should say what the store's
+  own console says. Both of its hooks are blocking, run on a worker thread,
+  because all three SDKs are synchronous. (#988)
+- `S3Connector.validate_config` is gone: an override that called `super()` and
+  added nothing. (#988)
+
+### Performance
+
+- **An object listing is converted as it arrives.** The refactor first built a
+  complete list of the shared listing type and then allocated the complete
+  `RemoteFile` list beside it, where the connector before it kept only the
+  second - on a bucket of a million keys, a previously working sync running out
+  of memory. The listing yields, and the conversion happens inside the same
+  worker thread, so one entry exists at a time beside the list being built.
+  Found by the automated review on the branch. (#988)
+
+## [0.0.222] - 2026-08-20
+
+The sync wizard says who will be able to read what a source ingests.
+
+### Added
+
+- **The step that decides a source's collection now names the audience.** Access
+  is decided at the collection and there is no per-document isolation inside one,
+  so everything the credential can reach becomes readable by everyone who can read
+  that collection - a Confluence token issued for a whole instance, pointed at an
+  `org` collection, publishes the instance to every member holding
+  `collections:view`. The decision is the operator's, deliberately; what was wrong
+  is that it was made silently. One sentence per scope: `personal` is its owner,
+  `org` is everyone who can view the collection, `app` is anybody in the
+  deployment. (#982)
+- **The credential is named alongside the audience**, because the pair is the
+  decision: a credential's own permissions are a ceiling nothing here can raise,
+  while `config` narrows the reach and cannot be relied on to keep it narrow. A
+  connector that authenticates with nothing has none to name and the sentence does
+  not invent one, and neither does one whose reader holds no `secrets:view`.
+  (#982)
+- **Cloning says it too**, which is the reachable half of "repointing re-asks": a
+  clone references the same vault secret and names a different collection, so the
+  audience changes while nothing about the credential does. Repointing an existing
+  source has no screen to ask on - `PATCH` on `collection_name` is reachable
+  through the API and the CLI only, where the audit entry added in 0.0.221 is what
+  records it. (#982)
+
+### Fixed
+
+- **The knowledge-base page no longer reads the vault on every load.** The
+  wizard mounts whether or not it is open, so a credential lookup in its own body
+  fired `/secrets` and `/secrets/kinds` on each page load - including for members
+  holding no `secrets:view`, who get a refusal and a retry of it. The lookup lives
+  in the notice, which renders inside the dialog. (#982)
+
+## [0.0.221] - 2026-08-20
+
+Who bound a credential to a collection is recorded.
+
+### Fixed
+
+- **Creating, cloning, repointing and deleting a sync source left no audit
+  entry.** A source binds a credential to a collection, and access to what it
+  ingests is decided at the collection - so the row is the platform's
+  authorization decision for everything that credential can reach, and nothing
+  recorded who made it. `sync_source.created`, `.updated` and `.deleted` name the
+  actor, the connector, the collection and the *id* of the secret. (#983)
+- **A clone is recorded as a creation naming the row it came from.** It points a
+  credential somebody already scoped at a different collection, so the audience
+  changes while nothing about the credential does - the decision in this set that
+  is easiest to miss. (#983)
+- **An update names the fields it changed, never their values**, one of them
+  being `config` - a place a credential has been posted before (#937). An update
+  that moves the source to another collection also records the one it left,
+  because a rename and a change of audience are otherwise the same entry. (#983)
+
+### Changed
+
+- **A null audit actor now means one of two things**, and the `action` says
+  which: the approval expiry sweep, and an operator command at the deployment's
+  shell (`rag-source-add`, `rag-source-remove`), which have nobody at a keyboard
+  to name. Reading `ctx.subject_id` there - as every HTTP path does - would have
+  turned two working commands into an `AuthorizationError`. (#983)
+- Three sentences said the audit actor column is `NOT NULL`
+  (`docs/permissions.md`, `docs/governance.md`, `AuthContext.subject_id`). It is
+  nullable, and has been since the expiry sweep needed it; the reason
+  `subject_id` raises is that an authenticated path has a person, not that the
+  database would refuse. (#983)
+
 ## [0.0.220] - 2026-08-20
 
 A status parameter with one value stops pretending to be a choice.

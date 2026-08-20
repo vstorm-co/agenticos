@@ -13,6 +13,20 @@ from app.core.secret_kinds import SecretRequirement
 from app.schemas.base import BaseSchema
 
 
+class PublishedModel(BaseSchema):
+    """The model an agent's published version runs on.
+
+    Enough for the chat's model picker to open showing what the conversation is
+    on and to offer a way back to it after an override: the profile's id (what an
+    override is set to), its provider, the model id, and the label a person reads.
+    """
+
+    profile_id: UUID
+    provider: str
+    model: str
+    label: str
+
+
 class AgentRead(BaseSchema):
     """An agent as the Builder lists it."""
 
@@ -84,6 +98,17 @@ class AgentRead(BaseSchema):
             "explicit run grant, so a Viewer granted run on one agent reads true here "
             "where the role-level check would say false. Hides create controls; it is "
             "not a security boundary, since every create endpoint re-checks server-side."
+        ),
+    )
+    published_model: PublishedModel | None = Field(
+        default=None,
+        description=(
+            "The model the published version runs on, so the chat's model picker can "
+            "open showing what the conversation is on and offer a way back to it after "
+            "an override. Read off the frozen spec's profile, not the draft's, which may "
+            "name a different model than the agent runs; null for a draft agent and when "
+            "that profile has been deleted. Filled by the listing, same bargain as "
+            "shared_user_count."
         ),
     )
     created_at: datetime | None = None
