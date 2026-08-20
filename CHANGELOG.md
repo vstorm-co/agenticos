@@ -17,6 +17,54 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.217] - 2026-08-20
+
+What a connector sync ingests is visible, and deleting it deletes it.
+
+### Fixed
+
+- **A connector sync records a `rag_documents` row.** It created none, so a Drive
+  folder synced into a knowledge base reported "ingested: 40" and left the
+  Documents tab empty, the collection's own `document_count` at zero, and the
+  documents unreachable by delete - one ingested from a folder could be removed
+  only by dropping the whole collection. A failure was a number in the sync log
+  and a reason nowhere, so "which four of the forty failed, and why" had no
+  answer. (#992)
+- **A delete removes the vectors, whichever route asked.**
+  `RAGDocumentService.delete_document` took `ingestion_service: Any = None` and
+  removed vectors only when a caller passed one - `/rag/documents/{doc_id}` did,
+  `/kb/{kb_id}/documents/{doc_id}` did not. So deleting from the Documents tab
+  removed the row and left the content searchable, and for a synced document that
+  was permanent: the next `new_only` run matched its unchanged hash and skipped
+  it. The argument is required and typed now, so a third route cannot repeat it.
+  Reachable today for an uploaded document. (#992)
+- **The row is opened before the file is indexed**, on the upload and the
+  connector sync. Written afterwards and failing - a database blip, a remote name
+  longer than the column - it left the vector document stored and untracked, and
+  the next `new_only` run then skipped the file before reaching the write. The
+  local-directory sync still writes its row afterwards ([#997]). (#992)
+- **An `app`-scoped collection belongs to no organization**, so
+  `kb.organization_id == organization_id` skipped it: a source pointed at one was
+  parsed with the deployment defaults rather than that collection's own settings,
+  and filed its documents under no knowledge base. The caller's own row still
+  wins over a deployment-wide one of the same name, and another tenant's matches
+  neither. (#992)
+- **The row records which models read the document.** `image_description_model`
+  and `embedding_model` were both omitted, so the documents page showed a synced
+  file as parsed by nothing and embedded by nothing. (#992)
+
+### Changed
+
+- A synced document keeps **no original**: a synced file's bytes live in the
+  system it came from, and mirroring every one onto this deployment's disk to
+  make a retry button work is a cost per corpus rather than per failure.
+  `has_file` is false for these and re-running the sync is the retry - which
+  since #990 skips everything unchanged and re-fetches exactly what has no
+  document, so four failures out of forty cost four transfers. (#992)
+- The knowledge base behind a collection is resolved once per sync rather than
+  per file: `_config_for_collection` was already finding that row to read its
+  parser settings, so one lookup now answers both questions. (#992)
+
 ## [0.0.216] - 2026-08-20
 
 A scheduled sync stops duplicating everything it has already ingested.
