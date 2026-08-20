@@ -17,6 +17,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.224] - 2026-08-20
+
+Only the thumb whose request is in flight spins.
+
+### Fixed
+
+- **Rating an answer spun both thumbs.** The spinner was keyed on
+  `isLoading && currentRating !== <the other value>`, and an unrated message has
+  `currentRating === null` - true for both thumbs at once, which is the normal
+  case rather than an edge one. It is keyed on *which* button's request is in
+  flight now, so the other thumb stays a thumb. (#928)
+
 ## [0.0.223] - 2026-08-20
 
 An object store's connector is a client, not a copy of the listing loop.
