@@ -298,6 +298,10 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "knowledge-integrations",
     page: ROUTES.RAG,
     target: "knowledge-integrations",
+    // Its own tab since #939, so the walk selects it first: a step pointing at a
+    // control inside an unselected tab waits four seconds for an element that
+    // never mounts.
+    activate: "knowledge-tab-integrations",
     permission: Perm.connectionsManage,
   },
   // Optional: the "Add integration" button renders only once the connector catalog
@@ -308,22 +312,37 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "knowledge-add-integration",
     page: ROUTES.RAG,
     target: "knowledge-add-integration",
+    activate: "knowledge-tab-integrations",
     permission: Perm.connectionsManage,
     optional: true,
   },
 
-  // The collection detail, entered from the Knowledge list. Stacked sections
-  // rather than tabs, so no `activate` — driver scrolls each into view.
+  // The collection detail, entered from the Knowledge list. Three tabs since
+  // #939, so each stop selects its own: the header and the stats strip are above
+  // them and need no `activate`, and the three sections below do.
   { id: "kb-header", page: KB_DETAIL, target: "kb-header", permission: Perm.collectionsView },
   {
     id: "kb-documents",
     page: KB_DETAIL,
     target: "kb-documents",
+    activate: "kb-tab-documents",
     permission: Perm.collectionsView,
     inTour: true,
   },
-  { id: "kb-ingestion", page: KB_DETAIL, target: "kb-ingestion", permission: Perm.collectionsView },
-  { id: "kb-sync", page: KB_DETAIL, target: "kb-sync", permission: Perm.collectionsView },
+  {
+    id: "kb-ingestion",
+    page: KB_DETAIL,
+    target: "kb-ingestion",
+    activate: "kb-tab-ingestion",
+    permission: Perm.collectionsView,
+  },
+  {
+    id: "kb-sync",
+    page: KB_DETAIL,
+    target: "kb-sync",
+    activate: "kb-tab-sync",
+    permission: Perm.collectionsView,
+  },
 
   { id: "orgs-new", page: ROUTES.ORGS, target: "orgs-new" },
 

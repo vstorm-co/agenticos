@@ -4,7 +4,16 @@ import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { ROUTES } from "@/lib/constants";
-import { Button, ConfirmDialog, Alert, AlertDescription, AlertTitle } from "@/components/ui";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Button,
+  ConfirmDialog,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui";
 import { SyncSourceWizard } from "@/components/rag/sync-source-wizard";
 import { KBDetailSkeleton } from "@/components/rag/kb-detail-skeleton";
 import { KBDetailHeader } from "@/components/rag/kb-detail-header";
@@ -28,10 +37,38 @@ interface KBDetailPageProps {
   params: Promise<{ id: string }>;
 }
 
+/** Which section of a knowledge base is on screen. `?tab=` from the start (#939). */
+type KBTab = "documents" | "ingestion" | "sync";
+
+function parseTab(value: string | null): KBTab {
+  return value === "ingestion" || value === "sync" ? value : "documents";
+}
+
 export default function KBDetailPage({ params }: KBDetailPageProps) {
   const t = useTranslations("pages.kb");
   const router = useRouter();
   const { id } = use(params);
+
+  // Three sections that used to stack: the documents table, the parser panel and
+  // the sync sources. Each carried a comment explaining why it sat under the one
+  // above, and each argument was about *reading order on a first visit* - which is
+  // not where somebody returns to. Adjusting a parser meant scrolling past every
+  // document to reach it (#939).
+  //
+  // Addressable, so a link can name a section and a reload keeps it - the same
+  // reason `/rag`'s own tabs are in the URL.
+  const [tab, setTabState] = useState<KBTab>(() =>
+    parseTab(
+      typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("tab"),
+    ),
+  );
+  const setTab = (next: KBTab) => {
+    setTabState(next);
+    const url = new URL(window.location.href);
+    if (next === "documents") url.searchParams.delete("tab");
+    else url.searchParams.set("tab", next);
+    window.history.replaceState({}, "", url.toString());
+  };
   const {
     kb,
     documents,
@@ -218,39 +255,58 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
 
       <UploadProgressList uploads={uploadProgress} />
 
-      <DocumentsTable
-        kbId={id}
-        documents={documents}
-        documentsTotal={documentsTotal}
-        hasMoreDocuments={hasMoreDocuments}
-        isLoading={isLoading}
-        isLoadingMoreDocs={isLoadingMoreDocs}
-        mayEdit={mayEdit}
-        onLoadMore={() => loadMoreDocuments()}
-        onPreview={setViewerDoc}
-        onRemove={setRemovingDocument}
-        onChooseFiles={() => fileInputRef.current?.click()}
-      />
+      {/* Under the stats strip and the override banner, which describe the
+          collection rather than any one section and stay above it (#939). */}
+      <Tabs value={tab} onValueChange={(next) => setTab(next as KBTab)}>
+        <TabsList data-tour="kb-tabs">
+          <TabsTrigger value="documents" data-tour="kb-tab-documents">
+            {t("documents")}
+          </TabsTrigger>
+          <TabsTrigger value="ingestion" data-tour="kb-tab-ingestion">
+            {t("howDocumentsAreRead")}
+          </TabsTrigger>
+          <TabsTrigger value="sync" data-tour="kb-tab-sync">
+            {t("syncSources")}
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
-      {/* Under the documents, because it is the answer to a question the table
-          above raises: the parser column says what read each file, and this says
-          what will read the next one. */}
-      <div className="mb-8" data-tour="kb-ingestion">
-        <IngestionPanel kb={kb} onEdit={mayEdit ? () => setIngestionOpen(true) : undefined} />
-      </div>
+      {tab === "documents" && (
+        <DocumentsTable
+          kbId={id}
+          documents={documents}
+          documentsTotal={documentsTotal}
+          hasMoreDocuments={hasMoreDocuments}
+          isLoading={isLoading}
+          isLoadingMoreDocs={isLoadingMoreDocs}
+          mayEdit={mayEdit}
+          onLoadMore={() => loadMoreDocuments()}
+          onPreview={setViewerDoc}
+          onRemove={setRemovingDocument}
+          onChooseFiles={() => fileInputRef.current?.click()}
+        />
+      )}
 
-      <SyncSourcesSection
-        kbId={id}
-        syncSources={syncSources}
-        connectors={connectors}
-        syncSourcesFailed={sectionFailures.syncSources}
-        connectorsFailed={sectionFailures.connectors}
-        mayEdit={mayEdit}
-        onConnect={() => setWizardOpen(true)}
-        onTrigger={(sourceId) => triggerSyncSource(sourceId)}
-        onDisconnect={setDisconnectingSource}
-        onRetry={() => refresh()}
-      />
+      {tab === "ingestion" && (
+        <div className="mb-8" data-tour="kb-ingestion">
+          <IngestionPanel kb={kb} onEdit={mayEdit ? () => setIngestionOpen(true) : undefined} />
+        </div>
+      )}
+
+      {tab === "sync" && (
+        <SyncSourcesSection
+          kbId={id}
+          syncSources={syncSources}
+          connectors={connectors}
+          syncSourcesFailed={sectionFailures.syncSources}
+          connectorsFailed={sectionFailures.connectors}
+          mayEdit={mayEdit}
+          onConnect={() => setWizardOpen(true)}
+          onTrigger={(sourceId) => triggerSyncSource(sourceId)}
+          onDisconnect={setDisconnectingSource}
+          onRetry={() => refresh()}
+        />
+      )}
 
       {/* The count is the collection's, not the table's. Documents page in
           twenty at a time, so `documents.length` would promise to destroy far

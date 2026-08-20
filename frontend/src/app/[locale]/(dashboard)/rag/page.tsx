@@ -37,7 +37,7 @@ const SCOPE_META: Record<KBScope, { labelKey: string; icon: LucideIcon }> = {
   app: { labelKey: "scopeApp", icon: Sparkles },
 };
 
-type RagTab = "bases" | "search";
+type RagTab = "bases" | "search" | "integrations";
 
 export default function RAGPage() {
   const t = useTranslations("pages.kb");
@@ -51,7 +51,8 @@ export default function RAGPage() {
 
   const [tab, setTabState] = useState<RagTab>(() => {
     if (typeof window !== "undefined") {
-      if (new URLSearchParams(window.location.search).get("tab") === "search") return "search";
+      const named = new URLSearchParams(window.location.search).get("tab");
+      if (named === "search" || named === "integrations") return named;
     }
     return "bases";
   });
@@ -96,6 +97,12 @@ export default function RAGPage() {
         <TabsList data-tour="knowledge-tabs">
           <TabsTrigger value="bases">{t("knowledgeBases")}</TabsTrigger>
           <TabsTrigger value="search">{t("search")}</TabsTrigger>
+          {/* A page-level concern, so a tab beside the other two rather than a
+              section below a grid three rows deep - and reachable without first
+              choosing Knowledge bases (#939). */}
+          <TabsTrigger value="integrations" data-tour="knowledge-tab-integrations">
+            {t("integrations")}
+          </TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -169,13 +176,17 @@ export default function RAGPage() {
               </div>
             )}
           </ListCard>
-
-          {/* Below the collections, because it is the thing they are fed from: a
-          connector configured once and cloned into each base that needs it. */}
-          <div data-tour="knowledge-integrations">
-            <ReusableIntegrations targets={kbs} />
-          </div>
         </>
+      )}
+
+      {tab === "integrations" && (
+        // The thing the collections are fed from: a connector configured once and
+        // cloned into each base that needs it. `targets` is the base list, so this
+        // tab needs it loaded - which is why it is the same query rather than a
+        // second one.
+        <div data-tour="knowledge-integrations">
+          <ReusableIntegrations targets={kbs} />
+        </div>
       )}
 
       <CreateKBDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={() => fetchKBs()} />
