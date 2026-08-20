@@ -1,7 +1,7 @@
 """Event triggers - fire an agent on a GitHub issue or an inbound email
 
-Revision ID: 0044_agent_event_triggers
-Revises: 0043_agent_triggers
+Revision ID: 0045_agent_event_triggers
+Revises: 0044_agent_triggers
 Create Date: 2026-08-11
 
 `0037` gave `agent_triggers` one shape: a clock schedule (interval or cron). This
@@ -37,8 +37,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision = "0044_agent_event_triggers"
-down_revision = "0043_agent_triggers"
+revision = "0045_agent_event_triggers"
+down_revision = "0044_agent_triggers"
 branch_labels = None
 depends_on = None
 

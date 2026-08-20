@@ -1,6 +1,6 @@
 """Agent triggers - a schedule that fires an agent with no one at the keyboard
 
-Revision ID: 0043_agent_triggers
+Revision ID: 0044_agent_triggers
 Revises: 0041_invitation_reservations
 Create Date: 2026-08-10
 
@@ -33,8 +33,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision = "0043_agent_triggers"
-down_revision = "0042_sync_source_secret_id"
+revision = "0044_agent_triggers"
+down_revision = "0043_rag_document_source_path"
 branch_labels = None
 depends_on = None
 
