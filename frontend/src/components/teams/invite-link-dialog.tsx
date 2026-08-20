@@ -19,7 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { useAssignableRoles, useInvitations } from "@/hooks";
+import { useAssignableRoles, useInvitations, useRoleCatalog } from "@/hooks";
+import { defaultAssignable } from "@/lib/assignable-roles";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import type { OrgRole } from "@/types";
 import { useTranslations } from "next-intl";
@@ -48,12 +49,17 @@ export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialog
   const { createLink } = useInvitations(orgId);
   const { copy, copied } = useCopyToClipboard();
   const assignable = useAssignableRoles();
+  // Said rather than left to an empty picker (#1028).
+  const { error: rolesError } = useRoleCatalog();
 
-  const [role, setRole] = useState<OrgRole>("member");
+  const [chosen, setChosen] = useState<OrgRole | "">("");
   const [maxUses, setMaxUses] = useState("25");
   const [domain, setDomain] = useState("");
   const [link, setLink] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  // Member where this caller may offer it, and never a role their own does not
+  // outrank: the link is minted with whatever this says (#1028).
+  const role = chosen === "" ? defaultAssignable(assignable, "member") : chosen;
 
   const close = () => {
     onOpenChange(false);
@@ -65,6 +71,7 @@ export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialog
   };
 
   const submit = async () => {
+    if (role === "") return;
     setPending(true);
     const created = await createLink({
       role,
@@ -90,18 +97,22 @@ export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialog
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="link-role">{t("joinAs")}</Label>
-              <Select value={role} onValueChange={(value) => setRole(value as OrgRole)}>
-                <SelectTrigger id="link-role" className="capitalize">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {assignable.map((option) => (
-                    <SelectItem key={option} value={option} className="capitalize">
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {rolesError ? (
+                <p className="text-destructive text-sm">{t("rolesUnavailable")}</p>
+              ) : (
+                <Select value={role} onValueChange={(value) => setChosen(value as OrgRole)}>
+                  <SelectTrigger id="link-role" className="capitalize">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {assignable.map((option) => (
+                      <SelectItem key={option} value={option} className="capitalize">
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -165,7 +176,7 @@ export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialog
               <Button variant="ghost" onClick={close}>
                 {t("cancel2")}
               </Button>
-              <Button onClick={submit} disabled={pending}>
+              <Button onClick={submit} disabled={pending || role === ""}>
                 {t("createLink")}
               </Button>
             </>
