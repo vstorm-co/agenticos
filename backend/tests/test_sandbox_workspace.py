@@ -3284,7 +3284,7 @@ class TestWalkingAHostsDirectories:
         assert len(asked) == 6
 
     async def test_it_stops_at_the_number_of_rows_a_page_can_hold(
-        self, monkeypatch, mock_db_session
+        self, monkeypatch, mock_db_session, caplog
     ):
         """A host holding somebody's `node_modules` must not turn one workspace into
         ten thousand rows on a page about twenty-five of them."""
@@ -3309,6 +3309,9 @@ class TestWalkingAHostsDirectories:
         assert found is not None
         _, contents = found
         assert len(contents.entries) == _MAX_LISTED_ENTRIES
+        # And it says so: a cap nothing records is a list somebody reads as the
+        # whole of what the workspace holds.
+        assert "workspace_listing_truncated" in caplog.text
 
     async def test_one_unreadable_folder_does_not_lose_the_workspace(
         self, monkeypatch, mock_db_session

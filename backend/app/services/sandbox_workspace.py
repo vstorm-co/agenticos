@@ -1179,6 +1179,12 @@ class SandboxWorkspaceService:
             for entry in entries:
                 found.append(entry)
                 if len(found) >= _MAX_LISTED_ENTRIES:
+                    # Said, because a cap that is not is a list a person reads as
+                    # the whole of what a workspace holds.
+                    logger.warning(
+                        "workspace_listing_truncated",
+                        extra={"session": session, "listed": len(found)},
+                    )
                     return found
                 if entry.get("is_dir") and depth + 1 < _MAX_LISTED_DEPTH:
                     queue.append((str(entry.get("path")), depth + 1))
