@@ -17,6 +17,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.236] - 2026-08-21
+
+PII is redacted where records are actually emitted.
+
+### Fixed
+
+- **`PiiRedactionFilter` was attached to the root logger, where it scrubbed nothing
+  the application logs.** A filter on a logger runs only in `Logger.handle`, for a
+  record logged on that logger; a record from `logging.getLogger(__name__)` - which
+  is every log line in this codebase - propagates to its ancestors' **handlers**
+  through `Logger.callHandlers` and never touches their filters. Email addresses,
+  JWTs, `sk-` keys and bearer tokens reached Datadog, CloudWatch and Logfire
+  verbatim: the redaction a deployment believed stood between its logs and its
+  aggregator had never been there. The filter is attached to the root logger's
+  handlers now. (#440)
+- **`logging.lastResort` carries the filter too**, because that is what emits
+  `WARNING` and above in a process that configured no handler - the CLI, a flow
+  subprocess before logging is set up - and a credential in a `logger.exception` is
+  exactly such a record. (#440)
+- **The worker never called `setup_logging` at all.** The process that runs
+  ingestion, syncs and reports - a wrong embedding key, an SMTP failure, a connector
+  401 - redacted nothing even in theory. `setup_logging` is idempotent now and is
+  called by the worker (`prefect_app.main`) and the CLI (`cli.commands.main`) as well
+  as the API. (#440)
 ## [0.0.235] - 2026-08-21
 
 The auth surface is rate-limited, and bcrypt is off the event loop.
