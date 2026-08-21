@@ -249,5 +249,15 @@ class GooglePortalAdapter(PortalAdapter):
                 message="Gmail refused the request",
                 details={"portal_key": self.portal_key, "status": response.status_code},
             )
-        parsed = response.json()
+        try:
+            parsed = response.json()
+        except ValueError as exc:
+            # An intermediary's HTML error page or a truncated body. Translated
+            # into the error `poll_grant` already recovers per mailbox - raised
+            # raw it aborted the whole tick and rolled back every other grant's
+            # cursor with it.
+            raise PortalUnreachable(
+                message="Gmail answered with something unreadable",
+                details={"portal_key": self.portal_key},
+            ) from exc
         return parsed if isinstance(parsed, dict) else {}

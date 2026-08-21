@@ -136,6 +136,7 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
         events=read.events,
     )
     dispatched = 0
+    every_fire_enqueued = True
     for decision in decisions:
         try:
             await dispatch_trigger_fire(
@@ -146,15 +147,23 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
             # transient Prefect error on one fire must not cost the rest of the
             # batch theirs. The delivery claim is left standing - a submit that
             # raised may still have enqueued the run.
+            every_fire_enqueued = False
             logger.exception(
                 "portal_poll_dispatch_failed",
                 extra={"trigger_id": str(decision.trigger_id)},
             )
         else:
             dispatched += 1
-    # Last, and only for a poll that got this far: in the other order a crash
-    # between the two loses every message the poll read.
-    await McpConnectionService(db).store_poll_cursor(grant, cursor=read.cursor)
+    # Last, and only for a poll whose every fire was enqueued: in the other order
+    # a crash between the two loses every message the poll read - and unlike a
+    # webhook there is no provider to resend a polled message, so committing the
+    # cursor over a *failed* dispatch would silently drop that event for ever.
+    # The retained claims suppress the fires that did enqueue while a later poll
+    # re-reads the window.
+    if every_fire_enqueued:
+        await McpConnectionService(db).store_poll_cursor(grant, cursor=read.cursor)
+    else:
+        logger.warning("portal_poll_cursor_retained", extra={"grant_id": str(grant.id)})
     return dispatched
 
 
@@ -174,12 +183,15 @@ async def poll_portal_grants_flow() -> None:
     fire is submitted through `run_deployment` without being awaited, so one slow
     agent run never holds the tick open.
 
-    **The cursor advances only after the fires are dispatched, in the same
+    **The cursor advances only after every fire was dispatched, in the same
     transaction.** In the other order a crash between the two loses every message
     the poll read - the cursor says they were handled and nothing handled them.
     Advancing after means a crash *re-reads* them, which the delivery-id claim then
     dedups: at-least-once, with the duplicate suppressed, rather than at-most-once
-    with a silent hole.
+    with a silent hole. A *failed* dispatch keeps the cursor too: unlike a
+    webhook there is no provider to resend a polled message, so committing the
+    cursor over one would silently drop that event for ever - the retained claims
+    suppress the fires that did enqueue while a later poll re-reads the rest.
     """
     from app.services.mcp_connection import McpConnectionService
     from app.services.portal_catalog import CATALOG, DeliveryMode
@@ -187,6 +199,10 @@ async def poll_portal_grants_flow() -> None:
     polled_keys = [entry.key for entry in CATALOG if entry.delivery is DeliveryMode.POLLING]
     if not polled_keys:
         return
+    # The dedupe claim is what keeps a re-read message from firing twice, and only
+    # the API lifespan configures its module - a different process. Unconfigured it
+    # fails open, which here is exactly the duplicate spend it exists to stop.
+    await _ensure_trigger_dedupe()
     dispatched = 0
     async with get_worker_db_context() as db:
         grants = await McpConnectionService(db).claim_grants_to_poll(portal_keys=polled_keys)
@@ -211,6 +227,24 @@ async def poll_portal_grants_flow() -> None:
                     extra={"portal_key": grant.portal_key, "connection_id": str(grant.id)},
                 )
     logger.info("portal_poll", extra={"dispatched": dispatched})
+
+
+async def _ensure_trigger_dedupe() -> None:
+    """Hand the delivery dedupe a Redis in this worker process, once.
+
+    Flow runs execute outside the API process, so the lifespan's `configure`
+    never reached them and every claim failed open - a rolled-back poll or a
+    worker death after dispatch then re-fired the same message on the next tick.
+    The client lives for the process; a flow-run subprocess exits with it.
+    """
+    from app.clients.redis import RedisClient
+    from app.services import trigger_dedupe
+
+    if trigger_dedupe.is_configured():
+        return
+    client = RedisClient()
+    await client.connect()
+    trigger_dedupe.configure(client)
 
 
 @flow(name="sandbox-log-sweep", log_prints=True)

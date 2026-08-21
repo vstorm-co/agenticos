@@ -11,6 +11,8 @@ layer already verifies.
 from __future__ import annotations
 
 import logging
+import re
+from urllib.parse import quote
 
 import httpx
 
@@ -28,6 +30,10 @@ _EVENTS = ["issues"]
 # administered repositories - past that the free-text target entry is the honest
 # tool, and the cap is logged rather than silently truncating.
 _MAX_REPO_PAGES = 10
+
+# One path segment of a repository target: GitHub's own alphabet, and nothing
+# that means anything to a URL - no slash, no dot-segment, no fragment.
+_REPO_SEGMENT = re.compile(r"[A-Za-z0-9_.-]+")
 
 
 def _headers(access_token: str) -> dict[str, str]:
@@ -58,7 +64,12 @@ class GitHubPortalAdapter(PortalAdapter):
                         params={
                             "per_page": 100,
                             "page": page,
-                            "affiliation": "owner,organization_member",
+                            # Collaborator included: an outside collaborator can
+                            # administer a repository too, and the admin check
+                            # below is what actually decides - filtering them out
+                            # here made such a repository unpickable whenever any
+                            # owned repo put a select on screen.
+                            "affiliation": "owner,organization_member,collaborator",
                         },
                     )
                     if resp.status_code != 200:
@@ -90,7 +101,7 @@ class GitHubPortalAdapter(PortalAdapter):
         try:
             async with httpx.AsyncClient(base_url=_API_BASE, timeout=_TIMEOUT) as client:
                 resp = await client.post(
-                    f"/repos/{target}/hooks",
+                    f"{self._repo_path(target)}/hooks",
                     headers=_headers(access_token),
                     json={
                         "name": "web",
@@ -127,8 +138,43 @@ class GitHubPortalAdapter(PortalAdapter):
     ) -> None:
         if not target:
             return
-        async with httpx.AsyncClient(base_url=_API_BASE, timeout=_TIMEOUT) as client:
-            await client.delete(
-                f"/repos/{target}/hooks/{provider_webhook_id}",
-                headers=_headers(access_token),
+        try:
+            async with httpx.AsyncClient(base_url=_API_BASE, timeout=_TIMEOUT) as client:
+                resp = await client.delete(
+                    f"{self._repo_path(target)}/hooks/{quote(provider_webhook_id, safe='')}",
+                    headers=_headers(access_token),
+                )
+        except httpx.HTTPError as exc:
+            raise PortalUnreachable(
+                details={"portal_key": self.portal_key, "error": exc.__class__.__name__},
+            ) from exc
+        # A hook already gone is the outcome asked for; anything else non-2xx -
+        # a revoked scope, a rate limit, a 5xx - left the hook standing, and a
+        # silent success here is what let the caller drop the only id it could
+        # ever be removed by.
+        if resp.status_code != 404 and resp.status_code >= 300:
+            raise PortalUnreachable(
+                details={"portal_key": self.portal_key, "status": resp.status_code},
             )
+
+    def _repo_path(self, target: str) -> str:
+        """The `/repos/{owner}/{repo}` prefix, refused unless `target` is one.
+
+        A target is caller input bounded only by length, and building a URL from
+        it is what turned `../../user/repos#` into a request the organization's
+        bearer token was sent on to a different API path. Exactly one `owner/repo`
+        shape passes, dot-segments are refused outright, and both halves are
+        percent-encoded so nothing a caller writes can change which route the
+        token reaches.
+        """
+        owner, _, repo = target.partition("/")
+        if (
+            not _REPO_SEGMENT.fullmatch(owner)
+            or not _REPO_SEGMENT.fullmatch(repo)
+            or owner in {".", ".."}
+            or repo in {".", ".."}
+        ):
+            raise WebhookRegistrationForbidden(
+                details={"portal_key": self.portal_key, "reason": "target is not owner/repo"},
+            )
+        return f"/repos/{quote(owner, safe='')}/{quote(repo, safe='')}"

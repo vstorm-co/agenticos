@@ -160,6 +160,26 @@ async def _complete_mcp_flow(
     return payload, (payload.scope.split() if payload.scope else None)
 
 
+async def _initial_poll_cursor(*, portal_key: str, access_token: str) -> dict[str, Any] | None:
+    """Where a freshly consented polled grant starts reading, or None.
+
+    The adapter's own no-cursor poll is the snapshot - "the mailbox as of now,
+    nothing to emit" - taken at consent so mail arriving before the first
+    heartbeat lands *after* the boundary instead of inside it. Best-effort: a
+    provider that cannot answer leaves the cursor to the first poll, whose only
+    cost is the pre-heartbeat window this exists to close.
+    """
+    adapter = portals.get_adapter(portal_key)
+    if adapter is None:
+        return None
+    try:
+        read = await adapter.poll(access_token=access_token, cursor=None)
+    except portals.PortalError:
+        logger.warning("portal_initial_cursor_failed", extra={"portal_key": portal_key})
+        return None
+    return read.cursor
+
+
 async def _complete_google_flow(
     payload: McpOAuthPayload, code: str
 ) -> tuple[McpOAuthPayload, list[str] | None]:
@@ -189,7 +209,9 @@ async def _complete_google_flow(
             "access_token": token.access_token,
             # Kept where Google sent one. Without `access_type=offline` it does not,
             # and a grant with no refresh token stops working in an hour with
-            # nothing to say why - which is why the consent URL asks for it.
+            # nothing to say why - which is why the consent URL asks for it. A
+            # re-consent that omits one falls back to the live payload's, in the
+            # callback, where that payload is in hand.
             "refresh_token": token.refresh_token,
             "expires_at": (
                 None if token.expires_in is None else _now_epoch() + float(token.expires_in)
@@ -1014,12 +1036,39 @@ class McpConnectionService:
             payload, granted_scopes = await _complete_github_flow(payload, code)
         elif payload.provider == google_oauth.PROVIDER:
             payload, granted_scopes = await _complete_google_flow(payload, code)
+            # Google may omit the refresh token on a re-consent for a grant it
+            # already holds - the previous one stays valid, so it is carried
+            # forward from the live payload rather than overwritten with None,
+            # which would stop the mailbox's polling an hour later with nothing
+            # to say why (`_apply_token` does the same for the shared MCP flow).
+            if payload.refresh_token is None and connection.oauth_payload:
+                live = _decode_payload(connection, connection.oauth_payload)
+                if live is not None and live.refresh_token:
+                    payload = payload.model_copy(update={"refresh_token": live.refresh_token})
         else:
             payload, granted_scopes = await _complete_mcp_flow(payload, code)
+        # A polled grant's reading position starts *now*, at consent - not at the
+        # first heartbeat up to a minute later. The first poll with no cursor
+        # snapshots the mailbox and emits nothing, so mail arriving inside that
+        # gap would be inside the snapshot and permanently skipped as if it
+        # predated the connection. Best-effort: a provider that cannot answer
+        # right now leaves the cursor to the first poll, which is the old window
+        # rather than a broken flow.
+        poll_cursor = connection.poll_cursor
+        if (
+            connection.purpose == "portal"
+            and connection.portal_key is not None
+            and poll_cursor is None
+            and payload.access_token
+        ):
+            poll_cursor = await _initial_poll_cursor(
+                portal_key=connection.portal_key, access_token=payload.access_token
+            )
         return await mcp_connection_repo.update(
             self.db,
             db_connection=connection,
             update_data={
+                "poll_cursor": poll_cursor,
                 # The URL moves together with the tokens issued for it.
                 "url": payload.server_url,
                 # A row staged as an upgrade (a pre-OAuth bearer connection to a
@@ -1223,6 +1272,12 @@ class McpConnectionService:
         a `NotFoundError`, because a bad id is a client mistake, not a fallback.
         """
         connection = await self._get_org(ctx, connection_id)
+        # Disabled means disabled everywhere: the agent tool path already skips a
+        # disabled row, and a caller who kept a trigger's connection_id must not
+        # be able to keep enumerating repositories or registering hooks with a
+        # credential an administrator switched off.
+        if not connection.is_enabled:
+            return None
         if not set(required_scopes).issubset(connection.granted_scopes or ()):
             return None
         return await _oauth_access_token(self.db, connection)

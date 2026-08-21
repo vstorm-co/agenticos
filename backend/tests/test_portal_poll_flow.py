@@ -99,9 +99,13 @@ async def _run(recorder: _Recorder, *, read, decisions, dispatch=None):
         async def __aexit__(self, *exc):
             return False
 
+    async def already_configured():
+        return None
+
     with (
         patch.object(trigger_tasks, "get_worker_db_context", lambda: _Ctx()),
         patch.object(trigger_tasks, "dispatch_trigger_fire", dispatcher),
+        patch.object(trigger_tasks, "_ensure_trigger_dedupe", already_configured),
         patch("app.services.mcp_connection.McpConnectionService", return_value=connections),
         patch("app.services.agent_trigger.AgentTriggerService", return_value=triggers),
     ):
@@ -154,9 +158,11 @@ class TestTheOrderOfWork:
         )
 
         assert f"fire:{second.trigger_id}" in recorder.steps
-        # And the cursor still advances: the messages were read, and the one whose
-        # submit raised is covered by the claim it already holds.
-        assert recorder.steps[-1] == "cursor:601"
+        # The cursor is retained: unlike a webhook there is no provider to resend
+        # a polled message, so committing over a failed submit would drop it for
+        # ever. The retained claims suppress the fire that did enqueue while a
+        # later poll re-reads the window.
+        assert "cursor:601" not in recorder.steps
 
     async def test_a_grant_that_cannot_be_read_advances_no_cursor(self):
         """`poll_grant` answering `None` is a mailbox to try again in a minute, not

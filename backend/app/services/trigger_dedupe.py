@@ -51,6 +51,13 @@ def configure(redis: RedisClient | None) -> None:
     _redis = redis
 
 
+def is_configured() -> bool:
+    """Whether a Redis was handed over - what a non-API process checks before
+    claiming, since only the API lifespan configures this module and a claim
+    with no Redis fails open into exactly the duplicate it exists to stop."""
+    return _redis is not None
+
+
 def _key(trigger_id: UUID, delivery_id: str) -> str:
     return f"trigger:seen:{trigger_id}:{delivery_id}"
 

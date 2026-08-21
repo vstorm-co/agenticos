@@ -67,6 +67,7 @@ async def test_the_portal_catalog_maps_every_portal_and_its_presets():
         patch("app.services.agent_trigger.organization_secret_repo") as secrets,
     ):
         connections.get_org_scoped_by_catalog_key = AsyncMock(return_value=None)
+        connections.get_portal_grant = AsyncMock(return_value=None)
         secrets.list_org_visible_by_kind = AsyncMock(return_value=[MagicMock()])
         result = await list_trigger_portals(_CTX, service)
     assert result.total == len(result.items) > 0

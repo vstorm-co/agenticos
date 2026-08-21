@@ -118,6 +118,28 @@ class TestTheGithubAdapter:
         with _patch_client(_Resp(401), []):
             assert await GitHubPortalAdapter().list_preset_targets(access_token="t") == []
 
+    async def test_collaborator_repositories_are_asked_for(self) -> None:
+        """An outside collaborator can administer a repository too - the admin
+        check above decides. Filtered out of the affiliation, such a repository
+        was unpickable whenever any owned repo put a select on screen."""
+        seen: dict[str, Any] = {}
+
+        class _Recording:
+            async def __aenter__(self) -> _Recording:
+                return self
+
+            async def __aexit__(self, *_exc: object) -> bool:
+                return False
+
+            async def get(self, path: str, *, headers: Any, params: dict[str, Any]) -> _Resp:
+                seen.update(params)
+                return _Resp(200, [])
+
+        with patch("httpx.AsyncClient", lambda **_kw: _Recording()):
+            await GitHubPortalAdapter().list_preset_targets(access_token="t")
+
+        assert "collaborator" in str(seen["affiliation"]).split(",")
+
     async def test_the_listing_follows_pagination_past_the_first_hundred(self) -> None:
         """An account administering more than 100 repositories used to lose every
         one past the first page: the dialog offers a select whenever any targets
@@ -194,3 +216,50 @@ class TestTheGithubAdapter:
                 access_token="t", target=None, provider_webhook_id="987654"
             )
         assert calls == []
+
+    async def test_a_target_that_is_not_owner_slash_repo_is_refused_before_any_request(
+        self,
+    ) -> None:
+        """A target is caller input, and building a URL from it is what turned
+        `../../user/repos#` into a request the organization's bearer token was
+        sent on to a different API path. Nothing that is not exactly one
+        owner/repo reaches the wire."""
+        for hostile in ("../../user/repos#", "acme/api/extra", "acme/..", "a#b/c", "acme"):
+            calls: list[tuple[str, str]] = []
+            with _patch_client(_Resp(201, {"id": 1}), calls):
+                with pytest.raises(WebhookRegistrationForbidden):
+                    await GitHubPortalAdapter().register_webhook(
+                        access_token="t",
+                        target=hostile,
+                        webhook_url="https://x/hook",
+                        secret="s",
+                    )
+                with pytest.raises(WebhookRegistrationForbidden):
+                    await GitHubPortalAdapter().delete_webhook(
+                        access_token="t", target=hostile, provider_webhook_id="1"
+                    )
+            assert calls == []
+
+    async def test_a_delete_the_provider_refused_is_a_failure_not_a_silent_success(self) -> None:
+        """A completed 403 does not raise out of httpx, so reporting it as done is
+        what let a caller drop the only id the hook could ever be removed by."""
+        with _patch_client(_Resp(403), []), pytest.raises(PortalUnreachable):
+            await GitHubPortalAdapter().delete_webhook(
+                access_token="t", target="acme/api", provider_webhook_id="987654"
+            )
+
+    async def test_a_hook_already_gone_deletes_cleanly(self) -> None:
+        """404 is the outcome asked for - deleting twice must stay idempotent."""
+        with _patch_client(_Resp(404), []):
+            await GitHubPortalAdapter().delete_webhook(
+                access_token="t", target="acme/api", provider_webhook_id="987654"
+            )
+
+    async def test_a_delete_that_cannot_reach_github_is_the_same_failure(self) -> None:
+        with (
+            _patch_client(httpx.TimeoutException("slow"), []),
+            pytest.raises(PortalUnreachable),
+        ):
+            await GitHubPortalAdapter().delete_webhook(
+                access_token="t", target="acme/api", provider_webhook_id="987654"
+            )

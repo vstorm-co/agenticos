@@ -36,6 +36,7 @@ from app.services.agent_trigger import (
     _next_fire_from,
     _update_action,
 )
+from app.services.portal_catalog import DeliveryMode
 from app.services.portals import PortalTarget, RegisteredWebhook, WebhookRegistrationForbidden
 
 _SIGNING_SECRET = "a-signing-secret-16-plus"
@@ -75,7 +76,9 @@ def _service(agent: MagicMock | None = None) -> AgentTriggerService:
     service.agents.get = AsyncMock(return_value=agent or _agent())
     # A preset create resolves its `connection_id` against the caller's org before
     # storing it; the default lets the row through, and a test proving the refusal
-    # overrides it with a `NotFoundError` side effect.
+    # overrides it with a `NotFoundError` side effect. A polled preset resolves a
+    # portal grant instead; the default says "no grant" and the polled tests hand
+    # one back whose id matches what they send.
     service.connections.get_org_connection = AsyncMock(
         return_value=_named(id=uuid.uuid4(), name="conn")
     )
@@ -1486,19 +1489,18 @@ class TestEventTriggerSchema:
                 prompt="x", trigger_type="event", event_source="gmail", event_secret="short"
             )
 
-    def test_a_gmail_config_is_normalised_with_every_filter(self):
-        trigger = TriggerCreate(
-            prompt="x",
-            trigger_type="event",
-            event_source="gmail",
-            event_secret=_SIGNING_SECRET,
-            event_config={"subject_contains": "urgent"},
-        )
-        assert trigger.event_config == {
-            "subject_contains": "urgent",
-            "sender_contains": None,
-            "label": None,
-        }
+    def test_a_raw_gmail_trigger_is_refused_at_the_schema(self):
+        """Gmail is polling-only: the raw path is the webhook path, and a shape it
+        validated here was one `ck_trigger_shape` then refused as a 500. The 422
+        points at the portal instead."""
+        with pytest.raises(PydanticValidationError, match="Gmail portal"):
+            TriggerCreate(
+                prompt="x",
+                trigger_type="event",
+                event_source="gmail",
+                event_secret=_SIGNING_SECRET,
+                event_config={"subject_contains": "urgent"},
+            )
 
     def test_the_generic_webhook_takes_no_filter(self):
         """Filtering is the sender's job; a key here would be stored to mean
@@ -2023,6 +2025,11 @@ class TestRotatingTheSecret:
         # The old hook is deleted and a fresh one registered at the same URL.
         adapter.delete_webhook.assert_awaited_once()
         adapter.register_webhook.assert_awaited_once()
+        # And the row is reloaded before it serializes: re-registering flushed
+        # mutations after the update's refresh, expiring the server-side
+        # `updated_at` - read lazily during serialization that is a
+        # MissingGreenlet 500 on every auto-webhook rotation.
+        service.db.refresh.assert_awaited_with(trigger)
         assert result.provider_webhook_id == "hook-2"
         assert result.provider_target == "acme/api"
         assert result.delivery_mode == "auto_webhook"
@@ -2282,7 +2289,9 @@ class TestCreatingFromAPortalPreset:
             result = await service.create(
                 _ctx(),
                 agent.id,
-                _preset_create(portal_key="google", preset_key="any_message", target=None),
+                _preset_create(
+                    portal_key="google", preset_key="any_message", target=None, connection_id=None
+                ),
             )
         assert result.delivery_mode == "manual"
         get_adapter.assert_not_called()
@@ -2414,6 +2423,7 @@ class TestCreatingFromAPortalPreset:
                     portal_key="google",
                     preset_key="any_message",
                     target=None,
+                    connection_id=None,
                     event_config={"subject_contains": "invoice"},
                 ),
             )
@@ -2442,6 +2452,7 @@ class TestCreatingFromAPortalPreset:
                     portal_key="google",
                     preset_key="any_message",
                     target=None,
+                    connection_id=None,
                     event_config={"subject_contains": "invoice", "sender_contains": "@acme.com"},
                 ),
             )
@@ -2743,6 +2754,10 @@ class TestAPolledPresetMintsNothing:
     async def _create(self):
         agent = _agent()
         service = _service(agent)
+        # The connection a Gmail trigger stores is the org's portal grant, not an
+        # MCP row - the create proves the id through its own lookup (the default
+        # `_service` mock lets it through).
+        grant_id = uuid.uuid4()
         with (
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.conversation_repo") as conversations,
@@ -2760,9 +2775,48 @@ class TestAPolledPresetMintsNothing:
             created = await service.create(
                 _ctx(),
                 agent.id,
-                _preset_create(portal_key="google", preset_key="any_message", target=None),
+                _preset_create(
+                    portal_key="google",
+                    preset_key="any_message",
+                    target=None,
+                    connection_id=grant_id,
+                ),
             )
         return repo, created
+
+    async def test_an_agent_with_no_published_version_cannot_be_scheduled(self):
+        """A trigger on a never-published agent is guaranteed to disable itself on
+        its first fire - the runnable spec does not exist. That is a create-time
+        fact, so it is a 422 the dialog can show, not a routine that silently
+        turns itself off a minute later."""
+        agent = _agent()
+        agent.current_version_id = None
+        service = _service(agent)
+        with pytest.raises(BadRequestError, match="no published version"):
+            await service.create(
+                _ctx(), agent.id, TriggerCreate(prompt="run", interval_seconds=300)
+            )
+
+    async def test_a_connection_that_is_not_the_orgs_grant_is_refused(self):
+        """A polled preset's connection_id is proved against the organization's own
+        portal grant - the MCP lookup cannot see a `purpose='portal'` row, and
+        skipping the proof would store another tenant's id unchecked."""
+        agent = _agent()
+        service = _service(agent)
+        service.connections.get_org_portal_connection = AsyncMock(
+            side_effect=NotFoundError(message="Connection not found")
+        )
+        with pytest.raises(NotFoundError):
+            await service.create(
+                _ctx(),
+                agent.id,
+                _preset_create(
+                    portal_key="google",
+                    preset_key="any_message",
+                    target=None,
+                    connection_id=uuid.uuid4(),
+                ),
+            )
 
     async def test_no_secret_is_sealed_for_it(self):
         repo, _ = await self._create()
@@ -2836,6 +2890,7 @@ class TestPortalCatalogConnectionState:
         ):
             grants.get_portal_grant = AsyncMock(return_value=None)
             connections.get_org_scoped_by_catalog_key = AsyncMock(return_value=connection)
+            connections.get_portal_grant = AsyncMock(return_value=None)
             # One stored OAuth App by default: the prerequisite the connect flow
             # spends, counted rather than opened.
             secrets.list_org_visible_by_kind = AsyncMock(
@@ -2912,6 +2967,39 @@ class TestPortalCatalogConnectionState:
         gmail = await self._gmail(monkeypatch, stored=0)
         assert gmail.connect_blocked_by == "oauth_app_secret"
 
+    async def test_a_manual_portal_with_no_catalog_key_carries_no_connection_state(self):
+        """A manual or relay portal shares no account with the MCP tools and polls
+        nothing, so the catalog says plainly that there is nothing to connect."""
+        manual = MagicMock()
+        manual.key = "tracker"
+        manual.name = "Tracker"
+        manual.description = "…"
+        manual.category = "productivity"
+        manual.icon = None
+        manual.event_source = "webhook"
+        manual.delivery = DeliveryMode.MANUAL
+        manual.target_kind = None
+        manual.mcp_catalog_key = None
+        manual.oauth_app_kind = None
+        manual.webhook_admin_scopes = ()
+        manual.presets = []
+        service = _service()
+        with (
+            patch("app.services.agent_trigger.portal_catalog") as catalog,
+            patch("app.services.agent_trigger.mcp_connection_repo") as connections,
+            patch("app.services.agent_trigger.organization_secret_repo") as secrets,
+        ):
+            catalog.CATALOG = [manual]
+            connections.get_org_scoped_by_catalog_key = AsyncMock()
+            connections.get_portal_grant = AsyncMock()
+            secrets.list_org_visible_by_kind = AsyncMock(return_value=[MagicMock()])
+            items = await service.list_portals(_ctx())
+        [entry] = items
+        assert entry.connection_id is None
+        assert entry.connection_state is None
+        connections.get_org_scoped_by_catalog_key.assert_not_called()
+        connections.get_portal_grant.assert_not_called()
+
     async def test_a_polled_portal_with_a_stored_client_is_connectable(self, monkeypatch):
         gmail = await self._gmail(monkeypatch, stored=1)
         assert gmail.connect_blocked_by is None
@@ -2939,15 +3027,13 @@ class TestPortalCatalogConnectionState:
         read the mailbox perfectly well the whole time.
         """
         grant = self._connection(granted_scopes=["https://www.googleapis.com/auth/gmail.readonly"])
-        gmail = await self._gmail(monkeypatch, client="client-id", grant=grant)
+        gmail = await self._gmail(monkeypatch, grant=grant)
 
         assert gmail.connection_id == grant.id
         assert gmail.connection_state == "connected"
 
     async def test_a_mailbox_awaiting_consent_is_not_connected_yet(self, monkeypatch):
-        gmail = await self._gmail(
-            monkeypatch, client="client-id", grant=self._connection(oauth_payload=None)
-        )
+        gmail = await self._gmail(monkeypatch, grant=self._connection(oauth_payload=None))
 
         assert gmail.connection_state == "needs_authorization"
 

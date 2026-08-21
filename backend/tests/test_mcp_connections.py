@@ -3,6 +3,7 @@
 import contextlib
 import logging
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -47,6 +48,7 @@ from app.services.mcp_connection import (
     connection_scope,
 )
 from app.services.organization_secret import OrganizationSecretService
+from app.services.portals import exceptions as portals_exceptions
 from app.services.portals import github_oauth
 
 
@@ -1309,6 +1311,238 @@ class TestMcpConnectionService:
         assert update_data["last_status"] == "ok"
 
     @pytest.mark.anyio
+    async def test_a_reconsent_that_omits_the_refresh_token_keeps_the_live_one(
+        self, service, repo, monkeypatch
+    ):
+        """Google withholds the refresh token on a re-consent for a grant it
+        already holds - the previous one stays valid. Overwriting it with None
+        stopped the mailbox's polling an hour later with nothing to say why."""
+        from app.services.portals import google_oauth
+
+        pending = _connection(
+            auth_type="oauth", url="https://gmail.googleapis.com", oauth_state="state-google"
+        )
+        pending.oauth_payload = _seal_into(
+            pending,
+            _base_payload(
+                provider="google", access_token="OLD-AT", refresh_token="OLD-RT"
+            ).model_dump_json(),
+        )
+        pending.oauth_pending_payload = _seal_into(
+            pending, _base_payload(provider="google").model_dump_json()
+        )
+        repo.get_by_oauth_state = AsyncMock(return_value=pending)
+        repo.update.return_value = pending
+        monkeypatch.setattr(
+            google_oauth,
+            "exchange_code",
+            AsyncMock(
+                return_value=google_oauth.GoogleToken(
+                    access_token="NEW-AT", refresh_token=None, expires_in=3600, granted_scopes=[]
+                )
+            ),
+        )
+
+        await service.oauth_callback(state="state-google", code="the-code")
+
+        update_data = repo.update.call_args.kwargs["update_data"]
+        stored = McpOAuthPayload.model_validate_json(
+            _open_from(pending, update_data["oauth_payload"])
+        )
+        assert stored.access_token == "NEW-AT"
+        assert stored.refresh_token == "OLD-RT"
+
+    @pytest.mark.anyio
+    async def test_a_live_payload_with_no_refresh_token_has_nothing_to_carry(
+        self, service, repo, monkeypatch
+    ):
+        """A grant that never held a refresh token stays honestly without one -
+        inventing nothing is what keeps the hour-later failure attributable to
+        the consent that lacked `access_type=offline`, not to this carry."""
+        from app.services.portals import google_oauth
+
+        pending = _connection(
+            auth_type="oauth", url="https://gmail.googleapis.com", oauth_state="state-google"
+        )
+        pending.oauth_payload = _seal_into(
+            pending,
+            _base_payload(
+                provider="google", access_token="OLD-AT", refresh_token=None
+            ).model_dump_json(),
+        )
+        pending.oauth_pending_payload = _seal_into(
+            pending, _base_payload(provider="google").model_dump_json()
+        )
+        repo.get_by_oauth_state = AsyncMock(return_value=pending)
+        repo.update.return_value = pending
+        monkeypatch.setattr(
+            google_oauth,
+            "exchange_code",
+            AsyncMock(
+                return_value=google_oauth.GoogleToken(
+                    access_token="NEW-AT", refresh_token=None, expires_in=3600, granted_scopes=[]
+                )
+            ),
+        )
+
+        await service.oauth_callback(state="state-google", code="the-code")
+
+        stored = McpOAuthPayload.model_validate_json(
+            _open_from(pending, repo.update.call_args.kwargs["update_data"]["oauth_payload"])
+        )
+        assert stored.refresh_token is None
+
+    @pytest.mark.anyio
+    async def test_a_polled_grants_cursor_is_established_at_consent(
+        self, service, repo, monkeypatch
+    ):
+        """The first poll with no cursor snapshots the mailbox and emits nothing,
+        so mail landing between consent and the first heartbeat would be inside
+        the snapshot and permanently skipped. The callback takes the snapshot at
+        consent instead, so that mail lands after the boundary."""
+        from app.services.portals import google_oauth
+
+        pending = _connection(
+            auth_type="oauth", url="https://gmail.googleapis.com", oauth_state="state-google"
+        )
+        pending.purpose = "portal"
+        pending.portal_key = "google"
+        pending.poll_cursor = None
+        pending.oauth_pending_payload = _seal_into(
+            pending, _base_payload(provider="google").model_dump_json()
+        )
+        repo.get_by_oauth_state = AsyncMock(return_value=pending)
+        repo.update.return_value = pending
+        monkeypatch.setattr(
+            google_oauth,
+            "exchange_code",
+            AsyncMock(
+                return_value=google_oauth.GoogleToken(
+                    access_token="AT", refresh_token="RT", expires_in=3600, granted_scopes=[]
+                )
+            ),
+        )
+        adapter = MagicMock(
+            poll=AsyncMock(return_value=SimpleNamespace(cursor={"history_id": "500"}))
+        )
+        monkeypatch.setattr(
+            mcp_connection_service.portals, "get_adapter", MagicMock(return_value=adapter)
+        )
+
+        await service.oauth_callback(state="state-google", code="the-code")
+
+        adapter.poll.assert_awaited_once_with(access_token="AT", cursor=None)
+        assert repo.update.call_args.kwargs["update_data"]["poll_cursor"] == {"history_id": "500"}
+
+    @pytest.mark.anyio
+    async def test_a_reconsent_leaves_an_established_cursor_where_it_is(
+        self, service, repo, monkeypatch
+    ):
+        """Re-authorizing a mailbox already being read must not move its position -
+        a snapshot here would skip everything between the last poll and now."""
+        from app.services.portals import google_oauth
+
+        pending = _connection(
+            auth_type="oauth", url="https://gmail.googleapis.com", oauth_state="state-google"
+        )
+        pending.purpose = "portal"
+        pending.portal_key = "google"
+        pending.poll_cursor = {"history_id": "400"}
+        pending.oauth_pending_payload = _seal_into(
+            pending, _base_payload(provider="google").model_dump_json()
+        )
+        repo.get_by_oauth_state = AsyncMock(return_value=pending)
+        repo.update.return_value = pending
+        monkeypatch.setattr(
+            google_oauth,
+            "exchange_code",
+            AsyncMock(
+                return_value=google_oauth.GoogleToken(
+                    access_token="AT", refresh_token="RT", expires_in=3600, granted_scopes=[]
+                )
+            ),
+        )
+        adapter = MagicMock(poll=AsyncMock())
+        monkeypatch.setattr(
+            mcp_connection_service.portals, "get_adapter", MagicMock(return_value=adapter)
+        )
+
+        await service.oauth_callback(state="state-google", code="the-code")
+
+        adapter.poll.assert_not_awaited()
+        assert repo.update.call_args.kwargs["update_data"]["poll_cursor"] == {"history_id": "400"}
+
+    @pytest.mark.anyio
+    async def test_a_portal_with_no_adapter_establishes_no_cursor(self, service, repo, monkeypatch):
+        from app.services.portals import google_oauth
+
+        pending = _connection(
+            auth_type="oauth", url="https://gmail.googleapis.com", oauth_state="state-google"
+        )
+        pending.purpose = "portal"
+        pending.portal_key = "google"
+        pending.poll_cursor = None
+        pending.oauth_pending_payload = _seal_into(
+            pending, _base_payload(provider="google").model_dump_json()
+        )
+        repo.get_by_oauth_state = AsyncMock(return_value=pending)
+        repo.update.return_value = pending
+        monkeypatch.setattr(
+            google_oauth,
+            "exchange_code",
+            AsyncMock(
+                return_value=google_oauth.GoogleToken(
+                    access_token="AT", refresh_token="RT", expires_in=3600, granted_scopes=[]
+                )
+            ),
+        )
+        monkeypatch.setattr(
+            mcp_connection_service.portals, "get_adapter", MagicMock(return_value=None)
+        )
+
+        await service.oauth_callback(state="state-google", code="the-code")
+
+        assert repo.update.call_args.kwargs["update_data"]["poll_cursor"] is None
+
+    @pytest.mark.anyio
+    async def test_a_provider_that_cannot_snapshot_leaves_the_cursor_to_the_first_poll(
+        self, service, repo, monkeypatch
+    ):
+        """Best-effort: a Gmail that cannot answer right now must not fail the
+        consent that just succeeded - the first heartbeat takes the snapshot,
+        which is only the old, smaller window."""
+        from app.services.portals import google_oauth
+
+        pending = _connection(
+            auth_type="oauth", url="https://gmail.googleapis.com", oauth_state="state-google"
+        )
+        pending.purpose = "portal"
+        pending.portal_key = "google"
+        pending.poll_cursor = None
+        pending.oauth_pending_payload = _seal_into(
+            pending, _base_payload(provider="google").model_dump_json()
+        )
+        repo.get_by_oauth_state = AsyncMock(return_value=pending)
+        repo.update.return_value = pending
+        monkeypatch.setattr(
+            google_oauth,
+            "exchange_code",
+            AsyncMock(
+                return_value=google_oauth.GoogleToken(
+                    access_token="AT", refresh_token="RT", expires_in=3600, granted_scopes=[]
+                )
+            ),
+        )
+        adapter = MagicMock(poll=AsyncMock(side_effect=portals_exceptions.PortalError("down")))
+        monkeypatch.setattr(
+            mcp_connection_service.portals, "get_adapter", MagicMock(return_value=adapter)
+        )
+
+        await service.oauth_callback(state="state-google", code="the-code")
+
+        assert repo.update.call_args.kwargs["update_data"]["poll_cursor"] is None
+
+    @pytest.mark.anyio
     async def test_oauth_callback_exchanges_and_clears_state(self, service, repo, monkeypatch):
         pending = _connection(auth_type="oauth", url="https://srv/mcp", oauth_state="state-xyz")
         pending.oauth_pending_payload = _seal_into(
@@ -2498,6 +2732,45 @@ class TestWebhookAccessToken:
         )
         assert token == "live-token"
 
+    @pytest.mark.anyio
+    async def test_a_disabled_connection_yields_no_token_whatever_it_consented_to(
+        self, monkeypatch
+    ):
+        """Disabled means disabled everywhere: the agent tool path already skips a
+        disabled row, and a caller who kept a trigger's connection_id must not
+        keep enumerating repositories or registering hooks with a credential an
+        administrator switched off."""
+        service = McpConnectionService(AsyncMock())
+        conn = _connection(
+            scope="org", granted_scopes=["repo", "admin:repo_hook"], is_enabled=False
+        )
+        monkeypatch.setattr(McpConnectionService, "_get_org", AsyncMock(return_value=conn))
+        token = await service.webhook_access_token(
+            self._ctx(), uuid4(), required_scopes=["admin:repo_hook"]
+        )
+        assert token is None
+
+
+class TestPortalGrantLookup:
+    @pytest.mark.anyio
+    async def test_the_grant_is_read_for_the_callers_own_organization(self, monkeypatch):
+        """A Gmail grant is a `purpose='portal'` row the MCP lookups deliberately
+        cannot see, so the catalog resolves it here - always against the
+        caller's tenant, never a raw key alone."""
+        service = McpConnectionService(AsyncMock())
+        ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER.value)
+        grant = _connection(scope="org")
+        lookup = AsyncMock(return_value=grant)
+        monkeypatch.setattr(mcp_connection_service.mcp_connection_repo, "get_portal_grant", lookup)
+
+        found = await service.get_org_portal_grant(ctx, "google")
+
+        assert found is grant
+        assert lookup.await_args.kwargs == {
+            "organization_id": ctx.organization_id,
+            "portal_key": "google",
+        }
+
 
 class TestGithubPortalOAuth:
     """The GitHub OAuth App connect flow: the org's stored creds, fixed endpoints.
@@ -2533,9 +2806,7 @@ class TestGithubPortalOAuth:
     def creds(self, monkeypatch):
         """The organization's stored GitHub OAuth App, as the vault reader returns it."""
         value = GithubOAuthAppSecret(client_id="Iv1.0123456789ab", client_secret="ghsec-42")
-        monkeypatch.setattr(
-            OrganizationSecretService, "github_oauth_app", AsyncMock(return_value=value)
-        )
+        monkeypatch.setattr(OrganizationSecretService, "oauth_app", AsyncMock(return_value=value))
         return value
 
     async def test_a_start_without_a_stored_secret_is_a_clean_4xx_not_a_500(
@@ -2545,7 +2816,7 @@ class TestGithubPortalOAuth:
         is never created, so a retry after adding the secret is not a name clash."""
         monkeypatch.setattr(
             OrganizationSecretService,
-            "github_oauth_app",
+            "oauth_app",
             AsyncMock(side_effect=NotFoundError(message="add a secret first")),
         )
         with pytest.raises(NotFoundError):

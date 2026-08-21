@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.agent_trigger import AgentTrigger, EventSource
 from app.db.models.conversation import Conversation
@@ -67,6 +67,19 @@ async def _agent(db, org: Organization) -> Agent:
         draft_spec={},
     )
     db.add(agent)
+    await db.flush()
+    # Published, because a trigger create refuses an agent with no runnable
+    # version - the fixture models the agent a routine is actually made on.
+    version = AgentVersion(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        agent_id=agent.id,
+        version=1,
+        spec={"name": agent.name},
+    )
+    db.add(version)
+    await db.flush()
+    agent.current_version_id = version.id
     await db.flush()
     return agent
 

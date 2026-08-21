@@ -112,7 +112,18 @@ async def exchange_code(
     if response.status_code >= 400:
         logger.warning("google_oauth_refused", extra={"status": response.status_code})
         raise GoogleOAuthError("Google refused the connection request")
-    payload = response.json()
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        # A 200 whose body is not JSON - an intermediary's error page, a
+        # truncated response. The shared callback only recovers the translated
+        # OAuth error, so this must arrive as one, not a 500 (the same hardening
+        # the GitHub exchange carries).
+        logger.warning("google_oauth_unreadable")
+        raise GoogleOAuthError("Google answered with something unreadable") from exc
+    if not isinstance(payload, dict):
+        logger.warning("google_oauth_unreadable")
+        raise GoogleOAuthError("Google answered with something unreadable")
     token = payload.get("access_token")
     if not isinstance(token, str) or not token:
         logger.warning("google_oauth_no_token", extra={"keys": sorted(payload)})

@@ -175,6 +175,11 @@ token issued for one host to a different one. On an organization row this is als
 a boundary between administrators: one `mcp:manage` holder repointing a connection
 another authorized must not have the platform deliver that token to the new host.
 
+**A disabled connection hands out no tokens anywhere.** The agent tool path skips
+it, and the trigger portals do too: a caller who kept a trigger's `connection_id`
+cannot keep enumerating repositories or registering hooks with a credential an
+administrator switched off.
+
 **Deleting a connection releases what was registered through it.** Any [event
 trigger](triggers.md) whose provider webhook was auto-registered with this
 account's token has that hook deregistered (best-effort, while the token still

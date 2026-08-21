@@ -218,6 +218,11 @@ class TriggerCreate(BaseSchema):
             return
         if self.event_source is None:
             raise ValueError("event_source is required for an event trigger")
+        # A polled source has no webhook and no secret - the raw path *is* the
+        # webhook path, so accepting gmail here would validate a shape the
+        # database CHECK then refuses as a 500. It is created from its portal.
+        if self.event_source == "gmail":
+            raise ValueError("gmail triggers are created from the Gmail portal, not a raw webhook")
         if self.event_secret is None:
             raise ValueError("event_secret is required for an event trigger")
         # Normalise the filter through its source's typed model: fills defaults

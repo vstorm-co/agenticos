@@ -130,9 +130,10 @@ you should know about how it reads:
   `users.watch` into a Google Cloud Pub/Sub topic - is real-time and costs a topic
   and a subscription as *deployment* prerequisites, plus a registration that expires
   every seven days and needs something to renew it.
-- **Connecting fires nothing.** The first read establishes where the mailbox is and
-  answers empty, so connecting an account does not fire the agent once per message
-  already in it.
+- **Connecting fires nothing - and loses nothing.** The mailbox's position is taken
+  the moment consent completes, so connecting does not fire the agent once per
+  message already sitting there, and mail arriving between the consent and the
+  first heartbeat still lands after that position and fires.
 - **A burst is bounded.** One tick reads at most 25 new messages in full. A mailing
   list dump does not become 400 agent runs; the position still advances, so the
   backlog is not re-read for ever.

@@ -221,6 +221,20 @@ class TestTheWaysAPollerLosesWork:
         with pytest.raises(PortalUnreachable):
             await _adapter(gmail, monkeypatch).poll(access_token="t", cursor={"history_id": "500"})
 
+    async def test_a_200_that_is_not_json_is_the_recoverable_poll_failure(self, monkeypatch):
+        """An intermediary's HTML error page raises out of `.json()`. Raw, that
+        aborted the whole polling tick and rolled back every other mailbox's
+        cursor; translated, `poll_grant` marks this one grant and moves on."""
+
+        def html(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=b"<html>proxy error</html>")
+
+        gmail = _Gmail()
+        gmail.handler = html  # type: ignore[method-assign]
+
+        with pytest.raises(PortalUnreachable):
+            await _adapter(gmail, monkeypatch).poll(access_token="t", cursor={"history_id": "500"})
+
     async def test_a_burst_is_bounded_and_the_cursor_still_advances(self, monkeypatch):
         """One mailing-list dump must not become four hundred agent runs - and must
         not be re-read for ever either, which is why the cursor moves anyway."""

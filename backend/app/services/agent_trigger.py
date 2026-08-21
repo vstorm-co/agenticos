@@ -530,6 +530,15 @@ class AgentTriggerService:
                 rule every per-resource agent route follows.
         """
         agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+        # A trigger on a never-published agent is guaranteed to disable itself:
+        # its first fire reaches for the runnable spec, finds no version, and
+        # turns the trigger off. Refusing here turns that silent self-disable
+        # into a 422 the create dialog can show.
+        if agent.current_version_id is None:
+            raise BadRequestError(
+                message="This agent has no published version to run - publish it first",
+                details={"agent_id": str(agent_id)},
+            )
         if data.environment_id is not None:
             await self._environment_of(ctx, agent.id, data.environment_id)
 
@@ -1024,6 +1033,12 @@ class AgentTriggerService:
             # how the trigger delivers now.
             details={"trigger_id": str(updated.id), "delivery_mode": updated.delivery_mode},
         )
+        # Reload before returning, exactly as create does: re-registering the hook
+        # mutates and flushes the row after the update's refresh, which expires the
+        # server-side `updated_at` - and serializing the response reads every
+        # attribute in a sync context, where that one lazy reload is a
+        # MissingGreenlet 500 on every auto-webhook rotation.
+        await self.db.refresh(updated)
         # An auto-registered hook now holds the new secret, so nothing is revealed;
         # a manual trigger (or an auto one that fell back) needs the plaintext to
         # update its provider, shown once here and never again - `TriggerRead`, what
