@@ -205,6 +205,18 @@ export function ActivityLog({ connectionId, sessionId }: ActivityLogProps) {
         </span>
       </div>
 
+      {/* Said only when it is true, and knowable exactly: the service keeps a
+          fixed number of entries per session, so a sequence starting above 1
+          means the earlier ones have been dropped. Without this the log simply
+          ends, and somebody looking for what a sandbox did an hour ago reads that
+          as "it did nothing". There is nothing to page to - `after` is a polling
+          cursor, and what the service no longer holds it cannot be asked for. */}
+      {(events[0]?.seq ?? 1) > 1 && (
+        <p className="text-muted-foreground/70 text-xs">
+          {t("sessions.olderDropped", { count: events.length })}
+        </p>
+      )}
+
       <div className="min-h-0 flex-1 overflow-auto">
         <DataTable<SandboxEvent>
           columns={columns}

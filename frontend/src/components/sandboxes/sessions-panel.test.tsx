@@ -460,6 +460,39 @@ describe("SessionsPanel", () => {
       expect(dialog.queryByText("notes.md")).toBeNull();
     });
 
+    it("says when the service has dropped the earlier operations", async () => {
+      // The service keeps a fixed number of entries per session, so a log that
+      // starts above sequence 1 has lost its beginning. Without this it simply
+      // ends, and somebody looking for what a sandbox did an hour ago reads that
+      // as "it did nothing" - and there is nothing to page to, because what the
+      // service no longer holds it cannot be asked for.
+      state.log = {
+        events: [
+          { seq: 201, at: 1, op: "exec", target: "ls", ok: true, detail: "", duration_ms: 3 },
+        ],
+        latest_seq: 201,
+      };
+      render(<SessionsPanel connections={[connection()]} />);
+
+      await userEvent.click(screen.getByRole("button", { name: "Activity of xc-1" }));
+
+      expect(
+        within(screen.getByRole("dialog")).getByText(/Earlier ones are no longer kept/),
+      ).toBeVisible();
+    });
+
+    it("says nothing of the kind for a log that has its beginning", async () => {
+      state.log = {
+        events: [{ seq: 1, at: 1, op: "exec", target: "ls", ok: true, detail: "", duration_ms: 3 }],
+        latest_seq: 1,
+      };
+      render(<SessionsPanel connections={[connection()]} />);
+
+      await userEvent.click(screen.getByRole("button", { name: "Activity of xc-1" }));
+
+      expect(screen.queryByText(/Earlier ones are no longer kept/)).toBeNull();
+    });
+
     it("offers only the operations this log holds", async () => {
       // A filter offering `edit` on a sandbox that has only ever been globbed is
       // a filter that answers nothing.

@@ -4129,6 +4129,7 @@
       "noSessionMatches": "No running sandbox matches that.",
       "nothingRunningSandboxOpens": "Nothing running. A sandbox opens on an agent's first file or shell call, so an agent that has one and never uses it costs nothing here.",
       "ok": "Succeeded",
+      "olderDropped": "This is the most recent {count, plural, =1 {operation} other {# operations}} on this sandbox. Earlier ones are no longer kept by the service and cannot be fetched.",
       "operation": "Operation",
       "reapedIn": "reaped in {time}",
       "runningOn": "Running on {name}",
