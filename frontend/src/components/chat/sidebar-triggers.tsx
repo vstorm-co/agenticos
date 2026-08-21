@@ -5,6 +5,7 @@ import { CalendarClock, ChevronDown, ChevronRight, MoreHorizontal } from "lucide
 import { useTranslations } from "next-intl";
 
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
+import { TriggerRunsSheet } from "@/components/triggers/trigger-runs-view";
 import { TriggerSummary } from "@/components/triggers/trigger-summary";
 import {
   Button,
@@ -24,40 +25,22 @@ import type { Trigger } from "@/types/triggers";
  * The chat sidebar's schedules-and-triggers section, above the conversation list.
  *
  * Collapsed by default and fetched only when expanded, so the sidebar's first
- * paint costs no extra request. Clicking an item opens its run-log conversation -
- * the one list every fire appends to, opened eagerly on create - so a trigger
- * that has never fired opens it empty rather than on a config form; that is what
- * a user expects clicking it. Only a trigger with no conversation at all (an
- * older row, or one whose log was deleted) falls back to the editor. The row menu
- * carries the rest: edit, pause or resume, run now, delete.
+ * paint costs no extra request. Clicking an item opens its run log in the same
+ * read-only drawer every other trigger surface uses - not the chat screen, whose
+ * composer this ownerless log would refuse every send from. A trigger that has
+ * never fired opens it empty, which is what clicking it should show. The row
+ * menu carries the rest: edit, pause or resume, run now, delete.
  *
  * Each row gates its own manage controls on the trigger's `can_manage`, resolved
  * per row by the server: a Viewer holding an explicit run grant on one agent gets
  * that agent's rows' menus and editor, and only informational rows for the rest.
  */
-export function SidebarTriggers({
-  onOpenConversation,
-}: {
-  /** Opens a conversation in the chat - the sidebar's own selection handler. */
-  onOpenConversation: (conversationId: string) => void;
-}) {
+export function SidebarTriggers() {
   const t = useTranslations("triggers");
   const [expanded, setExpanded] = useState(false);
   const { triggers, isLoading, isError } = useOrgTriggers(expanded);
   const [editing, setEditing] = useState<Trigger | null>(null);
-
-  function openItem(trigger: Trigger) {
-    if (trigger.conversation_id !== null) {
-      // Open its run-log conversation whether or not it has fired: a run-less
-      // trigger opens it empty, which is what clicking the item should show.
-      onOpenConversation(trigger.conversation_id);
-    } else if (trigger.can_manage) {
-      // No conversation to show (an older trigger, or its log was deleted): fall
-      // back to the editor, which a caller who may not manage this row may not
-      // use, so for them the item is informational only.
-      setEditing(trigger);
-    }
-  }
+  const [viewing, setViewing] = useState<Trigger | null>(null);
 
   return (
     <div className="border-b px-3 pb-2">
@@ -93,7 +76,7 @@ export function SidebarTriggers({
               <SidebarTriggerItem
                 key={trigger.id}
                 trigger={trigger}
-                onOpen={() => openItem(trigger)}
+                onOpen={() => setViewing(trigger)}
                 onEdit={() => setEditing(trigger)}
               />
             ))
@@ -101,6 +84,14 @@ export function SidebarTriggers({
         </div>
       )}
 
+      {viewing && (
+        <TriggerRunsSheet
+          trigger={viewing}
+          pendingSince={null}
+          open
+          onOpenChange={(next) => !next && setViewing(null)}
+        />
+      )}
       {editing && (
         <TriggerFormDialog
           agentId={editing.agent_id}

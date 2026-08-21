@@ -326,7 +326,7 @@ function ConversationList({
         )}
       </div>
 
-      <SidebarTriggers onOpenConversation={handleSelect} />
+      <SidebarTriggers />
 
       {filters}
 
