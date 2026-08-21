@@ -82,7 +82,6 @@ interface FileCardProps {
 
 const CARD = "border-border bg-card relative flex w-56 flex-col gap-1.5 rounded-lg border p-2";
 
-/** The chip. One row, one line of name, one line of type and size. */
 /**
  * The chip. One row, one line of name, one line of type and size.
  *
