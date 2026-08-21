@@ -319,8 +319,9 @@ Two facts the service could never carry, and the two an audit actually asks for:
 of what happened has to outlive the agent that was deleted afterwards.
 
 **A path, never a payload.** `write` records the path and that it succeeded;
-`execute` records the command and never its output; `read` records the path and a
-byte count. These rows are readable by everyone who can see the sandbox, so a log
+`execute` records the command and never its output - a nonzero exit is recorded
+as a failure with its numeric status (`exit 2`), the one safe fact about a failed
+command; `read` records the path and a byte count. These rows are readable by everyone who can see the sandbox, so a log
 carrying contents would be a way to read an agent's work rather than an audit of
 it — the same line the service draws, drawn again here. The one line about the
 outcome is written by us, never quoted from below: a shell's message *is* the

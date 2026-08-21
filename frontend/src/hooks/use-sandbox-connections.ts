@@ -259,6 +259,11 @@ interface UseSandboxEventsResult {
  *
  * `placeholderData` keeps the previous page on screen while the next one loads, so
  * paging does not blink through an empty table.
+ *
+ * Re-read on an interval while mounted: rows land when a run's transaction
+ * commits, so a dialog opened over a working sandbox would otherwise sit on the
+ * page as it stood at open - empty or stale - until something else happened to
+ * refetch it. Ten seconds, because the rows arrive per turn, not per keystroke.
  */
 export function useSandboxOperations(query: SandboxOperationQuery): {
   log: SandboxOperationList | null;
@@ -274,6 +279,7 @@ export function useSandboxOperations(query: SandboxOperationQuery): {
     queryKey: qk.sandboxConnections.operations({ ...query }),
     queryFn: () => readSandboxOperations(query),
     placeholderData: (previous) => previous,
+    refetchInterval: 10_000,
     retry: false,
   });
 

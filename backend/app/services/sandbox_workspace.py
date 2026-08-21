@@ -442,6 +442,7 @@ class SandboxWorkspaceService:
             organization_id=identity.organization_id,
             session_key=key,
             agent_id=identity.agent_id,
+            run_id=identity.run_id,
         )
         return OpenWorkspace(
             backend=recorder,

@@ -240,7 +240,44 @@ class TestFailuresAndShapes:
             agent_id=None,
         )
 
-        assert recorder.write("a.txt", "x").error is None
+        written = recorder.write("a.txt", "x")
+        assert written.error is None
+
+    async def test_a_nonzero_exit_is_recorded_as_a_failure_with_its_status(self):
+        """`false`, a failing compiler, a refused script: a command's failure is
+        its exit code, carried without an `error` and without an exception - and
+        an audit log that painted those green would say the sandbox did what it
+        visibly did not. The numeric status is the one safe detail (#423)."""
+        backend = MagicMock()
+        backend.execute = MagicMock(return_value=SimpleNamespace(exit_code=2, output="boom"))
+        recorder, session = _wrap(backend)
+
+        recorder.execute("false")
+
+        assert session.rows[0].ok is False
+        assert session.rows[0].detail == "exit 2"
+        assert "boom" not in session.rows[0].detail
+
+    async def test_the_run_the_workspace_was_opened_for_names_every_row(self):
+        """The runner mints the run row before it opens the workspace, so the id
+        rides in at construction - without it every row said run_id=null and an
+        auditor could not link an operation to the execution that performed it."""
+        run_id = uuid.uuid4()
+        backend = MagicMock()
+        backend.write = MagicMock(return_value=SimpleNamespace(error=None))
+        session = _Recorded()
+        recorder = RecordingBackend(
+            backend,
+            db=session,  # type: ignore[arg-type]
+            organization_id=uuid.uuid4(),
+            session_key="xc-1",
+            agent_id=None,
+            run_id=run_id,
+        )
+
+        recorder.write("a.txt", "x")
+
+        assert session.rows[0].run_id == run_id
 
 
 class TestReadingTheLog:

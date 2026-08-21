@@ -83,17 +83,18 @@ class RecordingBackend:
         organization_id: UUID,
         session_key: str,
         agent_id: UUID | None,
+        run_id: UUID | None = None,
     ) -> None:
         self._backend = backend
         self._db = db
         self._organization_id = organization_id
         self._session_key = session_key
         self._agent_id = agent_id
-        # Set by the runner once the run row exists: a workspace is opened before
-        # the run is recorded, so the first operations would otherwise have no run
-        # to name. Mutable rather than a constructor argument for exactly that
-        # ordering.
-        self.run_id: UUID | None = None
+        # The run every recorded operation is attributed to. The runner mints the
+        # run row before it opens the workspace, so `WorkspaceIdentity.run_id` is
+        # in hand at construction - without it every row said `run_id=null` and
+        # "which execution did this" had no answer (the attribution #1061 is for).
+        self.run_id = run_id
 
     def __getattr__(self, name: str) -> Any:
         attribute = getattr(self._backend, name)
@@ -150,9 +151,16 @@ class RecordingBackend:
 
         A `WriteResult` carries an `error`, and a write refused by a full document
         answers rather than raising - so a log that read every non-exception as a
-        success would record a write that never happened as one that did.
+        success would record a write that never happened as one that did. A
+        command's failure is its exit code: `false`, a failing compiler or a
+        refused script exit nonzero without raising and without an `error`, and
+        an audit log that painted those green would say the sandbox did what it
+        visibly did not.
         """
-        return getattr(result, "error", None) is None
+        if getattr(result, "error", None) is not None:
+            return False
+        exit_code = getattr(result, "exit_code", None)
+        return exit_code is None or exit_code == 0
 
     @staticmethod
     def _detail(name: str, result: Any) -> str:
@@ -166,6 +174,11 @@ class RecordingBackend:
         error = getattr(result, "error", None)
         if error is not None:
             return "refused"
+        exit_code = getattr(result, "exit_code", None)
+        if exit_code is not None and exit_code != 0:
+            # The numeric status is the one safe fact about a failed command -
+            # its output is the command's own text and stays out (#423).
+            return f"exit {exit_code}"
         if name in {"read", "read_bytes"}:
             return f"{len(result)} bytes" if hasattr(result, "__len__") else ""
         if name in {"ls_info", "glob_info", "grep_raw"}:
