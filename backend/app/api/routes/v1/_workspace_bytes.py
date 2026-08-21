@@ -8,9 +8,10 @@ displayable.
 """
 
 from pathlib import PurePosixPath
-from urllib.parse import quote
 
 from fastapi import Response
+
+from app.api.responses import content_disposition
 
 INLINE_TYPES: dict[str, str] = {
     ".png": "image/png",
@@ -51,12 +52,7 @@ def file_response(data: bytes, *, path: str, download: bool) -> Response:
         content=data,
         media_type=INLINE_TYPES[suffix] if inline else "application/octet-stream",
         headers={
-            # `filename*` and nothing else: a workspace path can hold any UTF-8, and
-            # the bare `filename` form has no way to say so - a quote or a newline in
-            # it is a header-injection primitive rather than a filename.
-            "Content-Disposition": (
-                f"{'inline' if inline else 'attachment'}; filename*=UTF-8''{quote(name)}"
-            ),
+            "Content-Disposition": content_disposition("inline" if inline else "attachment", name),
             # Everything off the list above is typed `application/octet-stream`, and
             # this is what stops a browser deciding such a body is HTML after all -
             # sniffing would hand back the inline-script hole the list refuses.

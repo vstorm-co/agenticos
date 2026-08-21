@@ -21,6 +21,7 @@ import pytest
 
 from app.core.config import settings
 from app.core.exceptions import BadRequestError
+from app.core.vault import VaultScope, rewrap, seal_fields
 from app.db.models.agent_run import RunSurface
 from app.repositories import conversation_repo
 from app.schemas.agent_embed import EmbedUpdate, EmbedVariable
@@ -209,6 +210,32 @@ class TestTokenMode:
             admission = await _service().admit("key-123", origin="https://acme.test", token=token)
 
         assert admission.visitor == "user-42"
+
+    def test_a_rotated_embed_secret_still_verifies_a_visitor_token(self):
+        """The latent bug this issue is about: the verifier unsealed at an
+        implicit v1, so the day a master-key rotation `rewrap`s the vault, a `jwt`
+        embed sealed at v1 and moved to v2 could never be opened again - every
+        visitor `EmbedDenied` (#552). The row now records its version, so a
+        rewrapped envelope is read at the version it was moved to. Real vault, no
+        `unseal` patch, because the version is the whole point."""
+        org = uuid.uuid4()
+        secret = "s" * 32
+        sealed, _v1 = seal_fields({"jwt_secret": secret}, scope=VaultScope.organization(org))
+        rotated = rewrap(
+            sealed["jwt_secret"].ciphertext,
+            scope=VaultScope.organization(org),
+            from_version=1,
+            to_version=2,
+        )
+        embed = _embed(
+            auth_mode="jwt",
+            jwt_secret_encrypted=rotated,
+            secret_key_version=2,
+            organization_id=org,
+        )
+        token = jwt.encode({"sub": "user-42", "iat": int(time.time())}, secret, algorithm="HS256")
+
+        assert _service()._verify_token(embed, token) == "user-42"
 
     @pytest.mark.anyio
     async def test_a_token_signed_with_the_wrong_secret_is_refused(self):

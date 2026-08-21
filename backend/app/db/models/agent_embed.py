@@ -92,6 +92,11 @@ class AgentEmbed(Base, TimestampMixin):
     # HS256 secret the customer's backend signs visitor tokens with, sealed by
     # the vault like every other credential. Null in `public` mode.
     jwt_secret_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    # Which master-key version sealed `jwt_secret_encrypted`, so a master-key
+    # rotation can `rewrap` this row and it can still be opened. Without it the
+    # verifier unsealed at an implicit v1 and a rotated row could never be read
+    # (#552).
+    secret_key_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
     # Which sites may open this widget, or open this socket. Empty means none: an
     # embed that answers from anywhere is somebody else's agent running on your

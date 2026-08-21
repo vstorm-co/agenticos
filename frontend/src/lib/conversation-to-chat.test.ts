@@ -160,6 +160,31 @@ describe("conversationMessageToChatMessage", () => {
   });
 });
 
+describe("a replayed turn that stopped to ask the person a question", () => {
+  it("replays the question and the answer in the place they happened (#502)", () => {
+    const message = conversationMessageToChatMessage(
+      raw({
+        content: "Deploying to eu-west-1.",
+        parts: [
+          { type: "text", text: "I need to know first. " },
+          { type: "ask_user", question: "Which region?", answer: "eu-west-1" },
+          { type: "text", text: "Deploying to eu-west-1." },
+        ],
+      }),
+    );
+
+    expect(
+      message.parts?.map((p) =>
+        p.type === "ask_user" ? [p.type, p.question, p.answer] : [p.type, p.content],
+      ),
+    ).toEqual([
+      ["text", "I need to know first. "],
+      ["ask_user", "Which region?", "eu-west-1"],
+      ["text", "Deploying to eu-west-1."],
+    ]);
+  });
+});
+
 describe("conversationMessagesToChatMessages", () => {
   it("converts a whole history in order", () => {
     const messages = conversationMessagesToChatMessages([

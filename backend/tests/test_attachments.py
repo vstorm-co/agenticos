@@ -70,12 +70,16 @@ class TestWithoutAWorkspace:
         assert isinstance(prompt, list)
         assert isinstance(prompt[1], BinaryContent)
 
-    async def test_a_file_nothing_could_parse_contributes_nothing(self, storage):
+    async def test_a_file_nothing_could_parse_is_named_not_dropped(self, storage):
+        # Silence reads as the model denying a file the transcript says arrived,
+        # so the reference names it and why it cannot be read.
         prompt = await AttachmentRouter().build_prompt(
-            "look", [_file(file_type="binary", parsed_content=None)]
+            "look", [_file(filename="dump.zip", file_type="binary", parsed_content=None)]
         )
 
-        assert prompt == "look"
+        assert isinstance(prompt, str)
+        assert "dump.zip" in prompt
+        assert "could not be extracted" in prompt
 
     async def test_no_attachments_is_the_message_unchanged(self):
         assert await AttachmentRouter().build_prompt("hello", []) == "hello"
@@ -138,7 +142,6 @@ class TestWithAWorkspace:
         await AttachmentRouter(backend).build_prompt("summarise", [chat_file])
 
         assert backend.exists(workspace_path(chat_file))
-        assert backend.exists(f"{workspace_path(chat_file)}.txt")
 
     async def test_the_same_file_on_a_later_turn_is_not_written_again(self, storage):
         """Otherwise an upload costs one write per turn for the whole chat."""
@@ -175,11 +178,11 @@ class TestWithAWorkspace:
     async def test_a_file_too_large_to_store_is_not_pasted_whole(self, storage):
         """The degradation used to run backwards.
 
-        A write is refused when the document has no room, so this branch only
-        runs for a file too large to store - and with a 50 MB upload limit
-        against a 4 MB document, falling back to the paste put up to fifty
-        megabytes of text into one message. A file small enough to paste safely
-        would have fitted in the workspace in the first place.
+        A file the workspace would not take is not a file to put in a prompt:
+        with a 50 MB upload limit against a 4 MB document, falling back to the
+        paste put up to fifty megabytes of text into one message. A file small
+        enough to paste safely would have fitted in the workspace in the first
+        place.
         """
         body = "\n".join(f"row-{n},{n}" for n in range(500))
         chat_file = _file(parsed_content=body)
@@ -190,7 +193,7 @@ class TestWithAWorkspace:
         assert "row-0" in prompt
         # The head, not the file: twenty lines of it and no more.
         assert "row-499" not in prompt
-        assert "not stored" in prompt
+        assert "could not be written" in prompt
 
     async def test_an_unparsed_file_too_large_to_store_is_still_named(self, storage):
         """A zip has no text to sample, so all there is to say is that it arrived
@@ -201,7 +204,7 @@ class TestWithAWorkspace:
 
         assert isinstance(prompt, str)
         assert "dump.zip" in prompt
-        assert "not stored" in prompt
+        assert "could not be written" in prompt
 
     async def test_a_file_that_was_not_stored_is_given_no_path_to_open(self, storage):
         """Naming a path the write did not create costs the agent a tool call to
@@ -253,18 +256,160 @@ class TestWithAWorkspace:
         assert isinstance(prompt, list)
         assert any(isinstance(part, BinaryContent) for part in prompt)
 
-    async def test_a_file_the_store_cannot_load_is_skipped_rather_than_fatal(self, monkeypatch):
-        """The person asked a question; answering without the file beats not
-        answering at all."""
+    async def test_a_file_the_store_cannot_load_is_named_rather_than_fatal(self, monkeypatch):
+        """A routing failure must not fail the turn - the person asked a question
+        and answering without the file beats not answering. But the model is told
+        the file arrived and could not be processed, not left denying it."""
         monkeypatch.setattr(
             attachments_module,
             "get_file_storage",
             lambda: SimpleNamespace(load=AsyncMock(side_effect=OSError("gone"))),
         )
 
-        prompt = await AttachmentRouter(_workspace()).build_prompt("summarise", [_file()])
+        prompt = await AttachmentRouter(_workspace()).build_prompt(
+            "summarise", [_file(filename="raport.csv")]
+        )
 
-        assert prompt == "summarise"
+        assert isinstance(prompt, str)
+        assert prompt.startswith("summarise")
+        assert "raport.csv" in prompt
+        assert "could not be processed" in prompt
+
+
+class TestWhereAnAttachmentLands:
+    """Inside the working directory, which is the whole of #1039.
+
+    A sandbox resolves an absolute path as absolute. `/uploads/x` therefore
+    landed at the *container's* filesystem root rather than in the bind-mounted
+    work directory, and three things followed, all of them silent: the agent's
+    own `ls` did not see the file, the workspace browser reads the host
+    directory and so could not list it, and it died with the container. Probed
+    against a live service, `write uploads/a.txt` answers
+    `/workspace/uploads/a.txt` and `write /uploads/a.txt` answers
+    `/uploads/a.txt`, which exists nowhere on the host.
+    """
+
+    def test_the_path_is_relative_so_the_sandbox_resolves_it_in_the_work_dir(self):
+        path = workspace_path(_file(filename="report.pdf"))
+
+        assert not path.startswith("/")
+        assert path.startswith("uploads/")
+
+    def test_a_generated_image_lands_there_too(self):
+        # The same defect in the other direction: an image the agent made was
+        # written outside the workspace, so it was also absent from the snapshot
+        # a channel diffs to decide what to post back.
+        from app.agents.capabilities.image_generation._toolset import WORKSPACE_OUTPUT_DIR
+
+        assert not WORKSPACE_OUTPUT_DIR.startswith("/")
+
+    async def test_the_model_is_told_the_path_the_file_is_actually_at(self, storage):
+        # The reference is the only thing that tells a model where to look, so a
+        # path in it that a shell cannot reach is worse than no path at all.
+        backend = _workspace()
+        chat_file = _file(filename="report.pdf", file_type="pdf", parsed_content="a b c")
+
+        prompt = await AttachmentRouter(backend).build_prompt("read it", [chat_file])
+
+        assert workspace_path(chat_file) in prompt
+        assert "/uploads/" not in prompt
+
+
+class TestWhatTheModelIsToldAboutAPath:
+    """Where the file is, said so a model does not have to guess.
+
+    The reference read `report.pdf (uploads/8b1e-report.pdf, 280 KB, pdf)` - the
+    path one of three facts in a bracket - and the failure that started #1039 was
+    a model answering "the directory is empty" after a single `ls`, about a file it
+    had summarised a turn earlier.
+    """
+
+    async def test_the_path_gets_its_own_clause(self, storage):
+        chat_file = _file(filename="report.csv", file_type="spreadsheet", parsed_content="a,b\n1,2")
+
+        prompt = await AttachmentRouter(_workspace()).build_prompt("read it", [chat_file])
+
+        assert f"in your workspace at {workspace_path(chat_file)}" in prompt
+
+    async def test_a_runtime_that_can_read_the_file_gets_no_copy_beside_it(self, storage):
+        """The workspace used to get a `.txt` of the parse next to every PDF,
+        `.docx` and spreadsheet. On a runtime carrying `lit` - one command to
+        markdown, OCR included - that is a second copy of the file's contents on
+        disk to save the agent a tool call it should be making."""
+        chat_file = _file(filename="report.pdf", file_type="pdf", parsed_content="page one")
+        backend = _workspace()
+
+        prompt = await AttachmentRouter(backend, can_parse=True).build_prompt(
+            "read it", [chat_file]
+        )
+
+        assert f"in your workspace at {workspace_path(chat_file)}" in prompt
+        assert not backend.exists(f"{workspace_path(chat_file)}.txt")
+        assert "beside it at" not in prompt
+
+    async def test_a_workspace_that_cannot_read_it_keeps_the_extracted_text(self, storage):
+        """A `state` workspace is files with no shell, so there is no `lit` and no
+        anything: without the sibling an agent has the first twenty lines in its
+        prompt and an unreadable binary on disk. A Daytona sandbox and somebody's
+        own runtime are the same case - their image is not ours."""
+        chat_file = _file(filename="report.pdf", file_type="pdf", parsed_content="page one")
+        backend = _workspace()
+
+        prompt = await AttachmentRouter(backend).build_prompt("read it", [chat_file])
+
+        assert backend.exists(f"{workspace_path(chat_file)}.txt")
+        assert f"beside it at {workspace_path(chat_file)}.txt" in prompt
+
+    async def test_a_sibling_the_workspace_refused_is_not_named(self, storage):
+        """The second write can be refused on its own.
+
+        A document with room for the original and not for its parse used to be told
+        about a file that is not there - so the agent spent a tool call finding out,
+        and was left with the head sample either way. What is named is what the
+        workspace answers `exists` for.
+        """
+        chat_file = _file(filename="report.pdf", file_type="pdf", parsed_content="page one" * 400)
+        # Room for the 72-byte original and nothing like the 3,200-byte parse.
+        backend = _workspace(max_bytes=900)
+
+        prompt = await AttachmentRouter(backend).build_prompt("read it", [chat_file])
+
+        assert f"in your workspace at {workspace_path(chat_file)}" in prompt
+        assert not backend.exists(f"{workspace_path(chat_file)}.txt")
+        assert "beside it at" not in prompt
+
+    async def test_a_sibling_from_an_earlier_turn_is_still_named(self, storage):
+        """Re-attaching writes nothing, because the file is already there - so the
+        reference has to come from what the workspace holds rather than from what
+        this turn did."""
+        chat_file = _file(filename="report.pdf", file_type="pdf", parsed_content="page one")
+        backend = _workspace()
+
+        await AttachmentRouter(backend).build_prompt("read it", [chat_file])
+        prompt = await AttachmentRouter(backend).build_prompt("again", [chat_file])
+
+        assert f"beside it at {workspace_path(chat_file)}.txt" in prompt
+
+    async def test_a_spreadsheet_is_the_case_that_makes_it_matter(self, storage):
+        """`.xlsx` in a workspace with no shell is a zip of XML that `read_file`
+        returns as mojibake."""
+        chat_file = _file(filename="q3.xlsx", file_type="spreadsheet", parsed_content="a,b")
+        backend = _workspace()
+
+        await AttachmentRouter(backend).build_prompt("read it", [chat_file])
+
+        assert backend.exists(f"{workspace_path(chat_file)}.txt")
+
+    async def test_an_image_is_told_where_it_is_as_well_as_shown(self, storage):
+        # Both, and the path is the half that lets it be resized, converted or read
+        # by something the model writes.
+        chat_file = _file(filename="chart.png", file_type="image")
+
+        prompt = await AttachmentRouter(_workspace()).build_prompt("look", [chat_file])
+
+        assert isinstance(prompt, list)
+        assert f"in your workspace at {workspace_path(chat_file)}" in prompt[0]
+        assert any(isinstance(part, BinaryContent) for part in prompt)
 
 
 class TestFilenamesAreNotTrusted:
@@ -273,7 +418,7 @@ class TestFilenamesAreNotTrusted:
         ["../../etc/passwd", "..\\..\\secrets.env", "-rf", "  ", "." * 5],
     )
     def test_a_name_cannot_escape_the_uploads_directory(self, hostile: str):
-        assert workspace_path(_file(filename=hostile)).startswith("/uploads/")
+        assert workspace_path(_file(filename=hostile)).startswith("uploads/")
         assert ".." not in safe_name(hostile)
 
     def test_a_very_long_name_is_bounded(self):
@@ -342,3 +487,76 @@ class TestLoadingTheRows:
 
         assert await module.load_attached_files(object(), [uuid4()], user_id=caller) == ["row"]
         assert service.list_attached_files.await_args.kwargs["user_id"] == caller
+
+
+class TestWhatTheModelIsToldAboutAFailedWrite:
+    """It says what happened. It used to say why, and be wrong.
+
+    The sentence read "too large for the workspace", reasoned from the `state`
+    backend's four-megabyte document - and a container write fails for reasons
+    that have nothing to do with size. A 782 KB PDF attached while `sandboxd` was
+    down was reported to the model as too large; the model told the person who
+    attached it exactly that, and offered to work around a limit that was never
+    the problem.
+    """
+
+    async def test_it_does_not_blame_the_size(self, storage):
+        chat_file = _file()
+
+        prompt = await AttachmentRouter(_workspace(max_bytes=1)).build_prompt("go", [chat_file])
+
+        assert isinstance(prompt, str)
+        assert "too large" not in prompt
+        assert "could not be written" in prompt
+
+    async def test_it_tells_the_model_not_to_invent_one(self, storage):
+        """The model fills a gap where a cause is missing - it offered "because of
+        its size" unprompted once the sentence stopped saying so."""
+        prompt = await AttachmentRouter(_workspace(max_bytes=1)).build_prompt("go", [_file()])
+
+        assert isinstance(prompt, str)
+        assert "Do not guess at why" in prompt
+
+
+class TestWhenTheWorkspaceWillNotTakeAWrite:
+    """Said once, about the machine, where every other line is about a file.
+
+    A run whose workspace refuses a write is a run whose shell and file tools will
+    fail too, and nothing told the model that: it read each failure as a problem
+    with the command it had just written and kept trying - `ls`, then a `curl` of a
+    `data:` URI, then three workarounds offered to the person, across two turns
+    and 57k tokens (#1046).
+    """
+
+    async def test_the_turn_is_told_the_workspace_is_unavailable(self, storage):
+        chat_file = _file()
+
+        prompt = await AttachmentRouter(_workspace(max_bytes=1)).build_prompt("go", [chat_file])
+
+        assert isinstance(prompt, str)
+        assert "would not accept a write this turn" in prompt
+        assert "another attempt will fail the same way" in prompt
+
+    async def test_it_is_said_once_however_many_files_were_refused(self, storage):
+        """Once about the workspace, not once per file: three attachments is one
+        broken machine, not three."""
+        files = [_file(), _file(filename="second.pdf"), _file(filename="third.pdf")]
+
+        prompt = await AttachmentRouter(_workspace(max_bytes=1)).build_prompt("go", files)
+
+        assert isinstance(prompt, str)
+        assert prompt.count("would not accept a write this turn") == 1
+
+    async def test_nothing_is_said_when_every_write_landed(self, storage):
+        prompt = await AttachmentRouter(_workspace()).build_prompt("go", [_file()])
+
+        assert isinstance(prompt, str)
+        assert "would not accept a write" not in prompt
+
+    async def test_an_agent_with_no_workspace_is_told_nothing_about_one(self, storage):
+        """It has no workspace to be unavailable, and the reference already says the
+        file is inline rather than on disk."""
+        prompt = await AttachmentRouter(None).build_prompt("go", [_file()])
+
+        assert isinstance(prompt, str)
+        assert "would not accept a write" not in prompt

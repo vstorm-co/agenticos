@@ -17,12 +17,52 @@ from app.core.vault import (
     generate_master_key,
     rewrap,
     seal,
+    seal_fields,
     unseal,
 )
 
 
 def _org() -> VaultScope:
     return VaultScope.organization(uuid.uuid4())
+
+
+class TestSealFields:
+    """Several fields of one row, sealed under one version.
+
+    The shape hand-rolled at more than one model, each differently - one reset the
+    version, one discarded it (#552). The helper is the one way to seal such a row,
+    so those mistakes cannot be written by hand.
+    """
+
+    def test_every_field_is_sealed_at_the_returned_version_and_round_trips(self):
+        scope = _org()
+        sealed, version = seal_fields(
+            {"token": "sk-live-abcd", "secret": "signing-shhh"}, scope=scope, key_version=3
+        )
+
+        assert version == 3
+        assert unseal(sealed["token"].ciphertext, scope=scope, key_version=3) == "sk-live-abcd"
+        assert unseal(sealed["secret"].ciphertext, scope=scope, key_version=3) == "signing-shhh"
+
+    def test_an_empty_field_is_skipped_rather_than_sealed(self):
+        # A field the row does not carry is absent, not an envelope around nothing.
+        sealed, _version = seal_fields({"token": "sk-live-abcd", "secret": ""}, scope=_org())
+
+        assert set(sealed) == {"token"}
+
+    def test_the_whole_row_can_be_rewrapped_together(self):
+        # One version per row is what lets a rotation move every field's wrapped
+        # key in one pass and the row still open.
+        scope = _org()
+        sealed, _version = seal_fields({"a": "alpha", "b": "beta"}, scope=scope, key_version=1)
+
+        moved = {
+            name: rewrap(field.ciphertext, scope=scope, from_version=1, to_version=2)
+            for name, field in sealed.items()
+        }
+
+        assert unseal(moved["a"], scope=scope, key_version=2) == "alpha"
+        assert unseal(moved["b"], scope=scope, key_version=2) == "beta"
 
 
 class TestSealUnseal:

@@ -280,7 +280,17 @@ describe("UsageStrip", () => {
       />,
     );
 
-    expect(screen.getByTitle("512 B of 2 KiB in the container")).toBeVisible();
+    expect(
+      screen.getByTitle(
+        "512 B of 2 KiB — the memory ceiling of this conversation's own container, " +
+          "not a quota shared with anything else",
+      ),
+    ).toBeVisible();
+    // And in the words on screen, not only in the tooltip: this test asserted
+    // the principle and checked the half nobody reads, while the label said
+    // `workspace 25% full` - disk, about a memory ceiling (#1039).
+    expect(screen.getByText("sandbox memory 25% full")).toBeVisible();
+    expect(screen.queryByText(/workspace/)).toBeNull();
   });
 
   it("reports a workspace nobody could measure as in use rather than as empty", () => {
@@ -363,7 +373,30 @@ describe("UsageStrip", () => {
       />,
     );
 
-    expect(screen.getByText("workspace 90% full")).toBeVisible();
+    expect(screen.getByText("sandbox memory 90% full")).toBeVisible();
+  });
+
+  it("says workspace when it is bytes kept, and memory when it is memory", () => {
+    // The two ceilings, one after the other, because the whole point is that
+    // they are not interchangeable: a stored workspace refuses a *write* when it
+    // fills, and a container is killed when it runs out of memory.
+    render(
+      <UsageStrip
+        usage={usage({
+          sandbox: {
+            kind: "state",
+            percent: 40,
+            bytes_used: 400,
+            bytes_limit: 1000,
+            memory_bytes: null,
+            memory_limit_bytes: null,
+          },
+        })}
+      />,
+    );
+
+    expect(screen.getByText("workspace 40% full")).toBeVisible();
+    expect(screen.queryByText(/memory/)).toBeNull();
   });
 
   it("says nothing about a container nothing has measured", () => {
@@ -378,5 +411,69 @@ describe("UsageStrip", () => {
     render(<UsageStrip usage={usage()} workspace={workspace({ bytes_limit: null })} />);
 
     expect(screen.queryByText(/workspace/)).toBeNull();
+  });
+});
+
+describe("a share too small to be a share", () => {
+  it("prints the amount rather than a bar drawn at zero", () => {
+    // A container with a 2 GiB ceiling holding 760 KiB is 0.036% full, which the
+    // server rounds to `0`. "sandbox memory 0% full" beside an empty bar is a
+    // gauge that reads the same on every ordinary turn - which is most of them.
+    render(
+      <UsageStrip
+        usage={usage({
+          sandbox: {
+            kind: "service",
+            percent: 0,
+            bytes_used: null,
+            bytes_limit: null,
+            memory_bytes: 778240,
+            memory_limit_bytes: 2 * 1024 * 1024 * 1024,
+          },
+        })}
+      />,
+    );
+
+    expect(screen.getByText("sandbox memory 760 KiB")).toBeVisible();
+    expect(screen.queryByRole("progressbar")).toBeNull();
+  });
+
+  it("says the ceiling in gigabytes, not two thousand megabytes", () => {
+    render(
+      <UsageStrip
+        usage={usage({
+          sandbox: {
+            kind: "service",
+            percent: 0,
+            bytes_used: null,
+            bytes_limit: null,
+            memory_bytes: 778240,
+            memory_limit_bytes: 2 * 1024 * 1024 * 1024,
+          },
+        })}
+      />,
+    );
+
+    expect(screen.getByTitle(/760 KiB of 2\.0 GiB/)).toBeVisible();
+  });
+
+  it("keeps the bar once the share is worth reading", () => {
+    render(
+      <UsageStrip
+        usage={usage({
+          sandbox: {
+            kind: "service",
+            percent: 84,
+            bytes_used: null,
+            bytes_limit: null,
+            memory_bytes: 1_800_000_000,
+            memory_limit_bytes: 2 * 1024 * 1024 * 1024,
+          },
+        })}
+      />,
+    );
+
+    expect(screen.getByText("sandbox memory 84% full")).toBeVisible();
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
   });
 });

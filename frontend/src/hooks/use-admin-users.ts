@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
+import { ApiError, getErrorMessage } from "@/lib/api-error";
 import type { AdminUser, AdminUserListResponse } from "@/types";
 
 interface ImpersonateResponse {
@@ -16,6 +17,7 @@ interface ImpersonateResponse {
 
 export function useAdminUsers() {
   const t = useTranslations("admin");
+  const tError = useTranslations("errors");
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -77,11 +79,17 @@ export function useAdminUsers() {
         setUsers((prev) => prev.filter((u) => u.id !== userId));
         setTotal((count) => count - 1);
         toast.success(t("userDeleted"));
-      } catch {
-        toast.error(t("failedDeleteUser"));
+      } catch (error) {
+        // A refusal carries the backend's own words - deleting your own row is
+        // refused with an explanation the admin should see, not the generic
+        // "failed" that reads as a transient error (#941). Anything else keeps
+        // the generic toast.
+        toast.error(
+          error instanceof ApiError ? getErrorMessage(error, tError) : t("failedDeleteUser"),
+        );
       }
     },
-    [t],
+    [t, tError],
   );
 
   const impersonateUser = useCallback(

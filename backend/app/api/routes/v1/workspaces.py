@@ -40,20 +40,35 @@ from app.schemas.workspace import (
     WorkspaceSummary,
     WorkspaceSummaryList,
 )
+from app.services.attachments import is_attachment
 from app.services.sandbox_workspace import owner_label, stored_ceiling
 
 router = APIRouter()
 
 
 @router.get("", response_model=WorkspaceSummaryList)
-async def list_workspaces(workspaces: WorkspaceSvc, ctx: Auth) -> Any:
-    """The workspaces this caller may see, most recently used first, no files read.
+async def list_workspaces(
+    workspaces: WorkspaceSvc,
+    ctx: Auth,
+    measure: bool = Query(
+        False,
+        description=(
+            "Count the files in every workspace, including the container-backed "
+            "ones. A round trip to the host per workspace, bounded and reported - "
+            "so it is asked for rather than paid by default."
+        ),
+    ),
+) -> Any:
+    """The workspaces this caller may see, most recently used first.
 
     A deployment can hold one per warm conversation, so reading each to render a
-    table would be a query or a round trip per row for a page nobody has asked a
-    question of yet. The files come when somebody opens one.
+    table would be a round trip per row for a page nobody has asked a question of
+    yet. A *stored* workspace is counted anyway, because its files are a column of
+    the row this already read; a container's are on its host, and `measure=true` is
+    what pays for those.
     """
     overviews = await workspaces.visible_to(ctx)
+    counted = await workspaces.measured(ctx, overviews, hosts=measure)
     items = [
         WorkspaceSummary(
             id=overview.row.id,
@@ -69,13 +84,21 @@ async def list_workspaces(workspaces: WorkspaceSvc, ctx: Auth) -> Any:
             owner_label=owner_label(overview.row),
             access_label=overview.access_label,
             bytes_total=overview.row.bytes_total,
+            file_count=counted.counts.get(overview.row.id, (None, None))[0],
+            measured_bytes=counted.counts.get(overview.row.id, (None, None))[1],
             version=overview.row.version,
             last_used_at=overview.row.last_used_at,
             created_at=overview.row.created_at,
         )
         for overview in overviews
     ]
-    return WorkspaceSummaryList(items=items, total=len(items))
+    return WorkspaceSummaryList(
+        items=items,
+        total=len(items),
+        measured=counted.measured,
+        unreadable=counted.unreadable,
+        truncated=counted.truncated,
+    )
 
 
 @router.get("/files", response_model=FlatFileList)
@@ -100,6 +123,7 @@ async def list_all_files(workspaces: WorkspaceSvc, ctx: Auth) -> Any:
             workspace_id=file.overview.row.id,
             agent_name=file.overview.agent_name,
             access_label=file.overview.access_label,
+            from_upload=is_attachment(str(file.info.get("path"))),
             preview=file.preview,
             thumbnail=file.thumbnail,
         )
@@ -136,6 +160,7 @@ async def list_files(workspace_id: UUID, workspaces: WorkspaceSvc, ctx: Auth) ->
         bytes_total=row.bytes_total,
         bytes_limit=stored_ceiling(row),
         unreadable_reason=contents.unreadable_reason,
+        truncated=contents.truncated,
     )
 
 

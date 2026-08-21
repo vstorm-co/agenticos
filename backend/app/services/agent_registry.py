@@ -62,7 +62,13 @@ from app.repositories import (
     sandbox_connection_repo,
     skill_repo,
 )
-from app.schemas.agent import AgentRead, AgentVersionRead, DelegationTree, DelegationTreeNode
+from app.schemas.agent import (
+    AgentRead,
+    AgentVersionRead,
+    DelegationTree,
+    DelegationTreeNode,
+    PublishedModel,
+)
 from app.services.access import (
     AGENT,
     COLLECTION,
@@ -74,7 +80,12 @@ from app.services.access import (
 )
 from app.services.channels.base import ROOM_HANDLES
 from app.services.deployment_settings import DeploymentSettingsService
-from app.services.file_storage import IMAGE_MIME_TYPES, MAX_AVATAR_SIZE, get_file_storage
+from app.services.file_storage import (
+    IMAGE_MIME_TYPES,
+    MAX_AVATAR_SIZE,
+    avatar_filename,
+    get_file_storage,
+)
 from app.services.sandbox_workspace import sandbox_config
 
 logger = logging.getLogger(__name__)
@@ -557,6 +568,27 @@ def _window_of(profile: ModelProfile | None) -> int | None:
     return resolve_context_window(f"{profile.provider}:{profile.model}")
 
 
+def _published_models(
+    profile_ids: dict[UUID, UUID], profiles: dict[UUID, ModelProfile]
+) -> dict[UUID, PublishedModel]:
+    """The model each published version runs on, by version id.
+
+    A version whose profile has been deleted is absent rather than a null entry:
+    the frozen spec still names an id, but nothing can say what it was, and a
+    picker prefilled from a gap would name a model the profile no longer is.
+    """
+    return {
+        version_id: PublishedModel(
+            profile_id=profile.id,
+            provider=profile.provider,
+            model=profile.model,
+            label=profile.label,
+        )
+        for version_id, profile_id in profile_ids.items()
+        if (profile := profiles.get(profile_id)) is not None
+    }
+
+
 def _yaml_refusal(exc: yaml.YAMLError) -> str:
     """Where the document stopped parsing, without quoting any of it.
 
@@ -692,7 +724,16 @@ class AgentRegistryService:
         )
         version_ids = [agent.current_version_id for agent in agents if agent.current_version_id]
         budget_caps = await agent_repo.published_budget_caps(self.db, version_ids=version_ids)
-        windows = await self._context_windows(ctx, version_ids)
+        profile_ids = await agent_repo.published_model_profiles(self.db, version_ids=version_ids)
+        profiles = (
+            await credential_repo.get_profiles_by_ids(
+                self.db, list(set(profile_ids.values())), organization_id=ctx.organization_id
+            )
+            if profile_ids
+            else {}
+        )
+        windows = await self._context_windows(version_ids, profile_ids, profiles)
+        published_models = _published_models(profile_ids, profiles)
         rows = [
             AgentRead(
                 id=agent.id,
@@ -713,6 +754,11 @@ class AgentRegistryService:
                 context_window_tokens=(
                     windows.get(agent.current_version_id) if agent.current_version_id else None
                 ),
+                published_model=(
+                    published_models.get(agent.current_version_id)
+                    if agent.current_version_id
+                    else None
+                ),
                 created_at=agent.created_at,
                 updated_at=agent.updated_at,
             )
@@ -721,7 +767,10 @@ class AgentRegistryService:
         return rows, total
 
     async def _context_windows(
-        self, ctx: AuthContext, version_ids: list[UUID]
+        self,
+        version_ids: list[UUID],
+        profile_ids: dict[UUID, UUID],
+        profiles: dict[UUID, ModelProfile],
     ) -> dict[UUID, int | None]:
         """How many tokens each published version's model accepts, by version id.
 
@@ -742,16 +791,12 @@ class AgentRegistryService:
 
         `None` where neither can say, and a surface then draws no share at all
         rather than one against a conservative guess.
+
+        `profile_ids` (version to its published profile) and `profiles` (profile
+        to its row) are loaded once by the caller, because the published-model
+        summary the listing also carries is read off the same two lookups.
         """
         overrides = await agent_repo.published_compaction_windows(self.db, version_ids=version_ids)
-        profile_ids = await agent_repo.published_model_profiles(self.db, version_ids=version_ids)
-        profiles = (
-            await credential_repo.get_profiles_by_ids(
-                self.db, list(set(profile_ids.values())), organization_id=ctx.organization_id
-            )
-            if profile_ids
-            else {}
-        )
         return {
             version_id: overrides.get(version_id) or _window_of(profiles.get(profile_id))
             for version_id, profile_id in profile_ids.items()
@@ -1701,7 +1746,6 @@ class AgentRegistryService:
         agent_id: UUID,
         *,
         file_data: bytes,
-        filename: str,
         content_type: str | None,
     ) -> Agent:
         """Replace an agent's picture.
@@ -1722,7 +1766,11 @@ class AgentRegistryService:
             # old file is unreachable the moment the row stops pointing at it.
             with contextlib.suppress(Exception):
                 await storage.delete(agent.avatar_url)
-        path = await storage.save(f"avatars/agents/{agent.id}", filename, file_data)
+        # Stored under a suffix from the validated type, not the caller's
+        # filename, so a valid image is renderable whatever it was named (#702).
+        path = await storage.save(
+            f"avatars/agents/{agent.id}", avatar_filename(content_type), file_data
+        )
         return await agent_repo.update(self.db, agent=agent, update_data={"avatar_url": path})
 
     async def set_avatar_color(

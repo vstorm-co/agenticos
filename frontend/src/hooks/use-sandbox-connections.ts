@@ -147,7 +147,7 @@ export function useSandboxPolicy(connectionId: string | null): UseSandboxPolicyR
 
 interface UseLocalSandboxServiceResult {
   local: SandboxLocalService | null;
-  /** Every runtime the library ships, offered before anything has been probed. */
+  /** What this deployment ships, offered before anything has been probed. */
   runtimes: SandboxRuntimeOption[];
   isLoading: boolean;
   /** Store this deployment's own token in the vault, and answer with its id. */

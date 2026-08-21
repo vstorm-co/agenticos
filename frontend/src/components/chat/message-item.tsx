@@ -122,6 +122,11 @@ export function MessageItem({
   // The turn's cost, which a grouped turn recorded on the segment that parked
   // rather than on the one the footer is drawn under.
   const footerUsage = turnUsage ?? message.usage;
+  // A turn produced something worth a footer if it wrote content *or* left a
+  // timeline part - the latter is the ask-only turn that was stopped after
+  // answering a question and before any text (#502), which otherwise loses its
+  // stopped indicator, timestamp and cost.
+  const hasBody = Boolean(message.content) || (!isUser && (message.parts?.length ?? 0) > 0);
   const sources = !isUser ? extractSources(message, t) : [];
   const hasSources = sources.length > 0 && !message.isStreaming;
   const onCiteClick = hasSources ? (index: number) => openSources(sources, index) : undefined;
@@ -130,10 +135,18 @@ export function MessageItem({
     <div
       className={cn(
         "group relative flex gap-2 overflow-visible sm:gap-4",
-        isGrouped ? "py-2 sm:py-3" : "py-3 sm:py-4",
-        // Tight against the segment above, because it is the same turn: the
-        // ordinary gap between messages would read as a pause the run never took.
-        continuesTurn && "pt-0",
+        // Each edge decided once, and never as `py-*` with a `pt-0` over it: two
+        // utilities of equal specificity leave which one wins to the order of the
+        // generated stylesheet, and a segment reading `py-3 pt-0 pb-0` kept its
+        // padding. Longhand both ways, so the class list says what it does.
+        //
+        // Zero against a segment of the same turn, on both edges. The ordinary
+        // gap between messages would read as a pause the run never took - and a
+        // turn that ran three commands is three segments, each carrying one step,
+        // so three steps of one run sat two message-gaps apart and looked like
+        // three separate things the agent did.
+        continuesTurn ? "pt-0" : isGrouped ? "pt-2 sm:pt-3" : "pt-3 sm:pt-4",
+        endsTurn ? (isGrouped ? "pb-2 sm:pb-3" : "pb-3 sm:pb-4") : "pb-0",
         isUser && "flex-row-reverse",
       )}
     >
@@ -215,8 +228,12 @@ export function MessageItem({
                 ? message.files.map((f) => ({ kind: kindFor(f), file: f }))
                 : (message.fileIds ?? []).map((id) => ({ kind: "unknown" as const, id }));
             if (attachments.length === 0) return null;
+            // `items-start`, or a flex row stretches every child to the tallest
+            // one: a PDF card beside a photograph rendered at 256 px became a
+            // 256 px card with its content at the top and a field of empty border
+            // under it.
             return (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-start gap-2">
                 {attachments.map((att) =>
                   att.kind === "image" ? (
                     <button
@@ -269,7 +286,7 @@ export function MessageItem({
           </div>
         )}
 
-        {!message.isStreaming && message.content && endsTurn && (
+        {!message.isStreaming && hasBody && endsTurn && (
           <div className={cn("flex items-center gap-2", isUser && "flex-row-reverse")}>
             {message.timestamp && (
               <span className="text-muted-foreground text-[10px]">
@@ -291,13 +308,15 @@ export function MessageItem({
               </span>
             )}
             {!isUser && footerUsage && <MessageCost usage={footerUsage} />}
-            <CopyButton
-              text={message.content}
-              className={cn(
-                "h-6 w-6 rounded-md sm:opacity-0 sm:group-hover:opacity-100",
-                isUser ? "bg-secondary hover:bg-secondary/80" : "bg-muted hover:bg-muted/80",
-              )}
-            />
+            {message.content && (
+              <CopyButton
+                text={message.content}
+                className={cn(
+                  "h-6 w-6 rounded-md sm:opacity-0 sm:group-hover:opacity-100",
+                  isUser ? "bg-secondary hover:bg-secondary/80" : "bg-muted hover:bg-muted/80",
+                )}
+              />
+            )}
             {!isUser && onRegenerate && (
               <button
                 type="button"

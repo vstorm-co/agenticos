@@ -125,7 +125,13 @@ export interface RunTranscriptMessage {
    * `content`, `thinking` and `tool_calls` instead.
    */
   parts?:
-    | { type: "text" | "thinking" | "tool"; text?: string | null; tool_call_id?: string | null }[]
+    | {
+        type: "text" | "thinking" | "tool" | "ask_user";
+        text?: string | null;
+        tool_call_id?: string | null;
+        question?: string | null;
+        answer?: string | null;
+      }[]
     | null;
   tool_calls?:
     | {

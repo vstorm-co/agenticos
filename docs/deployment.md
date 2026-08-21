@@ -162,6 +162,25 @@ know the rule exists and reads the refusal as the product being broken. That is
 also why the allowed domains are published: they are not a secret, and the
 deployment is on the company's own host.
 
+## An app admin cannot lock the deployment out through the console
+
+`is_active` is enforced on the next request and `is_app_admin` is what the admin
+pages read, so an app admin acting on **their own** row from `/admin/users` could
+sign themselves out, drop `/admin`, or delete the account — and on the
+single-admin install `make platform-bootstrap` produces, a stray click ended
+administration until somebody reached a terminal. `UserService.admin_update` and
+`admin_delete` refuse the self-suspend and the self-delete, and the drawer does
+not offer Suspend, Demote or Impersonate on your own row (Delete stays, visible
+and refused, because "why can I not delete myself" has an answer worth showing).
+
+The deployment cannot be left with no app admin through the API at all: the one
+global privilege is granted only by CLI (`agenticos cmd create-app-admin`) and
+there is no request that clears it, so the set of app admins shrinks only by
+deletion — and deleting the *last* one is deleting yourself, which is refused.
+Removing an admin genuinely leaving is another admin's action, which is also what
+keeps the audit trail readable. Recovery, if it is ever needed, is still
+`create-app-admin` from a shell on the deployment.
+
 ## Notices, and closing the deployment
 
 **The announcement** is one sentence with one of three styles, shown above every

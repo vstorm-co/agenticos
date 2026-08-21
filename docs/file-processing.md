@@ -97,17 +97,37 @@ gets the file instead of the text:
 
 | Attachment | No workspace | With a workspace |
 |---|---|---|
-| text, csv, md, json | parsed text pasted inline | written to `/uploads/`, message carries a reference and a 20-line head |
-| pdf, docx, spreadsheet | parsed text pasted inline | the original **and** a `.txt` beside it; reference |
+| text, csv, md, json | parsed text pasted inline | written to `uploads/`, message carries a reference and a 20-line head |
+| pdf, docx, spreadsheet | parsed text pasted inline | written to `uploads/`, with the extracted text beside it unless the runtime can read it; reference and a 20-line head |
 | image | `BinaryContent` | `BinaryContent` **and** written; reference names the path |
 
-**A spreadsheet in a workspace is not a spreadsheet an agent can open**, which is
-why it is parsed here rather than handed over as bytes. `run_python` has no
-filesystem — it is for arithmetic — the workspace shell has no spreadsheet library,
-and `read_file` on a zip of XML returns mojibake. The `.txt` beside the original is
-the readable half, exactly as it is for a PDF. Accepting the upload without parsing
-it would reach an agent with a workspace as unreadable bytes and an agent without
-one as nothing at all, which is worse than the refusal it replaced.
+**The extracted text comes with it only where nothing can read the original.** A
+`.txt` of the parse used to be written next to every PDF, `.docx` and spreadsheet,
+on the reasoning that a shell has no library for any of them — `read_file` on an
+`.xlsx` returns mojibake, and `run_python` has no filesystem at all. On a runtime
+carrying `lit` that reasoning is stale: `lit parse q3.xlsx -o q3.md` is one
+command, with OCR for a scan and LibreOffice for the legacy formats
+(`sandbox.md`), so the sibling is a second copy of the file's contents on disk to
+save a tool call.
+
+It is still written everywhere else, and the predicate is not the backend kind: a
+`state` workspace is files with no shell at all, a Daytona sandbox and a
+deployment's own runtime carry whatever their image carries, and none of them have
+`lit`. The condition is whether this deployment *described* the runtime to the
+model — the same briefing the run appends to its instructions. Told it has `lit`,
+no sibling; anything else, the text goes beside the file.
+
+Parsing still happens server-side either way, because the *text* is what an agent
+with no workspace gets and what the 20-line head in the message comes from.
+Accepting the upload without parsing would reach an agent with a workspace as
+unreadable bytes and an agent without one as nothing at all.
+
+**A refused write is said once, about the workspace.** A run whose workspace will
+not take a file is a run whose shell and file tools will fail too, and a per-file
+line cannot say that: a turn read each failure as a problem with the command it
+had just written and kept trying — `ls`, then a `curl` of a `data:` URI, then
+three workarounds offered to the person, across two turns. One sentence now says
+the workspace is unavailable and that another attempt will fail the same way.
 
 The reference is what the model actually reads:
 
@@ -901,18 +921,40 @@ naming the row it came from: it points a credential somebody already scoped at a
 different collection, so its audience changes while nothing about the credential
 does (#983).
 
-What this rule still owes, and does not yet have, is the other half - saying the
-consequence *before* the fact rather than after it:
-[#982](https://github.com/vstorm-co/agenticos/issues/982) states it in the
-wizard where the collection is chosen, and re-asks when a source is repointed at
-a different one. Today that step is silent, which is exactly the implicitness
-this section exists to name.
+**And it is said before the fact, not only after it.** The wizard's last step -
+the one that decides the collection - names the credential and the audience
+together, because the pair is the decision: *"<credential> can read whatever it
+has been granted, and everything it ingests becomes searchable in <collection>
+by ..."*. A connector that authenticates with nothing has no credential to name
+and the sentence does not invent one; nor does it name one whose reader holds no
+`secrets:view`. Each scope ends that sentence differently - `personal` is its owner,
+`org` is everyone who can view the collection, `app` is anybody in the
+deployment - and an integration filed under no knowledge base says that nothing
+can search it yet. The sentence does not wait for the collection *picker*, which
+only appears where there is more than one collection to choose from: the case
+this was filed from is a knowledge base offering exactly one, where there is
+nothing to pick and the consequence is the same (#982).
+
+Cloning says it too, and for the reason above: it is the only way to change a
+source's audience from this product's own UI. Repointing an existing one is a
+`PATCH` on `collection_name`, which no screen sends today - there is no source
+editor - so it is reachable through the API and the CLI, where the audit entry
+above is what records it.
 
 ### What a new connector owes
 
 A connector is `list_files` + `_fetch` + a `CONFIG_SCHEMA`, and the API calls are
-the cheap part. Three things are not, and a connector without them is a bill or a
-surprise rather than a feature:
+the cheap part. **An object store is less than that**: S3, Azure Blob and GCS are
+one connector with three clients, so `ObjectStoreConnector` holds the listing
+loop, the `<scheme>://<container>/<key>` address and the directory-marker skip,
+and a subclass supplies a client, a `SCHEME`, and which `CONFIG_SCHEMA` field
+names the container - `bucket` for S3 and GCS, `container` for Azure. `S3Connector`
+is that subclass ([#988](https://github.com/vstorm-co/agenticos/issues/988)); its
+two hooks are deliberately blocking, because all three SDKs are, and the shared
+class runs them on a worker thread.
+
+Three things are not cheap, and a connector without them is a bill or a surprise
+rather than a feature:
 
 - **A change signal.** The sync path compares one since
   [#990](https://github.com/vstorm-co/agenticos/issues/990), and what it compares
@@ -946,8 +988,10 @@ Which connectors are being built, and in what order, is decided in
 OneDrive ([#985](https://github.com/vstorm-co/agenticos/issues/985)), Confluence
 ([#986](https://github.com/vstorm-co/agenticos/issues/986)), a git repository's
 documentation ([#987](https://github.com/vstorm-co/agenticos/issues/987)), and
-then Azure Blob and GCS once `S3Connector` is an object store rather than an S3
-one ([#988](https://github.com/vstorm-co/agenticos/issues/988)). Notion, Slack
+then Azure Blob and GCS, whose condition is met: `S3Connector` is an
+`ObjectStoreConnector` subclass, so each of those is a client and a
+`CONNECTOR_TYPE` rather than a second copy of the listing loop
+([#988](https://github.com/vstorm-co/agenticos/issues/988)). Notion, Slack
 and email archives are decided **against** for now, each for a reason recorded
 there — the last two because a conversation retrieves badly and the channel
 integrations already put an agent *in* Slack.

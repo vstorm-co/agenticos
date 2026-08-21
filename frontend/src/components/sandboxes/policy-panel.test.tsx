@@ -83,10 +83,14 @@ describe("PolicyPanel", () => {
     expect(screen.getByText("Default")).toBeVisible();
   });
 
-  it("says only changeable there, because a browser must not reconfigure the socket", () => {
+  it("says why none of it is editable here, in the sentence under the title", () => {
+    // A browser that could reconfigure the process holding the Docker socket
+    // would own the host. Said once, at the top, rather than in a paragraph
+    // between the numbers and the runtimes.
     render(<PolicyPanel connection={connection()} onOpenChange={vi.fn()} />);
 
-    expect(screen.getByText(/only changeable there/i)).toBeVisible();
+    expect(screen.getByText(/changeable only there/i)).toBeVisible();
+    expect(screen.getByText(/no endpoint to write these/i)).toBeVisible();
   });
 
   it("renders the per-tenant ceiling and the idle timeout in minutes", () => {

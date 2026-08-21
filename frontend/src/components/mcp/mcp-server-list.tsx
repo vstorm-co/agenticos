@@ -30,7 +30,7 @@ import { McpConnectionDialog } from "@/components/mcp/mcp-connection-dialog";
 import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
 import {
   SCOPE_LABEL,
-  type DraftAuth,
+  type ConnectionFormValues,
   type DraftState,
   type Scope,
   type ToolPickerState,
@@ -139,14 +139,6 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   });
 
   const [draft, setDraft] = useState<DraftState | null>(null);
-  const [draftName, setDraftName] = useState("");
-  const [draftUrl, setDraftUrl] = useState("");
-  const [draftToken, setDraftToken] = useState("");
-  // How the server is authenticated. A catalog entry states this; a custom one
-  // has to be asked, and asking was the gap - the dialog offered a token field
-  // and nothing else, so a server behind OAuth could not be added at all.
-  const [draftAuth, setDraftAuth] = useState<DraftAuth>("token");
-  const [clearToken, setClearToken] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [toolPicker, setToolPicker] = useState<ToolPickerState | null>(null);
@@ -163,22 +155,9 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   const api = (scope: Scope) => (scope === "organization" ? organization : personal);
 
   const openDraft = (scope: Scope, row: McpServerRow, existing: McpConnectionRecord | null) => {
+    // The dialog seeds its own fields from this - name, url and auth type off
+    // the row and any connection being edited.
     setDraft({ scope, row, existing });
-    // The catalog knows; a custom server defaults to a token, which is what most
-    // self-hosted ones use and what this dialog could always do.
-    setDraftAuth(
-      existing?.auth_type === "oauth"
-        ? "oauth"
-        : row.entry?.auth === "oauth"
-          ? "oauth"
-          : row.entry?.auth === "none"
-            ? "none"
-            : "token",
-    );
-    setDraftName(existing?.name ?? row.entry?.key ?? "");
-    setDraftUrl(existing?.url ?? row.entry?.url ?? "");
-    setDraftToken("");
-    setClearToken(false);
   };
 
   /** Probe a server, returning its tools or null after saying why not. */
@@ -227,13 +206,13 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     // On success the browser navigates away - leave the row busy.
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (values: ConnectionFormValues) => {
     if (!draft) return;
-    const name = draftName.trim().toLowerCase();
-    const url = draftUrl.trim();
+    const name = values.name.trim().toLowerCase();
+    const url = values.url.trim();
     // Only a token connection carries one. Switching to OAuth or None and
     // submitting must not quietly store whatever was typed before.
-    const token = draftAuth === "token" ? draftToken.trim() : "";
+    const token = values.auth === "token" ? values.token.trim() : "";
     if (!NAME_PATTERN.test(name)) {
       toast.error(t("nameMustBeLowercase"));
       return;
@@ -242,13 +221,14 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       toast.error(t("urlMustStartWithHttp"));
       return;
     }
-    const { scope, row, existing } = draft;
+    const { row, existing } = draft;
+    const scope = values.scope;
 
     // OAuth is not a row this dialog writes: the grant is obtained at the
     // provider's consent screen and the connection is created by the callback.
     // Sending the form would make an unauthorized bearer connection that then
     // has to be repaired.
-    if (draftAuth === "oauth" && existing === null) {
+    if (values.auth === "oauth" && existing === null) {
       setDraft(null);
       await handleOAuth({ ...row, url }, name, scope);
       return;
@@ -279,7 +259,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         await api(scope).update(existing.id, {
           ...(name !== existing.name ? { name } : {}),
           ...(url !== existing.url ? { url } : {}),
-          ...(token ? { auth_token: token } : clearToken ? { auth_token: "" } : {}),
+          ...(token ? { auth_token: token } : values.clearToken ? { auth_token: "" } : {}),
         });
         toast.success(t("serverUpdated", { name }));
         setDraft(null);
@@ -561,17 +541,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
 
       <McpConnectionDialog
         draft={draft}
-        setDraft={setDraft}
-        draftName={draftName}
-        setDraftName={setDraftName}
-        draftUrl={draftUrl}
-        setDraftUrl={setDraftUrl}
-        draftToken={draftToken}
-        setDraftToken={setDraftToken}
-        draftAuth={draftAuth}
-        setDraftAuth={setDraftAuth}
-        clearToken={clearToken}
-        setClearToken={setClearToken}
+        onClose={() => setDraft(null)}
         submitting={submitting}
         canManageOrganization={canManageOrganization}
         onSubmit={handleSubmit}

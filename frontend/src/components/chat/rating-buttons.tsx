@@ -39,7 +39,9 @@ export function RatingButtons({
   const [showCommentDialog, setShowCommentDialog] = useState(false);
   const [pendingRating, setPendingRating] = useState<RatingValue>(RatingValue.DISLIKE);
   const [comment, setComment] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  // Which button's request is in flight, not what the rating is: keying the
+  // spinner on currentRating (null on an unrated message) spins both thumbs.
+  const [inFlight, setInFlight] = useState<RatingValue | null>(null);
 
   const calculateNewCounts = useMemo(
     () =>
@@ -63,7 +65,7 @@ export function RatingButtons({
   // submitRating must be declared before handleRate since handleRate uses it
   const submitRating = useCallback(
     async (rating: RatingValue, commentText: string | null) => {
-      setIsLoading(true);
+      setInFlight(rating);
       try {
         const response = await fetch(
           `/api/conversations/${conversationId}/messages/${messageId}/rate`,
@@ -91,7 +93,7 @@ export function RatingButtons({
       } catch (error) {
         toast.error(error instanceof Error ? error.message : t("ratingFailed"));
       } finally {
-        setIsLoading(false);
+        setInFlight(null);
       }
     },
     [conversationId, messageId, currentRating, calculateNewCounts, onRatingChange, t],
@@ -104,7 +106,7 @@ export function RatingButtons({
   const handleRate = useCallback(
     async (rating: RatingValue) => {
       if (currentRating === rating) {
-        setIsLoading(true);
+        setInFlight(rating);
         try {
           const response = await fetch(
             `/api/conversations/${conversationId}/messages/${messageId}/rate`,
@@ -125,7 +127,7 @@ export function RatingButtons({
         } catch (error) {
           toast.error(error instanceof Error ? error.message : t("failedRemoveRating"));
         } finally {
-          setIsLoading(false);
+          setInFlight(null);
         }
       } else {
         setPendingRating(rating);
@@ -154,7 +156,7 @@ export function RatingButtons({
       <div className="flex items-center gap-1">
         <button
           onClick={() => handleRate(RatingValue.LIKE)}
-          disabled={isLoading || isMissingConversationId}
+          disabled={inFlight !== null || isMissingConversationId}
           className={cn(
             "inline-flex items-center rounded-md p-1.5 transition-colors",
             "hover:bg-muted/80",
@@ -164,7 +166,7 @@ export function RatingButtons({
           )}
           title={isMissingConversationId ? t("saveConversationToRate") : t("helpful")}
         >
-          {isLoading && currentRating !== RatingValue.DISLIKE ? (
+          {inFlight === RatingValue.LIKE ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <ThumbsUp className="h-4 w-4" />
@@ -176,7 +178,7 @@ export function RatingButtons({
 
         <button
           onClick={() => handleRate(RatingValue.DISLIKE)}
-          disabled={isLoading || isMissingConversationId}
+          disabled={inFlight !== null || isMissingConversationId}
           className={cn(
             "inline-flex items-center rounded-md p-1.5 transition-colors",
             "hover:bg-muted/80",
@@ -186,7 +188,7 @@ export function RatingButtons({
           )}
           title={isMissingConversationId ? t("saveConversationToRate") : t("notHelpful")}
         >
-          {isLoading && currentRating !== RatingValue.LIKE ? (
+          {inFlight === RatingValue.DISLIKE ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <ThumbsDown className="h-4 w-4" />
@@ -214,22 +216,22 @@ export function RatingButtons({
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground text-xs">{comment.length} / 2000</span>
             <div className="flex gap-2">
-              <Button variant="ghost" onClick={handleCloseDialog} disabled={isLoading}>
+              <Button variant="ghost" onClick={handleCloseDialog} disabled={inFlight !== null}>
                 {tc("cancel")}
               </Button>
               <Button
                 variant="outline"
                 onClick={() => submitRating(pendingRating, null)}
-                disabled={isLoading}
+                disabled={inFlight !== null}
               >
-                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {inFlight !== null ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {t("skipComment")}
               </Button>
               <Button
                 onClick={() => submitRating(pendingRating, comment.trim() || null)}
-                disabled={isLoading}
+                disabled={inFlight !== null}
               >
-                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {inFlight !== null ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {tc("submit")}
               </Button>
             </div>

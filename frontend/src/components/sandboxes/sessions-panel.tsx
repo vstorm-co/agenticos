@@ -13,6 +13,11 @@ import {
   CardHeader,
   CardTitle,
   DataTable,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
   ListCardControlsRow,
   ListCardEmpty,
   SearchInput,
@@ -24,10 +29,13 @@ import {
   Switch,
   type Column,
 } from "@/components/ui";
-import { useSandboxSessions } from "@/hooks";
+import { useAgents, useSandboxPolicy, useSandboxSessions } from "@/hooks";
 import { primaryConnection } from "@/lib/dashboard/sandbox";
 import type { SandboxConnectionRecord, SandboxSession } from "@/lib/sandbox-connections-api";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
+
+import { cn } from "@/lib/utils";
 
 interface SessionsPanelProps {
   /** The active container connections — the hosts that can be asked at all. */
@@ -41,13 +49,32 @@ function idle(seconds: number): string {
   return `${Math.round(seconds / 3600)}h`;
 }
 
+/** Bytes as a person reads them, at the scale the number deserves. */
+function size(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KiB`;
+  if (bytes < 1024 * 1024 * 1024) return `${Math.round(bytes / (1024 * 1024))} MiB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GiB`;
+}
+
 /** Bytes against a ceiling, or nothing when the sample was not taken. */
 function memory(session: SandboxSession): string {
   const used = session.usage?.memory_bytes;
   if (used === null || used === undefined) return "—";
   const limit = session.usage?.memory_limit_bytes;
-  const mib = (value: number) => `${Math.round(value / (1024 * 1024))} MiB`;
-  return limit ? `${mib(used)} / ${mib(limit)}` : mib(used);
+  return limit ? `${size(used)} / ${size(limit)}` : size(used);
+}
+
+/**
+ * How long this sandbox has left before it is reaped, when that is knowable.
+ *
+ * The number an operator is actually looking for: `29m` idle says nothing on its
+ * own, and the ceiling it is measured against is the service's `idle_timeout` -
+ * which the page has, because it asks for the policy anyway to name the runtimes.
+ * A hibernated sandbox is not counting down: it has already been stopped.
+ */
+function reapsIn(session: SandboxSession, idleTimeout: number | null): number | null {
+  if (idleTimeout === null || !session.alive) return null;
+  return Math.max(0, idleTimeout - session.idle_seconds);
 }
 
 /** Which agent and chat a sandbox belongs to, in words. */
@@ -86,6 +113,23 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
     connections.find((entry) => entry.id === chosenId) ?? primaryConnection(connections);
 
   const { listing, isLoading, error } = useSandboxSessions(connection?.id ?? null, usage);
+  // Asked for the same reason the runtimes are: the ceilings in force are what
+  // turn `29m` into `reaped in 1m`. One request per host, on a page an operator
+  // opened to ask exactly that.
+  const { policy } = useSandboxPolicy(connection?.id ?? null);
+  // Names for the ids the host answers with. It knows the agent that opened each
+  // sandbox and nothing about what that agent is called.
+  const { agents } = useAgents();
+  const nameOf = useMemo(() => {
+    const byId = new Map(agents.map((agent) => [agent.id, agent.name]));
+    return (session: SandboxSession) =>
+      session.agent_id === null ? null : (byId.get(session.agent_id) ?? null);
+  }, [agents]);
+
+  const watched = useMemo(
+    () => (listing?.sessions ?? []).find((session) => session.session_id === watching) ?? null,
+    [listing, watching],
+  );
 
   const visible = useMemo(() => {
     const sessions = listing?.sessions ?? [];
@@ -105,8 +149,21 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
         className: "pl-5",
         header: t("session"),
         sortable: true,
-        sortValue: (session) => session.session_id,
-        cell: (session) => <span className="font-mono text-xs">{session.session_id}</span>,
+        sortValue: (session) => nameOf(session) ?? session.session_id,
+        // The agent, with the key underneath. A column of
+        // `xc-40bfd3cc-ca1b1445-d9bdc4992aba470eb26e8716d3c77aaa` answers no
+        // question anybody brought to this page: whose sandbox is this, and may
+        // I close it. The id stays because it is what the service is asked with.
+        cell: (session) => (
+          <span className="flex min-w-0 flex-col">
+            <span className="text-foreground text-xs font-medium">
+              {nameOf(session) ?? t("anAgent")}
+            </span>
+            <span className="text-muted-foreground/70 truncate font-mono text-[10px]">
+              {session.session_id}
+            </span>
+          </span>
+        ),
       },
       {
         key: "runtime",
@@ -116,17 +173,39 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
       {
         key: "sharedBy",
         header: t("sharedBy"),
-        cell: (session) => (
-          <span className="text-muted-foreground text-xs">{belongsTo(session, t)}</span>
-        ),
+        // A link where there is one to give. "one conversation" is the scope; the
+        // conversation itself is the thing an operator wants when a sandbox is
+        // holding memory they cannot account for.
+        // A link only where it leads somewhere: the chat page lists its owner's
+        // threads, so one to anybody else's lands on an empty sidebar dressed as
+        // the conversation - and this listing is organization-wide, which made
+        // that most of the column. The same test the workspace table applies.
+        cell: (session) =>
+          session.conversation_id === null || !session.conversation_is_callers ? (
+            <span className="text-muted-foreground text-xs">{belongsTo(session, t)}</span>
+          ) : (
+            <Link
+              href={`/chat?id=${session.conversation_id}`}
+              className="text-muted-foreground hover:text-foreground text-xs underline decoration-dotted"
+            >
+              {belongsTo(session, t)}
+            </Link>
+          ),
       },
       {
         key: "state",
         header: t("state"),
         cell: (session) => (
-          // Hibernated is not dead: the sandbox was stopped to free
-          // a slot and its files and log are still there.
-          <Badge variant={session.alive ? "secondary" : "outline"}>{session.state}</Badge>
+          // Hibernated is not dead: the sandbox was stopped to free a slot and its
+          // files and log are still there. Said in words on hover, because the
+          // state name alone reads as a failure to anybody who has not read the
+          // service's documentation (#1039).
+          <Badge
+            variant={session.alive ? "secondary" : "outline"}
+            title={session.alive ? t("stateRunningMeans") : t("stateHibernatedMeans")}
+          >
+            {session.state}
+          </Badge>
         ),
       },
       {
@@ -134,9 +213,24 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
         header: t("idle"),
         sortable: true,
         sortValue: (session) => session.idle_seconds,
-        cell: (session) => (
-          <span className="text-muted-foreground text-xs">{idle(session.idle_seconds)}</span>
-        ),
+        cell: (session) => {
+          const left = reapsIn(session, policy?.idle_timeout ?? null);
+          return (
+            <span className="flex flex-col">
+              <span className="text-muted-foreground text-xs">{idle(session.idle_seconds)}</span>
+              {left !== null && (
+                <span
+                  className={cn(
+                    "text-[10px]",
+                    left < 120 ? "text-amber-600" : "text-muted-foreground/70",
+                  )}
+                >
+                  {t("reapedIn", { time: idle(left) })}
+                </span>
+              )}
+            </span>
+          );
+        },
       },
       {
         key: "memory",
@@ -155,14 +249,17 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
             variant="ghost"
             size="sm"
             aria-label={t("activityOf", { id: session.session_id })}
-            onClick={() => setWatching(watching === session.session_id ? null : session.session_id)}
+            // Opens only. The log is a modal, so while one is open its row is
+            // behind it and out of the accessibility tree - a second label on this
+            // button would be one nothing can read and nothing can press.
+            onClick={() => setWatching(session.session_id)}
           >
-            {watching === session.session_id ? t("hide2") : t("show")}
+            {t("show")}
           </Button>
         ),
       },
     ],
-    [t, watching],
+    [t, nameOf, policy],
   );
 
   if (connection === null)
@@ -231,6 +328,13 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
         <ListCardControlsRow>
           <SearchInput value={query} onChange={setQuery} placeholder={t("searchSessions")} />
         </ListCardControlsRow>
+        {/* What this table is, once, where somebody who opened the tab is looking.
+            "Nothing running" and "nothing configured" are the same empty grid, and
+            a session opening on the first tool call rather than when a chat starts
+            is the part nobody guesses (#1039). */}
+        <p className="text-muted-foreground border-border border-t px-5 py-2 text-xs">
+          {t("whatSessionsAre")}
+        </p>
         <DataTable<SandboxSession>
           columns={columns}
           rows={visible}
@@ -248,11 +352,41 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
           className="rounded-none border-0 bg-transparent"
         />
 
-        {watching !== null && (
-          <div className="px-5 py-4">
-            <ActivityLog connectionId={connection.id} sessionId={watching} />
-          </div>
-        )}
+        {/* A dialog rather than a panel under the table. Expanded in place, the log
+            was a table inside a table - its columns lining up with none of the
+            ones above them, its scroll box competing with the page's, and the row
+            it belonged to pushed out of sight by it. It is also the one thing on
+            this page somebody reads rather than scans, which is what a dialog is
+            for. */}
+        <Dialog open={watching !== null} onOpenChange={(open) => !open && setWatching(null)}>
+          {/* Nearly the whole window, the same geometry the file viewer uses: this
+              is a log with five columns and three hundred rows, read rather than
+              glanced at, and a `max-w-3xl` box turned every target into an
+              ellipsis. */}
+          <DialogContent className="flex h-[calc(100vh-4rem)] max-h-none w-[calc(100vw-4rem)] max-w-none flex-col gap-3 overflow-hidden p-4 sm:max-w-none sm:p-6">
+            <DialogHeader className="gap-1 pr-8">
+              <DialogTitle className="text-base">
+                {watched === null
+                  ? t("activity")
+                  : t("activityOfAgent", { name: nameOf(watched) ?? t("anAgent") })}
+              </DialogTitle>
+              {/* What the service records, and what it does not. The distinction is
+                  the reason this log can be shown to anybody who can see the page:
+                  it audits what was done, and is not a way to read the work. */}
+              <DialogDescription className="text-xs">{t("whatIsRecorded")}</DialogDescription>
+              {watching !== null && (
+                <p className="text-muted-foreground/70 truncate font-mono text-[10px]">
+                  {watching}
+                </p>
+              )}
+            </DialogHeader>
+            <div className="min-h-0 flex-1 overflow-auto">
+              {watching !== null && (
+                <ActivityLog connectionId={connection.id} sessionId={watching} />
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );

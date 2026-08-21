@@ -18,7 +18,7 @@ import { useTranslations } from "next-intl";
 interface RuntimeFieldProps {
   value: string;
   onChange: (alias: string) => void;
-  /** Every runtime the library ships. Offered immediately, without asking a host. */
+  /** What this deployment ships. Offered immediately, without asking a host. */
   catalog: SandboxRuntimeOption[];
   /** What the service said it allows, or null before anybody asked it. */
   allowed: SandboxRuntime[] | null;
@@ -33,15 +33,16 @@ const SERVICE_DEFAULT = "__service__";
 /**
  * Which image an agent gets when its own spec names none.
  *
- * **Populated before anything is probed.** The aliases come from the sandbox
- * library's own catalog, which is what every `sandboxd` is built from — so the list
- * is complete the moment the form opens, and a select that only filled in after
- * pressing a button was a select nobody would find.
+ * **Populated before anything is probed.** The aliases come from this
+ * deployment's own catalogue — the same file the compose files' allowlist is
+ * generated from — so the list is complete the moment the form opens, and a
+ * select that only filled in after pressing a button was a select nobody
+ * would find.
  *
- * Probing is still worth doing and now means something narrower: a service can be
- * started with a shorter allowlist, so once it has answered, the options it did not
- * name are marked. Before that the field says plainly that nothing has been checked
- * yet — offering fifteen aliases as though all fifteen will work would be a
+ * Probing is still worth doing and means something narrower: a host can have
+ * been started with a different allowlist, so once it has answered, the options
+ * it did not name are marked. Before that the field says plainly that nothing
+ * has been checked yet, because offering an alias as though it will work is a
  * promise this cannot make.
  *
  * The free-text field stays reachable, and that is not indecision. A service can be
@@ -84,12 +85,19 @@ export function RuntimeField({
           value={value === "" ? SERVICE_DEFAULT : value}
           onValueChange={(alias) => onChange(alias === SERVICE_DEFAULT ? "" : alias)}
         >
-          {/* `min-w-0` and a truncating value: an option label is a sentence
-              ("coding — Python with git, ripgrep, fd, jq and uv"), and without
-              this the trigger grew to fit it and pushed the dialog wider than the
-              viewport. */}
+          {/* The trigger says the alias and nothing else, and it says it itself.
+              An option is two lines - the alias, then what the runtime is for -
+              and Radix mirrors an item's `ItemText` into the closed trigger,
+              which is 36 px tall with `line-clamp-1` on its child: a two-line
+              block landed in there half-clipped and pushed the alias sideways.
+              Passing `children` to `SelectValue` overrides what is mirrored, so
+              the list keeps both lines and the trigger keeps one. */}
           <SelectTrigger id="connection-runtime" className="w-full min-w-0">
-            <SelectValue className="truncate" />
+            <SelectValue className="truncate">
+              <span className="truncate font-mono text-xs">
+                {value === "" ? t("serviceDefault") : value}
+              </span>
+            </SelectValue>
           </SelectTrigger>
           <SelectContent className="max-w-[min(30rem,90vw)]">
             <SelectItem value={SERVICE_DEFAULT}>{t("serviceDefault")}</SelectItem>
@@ -161,8 +169,11 @@ export function RuntimeField({
         <p className="text-xs text-amber-600">{t("selectedNotOnThisHost")}</p>
       )}
 
-      <p className="text-muted-foreground text-xs">{t("imageAliasAgentGets")}</p>
+      {/* One line, not three. What the field is for and what the host said are
+          one sentence, and "press Test to find out" stopped being true when the
+          dialog started asking on its own (#1039). */}
       <p className="text-muted-foreground text-xs">
+        {t("imageAliasAgentGets")}{" "}
         {allowed === null ? t("shipped") : t("allowedCount", { count: allowed.length })}
       </p>
 

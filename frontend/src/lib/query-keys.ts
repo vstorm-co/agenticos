@@ -319,7 +319,9 @@ export const qk = {
   },
   sandboxWorkspaces: {
     all: () => ["sandbox-workspaces"] as const,
-    list: () => ["sandbox-workspaces", "list"] as const,
+    // Keyed on whether the files were counted: turning counting on is a different
+    // request, not a refetch that replaces the cheap answer with the expensive one.
+    list: (measure = false) => ["sandbox-workspaces", "list", measure] as const,
     files: (id: string) => ["sandbox-workspaces", "files", id] as const,
     // Every file across every visible workspace, which is a different request
     // from any one workspace's - and an expensive one, so it gets its own entry

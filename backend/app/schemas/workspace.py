@@ -61,6 +61,15 @@ class WorkspaceListing(BaseSchema):
             "- an empty list on its own reads as 'there are no files'."
         ),
     )
+    truncated: bool = Field(
+        default=False,
+        description=(
+            "Whether the host answered and this is still not all of it. Reading a "
+            "container's files is a round trip per directory, so the walk stops at "
+            "six levels and 2,000 entries - which for a workspace holding a "
+            "checkout is a listing a person would otherwise read as complete."
+        ),
+    )
 
 
 class WorkspaceSummary(BaseSchema):
@@ -117,6 +126,24 @@ class WorkspaceSummary(BaseSchema):
         ),
     )
     bytes_total: int = 0
+    file_count: int | None = Field(
+        default=None,
+        description=(
+            "How many files this workspace holds. Free for a stored one - the files "
+            "are a column of the row - and null for a container until somebody asks "
+            "for it, because counting those means a round trip to the host per "
+            "workspace. `?measure=true` fills them in."
+        ),
+    )
+    measured_bytes: int | None = Field(
+        default=None,
+        description=(
+            "What the files come to, summed from the listing. Separate from "
+            "`bytes_total`, which is the *stored document's* size and zero for a "
+            "container: one field meaning two things depending on the backend is "
+            "how a size column ends up claiming a container is empty."
+        ),
+    )
     version: int = 0
     last_used_at: datetime | None = None
     created_at: datetime | None = None
@@ -125,6 +152,24 @@ class WorkspaceSummary(BaseSchema):
 class WorkspaceSummaryList(BaseSchema):
     items: list[WorkspaceSummary]
     total: int
+    measured: int = Field(
+        default=0,
+        description="How many workspaces were read to count their files.",
+    )
+    unreadable: int = Field(
+        default=0,
+        description=(
+            "Workspaces whose host would not answer. Counted rather than dropped, so "
+            "a shorter list does not read as fewer files."
+        ),
+    )
+    truncated: bool = Field(
+        default=False,
+        description=(
+            "Whether measuring stopped short of the list. Reading a container is a "
+            "round trip, so the count is bounded and says so."
+        ),
+    )
 
 
 class FlatFileRead(WorkspaceFileRead):
@@ -138,6 +183,16 @@ class FlatFileRead(WorkspaceFileRead):
     workspace_id: UUID
     agent_name: str
     access_label: str
+    from_upload: bool = Field(
+        default=False,
+        description=(
+            "Whether a person attached this file rather than an agent writing it. "
+            "Read off the path: attachments land in `uploads/`, which is this "
+            "application's own convention and the only signal there is - a host "
+            "records no author. So it is a fact about where the file is, stated as "
+            "what that means."
+        ),
+    )
     preview: str | None = Field(
         default=None,
         description=(

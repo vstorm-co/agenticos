@@ -41,6 +41,7 @@ import {
   useMembers,
   useOrganizations,
   usePermissions,
+  useRoleCatalog,
 } from "@/hooks";
 import { Perm } from "@/types/permissions";
 import type { OrganizationMember, OrgRole } from "@/types";
@@ -85,6 +86,10 @@ export default function OrgMembersPage({ params }: PageProps) {
 
   const { can, isLoading: permissionsLoading } = usePermissions();
   const assignable = useAssignableRoles();
+  // Every row's role control is derived from the catalog, so a catalog that
+  // never arrived leaves the table showing labels - the same pixels a Viewer
+  // sees, and a different fact. Said, above the table (#1028).
+  const { error: rolesError } = useRoleCatalog();
   const org = orgs.find((o) => o.id === id);
   // Derived from the server's permission catalog rather than a role-name check,
   // so adding a role that may manage members needs no change here.
@@ -181,12 +186,13 @@ export default function OrgMembersPage({ params }: PageProps) {
         cell: (m) => {
           const isSelf = m.user_id === user?.id;
           const isOwner = m.role === "owner";
-          // `can_change_role` is the server's own answer to whether this change
-          // would be accepted - the requester holds roles:manage and outranks the
-          // target's current role. Gating on it rather than on `canManage` alone
-          // keeps a selector off a peer the requester cannot outrank, whose only
-          // result would be a 403 toast (#700).
-          if (canManage && !isOwner && !isSelf && m.can_change_role) {
+          // Two different questions, and a selector needs both answered. `assignable`
+          // is about the *requester*: which roles their own strictly outranks, so an
+          // empty list is a dropdown with nothing in it (#1028). `can_change_role` is
+          // the server's answer about *this target*: whether the requester outranks
+          // the role the member holds now, which is what stops a peer Admin getting a
+          // selector whose only result is a 403 toast (#700).
+          if (canManage && !isOwner && !isSelf && m.can_change_role && assignable.length > 0) {
             return (
               <Select value={m.role} onValueChange={(v) => changeRole(m.user_id, v as OrgRole)}>
                 <SelectTrigger
@@ -196,6 +202,18 @@ export default function OrgMembersPage({ params }: PageProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  {/* The row's own role, when this caller cannot assign it -
+                      a peer Admin, to an Admin. Present because Radix draws the
+                      chosen item's text in the trigger, so without it the
+                      control renders blank; disabled because assigning it is
+                      what they may not do. Demoting that peer still is:
+                      `change_role` judges the role being handed out, not the
+                      one being replaced (#1028). */}
+                  {!assignable.includes(m.role) && (
+                    <SelectItem value={m.role} disabled className="capitalize">
+                      {m.role}
+                    </SelectItem>
+                  )}
                   {assignable.map((option) => (
                     <SelectItem key={option} value={option} className="capitalize">
                       {option}
@@ -393,6 +411,9 @@ export default function OrgMembersPage({ params }: PageProps) {
         }
         contentClassName="p-0"
       >
+        {rolesError && !error && (
+          <p className="text-destructive px-5 pt-4 text-sm">{t("rolesUnavailable")}</p>
+        )}
         {error ? (
           // Every organization has at least its owner, so "no members yet"
           // over a failed read is a sentence that cannot be true (#32).

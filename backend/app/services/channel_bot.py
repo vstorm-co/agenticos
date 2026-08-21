@@ -357,10 +357,23 @@ class ChannelBotService:
             update_data["slack_app_token_encrypted"] = self._seal_at(
                 update_data.pop("slack_app_token"), key_version=bot.secret_key_version
             )
-        if "token" in update_data:
-            sealed = seal_bot_token(update_data.pop("token"), organization_id=self._org_id)
-            update_data["token_encrypted"] = sealed.ciphertext
-            update_data["secret_key_version"] = sealed.key_version
+        if update_data.get("token") is not None:
+            # Sealed at the row's existing version, beside its other envelopes, and
+            # the version column is left alone. Re-sealing the token afresh (at the
+            # default v1) and resetting `secret_key_version` to match left the
+            # column disagreeing with any sibling envelope sealed at a rotated
+            # version - latent until a master-key rotation runs, then unreadable
+            # (#552). One version per row, and an update never resets it.
+            update_data["token_encrypted"] = self._seal_at(
+                update_data.pop("token"), key_version=bot.secret_key_version
+            )
+        else:
+            # A null token is "leave it", not "blank it". `token_encrypted` is NOT
+            # NULL, and `writable` cannot drop the null for us because the schema
+            # field (`token`) and the column (`token_encrypted`) have different
+            # names - so a `{"token": null}` would otherwise seal to None and fail
+            # the insert. Dropping it keeps a PATCH that sends null as "unchanged".
+            update_data.pop("token", None)
         if "webhook_secret" in update_data:
             update_data["webhook_secret_encrypted"] = self._seal_at(
                 update_data.pop("webhook_secret"), key_version=bot.secret_key_version

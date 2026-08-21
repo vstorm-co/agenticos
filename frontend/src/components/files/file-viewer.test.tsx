@@ -243,3 +243,118 @@ describe("how big the dialog is", () => {
     expect(body).toHaveClass("min-h-0");
   });
 });
+
+describe("the two rows of chrome", () => {
+  it("puts what kind of file it is on the name's line, not among the tabs", () => {
+    // `CSV · 9 of 9` sat beside `Preview` and `Source`, cramped against them and
+    // on a baseline the underlined triggers do not share - so it read as a third
+    // tab that did nothing, and looked right only on the files with no tabs.
+    open({ name: "runs_export.csv", size: 2048 });
+
+    const heading = screen.getByRole("heading");
+    const description = screen.getByText(/CSV/);
+
+    expect(heading.parentElement).toBe(description.parentElement);
+  });
+
+  it("still describes the dialog exactly once", () => {
+    // Radix wires `aria-describedby` to it wherever it sits; two copies is one
+    // sentence a screen reader reads twice.
+    open({ name: "runs_export.csv", size: 2048 });
+
+    expect(screen.getAllByText(/CSV/)).toHaveLength(1);
+  });
+});
+
+describe("paging between the files it was opened from", () => {
+  /** Three files, so "the middle one" is a state both arrows can act on. */
+  const NAMES = ["invoice.pdf", "notes.txt", "chart.png"];
+
+  function withCarousel(index: number) {
+    const onSelect = vi.fn();
+    open({ name: NAMES[index]! }, { navigation: { names: NAMES, index, onSelect } });
+    return { onSelect };
+  }
+
+  it("draws nothing for a set of one, because there is nowhere to go", () => {
+    open(
+      { name: "invoice.pdf" },
+      { navigation: { names: ["invoice.pdf"], index: 0, onSelect: vi.fn() } },
+    );
+
+    expect(screen.queryByRole("button", { name: "Next file" })).toBeNull();
+  });
+
+  it("says where in the set this file is", () => {
+    withCarousel(1);
+
+    expect(screen.getByText(/2 of 3/)).toBeInTheDocument();
+  });
+
+  it("cannot be paged past either end", () => {
+    withCarousel(0);
+
+    expect(screen.getByRole("button", { name: "Previous file" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Next file" })).toBeEnabled();
+  });
+
+  it("pages with the chevrons in both directions", async () => {
+    const { onSelect } = withCarousel(1);
+
+    await userEvent.click(screen.getByRole("button", { name: "Next file" }));
+    expect(onSelect).toHaveBeenCalledWith(2);
+
+    await userEvent.click(screen.getByRole("button", { name: "Previous file" }));
+    expect(onSelect).toHaveBeenCalledWith(0);
+  });
+
+  it("names every file in the strip, not a row of dots", async () => {
+    // Five attachments are five names; a dot says how many there are and nothing
+    // about which one is the spreadsheet.
+    const { onSelect } = withCarousel(0);
+
+    await userEvent.click(screen.getByRole("button", { name: /chart\.png/ }));
+
+    expect(onSelect).toHaveBeenCalledWith(2);
+  });
+
+  it("pages with the arrow keys, because a carousel is paged with them", async () => {
+    const { onSelect } = withCarousel(1);
+
+    await userEvent.keyboard("{ArrowRight}");
+    expect(onSelect).toHaveBeenCalledWith(2);
+
+    await userEvent.keyboard("{ArrowLeft}");
+    expect(onSelect).toHaveBeenCalledWith(0);
+  });
+
+  it("leaves the arrow keys to the tab list, which uses them itself", async () => {
+    // Radix moves between tabs with Left and Right, so paging the carousel from a
+    // focused trigger remounted the viewer instead of switching the view.
+    const onSelect = vi.fn();
+    // A markdown file, because Preview/Source is the case where the two shortcuts
+    // collide - `invoice.pdf` has one rendering and so no tab list at all.
+    open(
+      { name: "report.md" },
+      { navigation: { names: ["report.md", "notes.txt"], index: 0, onSelect } },
+    );
+
+    screen.getByRole("tab", { name: "Source" }).focus();
+    await userEvent.keyboard("{ArrowRight}");
+
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("leaves the arrow keys alone inside a text box", async () => {
+    // A source view holds one, and stealing its caret keys would be worse than
+    // not having the shortcut at all.
+    const { onSelect } = withCarousel(1);
+    const box = document.createElement("input");
+    screen.getByRole("dialog").appendChild(box);
+
+    box.focus();
+    await userEvent.keyboard("{ArrowRight}");
+
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+});

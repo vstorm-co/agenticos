@@ -1,18 +1,15 @@
 "use client";
 
-import { useMemo } from "react";
 import { AlertTriangle } from "lucide-react";
 
 import {
   Badge,
-  DataTable,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
   Skeleton,
-  type Column,
 } from "@/components/ui";
 import { useSandboxPolicy } from "@/hooks";
 import type { SandboxConnectionRecord, SandboxRuntime } from "@/lib/sandbox-connections-api";
@@ -32,6 +29,26 @@ function timeout(seconds: number | null): string {
 }
 
 /**
+ * One measured fact, in the shape both halves of this dialog use.
+ *
+ * A label above its value, and a third line naming where the value comes from.
+ * The same component for a runtime's memory ceiling and for the service's idle
+ * timeout, because they are the same kind of thing to the person reading: a
+ * number in force, and somewhere to go and change it.
+ */
+function Fact({ label, value, source }: { label: string; value: string; source?: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-muted-foreground text-xs">{label}</dt>
+      <dd className="text-foreground truncate text-sm font-medium">{value}</dd>
+      {source !== undefined && (
+        <dd className="text-muted-foreground/70 truncate font-mono text-[10px]">{source}</dd>
+      )}
+    </div>
+  );
+}
+
+/**
  * What a connection's service allows, read from the service.
  *
  * Read-only, and that is a design decision rather than an unfinished screen. The
@@ -41,57 +58,19 @@ function timeout(seconds: number | null): string {
  * that what is in force is *visible* - an operator whose agents keep hitting a
  * memory limit has somewhere to look - and changed where it can be done safely,
  * in the service's own environment.
+ *
+ * **The runtimes come first, and they are cards rather than a table.** This dialog
+ * used to open on two paragraphs of explanation above a five-column table holding
+ * one row, which is a lot of chrome to say "workbench, 2g, bridge" - and the
+ * columns were empty for a runtime whose ceilings the service leaves to its own
+ * defaults. What an operator came to find out is what an agent gets, so that is
+ * what is at the top; the service-wide ceilings are below it, and the sentence
+ * about why none of it is editable here is one line rather than a paragraph.
  */
 export function PolicyPanel({ connection, onOpenChange }: PolicyPanelProps) {
   const t = useTranslations("sandboxes.policy");
   const { policy, isLoading, error } = useSandboxPolicy(connection?.id ?? null);
-
   const defaultRuntime = policy?.default_runtime ?? null;
-  const columns = useMemo<Column<SandboxRuntime>[]>(
-    () => [
-      {
-        key: "alias",
-        header: t("alias"),
-        cell: (runtime) => (
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-xs">{runtime.alias}</span>
-            {runtime.alias === defaultRuntime && <Badge variant="secondary">{t("default")}</Badge>}
-          </div>
-        ),
-      },
-      {
-        key: "image",
-        header: t("image"),
-        cell: (runtime) => (
-          <span className="text-muted-foreground font-mono text-xs">
-            {runtime.image ?? (runtime.builds ? t("builtHost") : "—")}
-          </span>
-        ),
-      },
-      {
-        key: "memory",
-        header: t("memory"),
-        cell: (runtime) => (
-          <span className="text-muted-foreground text-xs">{runtime.mem_limit ?? "—"}</span>
-        ),
-      },
-      {
-        key: "cpus",
-        header: t("cpus"),
-        cell: (runtime) => (
-          <span className="text-muted-foreground text-xs">{runtime.cpus ?? "—"}</span>
-        ),
-      },
-      {
-        key: "network",
-        header: t("network"),
-        cell: (runtime) => (
-          <span className="text-muted-foreground text-xs">{runtime.network_mode ?? "—"}</span>
-        ),
-      },
-    ],
-    [t, defaultRuntime],
-  );
 
   return (
     <Dialog open={connection !== null} onOpenChange={onOpenChange}>
@@ -111,50 +90,86 @@ export function PolicyPanel({ connection, onOpenChange }: PolicyPanelProps) {
         )}
 
         {policy !== null && (
-          <div className="space-y-4">
-            {/* Each one names the variable that sets it. "Idle timeout: 30 min"
-                with no way to change it and nothing saying where it comes from
-                reads as a limit this application chose; it is the service's own
-                boot configuration, and naming the variable is the difference
-                between a dead end and a one-line edit in a compose file. */}
-            <dl className="text-muted-foreground grid gap-x-6 gap-y-2 text-xs sm:grid-cols-3">
-              <div>
-                <dt>{t("perOrganization")}</dt>
-                <dd className="text-foreground font-medium">
-                  {policy.max_sessions_per_tenant ?? "—"}
-                </dd>
-                <dd className="font-mono text-[10px]">{t("sandboxdMaxSessionsPer")}</dd>
-              </div>
-              <div>
-                <dt>{t("idleTimeout")}</dt>
-                <dd className="text-foreground font-medium">{timeout(policy.idle_timeout)}</dd>
-                <dd className="font-mono text-[10px]">{t("sandboxdIdleTimeout")}</dd>
-              </div>
-              <div>
-                <dt>{t("keptBetweenTurns")}</dt>
-                <dd className="text-foreground font-medium">
-                  {policy.persist_containers === false ? "no" : "yes"}
-                </dd>
-                <dd className="font-mono text-[10px]">{t("sandboxdPersistContainers")}</dd>
-              </div>
-            </dl>
+          <div className="space-y-6">
+            <section className="space-y-2">
+              <h3 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                {t("runtimesHeading")}
+              </h3>
 
-            <p className="text-muted-foreground text-xs">
-              {t.rich("serviceEnvironmentDescription", {
-                service: t("sandboxd"),
-                mono: (chunks) => <span className="font-mono">{chunks}</span>,
-              })}
-            </p>
+              {policy.runtimes.length === 0 ? (
+                <p className="text-destructive text-sm">{t("serviceAllowsNoRuntime")}</p>
+              ) : (
+                <ul className="space-y-2">
+                  {policy.runtimes.map((runtime: SandboxRuntime) => (
+                    <li key={runtime.alias} className="rounded-lg border p-3">
+                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                        <span className="font-mono text-sm font-medium">{runtime.alias}</span>
+                        {runtime.alias === defaultRuntime && (
+                          <Badge variant="secondary">{t("default")}</Badge>
+                        )}
+                        {runtime.builds && (
+                          <span className="text-muted-foreground text-xs">{t("builtHost")}</span>
+                        )}
+                      </div>
 
-            {policy.runtimes.length === 0 ? (
-              <p className="text-destructive text-sm">{t("serviceAllowsNoRuntime")}</p>
-            ) : (
-              <DataTable<SandboxRuntime>
-                columns={columns}
-                rows={policy.runtimes}
-                getRowKey={(runtime) => runtime.alias}
-              />
-            )}
+                      {runtime.description !== "" && (
+                        <p className="text-muted-foreground mt-1 text-xs">{runtime.description}</p>
+                      )}
+                      {runtime.image !== null && (
+                        <p className="text-muted-foreground/80 mt-1 font-mono text-xs break-all">
+                          {runtime.image}
+                        </p>
+                      )}
+
+                      {/* Only the ceilings this runtime actually names. An entry
+                          that leaves them to the service's defaults said "—"
+                          three times, which reads as three limits of nothing
+                          rather than as "whatever the service does". */}
+                      <dl className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-3">
+                        {runtime.mem_limit !== null && (
+                          <Fact label={t("memory")} value={runtime.mem_limit} />
+                        )}
+                        {runtime.cpus !== null && (
+                          <Fact label={t("cpus")} value={String(runtime.cpus)} />
+                        )}
+                        {runtime.network_mode !== null && (
+                          <Fact label={t("network")} value={runtime.network_mode} />
+                        )}
+                      </dl>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section className="space-y-2">
+              <h3 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                {t("ceilingsHeading")}
+              </h3>
+
+              {/* Each one names the variable that sets it. "Idle timeout: 30 min"
+                  with no way to change it and nothing saying where it comes from
+                  reads as a limit this application chose; it is the service's own
+                  boot configuration, and naming the variable is the difference
+                  between a dead end and a one-line edit in a compose file. */}
+              <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-3">
+                <Fact
+                  label={t("perOrganization")}
+                  value={policy.max_sessions_per_tenant?.toString() ?? "—"}
+                  source={t("sandboxdMaxSessionsPer")}
+                />
+                <Fact
+                  label={t("idleTimeout")}
+                  value={timeout(policy.idle_timeout)}
+                  source={t("sandboxdIdleTimeout")}
+                />
+                <Fact
+                  label={t("keptBetweenTurns")}
+                  value={policy.persist_containers === false ? t("notKept") : t("kept")}
+                  source={t("sandboxdPersistContainers")}
+                />
+              </dl>
+            </section>
           </div>
         )}
       </DialogContent>

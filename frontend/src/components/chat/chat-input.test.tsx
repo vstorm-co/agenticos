@@ -123,6 +123,33 @@ describe("ChatInput attachments", () => {
     expect(screen.queryByText(/Uploading/)).toBeNull();
   });
 
+  it("keeps twenty attachments on one scrolling row", async () => {
+    // #927. They were a wrapping grid of 224px tiles: six files were two rows and
+    // twenty were seven, about 850px of composer, with the message box below the
+    // fold. This assertion fails if somebody restores the wrap.
+    const { container } = render(<ChatInput onSend={vi.fn()} />);
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+
+    for (let n = 0; n < 20; n++) {
+      state.upload.mockResolvedValueOnce(uploaded({ filename: `report-${n}.csv`, size: 12 }));
+    }
+    await userEvent.upload(
+      input,
+      Array.from(
+        { length: 20 },
+        (_, n) => new File(["a,b"], `report-${n}.csv`, { type: "text/csv" }),
+      ),
+    );
+
+    expect(await screen.findByText("report-19.csv")).toBeVisible();
+    expect(screen.getByText("20 files")).toBeVisible();
+
+    const row = screen.getByText("report-19.csv").closest(".overflow-x-auto");
+
+    expect(row).not.toBeNull();
+    expect(row!.className).not.toMatch(/flex-wrap/);
+  });
+
   it("removes an attachment without needing a hover first", async () => {
     const onSend = vi.fn();
     render(<ChatInput onSend={onSend} />);

@@ -51,6 +51,9 @@ vi.mock("@/hooks", async (importOriginal) => ({
   },
   useSandboxEvents: () => ({ log: null, isLoading: false, error: null }),
   useSandboxPolicy: () => ({ policy: null, isLoading: false, error: null, refetch: vi.fn() }),
+  // The sessions panel names the agent that opened each sandbox, and the real hook
+  // reaches for a query client this page's spec does not provide.
+  useAgents: () => ({ agents: [], isLoading: false, error: null }),
 }));
 
 function connection(overrides: Partial<SandboxConnectionRecord> = {}): SandboxConnectionRecord {

@@ -30,12 +30,15 @@ import {
   useSecrets,
 } from "@/hooks";
 import { modelDetail } from "@/lib/model-profiles";
+import type { PublishedModel } from "@/types/agents";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
 interface ChatModelPickerProps {
-  /** The model profile this conversation runs on, or null for the agent's own. */
+  /** The model profile this conversation overrides to, or null for the agent's own. */
   value: string | null;
+  /** The agent's published model, shown as the current one when there is no override. */
+  agentModel: PublishedModel | null;
   onChange: (profileId: string | null) => void;
 }
 
@@ -50,25 +53,20 @@ interface ChatModelPickerProps {
  * one on the provider's vault key. A provider with no key in the vault cannot
  * answer, and the refusal says so here rather than after the first message.
  *
- * **It checks `connections:manage` itself, over the whole form.** Creating that
- * profile is `POST /providers/model-profiles`, which is gated on
- * `Perm.CONNECTIONS_MANAGE` and on nothing else, while opening a conversation is
+ * **It checks `connections:manage` over the fields, not over the whole panel.**
+ * Creating a profile is `POST /providers/model-profiles`, gated on
+ * `Perm.CONNECTIONS_MANAGE` and nothing else, while opening a conversation is
  * `agents:run` - so anybody who could type a message was offered these fields and
- * refused by the API after filling them in (#419). The gate is here rather than in
- * `ChatControls` because the permission belongs to the write and this component is
- * the only thing that makes it; the Model tab is also the one that opens by
- * default, so gating the tab button would leave the panel rendering anyway.
+ * refused by the API after filling them in (#419). The gate covers the fields and
+ * not only the submit, which is what #329 decided for the Builder's copy: three
+ * fields that lead nowhere are worse than none.
  *
- * It covers the fields and not only the submit, which is what #329 decided for the
- * Builder's copy of this control: three fields that lead nowhere are worse than
- * none. That does take the reuse path with it - matching an existing profile is a
- * read, and `GET /providers/model-profiles` is `agents:view` - but nothing here
- * lists those profiles, so reaching one means typing a provider and a model id
- * that happen to match, and every other combination is the 403 this exists to
- * stop. A sentence replaces the form, because a panel that goes blank explains
- * itself to nobody.
+ * But reading which model the conversation runs on is `agents:view`, not that
+ * permission's business, and the person who may not change it is the one most
+ * likely to want to know (#926) - so the current-model summary renders above the
+ * gate, and only the fields that write are withheld.
  */
-export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
+export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPickerProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat.modelPicker");
   // Root, for the absolute keys `modelPlaceholder` answers with. Resolving them
@@ -87,16 +85,10 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
   const providers = purposes.filter((entry) => entry.category === "model_provider");
   const provider = providers.find((entry) => entry.id === providerId);
   const { models: suggestions } = useProviderModels(providerId);
-  const active = profiles.find((profile) => profile.id === value) ?? null;
-  const activeDetail = active ? modelDetail(active) : null;
-
-  // Before the fields, not on the button: a disabled submit under three filled-in
-  // fields still says "you could do this", and the answer here is that somebody
-  // else has to. `can` answers false while the permission set is still loading,
-  // so the form arrives once rather than appearing and being taken back.
-  if (!can(Perm.connectionsManage)) {
-    return <p className="text-muted-foreground text-xs">{t("needsConnectionsManage")}</p>;
-  }
+  // An override profile and the agent's published model both carry
+  // provider/model/label, so one summary renders whichever is current.
+  const current = value === null ? agentModel : (profiles.find((p) => p.id === value) ?? null);
+  const currentDetail = current ? modelDetail(current) : null;
 
   const canApply =
     provider !== undefined &&
@@ -144,103 +136,113 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
 
   return (
     <div className="space-y-4">
-      {active && (
+      {current && (
         <p className="border-border bg-accent/40 flex items-center gap-2 rounded-lg border px-3 py-2 text-xs">
-          <ProviderIcon provider={active.provider} />
+          <ProviderIcon provider={current.provider} />
           <span className="min-w-0 flex-1 truncate">
-            <span className="font-medium">{active.label}</span>
-            {activeDetail !== null && (
-              <span className="text-muted-foreground block truncate font-mono">{activeDetail}</span>
+            <span className="font-medium">{current.label}</span>
+            {currentDetail !== null && (
+              <span className="text-muted-foreground block truncate font-mono">
+                {currentDetail}
+              </span>
             )}
           </span>
-          <Check className="text-foreground h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span className="text-muted-foreground shrink-0 font-mono text-[10px] tracking-wider uppercase">
+            {value === null ? t("agentModel") : t("thisChat")}
+          </span>
         </p>
       )}
 
-      <div className="space-y-1.5">
-        <Label htmlFor="chat-model-provider">{t("provider")}</Label>
-        <Select
-          value={providerId}
-          onValueChange={(next) => {
-            setProviderId(next);
-            setModel("");
-            setFailure(null);
-          }}
-        >
-          <SelectTrigger id="chat-model-provider">
-            <SelectValue placeholder={t("chooseProvider")} />
-          </SelectTrigger>
-          <SelectContent className="max-h-80">
-            {providers.map((entry) => {
-              const keyed = secrets.some((secret) => secret.purpose === entry.id);
-              return (
-                <SelectItem
-                  key={entry.id}
-                  value={entry.id}
-                  // Type-to-search keys off this rather than off the mark's own
-                  // title, which is otherwise part of the item's text.
-                  textValue={entry.label}
-                  // Outside the row: the trigger mirrors an item's text, and a
-                  // tick there reads as "selected" rather than "has a key".
-                  trailing={
-                    keyed && (
-                      <Check className="text-muted-foreground ml-auto h-3.5 w-3.5 shrink-0" />
-                    )
-                  }
-                >
-                  <ProviderRow provider={entry.id} name={entry.label} />
-                </SelectItem>
-              );
-            })}
-          </SelectContent>
-        </Select>
-      </div>
+      {!can(Perm.connectionsManage) ? (
+        <p className="text-muted-foreground text-xs">{t("needsConnectionsManage")}</p>
+      ) : (
+        <>
+          <div className="space-y-1.5">
+            <Label htmlFor="chat-model-provider">{t("provider")}</Label>
+            <Select
+              value={providerId}
+              onValueChange={(next) => {
+                setProviderId(next);
+                setModel("");
+                setFailure(null);
+              }}
+            >
+              <SelectTrigger id="chat-model-provider">
+                <SelectValue placeholder={t("chooseProvider")} />
+              </SelectTrigger>
+              <SelectContent className="max-h-80">
+                {providers.map((entry) => {
+                  const keyed = secrets.some((secret) => secret.purpose === entry.id);
+                  return (
+                    <SelectItem
+                      key={entry.id}
+                      value={entry.id}
+                      // Type-to-search keys off this rather than off the mark's own
+                      // title, which is otherwise part of the item's text.
+                      textValue={entry.label}
+                      // Outside the row: the trigger mirrors an item's text, and a
+                      // tick there reads as "selected" rather than "has a key".
+                      trailing={
+                        keyed && (
+                          <Check className="text-muted-foreground ml-auto h-3.5 w-3.5 shrink-0" />
+                        )
+                      }
+                    >
+                      <ProviderRow provider={entry.id} name={entry.label} />
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="chat-model-id">{t("model")}</Label>
-        {/* A list where the provider publishes one, and a plain field where it
-            does not - the same control either way, because the list is never
-            authoritative. */}
-        <Input
-          id="chat-model-id"
-          list={suggestions.length > 0 ? "chat-model-suggestions" : undefined}
-          value={model}
-          onChange={(event) => {
-            setModel(event.target.value);
-            setFailure(null);
-          }}
-          disabled={provider === undefined}
-          placeholder={placeholderWords(modelPlaceholder(provider?.id), tRoot)}
-          className="font-mono"
-        />
-        {suggestions.length > 0 && (
-          <datalist id="chat-model-suggestions">
-            {suggestions.map((entry) => (
-              <option key={entry.id} value={entry.id}>
-                {entry.name}
-              </option>
-            ))}
-          </datalist>
-        )}
-        {failure !== null && <p className="text-destructive text-xs">{failure}</p>}
-      </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="chat-model-id">{t("model")}</Label>
+            {/* A list where the provider publishes one, and a plain field where it
+                does not - the same control either way, because the list is never
+                authoritative. */}
+            <Input
+              id="chat-model-id"
+              list={suggestions.length > 0 ? "chat-model-suggestions" : undefined}
+              value={model}
+              onChange={(event) => {
+                setModel(event.target.value);
+                setFailure(null);
+              }}
+              disabled={provider === undefined}
+              placeholder={placeholderWords(modelPlaceholder(provider?.id), tRoot)}
+              className="font-mono"
+            />
+            {suggestions.length > 0 && (
+              <datalist id="chat-model-suggestions">
+                {suggestions.map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.name}
+                  </option>
+                ))}
+              </datalist>
+            )}
+            {failure !== null && <p className="text-destructive text-xs">{failure}</p>}
+          </div>
 
-      {/* A key can be added here rather than on another page. A picker that can only
-          offer what is already stored, and answers "add one in the Vault" when
-          nothing is, is a dead end - and the provider is already chosen, so the
-          purpose this key needs is known. */}
-      {provider !== undefined && !secrets.some((secret) => secret.purpose === provider.id) && (
-        <InlineSecret
-          kind="api_key"
-          purpose={provider.id}
-          suggestedName={provider.label}
-          onCreated={() => setFailure(null)}
-        />
+          {/* A key can be added here rather than on another page. A picker that can
+              only offer what is already stored, and answers "add one in the Vault"
+              when nothing is, is a dead end - and the provider is already chosen, so
+              the purpose this key needs is known. */}
+          {provider !== undefined && !secrets.some((secret) => secret.purpose === provider.id) && (
+            <InlineSecret
+              kind="api_key"
+              purpose={provider.id}
+              suggestedName={provider.label}
+              onCreated={() => setFailure(null)}
+            />
+          )}
+
+          <Button type="button" size="sm" disabled={!canApply} onClick={apply}>
+            {t("runModel")}
+          </Button>
+        </>
       )}
-
-      <Button type="button" size="sm" disabled={!canApply} onClick={apply}>
-        {t("runModel")}
-      </Button>
     </div>
   );
 }
