@@ -2302,9 +2302,12 @@ class TestAvatar:
             ) as update,
         ):
             await AgentRegistryService(_db()).set_avatar(
-                ctx, agent.id, file_data=b"png", filename="logo.png", content_type="image/png"
+                ctx, agent.id, file_data=b"png", content_type="image/png"
             )
 
+        # Stored under a suffix from the validated type, not the caller's filename,
+        # so a valid image is renderable whatever it was named (#702).
+        assert storage.save.await_args.args[1] == "avatar.png"
         assert update.call_args.kwargs["update_data"] == {"avatar_url": "avatars/agents/x/logo.png"}
         assert storage.delete.await_count == 0
 
@@ -2323,7 +2326,7 @@ class TestAvatar:
             patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock(return_value=agent)),
         ):
             await AgentRegistryService(_db()).set_avatar(
-                ctx, agent.id, file_data=b"png", filename="new.png", content_type="image/png"
+                ctx, agent.id, file_data=b"png", content_type="image/png"
             )
 
         assert storage.delete.await_args.args == ("avatars/agents/x/old.png",)
@@ -2346,7 +2349,7 @@ class TestAvatar:
             ) as update,
         ):
             await AgentRegistryService(_db()).set_avatar(
-                ctx, agent.id, file_data=b"png", filename="new.png", content_type="image/png"
+                ctx, agent.id, file_data=b"png", content_type="image/png"
             )
 
         assert update.await_count == 1
@@ -2363,7 +2366,6 @@ class TestAvatar:
                 ctx,
                 uuid.uuid4(),
                 file_data=b"%PDF",
-                filename="spec.pdf",
                 content_type="application/pdf",
             )
 
@@ -2379,7 +2381,6 @@ class TestAvatar:
                 ctx,
                 uuid.uuid4(),
                 file_data=b"x" * (2 * 1024 * 1024 + 1),
-                filename="huge.png",
                 content_type="image/png",
             )
 
