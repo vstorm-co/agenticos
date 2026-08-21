@@ -40,8 +40,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Cohere bills reranking per "search unit": one query with up to this many
-# documents. A request with more is split and billed as several - a query with
-# 250 documents is three units.
+# documents. The billed figure comes from the response; this is only the
+# fallback estimate when the response omits it - one unit per this many
+# candidates, which ignores the document-splitting the real figure accounts for.
 _DOCS_PER_SEARCH_UNIT = 100
 
 # USD per search unit. Cohere Rerank 3.5 is $2.00 per 1,000 searches.
@@ -121,7 +122,7 @@ class CohereReranker(BaseReranker):
             # Booked only once the call has returned: Cohere does not bill a
             # failed request, and a raise propagates to retrieval, which degrades
             # to the un-reranked order rather than failing the search.
-            book_ambient_spend(self._spend_entry(len(results)))
+            book_ambient_spend(self._spend_entry(response, len(results)))
 
             return [
                 SearchResult(
@@ -149,15 +150,33 @@ class CohereReranker(BaseReranker):
         except Exception:
             logger.warning("[RERANK] Closing the Cohere client failed", exc_info=True)
 
-    def _spend_entry(self, document_count: int) -> SpendEntry:
-        units = ceil(document_count / _DOCS_PER_SEARCH_UNIT)
+    def _spend_entry(self, response: object, candidate_count: int) -> SpendEntry:
         return SpendEntry(
             model_name=self.model,
             input_tokens=0,
             output_tokens=0,
-            cost_usd=_PRICE_PER_SEARCH_UNIT_USD * units,
+            cost_usd=_PRICE_PER_SEARCH_UNIT_USD * self._billed_units(response, candidate_count),
             priced=True,
         )
+
+    @staticmethod
+    def _billed_units(response: object, candidate_count: int) -> int:
+        """The search units Cohere actually billed, or an estimate from the count.
+
+        Cohere splits a document past its token threshold into several billable
+        documents, so a request with fewer than `_DOCS_PER_SEARCH_UNIT`
+        candidates can still cost more than one unit - the ingestion config
+        allows chunks large enough for this to happen. The response carries the
+        real figure at `meta.billed_units.search_units`; every level of that
+        chain is optional, so when it is absent fall back to estimating one unit
+        per `_DOCS_PER_SEARCH_UNIT` candidates.
+        """
+        meta = getattr(response, "meta", None)
+        billed = getattr(meta, "billed_units", None)
+        search_units = getattr(billed, "search_units", None)
+        if search_units is not None:
+            return ceil(search_units)
+        return ceil(candidate_count / _DOCS_PER_SEARCH_UNIT)
 
 
 async def build_reranker(collection_name: str, organization_id: UUID | None) -> BaseReranker | None:

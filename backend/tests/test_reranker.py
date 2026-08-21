@@ -26,11 +26,18 @@ def _results(*contents: str) -> list[SearchResult]:
     return [SearchResult(content=c, score=0.0, metadata={"i": i}) for i, c in enumerate(contents)]
 
 
-def _client_returning(*ranked: tuple[int, float]) -> AsyncMock:
-    """A fake Cohere client whose rerank returns these (index, score) items."""
+def _client_returning(*ranked: tuple[int, float], search_units: float | None = None) -> AsyncMock:
+    """A fake Cohere client whose rerank returns these (index, score) items.
+
+    With `search_units` set, the response carries a `meta.billed_units` the way
+    Cohere's does; left None, the response has no `meta`, exercising the
+    candidate-count fallback.
+    """
     response = SimpleNamespace(
         results=[SimpleNamespace(index=index, relevance_score=score) for index, score in ranked]
     )
+    if search_units is not None:
+        response.meta = SimpleNamespace(billed_units=SimpleNamespace(search_units=search_units))
     client = AsyncMock()
     client.rerank = AsyncMock(return_value=response)
     return client
@@ -84,6 +91,7 @@ class TestSpend:
         assert ledger.total_usd == Decimal("0.002")
 
     async def test_more_than_one_hundred_documents_bills_more_than_one_search_unit(self):
+        """The candidate-count fallback, used when the response omits billed_units."""
         client = _client_returning((0, 0.9))
         ledger = SpendLedger()
 
@@ -91,6 +99,25 @@ class TestSpend:
             await _reranker(client).rerank("q", _results(*(str(n) for n in range(250))), top_n=5)
 
         assert ledger.total_usd == Decimal("0.006")
+
+    async def test_it_meters_the_search_units_cohere_actually_billed(self):
+        """A few large chunks can bill several units; the response says how many."""
+        client = _client_returning((0, 0.9), (1, 0.5), search_units=3)
+        ledger = SpendLedger()
+
+        with metered_by(ledger):
+            await _reranker(client).rerank("q", _results("a", "b"), top_n=2)
+
+        assert ledger.total_usd == Decimal("0.006")
+
+    async def test_a_fractional_billed_unit_rounds_up(self):
+        client = _client_returning((0, 0.9), search_units=1.2)
+        ledger = SpendLedger()
+
+        with metered_by(ledger):
+            await _reranker(client).rerank("q", _results("a"), top_n=1)
+
+        assert ledger.total_usd == Decimal("0.004")
 
     async def test_a_failed_call_books_nothing_and_propagates(self):
         client = AsyncMock()

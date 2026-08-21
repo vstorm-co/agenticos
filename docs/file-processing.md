@@ -500,7 +500,10 @@ search books automatically — but `SpendLedger.record()` prices through
 book `cost_usd=0, priced=False`. So rerank does not go through `record()`: the
 per-search Cohere cost is computed from a published per-search price
 (`app/services/rag/reranker.py`, a constant checked against cohere.com/pricing
-and dated in a comment) and booked with `book_ambient_spend`, landing
+and dated in a comment) times the search units Cohere reports it billed —
+`meta.billed_units.search_units` on the response, which counts the documents it
+split past its token threshold, falling back to one unit per 100 candidates only
+when the response omits the figure — and booked with `book_ambient_spend`, landing
 `priced=True`. `POST /rag/search` — which opened no metering block and so left
 even its embeddings unbilled (#16 class) — is now wrapped in one by
 `KnowledgeSearchService`, so both its rerank and its embedding spend reach the
