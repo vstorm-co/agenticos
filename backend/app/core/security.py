@@ -86,10 +86,23 @@ def verify_special_token(token: str, expected_type: str) -> dict[str, Any] | Non
     return payload
 
 
+# bcrypt only ever uses the first 72 bytes of a password, and bcrypt 5.0 raises
+# rather than truncating silently. Both helpers truncate to the same 72 bytes, so
+# hashing and verifying agree - and an overlong password submitted at the login
+# form (a `UserCreate.password` of up to 128 characters can exceed 72 bytes once
+# encoded, and an unknown account still runs bcrypt against the dummy hash) is an
+# authentication failure rather than an unauthenticated 500 (#947).
+_BCRYPT_MAX_BYTES = 72
+
+
+def _bcrypt_bytes(password: str) -> bytes:
+    return password.encode("utf-8")[:_BCRYPT_MAX_BYTES]
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against a hash."""
     return bcrypt.checkpw(
-        plain_password.encode("utf-8"),
+        _bcrypt_bytes(plain_password),
         hashed_password.encode("utf-8"),
     )
 
@@ -97,6 +110,6 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_password_hash(password: str) -> str:
     """Hash a password."""
     return bcrypt.hashpw(
-        password.encode("utf-8"),
+        _bcrypt_bytes(password),
         bcrypt.gensalt(),
     ).decode("utf-8")
