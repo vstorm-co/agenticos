@@ -378,6 +378,30 @@ describe("WorkspaceSection", () => {
   });
 
   describe("the runtime", () => {
+    it("shows what kind of host each connection is", async () => {
+      // The row knows: `docker` or `daytona`. A list of names alone made two hosts
+      // of different kinds look like two of the same thing, and the mark is the
+      // same one the connection dialog and the connections table draw.
+      state.connections = [
+        connection({ kind: "docker" }),
+        connection({ id: "c2", name: "Daytona cloud", kind: "daytona", base_url: null }),
+      ];
+      render(
+        <WorkspaceSection
+          definition={SANDBOX}
+          binding={binding({ backend: "service" })}
+          onChange={vi.fn()}
+        />,
+        { wrapper },
+      );
+
+      await userEvent.click(screen.getByRole("combobox", { name: "Runs on" }));
+
+      const option = screen.getByRole("option", { name: /Local Docker/ });
+
+      expect(option.querySelector("svg")).not.toBeNull();
+    });
+
     it("distinguishes deferring to the connection from pinning the same alias", async () => {
       // Both rows read `python` once the connection's default was python: one
       // meaning "whatever this host says", the other "this exact image, in the

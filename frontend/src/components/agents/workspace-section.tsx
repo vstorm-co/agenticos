@@ -19,6 +19,8 @@ import type { SandboxConnectionRecord } from "@/lib/sandbox-connections-api";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agents";
 import { useTranslations } from "next-intl";
 
+import { ConnectionKindIcon } from "@/components/sandboxes/connection-kind-icon";
+
 type Backend = "state" | "service";
 type Scope = "run" | "conversation" | "channel" | "user" | "agent";
 
@@ -299,9 +301,16 @@ function ConnectionField({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="default">{t("whicheverDefault")}</SelectItem>
+          {/* The mark inside `children`, so the closed trigger carries it too:
+              Radix mirrors an item's `ItemText` and nothing else. Safe for an
+              icon - what the row *is* - where a badge comparing it against the
+              other options would not be. */}
           {usable.map((connection) => (
             <SelectItem key={connection.id} value={connection.id}>
-              {connection.name}
+              <span className="flex items-center gap-2">
+                <ConnectionKindIcon kind={connection.kind} />
+                {connection.name}
+              </span>
             </SelectItem>
           ))}
         </SelectContent>

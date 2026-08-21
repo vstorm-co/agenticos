@@ -20,9 +20,7 @@ import {
   SelectValue,
   Switch,
 } from "@/components/ui";
-import { Cloud } from "lucide-react";
-
-import { BrandIcon } from "@/components/icons/brand-icon";
+import { ConnectionKindIcon } from "./connection-kind-icon";
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
@@ -266,19 +264,15 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {/* Docker's own mark, from the generated set. Daytona has none
-                      in any source the generator reads - neither Simple Icons nor
-                      lobehub ships one - and a mark that is not the brand's is
-                      worse than a neutral glyph, so it gets a cloud. */}
                   <SelectItem value="docker">
                     <span className="flex items-center gap-2">
-                      <BrandIcon name="docker" className="h-4 w-4 shrink-0" aria-hidden />
+                      <ConnectionKindIcon kind="docker" />
                       {t("kindDocker")}
                     </span>
                   </SelectItem>
                   <SelectItem value="daytona">
                     <span className="flex items-center gap-2">
-                      <Cloud className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
+                      <ConnectionKindIcon kind="daytona" />
                       {t("kindDaytona")}
                     </span>
                   </SelectItem>
