@@ -56,6 +56,7 @@ from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundErr
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.core.sanitize import UrlRefusedError
+from app.core.secret_kinds import SecretKind
 from app.core.vault import SealedSecret, VaultScope, seal, unseal
 from app.db.models.mcp_connection import McpConnection
 from app.db.updates import writable
@@ -756,7 +757,9 @@ class McpConnectionService:
                 message="This portal's connection catalog entry is missing",
                 details={"portal_key": portal_key, "catalog_key": portal.mcp_catalog_key},
             )
-        creds = await OrganizationSecretService(self.db).github_oauth_app(ctx)
+        creds = await OrganizationSecretService(self.db).oauth_app(
+            ctx, kind=SecretKind.GITHUB_OAUTH_APP
+        )
         redirect_uri = _oauth_redirect_uri()
         state = secrets.token_urlsafe(32)
         scopes = [*portal.read_scopes, *portal.webhook_admin_scopes]
@@ -914,12 +917,11 @@ class McpConnectionService:
         the flow has to produce is a refreshable token with the portal's read
         scopes on it.
 
-        **The client is the deployment's, not the organization's** - unlike
-        GitHub's, whose OAuth App each organization registers itself. Google's
-        consent screen for a mailbox scope needs a verified project, which an
-        operator makes once and no tenant of theirs can make at all; and for a
-        self-hosted product the deployment *is* the unit that owns a Google
-        project. `google_oauth`'s own docstring carries the rest of that argument.
+        **The client is the organization's, from the vault** - the same shape as
+        GitHub's, and for the reason that outranks any argument about who owns a
+        Google project: every secret at rest in this repository goes through
+        `app/core/vault.py`, and there is no second mechanism. It is emphatically
+        *not* the deployment's `GOOGLE_CLIENT_ID`, which is sign-in.
 
         The grant is staged on a `purpose = 'portal'` row, so it never appears
         among the organization's MCP servers: it has no tools and nobody should be
@@ -930,9 +932,11 @@ class McpConnectionService:
         Raises:
             BadRequestError: If `portal_key` names no portal, or one that is not
                 polled - a webhook portal connects through its own flow.
-            NotFoundError: If this deployment has no Google client configured. A
-                4xx the card shows as a prerequisite, the same way a missing
-                GitHub OAuth App is - never a 500.
+            NotFoundError: If the organization has stored no org-visible
+                `google_oauth_app` secret - a 4xx the card shows as a prerequisite,
+                the same way a missing GitHub OAuth App is, never a 500.
+            BadRequestError: If more than one is stored, or `portal_key` names no
+                polled portal.
         """
         portal = portal_catalog.get_portal(portal_key)
         if portal is None or portal.delivery is not portal_catalog.DeliveryMode.POLLING:
@@ -940,11 +944,9 @@ class McpConnectionService:
                 message="This portal is not one the platform polls",
                 details={"portal_key": portal_key},
             )
-        if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
-            raise NotFoundError(
-                message="This deployment has no Google client configured",
-                details={"portal_key": portal_key},
-            )
+        creds = await OrganizationSecretService(self.db).oauth_app(
+            ctx, kind=SecretKind.GOOGLE_OAUTH_APP
+        )
         redirect_uri = _oauth_redirect_uri()
         state = secrets.token_urlsafe(32)
         scopes = list(portal.read_scopes)
@@ -956,8 +958,8 @@ class McpConnectionService:
             started_at=_now_epoch(),
             authorization_endpoint=google_oauth.AUTHORIZE_ENDPOINT,
             token_endpoint=google_oauth.TOKEN_ENDPOINT,
-            client_id=settings.GOOGLE_CLIENT_ID,
-            client_secret=settings.GOOGLE_CLIENT_SECRET,
+            client_id=creds.client_id,
+            client_secret=creds.client_secret.get_secret_value(),
             scope=" ".join(scopes),
             resource=_POLLED_PORTAL_URL[portal_key],
             redirect_uri=redirect_uri,
@@ -986,7 +988,7 @@ class McpConnectionService:
             state=state,
         )
         return google_oauth.authorization_url(
-            client_id=settings.GOOGLE_CLIENT_ID,
+            client_id=creds.client_id,
             redirect_uri=redirect_uri,
             scopes=scopes,
             state=state,
@@ -1224,6 +1226,42 @@ class McpConnectionService:
         if not set(required_scopes).issubset(connection.granted_scopes or ()):
             return None
         return await _oauth_access_token(self.db, connection)
+
+    async def get_org_portal_grant(self, ctx: AuthContext, portal_key: str) -> McpConnection | None:
+        """The organization's grant for one polled portal, or `None`.
+
+        What tells a portal card that its mailbox is connected. A polled portal has
+        no entry in the MCP server catalog - there is no server, only an account we
+        read - so the catalog listing cannot find its connection the way an
+        `auto_webhook` portal's is found, by catalog key.
+        """
+        return await mcp_connection_repo.get_portal_grant(
+            self.db, organization_id=ctx.organization_id, portal_key=portal_key
+        )
+
+    async def get_org_portal_connection(
+        self, ctx: AuthContext, connection_id: UUID
+    ) -> McpConnection:
+        """One *portal grant* by id, resolved for the caller's tenant.
+
+        The counterpart of :meth:`get_org_connection` for a polled portal, whose
+        grant is not an MCP connection and is deliberately invisible to every
+        MCP-facing read. A trigger being created against a connected mailbox proves
+        the id is its own organization's through here.
+
+        Raises:
+            NotFoundError: If no grant with this id is visible to the caller's
+                organization - the same unprobeable refusal every org-scoped
+                connection lookup gives.
+        """
+        grant = await mcp_connection_repo.get_org_scoped_portal_by_id(
+            self.db, connection_id=connection_id, organization_id=ctx.organization_id
+        )
+        if grant is None:
+            raise NotFoundError(
+                message="Connection not found", details={"connection_id": connection_id}
+            )
+        return grant
 
     async def get_org_connection(self, ctx: AuthContext, connection_id: UUID) -> McpConnection:
         """One organization connection by id, resolved for the caller's tenant.

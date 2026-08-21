@@ -5,14 +5,15 @@ registration flow `mcp_oauth` runs, so this is the same shape as
 `github_oauth`: build a consent URL, exchange a code, hand back a token and the
 scopes that were actually granted.
 
-**The client is the deployment's own**, `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
-- the pair a self-hosted install already registers for Google sign-in - rather than
-a per-organization OAuth App the way GitHub does it. Two reasons. Google's consent
-screen for a `gmail.readonly` scope needs a verified project, which is an
-application an operator makes once and no tenant of theirs can make at all; and
-this is a self-hosted product, so "the deployment's Google project" is already the
-unit an operator owns. GitHub asks per organization because its App *is* free to
-register and because a repository webhook is registered under whoever owns the App.
+**The client is the organization's own**, a `google_oauth_app` secret in the vault,
+exactly as GitHub's is - and *not* the deployment's `GOOGLE_CLIENT_ID`, which is
+sign-in and a different credential for a different purpose. The rule that decides
+this is not about who owns a Google project: every secret at rest here goes through
+`app/core/vault.py` and there is no second mechanism, so a client id and secret
+read from the environment would be one. A consent screen for a `gmail.readonly`
+scope does need a verified project, which is real work - but it is work the
+organization connecting its own mailbox does once, in its own Google console, and
+the card names it as the prerequisite rather than an operator discovering it.
 
 `access_type=offline` with `prompt=consent` is what yields a refresh token: without
 it Google returns one only on the very first consent for a client, so an

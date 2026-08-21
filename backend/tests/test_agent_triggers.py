@@ -79,6 +79,11 @@ def _service(agent: MagicMock | None = None) -> AgentTriggerService:
     service.connections.get_org_connection = AsyncMock(
         return_value=_named(id=uuid.uuid4(), name="conn")
     )
+    # And a polled portal's connection is a *grant*, invisible to the MCP lookup
+    # above - so it is proved through its own one.
+    service.connections.get_org_portal_connection = AsyncMock(
+        return_value=_named(id=uuid.uuid4(), name="grant")
+    )
     return service
 
 
@@ -2324,8 +2329,8 @@ class TestCreatingFromAPortalPreset:
         refusal happens before `repo.create`, so no row is written."""
         agent = _agent()
         service = _service(agent)
-        service.connections.get_org_connection = AsyncMock(
-            side_effect=NotFoundError(message="MCP connection not found")
+        service.connections.get_org_portal_connection = AsyncMock(
+            side_effect=NotFoundError(message="Connection not found")
         )
         with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
             repo.create = AsyncMock()
@@ -2334,6 +2339,59 @@ class TestCreatingFromAPortalPreset:
                     _ctx(), agent.id, _preset_create(portal_key="google", preset_key="any_message")
                 )
         repo.create.assert_not_called()
+
+    async def test_a_webhook_portals_connection_is_refused_the_same_way(self):
+        agent = _agent()
+        service = _service(agent)
+        service.connections.get_org_connection = AsyncMock(
+            side_effect=NotFoundError(message="MCP connection not found")
+        )
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.create = AsyncMock()
+            with pytest.raises(NotFoundError):
+                await service.create(
+                    _ctx(),
+                    agent.id,
+                    _preset_create(
+                        portal_key="github", preset_key="issue_opened", target="acme/repo"
+                    ),
+                )
+        repo.create.assert_not_called()
+
+    async def test_a_polled_portal_proves_its_grant_not_an_mcp_connection(self):
+        """The two live in one table under different purposes, and every MCP-facing
+        read filters to `mcp` so a trigger portal's grant never surfaces as a server
+        an agent can bind to. The consequence here: proving a connected mailbox
+        through the MCP lookup refuses the caller's own grant as not found, so
+        creating a Gmail trigger against it 404s.
+        """
+        agent = _agent()
+        service = _service(agent)
+        connection_id = uuid.uuid4()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.portals.get_adapter", return_value=None),
+        ):
+            repo.create = AsyncMock(
+                return_value=_event_trigger(
+                    event_source="gmail", conversation_id=uuid.uuid4(), delivery_mode="polling"
+                )
+            )
+            await service.create(
+                _ctx(),
+                agent.id,
+                _preset_create(
+                    portal_key="google",
+                    preset_key="any_message",
+                    connection_id=connection_id,
+                    target=None,
+                ),
+            )
+
+        service.connections.get_org_portal_connection.assert_awaited_once()
+        service.connections.get_org_connection.assert_not_awaited()
+        assert repo.create.await_args.kwargs["connection_id"] == connection_id
 
     async def test_an_event_config_override_narrows_the_presets_filter(self):
         """A subject filter the caller supplies is merged over the email preset's
@@ -2772,7 +2830,11 @@ class TestPortalCatalogConnectionState:
         with (
             patch("app.services.agent_trigger.mcp_connection_repo") as connections,
             patch("app.services.agent_trigger.organization_secret_repo") as secrets,
+            # The listing walks the whole catalog, so a GitHub assertion still
+            # passes through the polled branch beside it.
+            patch("app.services.mcp_connection.mcp_connection_repo") as grants,
         ):
+            grants.get_portal_grant = AsyncMock(return_value=None)
             connections.get_org_scoped_by_catalog_key = AsyncMock(return_value=connection)
             # One stored OAuth App by default: the prerequisite the connect flow
             # spends, counted rather than opened.
@@ -2820,31 +2882,74 @@ class TestPortalCatalogConnectionState:
         github = await self._github(None, oauth_apps=1)
         assert github.connect_blocked_by is None
 
-    async def _gmail(self, monkeypatch, *, client: str) -> object:
-        from app.core.config import settings as live
-
-        monkeypatch.setattr(live, "GOOGLE_CLIENT_ID", client)
-        monkeypatch.setattr(live, "GOOGLE_CLIENT_SECRET", client)
+    async def _gmail(self, monkeypatch, *, stored: int = 1, grant=None) -> object:
         service = _service()
         with (
             patch("app.services.agent_trigger.mcp_connection_repo") as connections,
             patch("app.services.agent_trigger.organization_secret_repo") as secrets,
+            # A polled portal's connection is its *grant*, keyed on (organization,
+            # portal), so the listing reaches it through the connection service
+            # rather than the catalog-key lookup a webhook portal uses.
+            patch("app.services.mcp_connection.mcp_connection_repo") as grants,
         ):
             connections.get_org_scoped_by_catalog_key = AsyncMock(return_value=None)
-            secrets.list_org_visible_by_kind = AsyncMock(return_value=[])
+            grants.get_portal_grant = AsyncMock(return_value=grant)
+            # One query per credential kind the catalog needs; both portals get the
+            # same count here, and only the Gmail card is read back.
+            secrets.list_org_visible_by_kind = AsyncMock(
+                return_value=[MagicMock() for _ in range(stored)]
+            )
             items = await service.list_portals(_ctx())
         return next(item for item in items if item.key == "google")
 
-    async def test_a_polled_portal_with_no_deployment_client_says_so(self, monkeypatch):
-        """Gmail connects on the deployment's own Google client, so a deployment
-        with none configured cannot connect it - said on the card rather than
-        learned from a 404 after pressing Connect (#1068)."""
-        gmail = await self._gmail(monkeypatch, client="")
-        assert gmail.connect_blocked_by == "oauth_unavailable"
+    async def test_a_polled_portal_with_no_stored_client_says_so(self, monkeypatch):
+        """Gmail connects on a Google client the organization stored in the vault -
+        the same shape as GitHub's, and for the reason that outranks any argument
+        about who owns a Google project: a credential at rest goes through the
+        vault and there is no second mechanism. It read the deployment's
+        `GOOGLE_CLIENT_ID` for one commit, which left the card naming an
+        environment variable as the fix."""
+        gmail = await self._gmail(monkeypatch, stored=0)
+        assert gmail.connect_blocked_by == "oauth_app_secret"
 
-    async def test_a_polled_portal_with_a_client_is_connectable(self, monkeypatch):
-        gmail = await self._gmail(monkeypatch, client="client-id")
+    async def test_a_polled_portal_with_a_stored_client_is_connectable(self, monkeypatch):
+        gmail = await self._gmail(monkeypatch, stored=1)
         assert gmail.connect_blocked_by is None
+
+    async def test_two_stored_clients_are_ambiguous_for_a_polled_portal_too(self, monkeypatch):
+        gmail = await self._gmail(monkeypatch, stored=2)
+        assert gmail.connect_blocked_by == "ambiguous_oauth_app_secret"
+
+    async def test_each_card_names_the_credential_its_own_flow_spends(self, monkeypatch):
+        """So the card's Add credentials opens on the right service. Hardcoding the
+        mapping on the client is how a third portal would silently ask for GitHub's
+        OAuth App."""
+        gmail = await self._gmail(monkeypatch, stored=1)
+        github = await self._github(self._connection())
+
+        assert gmail.oauth_app_kind == "google_oauth_app"
+        assert github.oauth_app_kind == "github_oauth_app"
+
+    async def test_a_connected_mailbox_reports_its_grant(self, monkeypatch):
+        """The bug this catches is silent and total: a polled portal has no entry in
+        the MCP server catalog, so resolving its connection by catalog key - the way
+        a webhook portal's is resolved - can never match. Gmail therefore reported
+        `connection_id: null` however many times it had been connected, its card
+        offered Connect for ever, and Create was never reachable - while the poller
+        read the mailbox perfectly well the whole time.
+        """
+        grant = self._connection(granted_scopes=["https://www.googleapis.com/auth/gmail.readonly"])
+        gmail = await self._gmail(monkeypatch, client="client-id", grant=grant)
+
+        assert gmail.connection_id == grant.id
+        assert gmail.connection_state == "connected"
+
+    async def test_a_mailbox_awaiting_consent_is_not_connected_yet(self, monkeypatch):
+        gmail = await self._gmail(
+            monkeypatch, client="client-id", grant=self._connection(oauth_payload=None)
+        )
+
+        assert gmail.connection_state == "needs_authorization"
 
 
 class TestListingPortalTargets:

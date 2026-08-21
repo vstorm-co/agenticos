@@ -23,6 +23,7 @@ from app.core.secret_kinds import (
     AzureOpenAISecret,
     GcpServiceAccountSecret,
     GithubOAuthAppSecret,
+    GoogleOAuthAppSecret,
     NoSecret,
     SecretKind,
     SecretRequirement,
@@ -638,10 +639,15 @@ class TestTheGithubOAuthAppReader:
     """`github_oauth_app` is the vault's third reader, and the most narrowly scoped.
 
     It opens one kind of secret and lets only the public `client_id` escape; the
-    `client_secret` it unseals goes to GitHub's token endpoint inside the connect
-    flow and nowhere else. It exists so the GitHub-provider OAuth flow can run the
-    token exchange with credentials the organization stored, without ever handing
-    them to a route or a client.
+    `client_secret` it unseals goes to the provider's token endpoint inside the
+    connect flow and nowhere else. It exists so a connect flow can run its token
+    exchange with credentials the organization stored, without ever handing them to
+    a route or a client.
+
+    One reader over two kinds - a repository account and a mailbox - because the
+    rule is the same for both, and it is the rule that matters: a client read from
+    the deployment's environment would be a second mechanism for a credential at
+    rest, which is what Gmail briefly had.
     """
 
     @pytest.mark.anyio
@@ -657,7 +663,9 @@ class TestTheGithubOAuthAppReader:
             "app.services.organization_secret.organization_secret_repo.list_org_visible_by_kind",
             new=AsyncMock(return_value=[row]),
         ) as by_kind:
-            value = await OrganizationSecretService(_db()).github_oauth_app(ctx)
+            value = await OrganizationSecretService(_db()).oauth_app(
+                ctx, kind=SecretKind.GITHUB_OAUTH_APP
+            )
 
         assert isinstance(value, GithubOAuthAppSecret)
         assert value.client_id == "Iv1.0123456789abcdef"
@@ -679,7 +687,34 @@ class TestTheGithubOAuthAppReader:
             ),
             pytest.raises(NotFoundError),
         ):
-            await OrganizationSecretService(_db()).github_oauth_app(_ctx())
+            await OrganizationSecretService(_db()).oauth_app(
+                _ctx(), kind=SecretKind.GITHUB_OAUTH_APP
+            )
+
+    @pytest.mark.anyio
+    async def test_it_reads_a_google_client_by_its_own_kind(self):
+        """The same reader, the other credential - and read by the kind it was
+        asked for, so a stored GitHub app can never be spent as a mailbox client."""
+        ctx = _ctx()
+        row = _row(
+            ctx,
+            GoogleOAuthAppSecret(
+                client_id="1234-abc.apps.googleusercontent.com", client_secret="gsec-42"
+            ),
+            name="Google OAuth client",
+        )
+
+        with patch(
+            "app.services.organization_secret.organization_secret_repo.list_org_visible_by_kind",
+            new=AsyncMock(return_value=[row]),
+        ) as by_kind:
+            value = await OrganizationSecretService(_db()).oauth_app(
+                ctx, kind=SecretKind.GOOGLE_OAUTH_APP
+            )
+
+        assert isinstance(value, GoogleOAuthAppSecret)
+        assert value.client_secret.get_secret_value() == "gsec-42"
+        assert by_kind.await_args.kwargs["kind"] == SecretKind.GOOGLE_OAUTH_APP.value
 
     @pytest.mark.anyio
     async def test_two_org_visible_apps_are_refused_not_picked_by_name_order(self):
@@ -699,6 +734,6 @@ class TestTheGithubOAuthAppReader:
             ),
             pytest.raises(BadRequestError) as excinfo,
         ):
-            await OrganizationSecretService(_db()).github_oauth_app(ctx)
+            await OrganizationSecretService(_db()).oauth_app(ctx, kind=SecretKind.GITHUB_OAUTH_APP)
         assert excinfo.value.details["names"] == ["aaa", "bbb"]
         assert "s1" not in str(excinfo.value.details)

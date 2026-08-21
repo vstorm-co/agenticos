@@ -64,6 +64,13 @@ async def list_runs(
     ),
     surface: RunSurface | None = Query(None, description="Where the run came from"),
     user_id: UUID | None = Query(None, description="Who the run ran as"),
+    conversation_id: UUID | None = Query(
+        None,
+        description=(
+            "Runs that ran inside this thread. How a trigger's own fires are listed: "
+            "every fire appends to one run-log conversation"
+        ),
+    ),
     model_label: str | None = Query(
         None,
         max_length=255,
@@ -131,6 +138,7 @@ async def list_runs(
             statuses=RunStatus.parse_csv(status),
             surface=None if surface is None else surface.value,
             user_id=user_id,
+            conversation_id=conversation_id,
             model_label=model_label,
             started_from=started_from,
             started_to=started_to,

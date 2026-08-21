@@ -2764,10 +2764,11 @@ class TestGithubPortalOAuth:
 class TestPolledPortalOAuth:
     """Connecting a portal the platform reads rather than is posted to.
 
-    Gmail's case, and the shape differs from GitHub's in one decision worth
-    holding: the client is the *deployment's*, not the organization's. Google's
-    consent screen for a mailbox scope needs a verified project, which an operator
-    makes once and no tenant of theirs can make at all.
+    Gmail's case, and the same shape as GitHub's in the decision that matters: the
+    client is the organization's own, from the vault. It read the deployment's
+    `GOOGLE_CLIENT_ID` for one commit, which was a second mechanism for a
+    credential at rest - and left the card telling whoever wanted a mailbox
+    trigger to go and set an environment variable.
     """
 
     pytestmark = pytest.mark.anyio
@@ -2791,19 +2792,48 @@ class TestPolledPortalOAuth:
 
     @pytest.fixture
     def client(self, monkeypatch):
-        monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "deployment-client")
-        monkeypatch.setattr(settings, "GOOGLE_CLIENT_SECRET", "deployment-secret")
+        """The organization's stored Google client, as the vault reader answers it."""
+        from app.core.secret_kinds import GoogleOAuthAppSecret
+        from app.services import mcp_connection as service_module
 
-    async def test_a_deployment_with_no_google_client_is_a_clean_4xx(
+        creds = GoogleOAuthAppSecret(client_id="org-client", client_secret="org-secret")
+        monkeypatch.setattr(
+            service_module.OrganizationSecretService, "oauth_app", AsyncMock(return_value=creds)
+        )
+        return creds
+
+    async def test_an_organization_with_no_stored_client_is_a_clean_4xx(
         self, service, ctx, repo, monkeypatch
     ):
         """A missing prerequisite the card shows, never a 500 - and no row written,
-        so configuring the client and retrying is not a name clash."""
-        monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "")
-        monkeypatch.setattr(settings, "GOOGLE_CLIENT_SECRET", "")
+        so storing the client and retrying is not a name clash."""
+        from app.services import mcp_connection as service_module
+
+        monkeypatch.setattr(
+            service_module.OrganizationSecretService,
+            "oauth_app",
+            AsyncMock(side_effect=NotFoundError(message="Add an org-visible secret")),
+        )
         with pytest.raises(NotFoundError):
             await service.oauth_start_for_polled_portal(ctx, portal_key="google")
         repo.create_org_scoped.assert_not_called()
+
+    async def test_it_spends_the_organizations_own_client_not_the_deployments(
+        self, service, ctx, repo, client, monkeypatch
+    ):
+        """The regression that matters: a client read from the environment is a
+        second mechanism for a credential at rest, and this repository has one."""
+        from app.core.secret_kinds import SecretKind
+        from app.services import mcp_connection as service_module
+
+        monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "deployment-client")
+
+        url = await service.oauth_start_for_polled_portal(ctx, portal_key="google")
+
+        assert "client_id=org-client" in url
+        assert "deployment-client" not in url
+        asked = service_module.OrganizationSecretService.oauth_app.await_args
+        assert asked.kwargs["kind"] is SecretKind.GOOGLE_OAUTH_APP
 
     async def test_a_portal_that_is_not_polled_is_refused(self, service, ctx, repo, client):
         """GitHub connects through its own flow; sending it here would stage a grant
@@ -2823,14 +2853,14 @@ class TestPolledPortalOAuth:
         url = await service.oauth_start_for_polled_portal(ctx, portal_key="google")
 
         assert url.startswith("https://accounts.google.com/o/oauth2/v2/auth?")
-        assert "client_id=deployment-client" in url
+        assert "client_id=org-client" in url
         assert "gmail.readonly" in url
         # Without these Google returns a refresh token only on the very first
         # consent for a client, so a mailbox would work for an hour and then stop.
         assert "access_type=offline" in url
         assert "prompt=consent" in url
         # The secret never rides in a URL the browser is sent to.
-        assert "deployment-secret" not in url
+        assert "org-secret" not in url
 
     async def test_the_grant_is_staged_as_a_portal_row_not_a_server(
         self, service, ctx, repo, client

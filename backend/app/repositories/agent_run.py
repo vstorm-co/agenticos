@@ -326,6 +326,11 @@ class RunFilters:
             queue this platform has - the answers real people said were wrong -
             and until `messages.run_id` existed there was no way to ask a run
             whether it earned one.
+        conversation_id: The thread the run ran inside. What lets a trigger's own
+            runs be listed: every fire of one trigger appends to a single run-log
+            conversation, so the conversation *is* the trigger's identity in the
+            run history - and reading them as runs rather than as a transcript is
+            what gives each fire a status and a link to its own detail.
         model_label: The model as the run itself recorded it. Compared as the
             stored string rather than resolved through the catalog: the column
             is what a run answered with, a profile it came from may since have
@@ -337,6 +342,7 @@ class RunFilters:
     statuses: Sequence[str] | None = None
     surface: str | None = None
     user_id: UUID | None = None
+    conversation_id: UUID | None = None
     model_label: str | None = None
     started_from: datetime | None = None
     started_to: datetime | None = None
@@ -359,6 +365,8 @@ class RunFilters:
             clauses.append(AgentRun.surface == self.surface)
         if self.user_id is not None:
             clauses.append(AgentRun.user_id == self.user_id)
+        if self.conversation_id is not None:
+            clauses.append(AgentRun.conversation_id == self.conversation_id)
         if self.model_label is not None:
             clauses.append(AgentRun.model_label == self.model_label)
         if self.started_from is not None:

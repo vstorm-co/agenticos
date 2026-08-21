@@ -323,3 +323,18 @@ class TestTheBodyItReads:
         from app.services.portals.google import _header
 
         assert _header({"payload": {"headers": []}}, "Subject") == ""
+
+    async def test_an_explicit_null_where_an_object_is_documented_reads_as_absent(self):
+        """`.get(key, {})` is not the same as "or an empty one".
+
+        A default applies when the key is *absent*, and JSON says `"body": null` as
+        readily as it omits the field - so the chained `.get` on the answer used to
+        be an `AttributeError` on `None`. Which matters more than it reads: a raise
+        out of a poll aborted the whole tick, for every tenant, every minute.
+        """
+        from app.services.portals.google import _body_text, _header
+
+        assert _header({"payload": None}, "Subject") == ""
+        assert _body_text({"mimeType": "text/plain", "body": None}) == ""
+        # And a part list whose entries are the wrong shape does not raise either.
+        assert _body_text({"mimeType": "multipart/mixed", "parts": [{"body": None}]}) == ""

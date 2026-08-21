@@ -49,7 +49,8 @@
         },
         "target_required": true
       }
-    ]
+    ],
+    "oauth_app_kind": "github_oauth_app"
   },
   {
     "key": "google",
@@ -88,6 +89,7 @@
           "label": "IMPORTANT"
         }
       }
-    ]
+    ],
+    "oauth_app_kind": "google_oauth_app"
   }
 ]

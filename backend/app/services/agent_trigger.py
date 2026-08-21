@@ -57,7 +57,6 @@ from app.core.exceptions import (
     ValidationError,
 )
 from app.core.permissions import AuthContext, Perm
-from app.core.secret_kinds import SecretKind
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.agent_trigger import AgentTrigger, ScheduleKind, TriggerType
@@ -119,42 +118,31 @@ def _connect_blocked_by(
 ) -> Literal["oauth_app_secret", "ambiguous_oauth_app_secret", "oauth_unavailable"] | None:
     """Why this portal's connect flow cannot start, or `None` when it can.
 
-    Three answers, and the third is the one that matters most because it stops the
-    product promising something it cannot do.
+    One mechanism for every portal that needs an account, which is the point:
+    each spends a client the organization registered and stored in the vault, named
+    by the portal's `oauth_app_kind`. With none stored the flow raises
+    `NotFoundError` (`oauth_app_secret`) and with two org-visible ones it refuses
+    rather than picking whichever name sorts first
+    (`ambiguous_oauth_app_secret`) - both learned, before this, by pressing Connect
+    and reading a red toast.
 
-    **`oauth_unavailable`** - the portal needs a connected account and this
-    deployment has no way to start one for it. A connection is staged on an MCP
-    catalog entry, so a portal with no `mcp_catalog_key` has nowhere to put a
-    grant: `google` is exactly that today, which is why two Gmail triggers could
-    be created against a mailbox nobody had connected and neither could ever fire
-    (#1068). It clears itself the day Gmail's OAuth lands, because the reason it
-    is set is the absence of the thing that would land.
+    Gmail read the deployment's `GOOGLE_CLIENT_ID` for one commit, which was a
+    second mechanism for a credential at rest and left the card saying the fix was
+    an environment variable nobody using the product could set.
 
-    **`oauth_app_secret`** and **`ambiguous_oauth_app_secret`** are GitHub's:
-    `oauth_start_for_org_github` spends the organization's own OAuth App
-    credentials, so with none stored the flow raises a `NotFoundError` and with two
-    org-visible ones it refuses rather than picking whichever name sorts first.
-    Both used to be learned by pressing Connect and reading a red toast.
+    `oauth_unavailable` is what is left: a portal that needs an account and
+    declares no credential to get one with. Nothing an operator adds fixes that,
+    so the card says so and offers no vault control.
 
     A portal needing no account at all - the manual relay, where the *user* wires
     the delivery - is never blocked.
     """
     if portal.delivery is portal_catalog.DeliveryMode.MANUAL:
         return None
-    if portal.delivery is portal_catalog.DeliveryMode.POLLING:
-        # A polled portal connects on the deployment's own client, so the only thing
-        # that can stop it is the deployment not having one configured. Said here so
-        # the card shows it as a prerequisite rather than the operator learning it
-        # from a 404 after pressing Connect.
-        return (
-            None
-            if settings.GOOGLE_CLIENT_ID and settings.GOOGLE_CLIENT_SECRET
-            else "oauth_unavailable"
-        )
-    if portal.mcp_catalog_key is None:
+    if portal.oauth_app_kind is None:
+        # Nothing to connect with, and nothing an operator can add: a portal that
+        # needs an account but declares no credential has no flow to start.
         return "oauth_unavailable"
-    if portal.mcp_catalog_key != "github":
-        return None
     if oauth_apps == 0:
         return "oauth_app_secret"
     return "ambiguous_oauth_app_secret" if oauth_apps > 1 else None
@@ -413,22 +401,38 @@ class AgentTriggerService:
         whether its grant covers the portal's webhook scopes as one boolean), read
         under the same `agents:view` that shows the catalog at all.
         """
-        # Whether GitHub's flow *can* start: it spends the organization's own OAuth
-        # App credentials, so with none stored - or with two org-visible ones and
-        # nothing to say which was meant - pressing Connect can only fail. Asked
-        # once for the page rather than per portal, and only counted: the row is
-        # never opened here, so no plaintext is read to answer a listing (#1068).
-        oauth_apps = len(
-            await organization_secret_repo.list_org_visible_by_kind(
-                self.db,
-                organization_id=ctx.organization_id,
-                kind=SecretKind.GITHUB_OAUTH_APP.value,
+        # Whether each portal's flow *can* start: it spends a client the
+        # organization stored in the vault, so with none - or with two org-visible
+        # ones and nothing to say which was meant - pressing Connect can only fail.
+        # One query per distinct credential the catalog needs rather than one per
+        # portal, and only counted: no row is opened here, so no plaintext is read
+        # to answer a listing (#1068).
+        stored: dict[str, int] = {}
+        for kind in {
+            portal.oauth_app_kind
+            for portal in portal_catalog.CATALOG
+            if portal.oauth_app_kind is not None
+        }:
+            stored[kind] = len(
+                await organization_secret_repo.list_org_visible_by_kind(
+                    self.db, organization_id=ctx.organization_id, kind=kind
+                )
             )
-        )
         items: list[PortalRead] = []
         for portal in portal_catalog.CATALOG:
+            # Two mechanisms, because a portal is connected in one of two ways. An
+            # `auto_webhook` portal *is* an MCP server re-authorized for the scope
+            # that registers a hook, so its connection is found by catalog key. A
+            # polled one has no server at all - there is nothing to call, only an
+            # account we read - so it has no catalog key and its grant is keyed on
+            # (organization, portal). Reading only the first is how a connected
+            # Gmail mailbox reported `connection_id: null` and its card offered
+            # Connect for ever, with the poller quietly reading the mailbox all
+            # along.
             connection = (
-                await mcp_connection_repo.get_org_scoped_by_catalog_key(
+                await self.connections.get_org_portal_grant(ctx, portal.key)
+                if portal.delivery is portal_catalog.DeliveryMode.POLLING
+                else await mcp_connection_repo.get_org_scoped_by_catalog_key(
                     self.db,
                     organization_id=ctx.organization_id,
                     catalog_key=portal.mcp_catalog_key,
@@ -452,7 +456,10 @@ class AgentTriggerService:
                     connection_state=(
                         _connection_state(connection) if connection is not None else None
                     ),
-                    connect_blocked_by=_connect_blocked_by(portal, oauth_apps=oauth_apps),
+                    connect_blocked_by=_connect_blocked_by(
+                        portal, oauth_apps=stored.get(portal.oauth_app_kind or "", 0)
+                    ),
+                    oauth_app_kind=portal.oauth_app_kind,
                     connection_covers_webhook_scopes=(
                         connection is not None
                         and set(portal.webhook_admin_scopes).issubset(
@@ -564,10 +571,17 @@ class AgentTriggerService:
                 # `mcp_connections.id` on the row unchecked. A foreign or bogus id
                 # is the same unprobeable 404 every org-scoped connection lookup
                 # gives.
-                if data.connection_id is not None:
-                    await self.connections.get_org_connection(ctx, data.connection_id)
-                connection_id = data.connection_id
                 polled = portal.delivery is portal_catalog.DeliveryMode.POLLING
+                if data.connection_id is not None:
+                    # Whichever mechanism connected the portal, since the two live
+                    # in the same table under different purposes: a polled grant is
+                    # invisible to every MCP-facing read, so proving it through the
+                    # MCP lookup refused the caller's own mailbox as not found.
+                    if polled:
+                        await self.connections.get_org_portal_connection(ctx, data.connection_id)
+                    else:
+                        await self.connections.get_org_connection(ctx, data.connection_id)
+                connection_id = data.connection_id
             else:
                 event_source = data.event_source
                 event_config = data.event_config or {}

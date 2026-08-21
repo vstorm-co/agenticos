@@ -19,12 +19,18 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from prefect import flow
 from prefect.deployments import run_deployment
 
 from app.db.session import get_worker_db_context
+
+if TYPE_CHECKING:  # pragma: no cover - imported for typing only
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.db.models.mcp_connection import McpConnection
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +118,46 @@ async def check_agent_triggers_flow() -> None:
     logger.info("agent_triggers_check", extra={"dispatched": dispatched, "claimed": len(triggers)})
 
 
+async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -> int:
+    """Read one connected account, fire what arrived, and record where it got to.
+
+    Extracted so the tick can isolate a grant rather than only a dispatch: see the
+    caller. Answers how many fires were submitted.
+    """
+    from app.services.agent_trigger import AgentTriggerService
+    from app.services.mcp_connection import McpConnectionService
+
+    read = await McpConnectionService(db).poll_grant(grant)
+    if read is None:
+        return 0
+    decisions = await AgentTriggerService(db).prepare_polled_fires(
+        organization_id=grant.organization_id,
+        event_source=source,
+        events=read.events,
+    )
+    dispatched = 0
+    for decision in decisions:
+        try:
+            await dispatch_trigger_fire(
+                str(decision.trigger_id), event_context=decision.event_context
+            )
+        except Exception:
+            # Isolated like the scheduled loop's, and for the same reason: a
+            # transient Prefect error on one fire must not cost the rest of the
+            # batch theirs. The delivery claim is left standing - a submit that
+            # raised may still have enqueued the run.
+            logger.exception(
+                "portal_poll_dispatch_failed",
+                extra={"trigger_id": str(decision.trigger_id)},
+            )
+        else:
+            dispatched += 1
+    # Last, and only for a poll that got this far: in the other order a crash
+    # between the two loses every message the poll read.
+    await McpConnectionService(db).store_poll_cursor(grant, cursor=read.cursor)
+    return dispatched
+
+
 @flow(name="portal-poll", log_prints=True)
 async def poll_portal_grants_flow() -> None:
     """Heartbeat: read the connected accounts nobody pushes to, and fire what arrived.
@@ -135,7 +181,6 @@ async def poll_portal_grants_flow() -> None:
     dedups: at-least-once, with the duplicate suppressed, rather than at-most-once
     with a silent hole.
     """
-    from app.services.agent_trigger import AgentTriggerService
     from app.services.mcp_connection import McpConnectionService
     from app.services.portal_catalog import CATALOG, DeliveryMode
 
@@ -149,31 +194,22 @@ async def poll_portal_grants_flow() -> None:
             source = _polled_source(grant.portal_key)
             if source is None:
                 continue
-            read = await McpConnectionService(db).poll_grant(grant)
-            if read is None:
-                continue
-            decisions = await AgentTriggerService(db).prepare_polled_fires(
-                organization_id=grant.organization_id,
-                event_source=source,
-                events=read.events,
-            )
-            for decision in decisions:
-                try:
-                    await dispatch_trigger_fire(
-                        str(decision.trigger_id), event_context=decision.event_context
-                    )
-                except Exception:
-                    # Isolated like the scheduled loop's, and for the same reason: a
-                    # transient Prefect error on one fire must not cost the rest of
-                    # the batch theirs. The delivery claim is left standing - a
-                    # submit that raised may still have enqueued the run.
-                    logger.exception(
-                        "portal_poll_dispatch_failed",
-                        extra={"trigger_id": str(decision.trigger_id)},
-                    )
-                else:
-                    dispatched += 1
-            await McpConnectionService(db).store_poll_cursor(grant, cursor=read.cursor)
+            try:
+                dispatched += await _poll_one_grant(db, grant, source)
+            except Exception:
+                # One mailbox is one tenant. `poll_grant` already answers `None` for
+                # every recoverable provider failure, so anything arriving here is a
+                # shape nobody anticipated - a MIME tree from an attacker-chosen
+                # email, a payload field that is null where the API documents an
+                # object. Without this the tick dies on it, and dies again every
+                # minute: a single malformed message in one organization's mailbox
+                # would stop polling for every other organization on the deployment.
+                # A database failure still fails the rest of the tick with it, since
+                # the session is shared - that one is not a provider's to cause.
+                logger.exception(
+                    "portal_poll_grant_failed",
+                    extra={"portal_key": grant.portal_key, "connection_id": str(grant.id)},
+                )
     logger.info("portal_poll", extra={"dispatched": dispatched})
 
 

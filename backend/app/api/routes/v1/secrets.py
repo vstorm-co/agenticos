@@ -71,6 +71,7 @@ async def list_secret_purposes() -> Any:
             kind=entry.kind,
             help_url=entry.help_url,
             description=entry.description,
+            icon=entry.icon,
         )
         for entry in all_purposes()
     ]

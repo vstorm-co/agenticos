@@ -95,6 +95,12 @@ class PortalEntry:
     # What a preset's target names, when one is required - "repo", "channel". None
     # when presets never need a target (a mailbox-wide email trigger).
     target_kind: str | None = None
+    # The vault kind whose client id and secret this portal's consent flow spends,
+    # and which the card's "Add credentials" therefore asks for. Each organization
+    # registers its own client, for either provider - a deployment-wide one read
+    # from the environment would be a second mechanism for a credential at rest.
+    # None for a portal that needs no account at all (the manual relay).
+    oauth_app_kind: str | None = None
 
 
 # Validated against the dataclasses at import, like every catalog here: a

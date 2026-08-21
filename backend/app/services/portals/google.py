@@ -47,9 +47,22 @@ def _headers(access_token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
 
 
+def _nested(value: Any, key: str) -> dict[str, Any]:
+    """One nested object, or an empty one.
+
+    `value.get(key, {})` is not this: a default applies when the key is *absent*,
+    and JSON says `"body": null` as readily as it omits the field - so the chained
+    `.get` on the answer is an `AttributeError` on `None`. Which matters more here
+    than it reads: a raise out of a poll aborts the tick for every tenant, not
+    only the mailbox that produced it.
+    """
+    nested = value.get(key) if isinstance(value, dict) else None
+    return nested if isinstance(nested, dict) else {}
+
+
 def _header(message: dict[str, Any], name: str) -> str:
     """One header of a Gmail message, by name, case-insensitively."""
-    headers = message.get("payload", {}).get("headers") or []
+    headers = _nested(message, "payload").get("headers") or []
     wanted = name.casefold()
     for entry in headers:
         if str(entry.get("name", "")).casefold() == wanted:
@@ -68,7 +81,7 @@ def _body_text(part: dict[str, Any], depth: int = 0) -> str:
     if depth > 8:
         return ""
     mime = str(part.get("mimeType") or "")
-    data = part.get("body", {}).get("data")
+    data = _nested(part, "body").get("data")
     if isinstance(data, str) and data and mime.startswith("text/"):
         import base64
 
@@ -163,7 +176,7 @@ class GooglePortalAdapter(PortalAdapter):
             newest = str(body.get("historyId") or newest)
             for record in body.get("history") or []:
                 for entry in record.get("messagesAdded") or []:
-                    identifier = entry.get("message", {}).get("id")
+                    identifier = _nested(entry, "message").get("id")
                     if isinstance(identifier, str) and identifier:
                         added.append(identifier)
             page = body.get("nextPageToken")

@@ -62,6 +62,11 @@ class SecretPurpose:
     help_url: str | None = None
     # What this unlocks, in the words of somebody deciding whether to add it.
     description: str = ""
+    # The brand mark to draw, as `BrandIcon` names them - the same field a portal
+    # carries, so "which mark does this service wear" has one answer. Empty falls
+    # back to a monogram, which is the honest floor for a service whose brand has
+    # no mark anywhere (a sandbox service is not a brand).
+    icon: str = ""
 
 
 CUSTOM = "custom"

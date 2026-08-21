@@ -179,6 +179,73 @@ class TestTheOrderOfWork:
         assert recorder.steps == ["poll", "match:gmail:0", "cursor:700"]
 
 
+class TestOneMailboxIsOneTenant:
+    """The isolation the tick did not have, and the reason it needs it.
+
+    `poll_grant` answers `None` for every recoverable provider failure, so anything
+    that raises out of it is a shape nobody anticipated - a MIME tree from an
+    attacker-chosen email, a documented object arriving as `null`. Without the
+    guard the tick dies on it and dies again every minute, so one malformed message
+    in one organization's mailbox stops polling for every other organization on the
+    deployment.
+    """
+
+    async def _run_two(self, first_raises: Exception | None):
+        from app.worker.tasks import trigger_tasks
+
+        recorder = _Recorder()
+        one, two = _grant(portal_key="google"), _grant(portal_key="google")
+        connections = MagicMock()
+        connections.claim_grants_to_poll = AsyncMock(return_value=[one, two])
+
+        async def poll_grant(grant):
+            recorder.steps.append(f"poll:{grant.id}")
+            if grant is one and first_raises is not None:
+                raise first_raises
+            return PolledEvents(events=(), cursor={"history_id": "900"})
+
+        async def store_cursor(grant, *, cursor):
+            recorder.steps.append(f"cursor:{grant.id}")
+
+        connections.poll_grant = poll_grant
+        connections.store_poll_cursor = store_cursor
+        triggers = MagicMock()
+        triggers.prepare_polled_fires = AsyncMock(return_value=[])
+
+        session = MagicMock()
+
+        class _Ctx:
+            async def __aenter__(self):
+                return session
+
+            async def __aexit__(self, *exc):
+                return False
+
+        with (
+            patch.object(trigger_tasks, "get_worker_db_context", lambda: _Ctx()),
+            patch.object(trigger_tasks, "dispatch_trigger_fire", AsyncMock()),
+            patch("app.services.mcp_connection.McpConnectionService", return_value=connections),
+            patch("app.services.agent_trigger.AgentTriggerService", return_value=triggers),
+        ):
+            await trigger_tasks.poll_portal_grants_flow()
+        return recorder, one, two
+
+    async def test_a_mailbox_that_raises_does_not_stop_the_others(self):
+        recorder, one, two = await self._run_two(AttributeError("'NoneType' has no 'get'"))
+
+        assert f"poll:{two.id}" in recorder.steps
+        assert f"cursor:{two.id}" in recorder.steps
+        # And the one that raised advanced no cursor: its window is unread.
+        assert f"cursor:{one.id}" not in recorder.steps
+
+    async def test_the_tick_finishes_rather_than_failing_the_flow(self):
+        # A raising flow is a Prefect failure and a paged alert; a logged grant is
+        # the thing to fix. The distinction is the point of the guard.
+        recorder, _, two = await self._run_two(RuntimeError("nobody saw this coming"))
+
+        assert recorder.steps[-1] == f"cursor:{two.id}"
+
+
 class TestWhichGrantsAreRead:
     async def test_only_polled_portals_are_claimed(self):
         """GitHub is pushed to and must never be polled: a tick that claimed it

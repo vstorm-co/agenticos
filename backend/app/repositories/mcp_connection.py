@@ -166,6 +166,28 @@ async def get_portal_grant(
     return result.scalar_one_or_none()
 
 
+async def get_org_scoped_portal_by_id(
+    db: AsyncSession, *, connection_id: UUID, organization_id: UUID
+) -> McpConnection | None:
+    """One portal grant by id, inside one organization.
+
+    The sibling of :func:`get_org_scoped_by_id` on the other purpose, and separate
+    rather than a `purpose` argument with a default: every MCP-facing read must
+    filter to `mcp` or a trigger portal's grant surfaces as a server an agent can
+    bind to, and a defaulted parameter is one keyword away from being weakened at a
+    call site. A caller that wants a grant says so in the name.
+    """
+    result = await db.execute(
+        select(McpConnection).where(
+            McpConnection.purpose == "portal",
+            McpConnection.id == connection_id,
+            McpConnection.organization_id == organization_id,
+            McpConnection.scope == "org",
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def claim_portal_grants_to_poll(
     db: AsyncSession, *, portal_keys: list[str], not_polled_since: datetime, limit: int
 ) -> list[McpConnection]:

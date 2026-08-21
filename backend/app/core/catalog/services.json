@@ -5,7 +5,8 @@
     "category": "search",
     "kind": "api_key",
     "help_url": "https://tavily.com",
-    "description": "Web search summarised for a model to read."
+    "description": "Web search summarised for a model to read.",
+    "icon": "tavily"
   },
   {
     "id": "brave",
@@ -13,7 +14,8 @@
     "category": "search",
     "kind": "api_key",
     "help_url": "https://brave.com/search/api/",
-    "description": "Web search over Brave's own index."
+    "description": "Web search over Brave's own index.",
+    "icon": "brave"
   },
   {
     "id": "exa",
@@ -21,7 +23,8 @@
     "category": "search",
     "kind": "api_key",
     "help_url": "https://exa.ai",
-    "description": "Web search by meaning rather than keywords."
+    "description": "Web search by meaning rather than keywords.",
+    "icon": "exa"
   },
   {
     "id": "logfire",
@@ -37,7 +40,8 @@
     "category": "other",
     "kind": "api_key",
     "help_url": "https://cloud.llamaindex.ai",
-    "description": "Parse PDFs with LlamaParse, billed to this organization's own key."
+    "description": "Parse PDFs with LlamaParse, billed to this organization's own key.",
+    "icon": "llamaparse"
   },
   {
     "id": "sandboxd",
@@ -60,7 +64,17 @@
     "category": "other",
     "kind": "github_oauth_app",
     "help_url": "https://github.com/settings/developers",
-    "description": "A GitHub OAuth App's client id and secret, used to connect a GitHub account for repository webhooks."
+    "description": "A GitHub OAuth App's client id and secret, used to connect a GitHub account for repository webhooks.",
+    "icon": "github"
+  },
+  {
+    "id": "google_oauth_app",
+    "label": "Google OAuth client",
+    "category": "other",
+    "kind": "google_oauth_app",
+    "help_url": "https://console.cloud.google.com/apis/credentials",
+    "description": "A Google OAuth client's id and secret, used to connect a mailbox an agent is run by.",
+    "icon": "google"
   },
   {
     "id": "gdrive",
@@ -68,7 +82,8 @@
     "category": "connector",
     "kind": "gcp_service_account",
     "help_url": "https://console.cloud.google.com/iam-admin/serviceaccounts",
-    "description": "A service account a Google Drive sync source reads documents with."
+    "description": "A service account a Google Drive sync source reads documents with.",
+    "icon": "gdrive"
   },
   {
     "id": "s3",
@@ -76,6 +91,7 @@
     "category": "connector",
     "kind": "aws_credentials",
     "help_url": "https://console.aws.amazon.com/iam/home#/security_credentials",
-    "description": "A key pair an S3 or MinIO sync source reads objects with."
+    "description": "A key pair an S3 or MinIO sync source reads objects with.",
+    "icon": "s3"
   }
 ]

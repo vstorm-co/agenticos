@@ -75,12 +75,21 @@ class PortalRead(BaseSchema):
     ) = Field(
         default=None,
         description=(
-            "Why connecting this portal cannot start yet, or null when it can. "
-            "`oauth_unavailable` means this deployment has no way to connect an "
-            "account for it at all, so nothing it offers could fire; the other two "
-            "are GitHub's OAuth App credentials, missing or ambiguous. Answered on "
-            "the catalog so the card says the prerequisite before the click instead "
-            "of after it, as a red toast"
+            "Why connecting this portal cannot start yet, or null when it can. The "
+            "first two are the client this portal's consent flow spends - the vault "
+            "kind named by oauth_app_kind - missing or ambiguous; `oauth_unavailable` "
+            "means the portal needs an account and declares no credential to get one "
+            "with, which nothing an operator adds can fix. Answered on the catalog so "
+            "the card says the prerequisite before the click instead of after it, as a "
+            "red toast"
+        ),
+    )
+    oauth_app_kind: str | None = Field(
+        default=None,
+        description=(
+            "The vault kind whose client id and secret connecting this portal spends, "
+            "so the card's Add credentials opens on the right service. Null for a "
+            "portal that needs no account (the manual relay)"
         ),
     )
     connection_covers_webhook_scopes: bool = Field(
