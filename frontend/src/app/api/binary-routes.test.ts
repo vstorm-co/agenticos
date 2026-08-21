@@ -188,15 +188,45 @@ describe("reading a file back", () => {
     expect(fetchMock.mock.calls[0]![0]).toBe("http://localhost:8000/api/v1/files/f-1");
   });
 
-  it("falls back to a generic type rather than guessing one", async () => {
+  it("falls back to a generic type rather than guessing one, and downloads it", async () => {
     // A backend that named no type at all - which is what a streamed response
-    // from storage looks like.
+    // from storage looks like. Not render-safe, so it is forced to download
+    // rather than shown inline, and sniffing is off (#702).
     serve("bytes", { headers: { "content-type": "" } });
 
     const response = await readFile(request("http://localhost:3000/api/files/f-1"), params);
 
     expect(response.headers.get("content-type")).toBe("application/octet-stream");
-    expect(response.headers.get("content-disposition")).toBe("");
+    expect(response.headers.get("content-disposition")).toBe("attachment");
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+  });
+
+  it.each(["text/html", "image/svg+xml", "application/xhtml+xml"])(
+    "forces a download for %s rather than rendering it on this origin",
+    async (type) => {
+      // This route serves PDFs and spreadsheets on purpose, so it cannot refuse a
+      // non-image - but a type that could execute on the app's own origin is saved,
+      // never shown inline, whatever disposition the backend chose (#702).
+      serve("<script>fetch('/api/v1/users/me')</script>", {
+        headers: { "content-type": type, "content-disposition": "inline" },
+      });
+
+      const response = await readFile(request("http://localhost:3000/api/files/f-1"), params);
+
+      expect(response.headers.get("content-disposition")).toBe("attachment");
+      expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    },
+  );
+
+  it("renders a PDF inline, keeping the backend's disposition", async () => {
+    serve("%PDF-1.7", {
+      headers: { "content-type": "application/pdf", "content-disposition": "inline" },
+    });
+
+    const response = await readFile(request("http://localhost:3000/api/files/f-1"), params);
+
+    expect(response.headers.get("content-disposition")).toBe("inline");
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
   });
 
   it("refuses without a session, and reports what the backend refused", async () => {
@@ -313,18 +343,34 @@ describe("avatars", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
 
-  it("assumes a JPEG when the backend named no type", async () => {
-    serve("bytes", { headers: { "content-type": "" } });
+  it("pins the image type it serves and turns sniffing off", async () => {
+    serve("png-bytes", { headers: { "content-type": "image/png; charset=binary" } });
 
     const response = await userAvatar(
       request(`http://localhost:3000/api/users/avatar/${AVATAR_USER}`),
-      {
-        params: Promise.resolve({ userId: AVATAR_USER }),
-      },
+      { params: Promise.resolve({ userId: AVATAR_USER }) },
     );
 
-    expect(response.headers.get("content-type")).toBe("image/jpeg");
+    expect(response.headers.get("content-type")).toBe("image/png");
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
   });
+
+  it.each(["text/html", "image/svg+xml", "application/xhtml+xml", ""])(
+    "refuses to serve %s as an avatar",
+    async (type) => {
+      // Served from the app's own origin under a CSP that allows inline script,
+      // and the file was accepted on a declared type, not its bytes (#702). An
+      // unnamed type is refused too rather than defaulted to an image.
+      serve("<script>fetch('/api/v1/users/me')</script>", { headers: { "content-type": type } });
+
+      const response = await userAvatar(
+        request(`http://localhost:3000/api/users/avatar/${AVATAR_USER}`),
+        { params: Promise.resolve({ userId: AVATAR_USER }) },
+      );
+
+      expect(response.status).toBe(502);
+    },
+  );
 
   it("answers with nothing at all for a person who has no picture", async () => {
     // An empty body rather than a JSON error: this URL is an `<img src>`, and a
@@ -452,15 +498,32 @@ describe("avatars", () => {
     expect(response.headers.get("cache-control")).toBe("private, max-age=30");
   });
 
-  it("assumes a JPEG for an organization avatar with no type", async () => {
-    serve("bytes", { headers: { "content-type": "" } });
+  it("pins the organization avatar's image type and turns sniffing off", async () => {
+    serve("bytes", { headers: { "content-type": "image/webp; charset=binary" } });
 
     const response = await orgAvatar(request("http://localhost:3000/api/orgs/org-1/avatar"), {
       params: Promise.resolve({ id: "org-1" }),
     });
 
-    expect(response.headers.get("content-type")).toBe("image/jpeg");
+    expect(response.headers.get("content-type")).toBe("image/webp");
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
   });
+
+  it.each(["text/html", "image/svg+xml", "application/xhtml+xml", ""])(
+    "refuses to serve %s as an organization avatar",
+    async (type) => {
+      // The backend guesses this type from the stored filename's suffix, so a
+      // stored `x.html` arrives as `text/html` - a script on the app's own origin
+      // rather than a picture (#702). An unnamed type is refused too.
+      serve("<script>fetch('/api/v1/orgs')</script>", { headers: { "content-type": type } });
+
+      const response = await orgAvatar(request("http://localhost:3000/api/orgs/org-1/avatar"), {
+        params: Promise.resolve({ id: "org-1" }),
+      });
+
+      expect(response.status).toBe(502);
+    },
+  );
 
   it("refuses an organization avatar without a session, and reports a missing one", async () => {
     const anonymous = await orgAvatar(

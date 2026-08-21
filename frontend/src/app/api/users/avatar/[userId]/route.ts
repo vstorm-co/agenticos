@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { IMAGE_TYPES, baseContentType } from "@/lib/proxy-content-type";
+
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
 // The backend signature is `user_id: UUID`, so anything else is a bad request
@@ -31,13 +33,22 @@ export async function GET(
       return new NextResponse(null, { status: response.status });
     }
 
+    // Pinned to an image type rather than echoed. This response is served from
+    // the app's own origin, whose CSP allows inline script, and the file behind
+    // it was accepted on a declared Content-Type, never its bytes (#702). An
+    // unnamed type is refused too: a default of image/jpeg over unknown bytes is
+    // a guess this route has no reason to make.
+    const contentType = baseContentType(response.headers.get("content-type"));
+    if (!IMAGE_TYPES.has(contentType)) {
+      return new NextResponse(null, { status: 502 });
+    }
     const imageBuffer = await response.arrayBuffer();
-    const contentType = response.headers.get("content-type") || "image/jpeg";
 
     return new NextResponse(imageBuffer, {
       headers: {
         "Content-Type": contentType,
         "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
       },
     });
   } catch {
