@@ -97,17 +97,23 @@ gets the file instead of the text:
 
 | Attachment | No workspace | With a workspace |
 |---|---|---|
-| text, csv, md, json | parsed text pasted inline | written to `/uploads/`, message carries a reference and a 20-line head |
-| pdf, docx, spreadsheet | parsed text pasted inline | the original **and** a `.txt` beside it; reference |
+| text, csv, md, json | parsed text pasted inline | written to `uploads/`, message carries a reference and a 20-line head |
+| pdf, docx, spreadsheet | parsed text pasted inline | written to `uploads/` as itself; reference and a 20-line head |
 | image | `BinaryContent` | `BinaryContent` **and** written; reference names the path |
 
-**A spreadsheet in a workspace is not a spreadsheet an agent can open**, which is
-why it is parsed here rather than handed over as bytes. `run_python` has no
-filesystem — it is for arithmetic — the workspace shell has no spreadsheet library,
-and `read_file` on a zip of XML returns mojibake. The `.txt` beside the original is
-the readable half, exactly as it is for a PDF. Accepting the upload without parsing
-it would reach an agent with a workspace as unreadable bytes and an agent without
-one as nothing at all, which is worse than the refusal it replaced.
+**The file arrives as itself, with nothing beside it.** A `.txt` of the parse
+used to be written next to every PDF, `.docx` and spreadsheet, on the reasoning
+that a shell has no library for any of them — `read_file` on an `.xlsx` returns
+mojibake, and `run_python` has no filesystem at all. The runtime answers that
+better than a sibling did: `lit parse q3.xlsx -o q3.md` is one command, with OCR
+for a scan and LibreOffice for the legacy formats (`sandbox.md`). A second copy of
+the file's contents on disk, to save the agent a tool call it should be making, is
+what that mechanism was.
+
+Parsing still happens server-side, because the *text* is what an agent with no
+workspace gets and what the 20-line head in the message comes from. Accepting the
+upload without parsing would reach an agent with a workspace as unreadable bytes
+and an agent without one as nothing at all.
 
 The reference is what the model actually reads:
 

@@ -142,7 +142,6 @@ class TestWithAWorkspace:
         await AttachmentRouter(backend).build_prompt("summarise", [chat_file])
 
         assert backend.exists(workspace_path(chat_file))
-        assert backend.exists(f"{workspace_path(chat_file)}.txt")
 
     async def test_the_same_file_on_a_later_turn_is_not_written_again(self, storage):
         """Otherwise an upload costs one write per turn for the whole chat."""
@@ -332,38 +331,30 @@ class TestWhatTheModelIsToldAboutAPath:
 
         assert f"in your workspace at {workspace_path(chat_file)}" in prompt
 
-    async def test_the_extracted_text_beside_a_pdf_is_named(self, storage):
-        # Written since the workspace existed and never mentioned: a shell has no
-        # PDF library, so that sibling is the only half it can read.
+    async def test_a_pdf_arrives_as_itself_and_nothing_beside_it(self, storage):
+        """The workspace used to get a `.txt` of the parse next to every PDF,
+        `.docx` and spreadsheet. The runtime has `lit` - one command to markdown,
+        OCR included - so that was a second copy of the file's contents on disk
+        to save the agent a tool call it should be making."""
         chat_file = _file(filename="report.pdf", file_type="pdf", parsed_content="page one")
         backend = _workspace()
 
         prompt = await AttachmentRouter(backend).build_prompt("read it", [chat_file])
 
-        assert backend.exists(f"{workspace_path(chat_file)}.txt")
-        assert f"beside it at {workspace_path(chat_file)}.txt" in prompt
+        assert f"in your workspace at {workspace_path(chat_file)}" in prompt
+        assert not backend.exists(f"{workspace_path(chat_file)}.txt")
+        assert "beside it at" not in prompt
 
-    async def test_a_file_re_attached_still_has_its_text_named(self, storage):
-        """The write is skipped on a later turn, and the sibling is still there.
-
-        Keyed on whether *this* turn wrote it, the reference stopped naming a file
-        that had not gone anywhere.
-        """
-        chat_file = _file(filename="report.pdf", file_type="pdf", parsed_content="page one")
+    async def test_a_spreadsheet_gets_no_sibling_either(self, storage):
+        """The one that made the old argument sound strongest - `.xlsx` in a shell
+        is a zip of XML - and `lit` reads it, through the LibreOffice the runtime
+        now carries."""
+        chat_file = _file(filename="q3.xlsx", file_type="spreadsheet", parsed_content="a,b")
         backend = _workspace()
+
         await AttachmentRouter(backend).build_prompt("read it", [chat_file])
 
-        prompt = await AttachmentRouter(backend).build_prompt("again", [chat_file])
-
-        assert f"beside it at {workspace_path(chat_file)}.txt" in prompt
-
-    async def test_a_plain_text_file_is_named_without_inventing_a_sibling(self, storage):
-        chat_file = _file(filename="notes.txt", file_type="text", parsed_content="hello")
-
-        prompt = await AttachmentRouter(_workspace()).build_prompt("read it", [chat_file])
-
-        assert f"in your workspace at {workspace_path(chat_file)}" in prompt
-        assert "beside it at" not in prompt
+        assert not backend.exists(f"{workspace_path(chat_file)}.txt")
 
     async def test_an_image_is_told_where_it_is_as_well_as_shown(self, storage):
         # Both, and the path is the half that lets it be resized, converted or read

@@ -119,19 +119,6 @@ def _pasted(chat_file: ChatFile) -> str:
     return f"\n---\nAttached file: {chat_file.filename}\n```\n{chat_file.parsed_content}\n```"
 
 
-def _text_sibling(chat_file: ChatFile, path: str) -> str | None:
-    """Where this file's extracted text sits, when one was written beside it.
-
-    Derived from the file rather than from whether *this* turn did the writing:
-    re-attaching a file on a later turn skips the write, and a reference that only
-    named the sibling on the turn that created it would stop naming a file that is
-    still there.
-    """
-    if chat_file.file_type in {"pdf", "docx", "spreadsheet"} and chat_file.parsed_content:
-        return f"{path}.txt"
-    return None
-
-
 def _referenced(chat_file: ChatFile, path: str) -> str:
     """What the model is told about a file that is in its workspace.
 
@@ -141,21 +128,18 @@ def _referenced(chat_file: ChatFile, path: str) -> str:
     empty" after one `ls`, on a file it had summarised a turn earlier. Where it is
     gets its own clause (#1039).
 
-    **And the extracted text is named.** A PDF, a `.docx` and a spreadsheet get
-    their text written beside them, and nothing ever said so - so a model holding
-    `report.pdf` in a shell had bytes it has no tool for while the readable half
-    sat next to it, unmentioned. `run_python` has no filesystem and the workspace
-    shell has no PDF library, which makes that sibling the only half a shell can
-    read.
+    **The file, and nothing beside it.** A `.txt` of the parse used to be written
+    next to a PDF, a `.docx` and a spreadsheet, on the reasoning that a shell has
+    no library for any of them. The runtime has `lit` - one command to markdown,
+    OCR included - so the sibling was a second copy of the file's contents on
+    disk to save the agent a tool call it should be making. Gone. What the shell
+    cannot read, `lit` reads.
     """
     parts = [
         f"\n---\nAttached file: {chat_file.filename} "
         f"({_size(chat_file)}, {chat_file.file_type}), "
         f"in your workspace at {path}"
     ]
-    sibling = _text_sibling(chat_file, path)
-    if sibling is not None:
-        parts.append(f"\nIts text, extracted for you, is beside it at {sibling}")
     if chat_file.parsed_content:
         parts.append(f"\nFirst {HEAD_LINES} lines:\n```\n{_head(chat_file.parsed_content)}\n```")
     return "".join(parts)
@@ -344,7 +328,6 @@ class AttachmentRouter:
                 if chat_file.file_type == "image":
                     return await self._without_workspace(chat_file)
                 return AttachmentPlan(reference=_unstored(chat_file), inline=None)
-            await self._write_extracted_text(backend, chat_file, path)
 
         if chat_file.file_type != "image":
             return AttachmentPlan(reference=_referenced(chat_file, path), inline=None)
@@ -352,27 +335,6 @@ class AttachmentRouter:
             reference=_referenced(chat_file, path),
             inline=await self._inline_image(chat_file, data),
         )
-
-    async def _write_extracted_text(
-        self, backend: AsyncBackendProtocol, chat_file: ChatFile, path: str
-    ) -> None:
-        """Put the parse beside the original, for a format a shell cannot read.
-
-        A PDF in a workspace is bytes an agent has no tool for; the text this
-        platform already extracted is the useful half. Both are kept, because
-        the original is what a person asked to be given and what an image
-        conversion or a page count needs.
-
-        A spreadsheet is the same case and it is worth saying why, because the
-        obvious assumption is that an agent given the file can open it: it cannot.
-        `run_python` has no filesystem at all - it is for arithmetic - and the
-        workspace shell has no spreadsheet library, so `.xlsx` in a workspace is a
-        zip of XML that `read_file` returns as mojibake. The `.txt` beside it is
-        the only readable half.
-        """
-        sibling = _text_sibling(chat_file, path)
-        if sibling is not None and chat_file.parsed_content:
-            await backend.write(sibling, chat_file.parsed_content)
 
     async def _inline_image(self, chat_file: ChatFile, data: bytes | None) -> BinaryContent | None:
         """The picture itself, when it is small enough to be worth sending twice.
