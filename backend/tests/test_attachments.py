@@ -331,30 +331,44 @@ class TestWhatTheModelIsToldAboutAPath:
 
         assert f"in your workspace at {workspace_path(chat_file)}" in prompt
 
-    async def test_a_pdf_arrives_as_itself_and_nothing_beside_it(self, storage):
+    async def test_a_runtime_that_can_read_the_file_gets_no_copy_beside_it(self, storage):
         """The workspace used to get a `.txt` of the parse next to every PDF,
-        `.docx` and spreadsheet. The runtime has `lit` - one command to markdown,
-        OCR included - so that was a second copy of the file's contents on disk
-        to save the agent a tool call it should be making."""
+        `.docx` and spreadsheet. On a runtime carrying `lit` - one command to
+        markdown, OCR included - that is a second copy of the file's contents on
+        disk to save the agent a tool call it should be making."""
         chat_file = _file(filename="report.pdf", file_type="pdf", parsed_content="page one")
         backend = _workspace()
 
-        prompt = await AttachmentRouter(backend).build_prompt("read it", [chat_file])
+        prompt = await AttachmentRouter(backend, can_parse=True).build_prompt(
+            "read it", [chat_file]
+        )
 
         assert f"in your workspace at {workspace_path(chat_file)}" in prompt
         assert not backend.exists(f"{workspace_path(chat_file)}.txt")
         assert "beside it at" not in prompt
 
-    async def test_a_spreadsheet_gets_no_sibling_either(self, storage):
-        """The one that made the old argument sound strongest - `.xlsx` in a shell
-        is a zip of XML - and `lit` reads it, through the LibreOffice the runtime
-        now carries."""
+    async def test_a_workspace_that_cannot_read_it_keeps_the_extracted_text(self, storage):
+        """A `state` workspace is files with no shell, so there is no `lit` and no
+        anything: without the sibling an agent has the first twenty lines in its
+        prompt and an unreadable binary on disk. A Daytona sandbox and somebody's
+        own runtime are the same case - their image is not ours."""
+        chat_file = _file(filename="report.pdf", file_type="pdf", parsed_content="page one")
+        backend = _workspace()
+
+        prompt = await AttachmentRouter(backend).build_prompt("read it", [chat_file])
+
+        assert backend.exists(f"{workspace_path(chat_file)}.txt")
+        assert f"beside it at {workspace_path(chat_file)}.txt" in prompt
+
+    async def test_a_spreadsheet_is_the_case_that_makes_it_matter(self, storage):
+        """`.xlsx` in a workspace with no shell is a zip of XML that `read_file`
+        returns as mojibake."""
         chat_file = _file(filename="q3.xlsx", file_type="spreadsheet", parsed_content="a,b")
         backend = _workspace()
 
         await AttachmentRouter(backend).build_prompt("read it", [chat_file])
 
-        assert not backend.exists(f"{workspace_path(chat_file)}.txt")
+        assert backend.exists(f"{workspace_path(chat_file)}.txt")
 
     async def test_an_image_is_told_where_it_is_as_well_as_shown(self, storage):
         # Both, and the path is the half that lets it be resized, converted or read
@@ -472,3 +486,47 @@ class TestWhatTheModelIsToldAboutAFailedWrite:
 
         assert isinstance(prompt, str)
         assert "Do not guess at why" in prompt
+
+
+class TestWhenTheWorkspaceWillNotTakeAWrite:
+    """Said once, about the machine, where every other line is about a file.
+
+    A run whose workspace refuses a write is a run whose shell and file tools will
+    fail too, and nothing told the model that: it read each failure as a problem
+    with the command it had just written and kept trying - `ls`, then a `curl` of a
+    `data:` URI, then three workarounds offered to the person, across two turns
+    and 57k tokens (#1046).
+    """
+
+    async def test_the_turn_is_told_the_workspace_is_unavailable(self, storage):
+        chat_file = _file()
+
+        prompt = await AttachmentRouter(_workspace(max_bytes=1)).build_prompt("go", [chat_file])
+
+        assert isinstance(prompt, str)
+        assert "would not accept a write this turn" in prompt
+        assert "another attempt will fail the same way" in prompt
+
+    async def test_it_is_said_once_however_many_files_were_refused(self, storage):
+        """Once about the workspace, not once per file: three attachments is one
+        broken machine, not three."""
+        files = [_file(), _file(filename="second.pdf"), _file(filename="third.pdf")]
+
+        prompt = await AttachmentRouter(_workspace(max_bytes=1)).build_prompt("go", files)
+
+        assert isinstance(prompt, str)
+        assert prompt.count("would not accept a write this turn") == 1
+
+    async def test_nothing_is_said_when_every_write_landed(self, storage):
+        prompt = await AttachmentRouter(_workspace()).build_prompt("go", [_file()])
+
+        assert isinstance(prompt, str)
+        assert "would not accept a write" not in prompt
+
+    async def test_an_agent_with_no_workspace_is_told_nothing_about_one(self, storage):
+        """It has no workspace to be unavailable, and the reference already says the
+        file is inline rather than on disk."""
+        prompt = await AttachmentRouter(None).build_prompt("go", [_file()])
+
+        assert isinstance(prompt, str)
+        assert "would not accept a write" not in prompt

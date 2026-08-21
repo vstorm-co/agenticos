@@ -107,6 +107,25 @@ class WorkspaceOverview:
     access_label: str
 
 
+NOT_BROWSABLE = ("skills/", f"{OVERFLOW_PREFIX}/")
+"""Prefixes the file browser drops, matched after the leading slash.
+
+Both are the platform's own writing rather than the agent's work for a person, and
+both are needed on disk: a skill's resource is a script the shell runs and
+`collect_changes` diffs, and a spill is what a tool's overflowing output was
+written to. A listing of what an agent is keeping is not the place either belongs -
+`/workspaces` was mostly `skills/<name>/SKILL.md` before this (#1064)."""
+
+
+def browsable(entries: list[FileInfo]) -> list[FileInfo]:
+    """The entries a person is shown, without what the platform put there itself."""
+    return [
+        entry
+        for entry in entries
+        if not str(entry.get("path", "")).lstrip("/").startswith(NOT_BROWSABLE)
+    ]
+
+
 @dataclass(frozen=True)
 class MeasuredWorkspaces:
     """File counts and byte totals for a listing, and what it cost to get them."""
@@ -806,7 +825,7 @@ class SandboxWorkspaceService:
             if contents.unreadable_reason is not None:
                 unreadable += 1
                 continue
-            files = [entry for entry in contents.entries if not entry.get("is_dir")]
+            files = browsable([entry for entry in contents.entries if not entry.get("is_dir")])
             counts[row.id] = (
                 len(files),
                 sum(int(entry.get("size") or 0) for entry in files),
@@ -841,23 +860,41 @@ class SandboxWorkspaceService:
         overviews = await self.visible_to(ctx)
         files: list[FlatEntry] = []
         unreadable = 0
+        # A budget across the whole request, not per workspace: a host's thumbnail
+        # is a `read_bytes` for that file, and twenty-five workspaces of photographs
+        # would be a page that fetches two hundred images to draw them 64 pixels
+        # wide. The tiles past it fall back to the grey glyph, which is what every
+        # container-backed image looked like before.
+        budget = HOST_THUMBNAIL_BUDGET
         for overview in overviews[:limit]:
             contents = await self._entries(ctx, overview.row)
             if contents.unreadable_reason is not None:
                 unreadable += 1
                 continue
-            stored = dict(overview.row.files or {}) if overview.row.backend == "state" else {}
+            entries = browsable([entry for entry in contents.entries if not entry.get("is_dir")])
+            if overview.row.backend == "state":
+                stored = dict(overview.row.files or {})
+                files.extend(
+                    FlatEntry(
+                        overview=overview,
+                        info=entry,
+                        preview=stored_preview(stored.get(str(entry.get("path")))),
+                        thumbnail=stored_thumbnail(
+                            str(entry.get("path")), stored.get(str(entry.get("path")))
+                        ),
+                    )
+                    for entry in entries
+                )
+                continue
+            drawn, budget = await self._host_thumbnails(ctx, overview.row, entries, budget)
             files.extend(
                 FlatEntry(
                     overview=overview,
                     info=entry,
-                    preview=stored_preview(stored.get(str(entry.get("path")))),
-                    thumbnail=stored_thumbnail(
-                        str(entry.get("path")), stored.get(str(entry.get("path")))
-                    ),
+                    preview=None,
+                    thumbnail=drawn.get(str(entry.get("path"))),
                 )
-                for entry in contents.entries
-                if not entry.get("is_dir")
+                for entry in entries
             )
         return FlatFileListing(
             files=files,
@@ -865,6 +902,48 @@ class SandboxWorkspaceService:
             unreadable=unreadable,
             truncated=len(overviews) > limit,
         )
+
+    async def _host_thumbnails(
+        self,
+        ctx: AuthContext,
+        row: AgentWorkspace,
+        entries: list[FileInfo],
+        budget: int,
+    ) -> tuple[dict[str, str], int]:
+        """Thumbnails for a host's images, within what is left of the budget.
+
+        A stored image arrives base64 in the document this listing already read, so
+        drawing it costs nothing; a host's is a `read_bytes` for that one file. So
+        this is bounded and the size is checked *before* fetching, off the listing
+        entry - a 20 MB photograph would be read in full to be thrown away by the
+        scaler's own ceiling.
+
+        Failure is silence. A file whose suffix says PNG and whose bytes are not
+        one, or a host that stops answering mid-grid, leaves that tile with the
+        glyph every container-backed image had before this existed.
+        """
+        drawn: dict[str, str] = {}
+        for entry in entries:
+            if budget <= 0:
+                break
+            path = str(entry.get("path"))
+            if PurePosixPath(path).suffix.lower() not in THUMBNAIL_SUFFIXES:
+                continue
+            size = entry.get("size")
+            if size is None or int(size) > THUMBNAIL_SOURCE_LIMIT:
+                continue
+            budget -= 1
+            try:
+                raw = await self._read_bytes_from(ctx, row, path)
+            except Exception:
+                logger.warning("workspace_thumbnail_unreadable", extra={"path": path})
+                continue
+            if raw is None:
+                continue
+            scaled = thumbnail_of(path, raw)
+            if scaled is not None:
+                drawn[path] = scaled
+        return drawn, budget
 
     async def files_of(
         self, ctx: AuthContext, workspace_id: UUID
@@ -889,7 +968,11 @@ class SandboxWorkspaceService:
             raise NotFoundError(
                 message="Workspace not found", details={"workspace_id": str(workspace_id)}
             )
-        return row, await self._entries(ctx, row)
+        contents = await self._entries(ctx, row)
+        return row, WorkspaceContents(
+            entries=browsable(contents.entries),
+            unreadable_reason=contents.unreadable_reason,
+        )
 
     async def _may_read(self, ctx: AuthContext, row: AgentWorkspace) -> bool:
         """Whether this caller reaches one workspace by id.
@@ -1045,7 +1128,11 @@ class SandboxWorkspaceService:
         if not rows:
             return None
         row = rows[0]
-        return row, await self._entries(ctx, row)
+        contents = await self._entries(ctx, row)
+        return row, WorkspaceContents(
+            entries=browsable(contents.entries),
+            unreadable_reason=contents.unreadable_reason,
+        )
 
     async def _entries(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
         if row.backend == "state":
@@ -1292,6 +1379,13 @@ def stored_preview(data: FileData | None) -> str | None:
 THUMBNAIL_BOX = (160, 128)
 """Twice the card's 64px band, so the tile is not soft on a retina screen."""
 
+HOST_THUMBNAIL_BUDGET = 24
+"""How many host-backed images one flat listing will fetch to draw.
+
+A stored image is already in the document the listing reads; a host's is a
+`read_bytes` per file. Twenty-four is one screen of tiles - past it the grey glyph
+is what a container-backed image looked like before any of them were drawn."""
+
 THUMBNAIL_SOURCE_LIMIT = 4 * 1024 * 1024
 """The largest stored image this will decode.
 
@@ -1350,13 +1444,24 @@ def stored_thumbnail(path: str, data: FileData | None) -> str | None:
     """
     if data is None or data.get("encoding") != "base64":
         return None
-    if PurePosixPath(path).suffix.lower() not in THUMBNAIL_SUFFIXES:
-        return None
     content = data.get("content") or []
     try:
         raw = base64.b64decode("".join(str(line) for line in content), validate=True)
     except (BinasciiError, ValueError):
         logger.warning("workspace_thumbnail_undecodable", extra={"path": path})
+        return None
+    return thumbnail_of(path, raw)
+
+
+def thumbnail_of(path: str, raw: bytes) -> str | None:
+    """An image's bytes scaled to a data URI, wherever they came from.
+
+    Split out of `stored_thumbnail` so a container-backed file can be drawn too.
+    A stored one arrives base64 in the document the listing already read; a host's
+    is a `read_bytes` per file, which is why the caller counts them - see
+    `_host_thumbnails`.
+    """
+    if PurePosixPath(path).suffix.lower() not in THUMBNAIL_SUFFIXES:
         return None
     if len(raw) > THUMBNAIL_SOURCE_LIMIT:
         return None

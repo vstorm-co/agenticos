@@ -13,7 +13,7 @@ import {
 
 import { FileContent, FileIcon } from "@/components/files";
 import { Badge, Button, Input, Skeleton } from "@/components/ui";
-import { resolveFileKind } from "@/lib/file-kinds";
+import { hasSourceView, resolveFileKind } from "@/lib/file-kinds";
 import { useWorkspaceFiles } from "@/hooks";
 import { cn, formatBytes } from "@/lib/utils";
 import { workspaceFileAccess, type FileSource } from "@/lib/workspace-files";
@@ -303,9 +303,11 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
                 <span className="text-muted-foreground shrink-0 text-[11px]">
                   {chosen.size == null ? "—" : formatBytes(chosen.size)}
                 </span>
-                {/* Only where there are two renderings to choose between: the toggle
-                    on a PNG or a spreadsheet would offer the same thing twice. */}
-                {kind === "markdown" && (
+                {/* Every format with two renderings, which `hasSourceView` is the
+                    one answer to - HTML, CSV and JSON all have tags, delimiters or
+                    unformatted text worth reading, and limiting this to markdown
+                    took that away from the surface that replaced `FileViewer`. */}
+                {hasSourceView(kind) && (
                   <Button
                     variant="ghost"
                     size="sm"

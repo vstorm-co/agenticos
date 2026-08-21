@@ -18,6 +18,7 @@ import type { Permission } from "@/types/permissions";
  */
 
 const state = vi.hoisted(() => ({
+  local: null as { url: string; reachable: boolean; token_available: boolean } | null,
   permissions: [] as Permission[],
   create: { mutate: vi.fn(), isPending: false },
   secrets: [] as { id: string; name: string; kind: string }[],
@@ -27,7 +28,7 @@ const state = vi.hoisted(() => ({
 vi.mock("@/hooks", () => ({
   useSecrets: () => ({ secrets: state.secrets, create: state.create }),
   useLocalSandboxService: () => ({
-    local: null,
+    local: state.local,
     runtimes: [],
     isLoading: false,
     storeCredential: vi.fn(),
@@ -50,6 +51,7 @@ function mount() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.local = null;
   state.permissions = [Perm.connectionsManage, Perm.secretsEdit];
   state.create = { mutate: vi.fn(), isPending: false };
   state.secrets = [];
@@ -92,14 +94,37 @@ describe("asking the host what it allows", () => {
     state.secrets = [{ id: "s-1", name: "Sandbox token", kind: "api_key" }];
   });
 
-  it("asks as soon as there is an address and a credential", async () => {
+  it("asks the address this deployment reported, once there is a credential", async () => {
+    // The prefilled one, which the backend found by probing its own compose file.
+    state.local = { url: "http://sandboxd:8080", reachable: true, token_available: false };
     mount();
 
-    await userEvent.type(screen.getByLabelText("Address"), "http://sandboxd:8080");
     await userEvent.click(screen.getByLabelText("Credential"));
     await userEvent.click(await screen.findByRole("option", { name: /Sandbox token/ }));
 
     await waitFor(() => expect(state.probe).toHaveBeenCalledWith("http://sandboxd:8080", "s-1"));
+  });
+
+  it("does not send the credential to an address somebody typed", async () => {
+    // `X-Sandbox-Token` on a sandbox host is root-equivalent: it starts containers
+    // there. Asking automatically about a typed or pasted address discloses it
+    // before anybody decided to, and debouncing only delays that. Found by the
+    // review on #1040.
+    state.local = { url: "http://sandboxd:8080", reachable: true, token_available: false };
+    mount();
+
+    await userEvent.clear(screen.getByLabelText("Address"));
+    await userEvent.type(screen.getByLabelText("Address"), "http://attacker.example");
+    await userEvent.click(screen.getByLabelText("Credential"));
+    await userEvent.click(await screen.findByRole("option", { name: /Sandbox token/ }));
+
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    expect(state.probe).not.toHaveBeenCalled();
+
+    // The button is how that host gets asked, which is a decision somebody made.
+    await userEvent.click(screen.getByRole("button", { name: "Test and check this host" }));
+
+    expect(state.probe).toHaveBeenCalledWith("http://attacker.example", "s-1");
   });
 
   it("asks nothing with only half of what it needs", async () => {

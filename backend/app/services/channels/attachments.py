@@ -64,7 +64,17 @@ platform-side rejection arrives as an opaque API error the agent cannot act on."
 # organizational know-how materialised for the run, and `/tool_output` is a
 # spilled tool return `tool_output_limits` parked for the model to page through -
 # an internal artefact, not an answer (#803).
-_NOT_THE_AGENTS = ("/uploads/", "/skills/", f"/{OVERFLOW_PREFIX}/")
+_NOT_THE_AGENTS = ("uploads/", "skills/", f"{OVERFLOW_PREFIX}/")
+"""Prefixes a reply must not post back, matched after the leading slash is
+stripped.
+
+**Both spellings, because the two backends disagree about the leading slash.** A
+stored workspace's paths begin with `/`; a container's come back from the host's
+`ls` relative - `uploads/8b1e-report.pdf` - so a tuple of `/uploads/` matched the
+first and not the second. The snapshot is taken before the attachment router
+writes, so an upload looks like a file the turn produced, and this is the only
+thing standing between that and a channel reply posting somebody's own PDF back
+at them as the agent's work."""
 
 
 @dataclass(frozen=True)
@@ -244,7 +254,7 @@ async def files_written(
     refused: list[str] = []
 
     for path in new:
-        if path.startswith(_NOT_THE_AGENTS):
+        if path.lstrip("/").startswith(_NOT_THE_AGENTS):
             continue
         if len(attachments) >= MAX_OUTBOUND_FILES:
             refused.append(path)

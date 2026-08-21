@@ -3282,3 +3282,206 @@ class TestWalkingAHostsDirectories:
         await SandboxWorkspaceService(mock_db_session).listing(_ctx(), conversation_id=uuid4())
 
         assert len(asked) == 6
+
+
+class TestDrawingAHostsImages:
+    """A container-backed image is a picture on its tile, not a grey glyph.
+
+    A stored image arrives base64 in the document the listing already read, so
+    drawing it costs nothing. A host's is a `read_bytes` for that one file, which
+    is why this is bounded and why the size is checked before the fetch.
+    """
+
+    @staticmethod
+    def _png(size: tuple[int, int] = (8, 8)) -> bytes:
+        from io import BytesIO
+
+        from PIL import Image
+
+        out = BytesIO()
+        Image.new("RGB", size, "red").save(out, format="PNG")
+        return out.getvalue()
+
+    def _host(self, monkeypatch, entries, bytes_by_path, read: list[str]):
+        from pydantic_ai_backends import remote as remote_module
+
+        png = self._png()
+
+        class _Archive:
+            def __init__(self, url, token=""):
+                pass
+
+            def ls(self, session_id, path="."):
+                return entries if path == "." else []
+
+            def read_bytes(self, session_id, file_path):
+                read.append(file_path)
+                return bytes_by_path.get(file_path, png)
+
+            def close(self):
+                pass
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+
+    async def test_an_image_on_a_host_is_scaled_for_its_tile(self, monkeypatch, mock_db_session):
+        from app.repositories import agent as agent_repo
+
+        read: list[str] = []
+        self._host(
+            monkeypatch,
+            [{"path": "chart.png", "name": "chart.png", "is_dir": False, "size": 120}],
+            {},
+            read,
+        )
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="xc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        [file] = listing.files
+        assert file.thumbnail is not None
+        assert file.thumbnail.startswith("data:image/webp;base64,")
+        assert read == ["chart.png"]
+
+    async def test_a_file_that_is_not_an_image_is_never_fetched(self, monkeypatch, mock_db_session):
+        """The suffix decides before anything is read: a 4 MB CSV fetched to be
+        rejected by the scaler is a round trip for nothing."""
+        from app.repositories import agent as agent_repo
+
+        read: list[str] = []
+        self._host(
+            monkeypatch,
+            [{"path": "runs.csv", "name": "runs.csv", "is_dir": False, "size": 120}],
+            {},
+            read,
+        )
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="xc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        assert listing.files[0].thumbnail is None
+        assert read == []
+
+    async def test_an_image_too_large_to_draw_is_not_read_either(
+        self, monkeypatch, mock_db_session
+    ):
+        """Checked off the listing entry rather than after the fetch: a 20 MB
+        photograph would be read in full to be thrown away by the ceiling."""
+        from app.repositories import agent as agent_repo
+
+        read: list[str] = []
+        self._host(
+            monkeypatch,
+            [{"path": "huge.png", "name": "huge.png", "is_dir": False, "size": 40 * 1024 * 1024}],
+            {},
+            read,
+        )
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="xc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        assert listing.files[0].thumbnail is None
+        assert read == []
+
+    async def test_the_budget_bounds_a_page_of_photographs(self, monkeypatch, mock_db_session):
+        """Twenty-five workspaces of images would otherwise be two hundred reads to
+        draw them 64 pixels wide."""
+        from app.repositories import agent as agent_repo
+        from app.services.sandbox_workspace import HOST_THUMBNAIL_BUDGET
+
+        read: list[str] = []
+        many = [
+            {"path": f"shot-{n}.png", "name": f"shot-{n}.png", "is_dir": False, "size": 120}
+            for n in range(HOST_THUMBNAIL_BUDGET + 5)
+        ]
+        self._host(monkeypatch, many, {}, read)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="xc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        assert len(read) == HOST_THUMBNAIL_BUDGET
+        assert sum(1 for file in listing.files if file.thumbnail is not None) == (
+            HOST_THUMBNAIL_BUDGET
+        )
+
+
+class TestWhatTheBrowserDoesNotShow:
+    """Skills and spills are on disk and out of the listings.
+
+    Both are the platform's own writing rather than an agent's work for a person,
+    and both are needed where they are: a skill's resource is a script the shell
+    runs and `collect_changes` diffs, and a spill is where a tool's overflowing
+    output went. `/workspaces` was mostly `skills/<name>/SKILL.md` before this
+    (#1064) - which was the right complaint about the wrong thing, so the files
+    stayed and the browser stopped showing them.
+    """
+
+    async def test_a_conversations_files_are_the_conversations(self, monkeypatch, mock_db_session):
+        stored = StateBackend()
+        stored.write("/uploads/book.pdf", "a")
+        stored.write("/skills/code-review/SKILL.md", "b")
+        stored.write("/report.csv", "c")
+        row = _row(files=dict(stored.files))
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        found = await SandboxWorkspaceService(mock_db_session).listing(
+            _ctx(), conversation_id=uuid4()
+        )
+
+        assert found is not None
+        _, contents = found
+        assert sorted(str(entry.get("path")) for entry in contents.entries) == [
+            "/report.csv",
+            "/uploads/book.pdf",
+        ]
+
+    async def test_the_flat_view_leaves_them_out_too(self, monkeypatch, mock_db_session):
+        from app.repositories import agent as agent_repo
+
+        stored = StateBackend()
+        stored.write("/skills/code-review/checklist.md", "a")
+        stored.write("/summary.md", "b")
+        row = _row(files=dict(stored.files))
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        assert [str(file.info.get("path")) for file in listing.files] == ["/summary.md"]
+
+    async def test_they_are_not_counted_against_a_workspace_either(
+        self, monkeypatch, mock_db_session
+    ):
+        """A count of four where a person can see one is a count nobody can check."""
+        from app.repositories import agent as agent_repo
+
+        stored = StateBackend()
+        stored.write("/skills/code-review/SKILL.md", "a")
+        stored.write("/skills/code-review/checklist.md", "b")
+        stored.write("/summary.md", "c")
+        row = _row(files=dict(stored.files))
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+        service = SandboxWorkspaceService(mock_db_session)
+
+        overviews = await service.visible_to(_ctx())
+        counted = await service.measured(_ctx(), overviews, hosts=False)
+
+        assert counted.counts[row.id][0] == 1

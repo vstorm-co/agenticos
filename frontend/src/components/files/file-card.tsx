@@ -83,7 +83,15 @@ interface FileCardProps {
 const CARD = "border-border bg-card relative flex w-56 flex-col gap-1.5 rounded-lg border p-2";
 
 /** The chip. One row, one line of name, one line of type and size. */
-const CHIP = "border-border bg-card relative flex w-44 items-center gap-2 rounded-lg border p-1.5";
+/**
+ * The chip. One row, one line of name, one line of type and size.
+ *
+ * `shrink-0` because it is a direct child of a scrolling flex row: at the default
+ * `flex-shrink: 1` several chips compress instead of contributing to `scrollWidth`,
+ * so the row never overflows and the arrows never appear.
+ */
+const CHIP =
+  "border-border bg-card relative flex w-44 shrink-0 items-center gap-2 rounded-lg border p-1.5";
 
 export function FileCard({
   name,

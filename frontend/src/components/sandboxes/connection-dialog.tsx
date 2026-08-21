@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   Button,
@@ -146,37 +146,51 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
 
   const address = baseUrl.trim();
   const secretId = form.secretId;
+  // What the answer in flight was asked about. A probe cannot be cancelled, so an
+  // older host's reply arriving second used to overwrite the newer one's runtimes -
+  // and a runtime from the wrong service could then be selected and saved.
+  const asking = useRef<string | null>(null);
   const ask = useCallback(async () => {
+    const forWhom = `${address}\u0000${secretId ?? ""}`;
+    asking.current = forWhom;
     setTesting(true);
     setFailure(NO_FAILURE);
     try {
-      setAllowed((await probe(address, secretId)).runtimes);
+      const answer = await probe(address, secretId);
+      if (asking.current !== forWhom) return;
+      setAllowed(answer.runtimes);
     } catch (error) {
+      if (asking.current !== forWhom) return;
       setFailure(submitFailure(error, FORM, tErrors));
     } finally {
-      setTesting(false);
+      if (asking.current === forWhom) setTesting(false);
     }
   }, [address, secretId, probe, tErrors]);
 
   /**
-   * Ask as soon as there is something to ask with.
+   * Ask, but only the address this deployment reported itself.
    *
-   * The runtime list is what this deployment ships until a host has answered,
-   * and a service can have been started with a different allowlist - which the
-   * field marks, but only after somebody presses `Test`. So a form filled in and
-   * saved without pressing it registered a default the first tool call refuses,
-   * and the button that would have said so looked optional (#1039).
+   * The runtime list is what this deployment ships until a host has answered, and
+   * a service can have been started with a different allowlist - which the field
+   * marks, but only after somebody presses `Test`. So a form filled in and saved
+   * without pressing it registered a default the first tool call refuses, and the
+   * button that would have said so looked optional (#1039).
    *
-   * Debounced, because the address is typed: a request per keystroke would ask
-   * about `htt`, `http`, `http:` and be wrong about all of them. The explicit
-   * button stays - it is what an operator reaches for after restarting a service
-   * with a different allowlist, where nothing in this form has changed.
+   * **And a probe sends the vault credential to whatever address is in the box.**
+   * `X-Sandbox-Token` on a sandbox host is root-equivalent - it starts containers
+   * there - so asking automatically about a typed or pasted address means
+   * disclosing that token to it before anybody decided to. Debouncing does not
+   * make that safe; it only delays it. So the automatic ask is limited to the
+   * address the backend itself found (`local.url`), which is this project's own
+   * compose file, and every other host is asked when an operator presses the
+   * button. Found by the review on #1040.
    */
+  const knownAddress = local?.url ?? null;
   useEffect(() => {
-    if (!address || !secretId) return;
+    if (!address || !secretId || address !== knownAddress) return;
     const timer = setTimeout(() => void ask(), 600);
     return () => clearTimeout(timer);
-  }, [address, secretId, ask]);
+  }, [address, secretId, knownAddress, ask]);
 
   const usable = secrets.filter((secret) => secret.kind === "api_key");
 

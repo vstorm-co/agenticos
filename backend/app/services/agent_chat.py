@@ -371,7 +371,9 @@ class ChatAgentRunner:
 
         if attachments:
             router = AttachmentRouter(
-                prepared.workspace.backend if prepared.workspace is not None else None
+                prepared.workspace.backend if prepared.workspace is not None else None,
+                can_parse=prepared.workspace is not None
+                and prepared.workspace.briefing is not None,
             )
             user_input = await router.build_prompt(_as_text(user_input), attachments)
 

@@ -84,9 +84,12 @@ def _rendered(text: str) -> str:
     """
     found = _NETWORK_MODE.search(text)
     mode = "bridge" if found is not None and found.group(1) == "bridge" else "none"
-    # Single-quoted, because a YAML plain scalar may not open with `{` and the
-    # JSON itself holds no single quote to escape.
-    return f"{_INDENT}{_KEY}: '{compose_value(network_mode=mode)}'\n"
+    # Single-quoted, because a YAML plain scalar may not open with `{`. An
+    # apostrophe inside the JSON would end the scalar there, so it is doubled -
+    # YAML's own escape - which nothing in the catalogue needs today and a
+    # description reading `an agent's workspace` would need tomorrow.
+    quoted = compose_value(network_mode=mode).replace("'", "''")
+    return f"{_INDENT}{_KEY}: '{quoted}'\n"
 
 
 @command("sandbox-runtimes", help="Write the runtime allowlist into the compose files")
