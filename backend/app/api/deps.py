@@ -14,7 +14,7 @@ is why every write in this API used to be acknowledged before it was durable
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 
 from collections.abc import AsyncGenerator, Awaitable, Callable
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import Depends
 from fastapi import Header
@@ -266,10 +266,28 @@ from app.core.exceptions import (
     RateLimitError,
 )
 from app.services import rate_limit
+from app.core.audit import set_impersonator
 from app.core.security import verify_token
 from app.db.models.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
+
+
+def _impersonator_from(payload: dict[str, Any]) -> UUID | None:
+    """The administrator behind an impersonated token, or None for an ordinary one.
+
+    An `act` claim that is not a valid uuid is dropped rather than trusted: a
+    malformed actor is no actor, and the request is still attributable to its
+    subject. Set on the audit context so every action the request records names
+    who was really acting (#943).
+    """
+    act = payload.get("act")
+    if not act:
+        return None
+    try:
+        return UUID(str(act))
+    except ValueError:
+        return None
 
 
 async def get_current_user(
@@ -294,6 +312,8 @@ async def get_current_user(
     user_id = payload.get("sub")
     if user_id is None:
         raise AuthenticationError(message="Invalid token payload")
+
+    set_impersonator(_impersonator_from(payload))
 
     user = await user_service.get_by_id(UUID(user_id))
     if not user.is_active:
@@ -778,6 +798,8 @@ async def get_current_user_ws(
     user_id = payload.get("sub")
     if user_id is None:
         raise WebSocketException(code=4001, reason="Invalid token payload")
+
+    set_impersonator(_impersonator_from(payload))
 
     async with get_db_context() as db:
         user_service = UserService(db)

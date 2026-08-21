@@ -58,6 +58,29 @@ class TestKeepingWorkAlive:
 
         assert task.get_name() == "ingest-document-7"
 
+    async def test_a_spawned_task_does_not_inherit_the_impersonation_actor(self) -> None:
+        """A long-lived task started inside an impersonated request must not stamp
+        its own audit entries with that administrator - #943. The reset happens in
+        the task's copied context, so the caller's own actor is left intact."""
+        import uuid
+
+        from app.core.audit import current_impersonator, set_impersonator
+
+        admin = uuid.uuid4()
+        set_impersonator(admin)
+        try:
+            seen: list[uuid.UUID | None] = []
+
+            async def work() -> None:
+                seen.append(current_impersonator())
+
+            await background.spawn(work(), name="channel-poller")
+
+            assert seen == [None]
+            assert current_impersonator() == admin
+        finally:
+            set_impersonator(None)
+
 
 class TestWhatHappensWhenBackgroundWorkFails:
     async def test_a_failure_is_logged_because_there_is_no_caller_to_raise_into(
