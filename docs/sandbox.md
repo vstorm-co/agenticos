@@ -289,6 +289,15 @@ compose file uses, because that token starts containers on whatever host accepts
 it and a probe must never be a way to send it somewhere new. Every other address
 is asked with a key from the vault, and only when an operator presses the button.
 
+## When a container appears
+
+**On the first workspace operation, which is not the same as the agent's first
+tool call.** A run stages what somebody attached and materialises the agent's
+skills *before* the model is called, and either one opens the session lazily — so
+a container can exist for a turn in which the agent never reached for the shell.
+Worth knowing when reading a session list: a sandbox whose activity log holds
+nothing but writes is one nothing asked for yet.
+
 ## When a build is paid for
 
 `prewarm` is on, so the allowlist is pulled and built in the background **as the
