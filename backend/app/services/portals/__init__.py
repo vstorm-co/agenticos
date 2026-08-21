@@ -6,7 +6,13 @@ package-internal, resolved by key through the registry.
 
 from __future__ import annotations
 
-from app.services.portals.base import PortalAdapter, PortalTarget, RegisteredWebhook
+from app.services.portals.base import (
+    PolledEvent,
+    PolledEvents,
+    PortalAdapter,
+    PortalTarget,
+    RegisteredWebhook,
+)
 from app.services.portals.exceptions import (
     PortalError,
     PortalUnreachable,
@@ -16,6 +22,8 @@ from app.services.portals.exceptions import (
 from app.services.portals.registry import get_adapter
 
 __all__ = [
+    "PolledEvent",
+    "PolledEvents",
     "PortalAdapter",
     "PortalError",
     "PortalTarget",

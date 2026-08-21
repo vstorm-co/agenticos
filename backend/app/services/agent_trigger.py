@@ -36,7 +36,7 @@ import contextlib
 import json
 import logging
 import secrets
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, cast
@@ -116,19 +116,43 @@ def _connection_state(
 
 def _connect_blocked_by(
     portal: portal_catalog.PortalEntry, *, oauth_apps: int
-) -> Literal["oauth_app_secret", "ambiguous_oauth_app_secret"] | None:
+) -> Literal["oauth_app_secret", "ambiguous_oauth_app_secret", "oauth_unavailable"] | None:
     """Why this portal's connect flow cannot start, or `None` when it can.
 
-    Only GitHub's does: `oauth_start_for_org_github` spends the organization's own
-    OAuth App credentials, so with none stored the flow raises a `NotFoundError`
-    and with two org-visible ones it refuses rather than picking whichever name
-    sorts first. Both were learned by pressing Connect and reading a red toast;
-    the card can say it beforehand instead (#1068).
+    Three answers, and the third is the one that matters most because it stops the
+    product promising something it cannot do.
 
-    Every other portal is either connected some other way or needs no account, so
-    the answer is `None` - a portal that grows its own prerequisite adds a branch
-    here and a line of copy, not a new mechanism.
+    **`oauth_unavailable`** - the portal needs a connected account and this
+    deployment has no way to start one for it. A connection is staged on an MCP
+    catalog entry, so a portal with no `mcp_catalog_key` has nowhere to put a
+    grant: `google` is exactly that today, which is why two Gmail triggers could
+    be created against a mailbox nobody had connected and neither could ever fire
+    (#1068). It clears itself the day Gmail's OAuth lands, because the reason it
+    is set is the absence of the thing that would land.
+
+    **`oauth_app_secret`** and **`ambiguous_oauth_app_secret`** are GitHub's:
+    `oauth_start_for_org_github` spends the organization's own OAuth App
+    credentials, so with none stored the flow raises a `NotFoundError` and with two
+    org-visible ones it refuses rather than picking whichever name sorts first.
+    Both used to be learned by pressing Connect and reading a red toast.
+
+    A portal needing no account at all - the manual relay, where the *user* wires
+    the delivery - is never blocked.
     """
+    if portal.delivery is portal_catalog.DeliveryMode.MANUAL:
+        return None
+    if portal.delivery is portal_catalog.DeliveryMode.POLLING:
+        # A polled portal connects on the deployment's own client, so the only thing
+        # that can stop it is the deployment not having one configured. Said here so
+        # the card shows it as a prerequisite rather than the operator learning it
+        # from a 404 after pressing Connect.
+        return (
+            None
+            if settings.GOOGLE_CLIENT_ID and settings.GOOGLE_CLIENT_SECRET
+            else "oauth_unavailable"
+        )
+    if portal.mcp_catalog_key is None:
+        return "oauth_unavailable"
     if portal.mcp_catalog_key != "github":
         return None
     if oauth_apps == 0:
@@ -469,6 +493,11 @@ class AgentTriggerService:
         portal = portal_catalog.get_portal(portal_key)
         if portal is None:
             raise NotFoundError(message="Portal not found", details={"portal_key": portal_key})
+        # A portal whose presets name no target has nothing to enumerate, and asking
+        # would spend a token exchange to answer with the empty list the catalog
+        # already implies: a mailbox is the whole scope of a Gmail trigger.
+        if portal.target_kind is None:
+            return []
         adapter = portals.get_adapter(portal_key)
         if adapter is None:
             return []
@@ -1142,6 +1171,58 @@ class AgentTriggerService:
             return None
         context = trigger_events.render_context(source, payload=payload)
         return EventFireDecision(trigger_id=trigger.id, event_context=context)
+
+    async def prepare_polled_fires(
+        self,
+        *,
+        organization_id: UUID,
+        event_source: str,
+        events: Sequence[portals.PolledEvent],
+    ) -> list[EventFireDecision]:
+        """Which triggers one poll's events should fire, in the order they arrived.
+
+        The polled counterpart of :meth:`prepare_event_fire`, and deliberately the
+        same three steps after the delivery has been authenticated: match the
+        payload against each trigger's filter, claim the provider's delivery id so
+        a redelivery fires nothing twice, render the context the fire appends to
+        the prompt. Only *how the event arrived* differs, which is the whole design
+        - a source decides delivery and never what happens next.
+
+        No signature is verified because there is nothing to verify: the event did
+        not arrive over the network, it was read from an account this organization
+        granted access to. That grant is the authentication, and the caller
+        establishes it before calling here.
+
+        **One event can fire several triggers**, unlike a webhook, whose URL names
+        exactly one: "any message" and "marked important" on the same mailbox is
+        the shape the presets invite. Each gets its own claim, so one trigger
+        already having seen a message does not stop another firing on it.
+        """
+        triggers = await agent_trigger_repo.list_active_for_event_source(
+            self.db, organization_id=organization_id, event_source=event_source
+        )
+        if not triggers:
+            return []
+        decisions: list[EventFireDecision] = []
+        for event in events:
+            for trigger in triggers:
+                if not trigger_events.event_matches(
+                    event_source, headers={}, payload=event.payload, config=trigger.event_config
+                ):
+                    continue
+                if not await trigger_dedupe.claim_event_delivery(
+                    trigger_id=trigger.id, delivery_id=event.delivery_id
+                ):
+                    continue
+                decisions.append(
+                    EventFireDecision(
+                        trigger_id=trigger.id,
+                        event_context=trigger_events.render_context(
+                            event_source, payload=event.payload
+                        ),
+                    )
+                )
+        return decisions
 
     def _unseal_event_secret(self, trigger: AgentTrigger) -> str:
         """The trigger's signing secret, unsealed for its organization.

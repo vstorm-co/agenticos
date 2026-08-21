@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     Boolean,
@@ -70,9 +70,26 @@ class McpConnection(Base, TimestampMixin):
             "organization_id",
             "name",
             unique=True,
-            postgresql_where=text("scope = 'org'"),
+            postgresql_where=text("scope = 'org' AND purpose = 'mcp'"),
+        ),
+        # One organization holds one grant per portal, and re-consenting replaces
+        # it rather than adding a second: two Gmail grants would be two mailboxes
+        # polled under one portal with nothing to say which a trigger meant.
+        Index(
+            "uq_mcp_connections_org_portal",
+            "organization_id",
+            "portal_key",
+            unique=True,
+            postgresql_where=text("purpose = 'portal'"),
         ),
         CheckConstraint("scope IN ('user', 'org')", name="ck_mcp_connection_scope"),
+        CheckConstraint("purpose IN ('mcp', 'portal')", name="ck_mcp_connection_purpose"),
+        # A portal grant names its portal and nothing else does: the column is what
+        # the poller and the trigger card look a connection up by.
+        CheckConstraint(
+            "(purpose = 'portal') = (portal_key IS NOT NULL)",
+            name="ck_mcp_connection_portal_key",
+        ),
         CheckConstraint(
             "scope <> 'org' OR organization_id IS NOT NULL",
             name="ck_mcp_connection_org_scope_has_org",
@@ -123,6 +140,30 @@ class McpConnection(Base, TimestampMixin):
     scope: Mapped[str] = mapped_column(String(8), nullable=False, default="user", index=True)
     # Which catalog entry this came from, when it was not added by raw URL.
     catalog_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # What this row *is*. `mcp` is a remote MCP server an agent gets tools from -
+    # every row before triggers existed. `portal` is a third-party grant a trigger
+    # portal spends: an OAuth payload, its scopes and, for a polled portal, the
+    # position the poller has read to.
+    #
+    # One table rather than two, deliberately. Everything a portal grant needs is
+    # already here and correct - the sealed payload, `granted_scopes`, the
+    # refresh-under-lock with its expiry skew, the pending-consent staging, the
+    # status columns - and a second table would be a second copy of the part of
+    # this product that is hardest to get right. So MCP becomes a *consumer* of
+    # this table rather than its owner, which is what the triggers plan called
+    # Phase 0. The price is one column and one filter: every MCP-facing read asks
+    # for `purpose = 'mcp'`, because a Gmail grant is not a server anybody should
+    # be offered to bind an agent to (#1068).
+    purpose: Mapped[str] = mapped_column(String(16), nullable=False, default="mcp", index=True)
+    # Which portal a `purpose = 'portal'` row holds the grant for. Null on an MCP row.
+    portal_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Where a polled portal's reader has got to - Gmail's `historyId`, and whatever
+    # the next polled portal needs. JSONB rather than a column per provider: the
+    # shape is the adapter's business and nothing else reads inside it.
+    poll_cursor: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    # When the poller last asked. Read by the claim so one tick's work is spread
+    # rather than every connection being polled by whichever worker gets there.
+    polled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     url: Mapped[str] = mapped_column(String(2048), nullable=False)

@@ -9,10 +9,11 @@ put somebody's private token inside a published agent.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import lazyload
 
@@ -55,6 +56,7 @@ async def get_org_scoped_by_id(
     """
     result = await db.execute(
         select(McpConnection).where(
+            McpConnection.purpose == "mcp",
             McpConnection.id == connection_id,
             McpConnection.organization_id == organization_id,
             McpConnection.scope == "org",
@@ -75,6 +77,10 @@ async def list_org_scoped(
     stmt = (
         select(McpConnection)
         .where(
+            # Servers only. A `portal` row is a third-party grant a trigger spends
+            # - it has no tools and must never be offered as something to bind an
+            # agent to, which is the whole price of one table serving both (#1068).
+            McpConnection.purpose == "mcp",
             McpConnection.organization_id == organization_id,
             McpConnection.scope == "org",
         )
@@ -89,6 +95,7 @@ async def list_org_scoped(
 async def get_by_name(db: AsyncSession, *, user_id: UUID, name: str) -> McpConnection | None:
     result = await db.execute(
         select(McpConnection).where(
+            McpConnection.purpose == "mcp",
             McpConnection.user_id == user_id,
             McpConnection.name == name,
             McpConnection.scope == "user",
@@ -107,6 +114,7 @@ async def get_org_scoped_by_name(
     """
     result = await db.execute(
         select(McpConnection).where(
+            McpConnection.purpose == "mcp",
             McpConnection.organization_id == organization_id,
             McpConnection.name == name,
             McpConnection.scope == "org",
@@ -139,6 +147,64 @@ async def get_org_scoped_by_catalog_key(
     return result.scalars().first()
 
 
+async def get_portal_grant(
+    db: AsyncSession, *, organization_id: UUID, portal_key: str
+) -> McpConnection | None:
+    """The organization's grant for one trigger portal, or `None`.
+
+    A partial unique index makes this at most one row, so re-consenting replaces
+    the grant rather than adding a second: two Gmail grants would be two mailboxes
+    polled under one portal with nothing to say which a trigger meant.
+    """
+    result = await db.execute(
+        select(McpConnection).where(
+            McpConnection.purpose == "portal",
+            McpConnection.organization_id == organization_id,
+            McpConnection.portal_key == portal_key,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def claim_portal_grants_to_poll(
+    db: AsyncSession, *, portal_keys: list[str], not_polled_since: datetime, limit: int
+) -> list[McpConnection]:
+    """Grants due a poll, claimed so two ticks cannot read one mailbox twice.
+
+    `FOR UPDATE SKIP LOCKED` and `polled_at` advanced in the same statement, the
+    protocol the trigger heartbeat already uses: a tick that outruns its own
+    interval cannot be double-claimed by the next, and a worker that dies mid-poll
+    releases its lock without parking the mailbox for ever - the next tick finds
+    `polled_at` old again.
+
+    Only authorized, enabled grants are claimed. A revoked or half-consented one
+    has nothing to read, and polling it every minute to fail would spend somebody's
+    rate limit on a question already answered.
+    """
+    if not portal_keys:
+        return []
+    stmt = (
+        select(McpConnection)
+        .where(
+            McpConnection.purpose == "portal",
+            McpConnection.portal_key.in_(portal_keys),
+            McpConnection.is_enabled.is_(True),
+            McpConnection.oauth_payload.is_not(None),
+            or_(McpConnection.polled_at.is_(None), McpConnection.polled_at <= not_polled_since),
+        )
+        .order_by(McpConnection.polled_at.asc().nullsfirst())
+        .limit(limit)
+        .options(lazyload(McpConnection.user))
+        .with_for_update(skip_locked=True)
+    )
+    claimed = list((await db.execute(stmt)).scalars())
+    now = datetime.now(UTC)
+    for grant in claimed:
+        grant.polled_at = now
+    await db.flush()
+    return claimed
+
+
 async def list_oauth_connections(db: AsyncSession) -> list[McpConnection]:
     """Every OAuth connection on the deployment, for the scheduled sweep.
 
@@ -168,7 +234,11 @@ async def list_for_user(
 ) -> tuple[list[McpConnection], int]:
     stmt = (
         select(McpConnection)
-        .where(McpConnection.user_id == user_id, McpConnection.scope == "user")
+        .where(
+            McpConnection.purpose == "mcp",
+            McpConnection.user_id == user_id,
+            McpConnection.scope == "user",
+        )
         .order_by(McpConnection.created_at.asc())
     )
     if enabled_only:
@@ -228,6 +298,8 @@ async def create_org_scoped(
     auth_type: str = "bearer",
     oauth_state: str | None = None,
     oauth_pending_payload: str | None = None,
+    purpose: str = "mcp",
+    portal_key: str | None = None,
 ) -> McpConnection:
     """Store a connection the organization owns.
 
@@ -236,6 +308,10 @@ async def create_org_scoped(
     refuses one), a `created_by_user_id` that records rather than authorizes,
     and a catalog key. A single function taking both shapes would make the wrong
     combination expressible.
+
+    `purpose="portal"` with a `portal_key` stores a third-party grant a trigger
+    spends rather than an MCP server - see the column's own comment. A check
+    constraint ties the two together, so neither can be passed alone.
     """
     connection = McpConnection(
         organization_id=organization_id,
@@ -251,6 +327,8 @@ async def create_org_scoped(
         auth_type=auth_type,
         oauth_state=oauth_state,
         oauth_pending_payload=oauth_pending_payload,
+        purpose=purpose,
+        portal_key=portal_key,
     )
     db.add(connection)
     await db.flush()

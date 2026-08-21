@@ -27,9 +27,10 @@ export function usePortalCatalog() {
 /**
  * Which action a portal card offers, derived from its delivery and connection.
  *
- * `create` needs no account (a manual/polling portal) or a working one whose grant
- * covers the webhook scope; `connect` is the first step for an auto-webhook portal
- * nobody has connected; `reauthorize` covers every state where a connection exists
+ * `create` needs no account (a manual portal, whose relay the user runs) or a
+ * working one whose grant covers the scopes the portal needs; `connect` is the
+ * first step for a portal nobody has connected - a webhook one to register the
+ * hook, a polled one because the account *is* the delivery; `reauthorize` covers every state where a connection exists
  * but cannot register a webhook yet - a grant still awaiting consent, a disabled or
  * unreachable connection, or a grant that does not include the portal's
  * `webhook_admin_scopes` - all of which the same re-consent repairs.
@@ -53,12 +54,19 @@ export interface PortalWithState {
 }
 
 function portalAction(portal: PortalCatalogEntry): PortalAction {
-  // Manual and polling portals wire their own delivery, so no account is needed.
-  if (portal.delivery !== "auto_webhook") return "create";
+  // A *manual* portal wires its own delivery - the user runs the relay - so it
+  // needs no account. A *polling* one is the opposite and the comment here used to
+  // say otherwise: the platform reads the account, so without one there is nothing
+  // to read, and offering Create let two Gmail triggers be made against a mailbox
+  // nobody had connected. Neither could ever fire (#1068).
+  if (portal.delivery === "manual") return "create";
   if (portal.connection_id === null) return "connect";
   // A grant still awaiting consent, disabled, or unreachable is not usable yet.
   if (portal.connection_state !== "connected") return "reauthorize";
-  // Connected, but the webhook scope decides create-vs-reauthorize.
+  // Connected. A webhook portal still needs the scope that registers the hook; a
+  // polled one asked for its read scopes at consent and holds them or does not,
+  // which `connection_state` already answered.
+  if (portal.delivery === "polling") return "create";
   return portal.connection_covers_webhook_scopes ? "create" : "reauthorize";
 }
 

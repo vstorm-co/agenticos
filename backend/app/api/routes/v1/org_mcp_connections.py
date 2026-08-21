@@ -117,6 +117,31 @@ async def start_org_github_oauth(
     return McpOAuthStartResult(authorization_url=authorization_url)
 
 
+@router.post(
+    "/oauth/start/portal",
+    response_model=McpOAuthStartResult,
+    dependencies=[Depends(require(Perm.MCP_MANAGE))],
+)
+async def start_org_polled_portal_oauth(
+    data: GithubOAuthStart, service: McpConnectionSvc, ctx: Auth
+) -> Any:
+    """Begin the consent flow for a portal the platform polls rather than is posted to.
+
+    Gmail is the case: nothing registers a webhook, so the flow's only job is a
+    refreshable token carrying the portal's read scopes. It uses the deployment's
+    own Google client rather than a per-organization OAuth App - see
+    `google_oauth`'s docstring for why - so a deployment with none configured is a
+    `NotFoundError` (404) the card shows as a prerequisite, and a portal that is
+    not polled is a `BadRequestError` (400).
+
+    Same body as its GitHub sibling (a portal key) and the same
+    `mcp:manage` gate: connecting an account for the whole organization is the
+    permission that route already demands.
+    """
+    authorization_url = await service.oauth_start_for_polled_portal(ctx, portal_key=data.portal_key)
+    return McpOAuthStartResult(authorization_url=authorization_url)
+
+
 @router.patch(
     "/{connection_id}",
     response_model=OrgMcpConnectionRead,

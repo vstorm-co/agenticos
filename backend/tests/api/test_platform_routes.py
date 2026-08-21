@@ -338,6 +338,14 @@ CALLS: tuple[Call, ...] = (
         body={"portal_key": "github"},
     ),
     Call(
+        # The polled variant: no webhook to register, the deployment's own client,
+        # and the same permission - connecting an account for the organization.
+        "POST",
+        "/mcp-connections/oauth/start/portal",
+        Perm.MCP_MANAGE,
+        body={"portal_key": "google"},
+    ),
+    Call(
         "POST",
         "/mcp-connections",
         Perm.MCP_MANAGE,

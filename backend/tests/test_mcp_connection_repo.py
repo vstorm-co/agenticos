@@ -177,7 +177,7 @@ class TestGetOrgScopedById:
             session, connection_id=connection_id, organization_id=organization_id
         )
 
-        assert set(_filters(session).values()) == {connection_id, organization_id, "org"}
+        assert set(_filters(session).values()) == {connection_id, organization_id, "org", "mcp"}
 
 
 class TestGetByCatalogKey:
@@ -222,7 +222,7 @@ class TestGetByName:
 
         await mcp_connection_repo.get_by_name(session, user_id=user_id, name="github")
 
-        assert set(_filters(session).values()) == {user_id, "github", "user"}
+        assert set(_filters(session).values()) == {user_id, "github", "user", "mcp"}
 
 
 class TestListOauthConnections:
@@ -353,7 +353,7 @@ class TestListOrgScoped:
 
         await mcp_connection_repo.list_org_scoped(session, organization_id=organization_id)
 
-        assert set(_filters(session).values()) == {organization_id, "org"}
+        assert set(_filters(session).values()) == {organization_id, "org", "mcp"}
 
     async def test_connections_come_back_oldest_first(self):
         """Same order as `list_for_user`, and for the same reason: a run that
@@ -389,7 +389,7 @@ class TestGetOrgScopedByName:
             session, organization_id=organization_id, name="github"
         )
 
-        assert set(_filters(session).values()) == {organization_id, "github", "org"}
+        assert set(_filters(session).values()) == {organization_id, "github", "org", "mcp"}
 
     async def test_a_members_personal_server_is_not_a_collision(self):
         """A personal "github" and an organization "github" are different rows
@@ -537,3 +537,86 @@ class TestDelete:
 
         assert session.deleted == [connection]
         assert session.flushes == 1
+
+
+class TestPortalGrants:
+    """The other consumer of this table: a third-party grant a trigger spends.
+
+    One table serves both because everything a grant needs is here and correct -
+    the sealed payload, the granted scopes, the refresh under a row lock. The price
+    is that every read has to say which it wants, and these are the two that want
+    the grant.
+    """
+
+    async def test_a_grant_is_found_by_its_portal_and_organization(self):
+        organization_id = uuid.uuid4()
+        grant = _connection(purpose="portal", portal_key="google")
+        session = _RecordingSession(_Result(scalar=grant))
+
+        found = await mcp_connection_repo.get_portal_grant(
+            session, organization_id=organization_id, portal_key="google"
+        )
+
+        assert found is grant
+        assert set(_filters(session).values()) == {organization_id, "google", "portal"}
+
+    async def test_the_claim_locks_and_skips_what_another_tick_holds(self):
+        """`FOR UPDATE SKIP LOCKED`, so a tick that outruns its own minute cannot be
+        double-claimed by the next - the protocol the trigger heartbeat uses."""
+        from datetime import UTC, datetime
+
+        session = _RecordingSession(_Result(rows=[]))
+
+        await mcp_connection_repo.claim_portal_grants_to_poll(
+            session, portal_keys=["google"], not_polled_since=datetime.now(UTC), limit=5
+        )
+
+        sql = _sql(session)
+        assert "FOR UPDATE" in sql
+        assert "SKIP LOCKED" in sql
+
+    async def test_the_claim_advances_polled_at_under_the_lock(self):
+        """Advanced in the claim rather than after the work, so a crash mid-poll
+        does not leave the mailbox claimable again in the same second."""
+        from datetime import UTC, datetime
+
+        grant = _connection(purpose="portal", portal_key="google")
+        grant.polled_at = None
+        session = _RecordingSession(_Result(rows=[grant]))
+
+        claimed = await mcp_connection_repo.claim_portal_grants_to_poll(
+            session, portal_keys=["google"], not_polled_since=datetime.now(UTC), limit=5
+        )
+
+        assert claimed == [grant]
+        assert grant.polled_at is not None
+        assert session.flushes == 1
+
+    async def test_no_polled_portals_asks_the_database_nothing(self):
+        """A deployment whose catalog ships no polled portal must not run a query a
+        minute to find that out."""
+        from datetime import UTC, datetime
+
+        session = _RecordingSession()
+
+        claimed = await mcp_connection_repo.claim_portal_grants_to_poll(
+            session, portal_keys=[], not_polled_since=datetime.now(UTC), limit=5
+        )
+
+        assert claimed == []
+        assert session.statements == []
+
+    async def test_the_claim_reads_only_authorized_enabled_grants(self):
+        """A revoked or half-consented grant has nothing to read, and polling it
+        every minute to fail spends somebody's rate limit on a settled question."""
+        from datetime import UTC, datetime
+
+        session = _RecordingSession(_Result(rows=[]))
+
+        await mcp_connection_repo.claim_portal_grants_to_poll(
+            session, portal_keys=["google"], not_polled_since=datetime.now(UTC), limit=5
+        )
+
+        sql = _sql(session)
+        assert "is_enabled" in sql
+        assert "oauth_payload IS NOT NULL" in sql

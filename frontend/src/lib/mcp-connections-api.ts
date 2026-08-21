@@ -117,3 +117,19 @@ export async function startGithubOrgOAuth(
     portal_key: portalKey,
   });
 }
+
+/**
+ * Begin consent for a portal the platform *polls* rather than is posted to.
+ *
+ * Gmail's case: nothing registers a webhook, so the flow's only job is a
+ * refreshable token carrying the portal's read scopes. It uses the deployment's
+ * own Google client rather than a per-organization OAuth App, so a deployment with
+ * none configured answers 404 and the card shows it as a prerequisite.
+ */
+export async function startPolledPortalOAuth(
+  portalKey: string,
+): Promise<{ authorization_url: string }> {
+  return apiClient.post<{ authorization_url: string }>("/mcp-connections/oauth/start/portal", {
+    portal_key: portalKey,
+  });
+}

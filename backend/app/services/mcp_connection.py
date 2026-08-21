@@ -32,7 +32,7 @@ from __future__ import annotations
 import logging
 import secrets
 from collections.abc import Awaitable, Callable, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -66,10 +66,10 @@ from app.schemas.mcp_connection import (
     OrgMcpConnectionCreate,
     OrgMcpConnectionUpdate,
 )
-from app.services import portal_catalog
+from app.services import portal_catalog, portals
 from app.services.mcp_catalog import get_entry
 from app.services.organization_secret import OrganizationSecretService
-from app.services.portals import github_oauth
+from app.services.portals import github_oauth, google_oauth
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +159,46 @@ async def _complete_mcp_flow(
     return payload, (payload.scope.split() if payload.scope else None)
 
 
+async def _complete_google_flow(
+    payload: McpOAuthPayload, code: str
+) -> tuple[McpOAuthPayload, list[str] | None]:
+    """Exchange a code through Google's OAuth flow and fold the token in.
+
+    Unlike GitHub's, a Google access token *expires* - an hour - so the refresh
+    token and the expiry are both carried, and the shared `_refresh_under_lock`
+    spends them when a poll finds the token stale. That is the whole reason a
+    portal grant lives in this table rather than a new one.
+
+    The granted scopes come from Google's space-separated `scope` response, which
+    is what the account actually consented to: consent is per scope and a person
+    can withhold one, so the poller has to know what it got before it reads a
+    mailbox it may not have been given.
+    """
+    try:
+        token = await google_oauth.exchange_code(
+            client_id=payload.client_id,
+            client_secret=payload.client_secret or "",
+            code=code,
+            redirect_uri=payload.redirect_uri,
+        )
+    except google_oauth.GoogleOAuthError as exc:
+        raise OAuthError(str(exc)) from exc
+    payload = payload.model_copy(
+        update={
+            "access_token": token.access_token,
+            # Kept where Google sent one. Without `access_type=offline` it does not,
+            # and a grant with no refresh token stops working in an hour with
+            # nothing to say why - which is why the consent URL asks for it.
+            "refresh_token": token.refresh_token,
+            "expires_at": (
+                None if token.expires_in is None else _now_epoch() + float(token.expires_in)
+            ),
+            "code_verifier": None,
+        }
+    )
+    return payload, (token.granted_scopes or None)
+
+
 async def _complete_github_flow(
     payload: McpOAuthPayload, code: str
 ) -> tuple[McpOAuthPayload, list[str] | None]:
@@ -235,6 +275,22 @@ def _decode_payload(connection: McpConnection, encrypted: str | None) -> McpOAut
     except Exception:
         logger.warning("Cannot decrypt OAuth payload for MCP connection %r", connection.name)
         return None
+
+
+# Where a polled portal's grant is spent. `mcp_connections.url` is not nullable
+# and a portal row has no MCP server to name, so it carries the API the token is
+# actually used against - which is the honest answer to "what does this connection
+# point at". A portal added here needs a row; one absent from it cannot be polled,
+# and `oauth_start_for_polled_portal` would raise a `KeyError` before writing
+# anything, which is the loud failure a silent empty string would not be.
+_POLLED_PORTAL_URL = {"google": "https://gmail.googleapis.com"}
+
+# How stale a grant's `polled_at` must be before a tick claims it again, and how
+# many one tick takes. The interval matches the heartbeat's own minute; the batch
+# bounds a tick's cost on a deployment with many connected mailboxes - the rest
+# are claimed by the next tick, oldest first, so nothing starves.
+_POLL_INTERVAL = timedelta(seconds=55)
+_POLL_BATCH = 50
 
 
 def _token_is_fresh(payload: McpOAuthPayload) -> bool:
@@ -757,6 +813,185 @@ class McpConnectionService:
             state=state,
         )
 
+    async def claim_grants_to_poll(self, *, portal_keys: list[str]) -> list[McpConnection]:
+        """The portal grants this tick should read, claimed so no other tick does.
+
+        No `AuthContext`: the poller is the deployment's own work, not a member's
+        request, and it crosses organizations by design - one tick reads every
+        connected mailbox. Every later step is scoped by the grant's own
+        `organization_id`, which is what authorized reading that account.
+
+        Claimed with `polled_at` advanced under the row lock, the protocol the
+        trigger heartbeat already uses: a tick that outruns its minute cannot be
+        double-claimed by the next, and a worker that dies mid-poll frees its lock
+        without parking the mailbox - the next tick finds `polled_at` old again.
+        """
+        return await mcp_connection_repo.claim_portal_grants_to_poll(
+            self.db,
+            portal_keys=portal_keys,
+            not_polled_since=datetime.now(UTC) - _POLL_INTERVAL,
+            limit=_POLL_BATCH,
+        )
+
+    async def poll_grant(self, grant: McpConnection) -> portals.PolledEvents | None:
+        """Read one connected account, or `None` when it cannot be read now.
+
+        `None` rather than an exception for every recoverable case - no adapter, a
+        token that will not refresh, a provider that is down - because a poll is a
+        heartbeat's work: the tick moves on to the next mailbox and this one is
+        tried again in a minute. The grant's own status records what happened, so a
+        mailbox that has stopped working says so on the card rather than only in a
+        log.
+
+        A revoked grant is marked `error` and left enabled: re-consenting repairs
+        it, and disabling it would take it out of the claim and out of the card's
+        reach at the same time.
+        """
+        adapter = portals.get_adapter(grant.portal_key or "")
+        if adapter is None:
+            return None
+        token = await _oauth_access_token(self.db, grant)
+        if token is None:
+            await self._record_poll_failure(grant, "The connected account could not be renewed")
+            return None
+        try:
+            read = await adapter.poll(access_token=token, cursor=grant.poll_cursor)
+        except portals.PortalError as exc:
+            # The provider's own words are not carried: a portal's error body echoes
+            # the request, and the request carries a bearer token (#423).
+            logger.warning(
+                "portal_poll_failed",
+                extra={"portal_key": grant.portal_key, "error": exc.__class__.__name__},
+            )
+            await self._record_poll_failure(grant, "The provider refused or could not be reached")
+            return None
+        if grant.last_status != "ok":
+            await mcp_connection_repo.update(
+                self.db,
+                db_connection=grant,
+                update_data={"last_status": "ok", "last_error": None},
+            )
+        return read
+
+    async def store_poll_cursor(self, grant: McpConnection, *, cursor: dict[str, Any]) -> None:
+        """Advance where the reader has got to, after its fires were dispatched.
+
+        Written last on purpose. In the other order a crash between the two loses
+        every message the poll read - the cursor claims they were handled and
+        nothing handled them. This way a crash re-reads them and the delivery-id
+        claim dedups: at-least-once with the duplicate suppressed, rather than
+        at-most-once with a silent hole.
+        """
+        await mcp_connection_repo.update(
+            self.db,
+            db_connection=grant,
+            update_data={"poll_cursor": cursor, "last_checked_at": datetime.now(UTC)},
+        )
+
+    async def _record_poll_failure(self, grant: McpConnection, reason: str) -> None:
+        """Say on the row why a mailbox could not be read.
+
+        The reason is written here, not taken from the provider: `last_error` is
+        rendered to everyone who can see the connection, and a provider's message
+        carries the failing request URL - which carries a token (#423).
+        """
+        await mcp_connection_repo.update(
+            self.db,
+            db_connection=grant,
+            update_data={
+                "last_status": "error",
+                "last_error": reason,
+                "last_checked_at": datetime.now(UTC),
+            },
+        )
+
+    async def oauth_start_for_polled_portal(self, ctx: AuthContext, *, portal_key: str) -> str:
+        """Begin the consent flow for a portal this platform *reads* rather than
+        registers a webhook at.
+
+        Gmail is the case: the grant is spent by the heartbeat's poller, not by a
+        provider posting to us, so there is nothing to register and the only thing
+        the flow has to produce is a refreshable token with the portal's read
+        scopes on it.
+
+        **The client is the deployment's, not the organization's** - unlike
+        GitHub's, whose OAuth App each organization registers itself. Google's
+        consent screen for a mailbox scope needs a verified project, which an
+        operator makes once and no tenant of theirs can make at all; and for a
+        self-hosted product the deployment *is* the unit that owns a Google
+        project. `google_oauth`'s own docstring carries the rest of that argument.
+
+        The grant is staged on a `purpose = 'portal'` row, so it never appears
+        among the organization's MCP servers: it has no tools and nobody should be
+        offered it to bind an agent to. One row per portal per organization, so
+        re-consenting replaces the grant rather than leaving two mailboxes with
+        nothing to choose between them.
+
+        Raises:
+            BadRequestError: If `portal_key` names no portal, or one that is not
+                polled - a webhook portal connects through its own flow.
+            NotFoundError: If this deployment has no Google client configured. A
+                4xx the card shows as a prerequisite, the same way a missing
+                GitHub OAuth App is - never a 500.
+        """
+        portal = portal_catalog.get_portal(portal_key)
+        if portal is None or portal.delivery is not portal_catalog.DeliveryMode.POLLING:
+            raise BadRequestError(
+                message="This portal is not one the platform polls",
+                details={"portal_key": portal_key},
+            )
+        if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
+            raise NotFoundError(
+                message="This deployment has no Google client configured",
+                details={"portal_key": portal_key},
+            )
+        redirect_uri = _oauth_redirect_uri()
+        state = secrets.token_urlsafe(32)
+        scopes = list(portal.read_scopes)
+        payload = McpOAuthPayload(
+            # A portal grant points at the API it reads rather than at an MCP
+            # server. The column is not nullable and the value is not a lie: it is
+            # where the token is spent.
+            server_url=_POLLED_PORTAL_URL[portal_key],
+            started_at=_now_epoch(),
+            authorization_endpoint=google_oauth.AUTHORIZE_ENDPOINT,
+            token_endpoint=google_oauth.TOKEN_ENDPOINT,
+            client_id=settings.GOOGLE_CLIENT_ID,
+            client_secret=settings.GOOGLE_CLIENT_SECRET,
+            scope=" ".join(scopes),
+            resource=_POLLED_PORTAL_URL[portal_key],
+            redirect_uri=redirect_uri,
+            provider=google_oauth.PROVIDER,
+        )
+        existing = await mcp_connection_repo.get_portal_grant(
+            self.db, organization_id=ctx.organization_id, portal_key=portal_key
+        )
+        await self._stage_pending_oauth(
+            name=portal.name,
+            url=_POLLED_PORTAL_URL[portal_key],
+            existing=existing,
+            vault_scope=VaultScope.organization(ctx.organization_id),
+            create=lambda **kwargs: mcp_connection_repo.create_org_scoped(
+                self.db,
+                organization_id=ctx.organization_id,
+                created_by_user_id=ctx.subject_id,
+                allowed_tools=None,
+                catalog_key=None,
+                sealed_token=None,
+                purpose="portal",
+                portal_key=portal_key,
+                **kwargs,
+            ),
+            payload=payload,
+            state=state,
+        )
+        return google_oauth.authorization_url(
+            client_id=settings.GOOGLE_CLIENT_ID,
+            redirect_uri=redirect_uri,
+            scopes=scopes,
+            state=state,
+        )
+
     async def oauth_callback(self, *, state: str, code: str) -> McpConnection:
         """Complete the flow: exchange the code for tokens and store them.
 
@@ -775,6 +1010,8 @@ class McpConnectionService:
             raise OAuthError("This authorization session has expired - start again.")
         if payload.provider == github_oauth.PROVIDER:
             payload, granted_scopes = await _complete_github_flow(payload, code)
+        elif payload.provider == google_oauth.PROVIDER:
+            payload, granted_scopes = await _complete_google_flow(payload, code)
         else:
             payload, granted_scopes = await _complete_mcp_flow(payload, code)
         return await mcp_connection_repo.update(

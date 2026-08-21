@@ -168,3 +168,67 @@ describe("usePortals", () => {
     expect(email?.connectionId).toBeNull();
   });
 });
+
+function gmailPortal(overrides: Partial<PortalCatalogEntry> = {}): PortalCatalogEntry {
+  return {
+    key: "google",
+    name: "Gmail",
+    description: "Run an agent when a message arrives in your mailbox.",
+    category: "productivity",
+    icon: "gmail",
+    event_source: "gmail",
+    delivery: "polling",
+    webhook_admin_scopes: [],
+    target_kind: null,
+    connection_catalog_key: null,
+    connection_id: null,
+    connection_state: null,
+    connection_covers_webhook_scopes: false,
+    connect_blocked_by: null,
+    presets: [{ key: "any_message", label: "Any", description: "…", target_required: false }],
+    ...overrides,
+  };
+}
+
+async function actionOf(portal: PortalCatalogEntry): Promise<string | undefined> {
+  const result = await run(portal);
+  return result.current.items.find((item) => item.portal.key === portal.key)?.action;
+}
+
+describe("a polled portal needs a connected account", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("offers Connect rather than Create when nobody has connected it", async () => {
+    // It offered Create, on the reading that a polling portal "wires its own
+    // delivery" - so two Gmail triggers were made against a mailbox nobody had
+    // connected, and neither could ever fire (#1068).
+    expect(await actionOf(gmailPortal())).toBe("connect");
+  });
+
+  it("offers Create once the account is connected and working", async () => {
+    expect(
+      await actionOf(gmailPortal({ connection_id: "c1", connection_state: "connected" })),
+    ).toBe("create");
+  });
+
+  it("offers Re-authorize for a grant that is not usable yet", async () => {
+    expect(
+      await actionOf(gmailPortal({ connection_id: "c1", connection_state: "needs_authorization" })),
+    ).toBe("reauthorize");
+  });
+
+  it("does not ask it for a webhook scope it never registers", async () => {
+    // A polled portal asked for its read scopes at consent and holds them or does
+    // not, which `connection_state` already answered - so the webhook-scope test
+    // that gates a GitHub card must not gate this one.
+    expect(
+      await actionOf(
+        gmailPortal({
+          connection_id: "c1",
+          connection_state: "connected",
+          connection_covers_webhook_scopes: false,
+        }),
+      ),
+    ).toBe("create");
+  });
+});

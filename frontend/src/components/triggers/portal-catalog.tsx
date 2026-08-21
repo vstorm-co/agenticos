@@ -32,7 +32,11 @@ import {
 import { usePortals, useSecrets, type PortalWithState } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
-import { startGithubOrgOAuth, startMcpOAuth } from "@/lib/mcp-connections-api";
+import {
+  startGithubOrgOAuth,
+  startMcpOAuth,
+  startPolledPortalOAuth,
+} from "@/lib/mcp-connections-api";
 import { getErrorMessage } from "@/lib/api-error";
 
 /**
@@ -103,16 +107,20 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
   async function connect(item: PortalWithState) {
     setBusyKey(item.portal.key);
     try {
-      // GitHub cannot be discovered like a generic MCP server, so its consent
-      // URL is built from the organization's own OAuth App secret keyed by the
-      // portal; every other portal follows the discovery-and-registration flow.
+      // Three flows, because three kinds of provider. GitHub cannot be discovered
+      // like a generic MCP server, so its consent URL is built from the
+      // organization's own OAuth App secret keyed by the portal. A *polled* portal
+      // registers nothing and only needs a refreshable token, on the deployment's
+      // own client. Everything else follows discovery-and-registration.
       const { authorization_url } =
-        item.portal.event_source === "github"
-          ? await startGithubOrgOAuth(item.portal.key)
-          : await startMcpOAuth(
-              { name: item.serverName ?? item.portal.name, url: item.serverUrl ?? "" },
-              "organization",
-            );
+        item.portal.delivery === "polling"
+          ? await startPolledPortalOAuth(item.portal.key)
+          : item.portal.event_source === "github"
+            ? await startGithubOrgOAuth(item.portal.key)
+            : await startMcpOAuth(
+                { name: item.serverName ?? item.portal.name, url: item.serverUrl ?? "" },
+                "organization",
+              );
       window.location.assign(authorization_url);
     } catch (caught) {
       toast.error(getErrorMessage(caught, tErrors, t("couldNotConnect")));

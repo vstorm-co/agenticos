@@ -42,6 +42,7 @@ from app.worker.tasks.report_tasks import (
 )
 from app.worker.tasks.trigger_tasks import (
     check_agent_triggers_flow,
+    poll_portal_grants_flow,
     run_scheduled_trigger_flow,
 )
 
@@ -72,6 +73,16 @@ async def main() -> None:
     deployments.append(
         await check_agent_triggers_flow.ato_deployment(
             name="agent-triggers-check",
+            schedules=[IntervalSchedule(interval=60)],
+        )
+    )
+    # Every minute: read the connected accounts nobody pushes to. A separate
+    # deployment rather than work inside the trigger heartbeat, because the two
+    # fail independently - a Gmail outage must not stop a cron schedule firing -
+    # and because one tick of each is a different amount of work.
+    deployments.append(
+        await poll_portal_grants_flow.ato_deployment(
+            name="portal-poll",
             schedules=[IntervalSchedule(interval=60)],
         )
     )

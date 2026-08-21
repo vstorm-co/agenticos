@@ -1,7 +1,14 @@
 # Setting up an event trigger
 
-An **event trigger** fires an agent when a signed webhook arrives - a GitHub issue,
-an inbound email, or anything that can POST signed JSON (the **API** source).
+An **event trigger** fires an agent when something happens somewhere else. There are
+two ways that reaches us, and which one a source uses is the source's own business
+rather than yours:
+
+- **Pushed.** A provider POSTs a signed payload - a GitHub issue, or anything that
+  can send signed JSON (the **API** source).
+- **Polled.** The platform reads a connected account on a schedule. **Gmail** is
+  this: nothing is posted to us, so there is no URL to configure and no secret to
+  keep. You connect the mailbox and that is the whole setup.
 [Concepts](concepts.md#trigger) covers what a trigger *is* and how a fired run behaves;
 [Governance](governance.md) covers what it spends and how a refusal is handled. This
 page is what you do next: how to point a real provider at the webhook, what the
@@ -29,9 +36,10 @@ the signature and fires the agent only if the two match.
   {PUBLIC_BASE_URL}/api/v1/webhooks/triggers/{source}/{trigger_id}
   ```
 
-  `source` is one of `github`, `email`, `webhook` (the API source's wire name);
-  `trigger_id` is an
-  unguessable UUID. The dialog fills this in for you - copy it, do not build it by hand.
+  `source` is one of `github` or `webhook` (the API source's wire name); `trigger_id`
+  is an unguessable UUID. The dialog fills this in for you - copy it, do not build it
+  by hand. **`gmail` has no URL**: a polled source has no inbound door, and a POST
+  naming one is answered like any delivery with nothing to do.
 
 - **The signature** is `HMAC-SHA256` over the **exact raw request bytes**, keyed with
   the signing secret, hex-encoded, and prefixed with `sha256=`. It rides in a header
@@ -40,11 +48,13 @@ the signature and fires the agent only if the two match.
   | Source | Header |
   |---|---|
   | `github` | `X-Hub-Signature-256` |
-  | `email`, `webhook` | `X-Signature-256` |
+  | `webhook` | `X-Signature-256` |
 
   GitHub signs deliveries natively under its own `X-Hub-Signature-256` header, so you
-  give GitHub the secret and it does the signing. Every other source reuses the identical
+  give GitHub the secret and it does the signing. The API source reuses the identical
   scheme under `X-Signature-256`, which whatever you point at the URL has to set itself.
+  A **polled** source signs nothing and holds no secret: it was not addressed, it was
+  read, and the account's own OAuth grant is what authorized reading it.
 
 The signature is not decoration. Without it, the URL is the only thing between a stranger
 and your organization's model budget - and URLs leak: into logs, into a provider's
@@ -79,6 +89,43 @@ stored to match nothing. The source and the secret are not editable this way; re
 an event trigger at a different source is a new trigger, made by deleting this one and
 creating that.
 
+## Gmail (~1 minute, and no secret anywhere)
+
+Gmail is polled, so the setup is a consent screen and nothing else.
+
+1. **Connect the account.** *Routines → New event trigger → Gmail → Connect account*.
+   That needs `mcp:manage`, the same permission every other connected account needs.
+2. **Pick what fires it**: any new message, inbox only, or marked important. Narrow
+   further with a sender or subject substring, or a Gmail label.
+3. **Write the prompt**, or start from the "draft a reply" template.
+
+There is no URL to paste and no secret to store, because nothing posts to us. What
+you should know about how it reads:
+
+- **Once a minute.** The heartbeat asks Gmail what arrived since it last looked, so
+  the worst-case latency is a minute. That is deliberate: the alternative -
+  `users.watch` into a Google Cloud Pub/Sub topic - is real-time and costs a topic
+  and a subscription as *deployment* prerequisites, plus a registration that expires
+  every seven days and needs something to renew it.
+- **Connecting fires nothing.** The first read establishes where the mailbox is and
+  answers empty, so connecting an account does not fire the agent once per message
+  already in it.
+- **A burst is bounded.** One tick reads at most 25 new messages in full. A mailing
+  list dump does not become 400 agent runs; the position still advances, so the
+  backlog is not re-read for ever.
+- **One message can fire several triggers.** Unlike a webhook, whose URL names
+  exactly one - "any message" and "marked important" on the same mailbox both fire.
+- **A missed week repairs itself.** Google keeps about a week of history. A cursor
+  older than that resynchronises to now rather than parking the mailbox for ever.
+
+The deployment needs a Google OAuth client (`GOOGLE_CLIENT_ID` /
+`GOOGLE_CLIENT_SECRET` - the same pair Google sign-in uses) with the Gmail API
+enabled. Without one the card says so instead of offering a Connect button that
+could only fail. Unlike GitHub, the client is the *deployment's* rather than each
+organization's: Google's consent screen for a mailbox scope needs a verified
+project, which an operator registers once and no tenant of theirs can register at
+all.
+
 ## A GitHub recipe (~5 minutes)
 
 GitHub signs its own deliveries, so this is the quickest source to wire up. Create the
@@ -105,37 +152,32 @@ mismatch - almost always the secret is wrong or the content type is not
 
 ## The payload contract for relay-delivered sources
 
-GitHub owns its payload shape. The other sources do not: an `email` delivery comes
-from whatever relay you point at the URL - a Zapier or Make code step, a
-monitoring tool, a small script - and that relay decides what JSON to send. The filters
-read specific field names, and **if the relay names a field anything else, the filter
-silently never matches and the trigger simply never fires** - there is no error to tell
-you why. Match these names exactly.
+GitHub owns its payload shape, and a polled source's is read by the adapter that
+reads it - a Gmail trigger's filters are matched against the message itself, so
+there is no contract for you to satisfy.
 
-**Email** (`source = email`):
+The one that is yours is the catch-all `webhook` source - **API** in the dialogs.
+It has **no filter**: a verified delivery fires, and the whole JSON body is appended
+to the prompt. Use it for anything no portal covers - watching a feed no provider
+exposes an API for (a LinkedIn page, a marketplace listing), or any tool that can
+POST - with whatever relay you write doing the watching.
 
-| Field | Used for |
-|---|---|
-| `from` | `sender_contains` filter |
-| `subject` | `subject_contains` filter |
-| `body` | appended to the agent's prompt (accepts `text` as an alias) |
+There used to be an `email` source here, and it was this one wearing a different
+name: it renamed two filter fields and asked you to run a relay - a Zapier or Make
+code step, a small script - that signed and posted JSON at us, because nothing in
+this product could receive mail. It was removed for the same reason `linkedin` was:
+a dropdown entry whose name promises an integration that does not exist. Gmail
+replaced it as a real connected account (above), and a relay-fed mailbox is the API
+source with a documented example.
+
+**A relay-fed email, as the API source:**
 
 ```json
 { "from": "billing@acme.com", "subject": "Invoice #4021", "body": "…" }
 ```
 
-Both filters are optional substrings, matched case-insensitively; with neither set, any
-signed delivery fires. When you build an Email trigger from its portal preset, the setup
-dialog offers **Subject contains** and **Sender contains** fields - fill either or both to
-narrow the trigger at create time, or leave them blank to fire on every incoming email.
-They map to the `subject_contains` and `sender_contains` filter above, and either one can
-still be changed later by editing the trigger's filter.
-
-The catch-all `webhook` source - **API** in the dialogs - has no filter: a verified
-delivery fires, and the whole JSON body is appended to the prompt. Use it for anything
-whose shape does not fit the contract above; watching a feed no provider exposes an
-API for (a LinkedIn page, a marketplace listing) is exactly this source, with whatever
-relay you write doing the watching.
+Nothing filters on those names any more, so the whole body reaches the prompt and
+the agent reads it. If you want the *filtering*, connect the mailbox instead.
 
 ## Signing a delivery yourself
 

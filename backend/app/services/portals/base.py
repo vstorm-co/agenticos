@@ -11,6 +11,7 @@ at a time - the same shape `app/services/channels/base.py` uses.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from app.services.portals.exceptions import WebhookRegistrationUnavailable
 
@@ -21,6 +22,32 @@ class PortalTarget:
 
     id: str
     label: str
+
+
+@dataclass(frozen=True)
+class PolledEvent:
+    """One thing that happened, in the shape the delivery layer already matches.
+
+    `payload` is what `trigger_events.event_matches` and `render_context` read, so
+    a polled event and a posted one are indistinguishable by the time a trigger is
+    chosen - which is the point: the source decides how an event *arrives*, never
+    what happens next.
+
+    `delivery_id` is the provider's own id for it, the key the idempotency claim
+    dedups on. A poll that overlaps its predecessor - a retry, a cursor that did
+    not advance because the fire failed - then fires nothing twice.
+    """
+
+    delivery_id: str
+    payload: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class PolledEvents:
+    """What one poll found, and where to resume."""
+
+    events: tuple[PolledEvent, ...]
+    cursor: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -69,3 +96,28 @@ class PortalAdapter:
     ) -> None:
         """Remove a previously registered webhook. Best-effort; default is a no-op."""
         return
+
+    async def poll(self, *, access_token: str, cursor: dict[str, Any] | None) -> PolledEvents:
+        """What has happened at the provider since `cursor`, and the new cursor.
+
+        For a portal whose provider pushes nothing: the heartbeat asks, once a
+        minute, and the answer feeds the same match-then-fire path a webhook
+        delivery does - so a polled source is a delivery mechanism, not a second
+        kind of trigger.
+
+        **The cursor is the adapter's own shape** and nothing outside reads inside
+        it: Gmail's is a `historyId`, another provider's might be a timestamp or an
+        etag. It is returned rather than written here, so the caller advances it in
+        the same transaction that records the fires - a cursor advanced before the
+        work is a batch of messages nobody ever sees.
+
+        **A first poll returns no events.** With no cursor there is no "since", and
+        the alternative is firing an agent once per message already in the mailbox
+        the moment somebody connects it. So the first call establishes the position
+        and answers empty.
+
+        Raises:
+            PortalUnreachable: The provider could not be asked. The caller leaves
+                the cursor alone and tries again next tick.
+        """
+        raise WebhookRegistrationUnavailable(details={"portal_key": self.portal_key})

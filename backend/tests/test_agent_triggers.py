@@ -2820,9 +2820,11 @@ class TestPortalCatalogConnectionState:
         github = await self._github(None, oauth_apps=1)
         assert github.connect_blocked_by is None
 
-    async def test_a_portal_that_needs_no_oauth_app_is_never_blocked(self):
-        """Gmail is polled from a connected mailbox and spends no organization
-        credential, so the prerequisite is not its."""
+    async def _gmail(self, monkeypatch, *, client: str) -> object:
+        from app.core.config import settings as live
+
+        monkeypatch.setattr(live, "GOOGLE_CLIENT_ID", client)
+        monkeypatch.setattr(live, "GOOGLE_CLIENT_SECRET", client)
         service = _service()
         with (
             patch("app.services.agent_trigger.mcp_connection_repo") as connections,
@@ -2831,7 +2833,17 @@ class TestPortalCatalogConnectionState:
             connections.get_org_scoped_by_catalog_key = AsyncMock(return_value=None)
             secrets.list_org_visible_by_kind = AsyncMock(return_value=[])
             items = await service.list_portals(_ctx())
-        gmail = next(item for item in items if item.key == "google")
+        return next(item for item in items if item.key == "google")
+
+    async def test_a_polled_portal_with_no_deployment_client_says_so(self, monkeypatch):
+        """Gmail connects on the deployment's own Google client, so a deployment
+        with none configured cannot connect it - said on the card rather than
+        learned from a 404 after pressing Connect (#1068)."""
+        gmail = await self._gmail(monkeypatch, client="")
+        assert gmail.connect_blocked_by == "oauth_unavailable"
+
+    async def test_a_polled_portal_with_a_client_is_connectable(self, monkeypatch):
+        gmail = await self._gmail(monkeypatch, client="client-id")
         assert gmail.connect_blocked_by is None
 
 

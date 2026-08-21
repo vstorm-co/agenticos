@@ -24,6 +24,7 @@ from app.agents.mcp import (
     probe_mcp_server,
 )
 from app.agents.mcp_oauth import McpOAuthPayload
+from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.pinned_http import PinnedAsyncClient
@@ -1266,6 +1267,46 @@ class TestMcpConnectionService:
             "fields": [{"field": "url", "message": excinfo.value.message}]
         }
         repo.create.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_a_google_grant_is_completed_through_googles_own_flow(
+        self, service, repo, monkeypatch
+    ):
+        """One callback route, three providers. The payload says which, so a grant
+        staged by the polled-portal start is exchanged with Google rather than
+        being sent through the MCP discovery flow that would refuse it."""
+        from app.services.portals import google_oauth
+
+        pending = _connection(
+            auth_type="oauth", url="https://gmail.googleapis.com", oauth_state="state-google"
+        )
+        pending.oauth_pending_payload = _seal_into(
+            pending,
+            _base_payload(
+                provider="google", server_url="https://gmail.googleapis.com"
+            ).model_dump_json(),
+        )
+        repo.get_by_oauth_state = AsyncMock(return_value=pending)
+        repo.update.return_value = pending
+        monkeypatch.setattr(
+            google_oauth,
+            "exchange_code",
+            AsyncMock(
+                return_value=google_oauth.GoogleToken(
+                    access_token="AT",
+                    refresh_token="RT",
+                    expires_in=3600,
+                    granted_scopes=["https://www.googleapis.com/auth/gmail.readonly"],
+                )
+            ),
+        )
+
+        await service.oauth_callback(state="state-google", code="the-code")
+
+        update_data = repo.update.call_args.kwargs["update_data"]
+        assert update_data["granted_scopes"] == ["https://www.googleapis.com/auth/gmail.readonly"]
+        assert update_data["oauth_state"] is None
+        assert update_data["last_status"] == "ok"
 
     @pytest.mark.anyio
     async def test_oauth_callback_exchanges_and_clears_state(self, service, repo, monkeypatch):
@@ -2718,3 +2759,169 @@ class TestGithubPortalOAuth:
         with pytest.raises(mcp_oauth.OAuthError):
             await service.oauth_callback(state="gh-state", code="the-code")
         repo.update.assert_not_called()
+
+
+class TestPolledPortalOAuth:
+    """Connecting a portal the platform reads rather than is posted to.
+
+    Gmail's case, and the shape differs from GitHub's in one decision worth
+    holding: the client is the *deployment's*, not the organization's. Google's
+    consent screen for a mailbox scope needs a verified project, which an operator
+    makes once and no tenant of theirs can make at all.
+    """
+
+    pytestmark = pytest.mark.anyio
+
+    @pytest.fixture
+    def ctx(self) -> AuthContext:
+        return AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER.value)
+
+    @pytest.fixture
+    def service(self):
+        return McpConnectionService(db=AsyncMock())
+
+    @pytest.fixture
+    def repo(self, monkeypatch):
+        mock_repo = MagicMock()
+        mock_repo.get_portal_grant = AsyncMock(return_value=None)
+        mock_repo.create_org_scoped = AsyncMock()
+        mock_repo.update = AsyncMock()
+        monkeypatch.setattr(mcp_connection_service, "mcp_connection_repo", mock_repo)
+        return mock_repo
+
+    @pytest.fixture
+    def client(self, monkeypatch):
+        monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "deployment-client")
+        monkeypatch.setattr(settings, "GOOGLE_CLIENT_SECRET", "deployment-secret")
+
+    async def test_a_deployment_with_no_google_client_is_a_clean_4xx(
+        self, service, ctx, repo, monkeypatch
+    ):
+        """A missing prerequisite the card shows, never a 500 - and no row written,
+        so configuring the client and retrying is not a name clash."""
+        monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "")
+        monkeypatch.setattr(settings, "GOOGLE_CLIENT_SECRET", "")
+        with pytest.raises(NotFoundError):
+            await service.oauth_start_for_polled_portal(ctx, portal_key="google")
+        repo.create_org_scoped.assert_not_called()
+
+    async def test_a_portal_that_is_not_polled_is_refused(self, service, ctx, repo, client):
+        """GitHub connects through its own flow; sending it here would stage a grant
+        with no webhook scopes on it."""
+        with pytest.raises(BadRequestError):
+            await service.oauth_start_for_polled_portal(ctx, portal_key="github")
+        repo.create_org_scoped.assert_not_called()
+
+    async def test_an_unknown_portal_is_refused(self, service, ctx, repo, client):
+        with pytest.raises(BadRequestError):
+            await service.oauth_start_for_polled_portal(ctx, portal_key="no-such-portal")
+        repo.create_org_scoped.assert_not_called()
+
+    async def test_the_consent_url_is_googles_and_asks_for_offline_access(
+        self, service, ctx, repo, client
+    ):
+        url = await service.oauth_start_for_polled_portal(ctx, portal_key="google")
+
+        assert url.startswith("https://accounts.google.com/o/oauth2/v2/auth?")
+        assert "client_id=deployment-client" in url
+        assert "gmail.readonly" in url
+        # Without these Google returns a refresh token only on the very first
+        # consent for a client, so a mailbox would work for an hour and then stop.
+        assert "access_type=offline" in url
+        assert "prompt=consent" in url
+        # The secret never rides in a URL the browser is sent to.
+        assert "deployment-secret" not in url
+
+    async def test_the_grant_is_staged_as_a_portal_row_not_a_server(
+        self, service, ctx, repo, client
+    ):
+        """A grant must never appear among the organization's MCP servers: it has no
+        tools and nobody should be offered it to bind an agent to."""
+        await service.oauth_start_for_polled_portal(ctx, portal_key="google")
+
+        written = repo.create_org_scoped.await_args.kwargs
+        assert written["purpose"] == "portal"
+        assert written["portal_key"] == "google"
+        assert written["catalog_key"] is None
+
+    async def test_re_consenting_stages_onto_the_existing_grant(self, service, ctx, repo, client):
+        """One grant per portal per organization: a second row would be two mailboxes
+        with nothing to choose between them."""
+        repo.get_portal_grant = AsyncMock(
+            return_value=MagicMock(auth_type="oauth", id=uuid4(), secret_key_version=1)
+        )
+
+        await service.oauth_start_for_polled_portal(ctx, portal_key="google")
+
+        repo.create_org_scoped.assert_not_called()
+        assert repo.update.await_count == 1
+
+
+class TestCompletingGooglesFlow:
+    """The exchange, and the two fields GitHub's flow does not carry."""
+
+    pytestmark = pytest.mark.anyio
+
+    async def test_the_refresh_token_and_expiry_are_kept(self, monkeypatch):
+        """A Google access token expires in an hour, so both are needed - and this
+        is the whole reason a grant lives in a table that refreshes under a lock."""
+        from app.services.mcp_connection import _complete_google_flow
+        from app.services.portals import google_oauth
+
+        monkeypatch.setattr(
+            google_oauth,
+            "exchange_code",
+            AsyncMock(
+                return_value=google_oauth.GoogleToken(
+                    access_token="at",
+                    refresh_token="rt",
+                    expires_in=3600,
+                    granted_scopes=["https://www.googleapis.com/auth/gmail.readonly"],
+                )
+            ),
+        )
+        payload = _base_payload(provider="google")
+
+        completed, granted = await _complete_google_flow(payload, "code")
+
+        assert completed.access_token == "at"
+        assert completed.refresh_token == "rt"
+        assert completed.expires_at is not None
+        assert granted == ["https://www.googleapis.com/auth/gmail.readonly"]
+
+    async def test_a_grant_with_no_refresh_token_is_stored_as_it_came(self, monkeypatch):
+        """Google withholds one when the account has consented before without
+        `access_type=offline`. Recorded as absent rather than invented."""
+        from app.services.mcp_connection import _complete_google_flow
+        from app.services.portals import google_oauth
+
+        monkeypatch.setattr(
+            google_oauth,
+            "exchange_code",
+            AsyncMock(
+                return_value=google_oauth.GoogleToken(
+                    access_token="at", refresh_token=None, expires_in=None, granted_scopes=[]
+                )
+            ),
+        )
+
+        completed, granted = await _complete_google_flow(_base_payload(provider="google"), "code")
+
+        assert completed.refresh_token is None
+        assert completed.expires_at is None
+        assert granted is None
+
+    async def test_a_refused_exchange_becomes_the_shared_oauth_error(self, monkeypatch):
+        """So the one callback route reports it the way it reports every other
+        flow's failure."""
+        from app.services.mcp_connection import _complete_google_flow
+        from app.services.portals import google_oauth
+
+        monkeypatch.setattr(
+            google_oauth,
+            "exchange_code",
+            AsyncMock(side_effect=google_oauth.GoogleOAuthError("Google refused")),
+        )
+
+        with pytest.raises(mcp_oauth.OAuthError):
+            await _complete_google_flow(_base_payload(provider="google"), "code")

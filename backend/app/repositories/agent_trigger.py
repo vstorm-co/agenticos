@@ -95,6 +95,33 @@ async def list_for_connection(
     return list(result.scalars().all())
 
 
+async def list_active_for_event_source(
+    db: AsyncSession, *, organization_id: UUID, event_source: str
+) -> list[AgentTrigger]:
+    """The organization's live event triggers on one source, for a polled delivery.
+
+    A webhook delivery names its trigger in the URL; a poll names a *mailbox*, so
+    one read can match several triggers - "any message" and "marked important" on
+    the same account is the shape the presets invite. Scoped to the organization
+    whose grant was polled, because that grant is what authorized reading the
+    account at all.
+
+    Ordered by creation so two workers that somehow poll the same grant fire in the
+    same order, which is what makes the dedupe claim's winner deterministic.
+    """
+    result = await db.execute(
+        select(AgentTrigger)
+        .where(
+            AgentTrigger.organization_id == organization_id,
+            AgentTrigger.trigger_type == "event",
+            AgentTrigger.event_source == event_source,
+            AgentTrigger.is_active.is_(True),
+        )
+        .order_by(AgentTrigger.created_at.asc())
+    )
+    return list(result.scalars().all())
+
+
 async def list_for_organization(
     db: AsyncSession,
     *,

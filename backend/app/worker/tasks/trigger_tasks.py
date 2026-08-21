@@ -112,6 +112,83 @@ async def check_agent_triggers_flow() -> None:
     logger.info("agent_triggers_check", extra={"dispatched": dispatched, "claimed": len(triggers)})
 
 
+@flow(name="portal-poll", log_prints=True)
+async def poll_portal_grants_flow() -> None:
+    """Heartbeat: read the connected accounts nobody pushes to, and fire what arrived.
+
+    The third flow, and the one that makes a polled portal a delivery mechanism
+    rather than a second kind of trigger. Gmail pushes nothing without a Cloud
+    Pub/Sub topic and a registration that expires weekly, so this asks - once a
+    minute, one request per connected mailbox - and hands whatever it finds to the
+    same match-then-fire path a webhook delivery takes.
+
+    The shape is the sibling heartbeat's, for the same reasons: grants are claimed
+    `FOR UPDATE SKIP LOCKED` with `polled_at` advanced under the lock, so a tick
+    that outruns its own minute cannot be double-claimed by the next; and each
+    fire is submitted through `run_deployment` without being awaited, so one slow
+    agent run never holds the tick open.
+
+    **The cursor advances only after the fires are dispatched, in the same
+    transaction.** In the other order a crash between the two loses every message
+    the poll read - the cursor says they were handled and nothing handled them.
+    Advancing after means a crash *re-reads* them, which the delivery-id claim then
+    dedups: at-least-once, with the duplicate suppressed, rather than at-most-once
+    with a silent hole.
+    """
+    from app.services.agent_trigger import AgentTriggerService
+    from app.services.mcp_connection import McpConnectionService
+    from app.services.portal_catalog import CATALOG, DeliveryMode
+
+    polled_keys = [entry.key for entry in CATALOG if entry.delivery is DeliveryMode.POLLING]
+    if not polled_keys:
+        return
+    dispatched = 0
+    async with get_worker_db_context() as db:
+        grants = await McpConnectionService(db).claim_grants_to_poll(portal_keys=polled_keys)
+        for grant in grants:
+            source = _polled_source(grant.portal_key)
+            if source is None:
+                continue
+            read = await McpConnectionService(db).poll_grant(grant)
+            if read is None:
+                continue
+            decisions = await AgentTriggerService(db).prepare_polled_fires(
+                organization_id=grant.organization_id,
+                event_source=source,
+                events=read.events,
+            )
+            for decision in decisions:
+                try:
+                    await dispatch_trigger_fire(
+                        str(decision.trigger_id), event_context=decision.event_context
+                    )
+                except Exception:
+                    # Isolated like the scheduled loop's, and for the same reason: a
+                    # transient Prefect error on one fire must not cost the rest of
+                    # the batch theirs. The delivery claim is left standing - a
+                    # submit that raised may still have enqueued the run.
+                    logger.exception(
+                        "portal_poll_dispatch_failed",
+                        extra={"trigger_id": str(decision.trigger_id)},
+                    )
+                else:
+                    dispatched += 1
+            await McpConnectionService(db).store_poll_cursor(grant, cursor=read.cursor)
+    logger.info("portal_poll", extra={"dispatched": dispatched})
+
+
+def _polled_source(portal_key: str | None) -> str | None:
+    """The `event_source` a portal's presets fire through, or `None` for no portal.
+
+    Read off the catalog rather than assumed from the key, because they are not the
+    same word: the portal is `google` and the source is `gmail`.
+    """
+    from app.services.portal_catalog import get_portal
+
+    portal = None if portal_key is None else get_portal(portal_key)
+    return None if portal is None else portal.event_source
+
+
 @flow(name="run-scheduled-trigger", log_prints=True)
 async def run_scheduled_trigger_flow(
     trigger_id: str, event_context: str | None = None, claimed_at: str | None = None

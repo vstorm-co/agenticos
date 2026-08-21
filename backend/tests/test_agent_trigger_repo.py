@@ -312,3 +312,24 @@ class TestClaiming:
         params = _filters(session)
         assert trigger_id in params.values()
         assert claimed_at in params.values()
+
+
+class TestListingTriggersForAPolledSource:
+    """A poll names a mailbox, not a trigger, so one read can match several.
+
+    A webhook delivery names its trigger in the URL. A polled one does not, so the
+    poller asks which of the organization's live triggers watch that source -
+    "any message" and "marked important" on one account is the shape the presets
+    invite.
+    """
+
+    async def test_it_asks_for_this_organizations_live_event_triggers_on_one_source(self):
+        organization_id = uuid.uuid4()
+        session = _RecordingSession(_scalars([]))
+
+        await agent_trigger_repo.list_active_for_event_source(
+            session, organization_id=organization_id, event_source="gmail"
+        )
+
+        assert set(_filters(session).values()) >= {organization_id, "gmail", "event"}
+        assert "is_active" in _sql(session)

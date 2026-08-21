@@ -85,6 +85,20 @@ describe("starting an OAuth flow", () => {
       portal_key: "github",
     });
   });
+
+  it("starts a polled portal through the endpoint that registers no webhook", async () => {
+    // Gmail's case: nothing is registered anywhere, so the flow's only job is a
+    // refreshable token - and it runs on the deployment's own Google client rather
+    // than a per-organization OAuth App (#1068).
+    vi.mocked(apiClient.post).mockResolvedValue({ authorization_url: "https://google/consent" });
+
+    await expect(personal.startPolledPortalOAuth("google")).resolves.toEqual({
+      authorization_url: "https://google/consent",
+    });
+    expect(apiClient.post).toHaveBeenCalledWith("/mcp-connections/oauth/start/portal", {
+      portal_key: "google",
+    });
+  });
 });
 
 describe("the organization's connections", () => {
