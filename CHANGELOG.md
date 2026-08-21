@@ -17,6 +17,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.233] - 2026-08-21
+
+A conversation is shared inside its organization or not at all.
+
+### Fixed
+
+- **`POST /conversations/{id}/share` resolved the target user deployment-wide and
+  never checked they belong to the conversation's organization.** The row was
+  created and the dialog listed the outsider under "Shared with" - while the read
+  path refuses on the tenant before it ever consults the share, so the target got a
+  404 and the owner a lie. Not a leak, since the tenant gate holds, but a contract
+  that lies. `share_conversation` now checks the target is a member of the
+  conversation's organization, by id and by email alike. (#930)
+- A non-member is refused **as though they did not exist**, with the same
+  `NotFoundError` the not-found case raises: naming them "a member of another
+  organization" would turn the share form into a cross-tenant probe for which
+  addresses hold an account elsewhere on the deployment. Membership is read with
+  `member_repo.get` rather than `get_active` - the question is tenancy, and whether
+  a member can currently sign in is the read path's call. (#930)
+- The owner's "Shared with" listing drops rows already in that state, in one query:
+  a target who is a current member is kept, and so is a public-link share, which has
+  no target. Cheaper than a migration, and self-correcting. (#930)
 ## [0.0.232] - 2026-08-21
 
 The active-sessions card holds while the next page loads.
