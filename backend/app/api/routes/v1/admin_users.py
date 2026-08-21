@@ -47,7 +47,7 @@ async def update_user(
     db: DBSession,
     service: UserSvc,
 ) -> Any:
-    user = await service.update(user_id, user_in)
+    user = await service.admin_update(user_id, user_in, acting_admin_id=admin.id)
     # Which fields were set, never what they were set to. `UserUpdate` carries
     # `password`, so dumping the submitted body wrote the plaintext an
     # administrator typed into `app_admin_audit_logs.details`, where it sat in a
@@ -76,7 +76,7 @@ async def delete_user(
     service: UserSvc,
 ) -> None:
     target = await service.get_by_id(user_id)
-    await service.delete(user_id)
+    await service.admin_delete(user_id, acting_admin_id=admin.id)
     await record_audit(
         db,
         actor_user_id=admin.id,
