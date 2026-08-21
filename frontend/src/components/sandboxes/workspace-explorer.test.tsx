@@ -230,6 +230,69 @@ describe("the workspace explorer", () => {
     );
   });
 
+  it("searches the whole tree rather than the folder on screen", async () => {
+    // Which is the point of searching here at all: "where is that checklist" is
+    // asked by somebody who does not know which folder holds it, and a search
+    // scoped to the open folder answers that question only by luck.
+    render(<WorkspaceExplorer workspaceId="w-1" />);
+
+    await userEvent.type(screen.getByLabelText("Search files by name"), "checklist");
+
+    expect(screen.getByText("/skills/code-review/checklist.md")).toBeVisible();
+    expect(screen.queryByText("report.md")).toBeNull();
+    // The full path, because a name on its own does not say which folder matched.
+    expect(screen.queryByRole("treeitem")).toBeNull();
+  });
+
+  it("says so when a search matches nothing, rather than showing an empty tree", async () => {
+    render(<WorkspaceExplorer workspaceId="w-1" />);
+
+    await userEvent.type(screen.getByLabelText("Search files by name"), "invoice");
+
+    expect(screen.getByText(/Nothing in this workspace matches/)).toBeVisible();
+  });
+
+  it("opens a file found by searching", async () => {
+    render(<WorkspaceExplorer workspaceId="w-1" />);
+    await userEvent.type(screen.getByLabelText("Search files by name"), "report");
+
+    await userEvent.click(screen.getByRole("button", { name: "/report.md" }));
+
+    expect(await screen.findByTestId("rendered")).toBeVisible();
+  });
+
+  it("reads an opened file with no measured size as unmeasured", async () => {
+    // A host that lists a file without a size is not a host reporting zero bytes.
+    state.files = listing([file("/report.md", { size: null })]);
+    render(<WorkspaceExplorer workspaceId="w-1" />);
+
+    await userEvent.click(screen.getByRole("button", { name: "report.md" }));
+
+    expect(await screen.findByTestId("rendered")).toBeVisible();
+    // Twice: on the row in the tree, and in the header of the reader beside it.
+    expect(screen.getAllByText("—")).toHaveLength(2);
+  });
+
+  it("reads a search result with no measured size as unmeasured", async () => {
+    state.files = listing([file("/uploads/report.csv", { size: null })]);
+    render(<WorkspaceExplorer workspaceId="w-1" />);
+
+    await userEvent.type(screen.getByLabelText("Search files by name"), "report");
+
+    expect(screen.getByText("—")).toBeVisible();
+  });
+
+  it("offers a search result's download without opening it", async () => {
+    render(<WorkspaceExplorer workspaceId="w-1" />);
+    await userEvent.type(screen.getByLabelText("Search files by name"), "checklist");
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Download /skills/code-review/checklist.md" }),
+    );
+
+    expect(state.downloaded).toEqual([["w-1", "/skills/code-review/checklist.md"]]);
+  });
+
   it("offers a download without opening the file first", async () => {
     render(<WorkspaceExplorer workspaceId="w-1" />);
 
@@ -300,6 +363,14 @@ describe("the workspace explorer", () => {
 describe("the tree built from the paths", () => {
   const paths = (nodes: ReturnType<typeof treeOf>): string[] =>
     nodes.flatMap((node) => [node.path, ...paths(node.children)]);
+
+  it("drops an entry that names no file at all", () => {
+    // A host answering with the working directory itself - `/`, or `.` - carries
+    // no segments, and a node with an empty name is a row nothing can open.
+    expect(treeOf([file("/"), file("/report.md")]).map((node) => node.path)).toEqual([
+      "/report.md",
+    ]);
+  });
 
   it("invents a folder the listing never named", () => {
     // A host that returns `uploads/x.pdf` and no directory row still has an

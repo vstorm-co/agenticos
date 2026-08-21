@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -572,6 +572,76 @@ describe("ConnectionDialog", () => {
       expect(
         await screen.findByText("The sandbox service refused this connection's credential"),
       ).toBeVisible();
+    });
+
+    it("discards an answer to a question that has been superseded", async () => {
+      // The automatic ask is debounced, so changing the key while one is in flight
+      // starts a second. An older reply landing last used to overwrite the newer
+      // one's runtimes, and a runtime from the wrong ask could then be saved.
+      const answers: ((runtimes: { alias: string; description: string }[]) => void)[] = [];
+      state.probe = vi.fn(
+        () =>
+          new Promise<{ runtimes: { alias: string; description: string }[] }>((resolve) => {
+            answers.push((runtimes) => resolve({ runtimes }));
+          }),
+      );
+      state.secrets = [
+        { id: "s-1", name: "First key", kind: "api_key", hint: "1111" },
+        { id: "s-2", name: "Second key", kind: "api_key", hint: "2222" },
+      ];
+      state.local = {
+        url: "http://sandboxd:8080",
+        token_available: false,
+        registered_connection_id: null,
+      };
+      mount();
+
+      await userEvent.click(await screen.findByLabelText("Credential"));
+      await userEvent.click(screen.getByRole("option", { name: /First key/ }));
+      await waitFor(() => expect(answers).toHaveLength(1));
+      await userEvent.click(screen.getByLabelText("Credential"));
+      await userEvent.click(screen.getByRole("option", { name: /Second key/ }));
+      await waitFor(() => expect(answers).toHaveLength(2));
+
+      answers[1]?.([{ alias: "workbench", description: "The newer answer" }]);
+      answers[0]?.([{ alias: "stale", description: "The older answer" }]);
+
+      await userEvent.click(screen.getByRole("combobox", { name: "Default runtime" }));
+      expect(await screen.findByRole("option", { name: /The newer answer/ })).toBeVisible();
+      expect(screen.queryByRole("option", { name: /The older answer/ })).toBeNull();
+    });
+
+    it("discards a superseded refusal too", async () => {
+      // The same race in the other direction: a failure belonging to a question
+      // nobody is asking any more would mark the form about it.
+      const refusals: ((error: Error) => void)[] = [];
+      state.probe = vi.fn(
+        () =>
+          new Promise<{ runtimes: { alias: string; description: string }[] }>((_, reject) => {
+            refusals.push(reject);
+          }),
+      );
+      state.secrets = [
+        { id: "s-1", name: "First key", kind: "api_key", hint: "1111" },
+        { id: "s-2", name: "Second key", kind: "api_key", hint: "2222" },
+      ];
+      state.local = {
+        url: "http://sandboxd:8080",
+        token_available: false,
+        registered_connection_id: null,
+      };
+      mount();
+
+      await userEvent.click(await screen.findByLabelText("Credential"));
+      await userEvent.click(screen.getByRole("option", { name: /First key/ }));
+      await waitFor(() => expect(refusals).toHaveLength(1));
+      await userEvent.click(screen.getByLabelText("Credential"));
+      await userEvent.click(screen.getByRole("option", { name: /Second key/ }));
+      await waitFor(() => expect(refusals).toHaveLength(2));
+
+      refusals[0]?.(new Error("The superseded ask failed"));
+
+      expect(screen.queryByText("The superseded ask failed")).toBeNull();
     });
 
     it("keeps a free-text field for Daytona, which publishes no list", async () => {

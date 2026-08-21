@@ -1165,7 +1165,17 @@ class SandboxWorkspaceService:
         queue: list[tuple[str, int]] = [(".", 0)]
         while queue:
             path, depth = queue.pop(0)
-            entries = await asyncio.to_thread(archive.ls, session, path)
+            try:
+                entries = await asyncio.to_thread(archive.ls, session, path)
+            except Exception:
+                # The root's failure is the host's and belongs to the caller, which
+                # turns it into `unreadable_reason`. One directory below it refusing
+                # is not: dropping the whole listing for a subdirectory the agent
+                # made unreadable would report a workspace nobody can read.
+                if depth == 0:
+                    raise
+                logger.warning("workspace_listing_subtree_unreadable", extra={"path": path})
+                continue
             for entry in entries:
                 found.append(entry)
                 if len(found) >= _MAX_LISTED_ENTRIES:
@@ -1444,6 +1454,8 @@ def stored_thumbnail(path: str, data: FileData | None) -> str | None:
     """
     if data is None or data.get("encoding") != "base64":
         return None
+    if PurePosixPath(path).suffix.lower() not in THUMBNAIL_SUFFIXES:
+        return None
     content = data.get("content") or []
     try:
         raw = base64.b64decode("".join(str(line) for line in content), validate=True)
@@ -1460,9 +1472,11 @@ def thumbnail_of(path: str, raw: bytes) -> str | None:
     A stored one arrives base64 in the document the listing already read; a host's
     is a `read_bytes` per file, which is why the caller counts them - see
     `_host_thumbnails`.
+
+    Whether the suffix says image at all is asked by each caller instead, because
+    each pays a different price for the answer: a decode of the whole base64 body
+    for a stored file, a fetch from the host for a container's.
     """
-    if PurePosixPath(path).suffix.lower() not in THUMBNAIL_SUFFIXES:
-        return None
     if len(raw) > THUMBNAIL_SOURCE_LIMIT:
         return None
     try:

@@ -245,14 +245,17 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
             variant="ghost"
             size="sm"
             aria-label={t("activityOf", { id: session.session_id })}
-            onClick={() => setWatching(watching === session.session_id ? null : session.session_id)}
+            // Opens only. The log is a modal, so while one is open its row is
+            // behind it and out of the accessibility tree - a second label on this
+            // button would be one nothing can read and nothing can press.
+            onClick={() => setWatching(session.session_id)}
           >
-            {watching === session.session_id ? t("hide2") : t("show")}
+            {t("show")}
           </Button>
         ),
       },
     ],
-    [t, watching, nameOf, policy],
+    [t, nameOf, policy],
   );
 
   if (connection === null)

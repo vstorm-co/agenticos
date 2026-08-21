@@ -68,10 +68,11 @@ _NOT_THE_AGENTS = ("uploads/", "skills/", f"{OVERFLOW_PREFIX}/")
 """Prefixes a reply must not post back, matched after the leading slash is
 stripped.
 
-**Both spellings, because the two backends disagree about the leading slash.** A
-stored workspace's paths begin with `/`; a container's come back from the host's
-`ls` relative - `uploads/8b1e-report.pdf` - so a tuple of `/uploads/` matched the
-first and not the second. The snapshot is taken before the attachment router
+**One spelling, and the slash is stripped at the match**, because the two
+backends disagree about it: a stored workspace's paths begin with `/`, a
+container's come back from the host's `ls` relative - `uploads/8b1e-report.pdf` -
+so a tuple written as `/uploads/` matched the first and let the second straight
+through. The snapshot is taken before the attachment router
 writes, so an upload looks like a file the turn produced, and this is the only
 thing standing between that and a channel reply posting somebody's own PDF back
 at them as the agent's work."""

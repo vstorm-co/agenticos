@@ -284,6 +284,28 @@ describe("SessionsPanel", () => {
     expect(screen.getByText("100 MiB / 512 MiB")).toBeVisible();
   });
 
+  it("reads a container that has barely started in kibibytes", () => {
+    // A sandbox opened and not yet used holds a few hundred KiB, and rounding that
+    // to `0 MiB` reads as a sample that failed.
+    state.listing = listing([
+      session({ usage: { memory_bytes: 348160, memory_limit_bytes: 2147483648 } }),
+    ]);
+    render(<SessionsPanel connections={[connection()]} />);
+
+    expect(screen.getByText("340 KiB / 2.0 GiB")).toBeVisible();
+  });
+
+  it("reads a container's gigabytes in gigabytes", () => {
+    // `workbench` runs with a 2 GiB ceiling, so "1740 MiB / 2048 MiB" was the
+    // normal reading - a four-digit number against another four-digit number.
+    state.listing = listing([
+      session({ usage: { memory_bytes: 1825361100, memory_limit_bytes: 2147483648 } }),
+    ]);
+    render(<SessionsPanel connections={[connection()]} />);
+
+    expect(screen.getByText("1.7 GiB / 2.0 GiB")).toBeVisible();
+  });
+
   it("shows what was sampled even where there is no ceiling to compare it to", () => {
     state.listing = listing([
       session({ usage: { memory_bytes: 104857600, memory_limit_bytes: null } }),
@@ -460,6 +482,46 @@ describe("SessionsPanel", () => {
       expect(dialog.queryByText("notes.md")).toBeNull();
     });
 
+    it("narrows to one kind of operation, and offers only the kinds it holds", async () => {
+      // A filter offering `edit` on a sandbox that has only ever been globbed is a
+      // filter that answers nothing, so the list is built from the log.
+      const now = Math.round(Date.now() / 1000);
+      state.log = {
+        events: [
+          {
+            seq: 1,
+            at: now - 60,
+            op: "glob",
+            target: "**/*.py",
+            ok: true,
+            detail: "",
+            duration_ms: 20,
+          },
+          {
+            seq: 2,
+            at: now - 30,
+            op: "exec",
+            target: "pytest -q",
+            ok: true,
+            detail: "",
+            duration_ms: 900,
+          },
+        ],
+        latest_seq: 2,
+      };
+      render(<SessionsPanel connections={[connection()]} />);
+      await userEvent.click(screen.getByRole("button", { name: "Activity of xc-1" }));
+      const dialog = within(screen.getByRole("dialog"));
+
+      await userEvent.click(dialog.getByRole("combobox", { name: "Operation" }));
+      expect(screen.queryByRole("option", { name: "write" })).toBeNull();
+      await userEvent.click(screen.getByRole("option", { name: "exec" }));
+
+      expect(dialog.getByText("pytest -q")).toBeVisible();
+      expect(dialog.queryByText("**/*.py")).toBeNull();
+      expect(dialog.getByText("1 of 2 operations")).toBeVisible();
+    });
+
     it("says when the service has dropped the earlier operations", async () => {
       // The service keeps a fixed number of entries per session, so a log that
       // starts above sequence 1 has lost its beginning. Without this it simply
@@ -622,6 +684,27 @@ describe("what the row says about a sandbox", () => {
     render(<SessionsPanel connections={[connection()]} />);
 
     expect(screen.getByText("reaped in 1m")).toBeVisible();
+  });
+
+  it("marks a countdown only once it is nearly out", () => {
+    // Amber on every row is amber nobody reads. A sandbox with half an hour left
+    // is not the one an operator is looking for.
+    state.policy = { idle_timeout: 1800 };
+    state.listing = listing([session({ idle_seconds: 60 })]);
+
+    render(<SessionsPanel connections={[connection()]} />);
+
+    expect(screen.getByText("reaped in 29m")).not.toHaveClass("text-amber-600");
+  });
+
+  it("names a sandbox no agent opened as belonging to none", () => {
+    // The service answers with a null agent for a sandbox opened outside a run.
+    state.agents = [{ id: "a-1", name: "JARVIS" }];
+    state.listing = listing([session({ agent_id: null })]);
+
+    render(<SessionsPanel connections={[connection()]} />);
+
+    expect(screen.getByText("An agent")).toBeVisible();
   });
 
   it("counts down for a running sandbox only", () => {

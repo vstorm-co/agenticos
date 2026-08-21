@@ -298,6 +298,16 @@ describe("paging between the files it was opened from", () => {
     expect(screen.getByRole("button", { name: "Next file" })).toBeEnabled();
   });
 
+  it("pages with the chevrons in both directions", async () => {
+    const { onSelect } = withCarousel(1);
+
+    await userEvent.click(screen.getByRole("button", { name: "Next file" }));
+    expect(onSelect).toHaveBeenCalledWith(2);
+
+    await userEvent.click(screen.getByRole("button", { name: "Previous file" }));
+    expect(onSelect).toHaveBeenCalledWith(0);
+  });
+
   it("names every file in the strip, not a row of dots", async () => {
     // Five attachments are five names; a dot says how many there are and nothing
     // about which one is the spreadsheet.

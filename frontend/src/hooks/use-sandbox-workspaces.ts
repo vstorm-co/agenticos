@@ -14,8 +14,6 @@ import {
 } from "@/lib/sandbox-workspaces-api";
 
 interface UseWorkspacesResult {
-  /** How many workspaces were read to count their files. */
-  measured: number;
   /** Hosts that would not answer. A shorter answer, said rather than implied. */
   unreadable: number;
   truncated: boolean;
@@ -42,7 +40,6 @@ export function useSandboxWorkspaces(measure = false): UseWorkspacesResult {
 
   return {
     workspaces: data?.items ?? [],
-    measured: data?.measured ?? 0,
     unreadable: data?.unreadable ?? 0,
     truncated: data?.truncated ?? false,
     isLoading,
