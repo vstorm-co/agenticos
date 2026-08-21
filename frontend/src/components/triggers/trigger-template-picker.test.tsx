@@ -36,7 +36,7 @@ const EMAIL_REPLY: TriggerTemplate = {
   description: "Answer the sender",
   prompt: "Draft a reply.",
   trigger_type: "event",
-  event_source: "email",
+  event_source: "gmail",
 };
 
 beforeEach(() => {
@@ -104,7 +104,7 @@ describe("TriggerTemplatePicker", () => {
     render(
       <TriggerTemplatePicker
         triggerType="event"
-        eventSource="email"
+        eventSource="gmail"
         selectedKey={null}
         onPick={vi.fn()}
         onScratch={vi.fn()}

@@ -152,9 +152,9 @@ describe("triggerSummary", () => {
   it("names an event trigger by its source", () => {
     expect(
       triggerSummary(
-        trigger({ trigger_type: "event", schedule_kind: "interval", event_source: "email" }),
+        trigger({ trigger_type: "event", schedule_kind: "interval", event_source: "gmail" }),
       ),
-    ).toEqual({ kind: "event", source: "email" });
+    ).toEqual({ kind: "event", source: "gmail" });
   });
 
   it("falls back to a sensible default when a discriminant's own field is null", () => {

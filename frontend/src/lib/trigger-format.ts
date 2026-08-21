@@ -133,10 +133,10 @@ export function unitToSeconds(unit: IntervalUnit, count: number): number {
  * or none. Shared by both trigger builders - the raw source-and-secret form and
  * the friendly portal dialog - so a source is described in one place: GitHub
  * fires on its default action and the API source on any signed delivery, so
- * neither offers a filter; email narrows by subject and sender.
+ * neither offers a filter; Gmail narrows by subject and sender.
  */
 export const FILTER_KEYS: Partial<Record<EventSource, readonly [string, string]>> = {
-  email: ["subject_contains", "sender_contains"],
+  gmail: ["subject_contains", "sender_contains"],
 };
 
 /**

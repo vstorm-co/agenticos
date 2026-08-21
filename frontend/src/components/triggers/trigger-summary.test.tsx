@@ -123,13 +123,13 @@ describe("TriggerSummary", () => {
     expect(screen.getByText("On new GitHub issues")).toBeInTheDocument();
   });
 
-  it("names an email event trigger", () => {
+  it("names a Gmail event trigger", () => {
     render(
       <TriggerSummary
-        trigger={trigger({ trigger_type: "event", event_source: "email", interval_seconds: null })}
+        trigger={trigger({ trigger_type: "event", event_source: "gmail", interval_seconds: null })}
       />,
     );
-    expect(screen.getByText("On inbound email")).toBeInTheDocument();
+    expect(screen.getByText("On a new email")).toBeInTheDocument();
   });
 
   it("reads a portal preset in plain language with its target", () => {

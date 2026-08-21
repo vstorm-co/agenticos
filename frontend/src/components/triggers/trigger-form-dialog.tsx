@@ -1142,14 +1142,13 @@ interface EventFieldsProps {
 // or none. Kept beside the backend's per-source config so the form only asks for
 // filters the server will actually apply.
 const SOURCE_FILTERS: Partial<Record<EventSource, readonly [string, string]>> = {
-  email: ["subjectContains", "senderContains"],
+  gmail: ["subjectContains", "senderContains"],
 };
 
 /** The sources the picker offers, each with its static label key so the catalog
  *  check can see them; the mark beside each comes from `EventSourceMark`. */
 const EVENT_SOURCES: readonly { value: EventSource; labelKey: string }[] = [
   { value: "github", labelKey: "sourceGithub" },
-  { value: "email", labelKey: "sourceEmail" },
   { value: "webhook", labelKey: "sourceWebhook" },
 ];
 
@@ -1159,8 +1158,8 @@ function sourceHelp(t: ReturnType<typeof useTranslations>, source: EventSource):
   switch (source) {
     case "github":
       return t("sourceHelpGithub");
-    case "email":
-      return t("sourceHelpEmail");
+    case "gmail":
+      return t("sourceHelpGmail");
     case "webhook":
       return t("sourceHelpWebhook");
   }

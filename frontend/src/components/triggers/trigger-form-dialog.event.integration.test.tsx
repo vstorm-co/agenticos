@@ -176,30 +176,18 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     });
   });
 
-  it("creates an email event trigger with a subject filter", async () => {
+  it("does not offer Gmail at all, because this form is the signed-POST one", async () => {
+    // Gmail is read from a connected mailbox: no inbound door, no per-trigger
+    // secret. Offering it here would put a Signing secret field on a source that
+    // has none, so it is created from its portal card instead (#1068).
     const user = userEvent.setup();
-    vi.mocked(apiClient.post).mockResolvedValue(trigger({ event_source: "email" }));
     const dialog = await openEvent();
 
     await user.click(dialog.getByRole("combobox", { name: "Fires on" }));
-    await user.click(await screen.findByRole("option", { name: "An inbound email" }));
-    await user.type(dialog.getByLabelText("Signing secret"), "another-strong-secret");
-    await user.type(dialog.getByLabelText("Subject contains"), "urgent");
-    await user.type(dialog.getByLabelText("Sender contains"), "boss");
-    await user.click(dialog.getByRole("button", { name: "Continue" }));
-    await user.click(dialog.getByRole("button", { name: "Continue" }));
-    await user.type(dialog.getByLabelText("Message"), "Reply to it");
-    await user.click(dialog.getByRole("button", { name: "Create" }));
 
-    expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
-      prompt: "Reply to it",
-      name: null,
-      trigger_type: "event",
-      environment_id: null,
-      event_source: "email",
-      event_secret: "another-strong-secret",
-      event_config: { subject_contains: "urgent", sender_contains: "boss" },
-    });
+    expect(await screen.findByRole("option", { name: "A GitHub issue" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /email/i })).toBeNull();
+    expect(screen.queryByRole("option", { name: /Gmail/i })).toBeNull();
   });
 
   it("fills the signing secret with a generated one", async () => {
@@ -233,7 +221,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
               description: "Answer the sender",
               prompt: "Draft a reply.",
               trigger_type: "event",
-              event_source: "email",
+              event_source: "gmail",
             },
           ],
           total: 2,

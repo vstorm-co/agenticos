@@ -90,18 +90,21 @@ class GithubTriggerConfig(BaseSchema):
     )
 
 
-class EmailTriggerConfig(BaseSchema):
-    """The filter an email event trigger applies to a delivered message.
+class GmailTriggerConfig(BaseSchema):
+    """The filter a Gmail trigger applies to a message the poller read.
 
-    Both filters are optional substrings; absent, the trigger fires on any signed
-    message delivered to its address. Unknown keys are refused for the same reason
-    as the GitHub config.
+    All three are optional; absent, the trigger fires on every message that
+    arrives in the connected mailbox. `label` is Gmail's own - `INBOX`,
+    `IMPORTANT`, or a user label - which is how somebody narrows to a filtered
+    slice of their mail without writing a substring for it. Unknown keys are
+    refused for the same reason as the GitHub config.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     subject_contains: str | None = Field(default=None, max_length=255)
     sender_contains: str | None = Field(default=None, max_length=255)
+    label: str | None = Field(default=None, max_length=128)
 
 
 class WebhookTriggerConfig(BaseSchema):
@@ -117,7 +120,7 @@ class WebhookTriggerConfig(BaseSchema):
 
 _EVENT_CONFIG_MODELS: dict[str, type[BaseSchema]] = {
     EventSource.GITHUB.value: GithubTriggerConfig,
-    EventSource.EMAIL.value: EmailTriggerConfig,
+    EventSource.GMAIL.value: GmailTriggerConfig,
     EventSource.WEBHOOK.value: WebhookTriggerConfig,
 }
 
@@ -149,7 +152,7 @@ class TriggerCreate(BaseSchema):
     cron_expression: str | None = Field(default=None, max_length=255)
 
     # Event fields.
-    event_source: Literal["github", "email", "webhook"] | None = None
+    event_source: Literal["github", "gmail", "webhook"] | None = None
     event_config: dict[str, Any] | None = None
     event_secret: str | None = Field(default=None, min_length=16, max_length=255)
 
@@ -331,7 +334,7 @@ class TriggerRead(BaseSchema, TimestampSchema):
     schedule_kind: Literal["interval", "cron"]
     interval_seconds: int | None = None
     cron_expression: str | None = None
-    event_source: Literal["github", "email", "webhook"] | None = None
+    event_source: Literal["github", "gmail", "webhook"] | None = None
     event_config: dict[str, Any] = Field(default_factory=dict)
     prompt: str
     # Null on an event trigger, which has no scheduled next fire.

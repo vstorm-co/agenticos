@@ -10,8 +10,8 @@ function presetEventKey(portalKey: string): string {
   switch (portalKey) {
     case "github":
       return "event.presetGithub";
-    case "email":
-      return "event.presetEmail";
+    case "google":
+      return "event.presetGmail";
     default:
       return "event.presetGeneric";
   }
@@ -70,8 +70,8 @@ export function TriggerSummary({ trigger }: { trigger: Trigger }) {
       switch (summary.source) {
         case "github":
           return <>{t("event.github")}</>;
-        case "email":
-          return <>{t("event.email")}</>;
+        case "gmail":
+          return <>{t("event.gmail")}</>;
         case "webhook":
           return <>{t("event.webhook")}</>;
       }

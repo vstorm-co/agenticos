@@ -279,8 +279,8 @@ class TestCreate:
         create = TriggerCreate(
             prompt="triage",
             trigger_type="event",
-            portal_key="email",
-            preset_key="any_email",
+            portal_key="google",
+            preset_key="any_message",
             event_config={"subject_contains": "invoice"},
         )
         assert create.event_config == {"subject_contains": "invoice"}
@@ -1478,18 +1478,22 @@ class TestEventTriggerSchema:
     def test_a_secret_below_the_floor_is_refused(self):
         with pytest.raises(PydanticValidationError):
             TriggerCreate(
-                prompt="x", trigger_type="event", event_source="email", event_secret="short"
+                prompt="x", trigger_type="event", event_source="gmail", event_secret="short"
             )
 
-    def test_an_email_config_is_normalised_with_both_filters(self):
+    def test_a_gmail_config_is_normalised_with_every_filter(self):
         trigger = TriggerCreate(
             prompt="x",
             trigger_type="event",
-            event_source="email",
+            event_source="gmail",
             event_secret=_SIGNING_SECRET,
             event_config={"subject_contains": "urgent"},
         )
-        assert trigger.event_config == {"subject_contains": "urgent", "sender_contains": None}
+        assert trigger.event_config == {
+            "subject_contains": "urgent",
+            "sender_contains": None,
+            "label": None,
+        }
 
     def test_the_generic_webhook_takes_no_filter(self):
         """Filtering is the sender's job; a key here would be stored to mean
@@ -2267,13 +2271,13 @@ class TestCreatingFromAPortalPreset:
         ):
             repo.create = AsyncMock(
                 return_value=_event_trigger(
-                    event_source="email", conversation_id=uuid.uuid4(), delivery_mode="manual"
+                    event_source="gmail", conversation_id=uuid.uuid4(), delivery_mode="manual"
                 )
             )
             result = await service.create(
                 _ctx(),
                 agent.id,
-                _preset_create(portal_key="email", preset_key="any_email", target=None),
+                _preset_create(portal_key="google", preset_key="any_message", target=None),
             )
         assert result.delivery_mode == "manual"
         get_adapter.assert_not_called()
@@ -2299,14 +2303,14 @@ class TestCreatingFromAPortalPreset:
         ):
             repo.create = AsyncMock(
                 return_value=_event_trigger(
-                    event_source="email", conversation_id=uuid.uuid4(), delivery_mode="manual"
+                    event_source="gmail", conversation_id=uuid.uuid4(), delivery_mode="manual"
                 )
             )
             result = await service.create(
                 _ctx(),
                 agent.id,
                 _preset_create(
-                    portal_key="email", preset_key="any_email", connection_id=None, target=None
+                    portal_key="google", preset_key="any_message", connection_id=None, target=None
                 ),
             )
         assert result.delivery_mode == "manual"
@@ -2327,7 +2331,7 @@ class TestCreatingFromAPortalPreset:
             repo.create = AsyncMock()
             with pytest.raises(NotFoundError):
                 await service.create(
-                    _ctx(), agent.id, _preset_create(portal_key="email", preset_key="any_email")
+                    _ctx(), agent.id, _preset_create(portal_key="google", preset_key="any_message")
                 )
         repo.create.assert_not_called()
 
@@ -2342,15 +2346,15 @@ class TestCreatingFromAPortalPreset:
         ):
             repo.create = AsyncMock(
                 return_value=_event_trigger(
-                    event_source="email", conversation_id=uuid.uuid4(), delivery_mode="manual"
+                    event_source="gmail", conversation_id=uuid.uuid4(), delivery_mode="manual"
                 )
             )
             await service.create(
                 _ctx(),
                 agent.id,
                 _preset_create(
-                    portal_key="email",
-                    preset_key="any_email",
+                    portal_key="google",
+                    preset_key="any_message",
                     target=None,
                     event_config={"subject_contains": "invoice"},
                 ),
@@ -2358,6 +2362,7 @@ class TestCreatingFromAPortalPreset:
         assert repo.create.await_args.kwargs["event_config"] == {
             "subject_contains": "invoice",
             "sender_contains": None,
+            "label": None,
         }
 
     async def test_an_event_config_override_can_set_both_filters(self):
@@ -2369,15 +2374,15 @@ class TestCreatingFromAPortalPreset:
         ):
             repo.create = AsyncMock(
                 return_value=_event_trigger(
-                    event_source="email", conversation_id=uuid.uuid4(), delivery_mode="manual"
+                    event_source="gmail", conversation_id=uuid.uuid4(), delivery_mode="manual"
                 )
             )
             await service.create(
                 _ctx(),
                 agent.id,
                 _preset_create(
-                    portal_key="email",
-                    preset_key="any_email",
+                    portal_key="google",
+                    preset_key="any_message",
                     target=None,
                     event_config={"subject_contains": "invoice", "sender_contains": "@acme.com"},
                 ),
@@ -2385,6 +2390,7 @@ class TestCreatingFromAPortalPreset:
         assert repo.create.await_args.kwargs["event_config"] == {
             "subject_contains": "invoice",
             "sender_contains": "@acme.com",
+            "label": None,
         }
 
     async def test_a_malformed_override_is_a_422_not_a_500(self):
@@ -2399,8 +2405,8 @@ class TestCreatingFromAPortalPreset:
                     _ctx(),
                     agent.id,
                     _preset_create(
-                        portal_key="email",
-                        preset_key="any_email",
+                        portal_key="google",
+                        preset_key="any_message",
                         target=None,
                         event_config={"subject_contains": "x" * 300},
                     ),
@@ -2417,8 +2423,8 @@ class TestCreatingFromAPortalPreset:
                     _ctx(),
                     agent.id,
                     _preset_create(
-                        portal_key="email",
-                        preset_key="any_email",
+                        portal_key="google",
+                        preset_key="any_message",
                         target=None,
                         event_config={"not_a_filter": "x"},
                     ),
@@ -2734,10 +2740,11 @@ class TestListingPortalTargets:
             )
 
     async def test_a_portal_with_no_adapter_has_no_targets(self):
-        # A manual portal (email) registers no webhooks and enumerates nothing.
+        # A polled portal (Gmail) registers no webhooks, and its presets need no
+        # target: a mailbox is the whole scope, so there is nothing to enumerate.
         service = _service()
         assert (
-            await service.list_portal_targets(_ctx(), "email", uuid.uuid4(), agent_id=uuid.uuid4())
+            await service.list_portal_targets(_ctx(), "google", uuid.uuid4(), agent_id=uuid.uuid4())
             == []
         )
 

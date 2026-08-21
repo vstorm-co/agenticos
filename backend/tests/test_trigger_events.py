@@ -53,10 +53,16 @@ class TestVerifySignature:
             "github", secret=_SECRET, body=b"{}", headers=headers
         )
 
-    def test_an_email_delivery_uses_its_own_signature_header(self):
-        body = b'{"subject": "hi"}'
-        headers = {"x-signature-256": _sign(_SECRET, body)}
-        assert trigger_events.verify_signature("email", secret=_SECRET, body=body, headers=headers)
+    def test_a_polled_source_has_no_signed_door_at_all(self):
+        """`gmail` is read from a connected mailbox, so nothing POSTs it here.
+
+        Asked before a signature is looked for, because the header tables are keyed
+        only by the sources that have a door: a bare lookup on one that does not
+        would turn this refusal into a `KeyError` and a 500 (#1068).
+        """
+        assert trigger_events.accepts_delivery("github")
+        assert trigger_events.accepts_delivery("webhook")
+        assert not trigger_events.accepts_delivery("gmail")
 
 
 class TestGithubMatching:
@@ -93,15 +99,15 @@ class TestGithubMatching:
         )
 
 
-class TestEmailMatching:
+class TestGmailMatching:
     def test_no_filter_matches_any_message(self):
         assert trigger_events.event_matches(
-            "email", headers={}, payload={"subject": "anything", "from": "a@b.co"}, config={}
+            "gmail", headers={}, payload={"subject": "anything", "from": "a@b.co"}, config={}
         )
 
     def test_a_subject_substring_that_is_present_matches(self):
         assert trigger_events.event_matches(
-            "email",
+            "gmail",
             headers={},
             payload={"subject": "[URGENT] outage", "from": "a@b.co"},
             config={"subject_contains": "URGENT"},
@@ -109,7 +115,7 @@ class TestEmailMatching:
 
     def test_a_subject_substring_that_is_absent_does_not_match(self):
         assert not trigger_events.event_matches(
-            "email",
+            "gmail",
             headers={},
             payload={"subject": "hello", "from": "a@b.co"},
             config={"subject_contains": "URGENT"},
@@ -117,7 +123,7 @@ class TestEmailMatching:
 
     def test_a_sender_substring_that_is_absent_does_not_match(self):
         assert not trigger_events.event_matches(
-            "email",
+            "gmail",
             headers={},
             payload={"subject": "hi", "from": "spam@evil.co"},
             config={"sender_contains": "@trusted.co"},
@@ -125,7 +131,7 @@ class TestEmailMatching:
 
     def test_a_sender_substring_that_is_present_matches(self):
         assert trigger_events.event_matches(
-            "email",
+            "gmail",
             headers={},
             payload={"subject": "hi", "from": "boss@trusted.co"},
             config={"sender_contains": "@trusted.co"},
@@ -135,10 +141,36 @@ class TestEmailMatching:
         # A domain is case-insensitive by spec and "invoice" should catch "Invoice";
         # a case-sensitive filter would never fire and never say why.
         assert trigger_events.event_matches(
-            "email",
+            "gmail",
             headers={},
             payload={"subject": "Invoice #12", "from": "billing@Vstorm.co"},
             config={"subject_contains": "invoice", "sender_contains": "@vstorm.co"},
+        )
+
+    def test_a_label_filter_matches_the_labels_gmail_reported(self):
+        assert trigger_events.event_matches(
+            "gmail",
+            headers={},
+            payload={"subject": "Hi", "from": "a@b.co", "labels": ["INBOX", "IMPORTANT"]},
+            config={"label": "IMPORTANT"},
+        )
+
+    def test_a_label_the_message_does_not_carry_does_not_match(self):
+        """Exactly, not as a substring: a label is an identifier the API answers
+        with, so `Work` matching `Workshop` would fire on somebody else's mail."""
+        assert not trigger_events.event_matches(
+            "gmail",
+            headers={},
+            payload={"subject": "Hi", "from": "a@b.co", "labels": ["Workshop"]},
+            config={"label": "Work"},
+        )
+
+    def test_a_message_with_no_labels_at_all_does_not_match_a_label_filter(self):
+        assert not trigger_events.event_matches(
+            "gmail",
+            headers={},
+            payload={"subject": "Hi", "from": "a@b.co"},
+            config={"label": "INBOX"},
         )
 
 
@@ -167,7 +199,7 @@ class TestRenderContext:
 
     def test_an_email_renders_its_sender_subject_and_body(self):
         context = trigger_events.render_context(
-            "email",
+            "gmail",
             payload={"from": "a@b.co", "subject": "Hello", "body": "the message"},
         )
         assert "From: a@b.co" in context
@@ -176,7 +208,7 @@ class TestRenderContext:
 
     def test_an_email_falls_back_to_the_text_field_for_its_body(self):
         context = trigger_events.render_context(
-            "email", payload={"from": "a@b.co", "subject": "Hi", "text": "plain text body"}
+            "gmail", payload={"from": "a@b.co", "subject": "Hi", "text": "plain text body"}
         )
         assert "plain text body" in context
 
@@ -195,7 +227,7 @@ class TestRenderContext:
 
     def test_a_giant_email_body_is_clipped_and_its_header_survives(self):
         context = trigger_events.render_context(
-            "email",
+            "gmail",
             payload={"from": "a@b.co", "subject": "Hello", "body": "y" * 10000},
         )
         assert "From: a@b.co" in context

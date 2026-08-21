@@ -63,7 +63,7 @@ class TriggerTemplate(BaseModel):
     prompt: str
     trigger_type: Literal["schedule", "event"]
     suggested_cadence: SuggestedCadence | None = None
-    event_source: Literal["github", "email", "webhook"] | None = None
+    event_source: Literal["github", "gmail", "webhook"] | None = None
 
     @model_validator(mode="after")
     def _shape_matches_mode(self) -> TriggerTemplate:

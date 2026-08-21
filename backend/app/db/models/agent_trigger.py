@@ -108,10 +108,18 @@ class EventSource(enum.StrEnum):
     being more than a renamed filter: `linkedin` was removed for differing
     from `WEBHOOK` in two field names and a promise no user-level API exists
     to keep.
+
+    **`GMAIL` replaced an `email` source that was the same defect.** It named
+    itself after a mailbox and then asked the user to run a relay - an inbound
+    parser, a Zapier code step, their own script - that POSTs signed JSON at us,
+    which is `WEBHOOK` with two renamed filter fields and the word *email* on a
+    promise nothing here could keep: `app/services/email/` is send-only. `GMAIL`
+    is delivered by *polling* a connected mailbox, so it has no inbound door and
+    no per-trigger secret at all (#1068).
     """
 
     GITHUB = "github"
-    EMAIL = "email"
+    GMAIL = "gmail"
     WEBHOOK = "webhook"
 
 
@@ -275,7 +283,7 @@ class AgentTrigger(Base, TimestampMixin):
         CheckConstraint("trigger_type IN ('schedule', 'event')", name="ck_trigger_type"),
         CheckConstraint("schedule_kind IN ('interval', 'cron')", name="ck_trigger_schedule_kind"),
         CheckConstraint(
-            "event_source IS NULL OR event_source IN ('github', 'email', 'webhook')",
+            "event_source IS NULL OR event_source IN ('github', 'gmail', 'webhook')",
             name="ck_trigger_event_source",
         ),
         # The discriminator across both concepts, in one constraint so a row can

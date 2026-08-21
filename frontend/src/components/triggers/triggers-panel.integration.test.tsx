@@ -255,7 +255,7 @@ describe("TriggersPanel", () => {
     const user = userEvent.setup();
     const row = trigger({
       trigger_type: "event",
-      event_source: "email",
+      event_source: "gmail",
       interval_seconds: null,
       event_config: { subject_contains: "invoice", sender_contains: null },
     });
@@ -282,7 +282,7 @@ describe("TriggersPanel", () => {
     const user = userEvent.setup();
     const row = trigger({
       trigger_type: "event",
-      event_source: "email",
+      event_source: "gmail",
       interval_seconds: null,
       event_config: { subject_contains: "invoice" },
     });

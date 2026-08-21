@@ -20,7 +20,7 @@ from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus
-from app.db.models.agent_trigger import AgentTrigger
+from app.db.models.agent_trigger import AgentTrigger, EventSource
 from app.db.models.conversation import Conversation
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization, OrganizationMember
@@ -230,10 +230,15 @@ class TestTheEventShapeRejectsABadRow:
     async def test_every_shipped_event_source_is_in_the_vocabulary(self, db):
         """The CHECK's list and the EventSource enum drift apart exactly once -
         when a source is added to the code and not the constraint - so every
-        shipped value is written through it here."""
+        shipped value is written through it here.
+
+        Read off the enum rather than repeated as a literal, which is what let the
+        two disagree in the first place: a source renamed in the code left this
+        test asserting the old vocabulary and passing (#1068).
+        """
         org = await _org(db)
         agent = await _agent(db, org)
-        for source in ("github", "email", "webhook"):
+        for source in tuple(member.value for member in EventSource):
             db.add(_event(org, agent, event_source=source))
         await db.flush()
 

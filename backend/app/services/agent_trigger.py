@@ -1046,6 +1046,11 @@ class AgentTriggerService:
                 fix and a 403 is how a provider surfaces it.
             BadRequestError: The body is not a JSON object.
         """
+        # A polled source has no inbound door, so a POST naming one is answered
+        # like every other delivery with nothing to do rather than reaching the
+        # signature tables it has no entry in (#1068).
+        if not trigger_events.accepts_delivery(source):
+            return None
         trigger = await agent_trigger_repo.get_by_id(self.db, trigger_id)
         if (
             trigger is None

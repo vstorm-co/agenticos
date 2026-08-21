@@ -44,14 +44,14 @@ const GITHUB: PortalCatalogEntry = {
   ],
 };
 
-const EMAIL: PortalCatalogEntry = {
-  key: "email",
-  name: "Email",
+const GMAIL: PortalCatalogEntry = {
+  key: "google",
+  name: "Gmail",
   description: "…",
   category: "productivity",
   icon: "gmail",
-  event_source: "email",
-  delivery: "manual",
+  event_source: "gmail",
+  delivery: "polling",
   webhook_admin_scopes: [],
   target_kind: null,
   connection_catalog_key: null,
@@ -59,7 +59,7 @@ const EMAIL: PortalCatalogEntry = {
   connection_state: null,
   connection_covers_webhook_scopes: false,
   presets: [
-    { key: "any_email", label: "Any incoming email", description: "…", target_required: false },
+    { key: "any_message", label: "Any new message", description: "…", target_required: false },
   ],
 };
 
@@ -133,28 +133,28 @@ describe("PortalTriggerDialog", () => {
     // The server mints and seals the secret from the preset; the client sends none.
     expect(payload).not.toHaveProperty("event_secret");
     expect(payload).not.toHaveProperty("event_source");
-    // A non-email portal shows no filter inputs and sends no event_config.
+    // A portal with no filters shows no inputs and sends no event_config.
     expect(within(dialog).queryByLabelText("Subject contains")).toBeNull();
     expect(within(dialog).queryByLabelText("Sender contains")).toBeNull();
     expect(payload).not.toHaveProperty("event_config");
   });
 
-  it("sends the email subject and sender filters as event_config", async () => {
+  it("sends the Gmail subject and sender filters as event_config", async () => {
     const user = userEvent.setup();
     serve();
     vi.mocked(apiClient.post).mockResolvedValue({
       id: "t1",
       trigger_type: "event",
-      delivery_mode: "manual",
-      webhook_url: "https://api.example.com/api/v1/webhooks/triggers/email/t1",
+      delivery_mode: "polling",
+      webhook_url: null,
       reveal_secret: null,
     });
-    render(<PortalTriggerDialog portal={EMAIL} connectionId={null} open onOpenChange={vi.fn()} />, {
+    render(<PortalTriggerDialog portal={GMAIL} connectionId={null} open onOpenChange={vi.fn()} />, {
       wrapper,
     });
 
     const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: /Any incoming email/ }));
+    await user.click(within(dialog).getByRole("button", { name: /Any new message/ }));
     await user.type(within(dialog).getByLabelText("Subject contains"), "invoice");
     await user.type(within(dialog).getByLabelText("Sender contains"), "billing@acme.com");
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
@@ -167,8 +167,8 @@ describe("PortalTriggerDialog", () => {
       Record<string, unknown>,
     ];
     expect(payload).toMatchObject({
-      portal_key: "email",
-      preset_key: "any_email",
+      portal_key: "google",
+      preset_key: "any_message",
       event_config: { subject_contains: "invoice", sender_contains: "billing@acme.com" },
     });
   });
@@ -215,16 +215,16 @@ describe("PortalTriggerDialog", () => {
     vi.mocked(apiClient.post).mockResolvedValue({
       id: "t1",
       trigger_type: "event",
-      delivery_mode: "manual",
-      webhook_url: "https://api.example.com/api/v1/webhooks/triggers/email/t1",
+      delivery_mode: "polling",
+      webhook_url: null,
       reveal_secret: null,
     });
-    render(<PortalTriggerDialog portal={EMAIL} connectionId={null} open onOpenChange={vi.fn()} />, {
+    render(<PortalTriggerDialog portal={GMAIL} connectionId={null} open onOpenChange={vi.fn()} />, {
       wrapper,
     });
 
     const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: /Any incoming email/ }));
+    await user.click(within(dialog).getByRole("button", { name: /Any new message/ }));
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Read it");
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
@@ -257,11 +257,11 @@ describe("PortalTriggerDialog", () => {
     const user = userEvent.setup();
     serve();
     vi.mocked(apiClient.post).mockResolvedValue(response);
-    render(<PortalTriggerDialog portal={EMAIL} connectionId={null} open onOpenChange={vi.fn()} />, {
+    render(<PortalTriggerDialog portal={GMAIL} connectionId={null} open onOpenChange={vi.fn()} />, {
       wrapper,
     });
     const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: /Any incoming email/ }));
+    await user.click(within(dialog).getByRole("button", { name: /Any new message/ }));
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Read it");
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
@@ -273,12 +273,14 @@ describe("PortalTriggerDialog", () => {
       id: "t1",
       trigger_type: "event",
       delivery_mode: "manual",
-      webhook_url: "https://api.example.com/api/v1/webhooks/triggers/email/t1",
+      webhook_url: "https://api.example.com/api/v1/webhooks/triggers/webhook/t1",
       reveal_secret: null,
     });
 
     expect(
-      await screen.findByDisplayValue("https://api.example.com/api/v1/webhooks/triggers/email/t1"),
+      await screen.findByDisplayValue(
+        "https://api.example.com/api/v1/webhooks/triggers/webhook/t1",
+      ),
     ).toBeInTheDocument();
     // A manual portal carries no connection, so none is sent.
     const [, payload] = vi.mocked(apiClient.post).mock.calls[0] as [
@@ -293,7 +295,7 @@ describe("PortalTriggerDialog", () => {
       id: "t1",
       trigger_type: "event",
       delivery_mode: "manual",
-      webhook_url: "https://api.example.com/api/v1/webhooks/triggers/email/t1",
+      webhook_url: "https://api.example.com/api/v1/webhooks/triggers/webhook/t1",
       reveal_secret: "s3cr3t-sign-me",
     });
 
@@ -317,11 +319,11 @@ describe("PortalTriggerDialog", () => {
       id: "t1",
       trigger_type: "event",
       delivery_mode: "manual",
-      webhook_url: "https://api.example.com/api/v1/webhooks/triggers/email/t1",
+      webhook_url: "https://api.example.com/api/v1/webhooks/triggers/webhook/t1",
       reveal_secret: null,
     });
 
-    await screen.findByDisplayValue("https://api.example.com/api/v1/webhooks/triggers/email/t1");
+    await screen.findByDisplayValue("https://api.example.com/api/v1/webhooks/triggers/webhook/t1");
     expect(screen.queryByLabelText("Signing secret")).toBeNull();
   });
 });

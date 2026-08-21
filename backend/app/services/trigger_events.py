@@ -34,14 +34,16 @@ from collections.abc import Mapping
 from typing import Any
 
 from app.db.models.agent_trigger import EventSource
-from app.schemas.agent_trigger import EmailTriggerConfig, GithubTriggerConfig
+from app.schemas.agent_trigger import GithubTriggerConfig, GmailTriggerConfig
 
 # Where each source's HMAC-SHA256 signature of the raw body rides. GitHub's is its
-# own native header; every relay-delivered source reuses the same scheme under a
-# header the relay sets.
+# own native header; the API source reuses the same scheme under a generic one.
+#
+# A source absent here has no inbound door and is refused at the webhook route
+# before a signature is looked for: `gmail` is *polled* from a connected mailbox,
+# so a signed POST claiming to be one is a delivery nobody registered (#1068).
 _SIGNATURE_HEADER = {
     EventSource.GITHUB.value: "x-hub-signature-256",
-    EventSource.EMAIL.value: "x-signature-256",
     EventSource.WEBHOOK.value: "x-signature-256",
 }
 
@@ -62,7 +64,6 @@ _GITHUB_ISSUE_EVENT = "issues"
 # set the generic header. A source that sends none simply is not deduplicated.
 _DELIVERY_ID_HEADER = {
     EventSource.GITHUB.value: "x-github-delivery",
-    EventSource.EMAIL.value: "x-delivery-id",
     EventSource.WEBHOOK.value: "x-delivery-id",
 }
 
@@ -77,6 +78,18 @@ def delivery_id(source: str, headers: Mapping[str, str]) -> str | None:
     """
     value = headers.get(_DELIVERY_ID_HEADER[source], "").strip()
     return value or None
+
+
+def accepts_delivery(source: str) -> bool:
+    """Whether this source is delivered by an inbound POST at all.
+
+    `gmail` is polled from a connected mailbox, so it has no signed door and no
+    per-trigger secret: a POST claiming to be one is a delivery nobody registered.
+    Asked *before* a signature is looked for, because the tables above are keyed
+    only by the sources that have a door and a bare lookup on one that does not
+    would turn a refusal into a `KeyError` and a 500 (#1068).
+    """
+    return source in _SIGNATURE_HEADER
 
 
 def verify_signature(source: str, *, secret: str, body: bytes, headers: Mapping[str, str]) -> bool:
@@ -109,8 +122,8 @@ def event_matches(
     """Whether a verified delivery passes the trigger's per-source filter."""
     if source == EventSource.GITHUB.value:
         return _github_matches(headers, payload, config)
-    if source == EventSource.EMAIL.value:
-        return _email_matches(payload, config)
+    if source == EventSource.GMAIL.value:
+        return _gmail_matches(payload, config)
     # The generic webhook: the sender chose to deliver, so a verified delivery
     # is a match by definition.
     return True
@@ -120,8 +133,8 @@ def render_context(source: str, *, payload: Mapping[str, Any]) -> str:
     """The event, rendered to the block appended to the trigger's prompt."""
     if source == EventSource.GITHUB.value:
         return _github_context(payload)
-    if source == EventSource.EMAIL.value:
-        return _email_context(payload)
+    if source == EventSource.GMAIL.value:
+        return _gmail_context(payload)
     return _webhook_context(payload)
 
 
@@ -134,17 +147,25 @@ def _github_matches(
     return payload.get("action") in parsed.actions
 
 
-def _email_matches(payload: Mapping[str, Any], config: Mapping[str, Any]) -> bool:
+def _gmail_matches(payload: Mapping[str, Any], config: Mapping[str, Any]) -> bool:
     # Substring filters are case-insensitive: an email domain is case-insensitive by
     # spec, so a `@Vstorm.co` filter that never matched `john@vstorm.co`, or a
     # `subject_contains` of "invoice" that missed "Invoice", would fail silently -
     # the trigger simply never fires, with nothing to tell the user why.
-    parsed = EmailTriggerConfig.model_validate(dict(config))
+    parsed = GmailTriggerConfig.model_validate(dict(config))
     subject = str(payload.get("subject") or "").casefold()
     sender = str(payload.get("from") or "").casefold()
     if parsed.subject_contains is not None and parsed.subject_contains.casefold() not in subject:
         return False
-    return parsed.sender_contains is None or parsed.sender_contains.casefold() in sender
+    if parsed.sender_contains is not None and parsed.sender_contains.casefold() not in sender:
+        return False
+    # Gmail's own label, matched exactly rather than as a substring: they are
+    # identifiers the API answers with (`INBOX`, `IMPORTANT`, `Label_8`), not prose,
+    # so a substring would make `Work` match `Workshop`.
+    if parsed.label is None:
+        return True
+    labels = [str(one) for one in payload.get("labels") or []]
+    return parsed.label in labels
 
 
 def _clip(text: str) -> str:
@@ -173,7 +194,7 @@ def _github_context(payload: Mapping[str, Any]) -> str:
     ).strip()
 
 
-def _email_context(payload: Mapping[str, Any]) -> str:
+def _gmail_context(payload: Mapping[str, Any]) -> str:
     return (
         "An email arrived.\n"
         f"From: {payload.get('from', '')}\n"
