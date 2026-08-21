@@ -1172,7 +1172,6 @@
     "failedRevokeSession": "Failed to revoke session",
     "failedRevokeSessions": "Failed to revoke sessions",
     "lastActive": "Last active {when}",
-    "nextPage": "Next page",
     "noSessionDataAvailable": "No session data available.",
     "orgDivider": {
       "label": "Organization",
@@ -1188,7 +1187,6 @@
       "lm": "Last month",
       "tm": "This month"
     },
-    "previousPage": "Previous page",
     "revokeAll": "Revoke all",
     "revokeAllOtherSessions": "Revoke all other sessions?",
     "revokeAllOthers": "Revoke all others",
