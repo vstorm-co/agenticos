@@ -1456,7 +1456,7 @@
       },
       "chat-model-picker": {
         "title": "Dostrój model",
-        "body": "Wybierz model stojący za agentem i ustaw jego wysiłek rozumowania albo temperaturę — tylko dla tej rozmowy."
+        "body": "Wybierz, który z modeli organizacji odpowiada — tylko dla tej rozmowy, bez zmiany agenta."
       },
       "agents-new": {
         "title": "Zbuduj agenta",
