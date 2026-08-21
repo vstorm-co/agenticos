@@ -93,6 +93,26 @@ class TestAccumulatingOneTurn:
 
         assert timeline.thinking == "Checking the policy. That settles it."
 
+    def test_an_answered_question_becomes_a_part_where_it_was_asked(self):
+        """The question and the answer land between the words either side of them,
+        so a reopened conversation shows the turn in the order it happened."""
+        timeline = TurnTimeline()
+
+        timeline.add_text("I need to know first. ")
+        timeline.add_ask_user("Which region?", "eu-west-1")
+        timeline.add_text("Deploying to eu-west-1.")
+
+        assert [
+            (part.type, part.question, part.answer)
+            if part.type == "ask_user"
+            else (part.type, part.text)
+            for part in timeline.parts
+        ] == [
+            ("text", "I need to know first. "),
+            ("ask_user", "Which region?", "eu-west-1"),
+            ("text", "Deploying to eu-west-1."),
+        ]
+
 
 class TestWhatIsWorthStoring:
     def test_a_turn_with_an_order_stores_it(self):
@@ -118,3 +138,17 @@ class TestWhatIsWorthStoring:
 
     def test_a_turn_that_produced_nothing_stores_nothing(self):
         assert TurnTimeline().stored() is None
+
+    def test_a_lone_answered_question_is_stored_even_as_one_part(self):
+        """Unlike a lone tool call (its `tool_calls` row) or a lone block of text
+        (`content`), an `ask_user` part has no column to fall back to - so dropping
+        it as "a turn of one part" would lose the question and the answer (#502)."""
+        timeline = TurnTimeline()
+
+        timeline.add_ask_user("Which region?", "eu-west-1")
+
+        stored = timeline.stored()
+        assert stored is not None
+        assert [(part.type, part.question, part.answer) for part in stored] == [
+            ("ask_user", "Which region?", "eu-west-1")
+        ]

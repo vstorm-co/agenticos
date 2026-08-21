@@ -1074,7 +1074,10 @@ class TestRecording:
         finished = sink.frames[-1]
         assert isinstance(finished, SubagentFinished)
         assert finished.error == outcome.error
-        assert vendor_text in caplog.text
+        # The endpoint stays in the log; the credential in its query string is
+        # redacted there by the PII filter when installed (#440), so this asserts
+        # the part present either way rather than the filter's own behaviour.
+        assert "connect to https://llm.acme.internal/v1" in caplog.text
 
     async def test_a_delegate_stopped_by_the_budget_keeps_the_ceiling_sentence(self):
         """A budget breach is the second ceiling, and its numbers are the point.

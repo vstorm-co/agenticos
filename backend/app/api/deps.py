@@ -595,6 +595,30 @@ def _refuse_if_over(decision: rate_limit.Decision, message: str) -> None:
         )
 
 
+async def enforce_auth_limit(
+    request: Request, *, surface: str, identifier: str | None = None
+) -> None:
+    """Refuse an auth attempt from a caller who has made too many this minute.
+
+    Called at the top of an `auth.py` route rather than as a `Depends`, because
+    the per-address half needs the parsed body the route has and a dependency
+    does not. Both halves count against `auth_limit()`: the IP first, because it
+    cannot be varied for free and it is what bounds the unauthenticated bcrypt
+    DoS; then the submitted address, where the body carries one, which is what
+    bounds a brute force against a single account. Lower-casing the identifier so
+    two spellings of one address share a bucket.
+    """
+    limit = rate_limit.auth_limit()
+    decision = await rate_limit.consume(
+        surface=surface, caller=f"ip:{rate_limit.caller_ip(request)}", limit=limit
+    )
+    if decision.allowed and identifier:
+        decision = await rate_limit.consume(
+            surface=surface, caller=f"id:{identifier.strip().lower()}", limit=limit
+        )
+    _refuse_if_over(decision, "Too many attempts. Please wait and try again.")
+
+
 async def limit_embed_script(request: Request) -> None:
     """Refuse an address asking for a widget's script too often.
 

@@ -38,6 +38,18 @@ class TestPasswordHashing:
 
         assert verify_password(wrong_password, hashed) is False
 
+    def test_a_password_over_bcrypts_limit_hashes_and_verifies_rather_than_raising(self):
+        """bcrypt 5.0 raises past 72 bytes; both helpers truncate to it, so an
+        overlong password is an ordinary credential (and a mismatch stays a
+        mismatch) instead of an unauthenticated 500 (#947)."""
+        overlong = "p" * 200
+        hashed = get_password_hash(overlong)
+
+        assert verify_password(overlong, hashed) is True
+        # Agrees only on the first 72 bytes, which is all bcrypt reads.
+        assert verify_password("p" * 72, hashed) is True
+        assert verify_password("q" * 200, hashed) is False
+
 
 class TestAccessToken:
     """Tests for access token functions."""

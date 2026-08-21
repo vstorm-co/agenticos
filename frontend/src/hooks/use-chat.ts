@@ -118,8 +118,6 @@ export function useChat(options: UseChatOptions = {}) {
   const messageQueueRef = useRef<QueuedMessage[]>([]);
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
   const modelProfileRef = useRef<string | null>(null);
-  const temperatureRef = useRef<number | null>(null);
-  const thinkingEffortRef = useRef<"low" | "medium" | "high" | null>(null);
   // The agent the in-flight turn was addressed to, captured when the frame goes
   // out. A ref for the same reason `currentMessageIdRef` is one - the WS handler
   // reads it while stamping the assistant message - and captured rather than
@@ -655,8 +653,6 @@ export function useChat(options: UseChatOptions = {}) {
       // A model profile from the vault - the agent runs on it for this turn
       // instead of the model its spec names, and the run records which.
       if (modelProfileRef.current) payload.model_profile_id = modelProfileRef.current;
-      if (temperatureRef.current !== null) payload.temperature = temperatureRef.current;
-      if (thinkingEffortRef.current !== null) payload.thinking_effort = thinkingEffortRef.current;
       // Read at send time, not captured in the closure: the queue drainer calls
       // this up to a turn later, and the frame must name whatever is selected
       // when it actually leaves. The picker keeps a published agent selected
@@ -1117,12 +1113,6 @@ export function useChat(options: UseChatOptions = {}) {
     clearQueued,
     setModelProfile: (profileId: string | null) => {
       modelProfileRef.current = profileId;
-    },
-    setTemperature: (temperature: number | null) => {
-      temperatureRef.current = temperature;
-    },
-    setThinkingEffort: (effort: "low" | "medium" | "high" | null) => {
-      thinkingEffortRef.current = effort;
     },
     pendingApproval,
     sendResumeDecisions,

@@ -10,9 +10,56 @@ from pathlib import Path
 
 import pytest
 
-from app.services.file_storage import LocalFileStorage
+from app.services.file_storage import LocalFileStorage, avatar_filename, sniff_image_media_type
 
 pytestmark = pytest.mark.anyio
+
+
+_MAGIC = {
+    "image/png": b"\x89PNG\r\n\x1a\n" + b"\x00" * 8,
+    "image/jpeg": b"\xff\xd8\xff\xe0" + b"\x00" * 12,
+    "image/gif": b"GIF89a" + b"\x00" * 10,
+    "image/webp": b"RIFF\x00\x00\x00\x00WEBP",
+}
+
+
+@pytest.mark.parametrize("expected", list(_MAGIC))
+def test_an_image_is_served_as_the_type_its_bytes_say(expected: str, tmp_path: Path) -> None:
+    """Read from the content, so a valid image serves whatever it was named -
+    including a legacy avatar stored under an extensionless name (#702)."""
+    stored = tmp_path / "avatar-legacy-name"
+    stored.write_bytes(_MAGIC[expected])
+    assert sniff_image_media_type(str(stored)) == expected
+
+
+def test_a_file_whose_bytes_are_not_an_image_is_refused(tmp_path: Path) -> None:
+    """An HTML file named `avatar.png` still fails the magic check, so it is never
+    served as something the browser will run on the app's own origin (#702)."""
+    for content in (b"<!doctype html><script>alert(1)</script>", b"%PDF-1.7", b"<svg></svg>"):
+        stored = tmp_path / "avatar.png"
+        stored.write_bytes(content)
+        assert sniff_image_media_type(str(stored)) is None
+
+
+def test_a_missing_file_sniffs_to_none_rather_than_raising(tmp_path: Path) -> None:
+    assert sniff_image_media_type(str(tmp_path / "gone.png")) is None
+
+
+@pytest.mark.parametrize(
+    ("content_type", "expected"),
+    [
+        ("image/jpeg", "avatar.jpg"),
+        ("image/png", "avatar.png"),
+        ("image/gif", "avatar.gif"),
+        ("image/webp", "avatar.webp"),
+    ],
+)
+def test_an_avatar_is_named_from_its_type_not_the_callers_filename(
+    content_type: str, expected: str
+) -> None:
+    """The stored file is self-describing - named for its validated type, not the
+    caller's filename - even though serving now reads the bytes (#702)."""
+    assert avatar_filename(content_type) == expected
 
 
 @pytest.fixture

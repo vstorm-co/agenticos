@@ -26,6 +26,7 @@ from prefect import aserve
 from prefect.client.schemas.schedules import IntervalSchedule
 
 from app.core.config import settings
+from app.core.logging import setup_logging
 from app.worker.tasks.approval_tasks import approval_expiry_sweep_flow
 from app.worker.tasks.invitation_tasks import invitation_expiry_sweep_flow
 from app.worker.tasks.mcp_tasks import mcp_connection_sweep_flow
@@ -49,6 +50,10 @@ logger = logging.getLogger(__name__)
 
 async def main() -> None:
     """Register all deployments and serve them."""
+    # The worker runs ingestion, syncs and reports - the code most likely to log a
+    # connector 401 or an embedding-key failure - in a process that never set the
+    # PII redaction up, so those lines reached the aggregator verbatim (#440).
+    setup_logging()
     deployments = []
     deployments.append(await ingest_document_flow.ato_deployment(name="ingest-document"))
     deployments.append(await sync_single_source_flow.ato_deployment(name="sync-single-source"))

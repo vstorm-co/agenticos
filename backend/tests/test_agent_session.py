@@ -98,6 +98,7 @@ from app.agents.subagent_runtime import (
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.db.models.agent_run import RunStatus
 from app.repositories import conversation as conversation_repo
+from app.schemas.conversation import MessagePart
 from app.services.agent import PersistedPrompt
 from app.services.agent_chat import ChatTurn, OpenedRun
 from app.services.agent_runner import ParkedApproval, PreparedRun
@@ -877,6 +878,11 @@ class TestATurnThatDidNotFinish:
         and that URL carries a key in its query string, so the exception's own
         text stays in the log and only its class reaches the panel (#659).
 
+        The log keeps what an operator debugs with - the endpoint and the status -
+        and the credential in the query string is redacted there by the PII filter
+        when it is installed (#440, covered in `test_logging`). This asserts the
+        detail that is present either way, not the filter's own behaviour.
+
         Two classes, because the class is the whole of what the frame still
         carries: it is what separates an upstream that timed out from one that
         refused a credential, and a sentence that named a fixed class would say
@@ -901,7 +907,7 @@ class TestATurnThatDidNotFinish:
                 )
             },
         )
-        assert vendor_text in caplog.text
+        assert "503 from https://api.example.com/v1/chat" in caplog.text
 
     async def test_a_disconnect_is_not_reported_to_the_socket_that_left(self):
         """A `WebSocketDisconnect` surfacing from inside the turn is re-raised
@@ -1093,6 +1099,62 @@ class TestAskingTheUser:
         )
 
         assert await asking == "eu"
+
+    async def test_an_answered_question_is_recorded_on_the_turns_timeline(self):
+        """The whole point of #502: the question and the answer land on the running
+        turn's timeline, so they are persisted and a reopened conversation shows
+        them rather than neither."""
+        session = _session()
+        session._current_timeline = TurnTimeline()
+        asked = _next_frame(session)
+
+        asking = asyncio.create_task(session._ask_one("Which region?", ["eu", "us"]))
+        await _wait(asked)
+        await session.handle_frame(
+            {"type": "ask_user_response", "answers": [{"answer": "eu", "skipped": False}]}
+        )
+        assert await asking == "eu"
+
+        stored = session._current_timeline.stored()
+        assert stored is not None
+        assert [(part.type, part.question, part.answer) for part in stored] == [
+            ("ask_user", "Which region?", "eu")
+        ]
+
+    async def test_the_answer_is_recorded_when_the_frame_arrives_not_when_the_run_resumes(self):
+        """A `stop` sent right behind the answer cancels the turn before `_ask_one`
+        resumes past its await; recording in the frame handler is what keeps the
+        answered question from being lost in that race (#502). Here the run is never
+        resumed and the pair is on the timeline anyway."""
+        session = _session()
+        session._current_timeline = TurnTimeline()
+        asked = _next_frame(session)
+
+        asking = asyncio.create_task(session._ask_one("Which region?", ["eu"]))
+        await _wait(asked)
+        await session.handle_frame({"type": "ask_user_response", "answers": [{"answer": "eu"}]})
+
+        stored = session._current_timeline.stored()
+        assert stored is not None
+        assert [(part.type, part.answer) for part in stored] == [("ask_user", "eu")]
+
+        asking.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await asking
+
+    async def test_a_question_asked_between_turns_records_nothing(self):
+        """`_ask_one` is safe to reach with no turn running - the timeline is None
+        between turns - so a stray question is answered without a place to record it
+        rather than raising."""
+        session = _session()
+        asked = _next_frame(session)
+
+        asking = asyncio.create_task(session._ask_one("Which region?", ["eu"]))
+        await _wait(asked)
+        await session.handle_frame({"type": "ask_user_response", "answers": [{"answer": "eu"}]})
+
+        assert await asking == "eu"
+        assert session._current_timeline is None
 
     async def test_a_delegates_question_left_unanswered_reads_as_no_answer(self):
         """An empty answers payload releases the delegate with "(no answer)" rather
@@ -1457,6 +1519,30 @@ class TestATurnThatDidNotFinishStillKeepsWhatItSaid:
             await session.process_message(_message())
 
         chat.answer.assert_not_awaited()
+
+    async def test_a_partial_turn_that_only_asked_a_question_still_records_it(self):
+        """A turn that put a question, got an answer, then stopped before any text
+        or tool call has only its `ask_user` part - which has no column to fall
+        back to, so the partial-turn guard must treat a stored timeline as
+        produced content or the question and answer are lost on reload (#502)."""
+        session = _session()
+        session.current_conversation_id = str(uuid4())
+        part = MessagePart(type="ask_user", question="Which region?", answer="eu")
+
+        with patch(
+            "app.services.agent_session.persist_assistant_turn", new=AsyncMock()
+        ) as persisted:
+            await session._persist_partial_turn(
+                [self._opened()],
+                agent_id=uuid4(),
+                output="",
+                tool_calls=[],
+                thinking=None,
+                parts=[part],
+            )
+
+        persisted.assert_awaited_once()
+        assert persisted.await_args.kwargs["parts"] == [part]
 
     async def test_a_turn_that_finished_is_written_once_and_not_twice(self):
         """The `finally` cannot read `turn` to decide - that is the whole reason it

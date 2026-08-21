@@ -61,6 +61,16 @@ class TurnTimeline:
         """
         self.parts.append(MessagePart(type="tool", tool_call_id=tool_call_id))
 
+    def add_ask_user(self, question: str, answer: str) -> None:
+        """Record a question put to the person and the answer it acted on.
+
+        Its own entry, never coalesced, because it carries a payload with no other
+        home: text lands in `content`, reasoning in `thinking`, a tool call in its
+        `tool_calls` row, but a mid-turn question and its answer would vanish on
+        reload without this (#502).
+        """
+        self.parts.append(MessagePart(type="ask_user", question=question, answer=answer))
+
     def _append(self, kind: str, delta: str) -> None:
         open_part = self.parts[-1] if self.parts else None
         if open_part is not None and open_part.type == kind:
@@ -95,5 +105,13 @@ class TurnTimeline:
         everything it contained - and writing one would put a JSONB array on every
         plain question-and-answer in the deployment to record that the answer came
         after the question.
+
+        The exception is a lone `ask_user` part: it is the one kind with no column
+        to fall back to, so dropping it as "a turn of one part" would lose the
+        question and the answer outright (#502).
         """
-        return self.parts if len(self.parts) > 1 else None
+        if len(self.parts) > 1:
+            return self.parts
+        if self.parts and self.parts[0].type == "ask_user":
+            return self.parts
+        return None

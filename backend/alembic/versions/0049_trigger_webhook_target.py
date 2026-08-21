@@ -1,7 +1,7 @@
 """The target an auto-registered webhook points at, kept so delete can deregister it
 
-Revision ID: 0048_trigger_webhook_target
-Revises: 0047_portal_triggers
+Revision ID: 0049_trigger_webhook_target
+Revises: 0048_portal_triggers
 Create Date: 2026-08-17
 
 A provider webhook id is not enough to remove the hook: GitHub deletes a hook by
@@ -14,8 +14,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision = "0048_trigger_webhook_target"
-down_revision = "0047_portal_triggers"
+revision = "0049_trigger_webhook_target"
+down_revision = "0048_portal_triggers"
 branch_labels = None
 depends_on = None
 

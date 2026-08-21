@@ -104,8 +104,8 @@ export interface ToolCall {
    */
 }
 
-/** The three kinds of segment a turn is built from, live and replayed alike. */
-export type MessagePartType = "thinking" | "text" | "tool";
+/** The kinds of segment a turn is built from, live and replayed alike. */
+export type MessagePartType = "thinking" | "text" | "tool" | "ask_user";
 
 /** One ordered segment of an assistant turn. */
 export interface MessagePart {
@@ -115,6 +115,10 @@ export interface MessagePart {
   content?: string;
   /** Tool invocation for "tool" parts. */
   toolCall?: ToolCall;
+  /** What the agent asked, for an "ask_user" part. */
+  question?: string;
+  /** What the person answered, for an "ask_user" part. */
+  answer?: string;
 }
 
 export type ChartType = "line" | "bar" | "pie" | "area" | "scatter";

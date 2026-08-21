@@ -1,7 +1,7 @@
 """Trigger fire-in-flight marker - closing the self-overlap window
 
-Revision ID: 0049_trigger_fire_in_flight
-Revises: 0048_trigger_webhook_target
+Revision ID: 0050_trigger_fire_in_flight
+Revises: 0049_trigger_webhook_target
 Create Date: 2026-08-12
 
 The heartbeat's no-overlap guard reads `last_run_id`, but the fired run writes it
@@ -21,8 +21,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision = "0049_trigger_fire_in_flight"
-down_revision = "0048_trigger_webhook_target"
+revision = "0050_trigger_fire_in_flight"
+down_revision = "0049_trigger_webhook_target"
 branch_labels = None
 depends_on = None
 
