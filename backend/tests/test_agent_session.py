@@ -877,6 +877,11 @@ class TestATurnThatDidNotFinish:
         and that URL carries a key in its query string, so the exception's own
         text stays in the log and only its class reaches the panel (#659).
 
+        The log keeps what an operator debugs with - the endpoint and the status -
+        and the credential in the query string is redacted there by the PII filter
+        when it is installed (#440, covered in `test_logging`). This asserts the
+        detail that is present either way, not the filter's own behaviour.
+
         Two classes, because the class is the whole of what the frame still
         carries: it is what separates an upstream that timed out from one that
         refused a credential, and a sentence that named a fixed class would say
@@ -901,7 +906,7 @@ class TestATurnThatDidNotFinish:
                 )
             },
         )
-        assert vendor_text in caplog.text
+        assert "503 from https://api.example.com/v1/chat" in caplog.text
 
     async def test_a_disconnect_is_not_reported_to_the_socket_that_left(self):
         """A `WebSocketDisconnect` surfacing from inside the turn is re-raised
