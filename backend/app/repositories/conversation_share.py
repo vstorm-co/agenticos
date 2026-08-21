@@ -2,11 +2,12 @@
 
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.conversation import Conversation
 from app.db.models.conversation_share import ConversationShare
+from app.db.models.organization import OrganizationMember
 
 
 async def get_by_id(db: AsyncSession, share_id: UUID) -> ConversationShare | None:
@@ -36,25 +37,58 @@ async def get_by_token(db: AsyncSession, token: str) -> ConversationShare | None
 
 
 async def get_shares_for_conversation(
-    db: AsyncSession, conversation_id: UUID
+    db: AsyncSession, conversation_id: UUID, *, organization_id: UUID
 ) -> list[ConversationShare]:
-    """List all shares for a conversation."""
+    """List a conversation's shares, dropping any written to a non-member.
+
+    A share to somebody outside `organization_id` is unreadable - the read path
+    refuses on the tenant before it ever consults the share (#930) - so listing
+    it would show access nobody has. A public-link share carries no `shared_with`
+    and is kept.
+    """
     result = await db.execute(
         select(ConversationShare)
-        .where(ConversationShare.conversation_id == conversation_id)
+        .where(
+            ConversationShare.conversation_id == conversation_id,
+            or_(
+                ConversationShare.shared_with.is_(None),
+                ConversationShare.shared_with.in_(
+                    select(OrganizationMember.user_id).where(
+                        OrganizationMember.organization_id == organization_id
+                    )
+                ),
+            ),
+        )
         .order_by(ConversationShare.created_at.desc())
     )
     return list(result.scalars().all())
 
 
+def _shared_with_member(user_id: UUID) -> tuple:
+    """The recipient holds the share *and* belongs to the conversation's org.
+
+    The read path refuses a share whose conversation is in an organization the
+    recipient does not belong to (#930), so listing or counting it here shows a
+    conversation - its title, its owner, its organization - that opening only
+    denies. The same tenant condition the owner's listing applies, from the
+    recipient's side. Requires the query to join `Conversation`.
+    """
+    return (
+        ConversationShare.shared_with == user_id,
+        Conversation.organization_id.in_(
+            select(OrganizationMember.organization_id).where(OrganizationMember.user_id == user_id)
+        ),
+    )
+
+
 async def get_conversations_shared_with_user(
     db: AsyncSession, user_id: UUID, *, skip: int = 0, limit: int = 50
 ) -> list[Conversation]:
-    """Get conversations shared with a specific user."""
+    """Get conversations shared with a specific user, within their own tenants."""
     result = await db.execute(
         select(Conversation)
         .join(ConversationShare, ConversationShare.conversation_id == Conversation.id)
-        .where(ConversationShare.shared_with == user_id)
+        .where(*_shared_with_member(user_id))
         .order_by(Conversation.updated_at.desc())
         .offset(skip)
         .limit(limit)
@@ -63,11 +97,12 @@ async def get_conversations_shared_with_user(
 
 
 async def count_conversations_shared_with_user(db: AsyncSession, user_id: UUID) -> int:
-    """Count conversations shared with a specific user."""
+    """Count conversations shared with a specific user, within their own tenants."""
     result = await db.scalar(
         select(func.count())
         .select_from(ConversationShare)
-        .where(ConversationShare.shared_with == user_id)
+        .join(Conversation, ConversationShare.conversation_id == Conversation.id)
+        .where(*_shared_with_member(user_id))
     )
     return result or 0
 

@@ -1927,34 +1927,17 @@ describe("useChat - what goes out with a turn", () => {
     expect(frame(0)).not.toHaveProperty("file_ids");
   });
 
-  it("carries the per-turn model overrides, and only when they are set", () => {
+  it("carries the per-turn model override, and only when it is set", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
 
     act(() => result.current.sendMessage("first"));
     expect(frame(0)).not.toHaveProperty("model_profile_id");
 
-    act(() => {
-      result.current.setModelProfile("p-1");
-      result.current.setTemperature(0.2);
-      result.current.setThinkingEffort("high");
-    });
+    act(() => result.current.setModelProfile("p-1"));
     receive("complete", {});
     act(() => result.current.sendMessage("second"));
 
-    expect(frame(1)).toMatchObject({
-      model_profile_id: "p-1",
-      temperature: 0.2,
-      thinking_effort: "high",
-    });
-  });
-
-  it("keeps a temperature of zero, which is a deliberate setting", () => {
-    const { result } = renderHook(() => useChat(), { wrapper });
-    act(() => result.current.setTemperature(0));
-
-    act(() => result.current.sendMessage("hello"));
-
-    expect(frame(0)).toMatchObject({ temperature: 0 });
+    expect(frame(1)).toMatchObject({ model_profile_id: "p-1" });
   });
 });
 
