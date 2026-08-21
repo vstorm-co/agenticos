@@ -17,6 +17,31 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.234] - 2026-08-21
+
+An app admin cannot suspend or delete their own account.
+
+### Fixed
+
+- **`/admin/users` let an app admin open their own row and suspend, demote or delete
+  themselves**, unguarded at both layers and two of the three one click away with no
+  confirmation. `is_active` is enforced on the next request, so a self-suspend signs
+  you out of a deployment you administer, and a self-delete takes the account and its
+  conversations with it - on the single-admin install `make platform-bootstrap`
+  produces, a stray click ends administration until somebody reaches a terminal.
+  (#941)
+- The guard lives in `UserService`, where both admin surfaces meet: `admin_update`
+  refuses a self-suspend and `admin_delete` a self-delete, before the repository is
+  touched. `PATCH` and `DELETE` on both `/admin/users/{id}` and the twin `/users/{id}`
+  route - which had the same hole - carry the acting admin's id through them. (#941)
+- Only `is_active` is guarded on update, because `is_app_admin` is not a `UserUpdate`
+  field: the one global privilege is granted by CLI and cleared by nothing over the
+  API. That is also what answers the last-admin question in code rather than in a
+  policy - the app-admin set shrinks only by deletion, and deleting the last one is
+  deleting yourself, which is refused. Written up in `docs/deployment.md`. (#941)
+- The admin drawer no longer renders **Suspend**, **Demote** or **Impersonate** on
+  your own row. **Delete stays visible and is refused by the API** - "why can I not
+  delete myself" is a question worth answering on screen. (#941)
 ## [0.0.233] - 2026-08-21
 
 A conversation is shared inside its organization or not at all.
