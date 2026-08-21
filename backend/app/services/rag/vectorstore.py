@@ -110,7 +110,7 @@ class BaseVectorStore(ABC):
             total=len(docs),
         )
 
-    async def create_collection(self, name: str) -> None:
+    async def create_collection(self, name: str, *, organization_id: UUID | None) -> None:
         """Make the collection's backing objects, refusing a name that cannot have any.
 
         The check is here as well as in `_table` because a subclass is free to
@@ -123,7 +123,7 @@ class BaseVectorStore(ABC):
                 :func:`app.db.vector_tables.validate_collection_name`.
         """
         validate_collection_name(name, metadata=Base.metadata)
-        await self._ensure_collection(name)
+        await self._ensure_collection(name, organization_id)
 
     def _build_chunk_metadata(
         self, chunk: "DocumentPageChunk", document: Document

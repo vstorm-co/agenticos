@@ -212,6 +212,6 @@ class TestTheStorePathsAgree:
         store = PgVectorStore.__new__(PgVectorStore)
 
         with pytest.raises(BadRequestError):
-            await store.create_collection(name)
+            await store.create_collection(name, organization_id=None)
         with pytest.raises(BadRequestError):
             await store.delete_collection(name)
