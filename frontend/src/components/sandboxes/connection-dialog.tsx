@@ -33,6 +33,7 @@ import type {
 } from "@/lib/sandbox-connections-api";
 import { RuntimeField } from "./runtime-field";
 import { useTranslations } from "next-intl";
+import { DIALOG_WIDE } from "@/lib/dialog-sizes";
 
 interface ConnectionDialogProps {
   /**
@@ -274,7 +275,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
           laptop is a form somebody scrolls to find the button of (#1039). Wide
           enough that `Container service - a sandboxd you run` fits its trigger,
           because a truncated kind is the one field nobody can guess. */}
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className={DIALOG_WIDE}>
         <DialogHeader>
           <DialogTitle>{editing ? t("editTitle") : t("addTitle")}</DialogTitle>
           <DialogDescription>{t("whereOrganizationAposS")}</DialogDescription>

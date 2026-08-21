@@ -31,6 +31,7 @@ import { submitFailure } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import type { ContextMode } from "@/types/providers";
 import { useTranslations } from "next-intl";
+import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 
 /** What the backend accepts, so an over-long value is refused before it is sent. */
 const MAX_NAME = 64;
@@ -130,7 +131,7 @@ export function CreateContextDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[92vh] flex-col sm:max-w-3xl">
+      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE)}>
         <DialogHeader>
           <DialogTitle>{t("newContext")}</DialogTitle>
           <DialogDescription>{t("availableEveryAgentOrganization")}</DialogDescription>

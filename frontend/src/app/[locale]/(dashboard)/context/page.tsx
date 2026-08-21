@@ -43,6 +43,7 @@ import { cn, formatBytes } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import type { ContextFileSummary } from "@/types/providers";
 import { useTranslations } from "next-intl";
+import { DIALOG_BROAD, DIALOG_FILL } from "@/lib/dialog-sizes";
 
 /** One pressed-or-not sort control. */
 function Chip({
@@ -319,7 +320,7 @@ export default function ContextPage() {
         }}
       >
         {selected !== null && (
-          <DialogContent className="flex h-[92vh] flex-col sm:max-w-4xl">
+          <DialogContent className={cn(DIALOG_FILL, DIALOG_BROAD)}>
             <DialogHeader>
               <DialogTitle className="font-mono">{selected.name}</DialogTitle>
               <DialogDescription>{t("nameHowItIsReferred")}</DialogDescription>

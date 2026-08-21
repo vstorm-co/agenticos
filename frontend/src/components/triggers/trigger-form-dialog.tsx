@@ -58,6 +58,13 @@ import type {
   TriggerUpdate,
 } from "@/types/triggers";
 import type { TriggerTemplate } from "@/types/trigger-templates";
+import {
+  DIALOG_BROAD,
+  DIALOG_CONFIRM,
+  DIALOG_FORM,
+  DIALOG_FRAMED,
+  DIALOG_SCROLL,
+} from "@/lib/dialog-sizes";
 
 /** The backend's floor for a webhook secret; the generator comfortably clears it. */
 const MIN_SECRET = 16;
@@ -460,7 +467,7 @@ export function TriggerFormDialog({
   if (created !== null) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent>
+        <DialogContent className={DIALOG_CONFIRM}>
           <DialogHeader>
             <DialogTitle>{t("createdTitle")}</DialogTitle>
             <DialogDescription>{t("createdDescription")}</DialogDescription>
@@ -516,7 +523,7 @@ export function TriggerFormDialog({
   if (editing) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogContent className={cn(DIALOG_SCROLL, DIALOG_FORM)}>
           <DialogHeader>
             <DialogTitle>
               {type === "event" ? t("editTitleEvent") : t("editTitleSchedule")}
@@ -610,7 +617,7 @@ export function TriggerFormDialog({
           white under the last caption and the Continue button pinned to the
           bottom of the screen (#1069). The grid rows still pin the header and the
           nav and give the body whatever is between. */}
-      <DialogContent className="max-h-[90vh] w-[95vw] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden p-0 sm:max-w-5xl">
+      <DialogContent className={cn(DIALOG_FRAMED, DIALOG_BROAD)}>
         <DialogHeader className="border-foreground/10 border-b px-6 py-4">
           <DialogTitle className="text-base font-semibold">
             {type === "event" ? t("newEvent") : t("newSchedule")}

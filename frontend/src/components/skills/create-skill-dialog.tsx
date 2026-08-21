@@ -25,6 +25,7 @@ import { useSkills } from "@/hooks";
 import { apiClient } from "@/lib/api-client";
 import { submitFailure } from "@/lib/api-error";
 import { useTranslations } from "next-intl";
+import { DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
 
 /** What the backend accepts, so an over-long value is refused before it is sent. */
 const MAX_NAME = 64;
@@ -178,7 +179,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[92vh] flex-col sm:max-w-[92rem]">
+      <DialogContent className={cn(DIALOG_FILL, DIALOG_CANVAS)}>
         <DialogHeader>
           <DialogTitle>{t("newSkill")}</DialogTitle>
           <DialogDescription>{t("availableEveryAgentOrganization")}</DialogDescription>

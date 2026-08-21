@@ -19,6 +19,7 @@ import { submitFailure } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import type { ChannelBotCreate, ChannelPlatform } from "@/types/channels";
 import { useTranslations } from "next-intl";
+import { DIALOG_FORM } from "@/lib/dialog-sizes";
 
 const PLATFORMS: readonly ChannelPlatform[] = ["mattermost", "slack", "telegram"];
 
@@ -150,7 +151,7 @@ export function AddChannelDialog({
         onOpenChange(next);
       }}
     >
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className={DIALOG_FORM}>
         <DialogHeader>
           <DialogTitle>{t("addChannel")}</DialogTitle>
           <DialogDescription>{t("addChannelDescription")}</DialogDescription>

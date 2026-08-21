@@ -114,6 +114,7 @@ import { cn } from "@/lib/utils";
 import type { AgentSpec, CapabilityBindingSpec } from "@/types/agents";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
+import { DIALOG_CANVAS, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -771,7 +772,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
       />
 
       <Dialog open={mapOpen} onOpenChange={setMapOpen}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-[80rem]">
+        <DialogContent className={cn(DIALOG_SCROLL, DIALOG_CANVAS)}>
           <DialogHeader>
             <DialogTitle>{t("visualMap")}</DialogTitle>
             <DialogDescription>{t("draftAsStandsWhat")}</DialogDescription>
@@ -794,7 +795,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           without a refetch, and without this page knowing how a connection is
           made. */}
       <Dialog open={connectingMcp} onOpenChange={setConnectingMcp}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-[72rem]">
+        <DialogContent className={cn(DIALOG_SCROLL, DIALOG_CANVAS)}>
           <DialogHeader>
             <DialogTitle>{t("connectMcpServer")}</DialogTitle>
             <DialogDescription>{t("connectServerOrganizationBecomes")}</DialogDescription>

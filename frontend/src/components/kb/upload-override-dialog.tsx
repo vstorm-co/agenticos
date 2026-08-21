@@ -13,11 +13,11 @@ import {
   DialogTitle,
 } from "@/components/ui";
 import { ingestionOverride, ingestionProblems, overrideSize } from "@/lib/ingestion-config";
-import { DIALOG_WIDE } from "@/lib/dialog-widths";
 import { cn } from "@/lib/utils";
 import type { IngestionConfig, IngestionOverride } from "@/types";
 import { useChanged } from "@/hooks/use-changed";
 import { useTranslations } from "next-intl";
+import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 
 interface UploadOverrideDialogProps {
   open: boolean;
@@ -72,7 +72,7 @@ export function UploadOverrideDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Wide on purpose: the settings form lays its fields out in columns, and
           a narrow dialog stacks them into a cramped single file. */}
-      <DialogContent className={cn("flex max-h-[85vh] flex-col", DIALOG_WIDE)}>
+      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE)}>
         <DialogHeader>
           <DialogTitle>{t("parseNextUploadDifferently")}</DialogTitle>
           <DialogDescription>{t("appliesEachFileYou")}</DialogDescription>

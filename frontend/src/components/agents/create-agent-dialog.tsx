@@ -19,6 +19,7 @@ import { useAgents } from "@/hooks";
 import { submitFailure } from "@/lib/api-error";
 import type { Agent } from "@/types/agents";
 import { useTranslations } from "next-intl";
+import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 
 /** What the backend will accept, so a longer name is refused before it is sent. */
 const MAX_NAME = 128;
@@ -113,7 +114,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className={DIALOG_CONFIRM}>
         <DialogHeader>
           <DialogTitle>{t("newAgent")}</DialogTitle>
           <DialogDescription>{t("startsAsDraftNothing")}</DialogDescription>

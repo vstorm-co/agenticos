@@ -42,6 +42,7 @@ import type {
 } from "@/types/secrets";
 import type { StorableSecretKind } from "@/types/secrets";
 import { useTranslations } from "next-intl";
+import { DIALOG_CONFIRM, DIALOG_FORM } from "@/lib/dialog-sizes";
 
 /** What the backend accepts, so an over-long value is refused before it is sent. */
 const MAX_NAME = 128;
@@ -193,7 +194,7 @@ export function AddSecretDialog({
       {/* Wider than the default dialog. Six questions stacked in 512px is a
           form that scrolls before it is read; at this width the pairs that
           belong together sit on one line and the whole thing fits on a screen. */}
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className={DIALOG_FORM}>
         <DialogHeader>
           <DialogTitle>{t("addSecret")}</DialogTitle>
           <DialogDescription>{t("encryptedBoundOrganizationAgent")}</DialogDescription>
@@ -443,7 +444,7 @@ export function RotateSecretDialog({
         onOpenChange(next);
       }}
     >
-      <DialogContent>
+      <DialogContent className={DIALOG_CONFIRM}>
         <DialogHeader>
           <DialogTitle>{t("rotateNamed", { name: secret?.name ?? "" })}</DialogTitle>
           <DialogDescription>{t("newValueReplacesOld")}</DialogDescription>

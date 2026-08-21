@@ -22,9 +22,9 @@ import { ScheduleStep } from "@/components/rag/sync-source-schedule-step";
 import type { ConnectorInfo, SyncSourceCreate, SyncSourceRead } from "@/lib/rag-api";
 import type { KBScope } from "@/types/knowledge-base";
 import { cn } from "@/lib/utils";
-import { DIALOG_FORM } from "@/lib/dialog-widths";
 import { useChanged } from "@/hooks/use-changed";
 import { useTranslations } from "next-intl";
+import { DIALOG_FORM, DIALOG_FRAMED } from "@/lib/dialog-sizes";
 
 interface SyncSourceWizardProps {
   open: boolean;
@@ -280,7 +280,7 @@ export function SyncSourceWizard({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn("max-h-[90vh] overflow-hidden p-0", DIALOG_FORM)}>
+      <DialogContent className={cn(DIALOG_FRAMED, DIALOG_FORM)}>
         <DialogHeader className="border-foreground/10 border-b px-6 py-4">
           <DialogTitle className="text-base font-semibold">{t("addSyncSource")}</DialogTitle>
 
@@ -331,7 +331,7 @@ export function SyncSourceWizard({
           )}
         </DialogHeader>
 
-        <div className="max-h-[60vh] scrollbar-thin overflow-y-auto px-6 py-5">
+        <div className="min-h-0 scrollbar-thin overflow-y-auto px-6 py-5">
           {mode === "clone" ? (
             <CloneStep
               integrations={orgIntegrations}

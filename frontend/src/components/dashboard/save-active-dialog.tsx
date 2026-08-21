@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui";
+import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 
 interface SaveActiveDialogProps {
   open: boolean;
@@ -41,7 +42,7 @@ export function SaveActiveDialog({
   const t = useTranslations("dashboard");
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className={DIALOG_CONFIRM}>
         <DialogHeader>
           <DialogTitle>{t("edit.tempSaveTitle")}</DialogTitle>
           <DialogDescription>{t("edit.tempSaveDescription")}</DialogDescription>

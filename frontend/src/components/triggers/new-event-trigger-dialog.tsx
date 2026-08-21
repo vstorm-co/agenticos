@@ -12,6 +12,8 @@ import {
 } from "@/components/ui";
 import { useCanCreateTrigger, usePermissions } from "@/hooks";
 import { Perm } from "@/types/permissions";
+import { cn } from "@/lib/utils";
+import { DIALOG_BROAD, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 
 interface NewEventTriggerDialogProps {
   open: boolean;
@@ -42,7 +44,7 @@ export function NewEventTriggerDialog({ open, onOpenChange }: NewEventTriggerDia
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+      <DialogContent className={cn(DIALOG_SCROLL, DIALOG_BROAD)}>
         <DialogHeader>
           <DialogTitle>{t("newEventTitle")}</DialogTitle>
           <DialogDescription>{t("newEventDescription")}</DialogDescription>

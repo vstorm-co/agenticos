@@ -38,6 +38,7 @@ import type { KnowledgeBase } from "@/types";
 import { Perm } from "@/types/permissions";
 import { useChanged } from "@/hooks/use-changed";
 import { useTranslations } from "next-intl";
+import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 
 interface ReusableIntegrationsProps {
   /** Collections an integration can be cloned into - the page's own list. */
@@ -257,7 +258,7 @@ function CloneIntoDialog({
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className={DIALOG_CONFIRM}>
         <DialogHeader>
           <DialogTitle>{t("useSourceInCollection", { name: source.name })}</DialogTitle>
           <DialogDescription>{t("itsCredentialsAreCopied")}</DialogDescription>

@@ -190,6 +190,19 @@ There is no `(marketing)` route group.
   added to silence a finding is worse than the finding: `date-fns` was declared,
   imported by nothing, and sitting in that ignore list, so the report that would
   have found it had been told not to look.
+- **How big a dialog is comes from `src/lib/dialog-sizes.ts`, and nothing else.**
+  One width token (`DIALOG_CONFIRM` … `DIALOG_CANVAS`) and one shape token
+  (`DIALOG_SCROLL`, `DIALOG_COLUMN`, `DIALOG_FILL`, `DIALOG_FRAMED`), or
+  `DIALOG_WINDOW`, which carries both. Forty dialogs used to hold five heights and
+  nine widths between them, decided one at a time - which is #940 in the width
+  dimension and #1069 in the height one, and both were the same defect: nobody had
+  decided, each had picked. A height is a floor as much as a cap, so a three-field
+  form takes `DIALOG_COLUMN` and only a pane to work in takes `DIALOG_FILL`. Two
+  shapes owe their body a class the token cannot give it - `min-h-0 flex-1
+  overflow-y-auto` under `DIALOG_COLUMN`, `min-h-0 overflow-y-auto` under
+  `DIALOG_FRAMED` - because a flex or grid child without `min-h-0` refuses to
+  shrink, and the dialog then grows past its own ceiling or clips the footer that
+  holds the button advancing the wizard.
 - **Opening a file is `components/files`, and there is no second one.** `FileViewer` is
   the dialog every surface opens; `FileContent` is it without the dialog, for a surface
   with its own chrome; `FileTextView` is it without the fetching, for content already in

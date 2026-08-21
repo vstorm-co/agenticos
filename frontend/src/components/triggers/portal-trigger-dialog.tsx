@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils";
 import { FILTER_KEYS, eventFilterConfig } from "@/lib/trigger-format";
 import type { PortalCatalogEntry } from "@/types/portals";
 import type { EventSource, TriggerCreate, TriggerCreated } from "@/types/triggers";
+import { DIALOG_BROAD, DIALOG_CONFIRM, DIALOG_FRAMED } from "@/lib/dialog-sizes";
 
 /** The field label for a portal's target kind, as a fixed key. */
 function targetLabelKey(targetKind: string | null): string {
@@ -187,7 +188,7 @@ export function PortalTriggerDialog({
         : t("registeredDescription");
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent>
+        <DialogContent className={DIALOG_CONFIRM}>
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>{description}</DialogDescription>
@@ -213,7 +214,7 @@ export function PortalTriggerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Near-full-screen for the same reason as the raw form's wizard: the
           message step is where the trigger is actually written. */}
-      <DialogContent className="h-[90vh] w-[95vw] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden p-0 sm:max-w-5xl">
+      <DialogContent className={cn(DIALOG_FRAMED, DIALOG_BROAD)}>
         <DialogHeader className="border-foreground/10 border-b px-6 py-4">
           <DialogTitle className="text-base font-semibold">
             {t("dialogTitle", { portal: portal.name })}

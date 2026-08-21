@@ -24,6 +24,7 @@ import { defaultAssignable } from "@/lib/assignable-roles";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import type { OrgRole } from "@/types";
 import { useTranslations } from "next-intl";
+import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 
 interface InviteLinkDialogProps {
   open: boolean;
@@ -84,7 +85,7 @@ export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialog
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
-      <DialogContent>
+      <DialogContent className={DIALOG_CONFIRM}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Link2 className="h-4 w-4" />

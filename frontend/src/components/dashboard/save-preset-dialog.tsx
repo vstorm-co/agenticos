@@ -15,6 +15,7 @@ import {
   Input,
   Label,
 } from "@/components/ui";
+import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 
 interface SavePresetDialogProps {
   open: boolean;
@@ -68,7 +69,7 @@ export function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialo
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent>
+      <DialogContent className={DIALOG_CONFIRM}>
         <form onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>{t("presets.saveTitle")}</DialogTitle>
