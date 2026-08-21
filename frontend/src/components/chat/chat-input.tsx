@@ -7,7 +7,25 @@ import { Send, Mic, MicOff, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { uploadFile, type FileUploadResponse } from "@/lib/file-api";
 import { CHAT_MAX_UPLOAD_SIZE_MB } from "@/lib/utils";
+import { createPortal } from "react-dom";
+
 import { AttachmentCard, PendingAttachmentCard } from "./attachment-card";
+import { AttachmentRow } from "./attachment-row";
+
+/**
+ * Render `row` where the page wants it, or in place when it named nowhere.
+ *
+ * The attachments belong *above* the composer, and the box around the composer is
+ * drawn by the page rather than by this component - so the row cannot simply be
+ * the first child here. A portal keeps the state where the uploads happen and
+ * puts the markup where it reads correctly; lifting `attachedFiles`, `pending`
+ * and every upload path into the page would be a much larger change for a
+ * question about layout. Without a slot it renders here, which is what any other
+ * mounting of this composer gets.
+ */
+function into(slot: HTMLElement | null | undefined, row: React.ReactNode): React.ReactNode {
+  return slot == null ? row : createPortal(row, slot);
+}
 import {
   BUILTIN_COMMANDS,
   resolveBuiltin,
@@ -62,6 +80,13 @@ interface ChatInputProps {
   slashContext?: SlashCommandContext;
   /** Effective slash commands (built-ins + user customs, after overrides). */
   commands?: SlashCommand[];
+  /**
+   * Where to draw what is attached, when the page wants it somewhere else.
+   *
+   * The row belongs above the composer's own box, which this component is inside
+   * rather than around - see `into`. Absent, it renders in place.
+   */
+  attachmentSlot?: HTMLElement | null;
 }
 
 export function ChatInput({
@@ -71,6 +96,7 @@ export function ChatInput({
   onStop,
   slashContext,
   commands,
+  attachmentSlot,
 }: ChatInputProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat.input");
@@ -335,21 +361,25 @@ export function ChatInput({
           onPick={runSlashCommand}
         />
       )}
-      {(attachedFiles.length > 0 || isUploading) && (
-        <div className="flex flex-wrap items-start gap-2 pb-2">
-          {attachedFiles.map(({ file, pasted }) => (
-            <AttachmentCard
-              key={file.id}
-              file={file}
-              pasted={pasted}
-              onRemove={() => removeFile(file.id)}
-            />
-          ))}
-          {pending.map((p) => (
-            <PendingAttachmentCard key={p.key} name={p.name} size={p.size} />
-          ))}
-        </div>
-      )}
+      {(attachedFiles.length > 0 || isUploading) &&
+        into(
+          attachmentSlot,
+          <AttachmentRow count={attachedFiles.length + pending.length}>
+            {attachedFiles.map(({ file, pasted }) => (
+              <AttachmentCard
+                key={file.id}
+                file={file}
+                pasted={pasted}
+                onRemove={() => removeFile(file.id)}
+              />
+            ))}
+            {/* After the finished ones, in the order they were dropped, so a card
+                does not move when its upload lands. */}
+            {pending.map((p) => (
+              <PendingAttachmentCard key={p.key} name={p.name} size={p.size} />
+            ))}
+          </AttachmentRow>,
+        )}
 
       <div className="flex items-end gap-2">
         <textarea

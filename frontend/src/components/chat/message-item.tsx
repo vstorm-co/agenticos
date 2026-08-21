@@ -130,15 +130,18 @@ export function MessageItem({
     <div
       className={cn(
         "group relative flex gap-2 overflow-visible sm:gap-4",
-        isGrouped ? "py-2 sm:py-3" : "py-3 sm:py-4",
-        // Tight against the segment above, because it is the same turn: the
-        // ordinary gap between messages would read as a pause the run never took.
-        continuesTurn && "pt-0",
-        // And tight against the one below, for the same reason. Only the top half
-        // was closed, so three tool calls in one turn - each its own segment, each
-        // carrying one step - sat a message-gap apart, which read as three
-        // separate things the agent did rather than one run of three commands.
-        !endsTurn && "pb-0",
+        // Each edge decided once, and never as `py-*` with a `pt-0` over it: two
+        // utilities of equal specificity leave which one wins to the order of the
+        // generated stylesheet, and a segment reading `py-3 pt-0 pb-0` kept its
+        // padding. Longhand both ways, so the class list says what it does.
+        //
+        // Zero against a segment of the same turn, on both edges. The ordinary
+        // gap between messages would read as a pause the run never took - and a
+        // turn that ran three commands is three segments, each carrying one step,
+        // so three steps of one run sat two message-gaps apart and looked like
+        // three separate things the agent did.
+        continuesTurn ? "pt-0" : isGrouped ? "pt-2 sm:pt-3" : "pt-3 sm:pt-4",
+        endsTurn ? (isGrouped ? "pb-2 sm:pb-3" : "pb-3 sm:pb-4") : "pb-0",
         isUser && "flex-row-reverse",
       )}
     >

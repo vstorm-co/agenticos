@@ -782,6 +782,9 @@ describe("a segment that continues the turn above it", () => {
 
     expect(row.className).toContain("pt-0");
     expect(row.className).toContain("pb-0");
+    // And no shorthand under them. `py-3 pt-0 pb-0` leaves which utility wins to
+    // the order of the generated stylesheet, and the padding survived.
+    expect(row.className).not.toMatch(/\bpy-/);
   });
 
   it("keeps its bottom padding on the segment that ends the turn", () => {

@@ -62,6 +62,17 @@ interface FileCardProps {
    * by the filename invented for it, which nobody chose and nobody recognises.
    */
   typeLabel?: string;
+  /**
+   * A chip instead of a tile, for a file being *confirmed* rather than read.
+   *
+   * The composer is the case and the only one so far: a file there is pending,
+   * and what a person needs is whether it is the right one, how big, and how to
+   * take it off - not a 64px window into its contents. Twenty tiles is seven
+   * rows and about 850 px of composer (#927); twenty chips is one row that
+   * scrolls. A variant rather than a fifth card component, because #136
+   * collapsed four of those into this one.
+   */
+  compact?: boolean;
   onOpen?: () => void;
   onRemove?: () => void;
   /** Removing it, in the words of whichever surface holds it. */
@@ -71,6 +82,9 @@ interface FileCardProps {
 
 const CARD = "border-border bg-card relative flex w-56 flex-col gap-1.5 rounded-lg border p-2";
 
+/** The chip. One row, one line of name, one line of type and size. */
+const CHIP = "border-border bg-card relative flex w-44 items-center gap-2 rounded-lg border p-1.5";
+
 export function FileCard({
   name,
   mimeType,
@@ -78,6 +92,7 @@ export function FileCard({
   preview,
   imageUrl,
   typeLabel,
+  compact = false,
   onOpen,
   onRemove,
   removeLabel,
@@ -136,6 +151,50 @@ export function FileCard({
     </>
   );
 
+  if (compact) {
+    return (
+      <div className={cn(CHIP, onRemove !== undefined && "pr-8", className)}>
+        <span className="bg-muted/60 relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded">
+          {isImage && imageUrl != null ? (
+            <Image src={imageUrl} alt={name} fill className="object-cover" unoptimized />
+          ) : (
+            <FileIcon
+              name={name}
+              mimeType={mimeType}
+              className="text-muted-foreground h-3.5 w-3.5"
+            />
+          )}
+        </span>
+
+        {/* One line each, both truncating. A chip whose name wrapped would be
+            back to cards of two heights in one row. */}
+        <span className="flex min-w-0 flex-col">
+          <span title={name} className="truncate text-xs leading-tight font-medium">
+            {name}
+          </span>
+          {meta !== "" && (
+            <span className="text-muted-foreground truncate font-mono text-[10px] tracking-wide uppercase">
+              {meta}
+            </span>
+          )}
+        </span>
+
+        {onRemove !== undefined && (
+          // Its own hit area rather than a 12px glyph in a corner: at chip height
+          // the card is the size the icon used to sit in.
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label={removeLabel ?? t("removeFile", { name })}
+            className="hover:bg-muted text-muted-foreground hover:text-foreground absolute top-1/2 right-1 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className={cn(CARD, onRemove !== undefined && "pr-7", className)}>
       {onOpen !== undefined ? (
@@ -173,8 +232,36 @@ export function FileCard({
  * In place rather than beside: the dashed box this replaces sat *after* every
  * finished card, so uploading a second file made the first one appear to move.
  */
-export function PendingFileCard({ name, size }: { name: string; size: number }) {
+export function PendingFileCard({
+  name,
+  size,
+  compact = false,
+}: {
+  name: string;
+  size: number;
+  compact?: boolean;
+}) {
   const t = useTranslations("files");
+
+  // In the row it will occupy, at the size the finished ones are: a tile among
+  // chips would make the row jump when the upload lands.
+  if (compact) {
+    return (
+      <div className={CHIP}>
+        <span className="bg-muted/60 flex h-7 w-7 shrink-0 items-center justify-center rounded">
+          <Spinner className="text-muted-foreground h-3.5 w-3.5" />
+        </span>
+        <span className="flex min-w-0 flex-col">
+          <span title={name} className="truncate text-xs leading-tight font-medium">
+            {name}
+          </span>
+          <span className="text-muted-foreground truncate font-mono text-[10px] tracking-wide uppercase">
+            {t("uploading", { size: formatBytes(size) })}
+          </span>
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className={CARD}>

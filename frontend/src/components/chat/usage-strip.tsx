@@ -218,6 +218,12 @@ function WorkspaceSegment({
       )}
       {fill.percent === null ? (
         <span>{t("workspaceInUse")}</span>
+      ) : fill.percent < 1 && fill.used !== null ? (
+        <span>
+          {fill.kind === "memory"
+            ? t("sandboxMemoryUsed", { used: fill.used })
+            : t("workspaceUsedAmount", { used: fill.used })}
+        </span>
       ) : (
         <>
           <span
@@ -263,6 +269,15 @@ function WorkspaceSegment({
 
 interface Fill {
   percent: number | null;
+  /**
+   * What is actually in use, formatted, for when the share says nothing.
+   *
+   * A container with a 2 GiB ceiling holding 760 KiB is 0.036% full, which the
+   * server rounds to `0` - and "sandbox memory 0% full" beside a bar drawn at
+   * zero is a gauge that reads the same on every ordinary turn. Under one per
+   * cent the amount is the honest thing to print, and there is no bar to draw.
+   */
+  used: string | null;
   detail: string;
   /**
    * Which ceiling this is a share of, because they are not the same thing.
@@ -287,6 +302,7 @@ function fillOf(
   if (sandbox !== null)
     return {
       percent: sandbox.percent,
+      used: usedOf(sandbox),
       detail: reportedDetail(sandbox, t),
       // Bytes first, matching `SandboxUsage.percent` on the server: whichever
       // pair it measured is the pair this describes.
@@ -299,6 +315,7 @@ function fillOf(
     return null;
   return {
     percent: Math.round((workspace.bytes_total * 100) / workspace.bytes_limit),
+    used: size(workspace.bytes_total),
     detail: t("storedOf", {
       used: size(workspace.bytes_total),
       limit: size(workspace.bytes_limit),
@@ -326,7 +343,17 @@ function share(percent: number): string {
 function size(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KiB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+  // A 2 GiB ceiling printed as `2048.0 MiB` reads like a quota for a whole
+  // installation rather than one container's limit.
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GiB`;
+}
+
+/** How much is in use, formatted, whichever pair the backend reported. */
+function usedOf(sandbox: NonNullable<TurnUsage["sandbox"]>): string | null {
+  if (sandbox.bytes_used !== null) return size(sandbox.bytes_used);
+  if (sandbox.memory_bytes !== null) return size(sandbox.memory_bytes);
+  return null;
 }
 
 /** What the workspace half is measuring, and how much of it is gone. */

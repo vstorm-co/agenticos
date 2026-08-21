@@ -431,6 +431,9 @@ function ChatUI({
   // which means the scroll area must end where the dock begins or the last
   // message hides behind it. The dock's height is not a constant - attachments,
   // banners and a growing textarea all change it - so it is measured.
+  // A callback ref rather than `useRef`, because the portal has to re-render once
+  // the node exists: a ref object mutating tells React nothing.
+  const [attachmentSlot, setAttachmentSlot] = useState<HTMLDivElement | null>(null);
   const dockRef = useRef<HTMLDivElement | null>(null);
   const [dockHeight, setDockHeight] = useState(0);
   useLayoutEffect(() => {
@@ -503,6 +506,10 @@ function ChatUI({
             {queuedMessages && queuedMessages.length > 0 && onCancelQueued && (
               <PendingMessages messages={queuedMessages} onCancel={onCancelQueued} />
             )}
+            {/* What is attached, above the composer rather than inside it. The
+                slot is here because the box below is drawn here; `ChatInput`
+                portals its row into it and keeps the upload state. */}
+            <div ref={setAttachmentSlot} />
             <div
               data-tour="chat-composer"
               className="glass focus-within:border-foreground/30 rounded-2xl transition-colors"
@@ -534,6 +541,7 @@ function ChatUI({
                   onStop={onStop}
                   slashContext={slashContext}
                   commands={slashCommands}
+                  attachmentSlot={attachmentSlot}
                 />
               </div>
               <div className="border-foreground/8 flex items-center justify-between border-t px-3 py-2 sm:px-4">
