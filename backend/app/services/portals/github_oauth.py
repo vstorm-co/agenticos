@@ -119,7 +119,21 @@ async def exchange_code(
     if response.status_code != 200:
         logger.warning("github_token_exchange_failed", extra={"status": response.status_code})
         raise GithubOAuthError("GitHub rejected the authorization - please try connecting again.")
-    body = response.json()
+    try:
+        body = response.json()
+    except ValueError as exc:
+        # A 200 whose body is not JSON - an intermediary's error page, a truncated
+        # response. The shared callback only recovers GithubOAuthError into its
+        # ok=false result, so this must arrive as that error, not a 500.
+        logger.warning("github_token_exchange_unreadable")
+        raise GithubOAuthError(
+            "GitHub answered with something unreadable - please try connecting again."
+        ) from exc
+    if not isinstance(body, dict):
+        logger.warning("github_token_exchange_unreadable")
+        raise GithubOAuthError(
+            "GitHub answered with something unreadable - please try connecting again."
+        )
     if "error" in body:
         # A 200 with an error payload is how GitHub reports a bad or expired code.
         logger.warning("github_token_exchange_error", extra={"error": body.get("error")})

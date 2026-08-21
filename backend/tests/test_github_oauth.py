@@ -138,6 +138,31 @@ class TestTheTokenExchange:
                 client_id="cid", client_secret="cs", code="c", redirect_uri="https://app/cb"
             )
 
+    async def test_a_200_that_is_not_json_is_a_recoverable_error(self) -> None:
+        """An intermediary's HTML error page or a truncated body raises out of
+        `.json()`; that too must arrive as the recoverable error, not a 500."""
+
+        class _HtmlResp(_Resp):
+            def json(self) -> Any:
+                raise ValueError("not json")
+
+        with (
+            patch("httpx.AsyncClient", lambda **_kw: _FakeClient(_HtmlResp(200), [])),
+            pytest.raises(github_oauth.GithubOAuthError),
+        ):
+            await github_oauth.exchange_code(
+                client_id="cid", client_secret="cs", code="c", redirect_uri="https://app/cb"
+            )
+
+    async def test_a_200_whose_json_is_not_an_object_is_a_recoverable_error(self) -> None:
+        with (
+            _patch_client(_Resp(200, ["not", "an", "object"]), []),
+            pytest.raises(github_oauth.GithubOAuthError),
+        ):
+            await github_oauth.exchange_code(
+                client_id="cid", client_secret="cs", code="c", redirect_uri="https://app/cb"
+            )
+
     async def test_a_transport_failure_is_a_recoverable_error_not_a_500(self) -> None:
         """A timeout or a refused connection raises out of httpx before there is
         any response to judge. The shared callback only recovers `GithubOAuthError`
