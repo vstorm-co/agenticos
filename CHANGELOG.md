@@ -17,6 +17,33 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.238] - 2026-08-21
+
+A stored file is served as what it is, or not served inline at all.
+
+### Fixed
+
+- **Stored XSS through an avatar or a chat attachment.** The bytes behind both were
+  served with a type the backend took from the *name on disk*, while the upload paths
+  validated the `Content-Type` the client *declared* and never the bytes, keeping
+  whatever extension the uploader chose. So `x.html` whose bytes are `<script>…`,
+  declared as `image/png`, was accepted, stored as `<hex>_x.html`, guessed back as
+  `text/html`, and passed through the frontend proxy from the app's own origin -
+  where the CSP allows `'unsafe-inline'`. `X-Content-Type-Options: nosniff` does not
+  help, because the type is declared rather than sniffed. The same shape #634 fixed
+  for the hosted-page logo; these three require a session, so the audience is the
+  organization. (#702)
+- **Pinned at both ends.** The frontend proxies share their allowlists in
+  `src/lib/proxy-content-type.ts`: both avatar proxies refuse anything outside the
+  four image types with a 502 and drop the `image/jpeg` default over unknown bytes,
+  and the file proxy - which serves PDFs and spreadsheets on purpose - forces a
+  download for anything outside the render-safe set, so `text/html` and SVG are saved
+  rather than shown. `nosniff` on all three. (#702)
+- **And at the backend routes.** `image_media_type_for` lives beside `IMAGE_MIME_TYPES`
+  in `file_storage`: the user and organization avatar routes guess the type, 404 a
+  non-image and pass it explicitly with `nosniff`, and the chat-file route serves a
+  render-safe type inline and forces everything else to download - the declared
+  `mime_type` is not trusted to decide rendering. (#702)
 ## [0.0.237] - 2026-08-21
 
 Two chat controls that did nothing are gone.
