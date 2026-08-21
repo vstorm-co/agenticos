@@ -49,6 +49,8 @@ function kb(id: string, name: string, collection: string, isDefault = false): Kn
     ingestion_config: DEFAULT_INGESTION_CONFIG,
     embedding_model: "text-embedding-3-large",
     embedding_dim: 3072,
+    rerank_model: null,
+    rerank_secret_id: null,
     created_at: "2026-07-01T00:00:00Z",
     updated_at: null,
     document_count: 0,

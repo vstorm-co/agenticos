@@ -93,6 +93,8 @@ async def create(
     organization_id: UUID | None = None,
     is_default: bool = False,
     embedding_secret_id: UUID | None = None,
+    rerank_model: str | None = None,
+    rerank_secret_id: UUID | None = None,
     visibility: str | None = None,
 ) -> KnowledgeBase:
     """Create a knowledge base.
@@ -115,6 +117,8 @@ async def create(
         embedding_model=embedding_model,
         embedding_dim=embedding_dim,
         embedding_secret_id=embedding_secret_id,
+        rerank_model=rerank_model,
+        rerank_secret_id=rerank_secret_id,
         **({"visibility": visibility} if visibility is not None else {}),
     )
     db.add(kb)
@@ -130,6 +134,9 @@ async def update(
     name: str | None = None,
     description: str | None = None,
     ingestion_config: dict[str, object] | None = None,
+    set_rerank: bool = False,
+    rerank_model: str | None = None,
+    rerank_secret_id: UUID | None = None,
 ) -> KnowledgeBase:
     if name is not None:
         db_kb.name = name
@@ -137,6 +144,12 @@ async def update(
         db_kb.description = description
     if ingestion_config is not None:
         db_kb.ingestion_config = ingestion_config
+    # A pair set together, and the only field here that can be set back to null:
+    # `set_rerank` is what tells "turn reranking off" from "leave it alone",
+    # which the None-means-skip convention above cannot express.
+    if set_rerank:
+        db_kb.rerank_model = rerank_model
+        db_kb.rerank_secret_id = rerank_secret_id
     await db.flush()
     await db.refresh(db_kb)
     return db_kb
@@ -173,3 +186,50 @@ async def list_by_collection_name(db: AsyncSession, collection_name: str) -> lis
         .order_by(KnowledgeBase.created_at)
     )
     return list(result.scalars().all())
+
+
+async def knowledge_bases_using(
+    db: AsyncSession, *, organization_id: UUID, secret_id: UUID
+) -> list[tuple[UUID, str]]:
+    """Knowledge bases that reference this secret as their embedding or rerank key.
+
+    Both columns in one query: a key is bound through `embedding_secret_id` or
+    `rerank_secret_id`, and either binding breaks the same way when the key is
+    deleted - the foreign key nulls the reference (SET NULL) and the collection
+    silently stops embedding or reranking. A vault listing that only checks
+    agent specs calls such a key unused and invites exactly that deletion, so
+    this is what lets the listing account for the collections too. Scoped to the
+    organization, like every other lookup here.
+    """
+    result = await db.execute(
+        select(KnowledgeBase.id, KnowledgeBase.name)
+        .where(
+            KnowledgeBase.organization_id == organization_id,
+            or_(
+                KnowledgeBase.embedding_secret_id == secret_id,
+                KnowledgeBase.rerank_secret_id == secret_id,
+            ),
+        )
+        .order_by(KnowledgeBase.name)
+    )
+    return [(row[0], row[1]) for row in result.all()]
+
+
+async def get_for_collection(
+    db: AsyncSession, collection_name: str, organization_id: UUID | None
+) -> KnowledgeBase | None:
+    """The knowledge base an organization resolves a collection name to.
+
+    `collection_name` is not unique across tenants, so resolving one by name
+    alone can return another organization's row - and then unseal and bill that
+    organization's key (#913). The organization narrows the candidates in two
+    passes: its own row wins, and an `app`-scoped collection (owned by no
+    organization) is the shared fallback. `organization_id` is `None` only where
+    there is genuinely no tenant to scope to - a CLI ingest - and then the first
+    candidate stands, which is the old name-only behaviour for that path alone.
+    """
+    candidates = await list_by_collection_name(db, collection_name)
+    for kb in candidates:
+        if organization_id is None or kb.organization_id == organization_id:
+            return kb
+    return next((kb for kb in candidates if kb.organization_id is None), None)

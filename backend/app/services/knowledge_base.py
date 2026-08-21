@@ -33,6 +33,7 @@ from app.services.ingestion_config import (
     deployment_defaults,
     deployment_embedding,
 )
+from app.services.rerank_resolution import RERANK_KEY_PURPOSES, SUPPORTED_RERANK_MODELS
 
 logger = logging.getLogger(__name__)
 
@@ -306,6 +307,9 @@ class KnowledgeBaseService:
             await self._check_embedding_secret(
                 data.embedding_secret_id, ctx=ctx, organization_id=org_id
             )
+        self._check_rerank_pair(data.rerank_model, data.rerank_secret_id)
+        if data.rerank_secret_id is not None:
+            await self._check_rerank_secret(ctx, data.rerank_secret_id, organization_id=org_id)
         return await knowledge_base_repo.create(
             self.db,
             name=data.name,
@@ -318,6 +322,8 @@ class KnowledgeBaseService:
             embedding_model=embedding_model,
             embedding_dim=embedding_dim,
             embedding_secret_id=data.embedding_secret_id,
+            rerank_model=data.rerank_model,
+            rerank_secret_id=data.rerank_secret_id,
         )
 
     async def _check_embedding_secret(
@@ -360,6 +366,74 @@ class KnowledgeBaseService:
                 details={"purpose": row.purpose},
             )
 
+    @staticmethod
+    def _check_rerank_pair(model: str | None, secret_id: UUID | None) -> None:
+        """A reranker is a supported model *and* a key, or neither.
+
+        Reranking runs only when both are set (`rerank_resolution`), so a lone
+        half is a setting that reads as configured and does nothing. And a model
+        this deployment cannot run is the same failure by another route: it is
+        accepted, stored and shown as configured, then every search fails inside
+        Cohere and is swallowed, so reranking is silently off. Both are refused
+        here, where the person setting it can see why, rather than at search time.
+        """
+        if (model is None) != (secret_id is None):
+            raise BadRequestError(
+                message="Reranking needs both a model and a key, or neither",
+                details={"rerank_model": model, "rerank_secret_id": str(secret_id)},
+            )
+        if model is not None and model not in SUPPORTED_RERANK_MODELS:
+            raise BadRequestError(
+                message=(
+                    f"Unsupported rerank model; this deployment reranks through "
+                    f"{', '.join(SUPPORTED_RERANK_MODELS)}"
+                ),
+                details={"rerank_model": model},
+            )
+
+    async def _check_rerank_secret(
+        self, ctx: AuthContext, secret_id: UUID, *, organization_id: UUID | None
+    ) -> None:
+        """Refuse a rerank key the caller may not use, or one of the wrong kind.
+
+        Checked at creation and on update, where the person choosing can fix it -
+        resolution degrades a bad key to no reranking, so this is the one moment
+        a wrong choice is visible.
+
+        Binding a key is lending it: reranking spends it for everyone who can
+        search the collection, so whoever sets it has to be able to reach the key
+        themselves. The picker only ever offers what they can see, but the API
+        took an id, and a private key another member owns is in the organization's
+        vault yet not theirs to use - so an org-scoped lookup alone would let a
+        `collections:edit` holder bind a key `secrets:view` would refuse them.
+        Refused as "not in the vault", the same as a genuine miss, so a refusal
+        cannot be told apart and used to enumerate it - exactly as agent secret
+        bindings are checked (`agent_registry`).
+        """
+        if organization_id is None:
+            raise BadRequestError(
+                message="Only an organization collection can carry a vault key",
+                details={"rerank_secret_id": str(secret_id)},
+            )
+        row = await organization_secret_repo.get(
+            self.db, secret_id, organization_id=organization_id
+        )
+        if row is None or not await resolve_access(
+            self.db, ctx, row, Perm.SECRETS_VIEW, resource_type=SECRET
+        ):
+            raise BadRequestError(
+                message="That key is not in this organization's vault",
+                details={"rerank_secret_id": str(secret_id)},
+            )
+        if row.purpose not in RERANK_KEY_PURPOSES:
+            raise BadRequestError(
+                message=(
+                    f"That key is for {row.purpose}; reranking runs through "
+                    f"{', '.join(RERANK_KEY_PURPOSES)}"
+                ),
+                details={"purpose": row.purpose},
+            )
+
     async def update(
         self,
         kb_id: UUID,
@@ -373,12 +447,26 @@ class KnowledgeBaseService:
             if data.ingestion_config is None
             else await self._usable_config(ctx, data.ingestion_config)
         )
+        # The rerank pair is set only when the caller actually sent it, so an
+        # update about something else leaves reranking untouched; sending both
+        # as null is how it is turned off, which is why the trigger is "was the
+        # field present" rather than "is it not None".
+        sets_rerank = bool({"rerank_model", "rerank_secret_id"} & data.model_fields_set)
+        if sets_rerank:
+            self._check_rerank_pair(data.rerank_model, data.rerank_secret_id)
+            if data.rerank_secret_id is not None:
+                await self._check_rerank_secret(
+                    ctx, data.rerank_secret_id, organization_id=kb.organization_id
+                )
         return await knowledge_base_repo.update(
             self.db,
             db_kb=kb,
             name=data.name,
             description=data.description,
             ingestion_config=None if config is None else config.model_dump(mode="json"),
+            set_rerank=sets_rerank,
+            rerank_model=data.rerank_model,
+            rerank_secret_id=data.rerank_secret_id,
         )
 
     async def _usable_config(

@@ -679,7 +679,9 @@
           "description": "Koszt modeli ląduje tutaj uruchomienie po uruchomieniu."
         },
         "description": "Ile kosztował okres i ile miesiąc kalendarzowy do dziś. Kwota miesięczna zgadza się z fakturą, więc celowo nie reaguje na filtr okresu.",
-        "split": "{models} na modele · {ingestion} na indeksowanie"
+        "splitModels": "{amount} na modele",
+        "splitIndexing": "{amount} na indeksowanie",
+        "splitSearch": "{amount} na wyszukiwanie"
       },
       "model-mix": {
         "title": "Modele za uruchomieniami",

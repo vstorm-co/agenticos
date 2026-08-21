@@ -15,8 +15,10 @@ from app.agents.capabilities.budget import (
     BudgetExceeded,
     BudgetGuard,
     BudgetScope,
+    SpendEntry,
     SpendLedger,
     SpendLimit,
+    book_ambient_spend,
     metered_by,
     price_request,
     record_ambient_usage,
@@ -404,6 +406,46 @@ class TestAmbientMetering:
 
         assert [entry.input_tokens for entry in inner.entries] == [1]
         assert [entry.input_tokens for entry in outer.entries] == [2]
+
+
+class TestBookAmbientSpend:
+    """A pre-priced entry booked to the active ledger without going through
+    `genai-prices`.
+
+    The mechanism a reranker bills through: its cost comes from a published
+    per-search price, not from token counts, so it arrives already computed and
+    `priced=True` rather than being re-derived from a model name the price table
+    does not know.
+    """
+
+    def test_a_priced_entry_inside_a_metered_block_lands_priced(self):
+        ledger = SpendLedger()
+        entry = SpendEntry(
+            model_name="rerank-v3.5",
+            input_tokens=0,
+            output_tokens=0,
+            cost_usd=Decimal("0.002"),
+            priced=True,
+        )
+
+        with metered_by(ledger):
+            book_ambient_spend(entry)
+
+        assert ledger.total_usd == Decimal("0.002")
+        assert not ledger.has_unpriced_models
+
+    def test_a_priced_entry_with_nobody_metering_is_dropped_not_raised(self):
+        """A search outside any run has no ledger open; the reranker must still
+        rerank rather than refuse because nobody is counting."""
+        book_ambient_spend(
+            SpendEntry(
+                model_name="rerank-v3.5",
+                input_tokens=0,
+                output_tokens=0,
+                cost_usd=Decimal("0.002"),
+                priced=True,
+            )
+        )
 
 
 class TestUsageDelta:

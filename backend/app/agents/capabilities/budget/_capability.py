@@ -434,6 +434,24 @@ def record_ambient_usage(
         ledger.record(model_name, usage, provider)
 
 
+def book_ambient_spend(entry: SpendEntry) -> None:
+    """Book one already-priced entry to whichever ledger is active, if any is.
+
+    The sibling of :func:`record_ambient_usage` for spend that is not
+    token-priced. `record` prices through `genai-prices`, which knows chat and
+    embedding models and nothing else, so a reranker call routed through it
+    would book `cost_usd=0, priced=False`. A reranker computes its own cost from
+    a published per-search price and hands the finished :class:`SpendEntry` here
+    instead, so the entry lands `priced=True` with a real number.
+
+    A no-op when nothing is metering, for the same reason the sibling is: a
+    provider should not refuse to work because no ledger is open.
+    """
+    ledger = _active_ledger.get()
+    if ledger is not None:
+        ledger.book(entry)
+
+
 def usage_counts(usage: RunUsage) -> tuple[int, int, int, int]:
     """The four counters a price is computed from, read off the run's usage.
 

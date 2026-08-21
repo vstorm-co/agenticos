@@ -83,8 +83,14 @@ def _announcing_resolver() -> EmbeddingResolver:
     """
     announced: set[str] = set()
 
-    async def resolve(collection_name: str) -> ResolvedEmbeddings | None:
-        resolved = await embeddings_for_collection(collection_name)
+    async def resolve(
+        collection_name: str,
+        organization_id: UUID | None,
+        knowledge_base_id: UUID | None = None,
+    ) -> ResolvedEmbeddings | None:
+        resolved = await embeddings_for_collection(
+            collection_name, organization_id, knowledge_base_id
+        )
         if (
             resolved is not None
             and resolved.key_source.is_degraded
@@ -136,7 +142,9 @@ async def _ingestion_service_for(
         embedding_service=EmbeddingService(settings=rag_settings),
         resolver=_announcing_resolver(),
     )
-    return IngestionService(processor=processor, vector_store=vector_store)
+    return IngestionService(
+        processor=processor, vector_store=vector_store, organization_id=organization_id
+    )
 
 
 async def _record_embedding_spend(
@@ -192,11 +200,7 @@ async def _knowledge_base_for(
     """
     if collection_name is None:
         return None
-    candidates = await knowledge_base_repo.list_by_collection_name(db, collection_name)
-    for kb in candidates:
-        if organization_id is None or kb.organization_id == organization_id:
-            return kb
-    return next((kb for kb in candidates if kb.organization_id is None), None)
+    return await knowledge_base_repo.get_for_collection(db, collection_name, organization_id)
 
 
 async def _config_for_collection(

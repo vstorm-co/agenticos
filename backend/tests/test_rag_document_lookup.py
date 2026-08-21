@@ -42,7 +42,7 @@ pytestmark = pytest.mark.anyio
 
 def _service(docs: list[DocumentInfo]) -> IngestionService:
     store = MagicMock(get_documents=AsyncMock(return_value=docs))
-    return IngestionService(processor=MagicMock(), vector_store=store)
+    return IngestionService(processor=MagicMock(), vector_store=store, organization_id=None)
 
 
 def _doc(
@@ -131,7 +131,7 @@ class TestOnePrecedenceForBothAnswers:
         """A listing that cannot be read is not evidence the document is absent -
         but treating it as a match would delete one on a failed query."""
         store = MagicMock(get_documents=AsyncMock(side_effect=RuntimeError("connection refused")))
-        service = IngestionService(processor=MagicMock(), vector_store=store)
+        service = IngestionService(processor=MagicMock(), vector_store=store, organization_id=None)
 
         assert await service.existing_document("kb", "/srv/sync/handbook.pdf") == StoredDocument()
 
@@ -219,7 +219,7 @@ class TestHowManyTimesTheCollectionIsRead:
                 ]
             )
         )
-        service = IngestionService(processor=MagicMock(), vector_store=store)
+        service = IngestionService(processor=MagicMock(), vector_store=store, organization_id=None)
 
         existing = await service.existing_document("kb", "/srv/sync/handbook.pdf")
 
@@ -246,7 +246,7 @@ class TestHowManyTimesTheCollectionIsRead:
         ]
         document.metadata.content_hash = "hash-a"
         processor = MagicMock(process_file=AsyncMock(return_value=document))
-        service = IngestionService(processor=processor, vector_store=store)
+        service = IngestionService(processor=processor, vector_store=store, organization_id=None)
 
         result = await service.ingest_file(
             filepath=Path("handbook.pdf"),
@@ -294,7 +294,9 @@ class TestReplacingADocument:
         ]
         document.metadata.content_hash = "hash-new"
         processor = MagicMock(process_file=AsyncMock(return_value=document))
-        return store, IngestionService(processor=processor, vector_store=store)
+        return store, IngestionService(
+            processor=processor, vector_store=store, organization_id=None
+        )
 
     async def test_a_failed_embedding_leaves_the_old_document_in_place(self):
         store, service = self._replacing(AsyncMock(side_effect=RuntimeError("provider refused")))

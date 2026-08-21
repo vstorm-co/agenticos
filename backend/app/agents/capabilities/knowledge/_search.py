@@ -3,11 +3,13 @@
 import contextvars
 import logging
 from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 from app.core.config import settings
 from app.core.exceptions import AppException, ExternalServiceError
 from app.services.embedding_resolution import embeddings_for_collection
 from app.services.rag.embeddings import EmbeddingService
+from app.services.rag.reranker import build_reranker
 from app.services.rag.retrieval import RetrievalService
 from app.services.rag.vectorstore import PgVectorStore
 
@@ -32,7 +34,13 @@ def get_retrieval_service() -> "BaseRetrievalService":
         rag_settings, embedding_service, resolver=embeddings_for_collection
     )
     _vector_store = vector_store
-    _retrieval_service = RetrievalService(vector_store, rag_settings)
+    # The reranker resolver is wired here too, not only on the /rag/search
+    # route: an agent's knowledge search reranks when its collection is
+    # configured, and the run's open ledger books the cost - which is the
+    # agent-run half of "spend recorded on both paths".
+    _retrieval_service = RetrievalService(
+        vector_store, rag_settings, reranker_resolver=build_reranker
+    )
     return _retrieval_service
 
 
@@ -93,6 +101,8 @@ async def search_knowledge_base(
     query: str,
     kb_collection_names: list[str] | None = None,
     top_k: int = 5,
+    *,
+    organization_id: UUID | None,
 ) -> str:
     """Search the knowledge base and return formatted results.
 
@@ -102,6 +112,9 @@ async def search_knowledge_base(
             agent's spec. Never supplied by the LLM directly - injected via
             PydanticAI Deps or the _active_kb_collections ContextVar.
         top_k: Number of top results to retrieve (default: 5).
+        organization_id: The organization the run acts for, so a collection name
+            shared across tenants resolves this one's embedding and rerank config
+            rather than another's (#913).
     """
     resolved = kb_collection_names if kb_collection_names else (_active_kb_collections.get() or [])
     if not resolved:
@@ -111,10 +124,18 @@ async def search_knowledge_base(
     one_collection = len(resolved) == 1
     try:
         if one_collection:
-            results = await service.retrieve(query=query, collection_name=resolved[0], limit=top_k)
+            results = await service.retrieve(
+                query=query,
+                collection_name=resolved[0],
+                limit=top_k,
+                organization_id=organization_id,
+            )
         else:
             results = await service.retrieve_multi(
-                query=query, collection_names=resolved, limit=top_k
+                query=query,
+                collection_names=resolved,
+                limit=top_k,
+                organization_id=organization_id,
             )
     except AppException:
         # Already an account of what is wrong and what to do about it - an

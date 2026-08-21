@@ -337,6 +337,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.collectionsView,
   },
   {
+    id: "kb-rerank",
+    page: KB_DETAIL,
+    target: "kb-rerank",
+    activate: "kb-tab-ingestion",
+    permission: Perm.collectionsView,
+  },
+  {
     id: "kb-sync",
     page: KB_DETAIL,
     target: "kb-sync",

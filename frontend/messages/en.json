@@ -1555,7 +1555,9 @@
         "title": "Spend",
         "unit": "in this period",
         "description": "What the period cost, and this calendar month to date. The month figure reconciles with the invoice, so it deliberately ignores the period filter.",
-        "split": "{models} on models · {ingestion} on indexing"
+        "splitModels": "{amount} on models",
+        "splitIndexing": "{amount} on indexing",
+        "splitSearch": "{amount} on search"
       },
       "surfaces": {
         "empty": {
@@ -1983,6 +1985,17 @@
     "reasoning": "Reasoning",
     "remove": "Remove",
     "removeNamed": "Remove {name}?",
+    "rerank": "Reranking",
+    "rerankBilledTo": "billed to {key}",
+    "rerankHelp": "A reranker reorders search results by relevance. Off unless a key is set.",
+    "rerankKey": "Reranking key",
+    "rerankKeyConfigured": "a Cohere key",
+    "rerankKeyName": "Cohere (reranking)",
+    "rerankOff": "Off",
+    "rerankOffExplained": "Off. Results are ordered by vector distance alone.",
+    "rerankOnExplained": "A second pass reorders each search's results by relevance before they are returned.",
+    "rerankSettings": "Reranking",
+    "rerankSettingsDescription": "Choose which key reranks searches against <mono>{name}</mono>. It takes effect from the next search; nothing already stored changes.",
     "reusableIntegrations": "Reusable integrations",
     "save": "Save",
     "saving": "Saving…",
@@ -2026,6 +2039,7 @@
     "failedUpdate": "Failed to update knowledge base",
     "inactive": "Inactive",
     "ingestionSaved": "Ingestion settings saved",
+    "rerankSaved": "Reranking updated",
     "integrationCloned": "Integration cloned to this knowledge base",
     "namePlaceholder": "Product docs",
     "scopeApp": "App-wide",
@@ -2667,6 +2681,10 @@
         "title": "Embeddings (leave the default)",
         "body": "How documents are indexed for search. It's frozen at creation, but the deployment default is right for almost everyone — expand it only if you know you need a different model. Choose Next."
       },
+      "flow-kb-field-rerank": {
+        "title": "Reranking (optional)",
+        "body": "A reranker reorders search results by relevance. It stays off unless you pick a key to pay for it, and the default off is right for almost everyone. Choose Next."
+      },
       "flow-kb-field-create": {
         "title": "Create it",
         "body": "Choose Create. We'll move on the moment it exists — you'll add documents to it right after."
@@ -2858,6 +2876,10 @@
       "kb-ingestion": {
         "title": "How documents are read",
         "body": "The parser, chunking and embedding model behind this collection — what turns your files into something searchable. Change it, and new uploads follow the new settings."
+      },
+      "kb-rerank": {
+        "title": "Sharpen the results",
+        "body": "A reranker adds a second pass that reorders search results by relevance. Off by default; turn it on here with a Cohere key, or turn it back off — it changes from the next search on."
       },
       "kb-sync": {
         "title": "Keep it in step",

@@ -521,6 +521,7 @@ include = [
     "app/services/collection_access.py",
     "app/services/embed_session.py",
     "app/services/embedding_resolution.py",
+    "app/services/rerank_resolution.py",
     "app/services/approvals.py",
     "app/services/audit.py",
     "app/services/health.py",
@@ -532,6 +533,7 @@ include = [
     # mention, a schedule — so a silent failure here is indistinguishable from
     # an agent that simply had nothing to say.
     "app/services/notifications.py",
+    "app/services/knowledge_search.py",
     "app/services/mcp_catalog.py",
     "app/services/mcp_connection.py",
     # Which providers can draw an image, derived from the SDK. What it decides is
@@ -733,6 +735,7 @@ include = [
     # ungated, which is the failure this gate exists to name (#663).
     "app/services/embed_session.py",
     "app/services/embedding_resolution.py",
+    "app/services/rerank_resolution.py",
     "app/services/approvals.py",
     # The read half of the audit trail. `audit:read` is the only way to see who
     # did what in an organization, and the scope is the whole point of the
@@ -765,6 +768,7 @@ include = [
     # mention, a schedule — so a silent failure here is indistinguishable from
     # an agent that simply had nothing to say.
     "app/services/notifications.py",
+    "app/services/knowledge_search.py",
     "app/services/mcp_catalog.py",
     "app/services/mcp_connection.py",
     # Which providers can draw an image, derived from the SDK. What it decides is

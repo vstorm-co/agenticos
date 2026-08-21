@@ -538,6 +538,48 @@ describe("one collection's page", () => {
     );
   });
 
+  it("saves the rerank pair together and keeps the collection it was handed back", async () => {
+    serveDetail();
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    await waitFor(() => expect(result.current.kb).toMatchObject({ id: "kb-1" }));
+    vi.mocked(apiClient.patch).mockResolvedValue({
+      id: "kb-1",
+      name: "Handbook",
+      rerank_model: "rerank-v3.5",
+    });
+
+    await act(async () => {
+      await result.current.updateRerank({
+        rerank_model: "rerank-v3.5",
+        rerank_secret_id: "co-1",
+      });
+    });
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/kb/kb-1", {
+      rerank_model: "rerank-v3.5",
+      rerank_secret_id: "co-1",
+    });
+    await waitFor(() => expect(result.current.kb).toMatchObject({ rerank_model: "rerank-v3.5" }));
+    expect(toast.success).toHaveBeenCalledWith("Reranking updated");
+  });
+
+  it("refuses to change reranking with no collection open", async () => {
+    const { result } = renderHook(() => useKBDetail(null), { wrapper });
+
+    await expect(
+      result.current.updateRerank({ rerank_model: null, rerank_secret_id: null }),
+    ).rejects.toThrow("No knowledge base is open");
+  });
+
+  it("lets a refused rerank key through to the dialog that owns the picker", async () => {
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("That key is for tavily"));
+
+    await expect(
+      result.current.updateRerank({ rerank_model: "rerank-v3.5", rerank_secret_id: "co-1" }),
+    ).rejects.toThrow("That key is for tavily");
+  });
+
   it("drops a deleted document and the count with it", async () => {
     serveDetail({ documents: [document("d-1"), document("d-2")], documentsTotal: 2 });
     const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });

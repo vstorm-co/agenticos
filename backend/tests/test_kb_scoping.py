@@ -11,7 +11,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.repositories.rag_document import CollectionCounts
-from app.schemas.knowledge_base import KnowledgeBaseCreate
+from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
 from app.services.ingestion_config import deployment_defaults
 from app.services.knowledge_base import KnowledgeBaseService, _with_counts
 
@@ -656,3 +656,175 @@ class TestCollectionCounts:
         assert listing.total == 2
         assert [item.document_count for item in listing.items] == [0, 3]
         assert [item.chunk_count for item in listing.items] == [0, 90]
+
+
+class TestRerankConfig:
+    """Setting a collection's reranker, and the ways it is refused.
+
+    Reranking is a model and a key together; a lone half reads as configured
+    and does nothing, and a key of the wrong purpose bills nobody's reranking.
+    Both are refused where the person setting them can see why."""
+
+    @pytest.fixture
+    def mock_db(self):
+        return MagicMock()
+
+    def _cohere_secret(self, purpose: str = "cohere") -> MagicMock:
+        return MagicMock(purpose=purpose)
+
+    @pytest.mark.anyio
+    async def test_a_model_without_a_key_is_refused(self, mock_db, unclaimed_collection_name):
+        data = KnowledgeBaseCreate(
+            name="KB", scope="org", collection_name="c", rerank_model="rerank-v3.5"
+        )
+        with pytest.raises(BadRequestError, match="both a model and a key"):
+            await KnowledgeBaseService(mock_db).create(data, ctx=_ctx())
+
+    @pytest.mark.anyio
+    async def test_a_key_without_a_model_is_refused(self, mock_db, unclaimed_collection_name):
+        data = KnowledgeBaseCreate(
+            name="KB", scope="org", collection_name="c", rerank_secret_id=uuid.uuid4()
+        )
+        with pytest.raises(BadRequestError, match="both a model and a key"):
+            await KnowledgeBaseService(mock_db).create(data, ctx=_ctx())
+
+    @pytest.mark.anyio
+    async def test_an_unsupported_model_is_refused_before_the_key_is_read(
+        self, mock_db, unclaimed_collection_name
+    ):
+        # A typo'd model with an otherwise valid key would be stored and shown as
+        # configured, then fail every search inside Cohere where the error is
+        # swallowed - reranking silently off. Refused at create, and before the
+        # vault is even consulted.
+        data = KnowledgeBaseCreate(
+            name="KB",
+            scope="org",
+            collection_name="c",
+            rerank_model="rerank-v3.5x",
+            rerank_secret_id=uuid.uuid4(),
+        )
+        with (
+            patch("app.repositories.organization_secret_repo.get", new=AsyncMock()) as secret_get,
+            pytest.raises(BadRequestError, match="Unsupported rerank model"),
+        ):
+            await KnowledgeBaseService(mock_db).create(data, ctx=_ctx())
+        secret_get.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_an_update_to_an_unsupported_model_is_refused(self, mock_db):
+        kb = _kb("org", organization_id=uuid.uuid4())
+        data = KnowledgeBaseUpdate(rerank_model="bogus", rerank_secret_id=uuid.uuid4())
+        with (
+            patch.object(KnowledgeBaseService, "get_for_write", new=AsyncMock(return_value=kb)),
+            pytest.raises(BadRequestError, match="Unsupported rerank model"),
+        ):
+            await KnowledgeBaseService(mock_db).update(kb.id, data, ctx=_ctx())
+
+    @pytest.mark.anyio
+    async def test_a_configured_pair_is_written_through(self, mock_db, unclaimed_collection_name):
+        secret_id = uuid.uuid4()
+        data = KnowledgeBaseCreate(
+            name="KB",
+            scope="org",
+            collection_name="c",
+            rerank_model="rerank-v3.5",
+            rerank_secret_id=secret_id,
+        )
+        with (
+            patch(
+                "app.repositories.organization_secret_repo.get",
+                new=AsyncMock(return_value=self._cohere_secret()),
+            ),
+            patch(
+                "app.services.knowledge_base.resolve_access",
+                new=AsyncMock(return_value=True),
+            ),
+            patch(
+                "app.repositories.knowledge_base_repo.create",
+                new=AsyncMock(return_value=MagicMock()),
+            ) as created,
+        ):
+            await KnowledgeBaseService(mock_db).create(data, ctx=_ctx())
+
+        assert created.call_args.kwargs["rerank_model"] == "rerank-v3.5"
+        assert created.call_args.kwargs["rerank_secret_id"] == secret_id
+
+    @pytest.mark.anyio
+    async def test_a_key_the_caller_cannot_reach_is_refused_as_missing(
+        self, mock_db, unclaimed_collection_name
+    ):
+        # In the organization's vault, but private to another member: binding it
+        # would lend a key `secrets:view` refuses the caller. Refused as a miss,
+        # so the refusal cannot be told from "no such key" and used to enumerate.
+        data = KnowledgeBaseCreate(
+            name="KB",
+            scope="org",
+            collection_name="c",
+            rerank_model="rerank-v3.5",
+            rerank_secret_id=uuid.uuid4(),
+        )
+        with (
+            patch(
+                "app.repositories.organization_secret_repo.get",
+                new=AsyncMock(return_value=self._cohere_secret()),
+            ),
+            patch(
+                "app.services.knowledge_base.resolve_access",
+                new=AsyncMock(return_value=False),
+            ),
+            pytest.raises(BadRequestError, match="not in this organization's vault"),
+        ):
+            await KnowledgeBaseService(mock_db).create(data, ctx=_ctx())
+
+    @pytest.mark.anyio
+    async def test_a_key_of_the_wrong_purpose_is_refused(self, mock_db, unclaimed_collection_name):
+        data = KnowledgeBaseCreate(
+            name="KB",
+            scope="org",
+            collection_name="c",
+            rerank_model="rerank-v3.5",
+            rerank_secret_id=uuid.uuid4(),
+        )
+        with (
+            patch(
+                "app.repositories.organization_secret_repo.get",
+                new=AsyncMock(return_value=self._cohere_secret(purpose="openrouter")),
+            ),
+            patch(
+                "app.services.knowledge_base.resolve_access",
+                new=AsyncMock(return_value=True),
+            ),
+            pytest.raises(BadRequestError, match="reranking runs through"),
+        ):
+            await KnowledgeBaseService(mock_db).create(data, ctx=_ctx())
+
+    @pytest.mark.anyio
+    async def test_an_update_turns_reranking_off_by_sending_both_null(self, mock_db):
+        kb = _kb("org", organization_id=uuid.uuid4())
+        data = KnowledgeBaseUpdate(rerank_model=None, rerank_secret_id=None)
+        with (
+            patch.object(KnowledgeBaseService, "get_for_write", new=AsyncMock(return_value=kb)),
+            patch(
+                "app.repositories.knowledge_base_repo.update",
+                new=AsyncMock(return_value=kb),
+            ) as updated,
+        ):
+            await KnowledgeBaseService(mock_db).update(kb.id, data, ctx=_ctx())
+
+        assert updated.call_args.kwargs["set_rerank"] is True
+        assert updated.call_args.kwargs["rerank_model"] is None
+
+    @pytest.mark.anyio
+    async def test_an_update_about_something_else_leaves_reranking_alone(self, mock_db):
+        kb = _kb("org", organization_id=uuid.uuid4())
+        data = KnowledgeBaseUpdate(name="Renamed")
+        with (
+            patch.object(KnowledgeBaseService, "get_for_write", new=AsyncMock(return_value=kb)),
+            patch(
+                "app.repositories.knowledge_base_repo.update",
+                new=AsyncMock(return_value=kb),
+            ) as updated,
+        ):
+            await KnowledgeBaseService(mock_db).update(kb.id, data, ctx=_ctx())
+
+        assert updated.call_args.kwargs["set_rerank"] is False

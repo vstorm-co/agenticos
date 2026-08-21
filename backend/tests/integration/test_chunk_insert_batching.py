@@ -80,7 +80,7 @@ async def test_a_document_spanning_several_batches_writes_every_row(
     collection = f"batched_{uuid.uuid4().hex[:8]}"
     store = _store(engine)
 
-    await store.insert_document(collection, _document(chunks=250))
+    await store.insert_document(collection, _document(chunks=250), organization_id=None)
 
     assert await _count(engine, f"rag_{collection}") == 250
 
@@ -95,10 +95,10 @@ async def test_re_inserting_the_same_chunks_updates_rather_than_duplicates(
     store = _store(engine)
     document = _document(chunks=10)
 
-    await store.insert_document(collection, document)
+    await store.insert_document(collection, document, organization_id=None)
     for chunk in document.chunked_pages:
         chunk.chunk_content = f"revised {chunk.chunk_num}"
-    await store.insert_document(collection, document)
+    await store.insert_document(collection, document, organization_id=None)
 
     table = f"rag_{collection}"
     assert await _count(engine, table) == 10
@@ -120,7 +120,7 @@ async def test_the_chunks_are_readable_back_in_document_order(
     document = _document(chunks=8)
     parent = document.chunked_pages[0].parent_doc_id
 
-    await store.insert_document(collection, document)
+    await store.insert_document(collection, document, organization_id=None)
 
     chunks = await store.get_document_chunks(collection, parent)
     assert [chunk.content for chunk in chunks] == [f"chunk {index}" for index in range(8)]

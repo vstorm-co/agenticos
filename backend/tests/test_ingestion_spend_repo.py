@@ -15,7 +15,7 @@ from decimal import Decimal
 import pytest
 from sqlalchemy.dialects import postgresql
 
-from app.db.models.ingestion_spend import IngestionSpend
+from app.db.models.ingestion_spend import IngestionSpend, SpendSource
 from app.repositories import ingestion_spend_repo
 
 pytestmark = pytest.mark.anyio
@@ -84,6 +84,35 @@ class TestRecording:
 
         assert spend.cost_is_partial is True
 
+    async def test_a_row_is_indexing_unless_told_otherwise(self):
+        session = _RecordingSession()
+        spend = await ingestion_spend_repo.record(
+            session,
+            organization_id=None,
+            rag_document_id=None,
+            model="text-embedding-3-large",
+            input_tokens=1,
+            output_tokens=0,
+            cost_usd=Decimal(0),
+            cost_is_partial=False,
+        )
+        assert spend.source == SpendSource.INGESTION.value
+
+    async def test_a_search_is_recorded_as_retrieval(self):
+        session = _RecordingSession()
+        spend = await ingestion_spend_repo.record(
+            session,
+            organization_id=None,
+            rag_document_id=None,
+            model="rerank-v3.5",
+            input_tokens=0,
+            output_tokens=0,
+            cost_usd=Decimal("0.002"),
+            cost_is_partial=False,
+            source=SpendSource.RETRIEVAL,
+        )
+        assert spend.source == SpendSource.RETRIEVAL.value
+
 
 class TestSumming:
     async def test_the_sum_filters_on_the_organization_and_the_window(self):
@@ -135,3 +164,23 @@ class TestSumming:
         )
 
         assert total == Decimal(0)
+
+    async def test_a_source_narrows_the_window_and_none_does_not(self):
+        # The dashboard sums each source on its own so a search is not counted
+        # as indexing; the budget sums both, so an unfiltered call must not carry
+        # the predicate.
+        session = _RecordingSession(scalar_result=Decimal("0.30"))
+        window = {
+            "organization_id": uuid.uuid4(),
+            "start": datetime(2026, 7, 1, tzinfo=UTC),
+            "end": datetime(2026, 8, 1, tzinfo=UTC),
+        }
+
+        await ingestion_spend_repo.sum_cost_window(session, **window, source=SpendSource.RETRIEVAL)
+        narrowed = session.statements[-1].compile(dialect=postgresql.dialect()).params
+        assert SpendSource.RETRIEVAL.value in narrowed.values()
+
+        await ingestion_spend_repo.sum_cost_window(session, **window)
+        unfiltered = session.statements[-1].compile(dialect=postgresql.dialect()).params
+        assert SpendSource.RETRIEVAL.value not in unfiltered.values()
+        assert SpendSource.INGESTION.value not in unfiltered.values()

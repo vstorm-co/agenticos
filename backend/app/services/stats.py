@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Literal
 
 from app.core.exceptions import AuthorizationError, ValidationError
 from app.core.permissions import Perm
+from app.db.models.ingestion_spend import SpendSource
 from app.repositories import (
     agent_run_repo,
     ingestion_spend_repo,
@@ -272,20 +273,52 @@ class StatsService:
         previous_model_usd = await agent_run_repo.sum_cost_window(
             self.db, organization_id=org, start=prev_start, end=prev_end, where=where
         )
+        # Indexing and search are both organization-wide non-run spend, kept
+        # apart so a search is not reported as indexing (they share the table,
+        # `source` tells them apart). Both are unnarrowable - a worker's sync
+        # and a colleague's search belong to no one person or agent - so a
+        # narrowed window reports model spend alone.
         ingestion_usd = Decimal(0)
         previous_ingestion_usd = Decimal(0)
+        retrieval_usd = Decimal(0)
+        previous_retrieval_usd = Decimal(0)
         if where == RunFilter():
             ingestion_usd = await ingestion_spend_repo.sum_cost_window(
-                self.db, organization_id=org, start=window.start, end=window.end
+                self.db,
+                organization_id=org,
+                start=window.start,
+                end=window.end,
+                source=SpendSource.INGESTION,
             )
             previous_ingestion_usd = await ingestion_spend_repo.sum_cost_window(
-                self.db, organization_id=org, start=prev_start, end=prev_end
+                self.db,
+                organization_id=org,
+                start=prev_start,
+                end=prev_end,
+                source=SpendSource.INGESTION,
+            )
+            retrieval_usd = await ingestion_spend_repo.sum_cost_window(
+                self.db,
+                organization_id=org,
+                start=window.start,
+                end=window.end,
+                source=SpendSource.RETRIEVAL,
+            )
+            previous_retrieval_usd = await ingestion_spend_repo.sum_cost_window(
+                self.db,
+                organization_id=org,
+                start=prev_start,
+                end=prev_end,
+                source=SpendSource.RETRIEVAL,
             )
         cost = CostBlock(
-            period_usd=model_usd + ingestion_usd,
-            previous_period_usd=previous_model_usd + previous_ingestion_usd,
+            period_usd=model_usd + ingestion_usd + retrieval_usd,
+            previous_period_usd=(
+                previous_model_usd + previous_ingestion_usd + previous_retrieval_usd
+            ),
             model_usd=model_usd,
             ingestion_usd=ingestion_usd,
+            retrieval_usd=retrieval_usd,
             by_provider=[
                 ProviderCost(provider=provider, cost_usd=cost_usd)
                 for provider, cost_usd in await agent_run_repo.cost_by_provider_window(

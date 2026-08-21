@@ -26,6 +26,8 @@ import { SyncSourcesSection } from "@/components/rag/sync-sources-section";
 import { FileViewer } from "@/components/kb/file-viewer";
 import { IngestionDialog } from "@/components/kb/ingestion-dialog";
 import { IngestionPanel } from "@/components/kb/ingestion-panel";
+import { RerankDialog } from "@/components/kb/rerank-dialog";
+import { RerankPanel } from "@/components/kb/rerank-panel";
 import { UploadOverrideDialog } from "@/components/kb/upload-override-dialog";
 import { useKBDetail, usePermissions, usePollWhileIngesting, useUrlState } from "@/hooks";
 import { overrideSize } from "@/lib/ingestion-config";
@@ -84,6 +86,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     refresh,
     loadMoreDocuments,
     updateIngestion,
+    updateRerank,
     uploadDocument,
     deleteDocument,
     deleteCollection,
@@ -103,6 +106,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   const [creatingSource, setCreatingSource] = useState(false);
   const [viewerDoc, setViewerDoc] = useState<KBDocument | null>(null);
   const [ingestionOpen, setIngestionOpen] = useState(false);
+  const [rerankOpen, setRerankOpen] = useState(false);
   const [overrideOpen, setOverrideOpen] = useState(false);
   /**
    * What a destructive control has asked for and not yet been granted.
@@ -292,6 +296,16 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           <div className="mb-8" data-tour="kb-ingestion">
             <IngestionPanel kb={kb} onEdit={mayEdit ? () => setIngestionOpen(true) : undefined} />
           </div>
+          {/* Reranking is the other per-collection retrieval knob, and the only
+              one changeable after creation. No Edit on an app-scoped collection -
+              it carries no organization_id, so it can hold no vault key and the
+              backend would refuse one; the panel stays as a read-only fact. */}
+          <div className="mb-8" data-tour="kb-rerank">
+            <RerankPanel
+              kb={kb}
+              onEdit={mayEdit && kb.scope !== "app" ? () => setRerankOpen(true) : undefined}
+            />
+          </div>
         </TabsContent>
 
         <TabsContent value="sync">
@@ -398,6 +412,14 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         config={kb.ingestion_config}
         collectionName={kb.collection_name}
         onSave={updateIngestion}
+      />
+
+      <RerankDialog
+        open={rerankOpen}
+        onOpenChange={setRerankOpen}
+        rerankSecretId={kb.rerank_secret_id}
+        collectionName={kb.collection_name}
+        onSave={updateRerank}
       />
 
       <UploadOverrideDialog
