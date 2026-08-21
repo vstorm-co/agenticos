@@ -166,7 +166,7 @@ def _text_sibling(chat_file: ChatFile, path: str) -> str | None:
     return None
 
 
-def _referenced(chat_file: ChatFile, path: str, *, can_parse: bool) -> str:
+def _referenced(chat_file: ChatFile, path: str, *, sibling: str | None) -> str:
     """What the model is told about a file that is in its workspace.
 
     **The path is a sentence, not a parenthesis.** It read
@@ -175,21 +175,22 @@ def _referenced(chat_file: ChatFile, path: str, *, can_parse: bool) -> str:
     empty" after one `ls`, on a file it had summarised a turn earlier. Where it is
     gets its own clause (#1039).
 
-    **The extracted text is named where there is any.** A PDF, a `.docx` and a
+    **The extracted text is named only where it is there.** A PDF, a `.docx` and a
     spreadsheet used to get a `.txt` of the parse beside them unconditionally,
     which on a runtime carrying `lit` is a second copy of the file's contents on
-    disk to save the agent a tool call it should be making. It is written only
-    where the workspace cannot read the original itself - see `can_parse` on the
-    router: a `state` workspace is files with no shell at all, and a Daytona
-    sandbox or somebody's own runtime carries whatever its image carries.
+    disk to save the agent a tool call it should be making. So it is written only
+    where the workspace cannot read the original itself - and *named* only where
+    the write actually landed, which is a different question again: the second
+    write can be refused by a document with no room left for it, and a model told
+    about a file that is not there has twenty lines of prompt and a binary it
+    cannot parse. The caller asks the workspace - see `_sibling_present`.
     """
     parts = [
         f"\n---\nAttached file: {chat_file.filename} "
         f"({_size(chat_file)}, {chat_file.file_type}), "
         f"in your workspace at {path}"
     ]
-    sibling = _text_sibling(chat_file, path)
-    if sibling is not None and not can_parse:
+    if sibling is not None:
         parts.append(f"\nIts text, extracted for you, is beside it at {sibling}")
     if chat_file.parsed_content:
         parts.append(f"\nFirst {HEAD_LINES} lines:\n```\n{_head(chat_file.parsed_content)}\n```")
@@ -408,14 +409,34 @@ class AttachmentRouter:
 
             await self._write_extracted_text(backend, chat_file, path)
 
+        sibling = await self._sibling_present(backend, chat_file, path)
         if chat_file.file_type != "image":
             return AttachmentPlan(
-                reference=_referenced(chat_file, path, can_parse=self._can_parse), inline=None
+                reference=_referenced(chat_file, path, sibling=sibling), inline=None
             )
         return AttachmentPlan(
-            reference=_referenced(chat_file, path, can_parse=self._can_parse),
+            reference=_referenced(chat_file, path, sibling=sibling),
             inline=await self._inline_image(chat_file, data),
         )
+
+    async def _sibling_present(
+        self, backend: AsyncBackendProtocol, chat_file: ChatFile, path: str
+    ) -> str | None:
+        """The extracted text beside the original, where the workspace really has it.
+
+        Asked rather than assumed, and that is the whole point: the write above can
+        be refused - a document with room for a 3 MB spreadsheet and not for its
+        parse - and the file may equally be there from an earlier turn, because
+        re-attaching writes nothing. Both cases are answered by asking, which the
+        one round trip is worth: naming a file that is not there costs the model a
+        tool call to discover it and leaves it with the head sample.
+        """
+        if self._can_parse:
+            return None
+        sibling = _text_sibling(chat_file, path)
+        if sibling is None:
+            return None
+        return sibling if await backend.exists(sibling) else None
 
     async def _write_extracted_text(
         self, backend: AsyncBackendProtocol, chat_file: ChatFile, path: str
@@ -431,8 +452,16 @@ class AttachmentRouter:
         if self._can_parse:
             return
         sibling = _text_sibling(chat_file, path)
-        if sibling is not None and chat_file.parsed_content:
-            await backend.write(sibling, chat_file.parsed_content)
+        if sibling is None or not chat_file.parsed_content:
+            return
+        result = await backend.write(sibling, chat_file.parsed_content)
+        if result.error is not None:
+            # Not raised and not reported to the model here: `_sibling_present`
+            # asks the workspace what is actually there, so a refused write simply
+            # goes unnamed. The line is what tells an operator why.
+            logger.info(
+                "attachment_text_not_written", extra={"path": sibling, "reason": result.error}
+            )
 
     async def _inline_image(self, chat_file: ChatFile, data: bytes | None) -> BinaryContent | None:
         """The picture itself, when it is small enough to be worth sending twice.

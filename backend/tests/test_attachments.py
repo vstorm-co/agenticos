@@ -360,6 +360,36 @@ class TestWhatTheModelIsToldAboutAPath:
         assert backend.exists(f"{workspace_path(chat_file)}.txt")
         assert f"beside it at {workspace_path(chat_file)}.txt" in prompt
 
+    async def test_a_sibling_the_workspace_refused_is_not_named(self, storage):
+        """The second write can be refused on its own.
+
+        A document with room for the original and not for its parse used to be told
+        about a file that is not there - so the agent spent a tool call finding out,
+        and was left with the head sample either way. What is named is what the
+        workspace answers `exists` for.
+        """
+        chat_file = _file(filename="report.pdf", file_type="pdf", parsed_content="page one" * 400)
+        # Room for the 72-byte original and nothing like the 3,200-byte parse.
+        backend = _workspace(max_bytes=900)
+
+        prompt = await AttachmentRouter(backend).build_prompt("read it", [chat_file])
+
+        assert f"in your workspace at {workspace_path(chat_file)}" in prompt
+        assert not backend.exists(f"{workspace_path(chat_file)}.txt")
+        assert "beside it at" not in prompt
+
+    async def test_a_sibling_from_an_earlier_turn_is_still_named(self, storage):
+        """Re-attaching writes nothing, because the file is already there - so the
+        reference has to come from what the workspace holds rather than from what
+        this turn did."""
+        chat_file = _file(filename="report.pdf", file_type="pdf", parsed_content="page one")
+        backend = _workspace()
+
+        await AttachmentRouter(backend).build_prompt("read it", [chat_file])
+        prompt = await AttachmentRouter(backend).build_prompt("again", [chat_file])
+
+        assert f"beside it at {workspace_path(chat_file)}.txt" in prompt
+
     async def test_a_spreadsheet_is_the_case_that_makes_it_matter(self, storage):
         """`.xlsx` in a workspace with no shell is a zip of XML that `read_file`
         returns as mojibake."""

@@ -21,6 +21,7 @@ from app.services.sandbox_runtimes import (
     SandboxRuntimeDefinition,
     allowlist_value,
     runtime_briefing,
+    runtime_parses_documents,
 )
 
 
@@ -318,6 +319,40 @@ class TestWritingTheComposeFiles:
 
         with pytest.raises(SystemExit):
             sandbox_runtimes.callback(write=True)
+
+
+class TestWhetherTheContainerCanReadADocument:
+    """A separate question from what the briefing says, and it must stay separate.
+
+    They were one - `can_parse` was `briefing is not None` - and that turned an
+    inaccurate package hint into missing data. A briefing falls back to the
+    catalogue's first entry for a run that named no runtime, on the grounds that a
+    list an agent corrects with one failed import beats silence. This answer
+    decides whether the extracted text is written at all, so it cannot guess: a
+    host started with an allowlist of its own would leave the model with twenty
+    lines of prompt and a PDF it cannot open.
+    """
+
+    def test_the_runtime_this_repository_ships_reads_them(self) -> None:
+        assert runtime_parses_documents("workbench") is True
+
+    def test_a_run_that_named_no_runtime_is_not_assumed_to(self) -> None:
+        """The host chooses in that case, and the host is not this catalogue."""
+        assert runtime_briefing(None) is not None
+        assert runtime_parses_documents(None) is False
+
+    def test_a_runtime_this_deployment_does_not_ship_does_not(self) -> None:
+        assert runtime_parses_documents("someone-elses-image") is False
+
+    def test_a_shipped_runtime_without_the_parser_does_not(self, monkeypatch) -> None:
+        from app.services import sandbox_runtimes as module
+
+        bare = SandboxRuntimeDefinition(
+            alias="bare", description="stdlib only", base_image="python:3.12-slim"
+        )
+        monkeypatch.setattr(module, "CATALOG", [bare])
+
+        assert runtime_parses_documents("bare") is False
 
 
 class TestWhatTheModelIsTold:

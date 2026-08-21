@@ -55,6 +55,7 @@ beforeEach(() => {
   vi.mocked(api.readWorkspaceFiles).mockResolvedValue({
     scope: "conversation",
     unreadable_reason: null,
+    truncated: false,
     backend: "state",
     owner_label: "This conversation",
     items: [],

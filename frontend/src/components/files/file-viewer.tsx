@@ -110,14 +110,19 @@ export function FileViewer({ file, access, navigation, extraTabs = [], onClose }
    *
    * On the dialog rather than on the buttons: somebody reading the third of five
    * attachments has their hands nowhere near the strip, and Radix has already
-   * moved focus inside this content. Left alone when the event came from a text
-   * box - a source view holds one, and stealing its caret keys would be worse
-   * than not having the shortcut.
+   * moved focus inside this content.
+   *
+   * Left alone where the key already means something. A text box - a source view
+   * holds one - uses them to move a caret, and a tab list uses them to move
+   * between tabs: on a file with Source and Preview, paging the carousel from a
+   * focused `TabsTrigger` remounted the viewer under the keyboard user instead of
+   * moving to the next tab.
    */
   function onKeyDown(event: React.KeyboardEvent): void {
     if (strip === null) return;
     const target = event.target as HTMLElement;
     if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+    if (target.closest('[role="tablist"]') !== null) return;
     if (event.key === "ArrowLeft" && strip.index > 0) strip.onSelect(strip.index - 1);
     if (event.key === "ArrowRight" && strip.index < strip.names.length - 1) {
       strip.onSelect(strip.index + 1);

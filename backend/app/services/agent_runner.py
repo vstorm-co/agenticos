@@ -2902,10 +2902,10 @@ class AgentRunnerService:
         if attachments:
             assembled = await AttachmentRouter(
                 prepared.workspace.backend if prepared.workspace is not None else None,
-                # Whether the workspace can read a PDF itself, which is the same
-                # question as whether we told the model it has `lit`.
-                can_parse=prepared.workspace is not None
-                and prepared.workspace.briefing is not None,
+                # Whether the workspace can read a PDF itself. Known, not inferred
+                # from the briefing: a briefing is a best effort and this decides
+                # whether the extracted text is written at all.
+                can_parse=prepared.workspace is not None and prepared.workspace.parses_documents,
             ).build_prompt(prompt, attachments)
         segment = await self._run(
             prepared,

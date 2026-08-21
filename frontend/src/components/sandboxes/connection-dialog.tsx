@@ -124,6 +124,20 @@ const FORM = { fields: ["base_url"], identifiedBy: "name" } as const;
  * a token that can run commands on a host out of the browser's memory and out of
  * this component's props.
  */
+/**
+ * What one host answered, and which host-and-key it answered about.
+ *
+ * The pair is the point. A probe cannot be cancelled, so a reply can arrive after
+ * the address or the credential has moved on - and an answer whose `for` is not
+ * the form as it stands is not displayed at all, rather than being checked against
+ * a ref that only the asking code updates.
+ */
+interface ProbeAnswer {
+  for: string;
+  runtimes: SandboxRuntime[] | null;
+  failure: ReturnType<typeof submitFailure> | null;
+}
+
 export function ConnectionDialog({ editing, onOpenChange, onSubmit }: ConnectionDialogProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("sandboxes.connection");
@@ -135,7 +149,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
   const [form, setForm] = useState<FormState>(() => initialState(editing, t("namePlaceholder")));
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [allowed, setAllowed] = useState<SandboxRuntime[] | null>(null);
+  const [answer, setAnswer] = useState<ProbeAnswer | null>(null);
   const [failure, setFailure] = useState(NO_FAILURE);
 
   // Derived rather than written into state by an effect: what a service answered
@@ -146,24 +160,38 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
 
   const address = baseUrl.trim();
   const secretId = form.secretId;
-  // What the answer in flight was asked about. A probe cannot be cancelled, so an
-  // older host's reply arriving second used to overwrite the newer one's runtimes -
-  // and a runtime from the wrong service could then be selected and saved.
-  const asking = useRef<string | null>(null);
+  // Which host-and-key an answer is about, and it is stored *with* the answer
+  // rather than checked when one arrives. A probe cannot be cancelled, and a reply
+  // about a host that is no longer in the box is the same defect whether it lost a
+  // race with a second probe or simply landed after the address was edited - which
+  // is what a "is this still current?" check written inside `ask` cannot see. Kept
+  // as data, so an answer for anything but the form as it stands now is not an
+  // answer this form displays: the field falls back to the catalogue's own list
+  // until the host has been asked again.
+  const identity = `${address}\u0000${secretId ?? ""}`;
+  const allowed = answer !== null && answer.for === identity ? answer.runtimes : null;
+  const refused = answer !== null && answer.for === identity ? answer.failure : null;
+  const shown = refused ?? failure;
+
+  // Which question is outstanding, so a slower earlier reply does not overwrite a
+  // faster later one. This is the *other* half: `for` above stops an answer being
+  // displayed for a host that is no longer in the box, and this stops one being
+  // recorded over a newer host's. Neither covers both.
+  const inFlight = useRef<string | null>(null);
   const ask = useCallback(async () => {
     const forWhom = `${address}\u0000${secretId ?? ""}`;
-    asking.current = forWhom;
+    inFlight.current = forWhom;
     setTesting(true);
     setFailure(NO_FAILURE);
     try {
-      const answer = await probe(address, secretId);
-      if (asking.current !== forWhom) return;
-      setAllowed(answer.runtimes);
+      const policy = await probe(address, secretId);
+      if (inFlight.current !== forWhom) return;
+      setAnswer({ for: forWhom, runtimes: policy.runtimes, failure: null });
     } catch (error) {
-      if (asking.current !== forWhom) return;
-      setFailure(submitFailure(error, FORM, tErrors));
+      if (inFlight.current !== forWhom) return;
+      setAnswer({ for: forWhom, runtimes: null, failure: submitFailure(error, FORM, tErrors) });
     } finally {
-      if (asking.current === forWhom) setTesting(false);
+      if (inFlight.current === forWhom) setTesting(false);
     }
   }, [address, secretId, probe, tErrors]);
 
@@ -186,11 +214,16 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
    * button. Found by the review on #1040.
    */
   const knownAddress = local?.url ?? null;
+  // The service this deployment found, with a token this deployment holds. The
+  // backend accepts a probe with no key for its own compose addresses and only
+  // those, so this is the same bound stated on the button.
+  const askableWithLocalToken = local !== null && local.token_available && address === knownAddress;
   useEffect(() => {
-    if (!address || !secretId || address !== knownAddress) return;
+    if (address !== knownAddress || !address) return;
+    if (!secretId && !askableWithLocalToken) return;
     const timer = setTimeout(() => void ask(), 600);
     return () => clearTimeout(timer);
-  }, [address, secretId, knownAddress, ask]);
+  }, [address, secretId, knownAddress, askableWithLocalToken, ask]);
 
   const usable = secrets.filter((secret) => secret.kind === "api_key");
 
@@ -253,7 +286,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
               htmlFor="connection-name"
               label={t("name")}
               description={t("whatAgentAuthorsWill")}
-              error={failure.fields.name}
+              error={shown.fields.name}
             >
               <Input
                 id="connection-name"
@@ -301,7 +334,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
                 htmlFor="connection-url"
                 label={t("address")}
                 description={t("whereSandboxServiceAnswers")}
-                error={failure.fields.base_url}
+                error={shown.fields.base_url}
               >
                 <Input
                   id="connection-url"
@@ -375,10 +408,13 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
               onChange={(defaultRuntime) => setForm({ ...form, defaultRuntime })}
               catalog={runtimes}
               allowed={allowed}
-              // Nothing to ask with until there is an address and a key, and a
-              // button that answers "fill both in first" is a button that wasted
-              // somebody's click.
-              onTest={address && secretId ? ask : null}
+              // Nothing to ask with until there is an address and something to
+              // authenticate with, and a button that answers "fill both in first"
+              // is a button that wasted somebody's click. The deployment's own
+              // token counts as something: adding the service `make dev` started
+              // names no key until submission, which is the commonest path through
+              // this dialog and had no way to test the host at all.
+              onTest={address && (secretId || askableWithLocalToken) ? ask : null}
               testing={testing}
             />
           ) : (
@@ -424,7 +460,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
         {/* What could not be placed under an input - a refused permission, a
             vault write that failed, a server fault. A refusal that found its
             field is not also announced here. */}
-        {failure.toast !== null && <p className="text-destructive text-sm">{failure.toast}</p>}
+        {shown.toast !== null && <p className="text-destructive text-sm">{shown.toast}</p>}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

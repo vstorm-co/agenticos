@@ -878,9 +878,9 @@ class TestAttachmentsAreRoutedHereAndNotBySurfaces:
         )
         backend = StateBackend()
         prepared = _prepared()
-        # `briefing` is what says the runtime can read a PDF itself; a stored
-        # workspace has none, and so keeps the extracted text beside the file.
-        prepared.workspace = SimpleNamespace(backend=backend, briefing=None)
+        # `parses_documents` is what says the runtime can read a PDF itself; a
+        # stored workspace cannot, and so keeps the extracted text beside the file.
+        prepared.workspace = SimpleNamespace(backend=backend, briefing=None, parses_documents=False)
 
         with (
             _runner(prepared),

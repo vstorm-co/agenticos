@@ -160,6 +160,7 @@ async def list_files(workspace_id: UUID, workspaces: WorkspaceSvc, ctx: Auth) ->
         bytes_total=row.bytes_total,
         bytes_limit=stored_ceiling(row),
         unreadable_reason=contents.unreadable_reason,
+        truncated=contents.truncated,
     )
 
 

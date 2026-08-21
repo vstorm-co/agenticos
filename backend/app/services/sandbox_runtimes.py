@@ -151,6 +151,36 @@ def allowlist_value(*, network_mode: Literal["none", "bridge"] = "none") -> str:
     return json.dumps(entries, separators=(",", ":"), sort_keys=False)
 
 
+DOCUMENT_PARSER = "liteparse"
+"""The package that makes a PDF, a `.docx` and a spreadsheet readable in place.
+
+Named here because two decisions turn on it: what the briefing says the container
+holds, and whether the attachment router may skip writing the extracted text
+beside the original."""
+
+
+def runtime_parses_documents(alias: str | None) -> bool:
+    """Whether this runtime can read a document *itself*, known rather than assumed.
+
+    Deliberately stricter than `runtime_briefing`, and the two must not be
+    collapsed again. A briefing is a best effort - it falls back to the first
+    entry of the catalogue for a run that named no runtime, on the grounds that
+    the same catalogue generates the allowlist this deployment's own service
+    reads, and a package list an agent corrects with one failed import is worth
+    more than silence. This answer cannot be a best effort: it decides whether the
+    extracted text is written at all, so a host started with an allowlist of its
+    own - a custom one, or one from before an upgrade - would leave the model with
+    twenty lines of prompt and a binary it cannot open.
+
+    So: the alias has to have been named, has to be one this repository ships, and
+    that entry has to install the parser.
+    """
+    if alias is None:
+        return False
+    found = next((one for one in CATALOG if one.alias == alias), None)
+    return found is not None and DOCUMENT_PARSER in found.packages
+
+
 def runtime_briefing(alias: str | None) -> str | None:
     """What a run tells its model about the machine it is about to work on.
 

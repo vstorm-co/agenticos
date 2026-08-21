@@ -113,6 +113,14 @@ export interface SandboxSession {
   } | null;
   agent_id: string | null;
   conversation_id: string | null;
+  /**
+   * Whether that conversation is the reader's own.
+   *
+   * The chat page lists its owner's threads, so a link to anybody else's lands on
+   * an empty sidebar dressed as the conversation - and this listing is
+   * organization-wide, so most rows are somebody else's.
+   */
+  conversation_is_callers: boolean;
   scope: string | null;
 }
 

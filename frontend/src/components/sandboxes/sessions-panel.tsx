@@ -176,8 +176,12 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
         // A link where there is one to give. "one conversation" is the scope; the
         // conversation itself is the thing an operator wants when a sandbox is
         // holding memory they cannot account for.
+        // A link only where it leads somewhere: the chat page lists its owner's
+        // threads, so one to anybody else's lands on an empty sidebar dressed as
+        // the conversation - and this listing is organization-wide, which made
+        // that most of the column. The same test the workspace table applies.
         cell: (session) =>
-          session.conversation_id === null ? (
+          session.conversation_id === null || !session.conversation_is_callers ? (
             <span className="text-muted-foreground text-xs">{belongsTo(session, t)}</span>
           ) : (
             <Link

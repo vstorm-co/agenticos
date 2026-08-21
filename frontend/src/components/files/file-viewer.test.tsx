@@ -328,6 +328,23 @@ describe("paging between the files it was opened from", () => {
     expect(onSelect).toHaveBeenCalledWith(0);
   });
 
+  it("leaves the arrow keys to the tab list, which uses them itself", async () => {
+    // Radix moves between tabs with Left and Right, so paging the carousel from a
+    // focused trigger remounted the viewer instead of switching the view.
+    const onSelect = vi.fn();
+    // A markdown file, because Preview/Source is the case where the two shortcuts
+    // collide - `invoice.pdf` has one rendering and so no tab list at all.
+    open(
+      { name: "report.md" },
+      { navigation: { names: ["report.md", "notes.txt"], index: 0, onSelect } },
+    );
+
+    screen.getByRole("tab", { name: "Source" }).focus();
+    await userEvent.keyboard("{ArrowRight}");
+
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
   it("leaves the arrow keys alone inside a text box", async () => {
     // A source view holds one, and stealing its caret keys would be worse than
     // not having the shortcut at all.

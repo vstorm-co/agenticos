@@ -3279,9 +3279,16 @@ class TestWalkingAHostsDirectories:
         row = _row(backend="service", session_id="xc-1", connection_id=uuid4())
         monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
 
-        await SandboxWorkspaceService(mock_db_session).listing(_ctx(), conversation_id=uuid4())
+        found = await SandboxWorkspaceService(mock_db_session).listing(
+            _ctx(), conversation_id=uuid4()
+        )
 
         assert len(asked) == 6
+        # The sixth level holds a directory this will not open, so what is on the
+        # page is not what the workspace holds - and the page has to be able to
+        # say so.
+        assert found is not None
+        assert found[1].truncated is True
 
     async def test_it_stops_at_the_number_of_rows_a_page_can_hold(
         self, monkeypatch, mock_db_session, caplog
@@ -3309,8 +3316,10 @@ class TestWalkingAHostsDirectories:
         assert found is not None
         _, contents = found
         assert len(contents.entries) == _MAX_LISTED_ENTRIES
-        # And it says so: a cap nothing records is a list somebody reads as the
+        # And it says so, twice over: to the reader of the page, and to whoever
+        # reads the logs. A cap nothing records is a list somebody takes for the
         # whole of what the workspace holds.
+        assert contents.truncated is True
         assert "workspace_listing_truncated" in caplog.text
 
     async def test_one_unreadable_folder_does_not_lose_the_workspace(
@@ -3355,6 +3364,7 @@ class TestWalkingAHostsDirectories:
         assert found is not None
         _, contents = found
         assert contents.unreadable_reason is None
+        assert contents.truncated is False
         assert [str(entry.get("path")) for entry in contents.entries] == ["notes.md", "locked"]
 
     async def test_a_root_that_refuses_is_still_the_hosts_failure(

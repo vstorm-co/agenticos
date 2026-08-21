@@ -279,6 +279,16 @@ names is one the next tool call will accept. Where the two disagree the second i
 right: a host can have been started with a different allowlist, and a deployment
 that generated its own is exactly the case worth not dropping.
 
+**Which is why the host is asked before the connection is saved, and why the
+service `make dev` starts can be asked with no key at all.** Adding that one is
+the commonest path through the dialog and it names no vault key until submission,
+so there was nothing to test with and an outdated local service could be
+registered with a default runtime its first tool call refuses. A probe with no key
+falls back to `SANDBOXD_TOKEN` **only** for the two addresses this project's own
+compose file uses, because that token starts containers on whatever host accepts
+it and a probe must never be a way to send it somewhere new. Every other address
+is asked with a key from the vault, and only when an operator presses the button.
+
 ## When a build is paid for
 
 `prewarm` is on, so the allowlist is pulled and built in the background **as the
@@ -348,10 +358,12 @@ person, and nothing stops it.
 **Listing a container costs round trips, so two things are bounded.** The archive's
 `ls` reads one directory, so the listing walks — breadth-first, six levels deep at
 most and stopping at 2,000 entries, because a host holding a `node_modules` must
-not turn one workspace into ten thousand rows. A directory that will not answer is
-logged and skipped; only the root refusing makes the workspace unreadable, because
-one folder the agent chmod'ed away is not a host nobody can read. And an image's
-thumbnail is a `read_bytes` for
+not turn one workspace into ten thousand rows. **Both bounds are reported**: a
+workspace's page says plainly that this is not every file, because a tree that
+stops without saying so is one somebody reads as everything the agent is keeping.
+A directory that will not answer is logged and skipped; only the root refusing
+makes the workspace unreadable, because one folder the agent chmod'ed away is not
+a host nobody can read. And an image's thumbnail is a `read_bytes` for
 that file: the suffix and the size are checked off the listing entry before
 anything is fetched, and one request draws at most 24. Past that a tile keeps the
 glyph. A *stored* workspace pays neither - its files and their bytes are a column

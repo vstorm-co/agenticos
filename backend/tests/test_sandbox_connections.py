@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -32,6 +33,7 @@ from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import ApiKeySecret, AwsCredentialsSecret
 from app.repositories import agent_workspace_repo, organization_secret_repo, sandbox_connection_repo
+from app.repositories import conversation as conversation_repo
 from app.schemas.sandbox_connection import (
     SandboxConnectionCreate,
     SandboxConnectionUpdate,
@@ -716,6 +718,47 @@ class TestTestingAnAddressBeforeItIsSaved:
         assert seen["headers"] == {"X-Sandbox-Token": "tok"}
         assert "tok" not in seen["url"]
 
+    async def test_this_deployments_own_service_can_be_tested_with_its_own_token(self, monkeypatch):
+        """The commonest path through the dialog names no key at all.
+
+        Adding the service `make dev` starts stores the deployment's token at
+        submission, so before this there was nothing to test with and an outdated
+        local service was registered with a default runtime its first tool call
+        refuses.
+        """
+        monkeypatch.setattr(settings, "SANDBOXD_TOKEN", "deployment-token")
+        service = _service(monkeypatch)
+        seen = _serve(monkeypatch, _Response(200, {"runtimes": [{"alias": "workbench"}]}))
+
+        policy = await service.probe_policy(
+            _ctx(), SandboxProbeRequest(base_url="http://sandboxd:8080")
+        )
+
+        assert [runtime.alias for runtime in policy.runtimes] == ["workbench"]
+        assert seen["headers"] == {"X-Sandbox-Token": "deployment-token"}
+
+    async def test_the_deployments_token_is_never_sent_to_a_typed_address(self, monkeypatch):
+        """`X-Sandbox-Token` starts containers on the host that accepts it, so a
+        probe must not be a way to make this process disclose it. Two fixed
+        addresses out of this project's own compose file, and nothing else."""
+        monkeypatch.setattr(settings, "SANDBOXD_TOKEN", "deployment-token")
+        service = _service(monkeypatch)
+        sent = _serve(monkeypatch, _Response(200, {"runtimes": []}))
+
+        with pytest.raises(BadRequestError):
+            await service.probe_policy(
+                _ctx(), SandboxProbeRequest(base_url="http://attacker.example:8080")
+            )
+
+        assert sent == {}
+
+    async def test_no_key_and_no_deployment_token_is_still_refused(self, monkeypatch):
+        monkeypatch.setattr(settings, "SANDBOXD_TOKEN", "")
+        service = _service(monkeypatch)
+
+        with pytest.raises(BadRequestError):
+            await service.probe_policy(_ctx(), SandboxProbeRequest(base_url="http://sandboxd:8080"))
+
     async def test_a_probe_with_no_credential_says_which_field_is_missing(self, monkeypatch):
         service = _service(monkeypatch)
 
@@ -871,6 +914,7 @@ class TestReadingTheSessions:
         monkeypatch.setattr(
             agent_workspace_repo, "list_for_organization", AsyncMock(return_value=[workspace])
         )
+        monkeypatch.setattr(conversation_repo, "titles_for", AsyncMock(return_value={}))
         _serve(
             monkeypatch,
             _Response(200, {"sessions": [_session("xc-1", tenant=str(ctx.organization_id))]}),
@@ -881,6 +925,65 @@ class TestReadingTheSessions:
         assert entry.agent_id == agent_id
         assert entry.conversation_id == conversation_id
         assert entry.scope == "conversation"
+
+    async def test_only_the_readers_own_chat_is_offered_as_a_link(self, monkeypatch):
+        """The chat page lists its owner's threads, so a link to anybody else's
+        lands on an empty sidebar dressed as the conversation - and this listing is
+        organization-wide, so that is most of its rows."""
+        row = _row()
+        service = _service(monkeypatch, secret=(row.secret_id, ApiKeySecret(api_key="tok")))
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
+        ctx = _ctx()
+        mine, theirs = uuid.uuid4(), uuid.uuid4()
+        monkeypatch.setattr(
+            agent_workspace_repo,
+            "list_for_organization",
+            AsyncMock(
+                return_value=[
+                    MagicMock(
+                        session_id="xc-mine",
+                        agent_id=uuid.uuid4(),
+                        conversation_id=mine,
+                        scope="conversation",
+                    ),
+                    MagicMock(
+                        session_id="xc-theirs",
+                        agent_id=uuid.uuid4(),
+                        conversation_id=theirs,
+                        scope="conversation",
+                    ),
+                ]
+            ),
+        )
+        monkeypatch.setattr(
+            conversation_repo,
+            "titles_for",
+            AsyncMock(
+                return_value={
+                    mine: SimpleNamespace(title="Mine", user_id=ctx.user_id),
+                    theirs: SimpleNamespace(title="Theirs", user_id=uuid.uuid4()),
+                }
+            ),
+        )
+        _serve(
+            monkeypatch,
+            _Response(
+                200,
+                {
+                    "sessions": [
+                        _session("xc-mine", tenant=str(ctx.organization_id)),
+                        _session("xc-theirs", tenant=str(ctx.organization_id)),
+                    ]
+                },
+            ),
+        )
+
+        by_id = {
+            entry.session_id: entry for entry in (await service.sessions(ctx, row.id)).sessions
+        }
+
+        assert by_id["xc-mine"].conversation_is_callers is True
+        assert by_id["xc-theirs"].conversation_is_callers is False
 
     async def test_a_run_scoped_sandbox_keeps_its_id_and_nothing_else(self, monkeypatch):
         """It has no row by design, so an unmatched session is normal."""

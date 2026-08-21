@@ -84,6 +84,7 @@ function listing(items: WorkspaceFile[], overrides: Partial<WorkspaceFiles> = {}
     total: items.length,
     bytes_total: 4096,
     unreadable_reason: null,
+    truncated: false,
     ...overrides,
   };
 }
@@ -162,6 +163,16 @@ describe("the workspace explorer", () => {
     await userEvent.click(screen.getByText("skills"));
 
     expect(screen.getByText("SKILL.md")).toBeVisible();
+  });
+
+  it("counts everything under a folder, not only what sits directly in it", async () => {
+    // `skills` holds no file of its own - both are one level further down - and it
+    // read `0 files` above two visible rows.
+    render(<WorkspaceExplorer workspaceId="w-1" />);
+
+    const folder = screen.getByRole("treeitem", { name: /skills/ });
+
+    expect(folder).toHaveTextContent("2 files");
   });
 
   it("indents each level, which is what says what is inside what", async () => {
@@ -307,6 +318,21 @@ describe("the workspace explorer", () => {
 
     expect(screen.getByText("This host keeps no workspaces on disk.")).toBeVisible();
     expect(screen.getByText(/Nothing could be listed here/)).toBeVisible();
+  });
+
+  it("says when the tree is not the whole workspace", () => {
+    // An agent that ran an install has more than the walk lists, and a tree that
+    // does not say so is one somebody reads as everything the agent is keeping.
+    state.files = listing([file("/report.md")], { truncated: true });
+    render(<WorkspaceExplorer workspaceId="w-1" />);
+
+    expect(screen.getByText(/This is not every file/)).toBeVisible();
+  });
+
+  it("says nothing of the kind for a workspace listed whole", () => {
+    render(<WorkspaceExplorer workspaceId="w-1" />);
+
+    expect(screen.queryByText(/This is not every file/)).toBeNull();
   });
 
   it("says a folder is empty when it is", () => {

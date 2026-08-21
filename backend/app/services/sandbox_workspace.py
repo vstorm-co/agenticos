@@ -58,7 +58,7 @@ from app.repositories import agent as agent_repo
 from app.repositories import agent_workspace as workspace_repo
 from app.repositories import conversation as conversation_repo
 from app.services.sandbox_connection import ResolvedConnection, SandboxConnectionService
-from app.services.sandbox_runtimes import runtime_briefing
+from app.services.sandbox_runtimes import runtime_briefing, runtime_parses_documents
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +86,15 @@ class WorkspaceContents:
 
     entries: list[FileInfo]
     unreadable_reason: str | None = None
+
+    truncated: bool = False
+    """Whether the walk stopped before the workspace did.
+
+    A separate answer from `unreadable_reason`: the host answered, and this is
+    still not all of it. A listing bounded at 2,000 entries and six levels is a
+    listing a person reads as the whole of what an agent is keeping, which for a
+    workspace holding a checkout or a `node_modules` it is not.
+    """
 
 
 @dataclass(frozen=True)
@@ -193,6 +202,17 @@ class OpenWorkspace:
     whose default nobody overrode - and only the second one is describable.
     `None` for a `state` or Daytona workspace, whose image this deployment does
     not build and so cannot honestly describe.
+    """
+
+    parses_documents: bool = False
+    """Whether the container can read a PDF, a `.docx` or a spreadsheet itself.
+
+    Not `briefing is not None`, which is what it was and what made an inaccurate
+    package hint into missing data: a briefing falls back to the catalogue's first
+    entry for a run that named no runtime, and the host is the one that actually
+    chooses in that case. `runtime_parses_documents` answers only for an alias that
+    was named, shipped here, and installs the parser - so a custom host gets the
+    extracted text written beside the original, as it did before any of this.
     """
 
     opened_version: int | None = None
@@ -398,11 +418,14 @@ class SandboxWorkspaceService:
         rotated away, a host switched off) and each of those says which.
         """
         briefing: str | None = None
+        parses_documents = False
         if resolved.kind == "daytona":
             backend = self._daytona(key, resolved)
         else:
             backend = self._sandboxd(config, identity, key, resolved)
-            briefing = runtime_briefing(config.runtime or resolved.row.default_runtime or None)
+            alias = config.runtime or resolved.row.default_runtime or None
+            briefing = runtime_briefing(alias)
+            parses_documents = runtime_parses_documents(alias)
 
         row = await self._row(
             config, identity, key, scope, session_id=key, connection_id=resolved.row.id
@@ -415,6 +438,7 @@ class SandboxWorkspaceService:
             row_id=row.id if row is not None else None,
             connection_id=resolved.row.id,
             briefing=briefing,
+            parses_documents=parses_documents,
         )
 
     @staticmethod
@@ -972,6 +996,7 @@ class SandboxWorkspaceService:
         return row, WorkspaceContents(
             entries=browsable(contents.entries),
             unreadable_reason=contents.unreadable_reason,
+            truncated=contents.truncated,
         )
 
     async def _may_read(self, ctx: AuthContext, row: AgentWorkspace) -> bool:
@@ -1132,6 +1157,7 @@ class SandboxWorkspaceService:
         return row, WorkspaceContents(
             entries=browsable(contents.entries),
             unreadable_reason=contents.unreadable_reason,
+            truncated=contents.truncated,
         )
 
     async def _entries(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
@@ -1140,7 +1166,7 @@ class SandboxWorkspaceService:
         return await self._remote_entries(ctx, row)
 
     @staticmethod
-    async def _walk(archive: Any, session: str) -> list[FileInfo]:
+    async def _walk(archive: Any, session: str) -> tuple[list[FileInfo], bool]:
         """Every file on a host's volume, not only the ones at the root.
 
         **The archive's `ls` lists one directory.** It was called once, on the root,
@@ -1160,8 +1186,14 @@ class SandboxWorkspaceService:
         `to_thread`, because `WorkspaceArchive` is a synchronous `httpx.Client`.
         `flat_files` runs this for up to 25 workspaces in one request, so a blocking
         call would hold the loop for all 25 - and not only for that request.
+
+        Returns:
+            What was found, and whether either bound stopped it - because a
+            listing that is shorter than the workspace and does not say so is one
+            a person reads as complete.
         """
         found: list[FileInfo] = []
+        truncated = False
         queue: list[tuple[str, int]] = [(".", 0)]
         while queue:
             path, depth = queue.pop(0)
@@ -1179,16 +1211,20 @@ class SandboxWorkspaceService:
             for entry in entries:
                 found.append(entry)
                 if len(found) >= _MAX_LISTED_ENTRIES:
-                    # Said, because a cap that is not is a list a person reads as
-                    # the whole of what a workspace holds.
                     logger.warning(
                         "workspace_listing_truncated",
                         extra={"session": session, "listed": len(found)},
                     )
-                    return found
-                if entry.get("is_dir") and depth + 1 < _MAX_LISTED_DEPTH:
+                    return found, True
+                if not entry.get("is_dir"):
+                    continue
+                if depth + 1 < _MAX_LISTED_DEPTH:
                     queue.append((str(entry.get("path")), depth + 1))
-        return found
+                else:
+                    # A directory the walk will not open. It is in the listing as a
+                    # folder, so what is missing is everything under it.
+                    truncated = True
+        return found, truncated
 
     async def _remote_entries(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
         try:
@@ -1196,7 +1232,8 @@ class SandboxWorkspaceService:
                 if archive is None:
                     return WorkspaceContents(entries=[])
                 session = row.session_id or row.scope_key
-                return WorkspaceContents(entries=await self._walk(archive, session))
+                entries, truncated = await self._walk(archive, session)
+                return WorkspaceContents(entries=entries, truncated=truncated)
         except Exception as exc:
             # Carried, not raised. "There are no files" and "this host cannot be
             # read" must stay distinguishable - an empty folder is what a user

@@ -72,6 +72,7 @@ function session(overrides: Partial<SandboxSession> = {}): SandboxSession {
     usage: null,
     agent_id: "a-1",
     conversation_id: "conv-1",
+    conversation_is_callers: true,
     scope: "conversation",
     ...overrides,
   };
@@ -715,6 +716,19 @@ describe("what the row says about a sandbox", () => {
     render(<SessionsPanel connections={[connection()]} />);
 
     expect(screen.queryByText(/reaped in/)).toBeNull();
+  });
+
+  it("does not link a conversation the reader cannot open", () => {
+    // The chat page lists its owner's threads, and this listing is
+    // organization-wide - so a link on somebody else's row landed on an empty
+    // sidebar dressed as the conversation.
+    state.listing = listing([
+      session({ conversation_id: "c-9", scope: "conversation", conversation_is_callers: false }),
+    ]);
+    render(<SessionsPanel connections={[connection()]} />);
+
+    expect(screen.getByText("one conversation")).toBeVisible();
+    expect(screen.queryByRole("link", { name: "one conversation" })).toBeNull();
   });
 
   it("links the conversation a sandbox belongs to", () => {

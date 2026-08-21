@@ -83,6 +83,14 @@ export interface WorkspaceFiles {
    * sandbox runs. Shown as an explanation, not as a red error.
    */
   unreadable_reason: string | null;
+  /**
+   * Whether the host answered and this is still not all of it.
+   *
+   * Reading a container's files is a round trip per directory, so the walk stops
+   * at six levels and 2,000 entries - which for a workspace holding a checkout is
+   * a tree a person would otherwise read as complete.
+   */
+  truncated: boolean;
 }
 
 /** One file in the flat view, with the workspace it came from named beside it. */

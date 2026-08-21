@@ -223,6 +223,17 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
         </div>
       )}
 
+      {/* Said, because the alternative is a tree that looks like the whole
+          workspace. An agent that ran an install or cloned a repository has more
+          than this listing walks, and a count of what is on screen would then be
+          the wrong answer to "what is it keeping". */}
+      {files?.truncated === true && (
+        <div className="text-muted-foreground flex items-start gap-2 text-xs">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          <p>{t("listingTruncated")}</p>
+        </div>
+      )}
+
       {/* The tree beside the file rather than a dialog over it. Stacked below `lg`,
           where two columns would each be too narrow to read a path in. */}
       {/* `min-h-0` on both the grid and its children, or a flex child's default
@@ -492,8 +503,11 @@ function TreeRow({
           )}
           <span className="min-w-0 flex-1 truncate text-xs font-medium">{node.name}</span>
         </button>
+        {/* Everything under it, not the files immediately in it: `src` holding
+            only `src/components/widget.tsx` counted zero and then opened to
+            reveal a file, which is a row contradicting itself. */}
         <span className="text-muted-foreground/70 shrink-0 pr-2 text-[10px]">
-          {t("fileCount", { count: node.children.filter((child) => !child.isDir).length })}
+          {t("fileCount", { count: countFiles(node.children) })}
         </span>
       </div>
 

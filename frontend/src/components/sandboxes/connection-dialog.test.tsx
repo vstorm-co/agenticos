@@ -555,6 +555,40 @@ describe("ConnectionDialog", () => {
       expect(await screen.findByText(/This host allows 1 of them/)).toBeVisible();
     });
 
+    it("can be tested with the deployment's own token, before a key is stored", async () => {
+      // Adding the service `make dev` started names no key until submission, which
+      // is the commonest path through this dialog - and it had no Test button and
+      // no probe, so an outdated local service was registered with a default
+      // runtime its first tool call refuses.
+      state.local = {
+        url: "http://sandboxd:8080",
+        token_available: true,
+        registered_connection_id: null,
+      };
+      state.probe = vi.fn(async () => ({
+        runtimes: [{ alias: "workbench", description: "What this host allows" }],
+      }));
+      mount();
+
+      expect(
+        await screen.findByRole("button", { name: /Test and check this host/ }),
+      ).toBeInTheDocument();
+      await waitFor(() => expect(state.probe).toHaveBeenCalledWith("http://sandboxd:8080", null));
+    });
+
+    it("offers no test for the local service when there is no token either", async () => {
+      state.local = {
+        url: "http://sandboxd:8080",
+        token_available: false,
+        registered_connection_id: null,
+      };
+      mount();
+
+      await screen.findByDisplayValue("http://sandboxd:8080");
+      expect(screen.queryByRole("button", { name: /Test and check this host/ })).toBeNull();
+      expect(state.probe).not.toHaveBeenCalled();
+    });
+
     it("cannot be asked before there is an address and a key to ask with", () => {
       mount();
 
@@ -609,6 +643,30 @@ describe("ConnectionDialog", () => {
       await userEvent.click(screen.getByRole("combobox", { name: "Default runtime" }));
       expect(await screen.findByRole("option", { name: /The newer answer/ })).toBeVisible();
       expect(screen.queryByRole("option", { name: /The older answer/ })).toBeNull();
+    });
+
+    it("discards an answer about a host that is no longer in the box", async () => {
+      // The case a ref written only by `ask` let through: one probe in flight, the
+      // address edited, no second probe - so the old host's runtimes arrived and
+      // populated the field under the new host's name.
+      const answers: ((runtimes: { alias: string; description: string }[]) => void)[] = [];
+      state.probe = vi.fn(
+        () =>
+          new Promise<{ runtimes: { alias: string; description: string }[] }>((resolve) => {
+            answers.push((runtimes) => resolve({ runtimes }));
+          }),
+      );
+      mount(connection());
+
+      await userEvent.click(screen.getByRole("button", { name: /Test and check this host/ }));
+      await userEvent.clear(screen.getByLabelText("Address"));
+      await userEvent.type(screen.getByLabelText("Address"), "http://elsewhere:8080");
+      answers[0]?.([{ alias: "stale", description: "The first host's" }]);
+
+      await userEvent.click(screen.getByRole("combobox", { name: "Default runtime" }));
+      expect(screen.queryByRole("option", { name: /The first host's/ })).toBeNull();
+      // And the catalogue's own list is what the field falls back to.
+      expect(await screen.findByRole("option", { name: /Python with git/ })).toBeVisible();
     });
 
     it("discards a superseded refusal too", async () => {

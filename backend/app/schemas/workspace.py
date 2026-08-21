@@ -61,6 +61,15 @@ class WorkspaceListing(BaseSchema):
             "- an empty list on its own reads as 'there are no files'."
         ),
     )
+    truncated: bool = Field(
+        default=False,
+        description=(
+            "Whether the host answered and this is still not all of it. Reading a "
+            "container's files is a round trip per directory, so the walk stops at "
+            "six levels and 2,000 entries - which for a workspace holding a "
+            "checkout is a listing a person would otherwise read as complete."
+        ),
+    )
 
 
 class WorkspaceSummary(BaseSchema):

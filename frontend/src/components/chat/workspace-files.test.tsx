@@ -31,6 +31,7 @@ function workspace(overrides: Record<string, unknown> = {}) {
   return {
     scope: "conversation",
     unreadable_reason: null,
+    truncated: false,
     backend: "state",
     owner_label: "This conversation",
     items: [
