@@ -44,7 +44,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.permissions import AuthContext, Perm
-from app.core.vault import VaultScope, seal, unseal
+from app.core.vault import VaultScope, seal_fields, unseal
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.chat_file import ChatFile
 from app.db.updates import cleared, writable
@@ -160,6 +160,7 @@ class AgentEmbedService:
         if kind == "page":
             self._check_page(data.auth_mode, data.context_variables)
 
+        sealed_jwt, jwt_version = self._seal(ctx.organization_id, data.jwt_secret)
         embed = AgentEmbed(
             organization_id=ctx.organization_id,
             agent_id=agent.id,
@@ -168,7 +169,8 @@ class AgentEmbedService:
             kind=kind,
             public_key=secrets.token_urlsafe(_KEY_BYTES),
             auth_mode=data.auth_mode,
-            jwt_secret_encrypted=self._seal(ctx.organization_id, data.jwt_secret),
+            jwt_secret_encrypted=sealed_jwt,
+            secret_key_version=jwt_version,
             allowed_origins=[_origin_of(str(origin)) for origin in data.allowed_origins],
             config=data.config.model_dump(),
             context=data.context,
@@ -214,7 +216,9 @@ class AgentEmbedService:
                 raise BadRequestError(message="Switching to token auth needs a signing secret")
             self._check_secret(mode, secret, allow_missing=mode == embed.auth_mode)
             if secret is not None:
-                changes["jwt_secret_encrypted"] = self._seal(ctx.organization_id, secret)
+                changes["jwt_secret_encrypted"], changes["secret_key_version"] = self._seal(
+                    ctx.organization_id, secret
+                )
             elif mode == "public":
                 changes["jwt_secret_encrypted"] = None
         changes.pop("jwt_secret", None)
@@ -600,6 +604,7 @@ class AgentEmbedService:
         secret = unseal(
             embed.jwt_secret_encrypted,
             scope=VaultScope.organization(embed.organization_id),
+            key_version=embed.secret_key_version,
         )
         try:
             claims = jwt.decode(token, secret, algorithms=["HS256"])
@@ -724,10 +729,17 @@ class AgentEmbedService:
                 "be stored and never read"
             )
 
-    def _seal(self, organization_id: UUID, secret: str | None) -> str | None:
+    def _seal(self, organization_id: UUID, secret: str | None) -> tuple[str | None, int]:
+        """The sealed JWT secret and the key version that sealed it, to store as a
+        pair - so a master-key rotation can `rewrap` the row and it stays readable
+        (#552). A public embed carries no secret and keeps the default version.
+        """
         if secret is None:
-            return None
-        return seal(secret, scope=VaultScope.organization(organization_id)).ciphertext
+            return None, 1
+        sealed, version = seal_fields(
+            {"jwt_secret": secret}, scope=VaultScope.organization(organization_id)
+        )
+        return sealed["jwt_secret"].ciphertext, version
 
     async def _owned(self, ctx: AuthContext, embed_id: UUID) -> AgentEmbed:
         embed = await agent_embed_repo.get(self.db, embed_id, organization_id=ctx.organization_id)
