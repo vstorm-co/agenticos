@@ -186,3 +186,23 @@ async def list_by_collection_name(db: AsyncSession, collection_name: str) -> lis
         .order_by(KnowledgeBase.created_at)
     )
     return list(result.scalars().all())
+
+
+async def get_for_collection(
+    db: AsyncSession, collection_name: str, organization_id: UUID | None
+) -> KnowledgeBase | None:
+    """The knowledge base an organization resolves a collection name to.
+
+    `collection_name` is not unique across tenants, so resolving one by name
+    alone can return another organization's row - and then unseal and bill that
+    organization's key (#913). The organization narrows the candidates in two
+    passes: its own row wins, and an `app`-scoped collection (owned by no
+    organization) is the shared fallback. `organization_id` is `None` only where
+    there is genuinely no tenant to scope to - a CLI ingest - and then the first
+    candidate stands, which is the old name-only behaviour for that path alone.
+    """
+    candidates = await list_by_collection_name(db, collection_name)
+    for kb in candidates:
+        if organization_id is None or kb.organization_id == organization_id:
+            return kb
+    return next((kb for kb in candidates if kb.organization_id is None), None)
