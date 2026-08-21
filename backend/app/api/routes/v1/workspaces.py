@@ -40,6 +40,7 @@ from app.schemas.workspace import (
     WorkspaceSummary,
     WorkspaceSummaryList,
 )
+from app.services.attachments import is_attachment
 from app.services.sandbox_workspace import owner_label, stored_ceiling
 
 router = APIRouter()
@@ -122,6 +123,7 @@ async def list_all_files(workspaces: WorkspaceSvc, ctx: Auth) -> Any:
             workspace_id=file.overview.row.id,
             agent_name=file.overview.agent_name,
             access_label=file.overview.access_label,
+            from_upload=is_attachment(str(file.info.get("path"))),
             preview=file.preview,
             thumbnail=file.thumbnail,
         )

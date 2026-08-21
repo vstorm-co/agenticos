@@ -174,6 +174,16 @@ class FlatFileRead(WorkspaceFileRead):
     workspace_id: UUID
     agent_name: str
     access_label: str
+    from_upload: bool = Field(
+        default=False,
+        description=(
+            "Whether a person attached this file rather than an agent writing it. "
+            "Read off the path: attachments land in `uploads/`, which is this "
+            "application's own convention and the only signal there is - a host "
+            "records no author. So it is a fact about where the file is, stated as "
+            "what that means."
+        ),
+    )
     preview: str | None = Field(
         default=None,
         description=(

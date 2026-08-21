@@ -183,7 +183,6 @@ from app.services.sandbox_workspace import (
 )
 from app.services.skill_proposal import SkillProposalService
 from app.services.skill_workspace import MaterialisedSkills, collect_changes
-from app.services.skill_workspace import materialise as materialise_skills
 from app.services.skills import SkillService
 from app.services.spend import month_start, organization_monthly_spend
 from app.services.transcript import (
@@ -1694,19 +1693,22 @@ class AgentRunnerService:
                 else None
             ),
         )
+        # **Skills are not copied into the workspace.** They were, under
+        # `/skills/<name>/`, so a skill whose resource is a script could be run with
+        # the shell the agent already has - and every workspace listing was mostly
+        # skill files an agent had not written. `load_skill` is how a skill reaches
+        # a model, and a copy on disk is not needed to read one.
+        #
+        # Two things went with it, and neither fails loudly: a script resource is
+        # text the model can quote and not execute again, and `_record_proposals`
+        # has nothing to diff, so skill proposals are inert until something else
+        # writes those files (#1064).
         materialised: MaterialisedSkills | None = None
         started_with: set[str] | None = None
         if workspace is not None:
             resources[WORKSPACE_BACKEND_RESOURCE] = workspace.backend
             resources[SPILL_LOG_RESOURCE] = workspace.spills
             spec = _with_workspace_briefing(spec, workspace)
-            # Skills as files, beside the shell that can run them. A skill whose
-            # resource is a script was previously handed to the model as text it
-            # could quote and not execute, while the same agent had `execute` one
-            # tool call away.
-            materialised = await materialise_skills(workspace.backend, resources["skills"])
-            # After the skills are written, so materialising them does not read as
-            # the turn's own output.
             started_with = await workspace_snapshot(workspace.backend)
 
         channel = ApprovalChannel(

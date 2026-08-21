@@ -4200,6 +4200,9 @@
       "files": "Files",
       "folderEmpty": "This folder is empty.",
       "folders": "Folders",
+      "fromAnyone": "Anyone",
+      "fromMe": "Attached",
+      "fromTheAgent": "By the agent",
       "host": "on the host",
       "lastUsed": "Last used",
       "noAgentKeepingFiles": "No agent is keeping files yet. One appears here the first time an agent with a workspace writes something.",
@@ -4222,6 +4225,7 @@
       "usedToday": "today",
       "usedYesterday": "yesterday",
       "whoCanSeeIt": "Who can see it",
+      "whoPutItThere": "Who put it there",
       "workspace": "Workspace",
       "workspaceCount": "{count, plural, =0 {No workspaces} =1 {1 workspace} other {# workspaces}}"
     }

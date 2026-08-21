@@ -922,7 +922,7 @@ class TestServingAFileAsBytes:
             def __init__(self, url, token=""):
                 pass
 
-            def ls(self, session_id):
+            def ls(self, session_id, path="."):
                 return []
 
             def read_bytes(self, session_id, path):
@@ -955,7 +955,7 @@ class TestServingAFileAsBytes:
             def __init__(self, url, token=""):
                 pass
 
-            def ls(self, session_id):
+            def ls(self, session_id, path="."):
                 return []
 
             def read_bytes(self, session_id, path):
@@ -1009,7 +1009,7 @@ class TestServingAFileAsBytes:
             def __init__(self, url, token=""):
                 pass
 
-            def ls(self, session_id):
+            def ls(self, session_id, path="."):
                 return [{"path": "/run.py", "size": 8, "is_dir": False}]
 
             def read(self, session_id, path):
@@ -1036,7 +1036,7 @@ class TestServingAFileAsBytes:
             def __init__(self, url, token=""):
                 pass
 
-            def ls(self, session_id):
+            def ls(self, session_id, path="."):
                 raise RuntimeError("This service keeps no workspaces on disk.")
 
             def read(self, session_id, path):
@@ -1083,7 +1083,7 @@ class TestServingAFileAsBytes:
             def __init__(self, url, token=""):
                 pass
 
-            def ls(self, session_id):
+            def ls(self, session_id, path="."):
                 return []
 
             def read_bytes(self, session_id, path):
@@ -1147,7 +1147,7 @@ class TestServingAConversationsFileAsBytes:
             def __init__(self, url, token=""):
                 pass
 
-            def ls(self, session_id):
+            def ls(self, session_id, path="."):
                 return []
 
             def read_bytes(self, session_id, path):
@@ -1562,7 +1562,7 @@ class TestWhatReadingAHostCosts:
             def __init__(self, url, token=""):
                 made.append(self)
 
-            def ls(self, session_id):
+            def ls(self, session_id, path="."):
                 if ls_fails:
                     raise RuntimeError("This service keeps no workspaces on disk.")
                 return [{"path": "/run.py", "size": 8, "is_dir": False}]
@@ -2657,7 +2657,7 @@ class TestShowingTheFilesToAPerson:
             def __init__(self, url, token=""):
                 pass
 
-            def ls(self, session_id):
+            def ls(self, session_id, path="."):
                 return [{"path": "/run.py", "size": 8, "is_dir": False}]
 
             def read(self, session_id, path):
@@ -2708,7 +2708,7 @@ class TestShowingTheFilesToAPerson:
             def __init__(self, url, token=""):
                 pass
 
-            def ls(self, session_id):
+            def ls(self, session_id, path="."):
                 return [{"path": "/workspace/run.py", "size": 12, "is_dir": False}]
 
             # `read_bytes`, not `read`: the viewer is served the file's own text,
@@ -2748,7 +2748,7 @@ class TestShowingTheFilesToAPerson:
             def __init__(self, url, token=""):
                 pass
 
-            def ls(self, session_id):
+            def ls(self, session_id, path="."):
                 raise RuntimeError("This service keeps no workspaces on disk.")
 
         monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
@@ -2782,7 +2782,7 @@ class TestShowingTheFilesToAPerson:
             def __init__(self, url, token=""):
                 pass
 
-            def ls(self, session_id):
+            def ls(self, session_id, path="."):
                 return []
 
             def read(self, session_id, path):
@@ -3204,3 +3204,81 @@ class TestCountingTheFilesInEachWorkspace:
 
         assert counted.unreadable == 2
         assert counted.truncated is True
+
+
+class TestWalkingAHostsDirectories:
+    """The listing reads every level, not only the root.
+
+    The archive's `ls` lists *one* directory, and it was called once - so a
+    workspace whose files are all under `uploads/` reported a single directory entry
+    and nothing else. The folder opened empty in the browser, the file count read
+    zero, and the files appeared only in the flat view of a *stored* workspace,
+    where the paths come out of a JSONB column whole.
+    """
+
+    @staticmethod
+    def _archive(monkeypatch, tree: dict[str, list[dict[str, object]]], asked: list[str]):
+        from pydantic_ai_backends import remote as remote_module
+
+        class _Archive:
+            def __init__(self, url, token=""):
+                pass
+
+            def ls(self, session_id, path="."):
+                asked.append(path)
+                return tree.get(path, [])
+
+            def close(self):
+                pass
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+
+    async def test_a_file_under_a_folder_is_listed(self, monkeypatch, mock_db_session):
+        asked: list[str] = []
+        self._archive(
+            monkeypatch,
+            {
+                ".": [{"path": "uploads", "name": "uploads", "is_dir": True, "size": None}],
+                "uploads": [
+                    {"path": "uploads/book.pdf", "name": "book.pdf", "is_dir": False, "size": 9}
+                ],
+            },
+            asked,
+        )
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="xc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        found = await SandboxWorkspaceService(mock_db_session).listing(
+            _ctx(), conversation_id=uuid4()
+        )
+
+        assert found is not None
+        _, contents = found
+        assert [str(entry.get("path")) for entry in contents.entries] == [
+            "uploads",
+            "uploads/book.pdf",
+        ]
+        assert asked == [".", "uploads"]
+
+    async def test_it_stops_at_the_depth_a_workspace_ever_reaches(
+        self, monkeypatch, mock_db_session
+    ):
+        """A directory is a round trip, and a host holding somebody's checkout must
+        not turn one workspace into a thousand of them."""
+        asked: list[str] = []
+        deep = {
+            ".": [{"path": "d0", "name": "d0", "is_dir": True, "size": None}],
+            **{
+                f"d{n}": [{"path": f"d{n + 1}", "name": f"d{n + 1}", "is_dir": True, "size": None}]
+                for n in range(12)
+            },
+        }
+        self._archive(monkeypatch, deep, asked)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="xc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        await SandboxWorkspaceService(mock_db_session).listing(_ctx(), conversation_id=uuid4())
+
+        assert len(asked) == 6

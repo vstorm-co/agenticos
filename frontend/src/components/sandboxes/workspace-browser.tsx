@@ -27,7 +27,7 @@ import { useAllWorkspaceFiles, useSandboxWorkspaces } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { suffixOf } from "@/lib/file-kinds";
 import { workspaceFileAccess } from "@/lib/workspace-files";
-import { formatBytes } from "@/lib/utils";
+import { cn, formatBytes } from "@/lib/utils";
 import type { FlatFile, WorkspaceSummary } from "@/lib/sandbox-workspaces-api";
 import { useTranslations } from "next-intl";
 
@@ -39,6 +39,9 @@ function key(file: { workspace_id: string; path: string }): string {
 }
 
 type FlatSort = "name" | "size" | "modified" | "agent";
+
+/** Who put a file in the workspace, as the filter offers it. */
+type Origin = "any" | "upload" | "agent";
 
 /** Newest and biggest first: those orders answer "what changed" and "what is
  *  eating the quota", where a name orders alphabetically. */
@@ -105,7 +108,11 @@ export function WorkspaceBrowser() {
   // with the row.
   const [measure, setMeasure] = useState(false);
   const { workspaces, unreadable, truncated, isLoading, error } = useSandboxWorkspaces(measure);
-  const [flat, setFlat] = useState(false);
+  // Every file, first. "Where is that CSV" and "what did the agent write" are the
+  // questions somebody opens this page with; "which workspaces exist" is the one an
+  // operator asks second, and a table of them was the landing view for no better
+  // reason than that it was built first.
+  const [flat, setFlat] = useState(true);
 
   /**
    * Four columns, not seven, and the row is the link.
@@ -335,10 +342,20 @@ function FlatFiles() {
   const { listing, isLoading, error } = useAllWorkspaceFiles(true);
   const [opened, setOpened] = useState<FlatFile | null>(null);
   const [sort, setSort] = useState<FlatSort>("name");
+  const [origin, setOrigin] = useState<Origin>("any");
 
   const sorted = useMemo(
-    () => [...(listing?.items ?? [])].sort((a, b) => compareFlat(sort, a, b)),
-    [listing, sort],
+    () =>
+      [...(listing?.items ?? [])]
+        // Who put the file there, which is the question this view is opened with
+        // as often as "where is that CSV": a workspace holds what a person gave
+        // the agent and what the agent produced, and they are read for different
+        // reasons.
+        .filter((file) =>
+          origin === "any" ? true : origin === "upload" ? file.from_upload : !file.from_upload,
+        )
+        .sort((a, b) => compareFlat(sort, a, b)),
+    [listing, sort, origin],
   );
   const list = useListControls({
     items: sorted,
@@ -363,6 +380,16 @@ function FlatFiles() {
     <div className="space-y-3 p-5">
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput value={list.query} onChange={list.setQuery} placeholder={t("searchFiles")} />
+        <Select value={origin} onValueChange={(value) => setOrigin(value as Origin)}>
+          <SelectTrigger className="w-auto min-w-36" aria-label={t("workspaces.whoPutItThere")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="any">{t("workspaces.fromAnyone")}</SelectItem>
+            <SelectItem value="upload">{t("workspaces.fromMe")}</SelectItem>
+            <SelectItem value="agent">{t("workspaces.fromTheAgent")}</SelectItem>
+          </SelectContent>
+        </Select>
         <Select value={sort} onValueChange={(value) => setSort(value as FlatSort)}>
           <SelectTrigger className="w-auto min-w-36" aria-label={t("sortFiles")}>
             <SelectValue />
@@ -395,7 +422,19 @@ function FlatFiles() {
                 onOpen={() => setOpened(file)}
                 className="w-full"
               />
+              {/* Said on the tile rather than only filterable: a PDF a person
+                  attached and a PDF an agent produced are read for different
+                  reasons, and the path is not always the answer - `report.csv` at
+                  a workspace root could be either. */}
               <p className="text-muted-foreground flex items-center gap-1 px-1 text-[11px]">
+                <span
+                  className={cn(
+                    "shrink-0 rounded px-1 py-0.5 text-[10px]",
+                    file.from_upload ? "bg-accent text-foreground" : "text-muted-foreground/70",
+                  )}
+                >
+                  {file.from_upload ? t("workspaces.fromMe") : t("workspaces.fromTheAgent")}
+                </span>
                 <Link
                   href={ROUTES.WORKSPACE_DETAIL(file.workspace_id)}
                   className="truncate hover:underline"

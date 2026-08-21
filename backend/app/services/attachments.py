@@ -22,6 +22,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
+from pathlib import PurePosixPath
 from typing import Any
 from uuid import UUID
 
@@ -72,6 +73,22 @@ class AttachmentPlan:
 
     inline: BinaryContent | None
     """Bytes the model should see directly, when it can and should."""
+
+
+def is_attachment(path: str) -> bool:
+    """Whether a workspace path is a file a person attached.
+
+    `uploads/` is this application's own convention - `workspace_path` below puts
+    every attachment there - and it is the only signal available: a host records no
+    author, and neither does the state document. So this is a fact about *where* a
+    file is, stated as what that placement means.
+
+    Which also names its one limit. An agent that writes into `uploads/` itself is
+    indistinguishable from a person who attached something, and nothing stops it.
+    The alternative is a table mapping every path to whoever wrote it, which is a
+    row per file per workspace to answer a question a directory already answers.
+    """
+    return PurePosixPath(path.lstrip("/")).parts[:1] == (UPLOAD_DIR,)
 
 
 def workspace_path(chat_file: ChatFile) -> str:

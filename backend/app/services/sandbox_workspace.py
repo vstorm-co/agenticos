@@ -64,6 +64,13 @@ logger = logging.getLogger(__name__)
 
 SANDBOX_CAPABILITY_ID = "sandbox"
 
+_MAX_LISTED_DEPTH = 6
+"""How deep a workspace listing walks. A directory is a round trip to the host."""
+
+_MAX_LISTED_ENTRIES = 2000
+"""Where a listing stops. A host holding a `node_modules` must not turn one
+workspace into ten thousand rows on a page about twenty-five of them."""
+
 
 @dataclass(frozen=True)
 class WorkspaceContents:
@@ -1045,17 +1052,48 @@ class SandboxWorkspaceService:
             return WorkspaceContents(entries=stored_entries(dict(row.files or {})))
         return await self._remote_entries(ctx, row)
 
+    @staticmethod
+    async def _walk(archive: Any, session: str) -> list[FileInfo]:
+        """Every file on a host's volume, not only the ones at the root.
+
+        **The archive's `ls` lists one directory.** It was called once, on the root,
+        so a workspace whose files are all under `uploads/` reported a single
+        directory entry and nothing else - the folder opened empty in the browser,
+        the file count read zero, and the only place the files appeared was the flat
+        view of a *stored* workspace, where the paths come out of a JSONB column
+        whole.
+
+        A directory costs a round trip, so the walk is bounded twice over: by depth,
+        because a workspace three deep is the shape this product produces, and by
+        entries, because a host holding a `node_modules` must not turn a listing into
+        ten thousand of them. `glob` would be one call rather than several, and it is
+        not available here: it needs a running session, and browsing deliberately
+        never starts one.
+
+        `to_thread`, because `WorkspaceArchive` is a synchronous `httpx.Client`.
+        `flat_files` runs this for up to 25 workspaces in one request, so a blocking
+        call would hold the loop for all 25 - and not only for that request.
+        """
+        found: list[FileInfo] = []
+        queue: list[tuple[str, int]] = [(".", 0)]
+        while queue:
+            path, depth = queue.pop(0)
+            entries = await asyncio.to_thread(archive.ls, session, path)
+            for entry in entries:
+                found.append(entry)
+                if len(found) >= _MAX_LISTED_ENTRIES:
+                    return found
+                if entry.get("is_dir") and depth + 1 < _MAX_LISTED_DEPTH:
+                    queue.append((str(entry.get("path")), depth + 1))
+        return found
+
     async def _remote_entries(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
         try:
             async with self._archive(ctx, row) as archive:
                 if archive is None:
                     return WorkspaceContents(entries=[])
-                # `to_thread`, because `WorkspaceArchive` is a synchronous
-                # `httpx.Client` and this is a round trip to the host. `flat_files`
-                # runs it for up to 25 workspaces in one request, so the loop was
-                # held for all 25 - and not only for that request.
-                entries = await asyncio.to_thread(archive.ls, row.session_id or row.scope_key)
-                return WorkspaceContents(entries=list(entries))
+                session = row.session_id or row.scope_key
+                return WorkspaceContents(entries=await self._walk(archive, session))
         except Exception as exc:
             # Carried, not raised. "There are no files" and "this host cannot be
             # read" must stay distinguishable - an empty folder is what a user

@@ -90,6 +90,14 @@ export interface FlatFile extends WorkspaceFile {
   workspace_id: string;
   agent_name: string;
   access_label: string;
+  /**
+   * Whether a person attached this file rather than an agent writing it.
+   *
+   * Read off the path server-side - attachments land in `uploads/` - because a
+   * host records no author. It is what makes "which of these did I give it" a
+   * question this list can answer.
+   */
+  from_upload: boolean;
   /** The first lines of a stored text file; null for binary content and for
    *  container-backed workspaces, whose bytes the flat listing does not fetch. */
   preview: string | null;

@@ -149,32 +149,44 @@ beforeEach(() => {
   state.downloadError = null;
 });
 
+/**
+ * The table, which is no longer the landing view.
+ *
+ * `All files` is what the page opens on - "where is that CSV" and "what did the
+ * agent write" are the questions somebody arrives with. Every test about the table
+ * therefore switches to it first, in one place rather than twenty.
+ */
+async function showTable() {
+  render(<WorkspaceBrowser />);
+  await userEvent.click(screen.getByRole("button", { name: "By workspace" }));
+}
+
 describe("WorkspaceBrowser", () => {
-  it("names the agent, the chat, and who can see the files", () => {
+  it("names the agent, the chat, and who can see the files", async () => {
     // `access_label` is a column, not decoration: under `agent` scope one
     // workspace is shared by everybody who talks to that agent, and a table of
     // paths with no statement of who can see them is the wrong thing to hand
     // somebody auditing this.
-    render(<WorkspaceBrowser />);
+    await showTable();
 
     expect(screen.getByText("Analyst")).toBeVisible();
     expect(screen.getByText("Refund policy")).toBeVisible();
     expect(screen.getByText("Whoever is in that conversation")).toBeVisible();
   });
 
-  it("counts the chats behind a workspace no single conversation owns", () => {
+  it("counts the chats behind a workspace no single conversation owns", async () => {
     // The difference between "my files" and "everybody's", and there is no title
     // to show for one.
     state.workspaces = [
       workspace({ conversation_id: null, conversation_title: null, conversations: 12 }),
     ];
 
-    render(<WorkspaceBrowser />);
+    await showTable();
 
     expect(screen.getByText(/12 conversations/)).toBeVisible();
   });
 
-  it("leads with whose it is for a workspace that ends with its run", () => {
+  it("leads with whose it is for a workspace that ends with its run", async () => {
     // No chat to name it after and no count to give, so the heading is the owner
     // - which under `agent` scope is the whole point of the row.
     state.workspaces = [
@@ -186,7 +198,7 @@ describe("WorkspaceBrowser", () => {
       }),
     ];
 
-    render(<WorkspaceBrowser />);
+    await showTable();
 
     expect(screen.getByRole("link", { name: "Every chat with Analyst" })).toBeVisible();
     // Not the access label, which legitimately says "conversation": a count.
@@ -206,7 +218,7 @@ describe("WorkspaceBrowser", () => {
         bytes_total: 0,
       }),
     ];
-    render(<WorkspaceBrowser />);
+    await showTable();
     // The avatar's initials are decoration inside the same cell, so the heading
     // is what is left once the aria-hidden part is dropped.
     const firstRow = () => {
@@ -224,9 +236,9 @@ describe("WorkspaceBrowser", () => {
     expect(firstRow()).toContain("Refund policy");
   });
 
-  it("links the reader's own conversation to its chat", () => {
+  it("links the reader's own conversation to its chat", async () => {
     state.workspaces = [workspace({ conversation_is_mine: true })];
-    render(<WorkspaceBrowser />);
+    await showTable();
 
     const link = screen.getByRole("link", { name: "Open the chat these files belong to" });
     expect(link).toHaveAttribute("href", "/chat?id=c-1");
@@ -235,24 +247,24 @@ describe("WorkspaceBrowser", () => {
     expect(screen.getByRole("link", { name: "Refund policy" })).toBeVisible();
   });
 
-  it("names an untitled chat rather than drawing a hole", () => {
+  it("names an untitled chat rather than drawing a hole", async () => {
     state.workspaces = [workspace({ conversation_is_mine: true, conversation_title: null })];
-    render(<WorkspaceBrowser />);
+    await showTable();
 
     expect(screen.getByRole("link", { name: "Untitled chat" })).toBeVisible();
   });
 
-  it("offers no chat link on somebody else's conversation", () => {
+  it("offers no chat link on somebody else's conversation", async () => {
     // The chat page lists its owner's threads: anybody else's link would land
     // on an empty sidebar dressed as the conversation.
     state.workspaces = [workspace({ conversation_is_mine: false })];
-    render(<WorkspaceBrowser />);
+    await showTable();
 
     expect(screen.queryByRole("link", { name: "Open the chat these files belong to" })).toBeNull();
     expect(screen.getByText("Refund policy")).toBeVisible();
   });
 
-  it("counts the files and weighs them, in two columns", () => {
+  it("counts the files and weighs them, in two columns", async () => {
     state.workspaces = [
       workspace({ file_count: 4, measured_bytes: 1_048_576 }),
       workspace({
@@ -264,7 +276,7 @@ describe("WorkspaceBrowser", () => {
         measured_bytes: null,
       }),
     ];
-    render(<WorkspaceBrowser />);
+    await showTable();
 
     expect(screen.getByText("4")).toBeVisible();
     expect(screen.getByText("1.0 MB")).toBeVisible();
@@ -272,70 +284,70 @@ describe("WorkspaceBrowser", () => {
     expect(screen.getAllByText("—")).toHaveLength(2);
   });
 
-  it("says when a workspace was last touched", () => {
+  it("says when a workspace was last touched", async () => {
     state.workspaces = [workspace({ last_used_at: null })];
-    render(<WorkspaceBrowser />);
+    await showTable();
 
     expect(screen.getByText("never")).toBeVisible();
   });
 
-  it("reads a stale date as days ago", () => {
+  it("reads a stale date as days ago", async () => {
     const when = new Date(Date.now() - 3 * 86_400_000).toISOString();
     state.workspaces = [workspace({ last_used_at: when })];
-    render(<WorkspaceBrowser />);
+    await showTable();
 
     expect(screen.getByText("3 days ago")).toBeVisible();
   });
 
-  it("reads yesterday as yesterday", () => {
+  it("reads yesterday as yesterday", async () => {
     const when = new Date(Date.now() - 86_400_000 - 1000).toISOString();
     state.workspaces = [workspace({ last_used_at: when })];
-    render(<WorkspaceBrowser />);
+    await showTable();
 
     expect(screen.getByText("yesterday")).toBeVisible();
   });
 
-  it("reads a workspace with no recorded size as unmeasured", () => {
+  it("reads a workspace with no recorded size as unmeasured", async () => {
     // `bytes_total` is the stored document's size and zero for a container, so a
     // size column reading it would call every container empty. `measured_bytes` is
     // null until somebody counts, and null prints as an absence.
     state.workspaces = [workspace({ backend: "service", file_count: null, measured_bytes: null })];
-    render(<WorkspaceBrowser />);
+    await showTable();
 
     expect(screen.getAllByText("—")).toHaveLength(2);
   });
 
-  it("says an organization is keeping nothing rather than showing an empty table", () => {
+  it("says an organization is keeping nothing rather than showing an empty table", async () => {
     state.workspaces = [];
-    render(<WorkspaceBrowser />);
+    await showTable();
 
     expect(screen.getByText(/No agent is keeping files yet/)).toBeVisible();
   });
 
-  it("says why the list is empty when the request failed", () => {
+  it("says why the list is empty when the request failed", async () => {
     // An empty table and a failure are otherwise the same pixels.
     state.workspaces = [];
     state.listError = "403 Forbidden";
-    render(<WorkspaceBrowser />);
+    await showTable();
 
     expect(screen.getByText("403 Forbidden")).toBeVisible();
   });
 
-  it("claims neither emptiness nor failure while the list loads", () => {
+  it("claims neither emptiness nor failure while the list loads", async () => {
     state.workspaces = [];
     state.listLoading = true;
-    render(<WorkspaceBrowser />);
+    await showTable();
 
     expect(screen.queryByText(/No agent is keeping files yet/)).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("opens a workspace as its own page rather than a panel under the table", () => {
+  it("opens a workspace as its own page rather than a panel under the table", async () => {
     // A workspace with a `skills/` directory is a tree, and a URL is what makes
     // "look at this file" something one person can send another. What the row
     // leads with is that link - the trailing `Open` button was a seventh column
     // saying what the row already meant (#1039).
-    render(<WorkspaceBrowser />);
+    await showTable();
 
     expect(screen.getByRole("link", { name: "Refund policy" })).toHaveAttribute(
       "href",
@@ -343,11 +355,11 @@ describe("WorkspaceBrowser", () => {
     );
   });
 
-  it("says who can see the files without repeating what holds them", () => {
+  it("says who can see the files without repeating what holds them", async () => {
     // The `container` badge beside the access label repeated on every row of a
     // deployment that runs one kind of host - a column of one word, twenty times,
     // saying what `Where` says once per row.
-    render(<WorkspaceBrowser />);
+    await showTable();
 
     const cell = screen.getByText("Whoever is in that conversation").closest("td")!;
 
@@ -368,6 +380,7 @@ describe("WorkspaceBrowser", () => {
             workspace_id: "w-1",
             agent_name: "Analyst",
             access_label: "Everybody who talks to this agent",
+            from_upload: false,
           },
         ],
         total: 1,
@@ -377,17 +390,21 @@ describe("WorkspaceBrowser", () => {
       };
     });
 
-    it("is not asked for until somebody switches to it", async () => {
+    it("is what the page opens on, and the table is the second question", async () => {
       // It reads every workspace in turn - a round trip per container-backed one -
-      // so it is not what the page pays for on load.
+      // and that is the cost of the question people arrive with: "where is that
+      // CSV". Which workspaces exist is what an operator asks next.
       render(<WorkspaceBrowser />);
-      // Not even asked with `enabled: false` - the component that reads it is not
-      // mounted until the view is on.
-      expect(state.flatAsked).toEqual([]);
-
-      await userEvent.click(screen.getByRole("button", { name: "All files" }));
 
       expect(state.flatAsked.at(-1)).toBe(true);
+
+      await userEvent.click(screen.getByRole("button", { name: "By workspace" }));
+
+      // Unmounted rather than re-asked with `enabled: false`.
+      expect(screen.getByRole("button", { name: "By workspace" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
     });
 
     it("names the workspace each file came from, and links to it", async () => {
@@ -669,7 +686,7 @@ describe("WorkspaceBrowser", () => {
 });
 
 describe("what a row is about", () => {
-  it("leads with the conversation, because that is what the rows differ by", () => {
+  it("leads with the conversation, because that is what the rows differ by", async () => {
     // An organization runs a handful of agents and a great many conversations, so
     // an agent's name as the heading made twenty rows all called `jarvis`.
     state.workspaces = [
@@ -677,7 +694,7 @@ describe("what a row is about", () => {
       workspace({ id: "w-2", conversation_title: "Webhook wiring" }),
     ];
 
-    render(<WorkspaceBrowser />);
+    await showTable();
 
     expect(screen.getByRole("link", { name: "Refund policy" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Webhook wiring" })).toBeVisible();
@@ -685,10 +702,10 @@ describe("what a row is about", () => {
     expect(screen.getAllByText("Analyst")).toHaveLength(2);
   });
 
-  it("counts the workspaces rather than repeating the page's own sentences", () => {
+  it("counts the workspaces rather than repeating the page's own sentences", async () => {
     // The card's count line carried the two sentences the page header already
     // shows, so the same prose was on screen twice. `counted` is a count.
-    render(<WorkspaceBrowser />);
+    await showTable();
 
     expect(screen.getByText("1 workspace")).toBeVisible();
     expect(screen.queryByText(/A workspace is scratch space/)).toBeNull();
@@ -704,7 +721,7 @@ describe("counting the files", () => {
       workspace({ id: "w-2", file_count: 9, conversation_title: "Nine" }),
       workspace({ id: "w-3", file_count: null, conversation_title: "Unknown" }),
     ];
-    render(<WorkspaceBrowser />);
+    await showTable();
 
     await userEvent.click(screen.getByRole("button", { name: "Files" }));
 
@@ -716,9 +733,9 @@ describe("counting the files", () => {
 
   it("asks the hosts only when told to", async () => {
     // A round trip per workspace, so the page does not pay for it on open.
-    render(<WorkspaceBrowser />);
+    await showTable();
 
-    expect(state.measureAsked).toEqual([false]);
+    expect(state.measureAsked.at(-1)).toBe(false);
 
     await userEvent.click(screen.getByRole("switch", { name: "Count files" }));
 
@@ -729,10 +746,61 @@ describe("counting the files", () => {
     // A row reading `—` because its host was down is indistinguishable from a
     // workspace holding nothing.
     state.unreadable = 2;
-    render(<WorkspaceBrowser />);
+    await showTable();
 
     await userEvent.click(screen.getByRole("switch", { name: "Count files" }));
 
     expect(screen.getByText(/2 hosts did not answer/)).toBeVisible();
+  });
+});
+
+describe("who put a file in the workspace", () => {
+  const attached = {
+    path: "/uploads/8b1e-book.pdf",
+    size: 1024,
+    is_dir: false as const,
+    modified_at: null,
+    preview: null,
+    thumbnail: null,
+    workspace_id: "w-1",
+    agent_name: "Analyst",
+    access_label: "Whoever is in that conversation",
+    from_upload: true,
+  };
+
+  beforeEach(() => {
+    state.flat = {
+      items: [attached, { ...attached, path: "/summary.md", from_upload: false }],
+      total: 2,
+      workspaces_read: 1,
+      unreadable: 0,
+      truncated: false,
+    };
+  });
+
+  it("says of each file whether it was attached or written", () => {
+    // A PDF somebody gave the agent and a PDF the agent produced are read for
+    // different reasons, and the path is not always the answer.
+    render(<WorkspaceBrowser />);
+
+    expect(screen.getByText("Attached")).toBeVisible();
+    expect(screen.getByText("By the agent")).toBeVisible();
+  });
+
+  it("filters to one or the other", async () => {
+    render(<WorkspaceBrowser />);
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Who put it there" }));
+    await userEvent.click(screen.getByRole("option", { name: "Attached" }));
+
+    expect(screen.getByText("/uploads/8b1e-book.pdf")).toBeVisible();
+    expect(screen.queryByText("/summary.md")).toBeNull();
+  });
+
+  it("shows both when nobody narrowed it", () => {
+    render(<WorkspaceBrowser />);
+
+    expect(screen.getByText("/uploads/8b1e-book.pdf")).toBeVisible();
+    expect(screen.getByText("/summary.md")).toBeVisible();
   });
 });

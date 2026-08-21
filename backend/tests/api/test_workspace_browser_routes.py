@@ -501,3 +501,39 @@ class TestCountingTheFiles:
         assert response.json()["measured"] == 25
         assert response.json()["unreadable"] == 2
         assert response.json()["truncated"] is True
+
+
+class TestWhoPutTheFileThere:
+    """Attached by a person, or written by an agent.
+
+    Read off the path, because it is the only signal there is: `uploads/` is this
+    application's own convention and a host records no author.
+    """
+
+    async def test_a_file_under_uploads_is_marked_as_attached(self, client, service) -> None:
+        service.flat_files = AsyncMock(
+            return_value=SimpleNamespace(
+                files=[
+                    FlatEntry(
+                        overview=_overview(),
+                        info={"path": "uploads/8b1e-report.pdf", "size": 12, "is_dir": False},
+                        preview=None,
+                        thumbnail=None,
+                    )
+                ],
+                workspaces_read=1,
+                unreadable=0,
+                truncated=False,
+            )
+        )
+
+        async with client() as opened:
+            response = await opened.get(_url("/files"))
+
+        assert response.json()["items"][0]["from_upload"] is True
+
+    async def test_anything_else_is_the_agents_own(self, client) -> None:
+        async with client() as opened:
+            response = await opened.get(_url("/files"))
+
+        assert response.json()["items"][0]["from_upload"] is False
