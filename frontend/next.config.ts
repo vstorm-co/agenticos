@@ -1,29 +1,18 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 
+// A relative import, not `@/lib/csp`: the path alias is resolved for the
+// application's own build and this file is read before it. The policy lives
+// there so a directive can be asserted - one that goes missing breaks a pane in
+// somebody's browser and nothing else (#1039).
+import { contentSecurityPolicy } from "./src/lib/csp";
+
 const withNextIntl = createNextIntlPlugin("./src/i18n.ts");
-
-// Content Security Policy directives
-const _frameAncestors = "frame-ancestors 'none';";
-
-const ContentSecurityPolicy = `
-  default-src 'self';
-  script-src 'self' 'unsafe-eval' 'unsafe-inline';
-  style-src 'self' 'unsafe-inline';
-  img-src 'self' blob: data: https:;
-  font-src 'self' data:;
-  connect-src 'self' ws: wss: http://localhost:* https://localhost:*;
-  ${_frameAncestors}
-  base-uri 'self';
-  form-action 'self';
-`
-  .replace(/\n/g, " ")
-  .trim();
 
 const securityHeaders = [
   {
     key: "Content-Security-Policy",
-    value: ContentSecurityPolicy,
+    value: contentSecurityPolicy,
   },
   {
     key: "X-Content-Type-Options",

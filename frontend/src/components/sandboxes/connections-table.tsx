@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { Box, Cloud, Pencil, Star, Trash2 } from "lucide-react";
 
 import { Badge, Button, DataTable, type Column } from "@/components/ui";
+import { ConnectionKindIcon } from "./connection-kind-icon";
 import type { SandboxConnectionRecord } from "@/lib/sandbox-connections-api";
 import { useTranslations } from "next-intl";
 
@@ -14,7 +15,8 @@ interface ConnectionsTableProps {
   onDelete: (connection: SandboxConnectionRecord) => void;
 }
 
-/** What kind of host this is, in words and an icon rather than a stored string. */
+/** What kind of host this is, in words rather than the stored string. The mark
+ * beside them is `ConnectionKindIcon`, which the dialog and the Builder draw too. */
 function kindLabel(kind: string, t: (key: string) => string): string {
   return kind === "daytona" ? t("daytonaCloud") : t("containerService");
 }
@@ -79,7 +81,10 @@ export function ConnectionsTable({
         key: "kind",
         header: t("kind"),
         cell: (connection) => (
-          <span className="text-muted-foreground">{kindLabel(connection.kind, t)}</span>
+          <span className="text-muted-foreground flex items-center gap-2">
+            <ConnectionKindIcon kind={connection.kind} className="h-3.5 w-3.5" />
+            {kindLabel(connection.kind, t)}
+          </span>
         ),
       },
       {

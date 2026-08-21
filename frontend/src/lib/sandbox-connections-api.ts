@@ -113,6 +113,14 @@ export interface SandboxSession {
   } | null;
   agent_id: string | null;
   conversation_id: string | null;
+  /**
+   * Whether that conversation is the reader's own.
+   *
+   * The chat page lists its owner's threads, so a link to anybody else's lands on
+   * an empty sidebar dressed as the conversation - and this listing is
+   * organization-wide, so most rows are somebody else's.
+   */
+  conversation_is_callers: boolean;
   scope: string | null;
 }
 
@@ -148,7 +156,7 @@ export interface SandboxEventList {
  * one would have had it in a browser.
  */
 /**
- * One runtime the sandbox library ships.
+ * One runtime this deployment ships.
  *
  * The catalog, not the allowlist: every `sandboxd` is built from these, so a form
  * can offer them with no address and no credential. Whether a particular service
@@ -201,7 +209,7 @@ export async function deleteSandboxConnection(id: string): Promise<void> {
   await apiClient.delete(`${ROOT}/${id}`);
 }
 
-/** Every runtime the library ships. Static — nothing is contacted to answer it. */
+/** What this deployment ships. Static — nothing is contacted to answer it. */
 export async function listSandboxRuntimes(): Promise<SandboxRuntimeOption[]> {
   const data = await apiClient.get<{ items: SandboxRuntimeOption[]; total: number }>(
     `${ROOT}/runtimes`,

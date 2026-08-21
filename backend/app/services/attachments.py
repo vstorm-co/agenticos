@@ -22,6 +22,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
+from pathlib import PurePosixPath
 from typing import Any
 from uuid import UUID
 
@@ -34,9 +35,19 @@ from app.services.file_storage import get_file_storage
 
 logger = logging.getLogger(__name__)
 
-UPLOAD_DIR = "/uploads"
-"""Where attachments land. One directory, so `ls /uploads` answers "what was I
-given" without the agent guessing at a layout."""
+UPLOAD_DIR = "uploads"
+"""Where attachments land, **relative to the workspace's working directory**.
+
+One directory, so `ls uploads` answers "what was I given" without the agent
+guessing at a layout. Relative because absolute was wrong in a way nothing
+reported: a sandbox resolves an absolute path as absolute, so `/uploads/x`
+landed at the container's filesystem root - outside the bind-mounted work
+directory. The agent's `ls` did not see it, the workspace browser reads the host
+directory and so could not list it, and the file died with the container while
+everything under the work directory survived. An agent asked to read an
+attachment answered that the directory was empty, having summarised the file
+from the head sample in its own prompt (#1039).
+"""
 
 HEAD_LINES = 20
 """How much of a text file the reference shows.
@@ -62,6 +73,39 @@ class AttachmentPlan:
 
     inline: BinaryContent | None
     """Bytes the model should see directly, when it can and should."""
+
+    refused: bool = False
+    """Whether the workspace would not take this file.
+
+    Carried on the plan rather than inferred from the reference's wording, so the
+    turn can say once that the workspace is unavailable - see `_WORKSPACE_REFUSED`.
+    """
+
+
+_WORKSPACE_REFUSED = (
+    "\n---\nYour workspace would not accept a write this turn. If the shell or the "
+    "file tools fail as well, the workspace is unavailable - that is not a fault in "
+    "the command you wrote, and another attempt will fail the same way. Answer from "
+    "what is in this message, and say plainly that the workspace could not be "
+    "reached."
+)
+"""One sentence about the machine, where every other line is about a file."""
+
+
+def is_attachment(path: str) -> bool:
+    """Whether a workspace path is a file a person attached.
+
+    `uploads/` is this application's own convention - `workspace_path` below puts
+    every attachment there - and it is the only signal available: a host records no
+    author, and neither does the state document. So this is a fact about *where* a
+    file is, stated as what that placement means.
+
+    Which also names its one limit. An agent that writes into `uploads/` itself is
+    indistinguishable from a person who attached something, and nothing stops it.
+    The alternative is a table mapping every path to whoever wrote it, which is a
+    row per file per workspace to answer a question a directory already answers.
+    """
+    return PurePosixPath(path.lstrip("/")).parts[:1] == (UPLOAD_DIR,)
 
 
 def workspace_path(chat_file: ChatFile) -> str:
@@ -109,11 +153,45 @@ def _pasted(chat_file: ChatFile) -> str:
     return f"\n---\nAttached file: {chat_file.filename}\n```\n{chat_file.parsed_content}\n```"
 
 
-def _referenced(chat_file: ChatFile, path: str) -> str:
+def _text_sibling(chat_file: ChatFile, path: str) -> str | None:
+    """Where this file's extracted text sits, when one was written beside it.
+
+    Derived from the file rather than from whether *this* turn did the writing:
+    re-attaching a file on a later turn skips the write, and a reference that only
+    named the sibling on the turn that created it would stop naming a file that is
+    still there.
+    """
+    if chat_file.file_type in {"pdf", "docx", "spreadsheet"} and chat_file.parsed_content:
+        return f"{path}.txt"
+    return None
+
+
+def _referenced(chat_file: ChatFile, path: str, *, sibling: str | None) -> str:
+    """What the model is told about a file that is in its workspace.
+
+    **The path is a sentence, not a parenthesis.** It read
+    `report.pdf (uploads/8b1e-report.pdf, 280 KB, pdf)` - the path one of three
+    facts in a bracket - and a model skimming that answered "the directory is
+    empty" after one `ls`, on a file it had summarised a turn earlier. Where it is
+    gets its own clause (#1039).
+
+    **The extracted text is named only where it is there.** A PDF, a `.docx` and a
+    spreadsheet used to get a `.txt` of the parse beside them unconditionally,
+    which on a runtime carrying `lit` is a second copy of the file's contents on
+    disk to save the agent a tool call it should be making. So it is written only
+    where the workspace cannot read the original itself - and *named* only where
+    the write actually landed, which is a different question again: the second
+    write can be refused by a document with no room left for it, and a model told
+    about a file that is not there has twenty lines of prompt and a binary it
+    cannot parse. The caller asks the workspace - see `_sibling_present`.
+    """
     parts = [
         f"\n---\nAttached file: {chat_file.filename} "
-        f"({path}, {_size(chat_file)}, {chat_file.file_type})"
+        f"({_size(chat_file)}, {chat_file.file_type}), "
+        f"in your workspace at {path}"
     ]
+    if sibling is not None:
+        parts.append(f"\nIts text, extracted for you, is beside it at {sibling}")
     if chat_file.parsed_content:
         parts.append(f"\nFirst {HEAD_LINES} lines:\n```\n{_head(chat_file.parsed_content)}\n```")
     return "".join(parts)
@@ -136,19 +214,27 @@ def _too_large_to_show(chat_file: ChatFile) -> str:
 def _unstored(chat_file: ChatFile) -> str:
     """Named and sampled, with no path offered because there is nothing at one.
 
-    Never `_pasted`. This is only reached when the workspace refused the write,
-    which for a full workspace means the file was too large to store - and a file
-    too large for a four-megabyte document is too large to put in a prompt. The
-    head is the usable part; the whole thing is the paste this module exists to
-    replace.
+    **It says what happened and not why**, which it used to get wrong in the one
+    way that matters. The sentence read "too large for the workspace", reasoned
+    from the `state` backend's four-megabyte document - and a container write
+    fails for reasons that have nothing to do with size: an unreachable host
+    answers `could not write 'uploads/x.pdf'`, worded identically to a refusal. So
+    a 782 KB PDF attached while `sandboxd` was down was reported to the model as
+    too large, the model repeated that to the person who attached it, and the two
+    of them spent a conversation on a size limit that was never the problem. The
+    real error is in the `attachment_not_written` log line beside the caller.
+
+    Never `_pasted`. A file the workspace would not take is not a file to put in a
+    prompt: with a 50 MB upload limit against a 4 MB document, that is up to fifty
+    megabytes of text in one message. The head is the usable part.
 
     And no path, because the write failed: naming one the agent cannot open would
     cost it a tool call to discover a file that is not there.
     """
     parts = [
         f"\n---\nAttached file: {chat_file.filename} "
-        f"({_size(chat_file)}, {chat_file.file_type}) - too large for the workspace, "
-        "so it was not stored and cannot be opened as a file"
+        f"({_size(chat_file)}, {chat_file.file_type}) - it could not be written to "
+        "your workspace, so there is no file to open. Do not guess at why"
     ]
     if chat_file.parsed_content:
         parts.append(f"\nFirst {HEAD_LINES} lines:\n```\n{_head(chat_file.parsed_content)}\n```")
@@ -195,7 +281,12 @@ class AttachmentRouter:
     three different things.
     """
 
-    def __init__(self, backend: BackendProtocol | AsyncBackendProtocol | None = None) -> None:
+    def __init__(
+        self,
+        backend: BackendProtocol | AsyncBackendProtocol | None = None,
+        *,
+        can_parse: bool = False,
+    ) -> None:
         # Wrapped here rather than at each `await` below, and rather than being the
         # caller's problem. A container-backed workspace is a synchronous
         # `httpx.Client`, so writing an upload into one from this coroutine blocked
@@ -204,6 +295,13 @@ class AttachmentRouter:
         # exists to make possible. `ensure_async` is the library's own answer and is
         # idempotent, so an already-async backend passes through untouched.
         self._backend = None if backend is None else ensure_async(backend)
+        # Whether the workspace can read a PDF, a `.docx` or a spreadsheet *itself*.
+        # True only for a runtime this deployment describes, which is the same
+        # condition as having told the model it has `lit` - so the caller passes
+        # `workspace.briefing is not None` rather than guessing from the backend
+        # kind. A `state` workspace is files with no shell; a Daytona sandbox and
+        # somebody's own runtime carry whatever their image carries.
+        self._can_parse = can_parse
 
     async def build_prompt(self, user_message: str, files: list[ChatFile]) -> str | list[Any]:
         """The user's message, with everything they attached folded in."""
@@ -212,12 +310,23 @@ class AttachmentRouter:
 
         text_parts: list[str] = []
         inline: list[BinaryContent] = []
+        refused = False
         for chat_file in files:
             plan = await self.route(chat_file)
+            refused = refused or plan.refused
             if plan.reference:
                 text_parts.append(plan.reference)
             if plan.inline is not None:
                 inline.append(plan.inline)
+
+        # **Said once, about the workspace, not once per file.** A run whose
+        # workspace will not take a write is a run whose shell and file tools will
+        # not work either, and nothing told the model that: it read each failure as
+        # a problem with the command it had just written and kept trying - in one
+        # conversation `ls`, then a `curl` of a `data:` URI, then three workarounds
+        # offered to the person, across two turns and 57k tokens (#1046).
+        if refused and self._backend is not None:
+            text_parts.append(_WORKSPACE_REFUSED)
 
         full_text = user_message + "".join(text_parts)
         if inline:
@@ -292,36 +401,67 @@ class AttachmentRouter:
                 # `_inline_image` has its own, much smaller ceiling.
                 logger.info("attachment_not_written", extra={"path": path, "reason": result.error})
                 if chat_file.file_type == "image":
-                    return await self._without_workspace(chat_file)
-                return AttachmentPlan(reference=_unstored(chat_file), inline=None)
+                    plan = await self._without_workspace(chat_file)
+                    return AttachmentPlan(
+                        reference=plan.reference, inline=plan.inline, refused=True
+                    )
+                return AttachmentPlan(reference=_unstored(chat_file), inline=None, refused=True)
+
             await self._write_extracted_text(backend, chat_file, path)
 
+        sibling = await self._sibling_present(backend, chat_file, path)
         if chat_file.file_type != "image":
-            return AttachmentPlan(reference=_referenced(chat_file, path), inline=None)
+            return AttachmentPlan(
+                reference=_referenced(chat_file, path, sibling=sibling), inline=None
+            )
         return AttachmentPlan(
-            reference=_referenced(chat_file, path),
+            reference=_referenced(chat_file, path, sibling=sibling),
             inline=await self._inline_image(chat_file, data),
         )
+
+    async def _sibling_present(
+        self, backend: AsyncBackendProtocol, chat_file: ChatFile, path: str
+    ) -> str | None:
+        """The extracted text beside the original, where the workspace really has it.
+
+        Asked rather than assumed, and that is the whole point: the write above can
+        be refused - a document with room for a 3 MB spreadsheet and not for its
+        parse - and the file may equally be there from an earlier turn, because
+        re-attaching writes nothing. Both cases are answered by asking, which the
+        one round trip is worth: naming a file that is not there costs the model a
+        tool call to discover it and leaves it with the head sample.
+        """
+        if self._can_parse:
+            return None
+        sibling = _text_sibling(chat_file, path)
+        if sibling is None:
+            return None
+        return sibling if await backend.exists(sibling) else None
 
     async def _write_extracted_text(
         self, backend: AsyncBackendProtocol, chat_file: ChatFile, path: str
     ) -> None:
-        """Put the parse beside the original, for a format a shell cannot read.
+        """Put the parse beside the original, for a workspace that cannot read it.
 
-        A PDF in a workspace is bytes an agent has no tool for; the text this
-        platform already extracted is the useful half. Both are kept, because
-        the original is what a person asked to be given and what an image
-        conversion or a page count needs.
-
-        A spreadsheet is the same case and it is worth saying why, because the
-        obvious assumption is that an agent given the file can open it: it cannot.
-        `run_python` has no filesystem at all - it is for arithmetic - and the
-        workspace shell has no spreadsheet library, so `.xlsx` in a workspace is a
-        zip of XML that `read_file` returns as mojibake. The `.txt` beside it is
-        the only readable half.
+        Skipped where the runtime carries `lit`, which reads a PDF, a `.docx` and a
+        spreadsheet in one command - there the sibling is a second copy of the
+        file's contents on disk to save a tool call. Written everywhere else,
+        because a `state` workspace has no shell at all and an `.xlsx` in one is a
+        zip of XML that `read_file` returns as mojibake.
         """
-        if chat_file.file_type in {"pdf", "docx", "spreadsheet"} and chat_file.parsed_content:
-            await backend.write(f"{path}.txt", chat_file.parsed_content)
+        if self._can_parse:
+            return
+        sibling = _text_sibling(chat_file, path)
+        if sibling is None or not chat_file.parsed_content:
+            return
+        result = await backend.write(sibling, chat_file.parsed_content)
+        if result.error is not None:
+            # Not raised and not reported to the model here: `_sibling_present`
+            # asks the workspace what is actually there, so a refused write simply
+            # goes unnamed. The line is what tells an operator why.
+            logger.info(
+                "attachment_text_not_written", extra={"path": sibling, "reason": result.error}
+            )
 
     async def _inline_image(self, chat_file: ChatFile, data: bytes | None) -> BinaryContent | None:
         """The picture itself, when it is small enough to be worth sending twice.

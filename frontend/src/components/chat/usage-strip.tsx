@@ -1,6 +1,6 @@
 "use client";
 
-import { Coins, Gauge, HardDrive } from "lucide-react";
+import { Coins, Gauge, HardDrive, MemoryStick } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
@@ -209,9 +209,21 @@ function WorkspaceSegment({
 
   return (
     <span className="flex items-center gap-1.5" title={fill.detail}>
-      <HardDrive className="h-3 w-3" aria-hidden />
+      {/* The icon carries the same distinction as the words: a chip for memory,
+          a disk for bytes kept. */}
+      {fill.kind === "memory" ? (
+        <MemoryStick className="h-3 w-3" aria-hidden />
+      ) : (
+        <HardDrive className="h-3 w-3" aria-hidden />
+      )}
       {fill.percent === null ? (
         <span>{t("workspaceInUse")}</span>
+      ) : fill.percent < 1 && fill.used !== null ? (
+        <span>
+          {fill.kind === "memory"
+            ? t("sandboxMemoryUsed", { used: fill.used })
+            : t("workspaceUsedAmount", { used: fill.used })}
+        </span>
       ) : (
         <>
           <span
@@ -220,7 +232,9 @@ function WorkspaceSegment({
               fill.percent >= 80 && fill.percent < 90 && "text-amber-600",
             )}
           >
-            {t("workspaceFull", { percent: fill.percent })}
+            {fill.kind === "memory"
+              ? t("sandboxMemoryFull", { percent: fill.percent })
+              : t("workspaceFull", { percent: fill.percent })}
           </span>
           {/* A bar as well as the number: 84% and 8% read the same at a glance in
               a line of small grey text, and the whole point of showing this is to
@@ -255,7 +269,27 @@ function WorkspaceSegment({
 
 interface Fill {
   percent: number | null;
+  /**
+   * What is actually in use, formatted, for when the share says nothing.
+   *
+   * A container with a 2 GiB ceiling holding 760 KiB is 0.036% full, which the
+   * server rounds to `0` - and "sandbox memory 0% full" beside a bar drawn at
+   * zero is a gauge that reads the same on every ordinary turn. Under one per
+   * cent the amount is the honest thing to print, and there is no bar to draw.
+   */
+  used: string | null;
   detail: string;
+  /**
+   * Which ceiling this is a share of, because they are not the same thing.
+   *
+   * A container's number is resident **memory** against the ceiling its host
+   * set; a stored workspace's is bytes against a cap this platform holds. Both
+   * used to read `workspace {percent}% full`, so a sandbox using a tenth of its
+   * gigabyte of RAM reported a workspace that was almost empty of *disk* - a
+   * sentence about a limit that does not apply, next to a number that is right
+   * (#1039).
+   */
+  kind: "memory" | "stored";
 }
 
 /** How full the workspace is, from whichever source can say. */
@@ -265,7 +299,15 @@ function fillOf(
   t: Translate,
 ): Fill | null {
   const sandbox = usage.sandbox;
-  if (sandbox !== null) return { percent: sandbox.percent, detail: reportedDetail(sandbox, t) };
+  if (sandbox !== null)
+    return {
+      percent: sandbox.percent,
+      used: usedOf(sandbox),
+      detail: reportedDetail(sandbox, t),
+      // Bytes first, matching `SandboxUsage.percent` on the server: whichever
+      // pair it measured is the pair this describes.
+      kind: sandbox.bytes_used !== null && sandbox.bytes_limit !== null ? "stored" : "memory",
+    };
   // No turn has reported one - a reopened conversation. A stored workspace can still
   // be measured from the listing; a container cannot, and "in use" would claim a
   // sandbox is running when the last one may have been reaped weeks ago.
@@ -273,10 +315,12 @@ function fillOf(
     return null;
   return {
     percent: Math.round((workspace.bytes_total * 100) / workspace.bytes_limit),
+    used: size(workspace.bytes_total),
     detail: t("storedOf", {
       used: size(workspace.bytes_total),
       limit: size(workspace.bytes_limit),
     }),
+    kind: "stored",
   };
 }
 
@@ -299,7 +343,17 @@ function share(percent: number): string {
 function size(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KiB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+  // A 2 GiB ceiling printed as `2048.0 MiB` reads like a quota for a whole
+  // installation rather than one container's limit.
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GiB`;
+}
+
+/** How much is in use, formatted, whichever pair the backend reported. */
+function usedOf(sandbox: NonNullable<TurnUsage["sandbox"]>): string | null {
+  if (sandbox.bytes_used !== null) return size(sandbox.bytes_used);
+  if (sandbox.memory_bytes !== null) return size(sandbox.memory_bytes);
+  return null;
 }
 
 /** What the workspace half is measuring, and how much of it is gone. */

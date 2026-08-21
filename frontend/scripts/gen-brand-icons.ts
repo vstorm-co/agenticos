@@ -73,6 +73,7 @@ const BRANDS: Readonly<Record<string, Source>> = {
   clickup: simple("clickup"),
   cloudflare: simple("cloudflare"),
   databricks: simple("databricks"),
+  docker: simple("docker"),
   deepl: simple("deepl"),
   dropbox: simple("dropbox"),
   duckduckgo: simple("duckduckgo"),

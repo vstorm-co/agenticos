@@ -58,10 +58,18 @@ from app.repositories import agent as agent_repo
 from app.repositories import agent_workspace as workspace_repo
 from app.repositories import conversation as conversation_repo
 from app.services.sandbox_connection import ResolvedConnection, SandboxConnectionService
+from app.services.sandbox_runtimes import runtime_briefing, runtime_parses_documents
 
 logger = logging.getLogger(__name__)
 
 SANDBOX_CAPABILITY_ID = "sandbox"
+
+_MAX_LISTED_DEPTH = 6
+"""How deep a workspace listing walks. A directory is a round trip to the host."""
+
+_MAX_LISTED_ENTRIES = 2000
+"""Where a listing stops. A host holding a `node_modules` must not turn one
+workspace into ten thousand rows on a page about twenty-five of them."""
 
 
 @dataclass(frozen=True)
@@ -78,6 +86,15 @@ class WorkspaceContents:
 
     entries: list[FileInfo]
     unreadable_reason: str | None = None
+
+    truncated: bool = False
+    """Whether the walk stopped before the workspace did.
+
+    A separate answer from `unreadable_reason`: the host answered, and this is
+    still not all of it. A listing bounded at 2,000 entries and six levels is a
+    listing a person reads as the whole of what an agent is keeping, which for a
+    workspace holding a checkout or a `node_modules` it is not.
+    """
 
 
 @dataclass(frozen=True)
@@ -97,6 +114,37 @@ class WorkspaceOverview:
     """How many conversations reach these files. Zero for a run-scoped workspace,
     which is gone before anybody could look."""
     access_label: str
+
+
+NOT_BROWSABLE = ("skills/", f"{OVERFLOW_PREFIX}/")
+"""Prefixes the file browser drops, matched after the leading slash.
+
+Both are the platform's own writing rather than the agent's work for a person, and
+both are needed on disk: a skill's resource is a script the shell runs and
+`collect_changes` diffs, and a spill is what a tool's overflowing output was
+written to. A listing of what an agent is keeping is not the place either belongs -
+`/workspaces` was mostly `skills/<name>/SKILL.md` before this (#1064)."""
+
+
+def browsable(entries: list[FileInfo]) -> list[FileInfo]:
+    """The entries a person is shown, without what the platform put there itself."""
+    return [
+        entry
+        for entry in entries
+        if not str(entry.get("path", "")).lstrip("/").startswith(NOT_BROWSABLE)
+    ]
+
+
+@dataclass(frozen=True)
+class MeasuredWorkspaces:
+    """File counts and byte totals for a listing, and what it cost to get them."""
+
+    counts: dict[UUID, tuple[int, int]]
+    """Workspace id to `(files, bytes)`. Absent for one that was not read."""
+
+    measured: int
+    unreadable: int
+    truncated: bool
 
 
 @dataclass(frozen=True)
@@ -145,6 +193,27 @@ class OpenWorkspace:
 
     connection_id: UUID | None = None
     """Which registered connection it runs on, for a workspace that is not `state`."""
+
+    briefing: str | None = None
+    """What this run should tell its model about the container it works in.
+
+    Composed here rather than carried as an alias, because an alias would be
+    `None` for two different reasons - no `sandboxd` at all, and a `sandboxd`
+    whose default nobody overrode - and only the second one is describable.
+    `None` for a `state` or Daytona workspace, whose image this deployment does
+    not build and so cannot honestly describe.
+    """
+
+    parses_documents: bool = False
+    """Whether the container can read a PDF, a `.docx` or a spreadsheet itself.
+
+    Not `briefing is not None`, which is what it was and what made an inaccurate
+    package hint into missing data: a briefing falls back to the catalogue's first
+    entry for a run that named no runtime, and the host is the one that actually
+    chooses in that case. `runtime_parses_documents` answers only for an alias that
+    was named, shipped here, and installs the parser - so a custom host gets the
+    extracted text written beside the original, as it did before any of this.
+    """
 
     opened_version: int | None = None
     """What `version` said when this run loaded the document.
@@ -348,10 +417,15 @@ class SandboxWorkspaceService:
         resolving can fail for reasons that were fine at publish time (a key
         rotated away, a host switched off) and each of those says which.
         """
+        briefing: str | None = None
+        parses_documents = False
         if resolved.kind == "daytona":
             backend = self._daytona(key, resolved)
         else:
             backend = self._sandboxd(config, identity, key, resolved)
+            alias = config.runtime or resolved.row.default_runtime or None
+            briefing = runtime_briefing(alias)
+            parses_documents = runtime_parses_documents(alias)
 
         row = await self._row(
             config, identity, key, scope, session_id=key, connection_id=resolved.row.id
@@ -363,6 +437,8 @@ class SandboxWorkspaceService:
             scope_key=key,
             row_id=row.id if row is not None else None,
             connection_id=resolved.row.id,
+            briefing=briefing,
+            parses_documents=parses_documents,
         )
 
     @staticmethod
@@ -742,6 +818,51 @@ class SandboxWorkspaceService:
         """
         return ctx.has(Perm.CONNECTIONS_MANAGE)
 
+    async def measured(
+        self, ctx: AuthContext, overviews: list[WorkspaceOverview], *, hosts: bool, limit: int = 25
+    ) -> MeasuredWorkspaces:
+        """How many files each workspace holds, and what they come to.
+
+        Free for a stored workspace: its files are a column of the row this listing
+        already read, so the count is arithmetic. A container's are on its host, and
+        reading them is a round trip *per workspace* - the cost `flat_files` bounds
+        at twenty-five and reports rather than pays silently. So `hosts` is the
+        caller's decision and the default listing does not make it.
+
+        A workspace whose host will not answer is counted, not dropped: a listing
+        that quietly skipped it would read as a workspace holding no files, which is
+        the one answer nobody can distinguish from the truth.
+        """
+        counts: dict[UUID, tuple[int, int]] = {}
+        unreadable = 0
+        read = 0
+        remote = 0
+        for overview in overviews:
+            row = overview.row
+            if row.backend != "state":
+                if not hosts:
+                    continue
+                if remote >= limit:
+                    continue
+                remote += 1
+            contents = await self._entries(ctx, row)
+            if contents.unreadable_reason is not None:
+                unreadable += 1
+                continue
+            files = browsable([entry for entry in contents.entries if not entry.get("is_dir")])
+            counts[row.id] = (
+                len(files),
+                sum(int(entry.get("size") or 0) for entry in files),
+            )
+            read += 1
+        containers = sum(1 for overview in overviews if overview.row.backend != "state")
+        return MeasuredWorkspaces(
+            counts=counts,
+            measured=read,
+            unreadable=unreadable,
+            truncated=hosts and containers > limit,
+        )
+
     async def flat_files(self, ctx: AuthContext, *, limit: int = 25) -> FlatFileListing:
         """Every file this caller can see, in one list, with its workspace named.
 
@@ -763,23 +884,41 @@ class SandboxWorkspaceService:
         overviews = await self.visible_to(ctx)
         files: list[FlatEntry] = []
         unreadable = 0
+        # A budget across the whole request, not per workspace: a host's thumbnail
+        # is a `read_bytes` for that file, and twenty-five workspaces of photographs
+        # would be a page that fetches two hundred images to draw them 64 pixels
+        # wide. The tiles past it fall back to the grey glyph, which is what every
+        # container-backed image looked like before.
+        budget = HOST_THUMBNAIL_BUDGET
         for overview in overviews[:limit]:
             contents = await self._entries(ctx, overview.row)
             if contents.unreadable_reason is not None:
                 unreadable += 1
                 continue
-            stored = dict(overview.row.files or {}) if overview.row.backend == "state" else {}
+            entries = browsable([entry for entry in contents.entries if not entry.get("is_dir")])
+            if overview.row.backend == "state":
+                stored = dict(overview.row.files or {})
+                files.extend(
+                    FlatEntry(
+                        overview=overview,
+                        info=entry,
+                        preview=stored_preview(stored.get(str(entry.get("path")))),
+                        thumbnail=stored_thumbnail(
+                            str(entry.get("path")), stored.get(str(entry.get("path")))
+                        ),
+                    )
+                    for entry in entries
+                )
+                continue
+            drawn, budget = await self._host_thumbnails(ctx, overview.row, entries, budget)
             files.extend(
                 FlatEntry(
                     overview=overview,
                     info=entry,
-                    preview=stored_preview(stored.get(str(entry.get("path")))),
-                    thumbnail=stored_thumbnail(
-                        str(entry.get("path")), stored.get(str(entry.get("path")))
-                    ),
+                    preview=None,
+                    thumbnail=drawn.get(str(entry.get("path"))),
                 )
-                for entry in contents.entries
-                if not entry.get("is_dir")
+                for entry in entries
             )
         return FlatFileListing(
             files=files,
@@ -787,6 +926,48 @@ class SandboxWorkspaceService:
             unreadable=unreadable,
             truncated=len(overviews) > limit,
         )
+
+    async def _host_thumbnails(
+        self,
+        ctx: AuthContext,
+        row: AgentWorkspace,
+        entries: list[FileInfo],
+        budget: int,
+    ) -> tuple[dict[str, str], int]:
+        """Thumbnails for a host's images, within what is left of the budget.
+
+        A stored image arrives base64 in the document this listing already read, so
+        drawing it costs nothing; a host's is a `read_bytes` for that one file. So
+        this is bounded and the size is checked *before* fetching, off the listing
+        entry - a 20 MB photograph would be read in full to be thrown away by the
+        scaler's own ceiling.
+
+        Failure is silence. A file whose suffix says PNG and whose bytes are not
+        one, or a host that stops answering mid-grid, leaves that tile with the
+        glyph every container-backed image had before this existed.
+        """
+        drawn: dict[str, str] = {}
+        for entry in entries:
+            if budget <= 0:
+                break
+            path = str(entry.get("path"))
+            if PurePosixPath(path).suffix.lower() not in THUMBNAIL_SUFFIXES:
+                continue
+            size = entry.get("size")
+            if size is None or int(size) > THUMBNAIL_SOURCE_LIMIT:
+                continue
+            budget -= 1
+            try:
+                raw = await self._read_bytes_from(ctx, row, path)
+            except Exception:
+                logger.warning("workspace_thumbnail_unreadable", extra={"path": path})
+                continue
+            if raw is None:
+                continue
+            scaled = thumbnail_of(path, raw)
+            if scaled is not None:
+                drawn[path] = scaled
+        return drawn, budget
 
     async def files_of(
         self, ctx: AuthContext, workspace_id: UUID
@@ -811,7 +992,12 @@ class SandboxWorkspaceService:
             raise NotFoundError(
                 message="Workspace not found", details={"workspace_id": str(workspace_id)}
             )
-        return row, await self._entries(ctx, row)
+        contents = await self._entries(ctx, row)
+        return row, WorkspaceContents(
+            entries=browsable(contents.entries),
+            unreadable_reason=contents.unreadable_reason,
+            truncated=contents.truncated,
+        )
 
     async def _may_read(self, ctx: AuthContext, row: AgentWorkspace) -> bool:
         """Whether this caller reaches one workspace by id.
@@ -967,24 +1153,87 @@ class SandboxWorkspaceService:
         if not rows:
             return None
         row = rows[0]
-        return row, await self._entries(ctx, row)
+        contents = await self._entries(ctx, row)
+        return row, WorkspaceContents(
+            entries=browsable(contents.entries),
+            unreadable_reason=contents.unreadable_reason,
+            truncated=contents.truncated,
+        )
 
     async def _entries(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
         if row.backend == "state":
             return WorkspaceContents(entries=stored_entries(dict(row.files or {})))
         return await self._remote_entries(ctx, row)
 
+    @staticmethod
+    async def _walk(archive: Any, session: str) -> tuple[list[FileInfo], bool]:
+        """Every file on a host's volume, not only the ones at the root.
+
+        **The archive's `ls` lists one directory.** It was called once, on the root,
+        so a workspace whose files are all under `uploads/` reported a single
+        directory entry and nothing else - the folder opened empty in the browser,
+        the file count read zero, and the only place the files appeared was the flat
+        view of a *stored* workspace, where the paths come out of a JSONB column
+        whole.
+
+        A directory costs a round trip, so the walk is bounded twice over: by depth,
+        because a workspace three deep is the shape this product produces, and by
+        entries, because a host holding a `node_modules` must not turn a listing into
+        ten thousand of them. `glob` would be one call rather than several, and it is
+        not available here: it needs a running session, and browsing deliberately
+        never starts one.
+
+        `to_thread`, because `WorkspaceArchive` is a synchronous `httpx.Client`.
+        `flat_files` runs this for up to 25 workspaces in one request, so a blocking
+        call would hold the loop for all 25 - and not only for that request.
+
+        Returns:
+            What was found, and whether either bound stopped it - because a
+            listing that is shorter than the workspace and does not say so is one
+            a person reads as complete.
+        """
+        found: list[FileInfo] = []
+        truncated = False
+        queue: list[tuple[str, int]] = [(".", 0)]
+        while queue:
+            path, depth = queue.pop(0)
+            try:
+                entries = await asyncio.to_thread(archive.ls, session, path)
+            except Exception:
+                # The root's failure is the host's and belongs to the caller, which
+                # turns it into `unreadable_reason`. One directory below it refusing
+                # is not: dropping the whole listing for a subdirectory the agent
+                # made unreadable would report a workspace nobody can read.
+                if depth == 0:
+                    raise
+                logger.warning("workspace_listing_subtree_unreadable", extra={"path": path})
+                continue
+            for entry in entries:
+                found.append(entry)
+                if len(found) >= _MAX_LISTED_ENTRIES:
+                    logger.warning(
+                        "workspace_listing_truncated",
+                        extra={"session": session, "listed": len(found)},
+                    )
+                    return found, True
+                if not entry.get("is_dir"):
+                    continue
+                if depth + 1 < _MAX_LISTED_DEPTH:
+                    queue.append((str(entry.get("path")), depth + 1))
+                else:
+                    # A directory the walk will not open. It is in the listing as a
+                    # folder, so what is missing is everything under it.
+                    truncated = True
+        return found, truncated
+
     async def _remote_entries(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
         try:
             async with self._archive(ctx, row) as archive:
                 if archive is None:
                     return WorkspaceContents(entries=[])
-                # `to_thread`, because `WorkspaceArchive` is a synchronous
-                # `httpx.Client` and this is a round trip to the host. `flat_files`
-                # runs it for up to 25 workspaces in one request, so the loop was
-                # held for all 25 - and not only for that request.
-                entries = await asyncio.to_thread(archive.ls, row.session_id or row.scope_key)
-                return WorkspaceContents(entries=list(entries))
+                session = row.session_id or row.scope_key
+                entries, truncated = await self._walk(archive, session)
+                return WorkspaceContents(entries=entries, truncated=truncated)
         except Exception as exc:
             # Carried, not raised. "There are no files" and "this host cannot be
             # read" must stay distinguishable - an empty folder is what a user
@@ -1183,6 +1432,13 @@ def stored_preview(data: FileData | None) -> str | None:
 THUMBNAIL_BOX = (160, 128)
 """Twice the card's 64px band, so the tile is not soft on a retina screen."""
 
+HOST_THUMBNAIL_BUDGET = 24
+"""How many host-backed images one flat listing will fetch to draw.
+
+A stored image is already in the document the listing reads; a host's is a
+`read_bytes` per file. Twenty-four is one screen of tiles - past it the grey glyph
+is what a container-backed image looked like before any of them were drawn."""
+
 THUMBNAIL_SOURCE_LIMIT = 4 * 1024 * 1024
 """The largest stored image this will decode.
 
@@ -1249,6 +1505,21 @@ def stored_thumbnail(path: str, data: FileData | None) -> str | None:
     except (BinasciiError, ValueError):
         logger.warning("workspace_thumbnail_undecodable", extra={"path": path})
         return None
+    return thumbnail_of(path, raw)
+
+
+def thumbnail_of(path: str, raw: bytes) -> str | None:
+    """An image's bytes scaled to a data URI, wherever they came from.
+
+    Split out of `stored_thumbnail` so a container-backed file can be drawn too.
+    A stored one arrives base64 in the document the listing already read; a host's
+    is a `read_bytes` per file, which is why the caller counts them - see
+    `_host_thumbnails`.
+
+    Whether the suffix says image at all is asked by each caller instead, because
+    each pays a different price for the answer: a decode of the whole base64 body
+    for a stored file, a fetch from the host for a container's.
+    """
     if len(raw) > THUMBNAIL_SOURCE_LIMIT:
         return None
     try:

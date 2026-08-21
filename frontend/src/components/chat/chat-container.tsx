@@ -11,7 +11,7 @@ import { ChatEmptyState } from "./chat-empty-state";
 import { ChatInput } from "./chat-input";
 import { UsageStrip } from "./usage-strip";
 import { WorkspaceFiles } from "./workspace-files";
-import { FilePreviewPanel } from "./file-preview-panel";
+import { FilePreviewDialog } from "./file-preview-dialog";
 import { SourcesPanel } from "./sources-panel";
 import { MessageList } from "./message-list";
 import { DelegationPanels } from "./delegation-panel";
@@ -32,7 +32,12 @@ import type {
 } from "@/types";
 import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
 import { latestUsage } from "@/lib/message-usage";
-import { useAgentSelectionStore, useConversationStore, useChatStore } from "@/stores";
+import {
+  useAgentSelectionStore,
+  useChatStore,
+  useConversationStore,
+  useFilePreviewStore,
+} from "@/stores";
 import { useConversations } from "@/hooks";
 import { useSlashCommands } from "@/hooks";
 
@@ -153,6 +158,15 @@ export function ChatContainer() {
     for (const message of messages) for (const file of message.files ?? []) seen.set(file.id, file);
     return [...seen.values()];
   }, [messages]);
+
+  // Handed to the store as well as to the panel, so the file dialog's carousel
+  // pages through the conversation wherever a file was clicked. In an effect
+  // rather than during render: writing to a store while rendering is a side
+  // effect, and React is entitled to render this twice.
+  const setAvailableFiles = useFilePreviewStore((state) => state.setAvailable);
+  useEffect(() => {
+    setAvailableFiles(attachments);
+  }, [attachments, setAvailableFiles]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -409,6 +423,9 @@ function ChatUI({
   // which means the scroll area must end where the dock begins or the last
   // message hides behind it. The dock's height is not a constant - attachments,
   // banners and a growing textarea all change it - so it is measured.
+  // A callback ref rather than `useRef`, because the portal has to re-render once
+  // the node exists: a ref object mutating tells React nothing.
+  const [attachmentSlot, setAttachmentSlot] = useState<HTMLDivElement | null>(null);
   const dockRef = useRef<HTMLDivElement | null>(null);
   const [dockHeight, setDockHeight] = useState(0);
   useLayoutEffect(() => {
@@ -481,6 +498,10 @@ function ChatUI({
             {queuedMessages && queuedMessages.length > 0 && onCancelQueued && (
               <PendingMessages messages={queuedMessages} onCancel={onCancelQueued} />
             )}
+            {/* What is attached, above the composer rather than inside it. The
+                slot is here because the box below is drawn here; `ChatInput`
+                portals its row into it and keeps the upload state. */}
+            <div ref={setAttachmentSlot} />
             <div
               data-tour="chat-composer"
               className="glass focus-within:border-foreground/30 rounded-2xl transition-colors"
@@ -512,6 +533,7 @@ function ChatUI({
                   onStop={onStop}
                   slashContext={slashContext}
                   commands={slashCommands}
+                  attachmentSlot={attachmentSlot}
                 />
               </div>
               <div className="border-foreground/8 flex items-center justify-between border-t px-3 py-2 sm:px-4">
@@ -553,7 +575,7 @@ function ChatUI({
           </div>
         </div>
       </div>
-      <FilePreviewPanel />
+      <FilePreviewDialog />
       <SourcesPanel />
       {/* Beside the transcript rather than under it: what the agent is holding is
           something you glance at while reading, and a list that pushed the input

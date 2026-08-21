@@ -97,17 +97,37 @@ gets the file instead of the text:
 
 | Attachment | No workspace | With a workspace |
 |---|---|---|
-| text, csv, md, json | parsed text pasted inline | written to `/uploads/`, message carries a reference and a 20-line head |
-| pdf, docx, spreadsheet | parsed text pasted inline | the original **and** a `.txt` beside it; reference |
+| text, csv, md, json | parsed text pasted inline | written to `uploads/`, message carries a reference and a 20-line head |
+| pdf, docx, spreadsheet | parsed text pasted inline | written to `uploads/`, with the extracted text beside it unless the runtime can read it; reference and a 20-line head |
 | image | `BinaryContent` | `BinaryContent` **and** written; reference names the path |
 
-**A spreadsheet in a workspace is not a spreadsheet an agent can open**, which is
-why it is parsed here rather than handed over as bytes. `run_python` has no
-filesystem — it is for arithmetic — the workspace shell has no spreadsheet library,
-and `read_file` on a zip of XML returns mojibake. The `.txt` beside the original is
-the readable half, exactly as it is for a PDF. Accepting the upload without parsing
-it would reach an agent with a workspace as unreadable bytes and an agent without
-one as nothing at all, which is worse than the refusal it replaced.
+**The extracted text comes with it only where nothing can read the original.** A
+`.txt` of the parse used to be written next to every PDF, `.docx` and spreadsheet,
+on the reasoning that a shell has no library for any of them — `read_file` on an
+`.xlsx` returns mojibake, and `run_python` has no filesystem at all. On a runtime
+carrying `lit` that reasoning is stale: `lit parse q3.xlsx -o q3.md` is one
+command, with OCR for a scan and LibreOffice for the legacy formats
+(`sandbox.md`), so the sibling is a second copy of the file's contents on disk to
+save a tool call.
+
+It is still written everywhere else, and the predicate is not the backend kind: a
+`state` workspace is files with no shell at all, a Daytona sandbox and a
+deployment's own runtime carry whatever their image carries, and none of them have
+`lit`. The condition is whether this deployment *described* the runtime to the
+model — the same briefing the run appends to its instructions. Told it has `lit`,
+no sibling; anything else, the text goes beside the file.
+
+Parsing still happens server-side either way, because the *text* is what an agent
+with no workspace gets and what the 20-line head in the message comes from.
+Accepting the upload without parsing would reach an agent with a workspace as
+unreadable bytes and an agent without one as nothing at all.
+
+**A refused write is said once, about the workspace.** A run whose workspace will
+not take a file is a run whose shell and file tools will fail too, and a per-file
+line cannot say that: a turn read each failure as a problem with the command it
+had just written and kept trying — `ls`, then a `curl` of a `data:` URI, then
+three workarounds offered to the person, across two turns. One sentence now says
+the workspace is unavailable and that another attempt will fail the same way.
 
 The reference is what the model actually reads:
 

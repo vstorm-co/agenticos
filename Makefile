@@ -1,4 +1,4 @@
-.PHONY: install format lint lint-backend lint-frontend check audit build-frontend test run clean help sandbox-token deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build
+.PHONY: install format lint lint-backend lint-frontend check audit build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build
 
 # === Environments ===========================================================
 # Three, one compose file each, with a matching frontend file beside it:
@@ -45,6 +45,12 @@ sandbox-token:
 		printf '\n# Authorises opening a sandbox session, and a session runs commands\n# on this host. Treat it like the Docker socket it sits in front of.\nSANDBOXD_TOKEN=%s\n' "$$token" >> backend/.env; \
 		echo "▶ Generated SANDBOXD_TOKEN in backend/.env"; \
 	fi
+
+# The runtime allowlist the compose files hand the sandbox service, written from
+# backend/app/core/catalog/sandbox_runtimes.json. Run it after editing that file;
+# `backend/tests/test_sandbox_runtime_catalog.py` is what fails when nobody did.
+sandbox-runtimes:
+	cd backend && uv run agenticos cmd sandbox-runtimes --write
 
 # === Local dev: build → up → migrate ===
 # Idempotent — re-run anytime. Migrations are no-ops when already at head;

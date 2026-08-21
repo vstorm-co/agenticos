@@ -64,7 +64,18 @@ platform-side rejection arrives as an opaque API error the agent cannot act on."
 # organizational know-how materialised for the run, and `/tool_output` is a
 # spilled tool return `tool_output_limits` parked for the model to page through -
 # an internal artefact, not an answer (#803).
-_NOT_THE_AGENTS = ("/uploads/", "/skills/", f"/{OVERFLOW_PREFIX}/")
+_NOT_THE_AGENTS = ("uploads/", "skills/", f"{OVERFLOW_PREFIX}/")
+"""Prefixes a reply must not post back, matched after the leading slash is
+stripped.
+
+**One spelling, and the slash is stripped at the match**, because the two
+backends disagree about it: a stored workspace's paths begin with `/`, a
+container's come back from the host's `ls` relative - `uploads/8b1e-report.pdf` -
+so a tuple written as `/uploads/` matched the first and let the second straight
+through. The snapshot is taken before the attachment router
+writes, so an upload looks like a file the turn produced, and this is the only
+thing standing between that and a channel reply posting somebody's own PDF back
+at them as the agent's work."""
 
 
 @dataclass(frozen=True)
@@ -244,7 +255,7 @@ async def files_written(
     refused: list[str] = []
 
     for path in new:
-        if path.startswith(_NOT_THE_AGENTS):
+        if path.lstrip("/").startswith(_NOT_THE_AGENTS):
             continue
         if len(attachments) >= MAX_OUTBOUND_FILES:
             refused.append(path)
@@ -312,10 +323,19 @@ async def _workspace_paths(backend: AsyncBackendProtocol) -> set[str]:
     Awaited rather than called: a container-backed workspace answers a glob over the
     network with a synchronous client, so two of them from a coroutine held the event
     loop for two round trips - once before the turn and once after.
+
+    **The root is named, and it is `.`** - the working directory. Omitting it took
+    the client's default of `/`, which a backend addressing files by virtual path
+    reads as the top of its namespace and a shell reads as the machine: on a
+    container this snapshot was 2540 paths of `/proc` and `/usr`, taken twice per
+    turn, so "what did the agent write" was decided by whether `/proc` had
+    changed. `pydantic-ai-backend` 0.2.27 makes the two agree, and saying `.`
+    here is also what keeps this correct against a service that has not been
+    updated yet (#1039).
     """
     return {
         str(entry["path"])
         for pattern in ("**/*", "**/.*")
-        for entry in await backend.glob_info(pattern)
+        for entry in await backend.glob_info(pattern, ".")
         if not entry.get("is_dir")
     }

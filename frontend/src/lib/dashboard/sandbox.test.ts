@@ -43,6 +43,7 @@ function session(overrides: Partial<SandboxSession> = {}): SandboxSession {
     usage: null,
     agent_id: "a-1",
     conversation_id: "conv-1",
+    conversation_is_callers: true,
     scope: "conversation",
     ...overrides,
   };

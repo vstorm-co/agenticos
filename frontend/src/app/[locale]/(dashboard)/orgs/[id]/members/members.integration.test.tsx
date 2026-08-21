@@ -9,6 +9,8 @@ import { ActiveOrgGuard } from "@/components/layout/active-org-guard";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore, useOrgStore } from "@/stores";
 import { permissionsOf, ROLE_CATALOG } from "@/test-utils/role-catalog";
+import { assignableRoles } from "@/lib/assignable-roles";
+import type { OrgRole } from "@/types/organization";
 
 /**
  * Which rows offer a role picker, and which offer a label instead.
@@ -48,7 +50,19 @@ vi.mock("next/navigation", () => ({
 
 const ME = "user-me";
 
-function member(id: string, email: string, role: string) {
+/**
+ * Whether the caller may change this row's role, as the *server* answers it.
+ *
+ * Derived rather than hardcoded, and derived the same way `MemberService.list`
+ * derives it: the caller holds `roles:manage` and their own role strictly
+ * outranks the role this member holds now. A fixture that returned `true` for
+ * every row would test a server this one is not.
+ */
+function mayChangeRole(callerRole: string, targetRole: string): boolean {
+  return assignableRoles(ROLE_CATALOG, callerRole).includes(targetRole as OrgRole);
+}
+
+function member(id: string, email: string, role: string, canChangeRole = false) {
   return {
     // `id` as well as `user_id`: the table keys its rows on it, and four rows
     // keyed `undefined` collapse into one.
@@ -62,6 +76,10 @@ function member(id: string, email: string, role: string) {
     avatar_color: null,
     role,
     joined_at: "2026-07-01T00:00:00Z",
+    // The server's own answer to whether `change_role` would accept this, so the
+    // page draws a selector only where a change would land rather than one whose
+    // result is a 403 toast (#700).
+    can_change_role: canChangeRole,
   };
 }
 
@@ -78,10 +96,10 @@ function serve(role: string) {
     if (url.endsWith("/members")) {
       return Promise.resolve({
         items: [
-          member(ME, "me@acme.test", role),
-          member("user-peer", "peer@acme.test", "admin"),
-          member("user-builder", "builder@acme.test", "builder"),
-          member("user-owner", "owner@acme.test", "owner"),
+          member(ME, "me@acme.test", role, mayChangeRole(role, role)),
+          member("user-peer", "peer@acme.test", "admin", mayChangeRole(role, "admin")),
+          member("user-builder", "builder@acme.test", "builder", mayChangeRole(role, "builder")),
+          member("user-owner", "owner@acme.test", "owner", mayChangeRole(role, "owner")),
         ],
         total: 4,
       });
@@ -149,29 +167,20 @@ describe("the members table's role control", () => {
     expect(labels).toEqual(["builder", "operator", "member", "viewer"]);
   });
 
-  it("keeps a peer Admin demotable, showing the role it cannot re-assign", async () => {
-    // `change_role` judges the role being handed out, not the one being
-    // replaced, so an Admin may demote a peer Admin to Builder - and a control
-    // that offered no way to would remove a supported action. The current role
-    // is in the list so the trigger is not blank, and disabled because
-    // assigning it is the part they may not do.
+  it("offers a peer Admin no control at all, because the server would refuse it", async () => {
+    // This asserted the opposite until #700, on the reading that `change_role`
+    // judges the role being handed out and not the one being replaced - so an
+    // Admin demoting a peer Admin to Builder was a supported action a picker
+    // ought to offer. It was the hole: `remove` refuses one Admin removing
+    // another, and demote-then-remove took the same authority by another door.
+    // The server now refuses it, so the row shows the role as a label.
     serve("admin");
     await mount();
 
     const row = await roleCell("peer@acme.test");
-    await waitFor(() => expect(within(row).getByRole("combobox")).toHaveTextContent("admin"));
 
-    await userEvent.click(within(row).getByRole("combobox"));
-
-    const options = screen.getAllByRole("option");
-    expect(options.map((option) => option.textContent?.trim())).toEqual([
-      "admin",
-      "builder",
-      "operator",
-      "member",
-      "viewer",
-    ]);
-    expect(options[0]).toHaveAttribute("data-disabled");
+    await waitFor(() => expect(within(row).getByText("admin")).toBeVisible());
+    expect(within(row).queryByRole("combobox")).toBeNull();
   });
 
   it("judges the organization in its URL, not whichever one is active", async () => {
@@ -203,8 +212,8 @@ describe("the members table's role control", () => {
       if (url.endsWith("/members"))
         return Promise.resolve({
           items: [
-            member(ME, "me@acme.test", "owner"),
-            member("user-peer", "peer@acme.test", "admin"),
+            member(ME, "me@acme.test", "owner", mayChangeRole("owner", "owner")),
+            member("user-peer", "peer@acme.test", "admin", mayChangeRole("owner", "admin")),
           ],
           total: 2,
         });

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -91,10 +91,13 @@ beforeEach(() => {
 });
 
 describe("ConnectionDialog", () => {
-  it("opens empty for a new connection and refuses to save nothing", () => {
+  it("opens with a name already in it, and still refuses an address of nothing", () => {
+    // The name was a placeholder, so the form opened invalid and the first thing
+    // an operator did was type the two words the box was showing them. The
+    // address is the field that genuinely cannot be guessed until a host answers.
     mount();
 
-    expect(screen.getByLabelText("Name")).toHaveValue("");
+    expect(screen.getByLabelText("Name")).toHaveValue("Local Docker");
     expect(screen.getByRole("button", { name: "Add connection" })).toBeDisabled();
   });
 
@@ -103,6 +106,7 @@ describe("ConnectionDialog", () => {
     // somebody's conversation rather than in this form.
     mount();
 
+    await userEvent.clear(screen.getByLabelText("Name"));
     await userEvent.type(screen.getByLabelText("Name"), "Big box");
 
     expect(screen.getByRole("button", { name: "Add connection" })).toBeDisabled();
@@ -111,6 +115,7 @@ describe("ConnectionDialog", () => {
   it("saves once it has a name and somewhere to reach", async () => {
     const { onSubmit } = mount();
 
+    await userEvent.clear(screen.getByLabelText("Name"));
     await userEvent.type(screen.getByLabelText("Name"), "Big box");
     await userEvent.type(screen.getByLabelText("Address"), "http://big:8080");
     await userEvent.click(screen.getByRole("button", { name: "Add connection" }));
@@ -374,6 +379,18 @@ describe("ConnectionDialog", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  it("draws each kind's own mark beside it", async () => {
+    // Docker's from the generated set; Daytona has none in any source the
+    // generator reads, and a mark that is not the brand's is worse than a
+    // neutral one (#1039).
+    mount();
+
+    await userEvent.click(screen.getByLabelText("Kind"));
+
+    const docker = await screen.findByRole("option", { name: /Container service/ });
+    expect(docker.querySelector("svg")).not.toBeNull();
+  });
+
   describe("a service this deployment is already running", () => {
     it("fills in the address that answered", async () => {
       // Nobody should have to know that a `make dev` sandbox service answers at
@@ -438,10 +455,11 @@ describe("ConnectionDialog", () => {
   });
 
   describe("the token this deployment already holds", () => {
-    it("stores it in the vault and selects it, rather than asking for the value", async () => {
+    it("stores it as part of adding the connection, with no button to press", async () => {
       // `make sandbox-token` wrote it to `backend/.env` and compose handed it to
-      // the service. Asking somebody to go and copy it back out is friction with
-      // nothing behind it.
+      // the service. Asking somebody to go and copy it back out was friction with
+      // nothing behind it, and so was asking them to press a button about a value
+      // this deployment is already running on (#1039).
       state.local = {
         url: "http://sandboxd:8080",
         token_available: true,
@@ -450,30 +468,42 @@ describe("ConnectionDialog", () => {
       const { onSubmit } = mount();
       await userEvent.type(screen.getByLabelText("Name"), "Local Docker");
 
-      await userEvent.click(
-        await screen.findByRole("button", { name: /Store it in the vault and use it/ }),
-      );
       await userEvent.click(screen.getByRole("button", { name: "Add connection" }));
 
       expect(state.storeCredential).toHaveBeenCalled();
       expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ secret_id: "s-local" }));
     });
 
-    it("says why storing it failed instead of leaving the button dead", async () => {
+    it("writes nothing to the vault until the connection is created", async () => {
+      // A dialog somebody opened and cancelled must not leave a key behind.
+      state.local = {
+        url: "http://sandboxd:8080",
+        token_available: true,
+        registered_connection_id: null,
+      };
+      mount();
+      await screen.findByLabelText("Address");
+
+      await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+      expect(state.storeCredential).not.toHaveBeenCalled();
+    });
+
+    it("says why storing it failed rather than creating a connection without it", async () => {
       state.local = { url: "http://s:8080", token_available: true, registered_connection_id: null };
       state.storeCredential = vi.fn(async () => {
         throw new Error("This deployment carries no sandbox service token");
       });
-      mount();
+      const { onSubmit } = mount();
+      await userEvent.type(screen.getByLabelText("Name"), "Local Docker");
 
-      await userEvent.click(
-        await screen.findByRole("button", { name: /Store it in the vault and use it/ }),
-      );
+      await userEvent.click(screen.getByRole("button", { name: "Add connection" }));
 
       expect(screen.getByText("This deployment carries no sandbox service token")).toBeVisible();
+      expect(onSubmit).not.toHaveBeenCalled();
     });
 
-    it("offers nothing when the deployment holds no token", () => {
+    it("says nothing about it when the deployment holds no token", () => {
       state.local = {
         url: "http://s:8080",
         token_available: false,
@@ -481,7 +511,25 @@ describe("ConnectionDialog", () => {
       };
       mount();
 
-      expect(screen.queryByRole("button", { name: /Store it in the vault/ })).toBeNull();
+      expect(screen.queryByText(/is stored in the vault and used/)).toBeNull();
+    });
+
+    it("leaves a key somebody chose alone", async () => {
+      // Picking one from the vault is a decision; overriding it with the local
+      // token would undo it.
+      state.local = { url: "http://s:8080", token_available: true, registered_connection_id: null };
+      state.secrets = [
+        { id: "s-1", name: "Another token", kind: "api_key", purpose: "custom", hint: "ab12" },
+      ];
+      const { onSubmit } = mount();
+      await userEvent.type(screen.getByLabelText("Name"), "Local Docker");
+      await userEvent.click(screen.getByLabelText("Credential"));
+      await userEvent.click(await screen.findByRole("option", { name: /Another token/ }));
+
+      await userEvent.click(screen.getByRole("button", { name: "Add connection" }));
+
+      expect(state.storeCredential).not.toHaveBeenCalled();
+      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ secret_id: "s-1" }));
     });
   });
 
@@ -507,6 +555,40 @@ describe("ConnectionDialog", () => {
       expect(await screen.findByText(/This host allows 1 of them/)).toBeVisible();
     });
 
+    it("can be tested with the deployment's own token, before a key is stored", async () => {
+      // Adding the service `make dev` started names no key until submission, which
+      // is the commonest path through this dialog - and it had no Test button and
+      // no probe, so an outdated local service was registered with a default
+      // runtime its first tool call refuses.
+      state.local = {
+        url: "http://sandboxd:8080",
+        token_available: true,
+        registered_connection_id: null,
+      };
+      state.probe = vi.fn(async () => ({
+        runtimes: [{ alias: "workbench", description: "What this host allows" }],
+      }));
+      mount();
+
+      expect(
+        await screen.findByRole("button", { name: /Test and check this host/ }),
+      ).toBeInTheDocument();
+      await waitFor(() => expect(state.probe).toHaveBeenCalledWith("http://sandboxd:8080", null));
+    });
+
+    it("offers no test for the local service when there is no token either", async () => {
+      state.local = {
+        url: "http://sandboxd:8080",
+        token_available: false,
+        registered_connection_id: null,
+      };
+      mount();
+
+      await screen.findByDisplayValue("http://sandboxd:8080");
+      expect(screen.queryByRole("button", { name: /Test and check this host/ })).toBeNull();
+      expect(state.probe).not.toHaveBeenCalled();
+    });
+
     it("cannot be asked before there is an address and a key to ask with", () => {
       mount();
 
@@ -524,6 +606,100 @@ describe("ConnectionDialog", () => {
       expect(
         await screen.findByText("The sandbox service refused this connection's credential"),
       ).toBeVisible();
+    });
+
+    it("discards an answer to a question that has been superseded", async () => {
+      // The automatic ask is debounced, so changing the key while one is in flight
+      // starts a second. An older reply landing last used to overwrite the newer
+      // one's runtimes, and a runtime from the wrong ask could then be saved.
+      const answers: ((runtimes: { alias: string; description: string }[]) => void)[] = [];
+      state.probe = vi.fn(
+        () =>
+          new Promise<{ runtimes: { alias: string; description: string }[] }>((resolve) => {
+            answers.push((runtimes) => resolve({ runtimes }));
+          }),
+      );
+      state.secrets = [
+        { id: "s-1", name: "First key", kind: "api_key", hint: "1111" },
+        { id: "s-2", name: "Second key", kind: "api_key", hint: "2222" },
+      ];
+      state.local = {
+        url: "http://sandboxd:8080",
+        token_available: false,
+        registered_connection_id: null,
+      };
+      mount();
+
+      await userEvent.click(await screen.findByLabelText("Credential"));
+      await userEvent.click(screen.getByRole("option", { name: /First key/ }));
+      await waitFor(() => expect(answers).toHaveLength(1));
+      await userEvent.click(screen.getByLabelText("Credential"));
+      await userEvent.click(screen.getByRole("option", { name: /Second key/ }));
+      await waitFor(() => expect(answers).toHaveLength(2));
+
+      answers[1]?.([{ alias: "workbench", description: "The newer answer" }]);
+      answers[0]?.([{ alias: "stale", description: "The older answer" }]);
+
+      await userEvent.click(screen.getByRole("combobox", { name: "Default runtime" }));
+      expect(await screen.findByRole("option", { name: /The newer answer/ })).toBeVisible();
+      expect(screen.queryByRole("option", { name: /The older answer/ })).toBeNull();
+    });
+
+    it("discards an answer about a host that is no longer in the box", async () => {
+      // The case a ref written only by `ask` let through: one probe in flight, the
+      // address edited, no second probe - so the old host's runtimes arrived and
+      // populated the field under the new host's name.
+      const answers: ((runtimes: { alias: string; description: string }[]) => void)[] = [];
+      state.probe = vi.fn(
+        () =>
+          new Promise<{ runtimes: { alias: string; description: string }[] }>((resolve) => {
+            answers.push((runtimes) => resolve({ runtimes }));
+          }),
+      );
+      mount(connection());
+
+      await userEvent.click(screen.getByRole("button", { name: /Test and check this host/ }));
+      await userEvent.clear(screen.getByLabelText("Address"));
+      await userEvent.type(screen.getByLabelText("Address"), "http://elsewhere:8080");
+      answers[0]?.([{ alias: "stale", description: "The first host's" }]);
+
+      await userEvent.click(screen.getByRole("combobox", { name: "Default runtime" }));
+      expect(screen.queryByRole("option", { name: /The first host's/ })).toBeNull();
+      // And the catalogue's own list is what the field falls back to.
+      expect(await screen.findByRole("option", { name: /Python with git/ })).toBeVisible();
+    });
+
+    it("discards a superseded refusal too", async () => {
+      // The same race in the other direction: a failure belonging to a question
+      // nobody is asking any more would mark the form about it.
+      const refusals: ((error: Error) => void)[] = [];
+      state.probe = vi.fn(
+        () =>
+          new Promise<{ runtimes: { alias: string; description: string }[] }>((_, reject) => {
+            refusals.push(reject);
+          }),
+      );
+      state.secrets = [
+        { id: "s-1", name: "First key", kind: "api_key", hint: "1111" },
+        { id: "s-2", name: "Second key", kind: "api_key", hint: "2222" },
+      ];
+      state.local = {
+        url: "http://sandboxd:8080",
+        token_available: false,
+        registered_connection_id: null,
+      };
+      mount();
+
+      await userEvent.click(await screen.findByLabelText("Credential"));
+      await userEvent.click(screen.getByRole("option", { name: /First key/ }));
+      await waitFor(() => expect(refusals).toHaveLength(1));
+      await userEvent.click(screen.getByLabelText("Credential"));
+      await userEvent.click(screen.getByRole("option", { name: /Second key/ }));
+      await waitFor(() => expect(refusals).toHaveLength(2));
+
+      refusals[0]?.(new Error("The superseded ask failed"));
+
+      expect(screen.queryByText("The superseded ask failed")).toBeNull();
     });
 
     it("keeps a free-text field for Daytona, which publishes no list", async () => {

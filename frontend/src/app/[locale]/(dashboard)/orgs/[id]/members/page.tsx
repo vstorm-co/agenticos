@@ -186,7 +186,13 @@ export default function OrgMembersPage({ params }: PageProps) {
         cell: (m) => {
           const isSelf = m.user_id === user?.id;
           const isOwner = m.role === "owner";
-          if (canManage && !isOwner && !isSelf && assignable.length > 0) {
+          // Two different questions, and a selector needs both answered. `assignable`
+          // is about the *requester*: which roles their own strictly outranks, so an
+          // empty list is a dropdown with nothing in it (#1028). `can_change_role` is
+          // the server's answer about *this target*: whether the requester outranks
+          // the role the member holds now, which is what stops a peer Admin getting a
+          // selector whose only result is a 403 toast (#700).
+          if (canManage && !isOwner && !isSelf && m.can_change_role && assignable.length > 0) {
             return (
               <Select value={m.role} onValueChange={(v) => changeRole(m.user_id, v as OrgRole)}>
                 <SelectTrigger
