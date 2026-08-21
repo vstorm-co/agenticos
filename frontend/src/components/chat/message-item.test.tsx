@@ -135,6 +135,20 @@ describe("a turn in the transcript", () => {
     expect(screen.queryByText("stopped")).toBeNull();
   });
 
+  it("marks a stopped ask-only turn, whose only body is the answered question", () => {
+    // Stopped after answering a question and before any text: content is empty
+    // and the timeline is just the ask_user part, so the footer must key on the
+    // parts, not on content, or the stopped indicator vanishes (#502).
+    item({
+      role: "assistant",
+      content: "",
+      wasStopped: true,
+      parts: [{ id: "q-1", type: "ask_user", question: "Which region?", answer: "eu-west-1" }],
+    });
+
+    expect(screen.getByText("stopped")).toBeVisible();
+  });
+
   it("never marks the question, only the answer", () => {
     // A user's turn is not produced by a run; a marker there would attribute the
     // agent's failure to what somebody typed.
@@ -263,6 +277,21 @@ describe("the ordered timeline", () => {
       .filter((node) => node.tagName === "DETAILS" || node.closest("details") === null)
       .map((node) => (node.tagName === "DETAILS" ? "thinking" : node.getAttribute("data-testid")));
     expect(rendered).toEqual(["thinking", "tool-tc-1", "markdown"]);
+  });
+
+  it("replays a mid-turn question and its answer as a step in the turn (#502)", () => {
+    const { getByText } = item({
+      parts: [
+        { id: "p-1", type: "text", content: "I need to know first." },
+        { id: "p-2", type: "ask_user", question: "Which region?", answer: "eu-west-1" },
+        { id: "p-3", type: "text", content: "Deploying." },
+      ],
+    });
+
+    expect(getByText("Asked you")).toBeInTheDocument();
+    expect(getByText("Which region?")).toBeInTheDocument();
+    expect(getByText("You answered")).toBeInTheDocument();
+    expect(getByText("eu-west-1")).toBeInTheDocument();
   });
 
   it("opens the reasoning while it is the part being written, and closes it after", () => {
@@ -695,6 +724,17 @@ describe("the runs a turn is made of", () => {
     expect(runsOf([{ id: "t1", type: "text", content: "" }])).toEqual([]);
     expect(runsOf([{ id: "t2", type: "thinking" }])).toEqual([]);
     expect(runsOf([])).toEqual([]);
+  });
+
+  it("keeps an ask_user part as its own run, empty content notwithstanding (#502)", () => {
+    const runs = runsOf([
+      { id: "q1", type: "ask_user", question: "Which region?", answer: "eu-west-1" },
+    ]);
+
+    expect(runs).toHaveLength(1);
+    const [run] = runs;
+    expect(run?.kind === "other" && run.part.type).toBe("ask_user");
+    expect(run?.isLast).toBe(true);
   });
 });
 

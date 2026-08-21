@@ -154,6 +154,31 @@ def seal(plaintext: str, *, scope: VaultScope, key_version: int = 1) -> SealedSe
     )
 
 
+def seal_fields(
+    values: dict[str, str], *, scope: VaultScope, key_version: int = 1
+) -> tuple[dict[str, SealedSecret], int]:
+    """Seal several fields of one row under a single key version.
+
+    A row with more than one ciphertext column - a bot token and a signing
+    secret, an MCP url and an auth token - shares one `key_version`, because
+    :func:`rewrap` moves the whole row's wrapped keys together. This is the one
+    way to seal such a row: it seals every field at the same version and hands
+    that version back to store on the row, so "seal at v2 but record v1" and
+    "no version column at all" cannot be written by hand - which is how a rotated
+    row became un-openable at more than one model (#552).
+
+    An empty value is skipped rather than sealed - a field a row does not carry is
+    absent, not an envelope around nothing, the same rule :func:`seal` enforces -
+    so the returned mapping may hold fewer keys than `values`.
+    """
+    sealed = {
+        name: seal(value, scope=scope, key_version=key_version)
+        for name, value in values.items()
+        if value
+    }
+    return sealed, key_version
+
+
 def unseal(ciphertext: str, *, scope: VaultScope, key_version: int = 1) -> str:
     """Decrypt a secret sealed for this owner.
 

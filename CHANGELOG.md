@@ -17,6 +17,332 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.243] - 2026-08-21
+
+The agent avatar is served as an image or not at all.
+
+### Fixed
+
+- **`GET /api/v1/agents/{agent_id}/avatar` guessed its content-type from the filename
+  on disk** - `mimetypes.guess_type(path)[0] or "application/octet-stream"`, straight
+  into a `FileResponse`. An avatar is stored under whatever suffix the uploader chose
+  and the app serves from an origin whose CSP allows inline script, so a file uploaded
+  as `x.html` was served as `text/html` from that origin and executed. Stored XSS,
+  exactly the class 0.0.238 fixed for the user and organization avatars, and the route
+  it deliberately left out of scope. (#1035)
+- The route reuses `image_media_type_for` rather than growing a second copy of the
+  helper: the type is pinned to the file's actual image type, anything that is not an
+  image is refused with a 404, and `X-Content-Type-Options: nosniff` goes out with it -
+  the same shape the user and organization avatar routes already use. `mimetypes` is
+  dropped from the module. (#1035)
+## [0.0.242] - 2026-08-21
+
+The migration chain has one head again.
+
+### Fixed
+
+- **`main` had two alembic heads, so `alembic upgrade head` exited 255 and no
+  deployment could move off 0.0.238.** `0044_agent_embed_key_version` (0.0.239) and
+  `0044_audit_impersonator` (0.0.241) both carried
+  `down_revision = "0043_rag_document_source_path"`: each was written against a `main`
+  that ended at `0043`, each was green on its own branch, and the fork existed only in
+  the merged history. The audit migration is `0045_audit_impersonator` now and points
+  at the embed one. (#1059)
+
+### Added
+
+- **A guard that needs no database.** `backend/tests/test_migration_chain.py` asserts
+  the chain has exactly one head, and that no two revisions claim the same parent -
+  the same defect one step earlier, where the message names the two files that
+  collided rather than the two heads they produced. It is a module of its own rather
+  than a case in `tests/test_migrations.py`, because that one skips where no Postgres
+  answers and a divergence is made by a merge on a laptop hours before CI's database
+  sees it. `make db-check` is `alembic check`, which compares the models to the head
+  and never counts them. (#1059)
+## [0.0.241] - 2026-08-21
+
+An impersonated action names who was really acting.
+
+### Fixed
+
+- **`POST /admin/users/{id}/impersonate` minted an access token whose `sub` is the
+  target account**, so every request made with it - every row written, every audit
+  entry triggered - was attributed to the target and to nobody else. An admin who
+  read a customer's conversation and one who deleted their agent left the same trace:
+  the customer's own. "Who accessed my account" had no answer. (#943)
+
+### Added
+
+- **An `act` claim.** `create_access_token(..., act=...)` carries the administrator
+  behind the subject, and the impersonate route sets it. It is absent on every
+  ordinary token, so those are byte for byte unchanged. (#943)
+- **A request-scoped audit context.** The auth dependency, over HTTP and WebSocket
+  alike, reads `act` onto a context variable - the actor behind a request is a
+  property of the request rather than something to thread through every service that
+  records an action. `record_audit` writes it as `impersonator_user_id` beside the
+  actor, `0045_audit_impersonator` adds the nullable column and its index, and the
+  audit read schema and service expose it. Null on an ordinary request, and nothing
+  is backfilled: whether a past action was impersonated is unknowable after the fact.
+  `docs/governance.md` says what an impersonated action records. (#943)
+
+### Changed
+
+- Deliberately not the whole of #943. A raw token still reaches the clipboard, and an
+  impersonation session is still neither revocable nor endable in product - those two
+  are one larger full-stack flow, with a banner, an End button and revocation, filed
+  as a follow-up. #943 stays open for it, along with the policy question of whether
+  the target is notified. (#943)
+## [0.0.240] - 2026-08-21
+
+An answered `ask_user` question survives the conversation.
+
+### Fixed
+
+- **A mid-turn `ask_user` question and the person's answer were written down
+  nowhere**, so a reopened conversation showed neither the question the agent put nor
+  the answer it acted on. `ask_user` is a callback rather than a tool, so it never
+  touched the turn timeline the transcript is replayed from. (#502)
+
+### Added
+
+- `MessagePart` gains an `ask_user` kind carrying the question and the answer,
+  `TurnTimeline.add_ask_user` records it, and the session hands the running turn's
+  timeline to `_ask_one`, which appends the pair once the answer is in hand, in the
+  position it happened. A lone `ask_user` part is stored even as a turn's only part -
+  unlike a tool call or a block of text it has no column to fall back to. No
+  migration: the timeline is already a JSONB column and only the part union widens.
+  (#502)
+- The frontend gains the raw and typed part shapes, the replay in
+  `conversation-to-chat`, a `runsOf` run, and an `AskUserBlock` that draws the
+  question and the answer as a step inside the turn rather than as a chat bubble.
+  (#502)
+
+### Changed
+
+- Replay only. Live, the question is the composer's own `ask_user` form and the answer
+  returns through it, so what was missing was a conversation reopened from history.
+  **Delegate attribution - saying which delegate asked - is deliberately not here**:
+  `subagents-pydantic-ai` reaches the parent through `ctx.deps.ask_user(question, [])`
+  with no asker name and `SubAgentState` carries none, so naming the delegate needs an
+  upstream change to that package first. #502 stays open for it. (#502)
+## [0.0.239] - 2026-08-21
+
+A multi-column row is sealed under one key version.
+
+### Fixed
+
+- **"A row has several ciphertext columns sharing one `key_version`" was hand-rolled
+  at several models, each differently, and the vault offered no primitive for it.**
+  The failures are latent - `rewrap`, master-key rotation, has no production caller
+  yet - but the day it runs, a rotated `jwt` widget can never be opened again and a
+  channel bot's row disagrees with its own envelopes. `vault.seal_fields(values, *,
+  scope, key_version)` seals every field at one version and hands that version back
+  to store, so "seal at v2 but record v1" and "no version column at all" cannot be
+  written by hand. (#552)
+- **`agent_embed` had no `key_version` column**, and `_verify_token` unsealed at an
+  implicit v1 - so a rotated widget would answer `EmbedDenied` to every visitor. It
+  gains `secret_key_version` (the migration backfills existing rows to 1), seals
+  through `seal_fields` and unseals at the row's own version. `docs/secrets.md` now
+  lists the embed among the sealed rows. (#552)
+- **`channel_bot`'s `update` re-sealed a changed token at the default v1 and reset the
+  column** while its siblings kept the rotated version, leaving the row's version
+  disagreeing with its envelopes (AUD-008). It seals at the row's existing version,
+  beside its siblings, and never resets the column. (#552)
+- Left alone deliberately: `mcp_connection` already seals one field per write at the
+  row's `secret_key_version`, and `organization_secret` stores its ciphertext, hint
+  and version through the typed `secret_kinds` wrappers. Both already record one
+  version per row, so routing them through the multi-field helper would be churn
+  rather than a fix. (#552)
+## [0.0.238] - 2026-08-21
+
+A stored file is served as what it is, or not served inline at all.
+
+### Fixed
+
+- **Stored XSS through an avatar or a chat attachment.** The bytes behind both were
+  served with a type the backend took from the *name on disk*, while the upload paths
+  validated the `Content-Type` the client *declared* and never the bytes, keeping
+  whatever extension the uploader chose. So `x.html` whose bytes are `<script>…`,
+  declared as `image/png`, was accepted, stored as `<hex>_x.html`, guessed back as
+  `text/html`, and passed through the frontend proxy from the app's own origin -
+  where the CSP allows `'unsafe-inline'`. `X-Content-Type-Options: nosniff` does not
+  help, because the type is declared rather than sniffed. The same shape #634 fixed
+  for the hosted-page logo; these three require a session, so the audience is the
+  organization. (#702)
+- **Pinned at both ends.** The frontend proxies share their allowlists in
+  `src/lib/proxy-content-type.ts`: both avatar proxies refuse anything outside the
+  four image types with a 502 and drop the `image/jpeg` default over unknown bytes,
+  and the file proxy - which serves PDFs and spreadsheets on purpose - forces a
+  download for anything outside the render-safe set, so `text/html` and SVG are saved
+  rather than shown. `nosniff` on all three. (#702)
+- **And at the backend routes.** `image_media_type_for` lives beside `IMAGE_MIME_TYPES`
+  in `file_storage`: the user and organization avatar routes guess the type, 404 a
+  non-image and pass it explicitly with `nosniff`, and the chat-file route serves a
+  render-safe type inline and forces everything else to download - the declared
+  `mime_type` is not trusted to decide rendering. (#702)
+## [0.0.237] - 2026-08-21
+
+Two chat controls that did nothing are gone.
+
+### Removed
+
+- **The temperature slider and the thinking-effort picker in the chat Settings tab.**
+  Both were sent on every turn and read by nothing: `agent_session` reads
+  `model_profile_id` and the environment off the frame and no other key, and
+  `thinking_effort` appears nowhere in the backend at all. Whatever the person chose,
+  the run used the agent's spec. Worse than doing nothing, the controls said they did
+  something - `chat-controls`' own docstring claimed "both are recorded on the run, so
+  an override stays attributable", and neither was, because neither arrived. The same
+  class as #29 and #561: a stated contract the code does not keep, and a control that
+  lies is worse than one that is absent. (#924)
+- The Settings tab was those two controls, so it goes with them - leaving the model
+  picker, which works and no longer needs tabs - along with the `use-chat` refs,
+  setters and send-frame lines behind them, and the orphaned `chat.controls.*` keys
+  (and a stray `chat.settingsPersistCurrentChat` their removal orphaned). The
+  docstring now says what is true. (#924)
+
+### Changed
+
+- Thinking effort stays a **capability binding** rather than a model setting
+  (`spec.py`), so overriding it per turn is a larger design than a slider: it is not
+  being quietly dropped, it never worked, and wiring it is its own issue. Temperature
+  is genuinely a model setting and the easy half, but half-wiring one while deleting
+  the other leaves the same one-control-in-a-tab shape. (#924)
+## [0.0.236] - 2026-08-21
+
+PII is redacted where records are actually emitted.
+
+### Fixed
+
+- **`PiiRedactionFilter` was attached to the root logger, where it scrubbed nothing
+  the application logs.** A filter on a logger runs only in `Logger.handle`, for a
+  record logged on that logger; a record from `logging.getLogger(__name__)` - which
+  is every log line in this codebase - propagates to its ancestors' **handlers**
+  through `Logger.callHandlers` and never touches their filters. Email addresses,
+  JWTs, `sk-` keys and bearer tokens reached Datadog, CloudWatch and Logfire
+  verbatim: the redaction a deployment believed stood between its logs and its
+  aggregator had never been there. The filter is attached to the root logger's
+  handlers now. (#440)
+- **`logging.lastResort` carries the filter too**, because that is what emits
+  `WARNING` and above in a process that configured no handler - the CLI, a flow
+  subprocess before logging is set up - and a credential in a `logger.exception` is
+  exactly such a record. (#440)
+- **The worker never called `setup_logging` at all.** The process that runs
+  ingestion, syncs and reports - a wrong embedding key, an SMTP failure, a connector
+  401 - redacted nothing even in theory. `setup_logging` is idempotent now and is
+  called by the worker (`prefect_app.main`) and the CLI (`cli.commands.main`) as well
+  as the API. (#440)
+## [0.0.235] - 2026-08-21
+
+The auth surface is rate-limited, and bcrypt is off the event loop.
+
+### Fixed
+
+- **No route in `auth.py` was rate-limited, and `verify_password` ran bcrypt on the
+  request event loop** - about 170ms with no suspension point in it. Each is
+  survivable; together they are not. `/login` against any address that holds an
+  account, at 20 requests a second, blocks the loop 171ms at a time with no `await`,
+  so the worker serves nothing else: not the readiness probe, not an in-flight agent
+  socket. On a single-worker deployment the product is down for as long as the
+  attacker keeps typing. (#947)
+- **Unlimited brute force.** The bcrypt cost was the only brake on it, and the
+  denial-of-service above is what that brake bought the attacker. (#947)
+- **A user-enumeration timing oracle.** `authenticate` skipped bcrypt for an unknown
+  address and ran it for a known one, so the two refused in visibly different times.
+  An unknown address is now verified against a real hash computed once at import, and
+  the two refusals take the same time. (#947)
+- **An email amplifier.** `/password-reset/request` and `/magic-link/request` sent
+  mail on every call, unlimited. (#947)
+
+### Changed
+
+- The Redis-backed limiter this repository already had in `services/rate_limit.py`,
+  shared across workers, is wired to the auth surface: `auth_limit()` and
+  `deps.enforce_auth_limit` are called at the top of **every** auth route, before any
+  bcrypt or database work. Counted per IP always, and per submitted address wherever
+  the body carries one - which is why it is called from the handler rather than as a
+  `Depends`, since the per-address half needs the parsed body.
+  `RATE_LIMIT_AUTH_PER_MINUTE` defaults to 10 and is documented in
+  `docs/configuration.md`. (#947)
+- Every bcrypt call - the verify in `authenticate` and the three `get_password_hash`
+  sites - runs in a thread through `asyncio.to_thread`. (#947)
+- `GET /me` is deliberately not rate-limited here: a per-IP limit on an authenticated
+  no-op punishes an office behind one NAT, and per-user limiting of an already
+  authenticated cheap read is a separate decision. (#947)
+## [0.0.234] - 2026-08-21
+
+An app admin cannot suspend or delete their own account.
+
+### Fixed
+
+- **`/admin/users` let an app admin open their own row and suspend, demote or delete
+  themselves**, unguarded at both layers and two of the three one click away with no
+  confirmation. `is_active` is enforced on the next request, so a self-suspend signs
+  you out of a deployment you administer, and a self-delete takes the account and its
+  conversations with it - on the single-admin install `make platform-bootstrap`
+  produces, a stray click ends administration until somebody reaches a terminal.
+  (#941)
+- The guard lives in `UserService`, where both admin surfaces meet: `admin_update`
+  refuses a self-suspend and `admin_delete` a self-delete, before the repository is
+  touched. `PATCH` and `DELETE` on both `/admin/users/{id}` and the twin `/users/{id}`
+  route - which had the same hole - carry the acting admin's id through them. (#941)
+- Only `is_active` is guarded on update, because `is_app_admin` is not a `UserUpdate`
+  field: the one global privilege is granted by CLI and cleared by nothing over the
+  API. That is also what answers the last-admin question in code rather than in a
+  policy - the app-admin set shrinks only by deletion, and deleting the last one is
+  deleting yourself, which is refused. Written up in `docs/deployment.md`. (#941)
+- The admin drawer no longer renders **Suspend**, **Demote** or **Impersonate** on
+  your own row. **Delete stays visible and is refused by the API** - "why can I not
+  delete myself" is a question worth answering on screen. (#941)
+## [0.0.233] - 2026-08-21
+
+A conversation is shared inside its organization or not at all.
+
+### Fixed
+
+- **`POST /conversations/{id}/share` resolved the target user deployment-wide and
+  never checked they belong to the conversation's organization.** The row was
+  created and the dialog listed the outsider under "Shared with" - while the read
+  path refuses on the tenant before it ever consults the share, so the target got a
+  404 and the owner a lie. Not a leak, since the tenant gate holds, but a contract
+  that lies. `share_conversation` now checks the target is a member of the
+  conversation's organization, by id and by email alike. (#930)
+- A non-member is refused **as though they did not exist**, with the same
+  `NotFoundError` the not-found case raises: naming them "a member of another
+  organization" would turn the share form into a cross-tenant probe for which
+  addresses hold an account elsewhere on the deployment. Membership is read with
+  `member_repo.get` rather than `get_active` - the question is tenancy, and whether
+  a member can currently sign in is the read path's call. (#930)
+- The owner's "Shared with" listing drops rows already in that state, in one query:
+  a target who is a current member is kept, and so is a public-link share, which has
+  no target. Cheaper than a migration, and self-correcting. (#930)
+## [0.0.232] - 2026-08-21
+
+The active-sessions card holds while the next page loads.
+
+### Fixed
+
+- **Paging the Active sessions card on `/settings/profile` blanked it and threw the
+  scroll to the top.** The query keyed on the page number with no `placeholderData`,
+  so each page change was a new key: `data` went `undefined`, `isPending` flipped
+  true, and the `loading && sessions.length === 0` branch drew two skeletons in
+  place of five rows. The card collapsed from roughly 340px to 120px, everything
+  below it jumped, and a card below the fold took the scroll with it.
+  `placeholderData: keepPreviousData` holds the current rows while the next page
+  loads, so the skeleton branch means first load again - the treatment
+  `use-agents`, `use-runs`, `use-skills` and `use-context` already had, and this was
+  the one paged list without it. (#944)
+- The held list is dimmed and marked `aria-busy` while stale, as `UsageBody` does,
+  and the pager is disabled while the fetch is in flight - so the hold is visible,
+  and audible to a screen reader, rather than silently wrong. (#944)
+
+### Changed
+
+- The card's hand-rolled pager is now the shared `PaginationBar` that admin/users,
+  run history and version history already use; it was the fourth implementation of
+  one control. Single-page behaviour differs - the chevrons render disabled rather
+  than the pager disappearing - so the orphaned `dashboard.previousPage` and
+  `dashboard.nextPage` keys are removed from both catalogs. (#944)
 ## [0.0.231] - 2026-08-20
 
 The organization in the URL is the tenant.

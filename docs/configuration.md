@@ -639,6 +639,7 @@ ceiling is a separate decision, not this one.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `RATE_LIMIT_RUN_PER_MINUTE` | `30` | `POST /api/v1/agents/{id}/run`, per caller |
+| `RATE_LIMIT_AUTH_PER_MINUTE` | `10` | Every `auth.py` route — login, register, refresh, the reset/magic-link request and verify routes. Counted **per IP and, where the body carries one, per submitted address**. See below |
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Per address, and **two separate counters of this size**: one for `widget.js`, one for admission — the widget's `/config` plus either surface's socket handshake. See below |
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | A hosted page's config, **per page** — and its logo, on a counter of its own. See below |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Files a visitor may store on a hosted page. Counted **per address and per visitor key**, and both have to allow it — the key is minted by the browser, so counting only that bounds nothing |
@@ -685,6 +686,23 @@ rationing a visitor, which is why the default is wide — **it is not what limit
 spend.** Spend starts at the socket the page opens next, which the browser makes,
 which is counted per address under `RATE_LIMIT_EMBED_PER_MINUTE`. And guessing a
 key is not a strategy against 192 bits of `secrets.token_urlsafe`.
+
+### `RATE_LIMIT_AUTH_PER_MINUTE`, and why the auth surface has its own
+
+Every route in `auth.py` carries this limit, counted **per IP** and — where the
+body carries an address (login, register, the reset and magic-link requests) —
+**per submitted address too**, both against this allowance. The two stop
+different attacks: the IP bounds a flood from one source, the address bounds a
+brute force against one account.
+
+It is separate from, and lower than, the run allowance because the cost of a
+single attempt is what it defends. `verify_password` is bcrypt, ~170ms with no
+suspension point, so an unmetered `/login` flood for any address that has an
+account saturates a worker's event loop with no credentials at all. Two more
+things close the rest of that surface, and need no configuration: bcrypt runs in
+a thread so it never blocks the loop, and an address with no account is verified
+against a dummy hash rather than skipped, so a known and an unknown address take
+the same time to refuse and the timing no longer says which addresses exist.
 
 ### `RATE_LIMIT_TRUST_FORWARDED_FOR`, and why it is off
 

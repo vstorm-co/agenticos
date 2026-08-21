@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -39,12 +39,7 @@ vi.mock("./chat-model-picker", () => ({
 }));
 
 function open(props: Partial<Parameters<typeof ChatControls>[0]> = {}) {
-  const handlers = {
-    onModelProfileChange: vi.fn(),
-    onTemperatureChange: vi.fn(),
-    onThinkingEffortChange: vi.fn(),
-    ...props,
-  };
+  const handlers = { onModelProfileChange: vi.fn(), ...props };
   render(<ChatControls {...handlers} />);
   return handlers;
 }
@@ -63,11 +58,11 @@ describe("the chat controls trigger", () => {
     // attribute drops off the trigger, /settings silently does nothing.
     render(<ChatControls />);
 
-    const trigger = screen.getByRole("button", { name: "Chat controls" });
-    expect(document.querySelector("[data-chat-settings-trigger]")).toBe(trigger);
+    const found = screen.getByRole("button", { name: "Chat controls" });
+    expect(document.querySelector("[data-chat-settings-trigger]")).toBe(found);
   });
 
-  it("says only 'Controls' until something is overridden", () => {
+  it("says only 'Controls' until the model is overridden", () => {
     open();
 
     expect(trigger()).toHaveTextContent("Controls");
@@ -97,111 +92,6 @@ describe("the chat controls trigger", () => {
 
     expect(handlers.onModelProfileChange).toHaveBeenLastCalledWith(null);
     expect(trigger()).toHaveTextContent("Controls");
-  });
-
-  it("says a temperature was set without saying which, on the trigger", async () => {
-    const handlers = open();
-    await userEvent.click(trigger());
-    await userEvent.click(screen.getByRole("button", { name: /Settings/ }));
-
-    fireEvent.change(screen.getByLabelText("Temperature"), { target: { value: "0.3" } });
-
-    expect(handlers.onTemperatureChange).toHaveBeenCalledWith(0.3);
-    expect(screen.getByText("0.30")).toBeInTheDocument();
-    expect(trigger()).toHaveTextContent("Custom");
-  });
-
-  it("shows an untouched temperature as the server's, not as a number", async () => {
-    // The slider has to point somewhere; the readout is what says whether the
-    // position means anything.
-    open();
-    await userEvent.click(trigger());
-    await userEvent.click(screen.getByRole("button", { name: /Settings/ }));
-
-    expect(screen.getByText("default")).toBeInTheDocument();
-    expect(screen.getByLabelText("Temperature")).toHaveValue("0.7");
-  });
-
-  it("gives the temperature back to the server rather than sending a number", async () => {
-    const handlers = open();
-    await userEvent.click(trigger());
-    await userEvent.click(screen.getByRole("button", { name: /Settings/ }));
-    fireEvent.change(screen.getByLabelText("Temperature"), { target: { value: "0.3" } });
-
-    await userEvent.click(screen.getByRole("button", { name: /Reset to server default/ }));
-
-    expect(handlers.onTemperatureChange).toHaveBeenLastCalledWith(null);
-    expect(screen.getByText("default")).toBeInTheDocument();
-  });
-
-  it("offers no reset for a temperature nobody set", async () => {
-    open();
-    await userEvent.click(trigger());
-    await userEvent.click(screen.getByRole("button", { name: /Settings/ }));
-
-    expect(screen.queryByRole("button", { name: /Reset to server default/ })).toBeNull();
-  });
-
-  it("sends the thinking effort that was chosen, and 'off' as no override", async () => {
-    // `off` is the absence of a setting rather than a value: a model that reasons
-    // by default must not be told to stop.
-    const handlers = open();
-    await userEvent.click(trigger());
-    await userEvent.click(screen.getByRole("button", { name: /Settings/ }));
-
-    await userEvent.click(screen.getByRole("button", { name: "High" }));
-    expect(handlers.onThinkingEffortChange).toHaveBeenCalledWith("high");
-    expect(trigger()).toHaveTextContent("Custom");
-
-    await userEvent.click(screen.getByRole("button", { name: "Off" }));
-    expect(handlers.onThinkingEffortChange).toHaveBeenLastCalledWith(null);
-    expect(trigger()).toHaveTextContent("Controls");
-  });
-
-  it("explains what the chosen effort means", async () => {
-    open();
-    await userEvent.click(trigger());
-    await userEvent.click(screen.getByRole("button", { name: /Settings/ }));
-    expect(screen.getByText("Direct answer, no reasoning")).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "Low" }));
-
-    expect(screen.getByText("Quick reasoning")).toBeInTheDocument();
-    expect(screen.queryByText("Direct answer, no reasoning")).toBeNull();
-  });
-
-  it("shows both overrides on the trigger at once", async () => {
-    const handlers = open();
-    await userEvent.click(trigger());
-    await userEvent.click(screen.getByRole("button", { name: /pick a model/ }));
-    await userEvent.click(screen.getByRole("button", { name: /Settings/ }));
-    await userEvent.click(screen.getByRole("button", { name: "High" }));
-
-    expect(trigger()).toHaveTextContent("openai default · Custom");
-    expect(handlers.onModelProfileChange).toHaveBeenCalled();
-  });
-
-  it("goes back to the model tab", async () => {
-    // Both tabs are reachable in both directions; the popover stays open across
-    // the switch so a comparison does not cost two openings.
-    open();
-    await userEvent.click(trigger());
-    await userEvent.click(screen.getByRole("button", { name: /Settings/ }));
-    expect(screen.getByLabelText("Temperature")).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: /Model/ }));
-
-    expect(screen.getByRole("button", { name: /pick a model/ })).toBeInTheDocument();
-    expect(screen.queryByLabelText("Temperature")).toBeNull();
-  });
-
-  it("offers only the tabs the caller can handle", async () => {
-    // The same popover is mounted where only one of the two is wired up.
-    render(<ChatControls onModelProfileChange={vi.fn()} />);
-    await userEvent.click(trigger());
-
-    expect(screen.getByRole("button", { name: /Model/ })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Settings/ })).toBeNull();
   });
 
   it("says whether the override is saved yet", async () => {

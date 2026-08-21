@@ -557,7 +557,12 @@ class TestRecordingTheRun:
         """The same rule the chat frame took in #659, on the row rather than the
         socket: `agent_runs.error` is rendered in run history to every member who
         can read it, and a model client puts the failing request in its message -
-        a tenant's own endpoint with the key still in its query string (#676)."""
+        a tenant's own endpoint with the key still in its query string (#676).
+
+        The log keeps the endpoint and status an operator debugs with, and the key
+        in the query string is redacted there by the PII filter when it is
+        installed (#440, covered in `test_logging`). This asserts the detail that
+        is present either way, not the filter's own behaviour."""
         db = _db()
         vendor_text = "401 from https://llm.acme.internal/v1/chat?api_key=sk-live-9f2c"
 
@@ -572,7 +577,7 @@ class TestRecordingTheRun:
             "The run did not finish (RuntimeError) - retry it, and check the agent's "
             "model profile if it keeps failing. The server log has the full error."
         )
-        assert vendor_text in caplog.text
+        assert "401 from https://llm.acme.internal/v1/chat" in caplog.text
 
     async def test_a_stopped_turn_is_recorded_as_cancelled_and_committed(self):
         """Cancellation never reaches the session's rollback-on-error, so the row

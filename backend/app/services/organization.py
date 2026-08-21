@@ -23,7 +23,7 @@ from app.schemas.organization import (
 )
 from app.services import skill_library
 from app.services.deployment_settings import DeploymentSettingsService
-from app.services.file_storage import get_file_storage
+from app.services.file_storage import avatar_filename, get_file_storage
 from app.services.skills import SkillService
 
 logger = logging.getLogger(__name__)
@@ -304,7 +304,6 @@ class OrganizationService:
         org_id: UUID,
         requester_id: UUID,
         file_data: bytes,
-        filename: str,
         content_type: str | None,
     ) -> Organization:
         """Replace the organization avatar. Requires ADMIN or OWNER role.
@@ -326,7 +325,11 @@ class OrganizationService:
         if org.avatar_url:
             with contextlib.suppress(Exception):
                 await storage.delete(org.avatar_url)
-        storage_path = await storage.save(f"avatars/orgs/{org_id}", filename, file_data)
+        # Stored under a suffix from the validated type, not the caller's
+        # filename, so a valid image is renderable whatever it was named (#702).
+        storage_path = await storage.save(
+            f"avatars/orgs/{org_id}", avatar_filename(content_type), file_data
+        )
         return await organization_repo.update(self.db, org, avatar_url=storage_path)
 
     def get_avatar_path(self, avatar_url: str) -> str | None:

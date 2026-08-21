@@ -122,6 +122,11 @@ export function MessageItem({
   // The turn's cost, which a grouped turn recorded on the segment that parked
   // rather than on the one the footer is drawn under.
   const footerUsage = turnUsage ?? message.usage;
+  // A turn produced something worth a footer if it wrote content *or* left a
+  // timeline part - the latter is the ask-only turn that was stopped after
+  // answering a question and before any text (#502), which otherwise loses its
+  // stopped indicator, timestamp and cost.
+  const hasBody = Boolean(message.content) || (!isUser && (message.parts?.length ?? 0) > 0);
   const sources = !isUser ? extractSources(message, t) : [];
   const hasSources = sources.length > 0 && !message.isStreaming;
   const onCiteClick = hasSources ? (index: number) => openSources(sources, index) : undefined;
@@ -281,7 +286,7 @@ export function MessageItem({
           </div>
         )}
 
-        {!message.isStreaming && message.content && endsTurn && (
+        {!message.isStreaming && hasBody && endsTurn && (
           <div className={cn("flex items-center gap-2", isUser && "flex-row-reverse")}>
             {message.timestamp && (
               <span className="text-muted-foreground text-[10px]">
@@ -303,13 +308,15 @@ export function MessageItem({
               </span>
             )}
             {!isUser && footerUsage && <MessageCost usage={footerUsage} />}
-            <CopyButton
-              text={message.content}
-              className={cn(
-                "h-6 w-6 rounded-md sm:opacity-0 sm:group-hover:opacity-100",
-                isUser ? "bg-secondary hover:bg-secondary/80" : "bg-muted hover:bg-muted/80",
-              )}
-            />
+            {message.content && (
+              <CopyButton
+                text={message.content}
+                className={cn(
+                  "h-6 w-6 rounded-md sm:opacity-0 sm:group-hover:opacity-100",
+                  isUser ? "bg-secondary hover:bg-secondary/80" : "bg-muted hover:bg-muted/80",
+                )}
+              />
+            )}
             {!isUser && onRegenerate && (
               <button
                 type="button"

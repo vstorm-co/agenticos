@@ -1,6 +1,6 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
+import { MessageCircleQuestion, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { toolEntry } from "@/lib/tool-catalog";
@@ -81,6 +81,12 @@ export function TurnParts({
             open={isStreaming && run.isLast}
             isStreaming={isStreaming}
           />
+        ) : run.part.type === "ask_user" ? (
+          <AskUserBlock
+            key={run.part.id}
+            question={run.part.question ?? ""}
+            answer={run.part.answer ?? ""}
+          />
         ) : (
           <TextBubble
             key={run.part.id}
@@ -127,6 +133,30 @@ export function ThinkingBlock({
         <MarkdownContent content={text} />
       </div>
     </details>
+  );
+}
+
+/**
+ * A question the agent put to the person mid-turn, and the answer it acted on.
+ *
+ * Replayed only: live, the question is the composer's `ask_user` form and the
+ * answer goes back through it. Once the turn is stored, the pause has no home in
+ * `content`, `thinking` or the tool calls - so a reopened conversation would show
+ * neither the question nor the answer the rest of the turn depended on (#502). An
+ * aside rather than a bubble, so it reads as a step in the turn, not a message.
+ */
+export function AskUserBlock({ question, answer }: { question: string; answer: string }) {
+  const t = useTranslations("chat");
+  return (
+    <div className="border-foreground/10 text-muted-foreground space-y-1.5 border-l pl-3.5 text-[13px]">
+      <div className="flex items-center gap-2">
+        <MessageCircleQuestion className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
+        <span className="font-medium">{t("askUserAsked")}</span>
+      </div>
+      <p className="text-foreground/80 break-words whitespace-pre-wrap">{question}</p>
+      <div className="font-medium">{t("askUserAnswered")}</div>
+      <p className="text-foreground/80 break-words whitespace-pre-wrap">{answer}</p>
+    </div>
   );
 }
 
@@ -207,6 +237,10 @@ export function runsOf(parts: MessagePart[]): PartRun[] {
       const open = runs.at(-1);
       if (open?.kind === "tools") open.parts.push(part);
       else runs.push({ kind: "tools", parts: [part], isLast: false });
+      continue;
+    }
+    if (part.type === "ask_user") {
+      runs.push({ kind: "other", part, content: "", isLast: false });
       continue;
     }
     if (

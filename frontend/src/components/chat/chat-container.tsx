@@ -132,8 +132,6 @@ export function ChatContainer() {
     cancelQueued,
     clearQueued,
     setModelProfile,
-    setTemperature,
-    setThinkingEffort,
     pendingApproval,
     sendResumeDecisions,
     pendingQuestions,
@@ -311,8 +309,6 @@ export function ChatContainer() {
         setModelProfile(profileId);
         setModelProfileId(profileId);
       }}
-      onTemperatureChange={setTemperature}
-      onThinkingEffortChange={setThinkingEffort}
       onRegenerate={handleRegenerate}
       slashContext={slashContext}
       slashCommands={slashCommands}
@@ -372,8 +368,6 @@ interface ChatUIProps {
     files?: import("@/types").ChatMessageFile[],
   ) => void;
   onModelProfileChange?: (profileId: string | null) => void;
-  onTemperatureChange?: (temperature: number | null) => void;
-  onThinkingEffortChange?: (effort: "low" | "medium" | "high" | null) => void;
   onRegenerate?: (messageId: string) => void;
   slashContext?: import("./slash-commands").SlashCommandContext;
   slashCommands?: import("./slash-commands").SlashCommand[];
@@ -406,8 +400,6 @@ function ChatUI({
   isArchived,
   sendMessage,
   onModelProfileChange,
-  onTemperatureChange,
-  onThinkingEffortChange,
   onRegenerate,
   slashContext,
   slashCommands,
@@ -565,8 +557,6 @@ function ChatUI({
                     <ChatControls
                       onModelProfileChange={onModelProfileChange}
                       agentModel={agentModel}
-                      onTemperatureChange={onTemperatureChange}
-                      onThinkingEffortChange={onThinkingEffortChange}
                     />
                   </div>
                   {/* Chat is the one surface with no PageHeader, so the "?" that

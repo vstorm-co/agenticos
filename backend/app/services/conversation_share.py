@@ -7,7 +7,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AlreadyExistsError, AuthorizationError, NotFoundError
-from app.repositories import conversation_repo, conversation_share_repo, user_repo
+from app.repositories import conversation_repo, conversation_share_repo, member_repo, user_repo
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +17,18 @@ class ConversationShareService:
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+
+    async def _is_member(self, organization_id: UUID, user_id: UUID) -> bool:
+        """Whether the user belongs to the conversation's organization.
+
+        Plain membership, not `get_active`: the question is tenancy, and a
+        deactivated member is still inside the tenant. Whether they can sign in
+        is the read path's to decide, not this refusal's.
+        """
+        membership = await member_repo.get(
+            self.db, organization_id=organization_id, user_id=user_id
+        )
+        return membership is not None
 
     async def share_conversation(
         self,
@@ -55,13 +67,18 @@ class ConversationShareService:
 
         # The dialog sends an email - people know each other by email, not by
         # UUID - and the API keeps accepting an id for callers that hold one.
+        #
+        # A target outside the conversation's organization is refused as though it
+        # did not exist: the read path refuses on the tenant anyway, so the share
+        # would be unreadable (#930), and naming it a member of another org would
+        # be a cross-tenant probe for which addresses hold an account elsewhere.
         if shared_with is not None:
             target_user = await user_repo.get_by_id(self.db, shared_with)
-            if not target_user:
+            if not target_user or not await self._is_member(conv.organization_id, target_user.id):
                 raise NotFoundError(message="User not found", details={"user_id": str(shared_with)})
         elif shared_with_email is not None:
             target_user = await user_repo.get_by_email(self.db, shared_with_email)
-            if not target_user:
+            if not target_user or not await self._is_member(conv.organization_id, target_user.id):
                 raise NotFoundError(
                     message="No user with that email", details={"email": shared_with_email}
                 )
@@ -99,7 +116,9 @@ class ConversationShareService:
         if conv.user_id != user_id:
             raise AuthorizationError(message="Only the conversation owner can view shares")
 
-        return await conversation_share_repo.get_shares_for_conversation(self.db, conversation_id)
+        return await conversation_share_repo.get_shares_for_conversation(
+            self.db, conversation_id, organization_id=conv.organization_id
+        )
 
     async def revoke_share(self, share_id: UUID, user_id: UUID) -> None:
         """Revoke a share. Owner of conversation or the shared_with user can revoke."""

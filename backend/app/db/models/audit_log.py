@@ -24,6 +24,14 @@ class AppAdminAuditLog(Base, TimestampMixin):
     actor_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True, index=True
     )
+    # The administrator acting behind `actor_user_id`, when the two differ - an
+    # impersonated session. Null on an ordinary request, where nobody is acting
+    # as anybody else. This is what lets the trail answer "who was really acting"
+    # rather than attributing an impersonated action to the person it was done to
+    # (#943).
+    impersonator_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
+    )
     organization_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True, index=True
     )
