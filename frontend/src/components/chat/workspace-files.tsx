@@ -7,6 +7,7 @@ import { AlertTriangle, FolderOpen, Info, X } from "lucide-react";
 import { FileCard, FileViewer } from "@/components/files";
 import { useConversationWorkspace } from "@/hooks";
 import { useFilePreviewStore } from "@/stores";
+import { getFileUrl } from "@/lib/file-api";
 import { formatBytes } from "@/lib/utils";
 import { workspaceFileAccess, type FileSource } from "@/lib/workspace-files";
 import type { ConversationFile } from "@/lib/conversation-workspace-api";
@@ -92,15 +93,20 @@ export function WorkspaceFiles({ conversationId, revision, attachments }: Worksp
   // changes shape.
   const files = workspace?.items.filter((file) => !file.is_dir) ?? [];
 
-  // An attachment an agent *with* a workspace already has as `/uploads/<id8>-<name>`
-  // is one file, not two. `workspace_path` on the server builds that name from the
-  // first eight hex of the file's id, so matching on it is exact rather than a guess
-  // about names - and a name match would collide the moment two people attach
-  // `report.csv`, which is the case the id prefix exists to keep apart.
-  const stored = new Set(files.map((file) => file.path));
+  // An attachment an agent *with* a workspace already holds is one file, not
+  // two. `workspace_path` on the server names it from the first eight hex of the
+  // file's id, so matching on that is exact rather than a guess about names - a
+  // name match would collide the moment two people attach `report.csv`, which is
+  // the case the id prefix exists to keep apart.
+  //
+  // Matched on the *last segment* rather than on a directory prefix: a listing
+  // spells a path as the backend spells it - `./uploads/x` from a shell, `x`
+  // from a glob, `/uploads/x` from a stored workspace - and a match anchored on
+  // one of those showed the same file twice under the others (#1039).
+  const stored = new Set(files.map((file) => file.path.split("/").filter(Boolean).pop() ?? ""));
   const unstored = attachments.filter((file) => {
     const prefix = file.id.replaceAll("-", "").slice(0, 8);
-    return ![...stored].some((path) => path.startsWith(`/uploads/${prefix}-`));
+    return ![...stored].some((name) => name.startsWith(`${prefix}-`));
   });
   const count = files.length + unstored.length;
 
@@ -213,6 +219,12 @@ export function WorkspaceFiles({ conversationId, revision, attachments }: Worksp
                 <FileCard
                   name={file.filename}
                   mimeType={file.mime_type}
+                  // An attachment is behind the same authenticated address the
+                  // viewer reads it from, so the card can draw the picture rather
+                  // than a grey glyph standing in for one. Nothing is fetched here
+                  // - the browser loads what an `img` points at, and a chat holds
+                  // a handful of attachments rather than a listing.
+                  imageUrl={getFileUrl(file.id)}
                   onOpen={() => openAttachment(file)}
                   className="w-full"
                 />

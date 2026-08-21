@@ -12,14 +12,25 @@ from app.core.config import settings
 def create_access_token(
     subject: str | Any,
     expires_delta: timedelta | None = None,
+    *,
+    act: str | None = None,
 ) -> str:
-    """Create a JWT access token."""
+    """Create a JWT access token.
+
+    `act` is the actor behind the subject when the two differ - an administrator
+    impersonating another account. It is carried as its own claim so a request
+    made with the token is attributable to the person who is really acting, not
+    only to the account they are acting as (#943). Omitted from the payload when
+    unset, so an ordinary token is byte-for-byte what it was.
+    """
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
     else:
         expire = datetime.now(UTC) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
-    to_encode = {"exp": expire, "sub": str(subject), "type": "access"}
+    to_encode: dict[str, Any] = {"exp": expire, "sub": str(subject), "type": "access"}
+    if act is not None:
+        to_encode["act"] = str(act)
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
@@ -86,10 +97,23 @@ def verify_special_token(token: str, expected_type: str) -> dict[str, Any] | Non
     return payload
 
 
+# bcrypt only ever uses the first 72 bytes of a password, and bcrypt 5.0 raises
+# rather than truncating silently. Both helpers truncate to the same 72 bytes, so
+# hashing and verifying agree - and an overlong password submitted at the login
+# form (a `UserCreate.password` of up to 128 characters can exceed 72 bytes once
+# encoded, and an unknown account still runs bcrypt against the dummy hash) is an
+# authentication failure rather than an unauthenticated 500 (#947).
+_BCRYPT_MAX_BYTES = 72
+
+
+def _bcrypt_bytes(password: str) -> bytes:
+    return password.encode("utf-8")[:_BCRYPT_MAX_BYTES]
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against a hash."""
     return bcrypt.checkpw(
-        plain_password.encode("utf-8"),
+        _bcrypt_bytes(plain_password),
         hashed_password.encode("utf-8"),
     )
 
@@ -97,6 +121,6 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_password_hash(password: str) -> str:
     """Hash a password."""
     return bcrypt.hashpw(
-        password.encode("utf-8"),
+        _bcrypt_bytes(password),
         bcrypt.gensalt(),
     ).decode("utf-8")

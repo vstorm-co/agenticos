@@ -16,10 +16,20 @@ class AppAdminAuditLog(Base, TimestampMixin):
     __tablename__ = "app_admin_audit_logs"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    # Null is "the platform, on a schedule" - an approval the expiry sweep
-    # settled because nobody decided it. That is the only thing it can mean:
-    # every authenticated path has a subject and passes it.
+    # Null is "no session behind it", which two writers can mean: the approval
+    # expiry sweep, settling what nobody decided, and an operator command at the
+    # deployment's shell (`rag-source-add`, `rag-source-remove`). The `action`
+    # is what tells them apart; every authenticated path has a subject and
+    # passes it.
     actor_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
+    )
+    # The administrator acting behind `actor_user_id`, when the two differ - an
+    # impersonated session. Null on an ordinary request, where nobody is acting
+    # as anybody else. This is what lets the trail answer "who was really acting"
+    # rather than attributing an impersonated action to the person it was done to
+    # (#943).
+    impersonator_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True, index=True
     )
     organization_id: Mapped[uuid.UUID | None] = mapped_column(

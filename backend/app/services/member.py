@@ -25,8 +25,9 @@ class MemberService:
         *,
         skip: int = 0,
         limit: int = 100,
-    ) -> tuple[list[tuple[OrganizationMember, str, str | None, str | None, int | None]], int]:
-        """List members with their joined user info. Any org member may list."""
+    ) -> tuple[list[tuple[OrganizationMember, str, str | None, str | None, int | None, bool]], int]:
+        """List members with their joined user info and whether the caller may
+        change each one's role. Any org member may list."""
         membership = await member_repo.get(
             self.db, organization_id=organization_id, user_id=requester_id
         )
@@ -37,7 +38,17 @@ class MemberService:
 
         rows = await member_repo.list_for_org(self.db, organization_id, skip=skip, limit=limit)
         total = await member_repo.count_for_org(self.db, organization_id)
-        return rows, total
+        # Whether the requester may change each member's role, decided here rather
+        # than in the client: the rule is catalog-derived (`assignable_roles`), so
+        # a client reimplementing it would drift, and a selector offered on a row
+        # the server then refuses is a control whose only result is a 403 (#700).
+        # The same two checks `change_role` makes - the requester holds
+        # `roles:manage`, and their role strictly outranks the target's current
+        # one. An Owner target is excluded because no role assigns `owner`.
+        may_manage = role_has(membership.role, Perm.ROLES_MANAGE)
+        assignable = assignable_roles(membership.role)
+        rows_with_flag = [(*row, may_manage and row[0].role in assignable) for row in rows]
+        return rows_with_flag, total
 
     async def change_role(
         self,
@@ -50,9 +61,11 @@ class MemberService:
 
         Rules:
         - The requester needs `roles:manage`.
-        - They may only assign a role their own strictly outranks, which is
-          :func:`app.core.permissions.assignable_roles` - so no requester can
-          hand out `owner`, and none can promote a peer to their own level.
+        - They may only touch a member their own role strictly outranks, and only
+          assign a role their own strictly outranks - both
+          :func:`app.core.permissions.assignable_roles`. So no requester hands out
+          `owner` or promotes a peer to their own level, and no Admin demotes a
+          peer Admin (the same authority `remove` refuses to let one Admin take).
         - OWNER cannot be demoted via this method (use transfer_ownership).
         """
         requester = await member_repo.get(
@@ -66,8 +79,12 @@ class MemberService:
         if not requester or not role_has(requester.role, Perm.ROLES_MANAGE):
             raise AuthorizationError(message="You cannot change member roles")
 
+        # Locked for the rest of this transaction: the role checked below is the
+        # one being replaced. Without the lock an Owner could promote this target
+        # between the check and the write, and this update would overwrite the
+        # promotion with a role the requester no longer outranks (#700).
         target = await member_repo.get(
-            self.db, organization_id=organization_id, user_id=target_user_id
+            self.db, organization_id=organization_id, user_id=target_user_id, for_update=True
         )
         if not target:
             raise NotFoundError(
@@ -76,6 +93,19 @@ class MemberService:
 
         if target.role == OrgRole.OWNER.value:
             raise BadRequestError(message="Use transfer-ownership to change the Owner role")
+
+        # Whose role may be touched, not only which role may be offered. The
+        # ceiling below bounds the *new* role; without this, an Admin could demote
+        # a peer Admin to Viewer - stripping the authority `remove` refuses to let
+        # one Admin take from another (#700). A member is only administrable by a
+        # role that strictly outranks their current one, which is what
+        # `assignable_roles` already means, so the Admin-vs-Admin rule is the same
+        # rule as the assignment ceiling rather than a second one beside it.
+        if target.role not in assignable_roles(requester.role):
+            raise AuthorizationError(
+                message="You cannot change the role of a member your own does not outrank",
+                details={"target_role": target.role},
+            )
 
         if new_role not in assignable_roles(requester.role):
             raise AuthorizationError(
@@ -120,8 +150,14 @@ class MemberService:
         if not requester or not role_has(requester.role, Perm.MEMBERS_MANAGE):
             raise AuthorizationError(message="You cannot remove members")
 
+        # Locked for the same reason `change_role` locks: the role read here is
+        # what decides the refusal below, and the row is written (deleted) after
+        # it. Without the lock an Owner promoting this target between the check and
+        # the delete leaves an Admin removing a member who is, by the time the row
+        # goes, a peer Admin - the authority the last rule in this method exists to
+        # protect. Found sweeping the sibling of the lock #700 added.
         target = await member_repo.get(
-            self.db, organization_id=organization_id, user_id=target_user_id
+            self.db, organization_id=organization_id, user_id=target_user_id, for_update=True
         )
         if not target:
             raise NotFoundError(

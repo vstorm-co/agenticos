@@ -733,7 +733,14 @@ def rag_source_remove(source_id: str, yes: bool) -> None:
         async with get_db_context() as db:
             svc = SyncSourceService(db)
             try:
-                await svc.delete_source(source_id)
+                # The row's own organization, because this command is
+                # deployment-wide and a shell prompt has no active one. The
+                # context carries no subject either, which is what the audit
+                # entry records: removed, by nobody a session can name (#983).
+                source = await svc.get_source(source_id)
+                await svc.delete_source(
+                    source_id, ctx=AuthContext.anonymous(source.organization_id)
+                )
                 success(f"Sync source '{source_id}' removed.")
             except Exception as e:
                 error(f"Failed to remove source: {e}")

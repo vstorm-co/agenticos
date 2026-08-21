@@ -97,6 +97,14 @@ class AgentSession:
         self.current_conversation_id: str | None = None
         self._turn_task: asyncio.Task[None] | None = None
         self._ask_user_future: asyncio.Future[list[dict[str, Any]]] | None = None
+        # The running turn's timeline, so `_ask_one` can record a mid-turn
+        # question and its answer as a part of the turn it happened in (#502).
+        # None between turns; set and cleared by `process_message`.
+        self._current_timeline: TurnTimeline | None = None
+        # The question awaiting an answer, so the frame handler can record the
+        # answered pair the moment it arrives - before a `stop` frame behind it
+        # can cancel the turn and lose it (#502). One at a time, under `_ask_lock`.
+        self._pending_question: str | None = None
         # One question round on the wire at a time. The client renders a single
         # `ask_user` form and its `ask_user_response` carries no correlation, and
         # `_ask_user_future` is one slot - so two delegates asking at once (a
@@ -122,8 +130,18 @@ class AgentSession:
         if msg_type == "ask_user_response":
             fut = self._ask_user_future
             if fut is not None and not fut.done():
-                answers = data.get("answers")
-                fut.set_result(answers if isinstance(answers, list) else [])
+                raw = data.get("answers")
+                answers = raw if isinstance(raw, list) else []
+                fut.set_result(answers)
+                # Recorded here, in the receive loop, rather than after the run
+                # resumes past its await: a `stop` sent right behind the answer is
+                # the next frame, so completing the pair now is what keeps a turn
+                # cancelled a microtask later from losing the answered question
+                # (#502).
+                if self._pending_question is not None and self._current_timeline is not None:
+                    self._current_timeline.add_ask_user(
+                        self._pending_question, render_answer(answers[0] if answers else None)
+                    )
             return
 
         if msg_type is not None:
@@ -232,6 +250,7 @@ class AgentSession:
         # which path a turn is on, and the alternative is throwing away a
         # half-written answer on exactly the runs somebody opens afterwards.
         timeline = TurnTimeline()
+        self._current_timeline = timeline
         # The run row, as soon as `prepare` opens one. A list because the
         # callback is `list.append` and a turn opens at most one run - it is
         # empty when the run was refused before it existed.
@@ -378,6 +397,7 @@ class AgentSession:
             logger.exception("Error processing agent request")
             await send_event(self.websocket, "error", {"message": _turn_failed(exc)})
         finally:
+            self._current_timeline = None
             if not answered:
                 await self._persist_partial_turn(
                     opened,
@@ -415,8 +435,14 @@ class AgentSession:
         run existed - an unpublished agent, a membership revoked mid-session - has
         an empty `opened` and no output, and a blank assistant message would read
         as the agent having answered with silence.
+
+        A stored timeline counts as produced content: a turn that only asked a
+        question and was then stopped before answering has no `output` and no
+        tool call, but its `ask_user` part is the whole of what happened and has
+        no column to fall back to - so leaving it out of this guard loses it on
+        reload (#502).
         """
-        if not opened or not (output or tool_calls):
+        if not opened or not (output or tool_calls or parts):
             return
         run = opened[0]
         if self.current_conversation_id is None:
@@ -443,7 +469,15 @@ class AgentSession:
         and several, and the delegate reads back the rendered answer.
         """
         item = QuestionItem(question=question, options=options)
-        answers = await self._ask_user([item.model_dump()])
+        # The frame handler records the answered pair onto the turn's timeline the
+        # moment the answer arrives (#502), so this only marks which question is
+        # open and clears it however the wait ends - answered, unanswered, or the
+        # turn cancelled out from under it.
+        self._pending_question = question
+        try:
+            answers = await self._ask_user([item.model_dump()])
+        finally:
+            self._pending_question = None
         return render_answer(answers[0] if answers else None)
 
     async def _ask_user(self, questions: list[dict[str, Any]]) -> list[dict[str, Any]]:

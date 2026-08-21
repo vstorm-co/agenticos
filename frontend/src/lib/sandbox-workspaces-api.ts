@@ -34,14 +34,30 @@ export interface WorkspaceSummary {
   /** Who can see the files. `scope` is the mechanism; this is the consequence. */
   access_label: string;
   bytes_total: number;
+  /**
+   * How many files, or `null` for one nobody counted.
+   *
+   * Free for a stored workspace and a round trip per host for a container, so the
+   * listing asks for the second only when told to - `null` is "not counted" and
+   * never "empty".
+   */
+  file_count: number | null;
+  /** What the files come to. Separate from `bytes_total`, the stored document's size. */
+  measured_bytes: number | null;
   version: number;
   last_used_at: string | null;
   created_at: string | null;
 }
 
-interface WorkspaceSummaryList {
+export interface WorkspaceSummaryList {
   items: WorkspaceSummary[];
   total: number;
+  /** How many workspaces were read to count their files. */
+  measured: number;
+  /** Hosts that would not answer, counted rather than dropped. */
+  unreadable: number;
+  /** Whether counting stopped short of the list. */
+  truncated: boolean;
 }
 
 export interface WorkspaceFile {
@@ -67,6 +83,14 @@ export interface WorkspaceFiles {
    * sandbox runs. Shown as an explanation, not as a red error.
    */
   unreadable_reason: string | null;
+  /**
+   * Whether the host answered and this is still not all of it.
+   *
+   * Reading a container's files is a round trip per directory, so the walk stops
+   * at six levels and 2,000 entries - which for a workspace holding a checkout is
+   * a tree a person would otherwise read as complete.
+   */
+  truncated: boolean;
 }
 
 /** One file in the flat view, with the workspace it came from named beside it. */
@@ -74,6 +98,14 @@ export interface FlatFile extends WorkspaceFile {
   workspace_id: string;
   agent_name: string;
   access_label: string;
+  /**
+   * Whether a person attached this file rather than an agent writing it.
+   *
+   * Read off the path server-side - attachments land in `uploads/` - because a
+   * host records no author. It is what makes "which of these did I give it" a
+   * question this list can answer.
+   */
+  from_upload: boolean;
   /** The first lines of a stored text file; null for binary content and for
    *  container-backed workspaces, whose bytes the flat listing does not fetch. */
   preview: string | null;
@@ -105,9 +137,16 @@ export interface WorkspaceFileContent {
 
 const ROOT = "/sandbox-workspaces";
 
-export async function listWorkspaces(): Promise<WorkspaceSummary[]> {
-  const data = await apiClient.get<WorkspaceSummaryList>(ROOT);
-  return data.items;
+/**
+ * The workspaces this reader can see.
+ *
+ * `measure` counts the files in the container-backed ones, which is a round trip
+ * to a host per workspace - so it is a decision the page makes when somebody asks
+ * for the numbers, not a cost the listing pays to open. A stored workspace is
+ * counted either way, because its files came with the row.
+ */
+export async function listWorkspaces(measure = false): Promise<WorkspaceSummaryList> {
+  return apiClient.get<WorkspaceSummaryList>(measure ? `${ROOT}?measure=true` : ROOT);
 }
 
 /**

@@ -13,6 +13,9 @@ class AuditEntryRead(BaseSchema):
     id: UUID
     actor_user_id: UUID | None = None
     """Who did it, or `None` where the platform did - see `record_audit`."""
+    impersonator_user_id: UUID | None = None
+    """The administrator acting behind `actor_user_id`, or `None` when the actor
+    was acting as themselves - an impersonated action names both (#943)."""
     action: str
     target_type: str | None = None
     target_id: str | None = None

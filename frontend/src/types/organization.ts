@@ -36,6 +36,11 @@ export interface OrganizationMember {
   /** Chosen default-avatar colour slot (1..10); null is auto from the id. */
   avatar_color: number | null;
   joined_at: string;
+  /** Whether the caller may change this member's role - the server's own answer
+   *  to its rule, so the row shows a selector only where a change is accepted.
+   *  Optional because only the members list computes it; absent reads as "no",
+   *  which is the safe default for a control that would otherwise 403. */
+  can_change_role?: boolean;
 }
 
 export interface OrganizationMemberList {

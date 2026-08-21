@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { EntityAvatar } from "@/components/ui/entity-avatar";
 import { useOrganizations } from "@/hooks";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "@/lib/locale-navigation";
 import { useTranslations } from "next-intl";
 
 /**
@@ -28,6 +28,28 @@ export function OrgSwitcher() {
   const t = useTranslations("teams");
   const { orgs, activeOrg, fetchOrgs, switchOrg } = useOrganizations();
   const router = useRouter();
+  const pathname = usePathname();
+
+  /**
+   * Switch, and take an organization-scoped route with it.
+   *
+   * `/orgs/{id}/members` and `/orgs/{id}/roles` name their organization in the
+   * URL, and the URL is what decides the tenant (#1032) - so setting the id and
+   * staying put would leave the page acting on the organization just left. The
+   * same page for the organization picked is what "switch" means here; every
+   * other route is tenant-agnostic and stays where it is.
+   *
+   * Both hooks come from `@/lib/locale-navigation` rather than
+   * `next/navigation`: its `usePathname` hands back the path without the locale
+   * prefix, so the pattern below does not have to know about one, and its
+   * `router` puts the prefix back - which the two pushes further down were
+   * losing, sending a Polish reader to the English `/orgs`.
+   */
+  const pick = (id: string) => {
+    switchOrg(id);
+    const scoped = pathname.match(/\/orgs\/[^/]+(\/.*)?$/);
+    if (scoped) router.push(`/orgs/${id}${scoped[1] ?? ""}`);
+  };
 
   useEffect(() => {
     fetchOrgs();
@@ -75,7 +97,7 @@ export function OrgSwitcher() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">
         {orgs.map((org) => (
-          <DropdownMenuItem key={org.id} onSelect={() => switchOrg(org.id)} className="gap-2">
+          <DropdownMenuItem key={org.id} onSelect={() => pick(org.id)} className="gap-2">
             <EntityAvatar
               seed={org.id}
               name={org.name}

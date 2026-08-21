@@ -48,6 +48,67 @@ SPREADSHEET_MIME_TYPES = {
 
 IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 
+# Types safe to render inline on a browser tab from this deployment's own origin.
+# Anything a chat attachment may hold that is not here - `text/html`, an SVG, a
+# spreadsheet - is served as a download rather than displayed, so it cannot run as
+# a script on the origin the app itself is served from (#702).
+RENDER_SAFE_MIME_TYPES = IMAGE_MIME_TYPES | {"application/pdf"}
+
+
+def sniff_image_media_type(path: str) -> str | None:
+    """The image media type a file's own bytes say it is, or `None` to refuse it.
+
+    Read from the content, not the name on disk. An avatar is served from the
+    app's own origin under a CSP that allows inline script, so a file whose bytes
+    are HTML must never be served as anything a browser will run - and the stored
+    name cannot be trusted to say what the bytes are: a `.png` uploaded with HTML
+    inside it, or a valid image saved under a legacy extensionless name, both lie
+    (#702). Matching the magic number answers for the bytes themselves, so the
+    first is refused and the second still serves. Only the four image types this
+    platform accepts are recognised; anything else - HTML, SVG, a PDF - is
+    `None`.
+    """
+    try:
+        with Path(path).open("rb") as handle:
+            header = handle.read(16)
+    except OSError:
+        return None
+    if header.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if header.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if header.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if header[:4] == b"RIFF" and header[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+_AVATAR_EXTENSIONS = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/gif": "gif",
+    "image/webp": "webp",
+}
+
+
+def avatar_filename(content_type: str) -> str:
+    """The name to store an avatar under, its suffix taken from its type.
+
+    The stored file is named for the content type the upload validated rather
+    than for the caller's own filename, so what is on disk is self-describing
+    whatever the client called it. Serving no longer depends on the name -
+    `sniff_image_media_type` reads the bytes (#702) - so this is about a tidy,
+    honest file on disk, not about correctness of the response.
+
+    Raises:
+        KeyError: If `content_type` is not one of the validated image types - the
+            upload validates it first, so reaching this with anything else is a
+            caller that skipped the check, and failing loudly is right.
+    """
+    return f"avatar.{_AVATAR_EXTENSIONS[content_type]}"
+
+
 # Avatars are decoration rendered at 40px; the limit is what stops someone
 # storing a 40MB photograph to be scaled down on every page load.
 MAX_AVATAR_SIZE = 2 * 1024 * 1024

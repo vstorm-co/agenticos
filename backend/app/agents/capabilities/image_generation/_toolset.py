@@ -44,11 +44,16 @@ from app.agents.capabilities.budget import record_ambient_usage
 from app.agents.deps import AgentDeps
 from app.services.generated_media import generated_image_url, save_generated_image
 
-WORKSPACE_OUTPUT_DIR = "/output"
+WORKSPACE_OUTPUT_DIR = "output"
 """Where a generated image lands in the run's workspace, when there is one.
 
 A single well-known directory so the model can be told where to look for what it
 made without the path being an argument it has to remember and repeat.
+
+Relative to the working directory, for the reason `UPLOAD_DIR` is: an absolute
+path is resolved as absolute, which put a generated image outside the workspace -
+unreachable by the agent's own shell, absent from the browser, and not in the
+snapshot a channel diffs to decide what to post back (#1039).
 """
 
 _SUBAGENT_INSTRUCTIONS = (

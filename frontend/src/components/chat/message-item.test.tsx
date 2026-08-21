@@ -113,6 +113,12 @@ beforeEach(() => {
  * mid-way says so, with the version that answered, because "why did it say that"
  * is a question about one frozen spec rather than about the agent as it is now.
  */
+/** What the store has open, resolved through the set the container publishes. */
+function openedFile() {
+  const state = useFilePreviewStore.getState();
+  return state.available.find((one) => one.id === state.openId);
+}
+
 describe("a turn in the transcript", () => {
   it("marks an answer whose run was stopped part-way through", () => {
     // A cancelled run leaves whatever had been written when the socket closed,
@@ -127,6 +133,20 @@ describe("a turn in the transcript", () => {
     item({ role: "assistant", content: "Refunds run to thirty days." });
 
     expect(screen.queryByText("stopped")).toBeNull();
+  });
+
+  it("marks a stopped ask-only turn, whose only body is the answered question", () => {
+    // Stopped after answering a question and before any text: content is empty
+    // and the timeline is just the ask_user part, so the footer must key on the
+    // parts, not on content, or the stopped indicator vanishes (#502).
+    item({
+      role: "assistant",
+      content: "",
+      wasStopped: true,
+      parts: [{ id: "q-1", type: "ask_user", question: "Which region?", answer: "eu-west-1" }],
+    });
+
+    expect(screen.getByText("stopped")).toBeVisible();
   });
 
   it("never marks the question, only the answer", () => {
@@ -257,6 +277,21 @@ describe("the ordered timeline", () => {
       .filter((node) => node.tagName === "DETAILS" || node.closest("details") === null)
       .map((node) => (node.tagName === "DETAILS" ? "thinking" : node.getAttribute("data-testid")));
     expect(rendered).toEqual(["thinking", "tool-tc-1", "markdown"]);
+  });
+
+  it("replays a mid-turn question and its answer as a step in the turn (#502)", () => {
+    const { getByText } = item({
+      parts: [
+        { id: "p-1", type: "text", content: "I need to know first." },
+        { id: "p-2", type: "ask_user", question: "Which region?", answer: "eu-west-1" },
+        { id: "p-3", type: "text", content: "Deploying." },
+      ],
+    });
+
+    expect(getByText("Asked you")).toBeInTheDocument();
+    expect(getByText("Which region?")).toBeInTheDocument();
+    expect(getByText("You answered")).toBeInTheDocument();
+    expect(getByText("eu-west-1")).toBeInTheDocument();
   });
 
   it("opens the reasoning while it is the part being written, and closes it after", () => {
@@ -464,7 +499,7 @@ describe("what a person attached", () => {
 
     await userEvent.click(screen.getByTitle("Open logo.png"));
 
-    expect(useFilePreviewStore.getState().file?.filename).toBe("logo.png");
+    expect(openedFile()?.filename).toBe("logo.png");
   });
 
   it("treats a file the server did not classify as an image by its MIME type", async () => {
@@ -482,7 +517,7 @@ describe("what a person attached", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /invoice\.pdf/ }));
 
-    expect(useFilePreviewStore.getState().file?.id).toBe("f-1");
+    expect(openedFile()?.id).toBe("f-1");
   });
 
   it("names the type on the card", () => {
@@ -690,6 +725,17 @@ describe("the runs a turn is made of", () => {
     expect(runsOf([{ id: "t2", type: "thinking" }])).toEqual([]);
     expect(runsOf([])).toEqual([]);
   });
+
+  it("keeps an ask_user part as its own run, empty content notwithstanding (#502)", () => {
+    const runs = runsOf([
+      { id: "q1", type: "ask_user", question: "Which region?", answer: "eu-west-1" },
+    ]);
+
+    expect(runs).toHaveLength(1);
+    const [run] = runs;
+    expect(run?.kind === "other" && run.part.type).toBe("ask_user");
+    expect(run?.isLast).toBe(true);
+  });
 });
 
 /**
@@ -761,6 +807,33 @@ describe("a segment that continues the turn above it", () => {
     item({}, { agent: { id: "a-1", name: "Support" } as Agent, continuesTurn: true });
 
     expect(screen.queryByText("Support")).toBeNull();
+  });
+
+  it("closes the gap below it as well as above, inside one turn", () => {
+    // A turn that ran three commands is three segments, each carrying one step.
+    // Only the top half was tightened, so they sat a message-gap apart and read
+    // as three separate things the agent did rather than one run.
+    const { container } = item(
+      {},
+      { agent: { id: "a-1", name: "Support" } as Agent, continuesTurn: true, endsTurn: false },
+    );
+
+    const row = container.firstElementChild!;
+
+    expect(row.className).toContain("pt-0");
+    expect(row.className).toContain("pb-0");
+    // And no shorthand under them. `py-3 pt-0 pb-0` leaves which utility wins to
+    // the order of the generated stylesheet, and the padding survived.
+    expect(row.className).not.toMatch(/\bpy-/);
+  });
+
+  it("keeps its bottom padding on the segment that ends the turn", () => {
+    const { container } = item(
+      {},
+      { agent: { id: "a-1", name: "Support" } as Agent, continuesTurn: true, endsTurn: true },
+    );
+
+    expect(container.firstElementChild!.className).not.toContain("pb-0");
   });
 
   it("keeps the gutter, so the whole turn stays in one column", () => {

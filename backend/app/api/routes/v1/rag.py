@@ -536,9 +536,7 @@ async def clone_sync_source(
     """
     source = await access.sync_source(ctx, source_id)
     await access.writable(ctx, data.collection_name)
-    return await sync_source_svc.clone_source(
-        str(source.id), data, organization_id=ctx.organization_id
-    )
+    return await sync_source_svc.clone_source(str(source.id), data, ctx=ctx)
 
 
 @router.patch(
@@ -574,7 +572,7 @@ async def delete_sync_source(
 ) -> None:
     """Delete a sync source configuration."""
     source = await access.sync_source(ctx, source_id)
-    await sync_source_svc.delete_source(str(source.id))
+    await sync_source_svc.delete_source(str(source.id), ctx=ctx)
 
 
 @router.post(

@@ -922,7 +922,7 @@ class TestServingAFileAsBytes:
             def __init__(self, url, token=""):
                 pass
 
-            def ls(self, session_id):
+            def ls(self, session_id, path="."):
                 return []
 
             def read_bytes(self, session_id, path):
@@ -955,7 +955,7 @@ class TestServingAFileAsBytes:
             def __init__(self, url, token=""):
                 pass
 
-            def ls(self, session_id):
+            def ls(self, session_id, path="."):
                 return []
 
             def read_bytes(self, session_id, path):
@@ -1009,7 +1009,7 @@ class TestServingAFileAsBytes:
             def __init__(self, url, token=""):
                 pass
 
-            def ls(self, session_id):
+            def ls(self, session_id, path="."):
                 return [{"path": "/run.py", "size": 8, "is_dir": False}]
 
             def read(self, session_id, path):
@@ -1036,7 +1036,7 @@ class TestServingAFileAsBytes:
             def __init__(self, url, token=""):
                 pass
 
-            def ls(self, session_id):
+            def ls(self, session_id, path="."):
                 raise RuntimeError("This service keeps no workspaces on disk.")
 
             def read(self, session_id, path):
@@ -1083,7 +1083,7 @@ class TestServingAFileAsBytes:
             def __init__(self, url, token=""):
                 pass
 
-            def ls(self, session_id):
+            def ls(self, session_id, path="."):
                 return []
 
             def read_bytes(self, session_id, path):
@@ -1147,7 +1147,7 @@ class TestServingAConversationsFileAsBytes:
             def __init__(self, url, token=""):
                 pass
 
-            def ls(self, session_id):
+            def ls(self, session_id, path="."):
                 return []
 
             def read_bytes(self, session_id, path):
@@ -1562,7 +1562,7 @@ class TestWhatReadingAHostCosts:
             def __init__(self, url, token=""):
                 made.append(self)
 
-            def ls(self, session_id):
+            def ls(self, session_id, path="."):
                 if ls_fails:
                     raise RuntimeError("This service keeps no workspaces on disk.")
                 return [{"path": "/run.py", "size": 8, "is_dir": False}]
@@ -1795,6 +1795,50 @@ class TestContainerBackedWorkspaces:
         )
 
         assert seen["runtime"] == "data-science"
+
+    async def test_a_container_workspace_carries_what_is_installed_in_it(
+        self, monkeypatch, mock_db_session
+    ):
+        """The run has to tell its model, and only the open knows which runtime it
+        resolved to. Without it an agent writes a PDF extractor beside the `lit`
+        that would have read the file."""
+        from pydantic_ai_backends import remote as remote_module
+
+        monkeypatch.setattr(remote_module, "RemoteSandbox", lambda url, **kwargs: object())
+        _serve(monkeypatch, _resolved(default_runtime="workbench"))
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=None))
+        monkeypatch.setattr(
+            workspace_repo, "create", AsyncMock(return_value=_row(backend="service"))
+        )
+
+        opened = await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service"), ctx=_ctx(), identity=_identity()
+        )
+
+        assert opened is not None
+        assert opened.briefing is not None
+        assert "liteparse" in opened.briefing
+
+    async def test_a_runtime_this_deployment_does_not_ship_is_described_to_nobody(
+        self, monkeypatch, mock_db_session
+    ):
+        """A host can be started with an allowlist of its own, and inventing a
+        package list for one of its images would be a prompt that lies."""
+        from pydantic_ai_backends import remote as remote_module
+
+        monkeypatch.setattr(remote_module, "RemoteSandbox", lambda url, **kwargs: object())
+        _serve(monkeypatch, _resolved(default_runtime="their-own-image"))
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=None))
+        monkeypatch.setattr(
+            workspace_repo, "create", AsyncMock(return_value=_row(backend="service"))
+        )
+
+        opened = await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service"), ctx=_ctx(), identity=_identity()
+        )
+
+        assert opened is not None
+        assert opened.briefing is None
 
     async def test_a_daytona_connection_uses_the_organizations_own_key(
         self, monkeypatch, mock_db_session
@@ -2613,7 +2657,7 @@ class TestShowingTheFilesToAPerson:
             def __init__(self, url, token=""):
                 pass
 
-            def ls(self, session_id):
+            def ls(self, session_id, path="."):
                 return [{"path": "/run.py", "size": 8, "is_dir": False}]
 
             def read(self, session_id, path):
@@ -2664,7 +2708,7 @@ class TestShowingTheFilesToAPerson:
             def __init__(self, url, token=""):
                 pass
 
-            def ls(self, session_id):
+            def ls(self, session_id, path="."):
                 return [{"path": "/workspace/run.py", "size": 12, "is_dir": False}]
 
             # `read_bytes`, not `read`: the viewer is served the file's own text,
@@ -2704,7 +2748,7 @@ class TestShowingTheFilesToAPerson:
             def __init__(self, url, token=""):
                 pass
 
-            def ls(self, session_id):
+            def ls(self, session_id, path="."):
                 raise RuntimeError("This service keeps no workspaces on disk.")
 
         monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
@@ -2738,7 +2782,7 @@ class TestShowingTheFilesToAPerson:
             def __init__(self, url, token=""):
                 pass
 
-            def ls(self, session_id):
+            def ls(self, session_id, path="."):
                 return []
 
             def read(self, session_id, path):
@@ -3067,3 +3111,589 @@ class TestWhoseWorkspaceItIs:
         from app.services.sandbox_workspace import access_label
 
         assert access_label(_row(scope=scope)) == expected
+
+
+class TestCountingTheFilesInEachWorkspace:
+    """What a listing can say about size without paying for every host.
+
+    A stored workspace's files are a column of the row the listing already read, so
+    counting them is arithmetic. A container's are on its host, and reading them is
+    a round trip *per workspace* - which is why the default listing counts the first
+    kind and leaves the second to a caller who asked.
+    """
+
+    async def test_a_stored_workspace_is_counted_without_being_asked(
+        self, monkeypatch, mock_db_session
+    ):
+        from app.repositories import agent as agent_repo
+
+        stored = StateBackend()
+        stored.write("/report.csv", "a,b\n1,2")
+        stored.write("/notes.md", "hello")
+        row = _row(files=dict(stored.files))
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+        service = SandboxWorkspaceService(mock_db_session)
+
+        overviews = await service.visible_to(_ctx())
+        counted = await service.measured(_ctx(), overviews, hosts=False)
+
+        files, size = counted.counts[row.id]
+        assert files == 2
+        assert size > 0
+        assert counted.measured == 1
+
+    async def test_a_container_is_left_alone_until_somebody_asks(
+        self, monkeypatch, mock_db_session
+    ):
+        """A round trip per workspace, on a page nobody has asked a question of."""
+        from app.repositories import agent as agent_repo
+
+        row = _row(backend="service", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+        service = SandboxWorkspaceService(mock_db_session)
+        service.connections = MagicMock(
+            resolve=AsyncMock(side_effect=AssertionError("the host must not be asked"))
+        )
+
+        overviews = await service.visible_to(_ctx())
+        counted = await service.measured(_ctx(), overviews, hosts=False)
+
+        assert counted.counts == {}
+        assert counted.measured == 0
+
+    async def test_a_host_that_will_not_answer_is_counted_not_dropped(
+        self, monkeypatch, mock_db_session
+    ):
+        """A workspace quietly skipped reads as a workspace holding no files, which
+        is the one answer nobody can tell from the truth."""
+        from app.repositories import agent as agent_repo
+
+        row = _row(backend="service", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+        service = SandboxWorkspaceService(mock_db_session)
+        service.connections = MagicMock(
+            resolve=AsyncMock(side_effect=RuntimeError("the host is down"))
+        )
+
+        overviews = await service.visible_to(_ctx())
+        counted = await service.measured(_ctx(), overviews, hosts=True)
+
+        assert counted.counts == {}
+        assert counted.unreadable == 1
+
+    async def test_measuring_stops_at_the_bound_and_says_so(self, monkeypatch, mock_db_session):
+        """Twenty-five round trips is already a slow request; two hundred is a page
+        that times out."""
+        from app.repositories import agent as agent_repo
+
+        rows = [_row(backend="service", connection_id=uuid4()) for _ in range(3)]
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=rows))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+        service = SandboxWorkspaceService(mock_db_session)
+        service.connections = MagicMock(resolve=AsyncMock(side_effect=RuntimeError("down")))
+
+        overviews = await service.visible_to(_ctx())
+        counted = await service.measured(_ctx(), overviews, hosts=True, limit=2)
+
+        assert counted.unreadable == 2
+        assert counted.truncated is True
+
+
+class TestWalkingAHostsDirectories:
+    """The listing reads every level, not only the root.
+
+    The archive's `ls` lists *one* directory, and it was called once - so a
+    workspace whose files are all under `uploads/` reported a single directory entry
+    and nothing else. The folder opened empty in the browser, the file count read
+    zero, and the files appeared only in the flat view of a *stored* workspace,
+    where the paths come out of a JSONB column whole.
+    """
+
+    @staticmethod
+    def _archive(monkeypatch, tree: dict[str, list[dict[str, object]]], asked: list[str]):
+        from pydantic_ai_backends import remote as remote_module
+
+        class _Archive:
+            def __init__(self, url, token=""):
+                pass
+
+            def ls(self, session_id, path="."):
+                asked.append(path)
+                return tree.get(path, [])
+
+            def close(self):
+                pass
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+
+    async def test_a_file_under_a_folder_is_listed(self, monkeypatch, mock_db_session):
+        asked: list[str] = []
+        self._archive(
+            monkeypatch,
+            {
+                ".": [{"path": "uploads", "name": "uploads", "is_dir": True, "size": None}],
+                "uploads": [
+                    {"path": "uploads/book.pdf", "name": "book.pdf", "is_dir": False, "size": 9}
+                ],
+            },
+            asked,
+        )
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="xc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        found = await SandboxWorkspaceService(mock_db_session).listing(
+            _ctx(), conversation_id=uuid4()
+        )
+
+        assert found is not None
+        _, contents = found
+        assert [str(entry.get("path")) for entry in contents.entries] == [
+            "uploads",
+            "uploads/book.pdf",
+        ]
+        assert asked == [".", "uploads"]
+
+    async def test_it_stops_at_the_depth_a_workspace_ever_reaches(
+        self, monkeypatch, mock_db_session
+    ):
+        """A directory is a round trip, and a host holding somebody's checkout must
+        not turn one workspace into a thousand of them."""
+        asked: list[str] = []
+        deep = {
+            ".": [{"path": "d0", "name": "d0", "is_dir": True, "size": None}],
+            **{
+                f"d{n}": [{"path": f"d{n + 1}", "name": f"d{n + 1}", "is_dir": True, "size": None}]
+                for n in range(12)
+            },
+        }
+        self._archive(monkeypatch, deep, asked)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="xc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        found = await SandboxWorkspaceService(mock_db_session).listing(
+            _ctx(), conversation_id=uuid4()
+        )
+
+        assert len(asked) == 6
+        # The sixth level holds a directory this will not open, so what is on the
+        # page is not what the workspace holds - and the page has to be able to
+        # say so.
+        assert found is not None
+        assert found[1].truncated is True
+
+    async def test_it_stops_at_the_number_of_rows_a_page_can_hold(
+        self, monkeypatch, mock_db_session, caplog
+    ):
+        """A host holding somebody's `node_modules` must not turn one workspace into
+        ten thousand rows on a page about twenty-five of them."""
+        from app.services.sandbox_workspace import _MAX_LISTED_ENTRIES
+
+        asked: list[str] = []
+        wide = {
+            ".": [
+                {"path": f"f{n}", "name": f"f{n}", "is_dir": False, "size": 1}
+                for n in range(_MAX_LISTED_ENTRIES + 50)
+            ]
+        }
+        self._archive(monkeypatch, wide, asked)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="xc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        found = await SandboxWorkspaceService(mock_db_session).listing(
+            _ctx(), conversation_id=uuid4()
+        )
+
+        assert found is not None
+        _, contents = found
+        assert len(contents.entries) == _MAX_LISTED_ENTRIES
+        # And it says so, twice over: to the reader of the page, and to whoever
+        # reads the logs. A cap nothing records is a list somebody takes for the
+        # whole of what the workspace holds.
+        assert contents.truncated is True
+        assert "workspace_listing_truncated" in caplog.text
+
+    async def test_one_unreadable_folder_does_not_lose_the_workspace(
+        self, monkeypatch, mock_db_session
+    ):
+        """A subdirectory that refuses is skipped; the root's refusal is the host's.
+
+        Walking every level made every level able to fail the whole listing, so a
+        single directory the agent chmod'ed away would report a workspace nobody
+        can read - where before the walk it reported the root's files.
+        """
+        from pydantic_ai_backends import remote as remote_module
+
+        tree: dict[str, list[dict[str, object]]] = {
+            ".": [
+                {"path": "notes.md", "name": "notes.md", "is_dir": False, "size": 4},
+                {"path": "locked", "name": "locked", "is_dir": True, "size": None},
+            ]
+        }
+
+        class _Archive:
+            def __init__(self, url, token=""):
+                pass
+
+            def ls(self, session_id, path="."):
+                if path == "locked":
+                    raise RuntimeError("permission denied")
+                return tree.get(path, [])
+
+            def close(self):
+                pass
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="xc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        found = await SandboxWorkspaceService(mock_db_session).listing(
+            _ctx(), conversation_id=uuid4()
+        )
+
+        assert found is not None
+        _, contents = found
+        assert contents.unreadable_reason is None
+        assert contents.truncated is False
+        assert [str(entry.get("path")) for entry in contents.entries] == ["notes.md", "locked"]
+
+    async def test_a_root_that_refuses_is_still_the_hosts_failure(
+        self, monkeypatch, mock_db_session
+    ):
+        from pydantic_ai_backends import remote as remote_module
+
+        class _Archive:
+            def __init__(self, url, token=""):
+                pass
+
+            def ls(self, session_id, path="."):
+                raise RuntimeError("workspace_root is not set")
+
+            def close(self):
+                pass
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="xc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        found = await SandboxWorkspaceService(mock_db_session).listing(
+            _ctx(), conversation_id=uuid4()
+        )
+
+        assert found is not None
+        _, contents = found
+        assert contents.entries == []
+        assert contents.unreadable_reason is not None
+        assert "workspace_root" in contents.unreadable_reason
+
+
+class TestDrawingAHostsImages:
+    """A container-backed image is a picture on its tile, not a grey glyph.
+
+    A stored image arrives base64 in the document the listing already read, so
+    drawing it costs nothing. A host's is a `read_bytes` for that one file, which
+    is why this is bounded and why the size is checked before the fetch.
+    """
+
+    @staticmethod
+    def _png(size: tuple[int, int] = (8, 8)) -> bytes:
+        from io import BytesIO
+
+        from PIL import Image
+
+        out = BytesIO()
+        Image.new("RGB", size, "red").save(out, format="PNG")
+        return out.getvalue()
+
+    def _host(self, monkeypatch, entries, bytes_by_path, read: list[str]):
+        from pydantic_ai_backends import remote as remote_module
+
+        png = self._png()
+
+        class _Archive:
+            def __init__(self, url, token=""):
+                pass
+
+            def ls(self, session_id, path="."):
+                return entries if path == "." else []
+
+            def read_bytes(self, session_id, file_path):
+                read.append(file_path)
+                return bytes_by_path.get(file_path, png)
+
+            def close(self):
+                pass
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+
+    async def test_an_image_on_a_host_is_scaled_for_its_tile(self, monkeypatch, mock_db_session):
+        from app.repositories import agent as agent_repo
+
+        read: list[str] = []
+        self._host(
+            monkeypatch,
+            [{"path": "chart.png", "name": "chart.png", "is_dir": False, "size": 120}],
+            {},
+            read,
+        )
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="xc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        [file] = listing.files
+        assert file.thumbnail is not None
+        assert file.thumbnail.startswith("data:image/webp;base64,")
+        assert read == ["chart.png"]
+
+    async def test_a_file_that_is_not_an_image_is_never_fetched(self, monkeypatch, mock_db_session):
+        """The suffix decides before anything is read: a 4 MB CSV fetched to be
+        rejected by the scaler is a round trip for nothing."""
+        from app.repositories import agent as agent_repo
+
+        read: list[str] = []
+        self._host(
+            monkeypatch,
+            [{"path": "runs.csv", "name": "runs.csv", "is_dir": False, "size": 120}],
+            {},
+            read,
+        )
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="xc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        assert listing.files[0].thumbnail is None
+        assert read == []
+
+    async def test_an_image_too_large_to_draw_is_not_read_either(
+        self, monkeypatch, mock_db_session
+    ):
+        """Checked off the listing entry rather than after the fetch: a 20 MB
+        photograph would be read in full to be thrown away by the ceiling."""
+        from app.repositories import agent as agent_repo
+
+        read: list[str] = []
+        self._host(
+            monkeypatch,
+            [{"path": "huge.png", "name": "huge.png", "is_dir": False, "size": 40 * 1024 * 1024}],
+            {},
+            read,
+        )
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="xc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        assert listing.files[0].thumbnail is None
+        assert read == []
+
+    async def test_the_budget_bounds_a_page_of_photographs(self, monkeypatch, mock_db_session):
+        """Twenty-five workspaces of images would otherwise be two hundred reads to
+        draw them 64 pixels wide."""
+        from app.repositories import agent as agent_repo
+        from app.services.sandbox_workspace import HOST_THUMBNAIL_BUDGET
+
+        read: list[str] = []
+        many = [
+            {"path": f"shot-{n}.png", "name": f"shot-{n}.png", "is_dir": False, "size": 120}
+            for n in range(HOST_THUMBNAIL_BUDGET + 5)
+        ]
+        self._host(monkeypatch, many, {}, read)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="xc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        assert len(read) == HOST_THUMBNAIL_BUDGET
+        assert sum(1 for file in listing.files if file.thumbnail is not None) == (
+            HOST_THUMBNAIL_BUDGET
+        )
+
+    async def test_a_host_that_stops_answering_leaves_the_glyph(self, monkeypatch, mock_db_session):
+        """Failure is silence, and the rest of the grid still draws. A thumbnail is
+        decoration: refusing the listing over one unreadable image would take the
+        page down to avoid a grey square."""
+        from pydantic_ai_backends import remote as remote_module
+
+        from app.repositories import agent as agent_repo
+
+        class _Archive:
+            def __init__(self, url, token=""):
+                pass
+
+            def ls(self, session_id, path="."):
+                return (
+                    [{"path": "gone.png", "name": "gone.png", "is_dir": False, "size": 120}]
+                    if path == "."
+                    else []
+                )
+
+            def read_bytes(self, session_id, file_path):
+                raise RuntimeError("the host went away")
+
+            def close(self):
+                pass
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="xc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        assert [str(file.info.get("path")) for file in listing.files] == ["gone.png"]
+        assert listing.files[0].thumbnail is None
+        assert listing.unreadable == 0
+
+    async def test_a_file_the_host_no_longer_holds_is_still_listed(
+        self, monkeypatch, mock_db_session
+    ):
+        """A file deleted between the listing and the fetch answers with no bytes at
+        all rather than raising."""
+        from pydantic_ai_backends import remote as remote_module
+
+        from app.repositories import agent as agent_repo
+
+        class _Archive:
+            def __init__(self, url, token=""):
+                pass
+
+            def ls(self, session_id, path="."):
+                return (
+                    [{"path": "raced.png", "name": "raced.png", "is_dir": False, "size": 120}]
+                    if path == "."
+                    else []
+                )
+
+            def read_bytes(self, session_id, file_path):
+                return None
+
+            def close(self):
+                pass
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="xc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        assert listing.files[0].thumbnail is None
+
+    async def test_a_png_that_is_not_a_png_draws_nothing(self, monkeypatch, mock_db_session):
+        """The suffix is a claim, not a fact. What comes back is decoded by the
+        scaler and a failure there is the same silence as an unreachable host."""
+        from app.repositories import agent as agent_repo
+
+        read: list[str] = []
+        self._host(
+            monkeypatch,
+            [{"path": "liar.png", "name": "liar.png", "is_dir": False, "size": 120}],
+            {"liar.png": b"this is not an image"},
+            read,
+        )
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="xc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        assert read == ["liar.png"]
+        assert listing.files[0].thumbnail is None
+
+
+class TestWhatTheBrowserDoesNotShow:
+    """Skills and spills are on disk and out of the listings.
+
+    Both are the platform's own writing rather than an agent's work for a person,
+    and both are needed where they are: a skill's resource is a script the shell
+    runs and `collect_changes` diffs, and a spill is where a tool's overflowing
+    output went. `/workspaces` was mostly `skills/<name>/SKILL.md` before this
+    (#1064) - which was the right complaint about the wrong thing, so the files
+    stayed and the browser stopped showing them.
+    """
+
+    async def test_a_conversations_files_are_the_conversations(self, monkeypatch, mock_db_session):
+        stored = StateBackend()
+        stored.write("/uploads/book.pdf", "a")
+        stored.write("/skills/code-review/SKILL.md", "b")
+        stored.write("/report.csv", "c")
+        row = _row(files=dict(stored.files))
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        found = await SandboxWorkspaceService(mock_db_session).listing(
+            _ctx(), conversation_id=uuid4()
+        )
+
+        assert found is not None
+        _, contents = found
+        assert sorted(str(entry.get("path")) for entry in contents.entries) == [
+            "/report.csv",
+            "/uploads/book.pdf",
+        ]
+
+    async def test_the_flat_view_leaves_them_out_too(self, monkeypatch, mock_db_session):
+        from app.repositories import agent as agent_repo
+
+        stored = StateBackend()
+        stored.write("/skills/code-review/checklist.md", "a")
+        stored.write("/summary.md", "b")
+        row = _row(files=dict(stored.files))
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        assert [str(file.info.get("path")) for file in listing.files] == ["/summary.md"]
+
+    async def test_they_are_not_counted_against_a_workspace_either(
+        self, monkeypatch, mock_db_session
+    ):
+        """A count of four where a person can see one is a count nobody can check."""
+        from app.repositories import agent as agent_repo
+
+        stored = StateBackend()
+        stored.write("/skills/code-review/SKILL.md", "a")
+        stored.write("/skills/code-review/checklist.md", "b")
+        stored.write("/summary.md", "c")
+        row = _row(files=dict(stored.files))
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+        service = SandboxWorkspaceService(mock_db_session)
+
+        overviews = await service.visible_to(_ctx())
+        counted = await service.measured(_ctx(), overviews, hosts=False)
+
+        assert counted.counts[row.id][0] == 1

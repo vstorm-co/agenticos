@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { ChatMessageFile } from "@/types";
+import type { PublishedModel } from "@/types/agents";
 import { useAgents, useChat, useConversationWorkspace, useModelProviders } from "@/hooks";
 import { AgentPicker } from "./agent-picker";
 import { ChatControls } from "./chat-controls";
@@ -10,7 +11,7 @@ import { ChatEmptyState } from "./chat-empty-state";
 import { ChatInput } from "./chat-input";
 import { UsageStrip } from "./usage-strip";
 import { WorkspaceFiles } from "./workspace-files";
-import { FilePreviewPanel } from "./file-preview-panel";
+import { FilePreviewDialog } from "./file-preview-dialog";
 import { SourcesPanel } from "./sources-panel";
 import { MessageList } from "./message-list";
 import { DelegationPanels } from "./delegation-panel";
@@ -31,7 +32,12 @@ import type {
 } from "@/types";
 import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
 import { latestUsage } from "@/lib/message-usage";
-import { useAgentSelectionStore, useConversationStore, useChatStore } from "@/stores";
+import {
+  useAgentSelectionStore,
+  useChatStore,
+  useConversationStore,
+  useFilePreviewStore,
+} from "@/stores";
 import { useConversations } from "@/hooks";
 import { useSlashCommands } from "@/hooks";
 
@@ -75,6 +81,9 @@ export function ChatContainer() {
   // is a share of *its* window rather than of the agent's default.
   const [modelProfileId, setModelProfileId] = useState<string | null>(null);
   const contextWindow = useContextWindow(modelProfileId);
+  const { agents } = useAgents({ includeArchived: true });
+  const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
+  const agentModel = agents.find((agent) => agent.id === selectedAgentId)?.published_model ?? null;
   // Deliberately unfiltered, which is what calling this with no arguments
   // means. The sidebar's copy of this list is narrowed by whatever is in its
   // search box, and reading the two facts below off *that* would flip the
@@ -123,8 +132,6 @@ export function ChatContainer() {
     cancelQueued,
     clearQueued,
     setModelProfile,
-    setTemperature,
-    setThinkingEffort,
     pendingApproval,
     sendResumeDecisions,
     pendingQuestions,
@@ -151,6 +158,15 @@ export function ChatContainer() {
     for (const message of messages) for (const file of message.files ?? []) seen.set(file.id, file);
     return [...seen.values()];
   }, [messages]);
+
+  // Handed to the store as well as to the panel, so the file dialog's carousel
+  // pages through the conversation wherever a file was clicked. In an effect
+  // rather than during render: writing to a store while rendering is a side
+  // effect, and React is entitled to render this twice.
+  const setAvailableFiles = useFilePreviewStore((state) => state.setAvailable);
+  useEffect(() => {
+    setAvailableFiles(attachments);
+  }, [attachments, setAvailableFiles]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -270,6 +286,7 @@ export function ChatContainer() {
       // conversation somebody has just reopened instead of after their next message.
       lastUsage={lastUsage ?? latestUsage(currentMessages, currentConversationId)}
       contextWindow={contextWindow}
+      agentModel={agentModel}
       // Only for the thread that is actually open. The store keeps the transcript
       // it last loaded, so between clicking another conversation and its messages
       // arriving this figure belongs to the one just left - the same reason
@@ -292,8 +309,6 @@ export function ChatContainer() {
         setModelProfile(profileId);
         setModelProfileId(profileId);
       }}
-      onTemperatureChange={setTemperature}
-      onThinkingEffortChange={setThinkingEffort}
       onRegenerate={handleRegenerate}
       slashContext={slashContext}
       slashCommands={slashCommands}
@@ -324,6 +339,8 @@ interface ChatUIProps {
   conversationCost: ConversationCost | null;
   /** The window the context gauge is a share of, or null when nobody knows it. */
   contextWindow: number | null;
+  /** The selected agent's published model, shown as current in the model picker. */
+  agentModel: PublishedModel | null;
   /**
    * The turn's delegations, drawn under the transcript.
    *
@@ -351,8 +368,6 @@ interface ChatUIProps {
     files?: import("@/types").ChatMessageFile[],
   ) => void;
   onModelProfileChange?: (profileId: string | null) => void;
-  onTemperatureChange?: (temperature: number | null) => void;
-  onThinkingEffortChange?: (effort: "low" | "medium" | "high" | null) => void;
   onRegenerate?: (messageId: string) => void;
   slashContext?: import("./slash-commands").SlashCommandContext;
   slashCommands?: import("./slash-commands").SlashCommand[];
@@ -376,6 +391,7 @@ function ChatUI({
   lastUsage,
   conversationCost,
   contextWindow,
+  agentModel,
   delegations,
   conversationId,
   turns,
@@ -384,8 +400,6 @@ function ChatUI({
   isArchived,
   sendMessage,
   onModelProfileChange,
-  onTemperatureChange,
-  onThinkingEffortChange,
   onRegenerate,
   slashContext,
   slashCommands,
@@ -409,6 +423,9 @@ function ChatUI({
   // which means the scroll area must end where the dock begins or the last
   // message hides behind it. The dock's height is not a constant - attachments,
   // banners and a growing textarea all change it - so it is measured.
+  // A callback ref rather than `useRef`, because the portal has to re-render once
+  // the node exists: a ref object mutating tells React nothing.
+  const [attachmentSlot, setAttachmentSlot] = useState<HTMLDivElement | null>(null);
   const dockRef = useRef<HTMLDivElement | null>(null);
   const [dockHeight, setDockHeight] = useState(0);
   useLayoutEffect(() => {
@@ -481,6 +498,10 @@ function ChatUI({
             {queuedMessages && queuedMessages.length > 0 && onCancelQueued && (
               <PendingMessages messages={queuedMessages} onCancel={onCancelQueued} />
             )}
+            {/* What is attached, above the composer rather than inside it. The
+                slot is here because the box below is drawn here; `ChatInput`
+                portals its row into it and keeps the upload state. */}
+            <div ref={setAttachmentSlot} />
             <div
               data-tour="chat-composer"
               className="glass focus-within:border-foreground/30 rounded-2xl transition-colors"
@@ -512,6 +533,7 @@ function ChatUI({
                   onStop={onStop}
                   slashContext={slashContext}
                   commands={slashCommands}
+                  attachmentSlot={attachmentSlot}
                 />
               </div>
               <div className="border-foreground/8 flex items-center justify-between border-t px-3 py-2 sm:px-4">
@@ -534,8 +556,7 @@ function ChatUI({
                   <div data-tour="chat-model-picker">
                     <ChatControls
                       onModelProfileChange={onModelProfileChange}
-                      onTemperatureChange={onTemperatureChange}
-                      onThinkingEffortChange={onThinkingEffortChange}
+                      agentModel={agentModel}
                     />
                   </div>
                   {/* Chat is the one surface with no PageHeader, so the "?" that
@@ -554,7 +575,7 @@ function ChatUI({
           </div>
         </div>
       </div>
-      <FilePreviewPanel />
+      <FilePreviewDialog />
       <SourcesPanel />
       {/* Beside the transcript rather than under it: what the agent is holding is
           something you glance at while reading, and a list that pushed the input

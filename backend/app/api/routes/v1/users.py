@@ -13,6 +13,7 @@ from app.api.deps import (
 )
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.schemas.user import UserRead, UserUpdate
+from app.services.file_storage import sniff_image_media_type
 
 router = APIRouter()
 
@@ -38,8 +39,13 @@ async def update_current_user(
     non-admin had put in the body - has nothing left to strip. Granting the one
     global privilege is a CLI act (`agenticos cmd create-app-admin`), which
     keeps it off the surface a user can PATCH.
+
+    It can still take one away from its owner, though: `is_active` is on this
+    schema and this route reaches the same column the admin route does, so
+    `update_current` refuses an app admin suspending themselves here - otherwise
+    it is the way around #941's guard.
     """
-    return await user_service.update(current_user.id, user_in)
+    return await user_service.update_current(current_user, user_in)
 
 
 @router.post("/me/avatar", response_model=UserRead)
@@ -51,9 +57,7 @@ async def upload_avatar(
     """Upload or replace avatar image for the current user."""
     data = await file.read()
     try:
-        user = await user_service.update_avatar(
-            current_user.id, data, file.filename or "avatar.jpg", file.content_type or ""
-        )
+        user = await user_service.update_avatar(current_user.id, data, file.content_type or "")
     except ValueError as e:
         raise BadRequestError(message=str(e)) from None
     return user
@@ -68,7 +72,16 @@ async def get_avatar(user_id: UUID, user_service: UserSvc) -> Any:
     file_path = user_service.get_avatar_path(user.avatar_url)
     if not file_path:
         raise NotFoundError(message="Avatar file not found")
-    return FileResponse(path=file_path, media_type="image/jpeg")
+    # Pinned to the file's actual image type, and refused if it is not an image at
+    # all: the avatar is served from the app's own origin, and the upload kept
+    # whatever suffix the caller's filename had (#702). Hardcoding image/jpeg here
+    # named a lie for a stored png and, worse, said nothing about a stored .html.
+    media_type = sniff_image_media_type(file_path)
+    if media_type is None:
+        raise NotFoundError(message="Avatar file not found")
+    return FileResponse(
+        path=file_path, media_type=media_type, headers={"X-Content-Type-Options": "nosniff"}
+    )
 
 
 @router.get("/{user_id}", response_model=UserRead)
@@ -86,17 +99,17 @@ async def update_user_by_id(
     user_id: UUID,
     user_in: UserUpdate,
     user_service: UserSvc,
-    _: CurrentAppAdmin,
+    admin: CurrentAppAdmin,
 ) -> Any:
     """Update user by ID (admin only)."""
-    return await user_service.update(user_id, user_in)
+    return await user_service.admin_update(user_id, user_in, acting_admin_id=admin.id)
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_user_by_id(
     user_id: UUID,
     user_service: UserSvc,
-    _: CurrentAppAdmin,
+    admin: CurrentAppAdmin,
 ) -> None:
     """Delete user by ID (admin only)."""
-    await user_service.delete(user_id)
+    await user_service.admin_delete(user_id, acting_admin_id=admin.id)

@@ -62,7 +62,10 @@ def mock_user_service(mock_user: MockUser) -> MagicMock:
     service.get_by_id = ServiceMock(return_value=mock_user)
     service.get_multi = ServiceMock(return_value=[mock_user])
     service.update = ServiceMock(return_value=mock_user)
+    service.update_current = ServiceMock(return_value=mock_user)
     service.delete = ServiceMock(return_value=mock_user)
+    service.admin_update = ServiceMock(return_value=mock_user)
+    service.admin_delete = ServiceMock(return_value=mock_user)
     return service
 
 
@@ -133,7 +136,7 @@ async def test_update_current_user(auth_client: AsyncClient, mock_user_service: 
         json={"full_name": "Updated Name"},
     )
     assert response.status_code == 200
-    mock_user_service.update.assert_called_once()
+    mock_user_service.update_current.assert_called_once()
 
 
 @pytest.mark.anyio
@@ -147,7 +150,7 @@ async def test_update_current_user_notification_preferences_reach_the_service(
         json={"notify_usage_reports": False, "notify_budget_alerts": False},
     )
     assert response.status_code == 200
-    user_in = mock_user_service.update.call_args.args[1]
+    user_in = mock_user_service.update_current.call_args.args[1]
     assert user_in.notify_usage_reports is False
     assert user_in.notify_budget_alerts is False
     assert user_in.notify_approval_requests is None  # untouched, not defaulted
@@ -164,14 +167,14 @@ async def test_choosing_an_avatar_colour_reaches_the_service(
         json={"avatar_color": 4},
     )
     assert response.status_code == 200
-    assert mock_user_service.update.call_args.args[1].avatar_color == 4
+    assert mock_user_service.update_current.call_args.args[1].avatar_color == 4
 
     reset = await auth_client.patch(
         f"{settings.API_V1_STR}/users/me",
         json={"avatar_color": None},
     )
     assert reset.status_code == 200
-    user_in = mock_user_service.update.call_args.args[1]
+    user_in = mock_user_service.update_current.call_args.args[1]
     assert user_in.avatar_color is None
     assert "avatar_color" in user_in.model_fields_set
 
@@ -239,7 +242,8 @@ async def test_update_user_by_id(
         json={"full_name": "Admin Updated"},
     )
     assert response.status_code == 200
-    mock_user_service.update.assert_called_once()
+    # The admin-by-id route goes through the self-action guard, not the bare update.
+    mock_user_service.admin_update.assert_called_once()
 
 
 @pytest.mark.anyio
@@ -251,7 +255,7 @@ async def test_delete_user_by_id(
     """Test deleting user by ID as superuser."""
     response = await superuser_client.delete(f"{settings.API_V1_STR}/users/{mock_user.id}")
     assert response.status_code == 204
-    mock_user_service.delete.assert_called_once()
+    mock_user_service.admin_delete.assert_called_once()
 
 
 @pytest.mark.anyio
@@ -261,7 +265,9 @@ async def test_delete_user_by_id_not_found(
 ):
     """Test deleting non-existent user."""
 
-    mock_user_service.delete = ServiceMock(side_effect=NotFoundError(message="User not found"))
+    mock_user_service.admin_delete = ServiceMock(
+        side_effect=NotFoundError(message="User not found")
+    )
 
     response = await superuser_client.delete(f"{settings.API_V1_STR}/users/{uuid4()}")
     assert response.status_code == 404

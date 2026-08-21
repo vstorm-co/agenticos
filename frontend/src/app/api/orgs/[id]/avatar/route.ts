@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { bffRefusal } from "@/lib/server-api";
+import { IMAGE_TYPES, baseContentType } from "@/lib/proxy-content-type";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
@@ -35,12 +36,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!response.ok) {
       return bffRefusal("AVATAR_NOT_AVAILABLE", response.status);
     }
+    // Pinned to an image type, not echoed: served from the app's own origin under
+    // a CSP that allows inline script, and the backend guesses this type from the
+    // stored filename's suffix - so a stored `x.html` would be `text/html` here,
+    // a script rather than a picture (#702). An unnamed type is refused too.
+    const contentType = baseContentType(response.headers.get("content-type"));
+    if (!IMAGE_TYPES.has(contentType)) {
+      return bffRefusal("AVATAR_NOT_AVAILABLE", 502);
+    }
     const buf = await response.arrayBuffer();
     return new NextResponse(buf, {
       status: 200,
       headers: {
-        "Content-Type": response.headers.get("content-type") || "image/jpeg",
+        "Content-Type": contentType,
         "Cache-Control": "private, max-age=30",
+        "X-Content-Type-Options": "nosniff",
       },
     });
   } catch {

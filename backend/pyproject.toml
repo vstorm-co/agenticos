@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.220"
+version = "0.0.246"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -99,7 +99,7 @@ dependencies = [
     # has no business in the image. The service runs beside us as `sandboxd`.
     # Floors at 0.2.26 for `FileInfo.modified_at`, which the listings carry to
     # the file viewer (#500).
-    "pydantic-ai-backend[console,remote]>=0.2.26",
+    "pydantic-ai-backend[console,remote]>=0.2.27",
     # Delegation. Floors at 0.2.16 for three fixes this integration depends on:
     # a suspended child no longer reported to the parent as completed (#64),
     # `event_stream_handler_factory` on the toolset so a fan-out's events can be
@@ -457,6 +457,7 @@ include = [
     "app/agents/**",
     "app/commands/bootstrap.py",
     "app/commands/audit_skill_bindings.py",
+    "app/commands/sandbox_runtimes.py",
     "app/core/permissions.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
@@ -508,6 +509,7 @@ include = [
     "app/services/attachments.py",
     "app/services/chat_timeline.py",
     "app/services/sandbox_connection.py",
+    "app/services/sandbox_runtimes.py",
     "app/services/sandbox_workspace.py",
     "app/services/usage_report.py",
     "app/services/skill_proposal.py",
@@ -662,6 +664,7 @@ include = [
     "app/agents/**",
     "app/commands/bootstrap.py",
     "app/commands/audit_skill_bindings.py",
+    "app/commands/sandbox_runtimes.py",
     "app/core/permissions.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
@@ -716,6 +719,7 @@ include = [
     "app/services/attachments.py",
     "app/services/chat_timeline.py",
     "app/services/sandbox_connection.py",
+    "app/services/sandbox_runtimes.py",
     "app/services/sandbox_workspace.py",
     "app/services/usage_report.py",
     "app/services/skill_proposal.py",

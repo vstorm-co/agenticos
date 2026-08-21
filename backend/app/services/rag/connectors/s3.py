@@ -7,10 +7,14 @@ encrypted with one deployment-wide Fernet key (#937).
 
 `endpoint_url` and `region` stay in the config and still fall back to the
 `S3_RAG_*` settings: neither names a principal.
+
+What is left here is boto3's vocabulary and nothing else - the listing loop, the
+`source_path` shape and the destination are `ObjectStoreConnector`'s, so an Azure
+or GCS connector is a client rather than a second copy of them (#988).
 """
 
-import asyncio
 import logging
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 from typing import Any, ClassVar
@@ -23,17 +27,13 @@ from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import AwsCredentialsSecret, SecretKind, StorableSecret
 from app.schemas.sync_source import ConnectorConfigField
-from app.services.rag.connectors import (
-    BaseSyncConnector,
-    ConfigRefusal,
-    ConnectorConfig,
-    RemoteFile,
-)
+from app.services.rag.connectors import ConnectorConfig
+from app.services.rag.connectors.object_store import ObjectStoreConnector, StoredObject
 
 logger = logging.getLogger(__name__)
 
 
-class S3Connector(BaseSyncConnector):
+class S3Connector(ObjectStoreConnector):
     """S3-compatible sync connector.
 
     Works with AWS S3, MinIO, and any S3-compatible storage.
@@ -48,6 +48,8 @@ class S3Connector(BaseSyncConnector):
     CONNECTOR_TYPE: ClassVar[str] = "s3"
     DISPLAY_NAME: ClassVar[str] = "S3 / MinIO"
     SECRET_KIND: ClassVar[SecretKind] = SecretKind.AWS_CREDENTIALS
+    SCHEME: ClassVar[str] = "s3"
+    CONTAINER_FIELD: ClassVar[str] = "bucket"
     CONFIG_SCHEMA: ClassVar[dict[str, ConnectorConfigField]] = {
         "bucket": ConnectorConfigField(type="string", label="Bucket Name", required=True),
         "prefix": ConnectorConfigField(
@@ -110,69 +112,45 @@ class S3Connector(BaseSyncConnector):
             client_kwargs["endpoint_url"] = endpoint
         return boto3.client("s3", **client_kwargs, config=Config(signature_version="s3v4"))
 
-    async def validate_config(self, config: ConnectorConfig) -> ConfigRefusal | None:
-        """Validate required fields only - connectivity is checked at sync time."""
-        return await super().validate_config(config)
-
-    async def list_files(
-        self, config: ConnectorConfig, credential: StorableSecret | None
-    ) -> list[RemoteFile]:
-        """List files in an S3 bucket/prefix."""
-        bucket = config["bucket"]
-        prefix = config.get("prefix", "")
-
-        def _list() -> list[RemoteFile]:
-            client = self._get_s3_client(config, credential)
-            paginator = client.get_paginator("list_objects_v2")
-            params: dict[str, Any] = {"Bucket": bucket}
-            if prefix:
-                params["Prefix"] = prefix
-
-            files: list[RemoteFile] = []
-            for page in paginator.paginate(**params):
-                for obj in page.get("Contents", []):
-                    key = obj["Key"]
-                    if key.endswith("/"):
-                        continue
-
-                    name = Path(key).name
-                    modified_at = None
-                    if obj.get("LastModified"):
-                        modified_at = obj["LastModified"]
-                        if isinstance(modified_at, str):
-                            modified_at = datetime.fromisoformat(modified_at)
-
-                    files.append(
-                        RemoteFile(
-                            id=key,
-                            name=name,
-                            mime_type=None,
-                            size=obj.get("Size"),
-                            modified_at=modified_at,
-                            source_path=f"s3://{bucket}/{key}",
-                        )
-                    )
-
-            return files
-
-        return await asyncio.to_thread(_list)
-
-    async def _fetch(
+    def _objects(
         self,
-        file: RemoteFile,
+        container: str,
+        prefix: str,
+        config: ConnectorConfig,
+        credential: StorableSecret | None,
+    ) -> Iterator[StoredObject]:
+        """One page at a time, as `list_objects_v2` hands them over.
+
+        A generator, so a bucket of a million keys is one page in memory rather
+        than a list of all of them beside the one the caller is building.
+
+        `Prefix` is omitted rather than sent empty, which is what the connector
+        did before this became a subclass: boto3 accepts `Prefix=""` and means
+        the same thing by it, and the two are kept the same call so a stored
+        source lists exactly what it listed yesterday.
+
+        boto3 hands `LastModified` over as a `datetime`; the string branch came
+        with this loop and stays with it, in the client's own method, because
+        which of the two arrives is the client's own vocabulary.
+        """
+        client = self._get_s3_client(config, credential)
+        params: dict[str, Any] = {"Bucket": container}
+        if prefix:
+            params["Prefix"] = prefix
+
+        for page in client.get_paginator("list_objects_v2").paginate(**params):
+            for obj in page.get("Contents", []):
+                modified_at = obj.get("LastModified")
+                if isinstance(modified_at, str):
+                    modified_at = datetime.fromisoformat(modified_at)
+                yield StoredObject(key=obj["Key"], size=obj.get("Size"), modified_at=modified_at)
+
+    def _download(
+        self,
+        container: str,
+        key: str,
         dest_path: Path,
         config: ConnectorConfig,
         credential: StorableSecret | None,
     ) -> None:
-        """Download a file from S3 to the path the base class chose."""
-        parts = file.source_path.replace("s3://", "").split("/", 1)
-        bucket = parts[0]
-
-        def _download() -> None:
-            client = self._get_s3_client(config, credential)
-            client.download_file(bucket, file.id, str(dest_path))
-            logger.info(
-                "Downloaded s3://%s/%s (%d bytes)", bucket, file.id, dest_path.stat().st_size
-            )
-
-        await asyncio.to_thread(_download)
+        self._get_s3_client(config, credential).download_file(container, key, str(dest_path))

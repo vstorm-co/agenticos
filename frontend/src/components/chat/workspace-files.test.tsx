@@ -31,6 +31,7 @@ function workspace(overrides: Record<string, unknown> = {}) {
   return {
     scope: "conversation",
     unreadable_reason: null,
+    truncated: false,
     backend: "state",
     owner_label: "This conversation",
     items: [
@@ -428,7 +429,7 @@ describe("the workspace panel", () => {
     });
 
     it("does not list one twice when the workspace already holds it", async () => {
-      // `workspace_path` builds `/uploads/<first eight hex of the id>-<safe name>`, so
+      // `workspace_path` names it `<first eight hex of the id>-<safe name>`, so
       // the prefix is what says these are the same file. A name match would collide
       // the moment two people attach `report.csv`, which is what the id is there for.
       vi.mocked(apiClient.get).mockResolvedValue(
@@ -443,6 +444,25 @@ describe("the workspace panel", () => {
 
       expect(screen.queryByText("Attached to the chat")).toBeNull();
       expect(screen.getByText("aaaaaaaa-invoice.pdf")).toBeVisible();
+    });
+
+    it("recognises it however the backend spells the path", async () => {
+      // A listing spells a path as its backend does: `./uploads/x` from a shell,
+      // `uploads/x` from a glob, `/uploads/x` from a stored workspace. Anchored
+      // on one of those, the same file appeared twice under the others (#1039).
+      for (const path of ["./uploads/aaaaaaaa-invoice.pdf", "uploads/aaaaaaaa-invoice.pdf"]) {
+        vi.mocked(apiClient.get).mockResolvedValue(
+          workspace({ items: [{ path, size: 120, is_dir: false }], total: 1 }),
+        );
+
+        const view = draw(
+          <WorkspaceFiles conversationId="c1" attachments={[attachment()]} revision={0} />,
+        );
+        await openPanel();
+
+        expect(screen.queryByText("Attached to the chat")).toBeNull();
+        view.unmount();
+      }
     });
 
     it("still lists a different file whose name happens to match", async () => {
@@ -476,7 +496,7 @@ describe("the workspace panel", () => {
       await openPanel();
       await userEvent.click(screen.getByText("invoice.pdf"));
 
-      expect(useFilePreviewStore.getState().file).toMatchObject({ filename: "invoice.pdf" });
+      expect(useFilePreviewStore.getState().openId).toBe(attachment().id);
     });
   });
 });

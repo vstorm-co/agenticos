@@ -379,11 +379,13 @@ class AuthContext:
         says rather than assumes.
 
         Raises:
-            AuthorizationError: If there is no subject. Loudly, and here: the
-                audit actor column is `NOT NULL`, so letting the absence
-                travel surfaces several layers down as an `IntegrityError`
-                naming a constraint, by which point the audit entry is lost and
-                the request has half happened.
+            AuthorizationError: If there is no subject. Loudly, and here: an
+                authenticated path that reached this far has a person, and
+                letting the absence travel writes an entry naming nobody -
+                indistinguishable from the two writers that legitimately name
+                nobody, and by then the request has half happened. A caller
+                that genuinely has no session reads :attr:`user_id` instead,
+                deliberately.
         """
         if self.user_id is None:
             raise AuthorizationError(

@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Query, Request, status
 
 from app.api.deps import CurrentAppAdmin, DBSession, UserSvc
-from app.core.audit import record_audit
+from app.core.audit import current_impersonator, record_audit
 from app.core.security import create_access_token
 from app.schemas.user import AdminUserList, ImpersonateResponse, UserRead, UserUpdate
 
@@ -47,7 +47,7 @@ async def update_user(
     db: DBSession,
     service: UserSvc,
 ) -> Any:
-    user = await service.update(user_id, user_in)
+    user = await service.admin_update(user_id, user_in, acting_admin_id=admin.id)
     # Which fields were set, never what they were set to. `UserUpdate` carries
     # `password`, so dumping the submitted body wrote the plaintext an
     # administrator typed into `app_admin_audit_logs.details`, where it sat in a
@@ -76,7 +76,7 @@ async def delete_user(
     service: UserSvc,
 ) -> None:
     target = await service.get_by_id(user_id)
-    await service.delete(user_id)
+    await service.admin_delete(user_id, acting_admin_id=admin.id)
     await record_audit(
         db,
         actor_user_id=admin.id,
@@ -96,11 +96,20 @@ async def impersonate_user(
     db: DBSession,
     service: UserSvc,
 ) -> Any:
-    """Issue a short-lived (1h) access token to act as the target user."""
+    """Issue a short-lived (1h) access token to act as the target user.
+
+    The token carries the administrator as an `act` claim, so every action taken
+    with it is attributable to who was really acting and not only to the account
+    they were acting as (#943). If this request is itself impersonated - one app
+    admin acting as another, who impersonates a third - the claim keeps naming
+    the human who started the chain rather than the account one hop up it.
+    """
     target = await service.get_by_id(user_id)
+    actor = current_impersonator() or admin.id
     token = create_access_token(
         subject=str(target.id),
         expires_delta=timedelta(hours=1),
+        act=str(actor),
     )
     await record_audit(
         db,

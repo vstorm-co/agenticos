@@ -38,7 +38,7 @@ function field(props: Partial<React.ComponentProps<typeof RuntimeField>> = {}) {
     <RuntimeField
       value=""
       onChange={onChange}
-      catalog={[option("coding", { builds: true }), option("node-minimal")]}
+      catalog={[option("workbench", { builds: true }), option("python")]}
       allowed={null}
       onTest={onTest}
       testing={false}
@@ -51,10 +51,10 @@ function field(props: Partial<React.ComponentProps<typeof RuntimeField>> = {}) {
 /**
  * Which image an agent gets by default.
  *
- * The list is the sandbox library's own catalog and is complete before anything is
+ * The list is this deployment's own catalogue and is complete before anything is
  * probed - a select that only filled in after pressing a button was a select nobody
  * would find. Probing then answers the narrower question: this host may have been
- * started with a shorter allowlist, and the options it did not name are marked
+ * started with a different allowlist, and the options it did not name are marked
  * rather than removed.
  */
 describe("the default runtime", () => {
@@ -63,32 +63,34 @@ describe("the default runtime", () => {
 
     await userEvent.click(screen.getByRole("combobox", { name: "Default runtime" }));
 
-    expect(await screen.findByRole("option", { name: /coding/ })).toBeVisible();
-    expect(screen.getByRole("option", { name: /node-minimal/ })).toBeVisible();
+    expect(await screen.findByRole("option", { name: /workbench/ })).toBeVisible();
+    expect(screen.getByRole("option", { name: /python/ })).toBeVisible();
   });
 
   it("says plainly that no host has been checked yet", () => {
-    // Offering fifteen aliases as though all fifteen will work is a promise this
-    // cannot make until the service has answered.
+    // Offering an alias as though it will work is a promise this cannot make
+    // until the service has answered. It no longer says "press Test
+    // to find out", because the dialog asks on its own once it has an address and
+    // a credential (#1039).
     field();
 
-    expect(
-      screen.getByText(/Test the connection to see which ones this host allows/),
-    ).toBeVisible();
+    expect(screen.getByText(/These are the runtimes this deployment ships/)).toBeVisible();
+    expect(screen.queryByText(/Test the connection to see/)).toBeNull();
   });
 
   it("marks what this host does not allow rather than dropping it", async () => {
     // Dropping it would leave somebody wondering where a runtime they have read
     // about went; marking it says which of the two things is wrong.
-    field({ allowed: [allowed("coding")] });
+    field({ allowed: [allowed("workbench")] });
 
     await userEvent.click(screen.getByRole("combobox", { name: "Default runtime" }));
 
     // Matched inside the option rather than through its accessible name: the
     // badge is `trailing`, and Radix names an item by its `ItemText` alone.
-    const marked = await screen.findByRole("option", { name: /node-minimal/ });
+    const marked = await screen.findByRole("option", { name: /python/ });
     expect(within(marked).getByText("not on this host")).toBeVisible();
-    expect(screen.getByText("This host allows 1 of them.")).toBeVisible();
+    // One line now: what the field is for, then what the host said.
+    expect(screen.getByText(/This host allows 1 of them\./)).toBeVisible();
   });
 
   it("keeps a runtime the host named that the library does not ship", async () => {
@@ -105,12 +107,12 @@ describe("the default runtime", () => {
 
     await userEvent.click(screen.getByRole("combobox", { name: "Default runtime" }));
 
-    const builder = await screen.findByRole("option", { name: /coding/ });
+    const builder = await screen.findByRole("option", { name: /workbench/ });
     expect(within(builder).getByText("builds")).toBeVisible();
   });
 
   it("offers taking whatever the service defaults to", async () => {
-    const { onChange } = field({ value: "coding" });
+    const { onChange } = field({ value: "workbench" });
 
     await userEvent.click(screen.getByRole("combobox", { name: "Default runtime" }));
     await userEvent.click(screen.getByRole("option", { name: /Whatever the service defaults to/ }));
@@ -169,7 +171,7 @@ describe("the default runtime", () => {
   });
 
   it("offers to ask again once it has an answer", () => {
-    field({ allowed: [allowed("coding")] });
+    field({ allowed: [allowed("workbench")] });
 
     expect(screen.getByRole("button", { name: "Ask again" })).toBeVisible();
   });
@@ -185,10 +187,10 @@ describe("the default runtime", () => {
     // badge in `children` was inherited by it: the field said "not on this
     // host" beside the very runtime the form was about to save, with nothing
     // left to compare it against. `trailing` renders outside `ItemText`.
-    field({ value: "coding", allowed: [allowed("node-minimal")] });
+    field({ value: "workbench", allowed: [allowed("python")] });
 
     const trigger = screen.getByRole("combobox", { name: "Default runtime" });
-    expect(trigger).toHaveTextContent("coding");
+    expect(trigger).toHaveTextContent("workbench");
     expect(trigger).not.toHaveTextContent("builds");
     expect(trigger).not.toHaveTextContent("not on this host");
 
@@ -196,7 +198,7 @@ describe("the default runtime", () => {
 
     // Both halves, because "absent from the trigger" alone is also true of a
     // component that stopped drawing them at all.
-    const chosen = await screen.findByRole("option", { name: /coding/ });
+    const chosen = await screen.findByRole("option", { name: /workbench/ });
     expect(within(chosen).getByText("builds")).toBeVisible();
     expect(within(chosen).getByText("not on this host")).toBeVisible();
   });
@@ -207,13 +209,13 @@ describe("the default runtime", () => {
     // against the allowlist, so without this the one case that matters - the
     // alias about to be stored is one the host named nothing about - would be
     // visible only while the list happened to be open.
-    field({ value: "coding", allowed: [allowed("node-minimal")] });
+    field({ value: "workbench", allowed: [allowed("python")] });
 
     expect(screen.getByText(/This host did not name the runtime selected/)).toBeVisible();
   });
 
   it("says nothing when the host did name the runtime selected", async () => {
-    field({ value: "coding", allowed: [allowed("coding")] });
+    field({ value: "workbench", allowed: [allowed("workbench")] });
 
     expect(screen.queryByText(/This host did not name/)).toBeNull();
   });
@@ -221,26 +223,29 @@ describe("the default runtime", () => {
   it("says nothing about a host that has not been asked yet", async () => {
     // `allowed === null` is "nobody has checked", which is not the same claim
     // and must not be drawn as one.
-    field({ value: "coding" });
+    field({ value: "workbench" });
 
     expect(screen.queryByText(/This host did not name/)).toBeNull();
   });
 
-  it("keeps the runtime's own description on the trigger, which does describe it", async () => {
-    // The line under the alias says what the image is for, which is true of the
-    // option wherever it is drawn - so it stays in `children` and the trigger
-    // is right to inherit it.
-    field({ value: "coding" });
+  it("says the alias on the trigger and leaves the description to the list", async () => {
+    // The description belongs under the alias *in the list*, where there is room
+    // for two lines and something to compare against. The trigger is 36px with
+    // `line-clamp-1`, so mirroring a two-line block into it clipped the
+    // description and pushed the alias sideways - which is what a 118-character
+    // description made unmissable.
+    field({ value: "workbench" });
 
-    expect(screen.getByRole("combobox", { name: "Default runtime" })).toHaveTextContent(
-      "what coding is for",
-    );
+    const trigger = screen.getByRole("combobox", { name: "Default runtime" });
+
+    expect(trigger).toHaveTextContent("workbench");
+    expect(trigger).not.toHaveTextContent("what workbench is for");
   });
 
   it("keeps the trigger inside its container, whatever the label says", () => {
     // An option label is a sentence, and a trigger that grew to fit one pushed the
     // dialog wider than the viewport.
-    field({ value: "coding" });
+    field({ value: "workbench" });
 
     const trigger = screen.getByRole("combobox", { name: "Default runtime" });
     expect(trigger.className).toContain("min-w-0");

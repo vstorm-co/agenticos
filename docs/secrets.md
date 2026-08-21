@@ -99,6 +99,17 @@ token, and the shared secret an inbound webhook is authenticated against —
 Telegram's `X-Telegram-Bot-Api-Secret-Token`, a Mattermost outgoing webhook's
 token. See [Channels](channels.md).
 
+**Embeds.** A `jwt` widget verifies visitor tokens against an HS256 signing secret
+the customer's backend holds. It is sealed to the agent's organization and records
+its `key_version` like every other sealed row, so a master-key rotation can
+`rewrap` it and the widget keeps verifying — where an embed that did not record its
+version could never be opened after a rotation.
+
+A row with several ciphertext columns — a channel bot's four, an embed's one — seals
+them through `vault.seal_fields`, which seals every field at one version and hands
+that version back to store: the one way to write such a row, so "no version column"
+and "reset one field to v1" cannot be spelled by hand.
+
 **Third-party services.** A small catalog of services an organization may bring its
 own key for:
 

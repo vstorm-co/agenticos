@@ -957,15 +957,31 @@ ended must not fail again because SMTP was down.
 
 ## Audit
 
-Actions that change access or spend money are recorded with an actor, and the
-actor column is `NOT NULL` - which is why a context with no subject raises rather
-than letting the absence travel. A privileged bulk read is recorded too: each CSV
+Actions that change access or spend money are recorded with an actor, and a
+context with no subject raises rather than letting the absence travel - so an
+entry naming nobody means exactly two things, and the `action` says which: the
+approval expiry sweep, and an operator command at the deployment's shell.
+Binding a credential to a collection is one of those actions: `sync_source`
+entries record creating, cloning, repointing and deleting a source, because the
+row decides who ends up able to read what it ingests
+([File processing](file-processing.md#who-ends-up-able-to-read-what-a-source-ingested)).
+A privileged bulk read is recorded too: each CSV
 export writes a `runs.export`, `approvals.export` or `spend.export` entry naming
 the window and the row count, because who took the whole table off the screen is a
 question that is cheap to answer now and impossible to reconstruct later.
 
 `audit:read` gates reading it. An app admin's bypass is exactly what the trail
 exists to hold to account.
+
+An **impersonated** action names both. When an app admin acts as another account,
+the access token carries the administrator as an `act` claim; every entry that
+request records keeps `actor_user_id` as the account being acted as and adds
+`impersonator_user_id` — the administrator behind it. So "who read this customer's
+conversation" resolves to a person even when the action was recorded as the
+customer's own. It is null on an ordinary request, where nobody is acting as
+anybody else, and nothing is backfilled: whether a past action was impersonated
+cannot be known after the fact, and inventing an answer would be a false
+accusation rather than a missing one.
 
 ## What none of this covers
 

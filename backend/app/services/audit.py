@@ -62,6 +62,7 @@ class AuditService:
                 AuditEntryRead(
                     id=entry.id,
                     actor_user_id=entry.actor_user_id,
+                    impersonator_user_id=entry.impersonator_user_id,
                     action=entry.action,
                     target_type=entry.target_type,
                     target_id=entry.target_id,

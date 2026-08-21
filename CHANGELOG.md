@@ -17,6 +17,808 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.246] - 2026-08-21
+
+An Admin cannot take from a peer what they are not allowed to remove.
+
+### Fixed
+
+- **An Admin could demote a peer Admin, having been refused removing them.**
+  `MemberService.remove` refuses one Admin removing another; `change_role`
+  disagreed about the same peer, because it checked only the **new** role against
+  the assignment ceiling and never the target's **current** one. So an Admin who
+  could not remove a peer Admin could demote them to Viewer - stripping the same
+  authority - and then remove them, or simply leave them demoted. The audit read
+  `member.role_changed`, which is true and not what happened. A requester may now
+  only change the role of a member their own role strictly outranks, which is the
+  relation `assignable_roles` already means: the Admin-vs-Admin rule is the
+  assignment ceiling rather than a second rule beside it, and because the ceiling
+  is derived from the permission catalog a custom role is bounded the same way
+  rather than against a literal `"admin"`. The Owner target keeps its own
+  "use transfer-ownership" message. (#700)
+- **The role selector was drawn on rows the server would refuse.** The list now
+  answers `can_change_role` per member - the same two checks `change_role` makes -
+  so a peer Admin's row shows the role as a label instead of a control whose only
+  result is a 403 toast. It is the server's answer rather than a rule
+  reimplemented in the client, which would drift from the catalog. (#700)
+- **Both halves of the read-check-write are locked now.** `change_role` and
+  `remove` each read a membership, refuse or allow on the role they find, and then
+  write that same row - so under `READ COMMITTED` an Owner promoting the target in
+  between left an Admin demoting or removing a peer Admin. `member_repo.get` takes
+  `for_update`, off by default because every listing and permission check calls
+  it. (#700)
+
+### Testing
+
+- **A frontend case asserted the behaviour this release removes**, written on the
+  reading that demoting a peer Admin was a supported action a picker ought to
+  offer. It asserts the label and the absent control now, with the reason kept
+  beside it. Three more failed only because the fixture did not carry
+  `can_change_role`; it derives the flag through `assignableRoles` over the same
+  catalog the server uses, so a fixture cannot describe a server this one is not.
+- `TestMemberRepositoryLock` holds what `for_update` compiles to, in the shape
+  `TestAgentRepositoryLock` beside it already uses. The parameter had none.
+
+### Known
+
+- `remove` still decides Admin-vs-Admin with a literal rather than the catalog, so
+  half of #700's argument about custom roles is unmade. No live defect - the four
+  built-in roles agree - and filed as #1066.
+
+## [0.0.244] - 2026-08-21
+
+One runtime this repository defines, and a workspace anybody can read.
+
+### Added
+
+- **`backend/app/core/catalog/sandbox_runtimes.json` is where a runtime is
+  described, and the three compose files are generated from it.**
+  `SANDBOXD_RUNTIMES` was hand-written JSON in each of them, describing the same
+  images the connection dialog offers — four places to edit, three of which had to
+  remember that `network_mode` is not inherited from anywhere.
+  `make sandbox-runtimes` writes the line and
+  `backend/tests/test_sandbox_runtime_catalog.py` fails when a file has drifted
+  from the catalogue, naming the file. (#1039)
+- **One runtime, `workbench`, instead of eight.** Python 3.12, Node 24.19.0 and
+  LibreOffice, with `liteparse`, `pypdf`, `python-docx`, `openpyxl`,
+  `python-pptx`, Pillow, pandas, duckdb, matplotlib, httpx, requests,
+  BeautifulSoup, lxml, markdownify, PyYAML, tabulate and reportlab. `prewarm`
+  builds every entry as the service starts, so eight aliases was eight
+  `pip install`s in a start-up nobody watches. (#1039)
+- **The agent is told what its container holds**, in the run's instructions rather
+  than by trying something and reading the error: the package list is derived from
+  the catalogue and the prose beside it says what cannot be — that a large file is
+  extracted to disk and grepped rather than read whole, that OCR costs about nine
+  seconds a page, that `soffice` converts, and that there is no C compiler.
+  `None` for a Daytona sandbox or a `state` workspace, whose image this deployment
+  does not build and so cannot honestly describe. (#1039)
+- **The Running tab says whose sandbox each one is** — the agent's name with the
+  session key under it, the conversation it belongs to as a link, and how long it
+  has before it is reaped, measured against the service's own `idle_timeout`. Its
+  activity log opens in a near-fullscreen dialog with search, an operation filter
+  built from the log itself, and a failed-only switch. (#1039)
+- **`/workspaces` opens on every file rather than on a table of workspaces.**
+  "Where is that CSV" and "what did the agent write" are the questions somebody
+  opens the page with. A file a person attached carries a badge and the list
+  filters on it; an image draws a thumbnail, on a host as well as in a stored
+  document. (#1039)
+- **A workspace's own page is a tree that opens in place**, indented, with
+  `uploads` open by default and search over every folder rather than the one on
+  screen. The file renders beside the tree instead of over it, because reading a
+  workspace means reading several files in turn. (#1039)
+- **The table counts files and totals their bytes, sortable**, and says what it
+  cost: a stored workspace is counted anyway because its files came with the row,
+  and a container's are a round trip to its host, so `measure=true` is a switch
+  rather than something the page pays for on open. (#1039)
+- **One scrolling row of attachment chips above the composer**, in its own
+  container, with arrows only where there is something to scroll to. (#927)
+- **A file opens in a modal with a carousel under it**, so moving between the
+  files of one turn is a click or an arrow key, from the transcript as well as
+  from the panel. (#1039)
+
+### Fixed
+
+- **Compose interpolated the runtime's shell variables, so every session 502'd.**
+  `$arch` and `${node_arch}` in a setup command are variables to compose,
+  undefined ones, so the service was handed `case "" in amd64) … esac` and the
+  build failed with `no Node build for ` on every session. Nothing in the chain
+  says the word "compose": the library passes a setup command through verbatim and
+  Docker does not expand `$` in a `RUN`. The generator writes `$$`. (#1039)
+- **An attachment landed outside the workspace and nothing reported it.**
+  `UPLOAD_DIR` was `/uploads`, and a sandbox resolves an absolute path as
+  absolute — so the file landed at the container's filesystem root, the agent's
+  `ls` did not see it, the browser could not list it, and it died with the
+  container. An agent asked to read one answered that the directory was empty,
+  having summarised the file from the head sample in its own prompt. (#1039)
+- **`_workspace_paths` globbed from `/` rather than from the working directory**,
+  so "what did the agent write" was 2,540 paths of `/proc` and `/usr`, taken twice
+  a turn. (#1039)
+- **A workspace listing read one directory.** The archive's `ls` lists one, and it
+  was called once on the root — so a workspace whose files are all under
+  `uploads/` reported a single directory entry and nothing else. It walks now,
+  breadth-first, six levels deep and 2,000 entries at most; a directory that will
+  not answer is logged and skipped, and only the root refusing makes the workspace
+  unreadable. (#1039)
+- **A Polish filename 500'd, and the browser was told the file did not exist.**
+  ASGI headers are latin-1, so `Content-Disposition: filename="…ł.pdf"` raised
+  inside the response — reported to the client as `FILE_NOT_FOUND`. One helper
+  builds the header as RFC 5987 for every route that serves bytes. (#1039)
+- **A `.txt` copy of every PDF, `.docx` and spreadsheet was written beside it.** On
+  a runtime carrying `liteparse` that is a second copy of the file's contents on
+  disk to save a tool call the agent should be making. It is written only where the
+  workspace cannot read the original itself. (#1039)
+- **A failed workspace write was reported to the model as "too large".** The
+  sentence was reasoned from the stored backend's four-megabyte ceiling, and a
+  container write fails for reasons that have nothing to do with size — so a
+  782 KB PDF attached while `sandboxd` was down was described as too large, the
+  model repeated that to the person who attached it, and the two of them spent a
+  conversation on a limit that was never the problem. (#1046)
+- **And the turn is told once that the workspace itself is unavailable**, so a
+  failing `ls` is not read as a problem with the command: without it one turn tried
+  `ls`, then a `curl` of a `data:` URI, then offered three workarounds, across two
+  turns and 57k tokens. (#1046)
+- **Skills are written to the workspace again**, because a resource is a script the
+  shell runs and `collect_changes` diffs it into a proposal a person accepts;
+  removing the files broke both, one of them silently. The listings drop `skills/`
+  and the spill directory instead — the complaint was right about the listing and
+  wrong about the mechanism. (#1064)
+- **A channel reply could post somebody's own attachment back at them as the
+  agent's work.** The prefixes a reply must not send were written with a leading
+  slash, which a stored workspace's paths have and a container's do not. (#1039)
+- **A probe sent the vault credential to whatever address was in the box.**
+  `X-Sandbox-Token` on a sandbox host starts containers there, so the automatic ask
+  is limited to the address the backend itself found; every other host is asked
+  when an operator presses the button. (#1039)
+- **`re.sub` reads escapes in its replacement string**, and the generated compose
+  line was passed as one — so the first setup command needing a `sed 's/\1/x/'`
+  would have been written into three files as a capture group. (#1039)
+- **An agent on somebody else's host was told it could read a PDF itself when it
+  could not.** Whether the extracted text is written beside an attachment was
+  derived from whether the runtime could be described - and a description falls
+  back to this catalogue's first entry for a run that named no runtime, which is
+  the case where the *host* chooses. On a custom or pre-upgrade host that left the
+  model twenty lines of prompt and a binary it could not open. The two questions
+  are answered separately now. (#1039)
+- **And the extracted text was named whether or not it was written.** A document
+  with room for a spreadsheet and not for its parse refuses the second write on
+  its own, so the model was told about a file that was not there. What is named is
+  what the workspace answers for. (#1039)
+- **The sandbox listing linked conversations their reader cannot open**, which on
+  an organization-wide page was most of the column: the chat page lists its
+  owner's threads, so the rest landed on an empty sidebar dressed as the
+  conversation. (#1039)
+- **A container's file tree stopped without saying so.** Reading a host is a round
+  trip per folder, so the walk ends at six levels and 2,000 entries - which for a
+  workspace holding a checkout is a tree somebody reads as everything the agent is
+  keeping. The page says when it is not. A folder that will not answer is skipped
+  rather than failing the whole listing, and a folder's file count includes what is
+  nested under it. (#1039)
+- **The sandbox service this deployment starts could not be tested before it was
+  saved**, because that path stores its credential at submission and there was
+  nothing to test with. A probe with no key uses `SANDBOXD_TOKEN` for the two
+  addresses in this project's own compose file and no others - that token starts
+  containers on whatever host accepts it. (#1039)
+- Smaller ones, each with a test: the name field is a value rather than a
+  placeholder; the runtime picker's trigger says what an image is for on one line
+  instead of overflowing it; the explorer fills the page it is on; the segments of
+  one turn no longer have a gap between them; a file's carousel no longer takes the
+  arrow keys away from the Preview/Source tabs; a probe's answer about a host that
+  is no longer in the box is not displayed; and a stored image's base64 body is no
+  longer decoded to discover that its suffix was never an image.
+
+### Documentation
+
+- **`docs/sandbox.md`** — how a sandbox is built and by whom, that the containers
+  are siblings of the API rather than nested in it, one per session, what a tenant
+  is, how long a workspace survives, what `sandbox_runtimes.json` holds and how to
+  change it, and what the browser leaves out. `SANDBOXD_MAX_SESSIONS_PER_TENANT` is
+  10. (#1039)
+
+## [0.0.243] - 2026-08-21
+
+The agent avatar is served as an image or not at all.
+
+### Fixed
+
+- **`GET /api/v1/agents/{agent_id}/avatar` guessed its content-type from the filename
+  on disk** - `mimetypes.guess_type(path)[0] or "application/octet-stream"`, straight
+  into a `FileResponse`. An avatar is stored under whatever suffix the uploader chose
+  and the app serves from an origin whose CSP allows inline script, so a file uploaded
+  as `x.html` was served as `text/html` from that origin and executed. Stored XSS,
+  exactly the class 0.0.238 fixed for the user and organization avatars, and the route
+  it deliberately left out of scope. (#1035)
+- The route reuses `image_media_type_for` rather than growing a second copy of the
+  helper: the type is pinned to the file's actual image type, anything that is not an
+  image is refused with a 404, and `X-Content-Type-Options: nosniff` goes out with it -
+  the same shape the user and organization avatar routes already use. `mimetypes` is
+  dropped from the module. (#1035)
+## [0.0.242] - 2026-08-21
+
+The migration chain has one head again.
+
+### Fixed
+
+- **`main` had two alembic heads, so `alembic upgrade head` exited 255 and no
+  deployment could move off 0.0.238.** `0044_agent_embed_key_version` (0.0.239) and
+  `0044_audit_impersonator` (0.0.241) both carried
+  `down_revision = "0043_rag_document_source_path"`: each was written against a `main`
+  that ended at `0043`, each was green on its own branch, and the fork existed only in
+  the merged history. The audit migration is `0045_audit_impersonator` now and points
+  at the embed one. (#1059)
+
+### Added
+
+- **A guard that needs no database.** `backend/tests/test_migration_chain.py` asserts
+  the chain has exactly one head, and that no two revisions claim the same parent -
+  the same defect one step earlier, where the message names the two files that
+  collided rather than the two heads they produced. It is a module of its own rather
+  than a case in `tests/test_migrations.py`, because that one skips where no Postgres
+  answers and a divergence is made by a merge on a laptop hours before CI's database
+  sees it. `make db-check` is `alembic check`, which compares the models to the head
+  and never counts them. (#1059)
+## [0.0.241] - 2026-08-21
+
+An impersonated action names who was really acting.
+
+### Fixed
+
+- **`POST /admin/users/{id}/impersonate` minted an access token whose `sub` is the
+  target account**, so every request made with it - every row written, every audit
+  entry triggered - was attributed to the target and to nobody else. An admin who
+  read a customer's conversation and one who deleted their agent left the same trace:
+  the customer's own. "Who accessed my account" had no answer. (#943)
+
+### Added
+
+- **An `act` claim.** `create_access_token(..., act=...)` carries the administrator
+  behind the subject, and the impersonate route sets it. It is absent on every
+  ordinary token, so those are byte for byte unchanged. (#943)
+- **A request-scoped audit context.** The auth dependency, over HTTP and WebSocket
+  alike, reads `act` onto a context variable - the actor behind a request is a
+  property of the request rather than something to thread through every service that
+  records an action. `record_audit` writes it as `impersonator_user_id` beside the
+  actor, `0045_audit_impersonator` adds the nullable column and its index, and the
+  audit read schema and service expose it. Null on an ordinary request, and nothing
+  is backfilled: whether a past action was impersonated is unknowable after the fact.
+  `docs/governance.md` says what an impersonated action records. (#943)
+
+### Changed
+
+- Deliberately not the whole of #943. A raw token still reaches the clipboard, and an
+  impersonation session is still neither revocable nor endable in product - those two
+  are one larger full-stack flow, with a banner, an End button and revocation, filed
+  as a follow-up. #943 stays open for it, along with the policy question of whether
+  the target is notified. (#943)
+## [0.0.240] - 2026-08-21
+
+An answered `ask_user` question survives the conversation.
+
+### Fixed
+
+- **A mid-turn `ask_user` question and the person's answer were written down
+  nowhere**, so a reopened conversation showed neither the question the agent put nor
+  the answer it acted on. `ask_user` is a callback rather than a tool, so it never
+  touched the turn timeline the transcript is replayed from. (#502)
+
+### Added
+
+- `MessagePart` gains an `ask_user` kind carrying the question and the answer,
+  `TurnTimeline.add_ask_user` records it, and the session hands the running turn's
+  timeline to `_ask_one`, which appends the pair once the answer is in hand, in the
+  position it happened. A lone `ask_user` part is stored even as a turn's only part -
+  unlike a tool call or a block of text it has no column to fall back to. No
+  migration: the timeline is already a JSONB column and only the part union widens.
+  (#502)
+- The frontend gains the raw and typed part shapes, the replay in
+  `conversation-to-chat`, a `runsOf` run, and an `AskUserBlock` that draws the
+  question and the answer as a step inside the turn rather than as a chat bubble.
+  (#502)
+
+### Changed
+
+- Replay only. Live, the question is the composer's own `ask_user` form and the answer
+  returns through it, so what was missing was a conversation reopened from history.
+  **Delegate attribution - saying which delegate asked - is deliberately not here**:
+  `subagents-pydantic-ai` reaches the parent through `ctx.deps.ask_user(question, [])`
+  with no asker name and `SubAgentState` carries none, so naming the delegate needs an
+  upstream change to that package first. #502 stays open for it. (#502)
+## [0.0.239] - 2026-08-21
+
+A multi-column row is sealed under one key version.
+
+### Fixed
+
+- **"A row has several ciphertext columns sharing one `key_version`" was hand-rolled
+  at several models, each differently, and the vault offered no primitive for it.**
+  The failures are latent - `rewrap`, master-key rotation, has no production caller
+  yet - but the day it runs, a rotated `jwt` widget can never be opened again and a
+  channel bot's row disagrees with its own envelopes. `vault.seal_fields(values, *,
+  scope, key_version)` seals every field at one version and hands that version back
+  to store, so "seal at v2 but record v1" and "no version column at all" cannot be
+  written by hand. (#552)
+- **`agent_embed` had no `key_version` column**, and `_verify_token` unsealed at an
+  implicit v1 - so a rotated widget would answer `EmbedDenied` to every visitor. It
+  gains `secret_key_version` (the migration backfills existing rows to 1), seals
+  through `seal_fields` and unseals at the row's own version. `docs/secrets.md` now
+  lists the embed among the sealed rows. (#552)
+- **`channel_bot`'s `update` re-sealed a changed token at the default v1 and reset the
+  column** while its siblings kept the rotated version, leaving the row's version
+  disagreeing with its envelopes (AUD-008). It seals at the row's existing version,
+  beside its siblings, and never resets the column. (#552)
+- Left alone deliberately: `mcp_connection` already seals one field per write at the
+  row's `secret_key_version`, and `organization_secret` stores its ciphertext, hint
+  and version through the typed `secret_kinds` wrappers. Both already record one
+  version per row, so routing them through the multi-field helper would be churn
+  rather than a fix. (#552)
+## [0.0.238] - 2026-08-21
+
+A stored file is served as what it is, or not served inline at all.
+
+### Fixed
+
+- **Stored XSS through an avatar or a chat attachment.** The bytes behind both were
+  served with a type the backend took from the *name on disk*, while the upload paths
+  validated the `Content-Type` the client *declared* and never the bytes, keeping
+  whatever extension the uploader chose. So `x.html` whose bytes are `<script>…`,
+  declared as `image/png`, was accepted, stored as `<hex>_x.html`, guessed back as
+  `text/html`, and passed through the frontend proxy from the app's own origin -
+  where the CSP allows `'unsafe-inline'`. `X-Content-Type-Options: nosniff` does not
+  help, because the type is declared rather than sniffed. The same shape #634 fixed
+  for the hosted-page logo; these three require a session, so the audience is the
+  organization. (#702)
+- **Pinned at both ends.** The frontend proxies share their allowlists in
+  `src/lib/proxy-content-type.ts`: both avatar proxies refuse anything outside the
+  four image types with a 502 and drop the `image/jpeg` default over unknown bytes,
+  and the file proxy - which serves PDFs and spreadsheets on purpose - forces a
+  download for anything outside the render-safe set, so `text/html` and SVG are saved
+  rather than shown. `nosniff` on all three. (#702)
+- **And at the backend routes.** `image_media_type_for` lives beside `IMAGE_MIME_TYPES`
+  in `file_storage`: the user and organization avatar routes guess the type, 404 a
+  non-image and pass it explicitly with `nosniff`, and the chat-file route serves a
+  render-safe type inline and forces everything else to download - the declared
+  `mime_type` is not trusted to decide rendering. (#702)
+## [0.0.237] - 2026-08-21
+
+Two chat controls that did nothing are gone.
+
+### Removed
+
+- **The temperature slider and the thinking-effort picker in the chat Settings tab.**
+  Both were sent on every turn and read by nothing: `agent_session` reads
+  `model_profile_id` and the environment off the frame and no other key, and
+  `thinking_effort` appears nowhere in the backend at all. Whatever the person chose,
+  the run used the agent's spec. Worse than doing nothing, the controls said they did
+  something - `chat-controls`' own docstring claimed "both are recorded on the run, so
+  an override stays attributable", and neither was, because neither arrived. The same
+  class as #29 and #561: a stated contract the code does not keep, and a control that
+  lies is worse than one that is absent. (#924)
+- The Settings tab was those two controls, so it goes with them - leaving the model
+  picker, which works and no longer needs tabs - along with the `use-chat` refs,
+  setters and send-frame lines behind them, and the orphaned `chat.controls.*` keys
+  (and a stray `chat.settingsPersistCurrentChat` their removal orphaned). The
+  docstring now says what is true. (#924)
+
+### Changed
+
+- Thinking effort stays a **capability binding** rather than a model setting
+  (`spec.py`), so overriding it per turn is a larger design than a slider: it is not
+  being quietly dropped, it never worked, and wiring it is its own issue. Temperature
+  is genuinely a model setting and the easy half, but half-wiring one while deleting
+  the other leaves the same one-control-in-a-tab shape. (#924)
+## [0.0.236] - 2026-08-21
+
+PII is redacted where records are actually emitted.
+
+### Fixed
+
+- **`PiiRedactionFilter` was attached to the root logger, where it scrubbed nothing
+  the application logs.** A filter on a logger runs only in `Logger.handle`, for a
+  record logged on that logger; a record from `logging.getLogger(__name__)` - which
+  is every log line in this codebase - propagates to its ancestors' **handlers**
+  through `Logger.callHandlers` and never touches their filters. Email addresses,
+  JWTs, `sk-` keys and bearer tokens reached Datadog, CloudWatch and Logfire
+  verbatim: the redaction a deployment believed stood between its logs and its
+  aggregator had never been there. The filter is attached to the root logger's
+  handlers now. (#440)
+- **`logging.lastResort` carries the filter too**, because that is what emits
+  `WARNING` and above in a process that configured no handler - the CLI, a flow
+  subprocess before logging is set up - and a credential in a `logger.exception` is
+  exactly such a record. (#440)
+- **The worker never called `setup_logging` at all.** The process that runs
+  ingestion, syncs and reports - a wrong embedding key, an SMTP failure, a connector
+  401 - redacted nothing even in theory. `setup_logging` is idempotent now and is
+  called by the worker (`prefect_app.main`) and the CLI (`cli.commands.main`) as well
+  as the API. (#440)
+## [0.0.235] - 2026-08-21
+
+The auth surface is rate-limited, and bcrypt is off the event loop.
+
+### Fixed
+
+- **No route in `auth.py` was rate-limited, and `verify_password` ran bcrypt on the
+  request event loop** - about 170ms with no suspension point in it. Each is
+  survivable; together they are not. `/login` against any address that holds an
+  account, at 20 requests a second, blocks the loop 171ms at a time with no `await`,
+  so the worker serves nothing else: not the readiness probe, not an in-flight agent
+  socket. On a single-worker deployment the product is down for as long as the
+  attacker keeps typing. (#947)
+- **Unlimited brute force.** The bcrypt cost was the only brake on it, and the
+  denial-of-service above is what that brake bought the attacker. (#947)
+- **A user-enumeration timing oracle.** `authenticate` skipped bcrypt for an unknown
+  address and ran it for a known one, so the two refused in visibly different times.
+  An unknown address is now verified against a real hash computed once at import, and
+  the two refusals take the same time. (#947)
+- **An email amplifier.** `/password-reset/request` and `/magic-link/request` sent
+  mail on every call, unlimited. (#947)
+
+### Changed
+
+- The Redis-backed limiter this repository already had in `services/rate_limit.py`,
+  shared across workers, is wired to the auth surface: `auth_limit()` and
+  `deps.enforce_auth_limit` are called at the top of **every** auth route, before any
+  bcrypt or database work. Counted per IP always, and per submitted address wherever
+  the body carries one - which is why it is called from the handler rather than as a
+  `Depends`, since the per-address half needs the parsed body.
+  `RATE_LIMIT_AUTH_PER_MINUTE` defaults to 10 and is documented in
+  `docs/configuration.md`. (#947)
+- Every bcrypt call - the verify in `authenticate` and the three `get_password_hash`
+  sites - runs in a thread through `asyncio.to_thread`. (#947)
+- `GET /me` is deliberately not rate-limited here: a per-IP limit on an authenticated
+  no-op punishes an office behind one NAT, and per-user limiting of an already
+  authenticated cheap read is a separate decision. (#947)
+## [0.0.234] - 2026-08-21
+
+An app admin cannot suspend or delete their own account.
+
+### Fixed
+
+- **`/admin/users` let an app admin open their own row and suspend, demote or delete
+  themselves**, unguarded at both layers and two of the three one click away with no
+  confirmation. `is_active` is enforced on the next request, so a self-suspend signs
+  you out of a deployment you administer, and a self-delete takes the account and its
+  conversations with it - on the single-admin install `make platform-bootstrap`
+  produces, a stray click ends administration until somebody reaches a terminal.
+  (#941)
+- The guard lives in `UserService`, where both admin surfaces meet: `admin_update`
+  refuses a self-suspend and `admin_delete` a self-delete, before the repository is
+  touched. `PATCH` and `DELETE` on both `/admin/users/{id}` and the twin `/users/{id}`
+  route - which had the same hole - carry the acting admin's id through them. (#941)
+- Only `is_active` is guarded on update, because `is_app_admin` is not a `UserUpdate`
+  field: the one global privilege is granted by CLI and cleared by nothing over the
+  API. That is also what answers the last-admin question in code rather than in a
+  policy - the app-admin set shrinks only by deletion, and deleting the last one is
+  deleting yourself, which is refused. Written up in `docs/deployment.md`. (#941)
+- The admin drawer no longer renders **Suspend**, **Demote** or **Impersonate** on
+  your own row. **Delete stays visible and is refused by the API** - "why can I not
+  delete myself" is a question worth answering on screen. (#941)
+## [0.0.233] - 2026-08-21
+
+A conversation is shared inside its organization or not at all.
+
+### Fixed
+
+- **`POST /conversations/{id}/share` resolved the target user deployment-wide and
+  never checked they belong to the conversation's organization.** The row was
+  created and the dialog listed the outsider under "Shared with" - while the read
+  path refuses on the tenant before it ever consults the share, so the target got a
+  404 and the owner a lie. Not a leak, since the tenant gate holds, but a contract
+  that lies. `share_conversation` now checks the target is a member of the
+  conversation's organization, by id and by email alike. (#930)
+- A non-member is refused **as though they did not exist**, with the same
+  `NotFoundError` the not-found case raises: naming them "a member of another
+  organization" would turn the share form into a cross-tenant probe for which
+  addresses hold an account elsewhere on the deployment. Membership is read with
+  `member_repo.get` rather than `get_active` - the question is tenancy, and whether
+  a member can currently sign in is the read path's call. (#930)
+- The owner's "Shared with" listing drops rows already in that state, in one query:
+  a target who is a current member is kept, and so is a public-link share, which has
+  no target. Cheaper than a migration, and self-correcting. (#930)
+## [0.0.232] - 2026-08-21
+
+The active-sessions card holds while the next page loads.
+
+### Fixed
+
+- **Paging the Active sessions card on `/settings/profile` blanked it and threw the
+  scroll to the top.** The query keyed on the page number with no `placeholderData`,
+  so each page change was a new key: `data` went `undefined`, `isPending` flipped
+  true, and the `loading && sessions.length === 0` branch drew two skeletons in
+  place of five rows. The card collapsed from roughly 340px to 120px, everything
+  below it jumped, and a card below the fold took the scroll with it.
+  `placeholderData: keepPreviousData` holds the current rows while the next page
+  loads, so the skeleton branch means first load again - the treatment
+  `use-agents`, `use-runs`, `use-skills` and `use-context` already had, and this was
+  the one paged list without it. (#944)
+- The held list is dimmed and marked `aria-busy` while stale, as `UsageBody` does,
+  and the pager is disabled while the fetch is in flight - so the hold is visible,
+  and audible to a screen reader, rather than silently wrong. (#944)
+
+### Changed
+
+- The card's hand-rolled pager is now the shared `PaginationBar` that admin/users,
+  run history and version history already use; it was the fourth implementation of
+  one control. Single-page behaviour differs - the chevrons render disabled rather
+  than the pager disappearing - so the orphaned `dashboard.previousPage` and
+  `dashboard.nextPage` keys are removed from both catalogs. (#944)
+## [0.0.231] - 2026-08-20
+
+The organization in the URL is the tenant.
+
+### Fixed
+
+- **`/orgs/{id}/members` acted on the organization in its path and judged
+  permissions from the active one.** `X-Organization-Id` travels on every request
+  and names the active organization, while the organizations list opens any org's
+  members page through a link and *switching* is a separate button that navigates
+  to the dashboard - so the ordinary route to another organization's members page
+  was the one that left the active organization behind, and the page then judged
+  Acme's members by the caller's role in Globex. `ActiveOrgGuard` adopts the
+  organization a path names, before the page asks anything. (#1032)
+- Not only the role picker: `canManage` decides whether any role control, invite
+  button or spending field renders at all, and it read the same wrong answer long
+  before the picker did. (#1032)
+- **Switching organization from a page that names one now takes the route with
+  it** - Globex picked on Acme's members page lands on Globex's members page.
+  Adoption happens once per path, so a deliberate switch is not written back; the
+  two together are what keep the primary switcher working on those pages while
+  the URL still decides the tenant. (#1032)
+- An organization id in a URL is adopted lower-cased. The server serialises them
+  canonically and the active organization is found by identity, so an upper-case
+  spelling would be held as the selection, match nothing in the list - the
+  switcher showing the first organization while requests carried another - and be
+  unrecoverable, since the refusal check compares the same two strings. (#1032)
+
+### Changed
+
+- `OrgSwitcher` navigates through `@/lib/locale-navigation` rather than
+  `next/navigation`, so its pushes keep the locale prefix instead of sending a
+  Polish reader to the English `/orgs`. (#1032)
+
+## [0.0.230] - 2026-08-20
+
+A role picker offers what the caller may actually assign.
+
+### Fixed
+
+- **Every role picker offered every role in the catalog bar `owner`, whoever was
+  asking.** Both invite dialogs and the members table, with the service refusing
+  what the caller could not assign - so an Admin was offered Admin and got a 403
+  after typing the email address. `assignableRoles` is the client's copy of
+  `app.core.permissions.assignable_roles`, over the permissions
+  `GET /roles/catalog` already returns: a role is offered only when the caller's
+  own strictly outranks it. Pre-existing, and 0.0.229 widened who it happened to
+  - with the server's ceiling derived from what a role holds, every custom role
+  composed with `members:manage` met the same offer-then-refuse. (#1028)
+- **A picker seeded with a role it did not offer.** Both dialogs held Member as
+  their initial value and never reconciled it with the list; Member is kept where
+  it is on offer - which for every built-in role that may invite at all, it is -
+  and otherwise the least privileged role that is. (#1028)
+- **A peer Admin's row keeps its picker**, with that role in the list and
+  disabled. `change_role` judges the role being handed out rather than the one
+  being replaced, so an Admin may demote a peer Admin - and the row needs the
+  current role present or the trigger renders blank, because the chosen item's
+  text is what a trigger shows. (#1028)
+- **A role catalog that cannot be read says so**, in both dialogs and above the
+  members table. Offering nothing and being unable to answer are the same pixels
+  and a different fact, and the second one is permanent. (#1028)
+
+## [0.0.229] - 2026-08-20
+
+The invitation ceiling is what the requester holds, not whether they are Admin.
+
+### Fixed
+
+- **A custom role composed with `members:manage` could invite a new Admin.**
+  `InvitationService` capped who may be invited by comparing the requester's role
+  against the literal string `admin`, so the ceiling applied to a built-in Admin
+  and to nobody else - and the catalog is explicitly built to let a Phase 2 role
+  hold that permission. Both call sites, the email invite and the invite link, now
+  read `assignable_roles(requester.role)`: the same catalog-derived relation
+  `change_role` uses, where a role may be offered only when the requester's own
+  *strictly* outranks it. This is the invitation half of what #672 removed from
+  `change_role`. (#696)
+- Behaviour for the built-in roles is unchanged - `assignable_roles("admin")` is
+  exactly the set the literal check allowed, and an Owner still invites Admins.
+  An Owner may no longer invite an Owner, which the invite schemas already
+  refused and which is what "nobody at all assigns `owner`" means: ownership moves
+  through `transfer_ownership`, which demotes the outgoing owner in the same
+  breath. (#696)
+
+## [0.0.228] - 2026-08-20
+
+The MCP connection dialog owns its own form.
+
+### Changed
+
+- **`McpConnectionDialog` was a controlled shell.** `McpServerList` held its five
+  form fields as state and drilled a value *and* a setter each into it - thirteen
+  props - seeding them by hand when a draft opened. The dialog owns those fields
+  now, in an inner form keyed on the draft, so switching servers remounts it with
+  freshly seeded state instead of carrying the previous server's name and token
+  across. The list keeps which server is being edited and reads the values back on
+  submit; `handleSubmit` stays with the list, because it drives the connection
+  mutations, the tool refresh and the OAuth redirect, none of which are the
+  dialog's. Prop surface: 13 to 5. Behaviour unchanged, and the integration suite
+  that drives the dialog through the DOM asserts the same API payloads untouched.
+  (#569)
+
+## [0.0.227] - 2026-08-20
+
+An attachment the router cannot read is named rather than dropped.
+
+### Fixed
+
+- **A file no parser could read contributed nothing to the prompt**, so the model
+  answered as though nothing had arrived - which reads as it denying a file the
+  transcript plainly shows. The reference now names the file and says its text
+  could not be extracted and that the agent has no workspace to open it from,
+  which is the same principle the too-large-image case already followed. (#746)
+- **A routing failure was silent too.** It still does not fail the turn - the
+  person asked a question, and answering without the file beats not answering -
+  but the model is told the file arrived and could not be processed. The error's
+  own text stays in the log line beside the raise, never in the prompt. (#746)
+
+## [0.0.226] - 2026-08-20
+
+A malformed file id on the socket is a refusal, not a crash in the log.
+
+### Fixed
+
+- **A file id that is not a UUID crashed the turn handler.** `list_attached_files`
+  called `UUID(fid)` on ids that arrive in an untyped socket payload, so a
+  malformed one raised `ValueError` into the handler's infrastructure net and
+  resurfaced a step later as a generic failed turn, logged as a server error. It
+  is client input, so it is refused as validation naming `file_ids` - the same
+  loud refusal `link_files_to_message` already gave. (#749)
+
+## [0.0.225] - 2026-08-20
+
+The chat says which model the conversation runs on.
+
+### Added
+
+- **`published_model` on a listed agent** - the profile id, provider, model id
+  and label of the model its published version runs on. Read off the **frozen
+  spec's** profile rather than the draft's, which may name a model the agent does
+  not run; `null` for a draft agent and for a profile that has been deleted,
+  because a picker prefilled from a gap would name a model the profile no longer
+  is. Filled by the listing only, the same bargain `budget_monthly_usd` and
+  `context_window_tokens` take. (#926)
+- The two lookups behind it - version to published profile, profile to row - are
+  the ones `_context_windows` already made, and they are now loaded once and fed
+  to both, so the summary costs no extra query. (#926)
+
+### Fixed
+
+- **The chat's Model tab opened without saying which model the conversation runs
+  on** - the one thing the panel is named after. It keyed its "currently running"
+  line on the *override*, which is `null` until somebody sets one, so every
+  conversation before its first override rendered blank and asked the reader to
+  choose against a baseline it never showed. The summary now reads the agent's
+  published model when there is no override and the override's profile when there
+  is, labelled *Agent's model* or *Just this chat*. (#926)
+- **A caller without `connections:manage` got a refusal in place of the whole
+  panel.** Creating a model profile needs that permission; *reading* which model
+  an agent runs on is `agents:view`, which opening the conversation already
+  implies - and the person who may not change it is the one most likely to want to
+  know. The summary renders above the gate now and only the fields that write are
+  withheld. (#926)
+
+## [0.0.224] - 2026-08-20
+
+Only the thumb whose request is in flight spins.
+
+### Fixed
+
+- **Rating an answer spun both thumbs.** The spinner was keyed on
+  `isLoading && currentRating !== <the other value>`, and an unrated message has
+  `currentRating === null` - true for both thumbs at once, which is the normal
+  case rather than an edge one. It is keyed on *which* button's request is in
+  flight now, so the other thumb stays a thumb. (#928)
+
+## [0.0.223] - 2026-08-20
+
+An object store's connector is a client, not a copy of the listing loop.
+
+### Changed
+
+- **`S3Connector` is an `ObjectStoreConnector` subclass**, with no behaviour
+  change: a stored source lists and downloads exactly what it did before.
+  #938 made Azure Blob and GCS conditional on this shape existing first, and the
+  condition is now met - each of those is a client, a `SCHEME` and a
+  `CONNECTOR_TYPE` rather than a second copy of the listing. The shared class
+  holds the pagination, the `<scheme>://<container>/<key>` address the sync path
+  matches a row on, the skip for a key ending in `/` (a console's "folder", which
+  would ingest as a document with no bytes and no name), and the destination,
+  which is the base class's answer and the property a new store most easily
+  loses. (#988)
+- A subclass says which `CONFIG_SCHEMA` field names its container - `bucket` for
+  S3 and GCS, `container` for Azure - because a form should say what the store's
+  own console says. Both of its hooks are blocking, run on a worker thread,
+  because all three SDKs are synchronous. (#988)
+- `S3Connector.validate_config` is gone: an override that called `super()` and
+  added nothing. (#988)
+
+### Performance
+
+- **An object listing is converted as it arrives.** The refactor first built a
+  complete list of the shared listing type and then allocated the complete
+  `RemoteFile` list beside it, where the connector before it kept only the
+  second - on a bucket of a million keys, a previously working sync running out
+  of memory. The listing yields, and the conversion happens inside the same
+  worker thread, so one entry exists at a time beside the list being built.
+  Found by the automated review on the branch. (#988)
+
+## [0.0.222] - 2026-08-20
+
+The sync wizard says who will be able to read what a source ingests.
+
+### Added
+
+- **The step that decides a source's collection now names the audience.** Access
+  is decided at the collection and there is no per-document isolation inside one,
+  so everything the credential can reach becomes readable by everyone who can read
+  that collection - a Confluence token issued for a whole instance, pointed at an
+  `org` collection, publishes the instance to every member holding
+  `collections:view`. The decision is the operator's, deliberately; what was wrong
+  is that it was made silently. One sentence per scope: `personal` is its owner,
+  `org` is everyone who can view the collection, `app` is anybody in the
+  deployment. (#982)
+- **The credential is named alongside the audience**, because the pair is the
+  decision: a credential's own permissions are a ceiling nothing here can raise,
+  while `config` narrows the reach and cannot be relied on to keep it narrow. A
+  connector that authenticates with nothing has none to name and the sentence does
+  not invent one, and neither does one whose reader holds no `secrets:view`.
+  (#982)
+- **Cloning says it too**, which is the reachable half of "repointing re-asks": a
+  clone references the same vault secret and names a different collection, so the
+  audience changes while nothing about the credential does. Repointing an existing
+  source has no screen to ask on - `PATCH` on `collection_name` is reachable
+  through the API and the CLI only, where the audit entry added in 0.0.221 is what
+  records it. (#982)
+
+### Fixed
+
+- **The knowledge-base page no longer reads the vault on every load.** The
+  wizard mounts whether or not it is open, so a credential lookup in its own body
+  fired `/secrets` and `/secrets/kinds` on each page load - including for members
+  holding no `secrets:view`, who get a refusal and a retry of it. The lookup lives
+  in the notice, which renders inside the dialog. (#982)
+
+## [0.0.221] - 2026-08-20
+
+Who bound a credential to a collection is recorded.
+
+### Fixed
+
+- **Creating, cloning, repointing and deleting a sync source left no audit
+  entry.** A source binds a credential to a collection, and access to what it
+  ingests is decided at the collection - so the row is the platform's
+  authorization decision for everything that credential can reach, and nothing
+  recorded who made it. `sync_source.created`, `.updated` and `.deleted` name the
+  actor, the connector, the collection and the *id* of the secret. (#983)
+- **A clone is recorded as a creation naming the row it came from.** It points a
+  credential somebody already scoped at a different collection, so the audience
+  changes while nothing about the credential does - the decision in this set that
+  is easiest to miss. (#983)
+- **An update names the fields it changed, never their values**, one of them
+  being `config` - a place a credential has been posted before (#937). An update
+  that moves the source to another collection also records the one it left,
+  because a rename and a change of audience are otherwise the same entry. (#983)
+
+### Changed
+
+- **A null audit actor now means one of two things**, and the `action` says
+  which: the approval expiry sweep, and an operator command at the deployment's
+  shell (`rag-source-add`, `rag-source-remove`), which have nobody at a keyboard
+  to name. Reading `ctx.subject_id` there - as every HTTP path does - would have
+  turned two working commands into an `AuthorizationError`. (#983)
+- Three sentences said the audit actor column is `NOT NULL`
+  (`docs/permissions.md`, `docs/governance.md`, `AuthContext.subject_id`). It is
+  nullable, and has been since the expiry sweep needed it; the reason
+  `subject_id` raises is that an authenticated path has a person, not that the
+  database would refuse. (#983)
+
 ## [0.0.220] - 2026-08-20
 
 A status parameter with one value stops pretending to be a choice.

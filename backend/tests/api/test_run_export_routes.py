@@ -86,7 +86,7 @@ class TestTheResponse:
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/csv")
         assert response.headers["content-disposition"] == (
-            'attachment; filename="runs_export_20260810_000000.csv"'
+            "attachment; filename*=UTF-8''runs_export_20260810_000000.csv"
         )
 
 

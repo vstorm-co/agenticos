@@ -1,6 +1,5 @@
 """Organization CRUD routes."""
 
-import mimetypes
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -15,6 +14,7 @@ from app.schemas.organization import (
     OrganizationRead,
     OrganizationUpdate,
 )
+from app.services.file_storage import sniff_image_media_type
 
 router = APIRouter()
 
@@ -84,7 +84,6 @@ async def upload_organization_avatar(
         org_id,
         requester_id=user.id,
         file_data=data,
-        filename=file.filename or "avatar.jpg",
         content_type=file.content_type,
     )
     return await service.read_for_user(updated.id, user.id)
@@ -103,5 +102,13 @@ async def get_organization_avatar(
     file_path = service.get_avatar_path(org.avatar_url)
     if not file_path or not Path(file_path).exists():
         raise HTTPException(status_code=404, detail="Avatar file missing")
-    media_type = mimetypes.guess_type(file_path)[0] or "application/octet-stream"
-    return FileResponse(path=file_path, media_type=media_type)
+    # Pinned to an image type, and refused if it is not one: the type was guessed
+    # from the stored filename's suffix, and the upload kept whatever suffix the
+    # caller chose, so a stored `x.html` was served as `text/html` - a script on
+    # the app's own origin rather than a picture (#702).
+    media_type = sniff_image_media_type(file_path)
+    if media_type is None:
+        raise HTTPException(status_code=404, detail="Avatar file missing")
+    return FileResponse(
+        path=file_path, media_type=media_type, headers={"X-Content-Type-Options": "nosniff"}
+    )

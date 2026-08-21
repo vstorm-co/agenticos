@@ -434,7 +434,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         open={wizardOpen}
         onOpenChange={setWizardOpen}
         connectors={connectors}
-        collections={[{ name: kb.collection_name }]}
+        collections={[{ name: kb.collection_name, scope: kb.scope }]}
         defaultCollection={kb.collection_name}
         orgIntegrations={orgIntegrations}
         connectorsFailed={sectionFailures.connectors}

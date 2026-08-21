@@ -288,6 +288,7 @@ Trigger map — what changed → which page:
 | `app/services/spend.py`, `approvals.py`, `notifications.py` | `docs/governance.md` |
 | `app/services/channels/**`, `agent_exposure.py`, `agent_embed.py` | `docs/channels.md` |
 | `app/services/rag/**`, `file_upload.py`, `ingestion_config.py` | `docs/file-processing.md` |
+| `app/services/sandbox_*.py`, `app/agents/capabilities/sandbox/**`, `app/core/catalog/sandbox_runtimes.json` | `docs/sandbox.md` |
 | `app/services/deployment_settings.py`, `signup_policy.py`, `invitation_admission.py`, `app/core/maintenance.py`, `otel_compat.py`, `app/api/exception_handlers.py` | `docs/deployment.md` |
 | `app/core/config.py` | `docs/configuration.md` |
 | `app/commands/**`, a new `make` target | `docs/commands.md` |
@@ -365,6 +366,7 @@ say so and move on. Run it yourself any time with
 | Skills — format, library, skills vs knowledge | `docs/skills.md` |
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |
 | Upload, parsing, ingestion | `docs/file-processing.md` |
+| The sandbox: sessions, runtimes, isolation, lifetimes | `docs/sandbox.md` |
 | Routes → services → repositories | `docs/architecture.md` |
 | Adding a feature end to end | `docs/adding_features.md` |
 | Test layers and what belongs in each | `docs/testing.md` |

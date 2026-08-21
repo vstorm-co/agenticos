@@ -124,6 +124,7 @@ nav:
       - secrets.md
       - channels.md
       - file-processing.md
+      - sandbox.md
   - Guides:
       - howto/add-capability.md
       - howto/add-mcp-server.md

@@ -1,12 +1,19 @@
+import asyncio
 import contextlib
 import logging
+import secrets
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import AlreadyExistsError, AuthenticationError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthenticationError,
+    AuthorizationError,
+    NotFoundError,
+)
 from app.core.security import (
     create_magic_link_token,
     create_password_reset_token,
@@ -21,11 +28,17 @@ from app.schemas.conversation_share import AdminUserList, AdminUserRead
 from app.schemas.user import UserCreate, UserUpdate
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
-from app.services.file_storage import get_file_storage
+from app.services.file_storage import avatar_filename, get_file_storage
 from app.services.organization import OrganizationService
 from app.services.signup_policy import check_may_register
 
 logger = logging.getLogger(__name__)
+
+# A real bcrypt hash of a value nobody holds, computed once at import. An
+# address with no account is verified against this rather than short-circuited,
+# so an unknown address costs the same ~170ms as a known one and the timing no
+# longer says which addresses have accounts (#947).
+_DUMMY_HASH = get_password_hash(secrets.token_urlsafe(32))
 
 
 class UserService:
@@ -121,7 +134,7 @@ class UserService:
             invitation_token=user_in.invitation_token,
         )
 
-        hashed_password = get_password_hash(user_in.password)
+        hashed_password = await asyncio.to_thread(get_password_hash, user_in.password)
         user = await user_repo.create(
             self.db,
             email=user_in.email,
@@ -217,11 +230,14 @@ class UserService:
 
     async def authenticate(self, email: str, password: str) -> User:
         user = await user_repo.get_by_email(self.db, email)
-        if (
-            not user
-            or not user.hashed_password
-            or not verify_password(password, user.hashed_password)
-        ):
+        # bcrypt is ~170ms with no suspension point, so it runs in a thread rather
+        # than blocking the event loop for every other request the worker holds
+        # (#947). And always against a hash: an unknown address is checked against
+        # `_DUMMY_HASH` rather than skipping bcrypt, so it cannot be told apart
+        # from a known one by how long the refusal takes.
+        stored = user.hashed_password if user and user.hashed_password else _DUMMY_HASH
+        ok = await asyncio.to_thread(verify_password, password, stored)
+        if not user or not user.hashed_password or not ok:
             raise AuthenticationError(message="Invalid email or password")
         if not user.is_active:
             raise AuthenticationError(message="User account is disabled")
@@ -232,13 +248,30 @@ class UserService:
 
         update_data = writable(user_in, over=User)
         if "password" in update_data:
-            update_data["hashed_password"] = get_password_hash(update_data.pop("password"))
+            update_data["hashed_password"] = await asyncio.to_thread(
+                get_password_hash, update_data.pop("password")
+            )
 
         return await user_repo.update(self.db, db_user=user, update_data=update_data)
 
-    async def update_avatar(
-        self, user_id: UUID, file_data: bytes, filename: str, content_type: str
-    ) -> User:
+    async def update_current(self, user: User, user_in: UserUpdate) -> User:
+        """A user updating their own row through `/users/me`.
+
+        `UserUpdate` carries `is_active`, and this route reaches the same column
+        the admin route does - so without the same refusal an app admin could
+        suspend themselves here, the exact lock-out #941 guards against one route
+        over (a single-admin install then stays locked until somebody reaches a
+        terminal). A non-admin deactivating their own account only affects
+        themselves and an admin can restore it, so the guard is the app admin's
+        alone.
+        """
+        if user.is_app_admin and user_in.is_active is False:
+            raise AuthorizationError(
+                message="You cannot suspend your own account; ask another app admin to."
+            )
+        return await self.update(user.id, user_in)
+
+    async def update_avatar(self, user_id: UUID, file_data: bytes, content_type: str) -> User:
         ALLOWED_AVATAR_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
         if content_type not in ALLOWED_AVATAR_TYPES:
             raise ValueError("Only JPEG, PNG, WebP, and GIF images are allowed")
@@ -252,7 +285,13 @@ class UserService:
             with contextlib.suppress(Exception):
                 await storage.delete(user.avatar_url)
 
-        storage_path = await storage.save(f"avatars/{user_id}", filename, file_data)
+        # Stored under a suffix from the validated type, not the caller's
+        # filename: the served type is guessed from the name on disk, so a valid
+        # image uploaded as `avatar` or `avatar.txt` would otherwise be
+        # unrenderable (#702).
+        storage_path = await storage.save(
+            f"avatars/{user_id}", avatar_filename(content_type), file_data
+        )
         return await user_repo.update(
             self.db, db_user=user, update_data={"avatar_url": storage_path}
         )
@@ -269,6 +308,44 @@ class UserService:
                 details={"user_id": user_id},
             )
         return user
+
+    async def admin_update(
+        self, user_id: UUID, user_in: UserUpdate, *, acting_admin_id: UUID
+    ) -> User:
+        """An app admin updating another user's row, refusing self-suspension.
+
+        `is_active` is enforced on the very next request, so an admin flipping
+        their own to false is signed out of a deployment they administer - and on
+        a single-admin install that ends administration until somebody reaches a
+        terminal (#941). An admin genuinely leaving does it through another admin,
+        which is also what keeps the audit trail readable.
+
+        Only `is_active` is guarded because it is the only privilege this schema
+        carries: `is_app_admin` is not a `UserUpdate` field - the one global
+        privilege is granted by CLI, never over a surface a request can reach - so
+        there is no self-demotion here to refuse.
+        """
+        if user_id == acting_admin_id and user_in.is_active is False:
+            raise AuthorizationError(
+                message="You cannot suspend your own account; ask another app admin to."
+            )
+        return await self.update(user_id, user_in)
+
+    async def admin_delete(self, user_id: UUID, *, acting_admin_id: UUID) -> User:
+        """An app admin deleting a user, refusing self-deletion.
+
+        Deleting your own row takes the account and its conversations with it, and
+        on a single-admin install leaves the deployment with no administrator (#941).
+        Because `is_app_admin` cannot be cleared over the API, the set of app admins
+        only ever shrinks by deletion - so refusing self-deletion is what keeps the
+        last admin from being the one removed: any other admin deleting the *last*
+        one would have to be deleting themselves.
+        """
+        if user_id == acting_admin_id:
+            raise AuthorizationError(
+                message="You cannot delete your own account; ask another app admin to."
+            )
+        return await self.delete(user_id)
 
     async def issue_password_reset_token(self, email: str) -> tuple[User, str] | None:
         """Returns None (not raises) to avoid leaking whether the email is registered."""
@@ -294,7 +371,9 @@ class UserService:
         await user_repo.update(
             self.db,
             db_user=user,
-            update_data={"hashed_password": get_password_hash(new_password)},
+            update_data={
+                "hashed_password": await asyncio.to_thread(get_password_hash, new_password)
+            },
         )
         # Revoke any active sessions so a previously-issued refresh token cannot
         # outlive a password reset. The current request returns no tokens - the

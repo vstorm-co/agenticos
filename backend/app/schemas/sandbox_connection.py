@@ -232,6 +232,15 @@ class SandboxSessionRead(BaseSchema):
     usage: SandboxSessionUsage | None = None
     agent_id: UUID | None = None
     conversation_id: UUID | None = None
+    conversation_is_callers: bool = False
+    """Whether the linked conversation belongs to whoever is reading this.
+
+    The chat page lists its *owner's* threads, so a link offered to anybody else
+    lands on an empty sidebar dressed as the conversation - and an operator reads
+    this listing precisely because it is organization-wide, so most rows are
+    somebody else's. The workspace listing already answers this question; a
+    sessions row that did not was a dead link on most of the page.
+    """
     scope: str | None = None
 
 

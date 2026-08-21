@@ -378,9 +378,7 @@ async def clone_kb_sync_source(
     kb = await service.get_for_write(kb_id, ctx=ctx)
     source = await access.sync_source(ctx, str(source_id))
     clone_data = data.model_copy(update={"collection_name": kb.collection_name})
-    return await sync_source_svc.clone_source(
-        str(source.id), clone_data, organization_id=ctx.organization_id
-    )
+    return await sync_source_svc.clone_source(str(source.id), clone_data, ctx=ctx)
 
 
 @router.post(
@@ -460,4 +458,4 @@ async def delete_kb_sync_source(
             message="Sync source not found in this knowledge base",
             details={"kb_id": str(kb_id), "source_id": str(source_id)},
         )
-    await sync_source_svc.delete_source(str(source_id))
+    await sync_source_svc.delete_source(str(source_id), ctx=ctx)

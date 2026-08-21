@@ -4,7 +4,11 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
-import { refusesOrganization, useActiveOrganizationRecovery } from "./use-active-organization";
+import {
+  organizationInPath,
+  refusesOrganization,
+  useActiveOrganizationRecovery,
+} from "./use-active-organization";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 import { useAgentSelectionStore, useConversationStore, useOrgStore } from "@/stores";
@@ -14,6 +18,18 @@ vi.mock("@/lib/api-client", async () => {
   return { apiClient: { get: vi.fn() }, ApiError };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+// The path decides the tenant now, so this file needs to move it. The other
+// exports are the ones `vitest.setup.ts` provides for the same reason it does:
+// next-intl's `createNavigation` reads them at module scope.
+const path = vi.fn(() => "/");
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => path(),
+  useParams: () => ({}),
+  redirect: vi.fn(),
+  permanentRedirect: vi.fn(),
+}));
 
 const STALE = "11111111-1111-1111-1111-111111111111";
 const PERSONAL = "22222222-2222-2222-2222-222222222222";
@@ -93,10 +109,49 @@ describe("refusesOrganization", () => {
   });
 });
 
+describe("organizationInPath", () => {
+  const ORG = "33333333-3333-3333-3333-333333333333";
+
+  it("reads the organization a members or roles page names", () => {
+    expect(organizationInPath(`/orgs/${ORG}/members`)).toBe(ORG);
+    expect(organizationInPath(`/orgs/${ORG}/roles`)).toBe(ORG);
+    expect(organizationInPath(`/orgs/${ORG}`)).toBe(ORG);
+  });
+
+  it("reads one through a locale prefix", () => {
+    // `next/navigation` keeps the prefix, and `/pl/orgs/{id}` names the same
+    // organization as `/orgs/{id}`.
+    expect(organizationInPath(`/pl/orgs/${ORG}/members`)).toBe(ORG);
+  });
+
+  it("names none where the path names none", () => {
+    expect(organizationInPath("/orgs")).toBeNull();
+    expect(organizationInPath("/agents")).toBeNull();
+    expect(organizationInPath("/")).toBeNull();
+    expect(organizationInPath(`/agents/${ORG}`)).toBeNull();
+  });
+
+  it("answers in canonical lower case, because the answer is stored", () => {
+    // The server serialises UUIDs lower-cased and `activeOrg` is found by
+    // `===`, so holding an upper-case spelling would match no organization in
+    // the list - the switcher showing the first one while requests carried
+    // another tenant - and `refusesOrganization` could not recover it either.
+    expect(organizationInPath(`/orgs/${ORG.toUpperCase()}/members`)).toBe(ORG);
+  });
+
+  it("takes a UUID and nothing else", () => {
+    // A later `/orgs/new` would otherwise be adopted as a tenant id and
+    // refused on every request the page made.
+    expect(organizationInPath("/orgs/new")).toBeNull();
+    expect(organizationInPath("/orgs/new/members")).toBeNull();
+  });
+});
+
 describe("useActiveOrganizationRecovery", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useOrgStore.setState({ activeOrgId: null, refusedOrgIds: [] });
+    path.mockReturnValue("/");
     client = new QueryClient({
       // Matching `app/providers.tsx`. At the library default of 0 a switch
       // refetches whether or not anything dropped the cache, which is the
@@ -250,6 +305,79 @@ describe("useActiveOrganizationRecovery", () => {
 
     await waitFor(() => expect(useOrgStore.getState().refusedOrgIds).toEqual([STALE]));
     expect(useOrgStore.getState().activeOrgId).toBeNull();
+  });
+
+  it("adopts the organization a page names, so the page judges its own tenant", async () => {
+    // The whole of #1032: `/orgs/{B}/members` acted on B and read permissions
+    // for whatever was active, and the organizations list opens that page
+    // without switching - so an Owner of B was judged by their role in A.
+    const OTHER = "33333333-3333-3333-3333-333333333333";
+    answerWith([{ id: PERSONAL, is_personal: true }], { permissions: [] });
+    useOrgStore.setState({ activeOrgId: PERSONAL });
+    path.mockReturnValue(`/orgs/${OTHER}/members`);
+
+    renderHook(() => useActiveOrganizationRecovery(), { wrapper });
+
+    await waitFor(() => expect(useOrgStore.getState().activeOrgId).toBe(OTHER));
+  });
+
+  it("leaves the selection alone on a page that names no organization", async () => {
+    answerWith([{ id: PERSONAL, is_personal: true }], { permissions: [] });
+    useOrgStore.setState({ activeOrgId: PERSONAL });
+    path.mockReturnValue("/agents");
+
+    renderHook(() => useActiveOrganizationRecovery(), { wrapper });
+
+    await waitFor(() => expect(useOrgStore.getState().activeOrgId).toBe(PERSONAL));
+  });
+
+  it("does not adopt an organization the server has already refused", async () => {
+    // Otherwise opening its page hands the selection straight back to the one
+    // the recovery has just moved off, which is how a switch loop starts.
+    answerWith([{ id: PERSONAL, is_personal: true }], { permissions: [] });
+    useOrgStore.setState({ activeOrgId: PERSONAL, refusedOrgIds: [STALE] });
+    path.mockReturnValue(`/orgs/${STALE}/members`);
+
+    renderHook(() => useActiveOrganizationRecovery(), { wrapper });
+
+    await waitFor(() => expect(useOrgStore.getState().activeOrgId).toBe(PERSONAL));
+  });
+
+  it("keeps what a page loaded directly cached, rather than dropping it a commit later", async () => {
+    // The cache's tenant is the URL's organization from the first commit, so
+    // the reset does not fire on top of the requests the page has just started
+    // - the failure mode the first-tenant skip exists for.
+    const OTHER = "33333333-3333-3333-3333-333333333333";
+    answerWith([{ id: PERSONAL, is_personal: true }], { permissions: [] });
+    useOrgStore.setState({ activeOrgId: PERSONAL });
+    path.mockReturnValue(`/orgs/${OTHER}/members`);
+
+    renderHook(() => useActiveOrganizationRecovery(), { wrapper });
+    client.setQueryData(["agents", "list", false], [{ id: "a-1", name: "The page's own read" }]);
+
+    await waitFor(() => expect(useOrgStore.getState().activeOrgId).toBe(OTHER));
+    expect(client.getQueryData(["agents", "list", false])).toEqual([
+      { id: "a-1", name: "The page's own read" },
+    ]);
+  });
+
+  it("leaves a deliberate switch standing on a page that names an organization", async () => {
+    // Keyed on the selection rather than the path, the adoption wrote back
+    // whatever else moved it - so the organization switcher, which sets the id
+    // without navigating, was inoperative on `/orgs/{id}/members`: the store
+    // went to the chosen organization and was snapped back before the menu
+    // closed. `OrgSwitcher` takes the route with it; this is the other half.
+    const OTHER = "33333333-3333-3333-3333-333333333333";
+    answerWith([{ id: PERSONAL, is_personal: true }], { permissions: [] });
+    useOrgStore.setState({ activeOrgId: PERSONAL });
+    path.mockReturnValue(`/orgs/${OTHER}/members`);
+    const { rerender } = renderHook(() => useActiveOrganizationRecovery(), { wrapper });
+    await waitFor(() => expect(useOrgStore.getState().activeOrgId).toBe(OTHER));
+
+    useOrgStore.setState({ activeOrgId: PERSONAL });
+    rerender();
+
+    expect(useOrgStore.getState().activeOrgId).toBe(PERSONAL);
   });
 
   it("leaves a working organization alone", async () => {

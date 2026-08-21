@@ -31,6 +31,7 @@ import type { AdminUser } from "@/types";
 import { apiClient } from "@/lib/api-client";
 import { formatDateTime } from "@/lib/utils";
 import { qk } from "@/lib/query-keys";
+import { useAuthStore } from "@/stores/auth-store";
 import { useLocale, useTranslations } from "next-intl";
 
 interface UserDetailDrawerProps {
@@ -60,6 +61,7 @@ export function UserDetailDrawer({
   const tErrors = useTranslations("errors");
   const t = useTranslations("admin");
   const locale = useLocale();
+  const currentUserId = useAuthStore((state) => state.user?.id);
   // Server data through the query layer, which is where `.claude/rules/frontend.md`
   // says it lives. It was three pieces of state and an effect: a list, a loading
   // flag, and a reset when the drawer closed - all of which `useQuery` already
@@ -90,6 +92,12 @@ export function UserDetailDrawer({
   const subject = user ?? shown;
 
   if (!subject) return null;
+
+  // Your own row does not offer Suspend, Demote or Impersonate: suspending or
+  // demoting yourself ends your administration of the deployment (#941), and
+  // impersonating yourself is meaningless. Delete stays visible and is refused
+  // by the API, because "why can I not delete myself" has an answer worth showing.
+  const isSelf = subject.id === currentUserId;
 
   const handleImpersonate = async () => {
     const token = await onImpersonate(subject.id);
@@ -201,44 +209,48 @@ export function UserDetailDrawer({
         </div>
 
         <footer className="border-border flex flex-wrap items-center gap-2 border-t px-5 py-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onUpdate(subject.id, { is_active: !subject.is_active })}
-          >
-            {subject.is_active ? (
-              <>
-                <UserX className="mr-1.5 h-3.5 w-3.5" />
-                {t("suspend")}
-              </>
-            ) : (
-              <>
-                <Mail className="mr-1.5 h-3.5 w-3.5" />
-                {t("reactivate")}
-              </>
-            )}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onUpdate(subject.id, { is_app_admin: !subject.is_app_admin })}
-          >
-            {subject.is_app_admin ? (
-              <>
-                <ShieldOff className="mr-1.5 h-3.5 w-3.5" />
-                {t("demote")}
-              </>
-            ) : (
-              <>
-                <Shield className="mr-1.5 h-3.5 w-3.5" />
-                {t("promoteAdmin")}
-              </>
-            )}
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleImpersonate}>
-            <KeyRound className="mr-1.5 h-3.5 w-3.5" />
-            {t("impersonate")}
-          </Button>
+          {!isSelf && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onUpdate(subject.id, { is_active: !subject.is_active })}
+              >
+                {subject.is_active ? (
+                  <>
+                    <UserX className="mr-1.5 h-3.5 w-3.5" />
+                    {t("suspend")}
+                  </>
+                ) : (
+                  <>
+                    <Mail className="mr-1.5 h-3.5 w-3.5" />
+                    {t("reactivate")}
+                  </>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onUpdate(subject.id, { is_app_admin: !subject.is_app_admin })}
+              >
+                {subject.is_app_admin ? (
+                  <>
+                    <ShieldOff className="mr-1.5 h-3.5 w-3.5" />
+                    {t("demote")}
+                  </>
+                ) : (
+                  <>
+                    <Shield className="mr-1.5 h-3.5 w-3.5" />
+                    {t("promoteAdmin")}
+                  </>
+                )}
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleImpersonate}>
+                <KeyRound className="mr-1.5 h-3.5 w-3.5" />
+                {t("impersonate")}
+              </Button>
+            </>
+          )}
 
           <AlertDialog>
             <AlertDialogTrigger asChild>
