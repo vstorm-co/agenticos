@@ -133,6 +133,7 @@ export function PortalTriggerDialog({
   const { targets, isLoading: targetsLoading } = usePortalTargets(
     needsTarget && connection ? portal.key : null,
     needsTarget && connection ? connection.id : null,
+    needsTarget && connection && effectiveAgentId !== "" ? effectiveAgentId : null,
   );
 
   function choosePreset(key: string) {

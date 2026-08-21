@@ -81,8 +81,10 @@ export const qk = {
     // The repositories one connected account can point a preset at. Keyed per
     // (portal, connection) because that is what is fetched - two accounts see two
     // different lists, and a shared key would serve one for the other.
-    targets: (portalKey: string, connectionId: string) =>
-      ["portals", "targets", portalKey, connectionId] as const,
+    // The agent is part of the key: the server answers per the caller's access
+    // on that agent, so one agent's answer must not serve another's picker.
+    targets: (portalKey: string, connectionId: string, agentId: string) =>
+      ["portals", "targets", portalKey, connectionId, agentId] as const,
   },
   embeds: {
     all: () => ["embeds"] as const,

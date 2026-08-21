@@ -24,10 +24,11 @@ export async function fetchPortalCatalog(): Promise<PortalCatalogEntry[]> {
 export async function fetchPortalTargets(
   portalKey: string,
   connectionId: string,
+  agentId: string,
 ): Promise<PortalTarget[]> {
   const data = await apiClient.get<PortalTargetResponse>(
     `/trigger-portals/${encodeURIComponent(portalKey)}/targets`,
-    { params: { connection_id: connectionId } },
+    { params: { connection_id: connectionId, agent_id: agentId } },
   );
   return data.items;
 }
