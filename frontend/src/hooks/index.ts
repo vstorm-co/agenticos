@@ -50,6 +50,7 @@ export {
   useLocalSandboxService,
   useSandboxConnections,
   useSandboxEvents,
+  useSandboxOperations,
   useSandboxPolicy,
   useSandboxSessions,
 } from "./use-sandbox-connections";

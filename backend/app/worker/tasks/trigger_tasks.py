@@ -177,6 +177,27 @@ async def poll_portal_grants_flow() -> None:
     logger.info("portal_poll", extra={"dispatched": dispatched})
 
 
+@flow(name="sandbox-log-sweep", log_prints=True)
+async def sweep_sandbox_operations_flow() -> None:
+    """Drop sandbox operations older than the retention window.
+
+    A sandbox is reaped half an hour after it goes idle and its files may be swept
+    by the service's own TTL, so a log that outlived the answer to "what happened
+    here" by years would be a growing table nobody reads. Daily rather than hourly:
+    the window is thirty days, so the exact hour a row leaves is not a fact anybody
+    depends on, and a delete over a month-old boundary is cheap when it runs once.
+    """
+    from datetime import timedelta
+
+    from app.db.models.sandbox_operation import OPERATION_RETENTION_DAYS
+    from app.repositories import sandbox_operation_repo
+
+    cutoff = datetime.now(UTC) - timedelta(days=OPERATION_RETENTION_DAYS)
+    async with get_worker_db_context() as db:
+        removed = await sandbox_operation_repo.delete_older_than(db, cutoff=cutoff)
+    logger.info("sandbox_log_swept", extra={"removed": removed, "days": OPERATION_RETENTION_DAYS})
+
+
 def _polled_source(portal_key: str | None) -> str | None:
     """The `event_source` a portal's presets fire through, or `None` for no portal.
 

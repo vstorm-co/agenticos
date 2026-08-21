@@ -392,6 +392,11 @@ export const qk = {
     // request than one without, so the two must not share a cache entry.
     sessions: (id: string, usage = false) =>
       ["sandbox-connections", "sessions", id, usage] as const,
+    // The durable record, keyed on the whole query: the filters narrow a request
+    // rather than an array, so two filters are two cache entries - which is what
+    // makes paging back and forth free.
+    operations: (query: Record<string, unknown>) =>
+      ["sandbox-connections", "operations", query] as const,
     events: (id: string, sessionId: string) =>
       ["sandbox-connections", "events", id, sessionId] as const,
   },

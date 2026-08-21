@@ -148,14 +148,6 @@ export interface SandboxEventList {
 }
 
 /**
- * Whether this deployment is already running a sandbox service of its own.
- *
- * Asked of the backend rather than guessed here: the address is a row, not a
- * setting, so the only honest answer comes from something that can actually reach
- * it. `token_available` is a boolean and never the token - a form that received
- * one would have had it in a browser.
- */
-/**
  * One runtime this deployment ships.
  *
  * The catalog, not the allowlist: every `sandboxd` is built from these, so a form
@@ -172,6 +164,14 @@ export interface SandboxRuntimeOption {
   builds: boolean;
 }
 
+/**
+ * Whether this deployment is already running a sandbox service of its own.
+ *
+ * Asked of the backend rather than guessed here: the address is a row, not a
+ * setting, so the only honest answer comes from something that can actually reach
+ * it. `token_available` is a boolean and never the token - a form that received
+ * one would have had it in a browser.
+ */
 export interface SandboxLocalService {
   url: string | null;
   token_available: boolean;
@@ -263,6 +263,64 @@ export async function readSandboxPolicy(id: string): Promise<SandboxPolicy> {
  */
 export async function listSandboxSessions(id: string, usage = false): Promise<SandboxSessionList> {
   return apiClient.get<SandboxSessionList>(`${ROOT}/${id}/sessions?usage=${usage}`);
+}
+
+/**
+ * One operation this platform recorded, from its own table.
+ *
+ * `agent_name` and `run_id` are the two facts the sandbox service's own log cannot
+ * carry, and the two somebody auditing a sandbox actually asks for. Never a file's
+ * contents and never a command's output - see the backend model's docstring.
+ */
+export interface SandboxOperation {
+  id: string;
+  at: string;
+  op: string;
+  target: string;
+  ok: boolean;
+  detail: string;
+  duration_ms: number;
+  session_key: string;
+  agent_id: string | null;
+  agent_name: string | null;
+  run_id: string | null;
+}
+
+export interface SandboxOperationList {
+  items: SandboxOperation[];
+  /** How many match, which is what makes the pager honest. */
+  total: number;
+  /** The operations this log actually holds, for the filter. */
+  operations: string[];
+}
+
+export interface SandboxOperationQuery {
+  sessionKey?: string | null;
+  op?: string | null;
+  failedOnly?: boolean;
+  query?: string;
+  skip?: number;
+  limit?: number;
+}
+
+/**
+ * The durable record of what agents did in this organization's sandboxes.
+ *
+ * Read across sessions rather than under one connection: an operation is recorded
+ * against the session an agent worked in, and a sandbox outlives the connection row
+ * it was opened through (#1061).
+ */
+export async function readSandboxOperations(
+  params: SandboxOperationQuery = {},
+): Promise<SandboxOperationList> {
+  const search = new URLSearchParams();
+  if (params.sessionKey) search.set("session_key", params.sessionKey);
+  if (params.op) search.set("op", params.op);
+  if (params.failedOnly) search.set("failed_only", "true");
+  if (params.query) search.set("query", params.query);
+  search.set("skip", String(params.skip ?? 0));
+  search.set("limit", String(params.limit ?? 50));
+  return apiClient.get<SandboxOperationList>(`${ROOT}/operations?${search}`);
 }
 
 /** What has been done to one sandbox. `after` is the sequence already held. */

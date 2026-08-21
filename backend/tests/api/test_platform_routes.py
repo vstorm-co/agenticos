@@ -431,6 +431,9 @@ CALLS: tuple[Call, ...] = (
     Call("DELETE", "/sandbox-connections/{connection_id}", Perm.CONNECTIONS_MANAGE),
     Call("GET", "/sandbox-connections/{connection_id}/policy", Perm.CONNECTIONS_VIEW),
     Call("GET", "/sandbox-connections/{connection_id}/sessions", Perm.CONNECTIONS_VIEW),
+    # The durable record, read across sessions rather than under one connection: a
+    # sandbox outlives the connection row it was opened through (#1061).
+    Call("GET", "/sandbox-connections/operations", Perm.CONNECTIONS_VIEW),
     Call(
         "GET",
         "/sandbox-connections/{connection_id}/sessions/{session_id}/events",

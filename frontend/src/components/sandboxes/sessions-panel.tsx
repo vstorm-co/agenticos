@@ -381,9 +381,7 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
               )}
             </DialogHeader>
             <div className="min-h-0 flex-1 overflow-auto">
-              {watching !== null && (
-                <ActivityLog connectionId={connection.id} sessionId={watching} />
-              )}
+              {watching !== null && <ActivityLog sessionId={watching} />}
             </div>
           </DialogContent>
         </Dialog>

@@ -129,3 +129,37 @@ describe("the sandbox connections client", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/sandbox-connections/runtimes");
   });
 });
+
+describe("the durable record of what agents did", () => {
+  it("asks for one session's log, newest first, with a page", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0, operations: [] });
+
+    await api.readSandboxOperations({ sessionKey: "xc-1", skip: 50, limit: 50 });
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/sandbox-connections/operations?session_key=xc-1&skip=50&limit=50",
+    );
+  });
+
+  it("carries the filters into the request rather than filtering the answer", async () => {
+    // Which is the whole difference from the service's own log: what it dropped
+    // could not be asked for, so its filters could only narrow what was in hand.
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0, operations: [] });
+
+    await api.readSandboxOperations({ op: "execute", failedOnly: true, query: "rm -rf" });
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/sandbox-connections/operations?op=execute&failed_only=true&query=rm+-rf&skip=0&limit=50",
+    );
+  });
+
+  it("omits a filter nobody set, rather than sending an empty one", async () => {
+    // `?op=` is a request for operations whose kind is the empty string, which is
+    // a different question and answers nothing.
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0, operations: [] });
+
+    await api.readSandboxOperations();
+
+    expect(apiClient.get).toHaveBeenCalledWith("/sandbox-connections/operations?skip=0&limit=50");
+  });
+});

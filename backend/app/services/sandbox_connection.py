@@ -31,9 +31,11 @@ from app.core.secret_kinds import ApiKeySecret
 from app.db.models.sandbox_connection import SandboxConnection
 from app.db.updates import writable
 from app.repositories import (
+    agent_repo,
     agent_workspace_repo,
     organization_secret_repo,
     sandbox_connection_repo,
+    sandbox_operation_repo,
 )
 from app.repositories import conversation as conversation_repo
 from app.schemas.sandbox_connection import (
@@ -43,6 +45,8 @@ from app.schemas.sandbox_connection import (
     SandboxEventList,
     SandboxLocalCredentialRead,
     SandboxLocalServiceRead,
+    SandboxOperationList,
+    SandboxOperationRead,
     SandboxPolicyRead,
     SandboxProbeRequest,
     SandboxRuntimeOption,
@@ -605,6 +609,79 @@ class SandboxConnectionService:
                     1 for session in all_sessions if session.get("state") == "running"
                 ),
             }
+        )
+
+    async def operations(
+        self,
+        ctx: AuthContext,
+        *,
+        session_key: str | None = None,
+        op: str | None = None,
+        failed_only: bool = False,
+        query: str | None = None,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> SandboxOperationList:
+        """This organization's record of what agents did in their sandboxes.
+
+        Read from our own table rather than the service's buffer, which is 200
+        entries in that process's memory and gone on restart - so this answers a
+        week later, after a `sandboxd` restart, which the buffer never could
+        (#1061). The filters narrow the query; the total makes the pager honest.
+
+        **A turn's operations appear when the turn commits.** They are written into
+        the run's own session rather than a connection per tool call, so the log
+        moves a turn at a time rather than a call at a time. The service's `events`
+        endpoint is still the live tail of a session in flight; this is the record.
+
+        No permission beyond membership: the rows carry paths and operations and
+        never a file's contents or a command's output, which is the same line the
+        service draws and the reason the log is an audit rather than a way to read
+        somebody's work.
+        """
+        items, total = await sandbox_operation_repo.list_for_session(
+            self.db,
+            organization_id=ctx.organization_id,
+            session_key=session_key,
+            op=op,
+            failed_only=failed_only,
+            query=query,
+            skip=skip,
+            limit=limit,
+        )
+        # The agent's name, resolved here rather than joined: the read is one page
+        # and an agent deleted since must still leave its operations readable, which
+        # a join would either drop or complicate.
+        names = await agent_repo.get_many(
+            self.db,
+            [row.agent_id for row in items if row.agent_id is not None],
+            organization_id=ctx.organization_id,
+        )
+        return SandboxOperationList(
+            items=[
+                SandboxOperationRead(
+                    id=row.id,
+                    at=row.created_at,
+                    op=row.op,
+                    target=row.target,
+                    ok=row.ok,
+                    detail=row.detail,
+                    duration_ms=row.duration_ms,
+                    session_key=row.session_key,
+                    agent_id=row.agent_id,
+                    agent_name=(
+                        None
+                        if row.agent_id is None
+                        else getattr(names.get(row.agent_id), "name", None)
+                    ),
+                    run_id=row.run_id,
+                )
+                for row in items
+            ],
+            total=total,
+            operations=await sandbox_operation_repo.operations_seen(
+                self.db, organization_id=ctx.organization_id
+            ),
         )
 
     async def session_events(

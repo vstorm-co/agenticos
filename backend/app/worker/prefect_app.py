@@ -44,6 +44,7 @@ from app.worker.tasks.trigger_tasks import (
     check_agent_triggers_flow,
     poll_portal_grants_flow,
     run_scheduled_trigger_flow,
+    sweep_sandbox_operations_flow,
 )
 
 logger = logging.getLogger(__name__)
@@ -74,6 +75,15 @@ async def main() -> None:
         await check_agent_triggers_flow.ato_deployment(
             name="agent-triggers-check",
             schedules=[IntervalSchedule(interval=60)],
+        )
+    )
+    # Daily: drop sandbox operations past the retention window. The window is
+    # thirty days, so the hour a row leaves is nobody's business - and a delete over
+    # a month-old boundary is cheap when it runs once rather than hourly.
+    deployments.append(
+        await sweep_sandbox_operations_flow.ato_deployment(
+            name="sandbox-log-sweep",
+            schedules=[IntervalSchedule(interval=86400)],
         )
     )
     # Every minute: read the connected accounts nobody pushes to. A separate

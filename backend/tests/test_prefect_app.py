@@ -81,6 +81,7 @@ async def test_every_deployment_is_registered_before_the_runner_starts(
         "run-scheduled-trigger",
         "agent-triggers-check",
         "portal-poll",
+        "sandbox-log-sweep",
         "mcp-connection-sweep",
         "approval-expiry-sweep",
         "invitation-expiry-sweep",
