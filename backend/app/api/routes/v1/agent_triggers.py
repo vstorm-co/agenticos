@@ -30,13 +30,11 @@ from app.schemas.agent_trigger import (
 )
 from app.schemas.portal import (
     PortalCatalog,
-    PortalPresetRead,
-    PortalRead,
     PortalTargetList,
     PortalTargetRead,
 )
 from app.schemas.trigger_template import TriggerTemplateList, TriggerTemplateRead
-from app.services import portal_catalog, trigger_templates
+from app.services import trigger_templates
 
 router = APIRouter()
 
@@ -53,37 +51,17 @@ org_router = APIRouter()
     response_model=PortalCatalog,
     dependencies=[Depends(require(Perm.AGENTS_VIEW))],
 )
-async def list_trigger_portals() -> Any:
+async def list_trigger_portals(ctx: Auth, service: AgentTriggerSvc) -> Any:
     """The services a trigger can be built on, each with its ready-made presets.
 
-    Hand-curated data, gated like `GET /triggers` and `GET /mcp-catalog` on the
-    coarse `agents:view` first door - browsing what can be set up, not acting on
-    one agent. The scopes a portal registers with are deliberately not exposed.
+    Gated like `GET /triggers` and `GET /mcp-catalog` on the coarse `agents:view`
+    first door - browsing what can be set up, not acting on one agent. Each entry
+    carries the organization's connection state for that portal (id, usability,
+    whether the grant covers the webhook scopes), so a caller who may create a
+    trigger sees a connected portal as usable without the `mcp:manage`-gated
+    connection listing.
     """
-    items = [
-        PortalRead(
-            key=portal.key,
-            name=portal.name,
-            description=portal.description,
-            category=portal.category,
-            icon=portal.icon or None,
-            event_source=portal.event_source,
-            delivery=portal.delivery.value,
-            target_kind=portal.target_kind,
-            connection_catalog_key=portal.mcp_catalog_key,
-            webhook_admin_scopes=list(portal.webhook_admin_scopes),
-            presets=[
-                PortalPresetRead(
-                    key=preset.key,
-                    label=preset.label,
-                    description=preset.description,
-                    target_required=preset.target_required,
-                )
-                for preset in portal.presets
-            ],
-        )
-        for portal in portal_catalog.CATALOG
-    ]
+    items = await service.list_portals(ctx)
     return PortalCatalog(items=items, total=len(items))
 
 

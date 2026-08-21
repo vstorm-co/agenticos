@@ -39,7 +39,7 @@ import secrets
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any, cast
+from typing import Any, Literal, cast
 from uuid import UUID
 
 from croniter import croniter
@@ -60,6 +60,7 @@ from app.core.permissions import AuthContext, Perm
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.agent_trigger import AgentTrigger, ScheduleKind, TriggerType
+from app.db.models.mcp_connection import McpConnection
 from app.db.session import get_db_context
 from app.db.updates import writable
 from app.repositories import (
@@ -67,6 +68,7 @@ from app.repositories import (
     agent_run_repo,
     agent_trigger_repo,
     conversation_repo,
+    mcp_connection_repo,
     member_repo,
 )
 from app.schemas.agent_trigger import (
@@ -76,6 +78,7 @@ from app.schemas.agent_trigger import (
     TriggerUpdate,
     _cron_has_next,
 )
+from app.schemas.portal import PortalPresetRead, PortalRead
 from app.services import portal_catalog, portals, trigger_dedupe, trigger_events
 from app.services.access import AGENT, resolve_access, visible_resource_ids
 from app.services.agent_registry import AgentRegistryService
@@ -88,6 +91,25 @@ logger = logging.getLogger(__name__)
 # `agent_trigger_repo.FIRE_LEASE`, so a renewal has two more chances to land
 # before the lease would free the marker under a run that is still executing.
 _LEASE_RENEW_SECONDS = int(agent_trigger_repo.FIRE_LEASE.total_seconds() / 3)
+
+
+def _connection_state(
+    connection: McpConnection,
+) -> Literal["connected", "needs_authorization", "disabled", "error"]:
+    """How usable a portal's connected account is, for the catalog's picker.
+
+    The same ladder the frontend's `connectionState` climbs for the managers'
+    server list, resolved server-side so a caller without `mcp:manage` gets the
+    answer off the catalog: an OAuth row whose consent never landed cannot be
+    used yet, a disabled or failing one needs attention, everything else works.
+    """
+    if connection.auth_type == "oauth" and connection.oauth_payload is None:
+        return "needs_authorization"
+    if not connection.is_enabled:
+        return "disabled"
+    if connection.last_status == "error":
+        return "error"
+    return "connected"
 
 
 @dataclass(frozen=True)
@@ -328,6 +350,66 @@ class AgentTriggerService:
             )
             triggers.append(read)
         return triggers, total
+
+    async def list_portals(self, ctx: AuthContext) -> list[PortalRead]:
+        """The portal catalog, each entry joined with its org connection's state.
+
+        The catalog itself is hand-curated data, but which portals are *usable*
+        depends on the organization: an auto-webhook portal needs a connected
+        account. That state used to be derived in the browser from the
+        `mcp:manage`-gated connection listing, which a Member or Operator holding
+        only a run grant cannot read - so the picker showed them "connect", hid
+        the connect control they may not use, and left no way to create a trigger
+        the backend would have authorized. The state rides on the catalog instead:
+        derived, non-secret facts (the connection's id, how usable it is, and
+        whether its grant covers the portal's webhook scopes as one boolean), read
+        under the same `agents:view` that shows the catalog at all.
+        """
+        items: list[PortalRead] = []
+        for portal in portal_catalog.CATALOG:
+            connection = (
+                await mcp_connection_repo.get_org_scoped_by_catalog_key(
+                    self.db,
+                    organization_id=ctx.organization_id,
+                    catalog_key=portal.mcp_catalog_key,
+                )
+                if portal.mcp_catalog_key is not None
+                else None
+            )
+            items.append(
+                PortalRead(
+                    key=portal.key,
+                    name=portal.name,
+                    description=portal.description,
+                    category=portal.category,
+                    icon=portal.icon or None,
+                    event_source=portal.event_source,
+                    delivery=portal.delivery.value,
+                    target_kind=portal.target_kind,
+                    connection_catalog_key=portal.mcp_catalog_key,
+                    webhook_admin_scopes=list(portal.webhook_admin_scopes),
+                    connection_id=connection.id if connection is not None else None,
+                    connection_state=(
+                        _connection_state(connection) if connection is not None else None
+                    ),
+                    connection_covers_webhook_scopes=(
+                        connection is not None
+                        and set(portal.webhook_admin_scopes).issubset(
+                            connection.granted_scopes or ()
+                        )
+                    ),
+                    presets=[
+                        PortalPresetRead(
+                            key=preset.key,
+                            label=preset.label,
+                            description=preset.description,
+                            target_required=preset.target_required,
+                        )
+                        for preset in portal.presets
+                    ],
+                )
+            )
+        return items
 
     async def list_portal_targets(
         self, ctx: AuthContext, portal_key: str, connection_id: UUID, *, agent_id: UUID

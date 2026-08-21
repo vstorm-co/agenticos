@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PortalTriggerDialog } from "./portal-trigger-dialog";
 import { apiClient } from "@/lib/api-client";
-import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import type { PortalCatalogEntry } from "@/types/portals";
 import { useAgentSelectionStore } from "@/stores";
 
@@ -37,6 +36,9 @@ const GITHUB: PortalCatalogEntry = {
   webhook_admin_scopes: ["admin:repo_hook"],
   target_kind: "repo",
   connection_catalog_key: "github",
+  connection_id: null,
+  connection_state: null,
+  connection_covers_webhook_scopes: false,
   presets: [
     { key: "issue_opened", label: "New issue opened", description: "…", target_required: true },
   ],
@@ -53,6 +55,9 @@ const EMAIL: PortalCatalogEntry = {
   webhook_admin_scopes: [],
   target_kind: null,
   connection_catalog_key: null,
+  connection_id: null,
+  connection_state: null,
+  connection_covers_webhook_scopes: false,
   presets: [
     { key: "any_email", label: "Any incoming email", description: "…", target_required: false },
   ],
@@ -69,26 +74,11 @@ const TRACKER: PortalCatalogEntry = {
   webhook_admin_scopes: [],
   target_kind: null,
   connection_catalog_key: null,
+  connection_id: null,
+  connection_state: null,
+  connection_covers_webhook_scopes: false,
   presets: [{ key: "new_ticket", label: "A new ticket", description: "…", target_required: false }],
 };
-
-function connection(): McpConnectionRecord {
-  return {
-    id: "o1",
-    name: "github",
-    url: "https://api.githubcopilot.com/mcp/",
-    has_auth_token: false,
-    allowed_tools: null,
-    is_enabled: true,
-    auth_type: "oauth",
-    oauth_authorized: true,
-    last_status: "ok",
-    last_error: null,
-    last_checked_at: null,
-    created_at: "2026-07-01T00:00:00Z",
-    updated_at: null,
-  };
-}
 
 function agent(id: string, name: string, status = "published", can_run = true) {
   return { id, name, status, description: null, has_avatar: false, can_run };
@@ -113,10 +103,9 @@ describe("PortalTriggerDialog", () => {
     const user = userEvent.setup();
     serve([{ id: "acme/repo", label: "acme/repo" }]);
     vi.mocked(apiClient.post).mockResolvedValue({});
-    render(
-      <PortalTriggerDialog portal={GITHUB} connection={connection()} open onOpenChange={vi.fn()} />,
-      { wrapper },
-    );
+    render(<PortalTriggerDialog portal={GITHUB} connectionId="o1" open onOpenChange={vi.fn()} />, {
+      wrapper,
+    });
 
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: /New issue opened/ }));
@@ -160,7 +149,7 @@ describe("PortalTriggerDialog", () => {
       webhook_url: "https://api.example.com/api/v1/webhooks/triggers/email/t1",
       reveal_secret: null,
     });
-    render(<PortalTriggerDialog portal={EMAIL} connection={null} open onOpenChange={vi.fn()} />, {
+    render(<PortalTriggerDialog portal={EMAIL} connectionId={null} open onOpenChange={vi.fn()} />, {
       wrapper,
     });
 
@@ -194,9 +183,12 @@ describe("PortalTriggerDialog", () => {
       webhook_url: "https://api.example.com/api/v1/webhooks/triggers/webhook/t1",
       reveal_secret: null,
     });
-    render(<PortalTriggerDialog portal={TRACKER} connection={null} open onOpenChange={vi.fn()} />, {
-      wrapper,
-    });
+    render(
+      <PortalTriggerDialog portal={TRACKER} connectionId={null} open onOpenChange={vi.fn()} />,
+      {
+        wrapper,
+      },
+    );
 
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: /A new ticket/ }));
@@ -227,7 +219,7 @@ describe("PortalTriggerDialog", () => {
       webhook_url: "https://api.example.com/api/v1/webhooks/triggers/email/t1",
       reveal_secret: null,
     });
-    render(<PortalTriggerDialog portal={EMAIL} connection={null} open onOpenChange={vi.fn()} />, {
+    render(<PortalTriggerDialog portal={EMAIL} connectionId={null} open onOpenChange={vi.fn()} />, {
       wrapper,
     });
 
@@ -248,10 +240,9 @@ describe("PortalTriggerDialog", () => {
   it("falls back to a free-text target when the account lists none", async () => {
     const user = userEvent.setup();
     serve([]);
-    render(
-      <PortalTriggerDialog portal={GITHUB} connection={connection()} open onOpenChange={vi.fn()} />,
-      { wrapper },
-    );
+    render(<PortalTriggerDialog portal={GITHUB} connectionId="o1" open onOpenChange={vi.fn()} />, {
+      wrapper,
+    });
 
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: /New issue opened/ }));
@@ -266,7 +257,7 @@ describe("PortalTriggerDialog", () => {
     const user = userEvent.setup();
     serve();
     vi.mocked(apiClient.post).mockResolvedValue(response);
-    render(<PortalTriggerDialog portal={EMAIL} connection={null} open onOpenChange={vi.fn()} />, {
+    render(<PortalTriggerDialog portal={EMAIL} connectionId={null} open onOpenChange={vi.fn()} />, {
       wrapper,
     });
     const dialog = await screen.findByRole("dialog");

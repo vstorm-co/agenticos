@@ -7,6 +7,9 @@ create flow, never sent to the browser.
 
 from __future__ import annotations
 
+from typing import Literal
+from uuid import UUID
+
 from pydantic import Field
 
 from app.schemas.base import BaseSchema
@@ -45,6 +48,35 @@ class PortalRead(BaseSchema):
     webhook_admin_scopes: list[str] = Field(
         default_factory=list,
         description="OAuth scopes the account must carry to auto-register the webhook; the picker checks these against a connection's granted_scopes to decide whether to offer re-authorization",
+    )
+    connection_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The organization's connection for this portal's catalog entry, or null "
+            "when nobody has connected it. Carried on the catalog so a caller who "
+            "may create a trigger (agents:run, per agent) sees the connected state "
+            "without the mcp:manage-gated connection listing - a Member who cannot "
+            "manage connections still needs to know the account is there to use"
+        ),
+    )
+    connection_state: Literal["connected", "needs_authorization", "disabled", "error"] | None = (
+        Field(
+            default=None,
+            description=(
+                "How usable that connection is, resolved server-side: authorized and "
+                "enabled with no failing check is connected; an OAuth row whose "
+                "consent never landed needs authorization; the rest name themselves. "
+                "Null exactly when connection_id is null"
+            ),
+        )
+    )
+    connection_covers_webhook_scopes: bool = Field(
+        default=False,
+        description=(
+            "Whether the connection's granted scopes include every webhook_admin_scope "
+            "this portal registers with - the create-vs-reauthorize decision, answered "
+            "without exposing what was granted"
+        ),
     )
     presets: list[PortalPresetRead]
 

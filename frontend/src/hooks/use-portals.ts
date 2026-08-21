@@ -4,23 +4,22 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { fetchPortalCatalog } from "@/lib/portals-api";
-import { connectionState } from "@/lib/mcp-servers";
 import { qk } from "@/lib/query-keys";
-import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import type { PortalCatalogEntry } from "@/types/portals";
 import { useMcpServers } from "./use-mcp-servers";
 
 /**
- * The trigger-portals catalog.
+ * The trigger-portals catalog, each entry carrying its org connection's state.
  *
- * Cached indefinitely like the MCP catalog beside it: the list is hand-curated in
- * the backend and changes when it is redeployed, not while someone is reading it.
+ * Not cached indefinitely like the MCP catalog beside it: the entries are
+ * hand-curated, but the connection state riding on them moves - an account is
+ * connected, re-authorized, disabled - so the app-wide default staleness is the
+ * right one here.
  */
 export function usePortalCatalog() {
   const { data, isLoading, error } = useQuery({
     queryKey: qk.portals.catalog(),
     queryFn: fetchPortalCatalog,
-    staleTime: Infinity,
   });
   return { portals: data ?? [], isLoading, error };
 }
@@ -32,59 +31,48 @@ export function usePortalCatalog() {
  * covers the webhook scope; `connect` is the first step for an auto-webhook portal
  * nobody has connected; `reauthorize` covers every state where a connection exists
  * but cannot register a webhook yet - a grant still awaiting consent, a disabled or
- * unreachable connection, or a connection whose `granted_scopes` do not include the
- * portal's `webhook_admin_scopes` - all of which the same re-consent repairs.
+ * unreachable connection, or a grant that does not include the portal's
+ * `webhook_admin_scopes` - all of which the same re-consent repairs.
  *
- * That last case is the "connected but missing the webhook scope" state: the
- * account works, but its grant never included the scope the auto-registration
- * needs, so a create would fail at the provider. It is caught here rather than
- * discovered at trigger-create time.
+ * The state is the catalog's own (`connection_state`, resolved server-side), not a
+ * join over the `mcp:manage`-gated connection listing: a Member or Operator whose
+ * one run grant authorizes the create could not read that listing, so the join
+ * showed them "connect", hid the connect control they may not use, and left no way
+ * in at all.
  */
 export type PortalAction = "create" | "connect" | "reauthorize";
 
 export interface PortalWithState {
   portal: PortalCatalogEntry;
   action: PortalAction;
-  /** The shared MCP connection, org preferred, or null when none is connected. */
-  connection: McpConnectionRecord | null;
+  /** The shared org connection's id, for creating triggers; null when none. */
+  connectionId: string | null;
   /** The shared server's URL and name, for starting OAuth on the connection. */
   serverUrl: string | null;
   serverName: string | null;
 }
 
-/** Whether a grant covers every scope a portal's auto-registration requires. */
-function coversScopes(granted: string[] | null, required: string[]): boolean {
-  const have = new Set(granted ?? []);
-  return required.every((scope) => have.has(scope));
-}
-
-function portalAction(
-  portal: PortalCatalogEntry,
-  connection: McpConnectionRecord | null,
-  grantedScopes: string[] | null,
-): PortalAction {
+function portalAction(portal: PortalCatalogEntry): PortalAction {
   // Manual and polling portals wire their own delivery, so no account is needed.
   if (portal.delivery !== "auto_webhook") return "create";
-  if (connection === null) return "connect";
+  if (portal.connection_id === null) return "connect";
   // A grant still awaiting consent, disabled, or unreachable is not usable yet.
-  if (connectionState(connection) !== "connected") return "reauthorize";
+  if (portal.connection_state !== "connected") return "reauthorize";
   // Connected, but the webhook scope decides create-vs-reauthorize.
-  return coversScopes(grantedScopes, portal.webhook_admin_scopes) ? "create" : "reauthorize";
+  return portal.connection_covers_webhook_scopes ? "create" : "reauthorize";
 }
 
 /**
- * The portal catalog joined with MCP connection state through
- * `connection_catalog_key`.
+ * The portal catalog with each card's action, plus what starting OAuth needs.
  *
- * The join reuses `useMcpServers`, so there is one connection system: a portal's
- * account is the same organization credential the agent's MCP tools bind, matched
- * on the shared catalog key. The organization connection is preferred over a
- * personal one because a trigger belongs to an agent, which runs on the
- * organization's credentials.
+ * The action and the connection id come off the catalog itself. `useMcpServers`
+ * is joined only for the server URL and display name a *connect* needs to start
+ * the generic OAuth flow - a management affordance, so the join failing for a
+ * caller without `mcp:manage` costs them nothing they could use.
  */
 export function usePortals() {
   const { portals, isLoading: catalogLoading, error } = usePortalCatalog();
-  const { rows, isLoading: serversLoading } = useMcpServers();
+  const { rows } = useMcpServers();
 
   const items = useMemo<PortalWithState[]>(
     () =>
@@ -92,15 +80,10 @@ export function usePortals() {
         const row = portal.connection_catalog_key
           ? (rows.find((entry) => entry.entry?.key === portal.connection_catalog_key) ?? null)
           : null;
-        // The organization connection is what a trigger binds and where the OAuth
-        // grant (and its `granted_scopes`) lives; a personal one is only a
-        // fallback for reading state, never the account a webhook registers under.
-        const orgConnection = row?.organization ?? null;
-        const connection = orgConnection ?? row?.personal ?? null;
         return {
           portal,
-          action: portalAction(portal, connection, orgConnection?.granted_scopes ?? null),
-          connection,
+          action: portalAction(portal),
+          connectionId: portal.connection_id,
           serverUrl: row?.url ?? null,
           serverName: row?.entry?.name ?? row?.name ?? null,
         };
@@ -108,5 +91,5 @@ export function usePortals() {
     [portals, rows],
   );
 
-  return { items, isLoading: catalogLoading || serversLoading, error };
+  return { items, isLoading: catalogLoading, error };
 }

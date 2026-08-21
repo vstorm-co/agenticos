@@ -2666,6 +2666,54 @@ class TestKeepingTheLeaseAlive:
         )
 
 
+class TestPortalCatalogConnectionState:
+    """The catalog carries each portal's org-connection state, so a caller who may
+    create a trigger (agents:run, per agent) sees a connected portal as usable
+    without the mcp:manage-gated connection listing - the gap that hid every
+    Create button from a Member whose grant the create itself would honour."""
+
+    def _connection(self, **overrides):
+        fields: dict[str, object] = {
+            "id": uuid.uuid4(),
+            "auth_type": "oauth",
+            "oauth_payload": "sealed",
+            "is_enabled": True,
+            "last_status": "ok",
+            "granted_scopes": ["repo", "admin:repo_hook"],
+        }
+        fields.update(overrides)
+        return MagicMock(**fields)
+
+    async def _github(self, connection):
+        service = _service()
+        with patch("app.services.agent_trigger.mcp_connection_repo") as connections:
+            connections.get_org_scoped_by_catalog_key = AsyncMock(return_value=connection)
+            items = await service.list_portals(_ctx())
+        return next(portal for portal in items if portal.key == "github")
+
+    async def test_a_working_grant_reads_connected_and_covering(self):
+        connection = self._connection()
+        github = await self._github(connection)
+        assert github.connection_id == connection.id
+        assert github.connection_state == "connected"
+        assert github.connection_covers_webhook_scopes is True
+
+    async def test_the_states_name_what_repairs_them(self):
+        # Consent never landed - only re-authorizing helps.
+        pending = await self._github(self._connection(oauth_payload=None))
+        assert pending.connection_state == "needs_authorization"
+        # Disabled and failing rows name themselves.
+        disabled = await self._github(self._connection(is_enabled=False))
+        assert disabled.connection_state == "disabled"
+        failing = await self._github(self._connection(last_status="error"))
+        assert failing.connection_state == "error"
+
+    async def test_a_grant_without_the_webhook_scope_does_not_cover(self):
+        github = await self._github(self._connection(granted_scopes=["repo"]))
+        assert github.connection_state == "connected"
+        assert github.connection_covers_webhook_scopes is False
+
+
 class TestListingPortalTargets:
     async def test_an_agent_the_caller_may_not_run_is_not_found(self):
         """The listing is authorized like the create it feeds: `agents:run` on the

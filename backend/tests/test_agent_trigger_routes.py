@@ -31,7 +31,7 @@ from app.api.routes.v1.agent_triggers import (
 from app.api.routes.v1.trigger_webhooks import ingest_trigger_event
 from app.core.permissions import AuthContext, OrgRoleName
 from app.schemas.agent_trigger import TriggerCreate, TriggerCreateRead, TriggerRead, TriggerUpdate
-from app.services.agent_trigger import EventFireDecision
+from app.services.agent_trigger import AgentTriggerService, EventFireDecision
 
 pytestmark = pytest.mark.anyio
 
@@ -59,13 +59,22 @@ async def test_a_listing_reports_its_own_total():
 
 
 async def test_the_portal_catalog_maps_every_portal_and_its_presets():
-    result = await list_trigger_portals()
+    """The mapping itself lives in the service now (it joins connection state);
+    the route hands back one page of whatever it answered."""
+    service = AgentTriggerService(MagicMock())
+    with patch("app.services.agent_trigger.mcp_connection_repo") as connections:
+        connections.get_org_scoped_by_catalog_key = AsyncMock(return_value=None)
+        result = await list_trigger_portals(_CTX, service)
     assert result.total == len(result.items) > 0
     github = next(portal for portal in result.items if portal.key == "github")
     assert github.delivery == "auto_webhook"
     assert github.connection_catalog_key == "github"
     assert github.target_kind == "repo"
     assert "admin:repo_hook" in github.webhook_admin_scopes
+    # Nobody connected the account, and the catalog says so plainly.
+    assert github.connection_id is None
+    assert github.connection_state is None
+    assert github.connection_covers_webhook_scopes is False
     opened = next(preset for preset in github.presets if preset.key == "issue_opened")
     assert opened.target_required is True
 

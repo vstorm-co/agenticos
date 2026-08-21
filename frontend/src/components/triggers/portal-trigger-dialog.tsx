@@ -34,7 +34,6 @@ import { useTriggers } from "@/hooks/use-triggers";
 import { useAgentSelectionStore } from "@/stores";
 import { cn } from "@/lib/utils";
 import { FILTER_KEYS, eventFilterConfig } from "@/lib/trigger-format";
-import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import type { PortalCatalogEntry } from "@/types/portals";
 import type { EventSource, TriggerCreate, TriggerCreated } from "@/types/triggers";
 
@@ -65,8 +64,8 @@ const FILTER_COPY: Record<string, { labelKey: string; placeholderKey: string }> 
 
 interface PortalTriggerDialogProps {
   portal: PortalCatalogEntry;
-  /** The shared connected account, or null for a manual portal that needs none. */
-  connection: McpConnectionRecord | null;
+  /** The shared connected account's id, or null for a manual portal that needs none. */
+  connectionId: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -86,7 +85,7 @@ interface PortalTriggerDialogProps {
  */
 export function PortalTriggerDialog({
   portal,
-  connection,
+  connectionId,
   open,
   onOpenChange,
 }: PortalTriggerDialogProps) {
@@ -131,9 +130,9 @@ export function PortalTriggerDialog({
   const preset = portal.presets.find((entry) => entry.key === presetKey) ?? null;
   const needsTarget = portal.target_kind !== null && (preset?.target_required ?? false);
   const { targets, isLoading: targetsLoading } = usePortalTargets(
-    needsTarget && connection ? portal.key : null,
-    needsTarget && connection ? connection.id : null,
-    needsTarget && connection && effectiveAgentId !== "" ? effectiveAgentId : null,
+    needsTarget && connectionId ? portal.key : null,
+    needsTarget && connectionId ? connectionId : null,
+    needsTarget && connectionId && effectiveAgentId !== "" ? effectiveAgentId : null,
   );
 
   function choosePreset(key: string) {
@@ -151,7 +150,7 @@ export function PortalTriggerDialog({
       portal_key: portal.key,
       preset_key: preset.key,
       environment_id: environmentId === DEFAULT_ENV ? null : environmentId,
-      ...(connection ? { connection_id: connection.id } : {}),
+      ...(connectionId ? { connection_id: connectionId } : {}),
       ...(needsTarget && target.trim() ? { target: target.trim() } : {}),
       ...(eventConfig ? { event_config: eventConfig } : {}),
     };

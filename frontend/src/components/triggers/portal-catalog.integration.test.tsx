@@ -31,58 +31,93 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
-const PORTALS = {
-  items: [
-    {
-      key: "github",
-      name: "GitHub",
-      description: "Run an agent when a repository event arrives.",
-      category: "development",
-      icon: "github",
-      event_source: "github",
-      delivery: "auto_webhook",
-      webhook_admin_scopes: ["admin:repo_hook"],
-      target_kind: "repo",
-      connection_catalog_key: "github",
-      presets: [
-        { key: "issue_opened", label: "New issue opened", description: "…", target_required: true },
-      ],
-    },
-    {
-      key: "email",
-      name: "Email",
-      description: "Run an agent when an email arrives.",
-      category: "productivity",
-      icon: "gmail",
-      event_source: "email",
-      delivery: "manual",
-      webhook_admin_scopes: [],
-      target_kind: null,
-      connection_catalog_key: null,
-      presets: [
-        { key: "any_email", label: "Any incoming email", description: "…", target_required: false },
-      ],
-    },
-    {
-      // A non-GitHub auto-webhook portal: it still connects through the generic
-      // discovery flow, which is what tells the GitHub branch apart from it.
-      key: "tracker",
-      name: "Tracker",
-      description: "Run an agent when a ticket arrives.",
-      category: "productivity",
-      icon: "linear",
-      event_source: "webhook",
-      delivery: "auto_webhook",
-      webhook_admin_scopes: [],
-      target_kind: null,
-      connection_catalog_key: null,
-      presets: [
-        { key: "new_ticket", label: "New ticket", description: "…", target_required: false },
-      ],
-    },
-  ],
-  total: 3,
-};
+/** The catalog as the server answers it: GitHub's connection state is derived
+ * from the org connection exactly the way `AgentTriggerService.list_portals`
+ * derives it, so these tests keep expressing states as connections. */
+function portalsFor(org: OrgMcpConnectionRecord[]) {
+  const c = org.find((row) => row.catalog_key === "github") ?? null;
+  const state =
+    c === null
+      ? null
+      : c.auth_type === "oauth" && !c.oauth_authorized
+        ? "needs_authorization"
+        : !c.is_enabled
+          ? "disabled"
+          : c.last_status === "error"
+            ? "error"
+            : "connected";
+  return {
+    items: [
+      {
+        key: "github",
+        name: "GitHub",
+        description: "Run an agent when a repository event arrives.",
+        category: "development",
+        icon: "github",
+        event_source: "github",
+        delivery: "auto_webhook",
+        webhook_admin_scopes: ["admin:repo_hook"],
+        target_kind: "repo",
+        connection_catalog_key: "github",
+        connection_id: c?.id ?? null,
+        connection_state: state,
+        connection_covers_webhook_scopes: (c?.granted_scopes ?? []).includes("admin:repo_hook"),
+        presets: [
+          {
+            key: "issue_opened",
+            label: "New issue opened",
+            description: "…",
+            target_required: true,
+          },
+        ],
+      },
+      {
+        key: "email",
+        name: "Email",
+        description: "Run an agent when an email arrives.",
+        category: "productivity",
+        icon: "gmail",
+        event_source: "email",
+        delivery: "manual",
+        webhook_admin_scopes: [],
+        target_kind: null,
+        connection_catalog_key: null,
+        connection_id: null,
+        connection_state: null,
+        connection_covers_webhook_scopes: false,
+        presets: [
+          {
+            key: "any_email",
+            label: "Any incoming email",
+            description: "…",
+            target_required: false,
+          },
+        ],
+      },
+      {
+        // A non-GitHub auto-webhook portal: it still connects through the generic
+        // discovery flow, which is what tells the GitHub branch apart from it.
+        key: "tracker",
+        name: "Tracker",
+        description: "Run an agent when a ticket arrives.",
+        category: "productivity",
+        icon: "linear",
+        event_source: "webhook",
+        delivery: "auto_webhook",
+        webhook_admin_scopes: [],
+        target_kind: null,
+        connection_catalog_key: null,
+        connection_id: null,
+        connection_state: null,
+        connection_covers_webhook_scopes: false,
+        presets: [
+          { key: "new_ticket", label: "New ticket", description: "…", target_required: false },
+        ],
+      },
+    ],
+    total: 3,
+  };
+}
 
 const MCP_CATALOG = {
   items: [
@@ -122,9 +157,9 @@ function orgConnection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpC
   };
 }
 
-function serve(org: OrgMcpConnectionRecord[], portals: unknown = PORTALS) {
+function serve(org: OrgMcpConnectionRecord[]) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
-    if (path === "/trigger-portals") return portals;
+    if (path === "/trigger-portals") return portalsFor(org);
     if (path === "/agents/mcp-catalog") return MCP_CATALOG;
     if (path === "/mcp-connections") return { items: org, total: org.length };
     if (path === "/me/mcp-connections") return { items: [], total: 0 };

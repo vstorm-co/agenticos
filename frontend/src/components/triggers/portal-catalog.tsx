@@ -256,7 +256,7 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
       {dialog !== null && (
         <PortalTriggerDialog
           portal={dialog.portal}
-          connection={dialog.connection}
+          connectionId={dialog.connectionId}
           open
           onOpenChange={(next) => !next && setDialog(null)}
         />

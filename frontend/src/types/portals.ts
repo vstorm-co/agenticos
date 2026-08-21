@@ -49,6 +49,16 @@ export interface PortalCatalogEntry {
   target_kind: string | null;
   /** The `mcp_servers.json` key this portal shares a connection with, for joining state. */
   connection_catalog_key: string | null;
+  /**
+   * The organization's connection for this portal, resolved server-side so a
+   * caller who may create a trigger sees the connected state without the
+   * `mcp:manage`-gated connection listing. Null when nobody has connected it.
+   */
+  connection_id: string | null;
+  /** How usable that connection is; null exactly when `connection_id` is null. */
+  connection_state: "connected" | "needs_authorization" | "disabled" | "error" | null;
+  /** Whether the grant covers every webhook scope - create vs re-authorize. */
+  connection_covers_webhook_scopes: boolean;
   presets: PortalPreset[];
 }
 
