@@ -12,6 +12,9 @@ import type {
 
 const state = vi.hoisted(() => ({
   workspaces: [] as WorkspaceSummary[],
+  measureAsked: [] as boolean[],
+  unreadable: 0,
+  truncated: false,
   listLoading: false,
   listError: null as string | null,
   files: null as WorkspaceFiles | null,
@@ -44,11 +47,17 @@ vi.mock("@/lib/workspace-files", () => ({
 }));
 
 vi.mock("@/hooks", () => ({
-  useSandboxWorkspaces: () => ({
-    workspaces: state.workspaces,
-    isLoading: state.listLoading,
-    error: state.listError,
-  }),
+  useSandboxWorkspaces: (measure: boolean) => {
+    state.measureAsked.push(measure);
+    return {
+      workspaces: state.workspaces,
+      measured: state.workspaces.length,
+      unreadable: state.unreadable,
+      truncated: state.truncated,
+      isLoading: state.listLoading,
+      error: state.listError,
+    };
+  },
   useAllWorkspaceFiles: (enabled: boolean) => {
     state.flatAsked.push(enabled);
     return { listing: state.flat, isLoading: state.flatLoading, error: state.flatError };
@@ -95,6 +104,8 @@ function workspace(overrides: Partial<WorkspaceSummary> = {}): WorkspaceSummary 
     owner_label: "This conversation",
     access_label: "Whoever is in that conversation",
     bytes_total: 1_048_576,
+    file_count: 4,
+    measured_bytes: 1_048_576,
     version: 3,
     last_used_at: new Date().toISOString(),
     created_at: new Date().toISOString(),
@@ -117,6 +128,9 @@ function files(overrides: Partial<WorkspaceFiles> = {}): WorkspaceFiles {
 
 beforeEach(() => {
   state.workspaces = [workspace()];
+  state.measureAsked = [];
+  state.unreadable = 0;
+  state.truncated = false;
   state.listLoading = false;
   state.listError = null;
   state.files = files();
@@ -206,7 +220,7 @@ describe("WorkspaceBrowser", () => {
 
     // Descending: the stored workspace has a number, the container has none -
     // and an absence is not a small number, so it sorts last.
-    await userEvent.click(screen.getByRole("button", { name: "Where" }));
+    await userEvent.click(screen.getByRole("button", { name: "Size" }));
     expect(firstRow()).toContain("Refund policy");
   });
 
@@ -238,15 +252,24 @@ describe("WorkspaceBrowser", () => {
     expect(screen.getByText("Refund policy")).toBeVisible();
   });
 
-  it("measures a stored workspace and says a container's files are elsewhere", () => {
+  it("counts the files and weighs them, in two columns", () => {
     state.workspaces = [
-      workspace(),
-      workspace({ id: "w-2", backend: "service", agent_name: "Builder" }),
+      workspace({ file_count: 4, measured_bytes: 1_048_576 }),
+      workspace({
+        id: "w-2",
+        backend: "service",
+        agent_name: "Builder",
+        conversation_title: "Webhook wiring",
+        file_count: null,
+        measured_bytes: null,
+      }),
     ];
     render(<WorkspaceBrowser />);
 
-    expect(screen.getByText("stored · 1.0 MB")).toBeVisible();
-    expect(screen.getByText("container · on the host")).toBeVisible();
+    expect(screen.getByText("4")).toBeVisible();
+    expect(screen.getByText("1.0 MB")).toBeVisible();
+    // Nobody counted the container's: `—` and not `0`, which would be a claim.
+    expect(screen.getAllByText("—")).toHaveLength(2);
   });
 
   it("says when a workspace was last touched", () => {
@@ -273,12 +296,13 @@ describe("WorkspaceBrowser", () => {
   });
 
   it("reads a workspace with no recorded size as unmeasured", () => {
-    // A container's `bytes_total` is the JSONB document's, which is zero for it -
-    // so the column says what holds the files instead of claiming a size.
-    state.workspaces = [workspace({ backend: "service" })];
+    // `bytes_total` is the stored document's size and zero for a container, so a
+    // size column reading it would call every container empty. `measured_bytes` is
+    // null until somebody counts, and null prints as an absence.
+    state.workspaces = [workspace({ backend: "service", file_count: null, measured_bytes: null })];
     render(<WorkspaceBrowser />);
 
-    expect(screen.getByText("container · on the host")).toBeVisible();
+    expect(screen.getAllByText("—")).toHaveLength(2);
   });
 
   it("says an organization is keeping nothing rather than showing an empty table", () => {
@@ -327,8 +351,7 @@ describe("WorkspaceBrowser", () => {
 
     const cell = screen.getByText("Whoever is in that conversation").closest("td")!;
 
-    expect(cell).not.toHaveTextContent("stored");
-    expect(screen.getByText("stored · 1.0 MB")).toBeVisible();
+    expect(cell).not.toHaveTextContent("container");
   });
 
   describe("the flat view", () => {
@@ -669,5 +692,47 @@ describe("what a row is about", () => {
 
     expect(screen.getByText("1 workspace")).toBeVisible();
     expect(screen.queryByText(/A workspace is scratch space/)).toBeNull();
+  });
+});
+
+describe("counting the files", () => {
+  it("sorts by the count, and puts an uncounted workspace last", async () => {
+    // An absence is not a small number: a container nobody measured must not sort
+    // as though it held nothing.
+    state.workspaces = [
+      workspace({ file_count: 2, conversation_title: "Two" }),
+      workspace({ id: "w-2", file_count: 9, conversation_title: "Nine" }),
+      workspace({ id: "w-3", file_count: null, conversation_title: "Unknown" }),
+    ];
+    render(<WorkspaceBrowser />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Files" }));
+
+    const rows = screen.getAllByRole("row").slice(1);
+
+    expect(rows[0]).toHaveTextContent("Nine");
+    expect(rows[2]).toHaveTextContent("Unknown");
+  });
+
+  it("asks the hosts only when told to", async () => {
+    // A round trip per workspace, so the page does not pay for it on open.
+    render(<WorkspaceBrowser />);
+
+    expect(state.measureAsked).toEqual([false]);
+
+    await userEvent.click(screen.getByRole("switch", { name: "Count files" }));
+
+    expect(state.measureAsked.at(-1)).toBe(true);
+  });
+
+  it("says when a host stayed silent rather than leaving a dash to explain it", async () => {
+    // A row reading `—` because its host was down is indistinguishable from a
+    // workspace holding nothing.
+    state.unreadable = 2;
+    render(<WorkspaceBrowser />);
+
+    await userEvent.click(screen.getByRole("switch", { name: "Count files" }));
+
+    expect(screen.getByText(/2 hosts did not answer/)).toBeVisible();
   });
 });

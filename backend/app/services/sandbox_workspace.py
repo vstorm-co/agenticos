@@ -101,6 +101,18 @@ class WorkspaceOverview:
 
 
 @dataclass(frozen=True)
+class MeasuredWorkspaces:
+    """File counts and byte totals for a listing, and what it cost to get them."""
+
+    counts: dict[UUID, tuple[int, int]]
+    """Workspace id to `(files, bytes)`. Absent for one that was not read."""
+
+    measured: int
+    unreadable: int
+    truncated: bool
+
+
+@dataclass(frozen=True)
 class FlatEntry:
     """One file in the flat view, with everything its tile draws.
 
@@ -755,6 +767,51 @@ class SandboxWorkspaceService:
         the bar is the operator's, not a member's.
         """
         return ctx.has(Perm.CONNECTIONS_MANAGE)
+
+    async def measured(
+        self, ctx: AuthContext, overviews: list[WorkspaceOverview], *, hosts: bool, limit: int = 25
+    ) -> MeasuredWorkspaces:
+        """How many files each workspace holds, and what they come to.
+
+        Free for a stored workspace: its files are a column of the row this listing
+        already read, so the count is arithmetic. A container's are on its host, and
+        reading them is a round trip *per workspace* - the cost `flat_files` bounds
+        at twenty-five and reports rather than pays silently. So `hosts` is the
+        caller's decision and the default listing does not make it.
+
+        A workspace whose host will not answer is counted, not dropped: a listing
+        that quietly skipped it would read as a workspace holding no files, which is
+        the one answer nobody can distinguish from the truth.
+        """
+        counts: dict[UUID, tuple[int, int]] = {}
+        unreadable = 0
+        read = 0
+        remote = 0
+        for overview in overviews:
+            row = overview.row
+            if row.backend != "state":
+                if not hosts:
+                    continue
+                if remote >= limit:
+                    continue
+                remote += 1
+            contents = await self._entries(ctx, row)
+            if contents.unreadable_reason is not None:
+                unreadable += 1
+                continue
+            files = [entry for entry in contents.entries if not entry.get("is_dir")]
+            counts[row.id] = (
+                len(files),
+                sum(int(entry.get("size") or 0) for entry in files),
+            )
+            read += 1
+        containers = sum(1 for overview in overviews if overview.row.backend != "state")
+        return MeasuredWorkspaces(
+            counts=counts,
+            measured=read,
+            unreadable=unreadable,
+            truncated=hosts and containers > limit,
+        )
 
     async def flat_files(self, ctx: AuthContext, *, limit: int = 25) -> FlatFileListing:
         """Every file this caller can see, in one list, with its workspace named.

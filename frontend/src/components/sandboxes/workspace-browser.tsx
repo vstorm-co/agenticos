@@ -9,6 +9,7 @@ import {
   ListCard,
   Pager,
   SearchInput,
+  Switch,
   Select,
   SelectContent,
   SelectItem,
@@ -98,7 +99,12 @@ function used(when: string | null, t: (key: string, values?: Record<string, numb
  */
 export function WorkspaceBrowser() {
   const t = useTranslations("sandboxes.workspaces");
-  const { workspaces, isLoading, error } = useSandboxWorkspaces();
+  // Counting the files in a container-backed workspace is a round trip to its
+  // host, per workspace - so it is a switch rather than something the page pays for
+  // on open. A stored workspace is counted either way, because its files arrived
+  // with the row.
+  const [measure, setMeasure] = useState(false);
+  const { workspaces, unreadable, truncated, isLoading, error } = useSandboxWorkspaces(measure);
   const [flat, setFlat] = useState(false);
 
   /**
@@ -191,18 +197,36 @@ export function WorkspaceBrowser() {
         ),
       },
       {
-        key: "where",
-        header: t("where"),
+        key: "files",
+        header: t("files"),
+        align: "right",
         sortable: true,
-        sortValue: (workspace) => (workspace.backend === "state" ? workspace.bytes_total : null),
-        // What holds the files, and how much where that is knowable. This was
-        // `Size`, and for a container workspace every cell read `on the host` -
-        // a column whose every answer was "ask somewhere else".
+        // `null` rather than `0` for one nobody counted: an absence is not a small
+        // number, and the table sorts it last either way.
+        sortValue: (workspace) => workspace.file_count,
         cell: (workspace) => (
-          <span className="text-muted-foreground text-xs">
-            {workspace.backend === "state"
-              ? t("storedBytes", { size: formatBytes(workspace.bytes_total) })
-              : t("onTheHost")}
+          <span className="text-muted-foreground text-xs">{workspace.file_count ?? "—"}</span>
+        ),
+      },
+      {
+        key: "size",
+        header: t("size"),
+        align: "right",
+        sortable: true,
+        // What the files come to, not what the row weighs: `bytes_total` is the
+        // stored document's size and zero for a container, which is how a size
+        // column ends up calling a container empty.
+        sortValue: (workspace) => workspace.measured_bytes,
+        cell: (workspace) => (
+          <span
+            className="text-muted-foreground text-xs"
+            title={
+              workspace.measured_bytes === null && workspace.backend !== "state"
+                ? t("onTheHostUnmeasured")
+                : undefined
+            }
+          >
+            {workspace.measured_bytes === null ? "—" : formatBytes(workspace.measured_bytes)}
           </span>
         ),
       },
@@ -233,23 +257,37 @@ export function WorkspaceBrowser() {
              of rows, and "who is holding a copy of that CSV" is a flat list of
              files. The second cannot be answered by opening the first one row at
              a time, which is what this exists for. */
-          <div className="flex shrink-0 gap-1">
-            <Button
-              variant={flat ? "ghost" : "secondary"}
-              size="sm"
-              aria-pressed={!flat}
-              onClick={() => setFlat(false)}
-            >
-              {t("byWorkspace")}
-            </Button>
-            <Button
-              variant={flat ? "secondary" : "ghost"}
-              size="sm"
-              aria-pressed={flat}
-              onClick={() => setFlat(true)}
-            >
-              {t("allFiles")}
-            </Button>
+          <div className="flex shrink-0 items-center gap-3">
+            {!flat && (
+              <label className="flex items-center gap-2 text-xs whitespace-nowrap">
+                <Switch
+                  checked={measure}
+                  onCheckedChange={setMeasure}
+                  aria-label={t("countFiles")}
+                />
+                <span className="text-muted-foreground" title={t("countFilesHint")}>
+                  {t("countFiles")}
+                </span>
+              </label>
+            )}
+            <div className="flex gap-1">
+              <Button
+                variant={flat ? "ghost" : "secondary"}
+                size="sm"
+                aria-pressed={!flat}
+                onClick={() => setFlat(false)}
+              >
+                {t("byWorkspace")}
+              </Button>
+              <Button
+                variant={flat ? "secondary" : "ghost"}
+                size="sm"
+                aria-pressed={flat}
+                onClick={() => setFlat(true)}
+              >
+                {t("allFiles")}
+              </Button>
+            </div>
           </div>
         }
         contentClassName="p-0"
@@ -257,15 +295,27 @@ export function WorkspaceBrowser() {
         {flat ? (
           <FlatFiles />
         ) : (
-          <DataTable<WorkspaceSummary>
-            columns={columns}
-            rows={workspaces}
-            getRowKey={(workspace) => workspace.id}
-            loading={isLoading}
-            error={error}
-            empty={t("noAgentKeepingFiles")}
-            className="rounded-none border-0 bg-transparent"
-          />
+          <>
+            <DataTable<WorkspaceSummary>
+              columns={columns}
+              rows={workspaces}
+              getRowKey={(workspace) => workspace.id}
+              loading={isLoading}
+              error={error}
+              empty={t("noAgentKeepingFiles")}
+              className="rounded-none border-0 bg-transparent"
+            />
+            {/* What counting left out, on screen rather than in a log. A host that
+              did not answer leaves a row saying `—`, which is indistinguishable
+              from a workspace holding nothing. */}
+            {measure && (unreadable > 0 || truncated) && (
+              <p className="text-muted-foreground border-border border-t px-5 py-2 text-xs">
+                {unreadable > 0 && t("someHostsSilent", { count: unreadable })}
+                {unreadable > 0 && truncated && " · "}
+                {truncated && t("countingStopped")}
+              </p>
+            )}
+          </>
         )}
       </ListCard>
     </div>

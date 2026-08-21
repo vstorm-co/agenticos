@@ -3111,3 +3111,96 @@ class TestWhoseWorkspaceItIs:
         from app.services.sandbox_workspace import access_label
 
         assert access_label(_row(scope=scope)) == expected
+
+
+class TestCountingTheFilesInEachWorkspace:
+    """What a listing can say about size without paying for every host.
+
+    A stored workspace's files are a column of the row the listing already read, so
+    counting them is arithmetic. A container's are on its host, and reading them is
+    a round trip *per workspace* - which is why the default listing counts the first
+    kind and leaves the second to a caller who asked.
+    """
+
+    async def test_a_stored_workspace_is_counted_without_being_asked(
+        self, monkeypatch, mock_db_session
+    ):
+        from app.repositories import agent as agent_repo
+
+        stored = StateBackend()
+        stored.write("/report.csv", "a,b\n1,2")
+        stored.write("/notes.md", "hello")
+        row = _row(files=dict(stored.files))
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+        service = SandboxWorkspaceService(mock_db_session)
+
+        overviews = await service.visible_to(_ctx())
+        counted = await service.measured(_ctx(), overviews, hosts=False)
+
+        files, size = counted.counts[row.id]
+        assert files == 2
+        assert size > 0
+        assert counted.measured == 1
+
+    async def test_a_container_is_left_alone_until_somebody_asks(
+        self, monkeypatch, mock_db_session
+    ):
+        """A round trip per workspace, on a page nobody has asked a question of."""
+        from app.repositories import agent as agent_repo
+
+        row = _row(backend="service", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+        service = SandboxWorkspaceService(mock_db_session)
+        service.connections = MagicMock(
+            resolve=AsyncMock(side_effect=AssertionError("the host must not be asked"))
+        )
+
+        overviews = await service.visible_to(_ctx())
+        counted = await service.measured(_ctx(), overviews, hosts=False)
+
+        assert counted.counts == {}
+        assert counted.measured == 0
+
+    async def test_a_host_that_will_not_answer_is_counted_not_dropped(
+        self, monkeypatch, mock_db_session
+    ):
+        """A workspace quietly skipped reads as a workspace holding no files, which
+        is the one answer nobody can tell from the truth."""
+        from app.repositories import agent as agent_repo
+
+        row = _row(backend="service", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+        service = SandboxWorkspaceService(mock_db_session)
+        service.connections = MagicMock(
+            resolve=AsyncMock(side_effect=RuntimeError("the host is down"))
+        )
+
+        overviews = await service.visible_to(_ctx())
+        counted = await service.measured(_ctx(), overviews, hosts=True)
+
+        assert counted.counts == {}
+        assert counted.unreadable == 1
+
+    async def test_measuring_stops_at_the_bound_and_says_so(self, monkeypatch, mock_db_session):
+        """Twenty-five round trips is already a slow request; two hundred is a page
+        that times out."""
+        from app.repositories import agent as agent_repo
+
+        rows = [_row(backend="service", connection_id=uuid4()) for _ in range(3)]
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=rows))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+        service = SandboxWorkspaceService(mock_db_session)
+        service.connections = MagicMock(resolve=AsyncMock(side_effect=RuntimeError("down")))
+
+        overviews = await service.visible_to(_ctx())
+        counted = await service.measured(_ctx(), overviews, hosts=True, limit=2)
+
+        assert counted.unreadable == 2
+        assert counted.truncated is True

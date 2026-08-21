@@ -14,6 +14,11 @@ import {
 } from "@/lib/sandbox-workspaces-api";
 
 interface UseWorkspacesResult {
+  /** How many workspaces were read to count their files. */
+  measured: number;
+  /** Hosts that would not answer. A shorter answer, said rather than implied. */
+  unreadable: number;
+  truncated: boolean;
   workspaces: WorkspaceSummary[];
   isLoading: boolean;
   error: string | null;
@@ -26,19 +31,20 @@ interface UseWorkspacesResult {
  * but the list of them changes when a conversation starts or is deleted - which
  * is not something worth a request every ten seconds.
  */
-export function useSandboxWorkspaces(): UseWorkspacesResult {
+export function useSandboxWorkspaces(measure = false): UseWorkspacesResult {
   const t = useTranslations("pages.workspaces");
-  const {
-    data: workspaces = [],
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: qk.sandboxWorkspaces.list(),
-    queryFn: listWorkspaces,
+  // Keyed on the flag, so turning counting on is a new query rather than a refetch
+  // that replaces the cheap answer with the expensive one and back again.
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.sandboxWorkspaces.list(measure),
+    queryFn: () => listWorkspaces(measure),
   });
 
   return {
-    workspaces,
+    workspaces: data?.items ?? [],
+    measured: data?.measured ?? 0,
+    unreadable: data?.unreadable ?? 0,
+    truncated: data?.truncated ?? false,
     isLoading,
     error: error instanceof Error ? error.message : error ? t("failedLoadWorkspaces") : null,
   };

@@ -36,6 +36,8 @@ const WORKSPACE: WorkspaceSummary = {
   owner_label: "This conversation",
   access_label: "Whoever is in that conversation",
   bytes_total: 2048,
+  file_count: 2,
+  measured_bytes: 2048,
   version: 1,
   last_used_at: null,
   created_at: null,
@@ -43,7 +45,13 @@ const WORKSPACE: WorkspaceSummary = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(api.listWorkspaces).mockResolvedValue([WORKSPACE]);
+  vi.mocked(api.listWorkspaces).mockResolvedValue({
+    items: [WORKSPACE],
+    total: 1,
+    measured: 1,
+    unreadable: 0,
+    truncated: false,
+  });
   vi.mocked(api.readWorkspaceFiles).mockResolvedValue({
     scope: "conversation",
     unreadable_reason: null,
