@@ -4013,7 +4013,6 @@
     "activityLogUnreadable": "That activity log could not be read",
     "agentsNameNoConnection": "Agents that name no connection run here. Only one can hold this.",
     "allFiles": "All files",
-    "allFiles2": "All files",
     "byWorkspace": "By workspace",
     "cancel": "Cancel",
     "connection": {
@@ -4188,13 +4187,13 @@
     "workspaces": {
       "agent": "Agent",
       "allFiles": "All files",
-      "allFiles2": "All files",
       "byWorkspace": "By workspace",
       "bytesStored": "· {size} stored",
       "container": "container",
       "conversation": "Conversation",
       "conversationCount": "{count, plural, =1 {1 conversation} other {# conversations}}",
       "everyFile": "Every file",
+      "fileCount": "{count, plural, =0 {} =1 {1 file} other {# files}}",
       "files": "Files",
       "folderEmpty": "This folder is empty.",
       "folders": "Folders",

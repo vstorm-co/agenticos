@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { WorkspaceExplorer, levelAt } from "./workspace-explorer";
+import { WorkspaceExplorer, treeOf } from "./workspace-explorer";
 import type { WorkspaceFile, WorkspaceFiles } from "@/lib/sandbox-workspaces-api";
 
 const state = vi.hoisted(() => ({
@@ -118,12 +118,15 @@ beforeEach(() => {
  * to answer.
  */
 describe("the workspace explorer", () => {
-  it("shows the files and folders at the root, not every path at once", () => {
+  it("shows every level at once, open, rather than one folder at a time", () => {
+    // The drill-down it replaces showed one level and a breadcrumb, so a workspace
+    // whose only folder was `uploads` opened on a list of one row and hid every
+    // file it held.
     render(<WorkspaceExplorer workspaceId="w-1" />);
 
     expect(screen.getByText("skills")).toBeVisible();
     expect(screen.getByText("report.md")).toBeVisible();
-    expect(screen.queryByText("SKILL.md")).toBeNull();
+    expect(screen.getByText("SKILL.md")).toBeVisible();
   });
 
   it("says whose files these are, and what they weigh", () => {
@@ -145,55 +148,39 @@ describe("the workspace explorer", () => {
     expect(screen.queryByText(/stored/)).toBeNull();
   });
 
-  it("walks into a folder", async () => {
+  it("closes a folder, and opens it again", async () => {
     render(<WorkspaceExplorer workspaceId="w-1" />);
+    const folder = () => screen.getByRole("treeitem", { name: /skills/ });
+
+    expect(folder()).toHaveAttribute("aria-expanded", "true");
 
     await userEvent.click(screen.getByText("skills"));
-    await userEvent.click(screen.getByText("code-review"));
+
+    expect(folder()).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("SKILL.md")).toBeNull();
+
+    await userEvent.click(screen.getByText("skills"));
 
     expect(screen.getByText("SKILL.md")).toBeVisible();
-    expect(screen.getByText("checklist.md")).toBeVisible();
   });
 
-  it("walks back out from the breadcrumb", async () => {
+  it("indents each level, which is what says what is inside what", async () => {
     render(<WorkspaceExplorer workspaceId="w-1" />);
-    await userEvent.click(screen.getByText("skills"));
 
-    await userEvent.click(screen.getByRole("button", { name: "All files" }));
+    const indent = (name: string) => screen.getByText(name).closest("button")!.style.paddingLeft;
 
-    expect(screen.getByText("report.md")).toBeVisible();
+    expect(indent("skills")).toBe("0.5rem");
+    expect(indent("code-review")).toBe("1.25rem");
+    expect(indent("SKILL.md")).toBe("2rem");
   });
 
-  it("walks back up to a middle folder from the breadcrumb", async () => {
-    // Two deep is where a back button stops being enough: the useful move is often
-    // to the folder above rather than to the root.
-    render(<WorkspaceExplorer workspaceId="w-1" />);
-    await userEvent.click(screen.getByText("skills"));
-    await userEvent.click(screen.getByText("code-review"));
-
-    await userEvent.click(screen.getByRole("button", { name: "skills" }));
-
-    expect(screen.getByText("code-review")).toBeVisible();
-    expect(screen.queryByText("SKILL.md")).toBeNull();
-  });
-
-  it("searches every folder, not the one on screen", async () => {
-    // Making somebody walk the tree to ask "where is that file" is the same failure
-    // a flat list has in the other direction.
+  it("is a tree to a screen reader, not a list of buttons", async () => {
+    // The meaning of a row is its left margin, and a margin is not something a
+    // screen reader can read out.
     render(<WorkspaceExplorer workspaceId="w-1" />);
 
-    await userEvent.type(screen.getByLabelText("Search files by name"), "checklist");
-
-    expect(screen.getByText("/skills/code-review/checklist.md")).toBeVisible();
-    expect(screen.queryByText("report.md")).toBeNull();
-  });
-
-  it("says when a search matched nothing rather than showing an empty grid", async () => {
-    render(<WorkspaceExplorer workspaceId="w-1" />);
-
-    await userEvent.type(screen.getByLabelText("Search files by name"), "invoice");
-
-    expect(screen.getByText(/Nothing in this workspace matches/)).toBeVisible();
+    expect(screen.getByRole("tree")).toBeInTheDocument();
+    expect(screen.getAllByRole("treeitem").length).toBeGreaterThan(3);
   });
 
   it("renders the file beside the tree rather than over it", async () => {
@@ -304,46 +291,53 @@ describe("the workspace explorer", () => {
 });
 
 /**
- * The tree walk itself, which the component only ever renders.
+ * The tree itself, which the component only ever renders.
  *
- * Worth its own tests because the awkward cases are all off-screen: a directory entry
- * the listing includes, a path deeper than the folder being shown, and a sibling
- * folder that must not leak into it.
+ * Worth its own tests because the awkward cases are all off-screen: a folder the
+ * listing never named, a directory entry that it did, and the order two readers of
+ * the same workspace have to see.
  */
-describe("what sits inside one folder", () => {
-  it("names a folder once, however many files it holds", () => {
-    const level = levelAt([file("/a/one.txt"), file("/a/two.txt")], []);
+describe("the tree built from the paths", () => {
+  const paths = (nodes: ReturnType<typeof treeOf>): string[] =>
+    nodes.flatMap((node) => [node.path, ...paths(node.children)]);
 
-    expect(level.folders).toEqual(["a"]);
-    expect(level.files).toEqual([]);
+  it("invents a folder the listing never named", () => {
+    // A host that returns `uploads/x.pdf` and no directory row still has an
+    // `uploads`, and a tree built only from `is_dir` rows would hide the file
+    // under a folder it never drew.
+    const tree = treeOf([file("/uploads/x.pdf")]);
+
+    expect(tree).toHaveLength(1);
+    expect(tree[0]!.isDir).toBe(true);
+    expect(tree[0]!.name).toBe("uploads");
+    expect(tree[0]!.children.map((child) => child.name)).toEqual(["x.pdf"]);
   });
 
-  it("keeps a sibling folder out of the one being shown", () => {
-    const level = levelAt([file("/a/one.txt"), file("/b/two.txt")], ["a"]);
+  it("uses the directory row where the listing includes one, not two folders", () => {
+    const tree = treeOf([file("/a", { is_dir: true }), file("/a/one.txt")]);
 
-    expect(level.files.map((entry) => entry.path)).toEqual(["/a/one.txt"]);
+    expect(paths(tree)).toEqual(["a", "/a/one.txt"]);
   });
 
-  it("treats a directory entry as a folder rather than as a file", () => {
-    // The API lists directories, and one rendered as a file is a tile that opens
-    // nothing.
-    const level = levelAt([file("/a", { is_dir: true }), file("/a/one.txt")], []);
+  it("nests as deep as the paths do", () => {
+    const tree = treeOf([file("/skills/deploy/run.sh")]);
 
-    expect(level.folders).toEqual(["a"]);
-    expect(level.files).toEqual([]);
+    expect(paths(tree)).toEqual(["skills", "skills/deploy", "/skills/deploy/run.sh"]);
   });
 
-  it("ignores a path shallower than the folder being shown", () => {
-    const level = levelAt([file("/top.txt")], ["a"]);
+  it("puts folders above files, each alphabetical", () => {
+    // The order every file manager uses, and the one that puts what can be opened
+    // where a reader looks first.
+    const tree = treeOf([file("/z.txt"), file("/a.txt"), file("/m/one.txt")]);
 
-    expect(level).toEqual({ folders: [], files: [] });
+    expect(tree.map((node) => node.name)).toEqual(["m", "a.txt", "z.txt"]);
   });
 
-  it("sorts both, so the same workspace reads the same way twice", () => {
-    const level = levelAt([file("/z.txt"), file("/a.txt"), file("/m/one.txt")], []);
+  it("keeps two folders apart", () => {
+    const tree = treeOf([file("/a/one.txt"), file("/b/two.txt")]);
 
-    expect(level.folders).toEqual(["m"]);
-    expect(level.files.map((entry) => entry.path)).toEqual(["/a.txt", "/z.txt"]);
+    expect(tree.map((node) => node.name)).toEqual(["a", "b"]);
+    expect(tree[0]!.children.map((child) => child.path)).toEqual(["/a/one.txt"]);
   });
 });
 
@@ -374,5 +368,44 @@ describe("the height it occupies", () => {
 
     expect(tree!.className).toContain("overflow-y-auto");
     expect(reader!.className).toContain("overflow-hidden");
+  });
+});
+
+describe("which folders start open", () => {
+  it("opens every folder of a small workspace", () => {
+    // A workspace nests three deep at most and usually holds a handful of files, so
+    // a tree that starts closed hides the only thing on the page - `uploads` was
+    // one click away from being the only visible row.
+    state.files = listing([file("/uploads/ksionszka.pdf"), file("/skills/deploy/run.sh")]);
+
+    render(<WorkspaceExplorer workspaceId="w-1" />);
+
+    expect(screen.getByText("ksionszka.pdf")).toBeVisible();
+    expect(screen.getByText("run.sh")).toBeVisible();
+  });
+
+  it("opens only the top level of a workspace too large to draw whole", () => {
+    // A thousand rows rendered at once is a different failure from a hidden one.
+    state.files = listing([
+      ...Array.from({ length: 201 }, (_, n) => file(`/uploads/scan-${n}.pdf`)),
+      file("/uploads/deep/one.txt"),
+    ]);
+
+    render(<WorkspaceExplorer workspaceId="w-1" />);
+
+    expect(screen.getByText("deep")).toBeVisible();
+    expect(screen.queryByText("one.txt")).toBeNull();
+  });
+
+  it("shows an empty folder as an empty folder rather than as nothing", () => {
+    // A host that lists a directory row with nothing inside it: the drill-down
+    // answered "This folder is empty" on a page with no other content, which reads
+    // as a broken workspace.
+    state.files = listing([file("/uploads", { is_dir: true }), file("/report.md")]);
+
+    render(<WorkspaceExplorer workspaceId="w-1" />);
+
+    expect(screen.getByText("uploads")).toBeVisible();
+    expect(screen.getByText("report.md")).toBeVisible();
   });
 });
