@@ -223,8 +223,12 @@ export function MessageItem({
                 ? message.files.map((f) => ({ kind: kindFor(f), file: f }))
                 : (message.fileIds ?? []).map((id) => ({ kind: "unknown" as const, id }));
             if (attachments.length === 0) return null;
+            // `items-start`, or a flex row stretches every child to the tallest
+            // one: a PDF card beside a photograph rendered at 256 px became a
+            // 256 px card with its content at the top and a field of empty border
+            // under it.
             return (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-start gap-2">
                 {attachments.map((att) =>
                   att.kind === "image" ? (
                     <button

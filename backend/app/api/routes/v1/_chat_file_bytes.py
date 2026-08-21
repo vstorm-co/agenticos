@@ -8,9 +8,12 @@ that arrived with one of that run's turns. What a browser is then allowed to
 404 for bytes the row still points at live here rather than twice.
 """
 
+from typing import Literal
+
 from fastapi import HTTPException, status
 from fastapi.responses import FileResponse
 
+from app.api.responses import content_disposition
 from app.db.models.chat_file import ChatFile
 from app.services.file_upload import FileUploadService
 
@@ -26,6 +29,11 @@ def chat_file_response(
     reason the header is built by hand: `FileResponse(filename=...)` always says
     `attachment`.
 
+    The name reaches the header through `content_disposition`, which is the whole
+    of why: built by hand here, `filename="…"` raised `UnicodeEncodeError` on the
+    first character outside latin-1, so every attachment with a Polish name was a
+    500 on preview and on download alike.
+
     Raises:
         HTTPException: 404 where the row points at bytes the storage no longer
             has. A row and its file can part company (a restored database, a
@@ -36,14 +44,15 @@ def chat_file_response(
     if not file_path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found on disk")
 
-    mode = "attachment" if disposition == "attachment" else "inline"
-    safe_name = chat_file.filename.replace('"', "")
+    mode: Literal["inline", "attachment"] = (
+        "attachment" if disposition == "attachment" else "inline"
+    )
     # The preview embeds this URL in an iframe for a PDF or an HTML page, which
     # `X-Frame-Options: DENY` from `SecurityHeadersMiddleware` would refuse. Opted
     # down to the same origin the app itself runs on, no wider; the CSP is the
     # modern spelling of it and browsers honour whichever they recognise.
     headers = {
-        "Content-Disposition": f'{mode}; filename="{safe_name}"',
+        "Content-Disposition": content_disposition(mode, chat_file.filename),
         "X-Frame-Options": "SAMEORIGIN",
         "Content-Security-Policy": "frame-ancestors 'self'",
     }

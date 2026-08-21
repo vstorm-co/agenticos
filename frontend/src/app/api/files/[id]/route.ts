@@ -22,7 +22,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
 
     if (!response.ok) {
-      return bffRefusal("FILE_NOT_FOUND", response.status);
+      // The code follows the status rather than assuming the answer. Every
+      // refusal used to be `FILE_NOT_FOUND`, so a 403 read as a missing file and
+      // a 500 read as one too - which is what a Polish filename produced: the
+      // backend died encoding the `Content-Disposition` header and the browser
+      // was told the file did not exist.
+      return bffRefusal(
+        response.status === 404
+          ? "FILE_NOT_FOUND"
+          : response.status === 403
+            ? "FORBIDDEN"
+            : "BACKEND_UNAVAILABLE",
+        response.status,
+      );
     }
 
     const data = await response.arrayBuffer();

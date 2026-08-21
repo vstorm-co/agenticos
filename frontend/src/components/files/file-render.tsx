@@ -53,10 +53,10 @@ export function FileTextView({ kind, name, text, asSource = false }: FileTextVie
           title={t("renderedPage", { name })}
           srcDoc={text}
           sandbox=""
-          // Viewport-relative rather than `h-full`: the dialog is a flex column but
-          // the wrappers between here and it are not, so a percentage height would
-          // collapse to the content's.
-          className="bg-background h-[calc(100vh-15rem)] min-h-64 w-full rounded-md border"
+          // `h-full` with a viewport-relative floor, for the reason the PDF below
+          // carries: nothing between here and the viewer's body adds a wrapper, so
+          // the height resolves - and where it cannot, the floor still draws a page.
+          className="bg-background h-full min-h-[calc(100vh-15rem)] w-full rounded-md border"
         />
       );
     case "csv":
@@ -105,7 +105,14 @@ export function FileBytesView({ name, url, mediaType, onDownload }: FileBytesVie
     // An iframe rather than an object or an embed: it is the element every browser
     // routes to its own PDF viewer, and that viewer renders the document without
     // handing it this page's DOM.
-    return <iframe src={url} title={name} className="h-[70vh] w-full rounded-md border-0" />;
+    // `h-full` first and the viewport fraction as a floor: in the viewer the body
+    // is a flex child with a definite height, so `h-full` fills it exactly and a
+    // fixed 70vh left a band of empty dialog under a 119-page document. Where
+    // nothing above has a height - a panel that grows to its content - `h-full`
+    // computes to `auto` and the floor is what draws the page.
+    return (
+      <iframe src={url} title={name} className="h-full min-h-[70vh] w-full rounded-md border-0" />
+    );
 
   if (mediaType.startsWith("video/"))
     return (
