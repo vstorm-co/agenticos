@@ -17,6 +17,54 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.246] - 2026-08-21
+
+An Admin cannot take from a peer what they are not allowed to remove.
+
+### Fixed
+
+- **An Admin could demote a peer Admin, having been refused removing them.**
+  `MemberService.remove` refuses one Admin removing another; `change_role`
+  disagreed about the same peer, because it checked only the **new** role against
+  the assignment ceiling and never the target's **current** one. So an Admin who
+  could not remove a peer Admin could demote them to Viewer - stripping the same
+  authority - and then remove them, or simply leave them demoted. The audit read
+  `member.role_changed`, which is true and not what happened. A requester may now
+  only change the role of a member their own role strictly outranks, which is the
+  relation `assignable_roles` already means: the Admin-vs-Admin rule is the
+  assignment ceiling rather than a second rule beside it, and because the ceiling
+  is derived from the permission catalog a custom role is bounded the same way
+  rather than against a literal `"admin"`. The Owner target keeps its own
+  "use transfer-ownership" message. (#700)
+- **The role selector was drawn on rows the server would refuse.** The list now
+  answers `can_change_role` per member - the same two checks `change_role` makes -
+  so a peer Admin's row shows the role as a label instead of a control whose only
+  result is a 403 toast. It is the server's answer rather than a rule
+  reimplemented in the client, which would drift from the catalog. (#700)
+- **Both halves of the read-check-write are locked now.** `change_role` and
+  `remove` each read a membership, refuse or allow on the role they find, and then
+  write that same row - so under `READ COMMITTED` an Owner promoting the target in
+  between left an Admin demoting or removing a peer Admin. `member_repo.get` takes
+  `for_update`, off by default because every listing and permission check calls
+  it. (#700)
+
+### Testing
+
+- **A frontend case asserted the behaviour this release removes**, written on the
+  reading that demoting a peer Admin was a supported action a picker ought to
+  offer. It asserts the label and the absent control now, with the reason kept
+  beside it. Three more failed only because the fixture did not carry
+  `can_change_role`; it derives the flag through `assignableRoles` over the same
+  catalog the server uses, so a fixture cannot describe a server this one is not.
+- `TestMemberRepositoryLock` holds what `for_update` compiles to, in the shape
+  `TestAgentRepositoryLock` beside it already uses. The parameter had none.
+
+### Known
+
+- `remove` still decides Admin-vs-Admin with a literal rather than the catalog, so
+  half of #700's argument about custom roles is unmade. No live defect - the four
+  built-in roles agree - and filed as #1066.
+
 ## [0.0.244] - 2026-08-21
 
 One runtime this repository defines, and a workspace anybody can read.
