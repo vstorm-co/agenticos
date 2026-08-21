@@ -4,8 +4,9 @@ import { useMemo, useState } from "react";
 import { Plug, RefreshCw, Sparkles, Webhook } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+import Link from "next/link";
 
-import { BrandIcon, isBrandName } from "@/components/icons/brand-icon";
+import { BrandTile, isBrandName } from "@/components/icons/brand-icon";
 import { Monogram } from "@/components/icons/monogram";
 import { PortalTriggerDialog } from "@/components/triggers/portal-trigger-dialog";
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
@@ -27,6 +28,7 @@ import {
   useListControls,
 } from "@/components/ui";
 import { usePortals, type PortalWithState } from "@/hooks";
+import { ROUTES } from "@/lib/constants";
 import { startGithubOrgOAuth, startMcpOAuth } from "@/lib/mcp-connections-api";
 import { getErrorMessage } from "@/lib/api-error";
 
@@ -176,11 +178,12 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
               <CardContent className="flex h-full flex-col gap-3 p-4">
                 <div className="flex items-start gap-2.5">
                   {item.portal.icon && isBrandName(item.portal.icon) ? (
-                    <BrandIcon
-                      name={item.portal.icon}
-                      aria-hidden
-                      className="mt-0.5 h-6 w-6 shrink-0"
-                    />
+                    // In brand colours here, unlike every list and step that draws
+                    // these in ink: on this grid the mark is the subject - what
+                    // somebody scans when deciding what to connect - and an
+                    // envelope in ink is not one anybody reads as Gmail. All of
+                    // them or none, on the light tile their palettes assume.
+                    <BrandTile name={item.portal.icon} className="mt-0.5 h-8 w-8" />
                   ) : (
                     <Monogram label={item.portal.name} className="mt-0.5 h-6 w-6" />
                   )}
@@ -204,6 +207,23 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
                 </div>
 
                 <div className="mt-auto">
+                  {/* The prerequisite, said here rather than as a red toast after
+                      the click. GitHub's consent URL is built from the
+                      organization's own OAuth App credentials, so with none stored
+                      - or two and nothing to say which was meant - Connect could
+                      only ever fail, and pressing it was the only way to find out
+                      (#1068). Gated on the same permission the connect control is:
+                      a Member who cannot fix it is not told to. */}
+                  {item.portal.connect_blocked_by !== null && canManageConnections && (
+                    <p className="text-muted-foreground border-border mt-3 border-t pt-3 text-xs">
+                      {item.portal.connect_blocked_by === "oauth_app_secret"
+                        ? t("needsOAuthApp")
+                        : t("ambiguousOAuthApp")}{" "}
+                      <Link href={ROUTES.VAULT} className="text-foreground underline">
+                        {t("openVault")}
+                      </Link>
+                    </p>
+                  )}
                   <div className="border-border mt-3 flex flex-wrap items-center gap-1.5 border-t pt-3">
                     {item.action === "create" && canRun && (
                       <Button size="sm" variant="outline" onClick={() => setDialog(item)}>

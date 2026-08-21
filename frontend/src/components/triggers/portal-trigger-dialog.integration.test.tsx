@@ -39,6 +39,7 @@ const GITHUB: PortalCatalogEntry = {
   connection_id: null,
   connection_state: null,
   connection_covers_webhook_scopes: false,
+  connect_blocked_by: null,
   presets: [
     { key: "issue_opened", label: "New issue opened", description: "…", target_required: true },
   ],
@@ -58,6 +59,7 @@ const GMAIL: PortalCatalogEntry = {
   connection_id: null,
   connection_state: null,
   connection_covers_webhook_scopes: false,
+  connect_blocked_by: null,
   presets: [
     { key: "any_message", label: "Any new message", description: "…", target_required: false },
   ],
@@ -77,6 +79,7 @@ const TRACKER: PortalCatalogEntry = {
   connection_id: null,
   connection_state: null,
   connection_covers_webhook_scopes: false,
+  connect_blocked_by: null,
   presets: [{ key: "new_ticket", label: "A new ticket", description: "…", target_required: false }],
 };
 

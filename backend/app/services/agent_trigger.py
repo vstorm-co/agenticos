@@ -57,6 +57,7 @@ from app.core.exceptions import (
     ValidationError,
 )
 from app.core.permissions import AuthContext, Perm
+from app.core.secret_kinds import SecretKind
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.agent_trigger import AgentTrigger, ScheduleKind, TriggerType
@@ -70,6 +71,7 @@ from app.repositories import (
     conversation_repo,
     mcp_connection_repo,
     member_repo,
+    organization_secret_repo,
 )
 from app.schemas.agent_trigger import (
     _EVENT_CONFIG_MODELS,
@@ -110,6 +112,28 @@ def _connection_state(
     if connection.last_status == "error":
         return "error"
     return "connected"
+
+
+def _connect_blocked_by(
+    portal: portal_catalog.PortalEntry, *, oauth_apps: int
+) -> Literal["oauth_app_secret", "ambiguous_oauth_app_secret"] | None:
+    """Why this portal's connect flow cannot start, or `None` when it can.
+
+    Only GitHub's does: `oauth_start_for_org_github` spends the organization's own
+    OAuth App credentials, so with none stored the flow raises a `NotFoundError`
+    and with two org-visible ones it refuses rather than picking whichever name
+    sorts first. Both were learned by pressing Connect and reading a red toast;
+    the card can say it beforehand instead (#1068).
+
+    Every other portal is either connected some other way or needs no account, so
+    the answer is `None` - a portal that grows its own prerequisite adds a branch
+    here and a line of copy, not a new mechanism.
+    """
+    if portal.mcp_catalog_key != "github":
+        return None
+    if oauth_apps == 0:
+        return "oauth_app_secret"
+    return "ambiguous_oauth_app_secret" if oauth_apps > 1 else None
 
 
 @dataclass(frozen=True)
@@ -365,6 +389,18 @@ class AgentTriggerService:
         whether its grant covers the portal's webhook scopes as one boolean), read
         under the same `agents:view` that shows the catalog at all.
         """
+        # Whether GitHub's flow *can* start: it spends the organization's own OAuth
+        # App credentials, so with none stored - or with two org-visible ones and
+        # nothing to say which was meant - pressing Connect can only fail. Asked
+        # once for the page rather than per portal, and only counted: the row is
+        # never opened here, so no plaintext is read to answer a listing (#1068).
+        oauth_apps = len(
+            await organization_secret_repo.list_org_visible_by_kind(
+                self.db,
+                organization_id=ctx.organization_id,
+                kind=SecretKind.GITHUB_OAUTH_APP.value,
+            )
+        )
         items: list[PortalRead] = []
         for portal in portal_catalog.CATALOG:
             connection = (
@@ -392,6 +428,7 @@ class AgentTriggerService:
                     connection_state=(
                         _connection_state(connection) if connection is not None else None
                     ),
+                    connect_blocked_by=_connect_blocked_by(portal, oauth_apps=oauth_apps),
                     connection_covers_webhook_scopes=(
                         connection is not None
                         and set(portal.webhook_admin_scopes).issubset(

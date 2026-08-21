@@ -2690,10 +2690,18 @@ class TestPortalCatalogConnectionState:
         fields.update(overrides)
         return MagicMock(**fields)
 
-    async def _github(self, connection):
+    async def _github(self, connection, *, oauth_apps: int = 1):
         service = _service()
-        with patch("app.services.agent_trigger.mcp_connection_repo") as connections:
+        with (
+            patch("app.services.agent_trigger.mcp_connection_repo") as connections,
+            patch("app.services.agent_trigger.organization_secret_repo") as secrets,
+        ):
             connections.get_org_scoped_by_catalog_key = AsyncMock(return_value=connection)
+            # One stored OAuth App by default: the prerequisite the connect flow
+            # spends, counted rather than opened.
+            secrets.list_org_visible_by_kind = AsyncMock(
+                return_value=[MagicMock() for _ in range(oauth_apps)]
+            )
             items = await service.list_portals(_ctx())
         return next(portal for portal in items if portal.key == "github")
 
@@ -2718,6 +2726,36 @@ class TestPortalCatalogConnectionState:
         github = await self._github(self._connection(granted_scopes=["repo"]))
         assert github.connection_state == "connected"
         assert github.connection_covers_webhook_scopes is False
+
+    async def test_a_missing_oauth_app_is_named_before_the_click(self):
+        """Pressing Connect with no stored OAuth App could only ever fail, and did
+        so as a red toast. The card is told the prerequisite instead (#1068)."""
+        github = await self._github(None, oauth_apps=0)
+        assert github.connect_blocked_by == "oauth_app_secret"
+
+    async def test_two_org_visible_oauth_apps_are_named_as_ambiguous(self):
+        """The connect flow refuses rather than taking whichever name sorts first,
+        so the card has to say which of the two problems it is."""
+        github = await self._github(None, oauth_apps=2)
+        assert github.connect_blocked_by == "ambiguous_oauth_app_secret"
+
+    async def test_one_stored_app_blocks_nothing(self):
+        github = await self._github(None, oauth_apps=1)
+        assert github.connect_blocked_by is None
+
+    async def test_a_portal_that_needs_no_oauth_app_is_never_blocked(self):
+        """Gmail is polled from a connected mailbox and spends no organization
+        credential, so the prerequisite is not its."""
+        service = _service()
+        with (
+            patch("app.services.agent_trigger.mcp_connection_repo") as connections,
+            patch("app.services.agent_trigger.organization_secret_repo") as secrets,
+        ):
+            connections.get_org_scoped_by_catalog_key = AsyncMock(return_value=None)
+            secrets.list_org_visible_by_kind = AsyncMock(return_value=[])
+            items = await service.list_portals(_ctx())
+        gmail = next(item for item in items if item.key == "google")
+        assert gmail.connect_blocked_by is None
 
 
 class TestListingPortalTargets:

@@ -70,6 +70,17 @@ class PortalRead(BaseSchema):
             ),
         )
     )
+    connect_blocked_by: Literal["oauth_app_secret", "ambiguous_oauth_app_secret"] | None = Field(
+        default=None,
+        description=(
+            "Why connecting this portal cannot start yet, or null when it can. "
+            "GitHub's flow spends the organization's own OAuth App credentials, so "
+            "with none stored - or with two org-visible ones and no way to know "
+            "which was meant - pressing Connect can only fail. Answered on the "
+            "catalog so the card says the prerequisite before the click instead of "
+            "after it, as a red toast"
+        ),
+    )
     connection_covers_webhook_scopes: bool = Field(
         default=False,
         description=(

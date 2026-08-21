@@ -34,7 +34,10 @@ function wrapper({ children }: { children: ReactNode }) {
 /** The catalog as the server answers it: GitHub's connection state is derived
  * from the org connection exactly the way `AgentTriggerService.list_portals`
  * derives it, so these tests keep expressing states as connections. */
-function portalsFor(org: OrgMcpConnectionRecord[]) {
+function portalsFor(
+  org: OrgMcpConnectionRecord[],
+  blockedBy: "oauth_app_secret" | "ambiguous_oauth_app_secret" | null = null,
+) {
   const c = org.find((row) => row.catalog_key === "github") ?? null;
   const state =
     c === null
@@ -62,6 +65,7 @@ function portalsFor(org: OrgMcpConnectionRecord[]) {
         connection_id: c?.id ?? null,
         connection_state: state,
         connection_covers_webhook_scopes: (c?.granted_scopes ?? []).includes("admin:repo_hook"),
+        connect_blocked_by: blockedBy,
         presets: [
           {
             key: "issue_opened",
@@ -85,6 +89,7 @@ function portalsFor(org: OrgMcpConnectionRecord[]) {
         connection_id: null,
         connection_state: null,
         connection_covers_webhook_scopes: false,
+        connect_blocked_by: null,
         presets: [
           {
             key: "any_email",
@@ -110,6 +115,7 @@ function portalsFor(org: OrgMcpConnectionRecord[]) {
         connection_id: null,
         connection_state: null,
         connection_covers_webhook_scopes: false,
+        connect_blocked_by: null,
         presets: [
           { key: "new_ticket", label: "New ticket", description: "…", target_required: false },
         ],
@@ -157,9 +163,12 @@ function orgConnection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpC
   };
 }
 
-function serve(org: OrgMcpConnectionRecord[]) {
+function serve(
+  org: OrgMcpConnectionRecord[],
+  blockedBy: "oauth_app_secret" | "ambiguous_oauth_app_secret" | null = null,
+) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
-    if (path === "/trigger-portals") return portalsFor(org);
+    if (path === "/trigger-portals") return portalsFor(org, blockedBy);
     if (path === "/agents/mcp-catalog") return MCP_CATALOG;
     if (path === "/mcp-connections") return { items: org, total: org.length };
     if (path === "/me/mcp-connections") return { items: [], total: 0 };
@@ -171,8 +180,9 @@ async function mount({
   canRun = true,
   canManageConnections = true,
   org = [] as OrgMcpConnectionRecord[],
+  blockedBy = null as "oauth_app_secret" | "ambiguous_oauth_app_secret" | null,
 } = {}) {
-  serve(org);
+  serve(org, blockedBy);
   render(<PortalCatalog canRun={canRun} canManageConnections={canManageConnections} />, {
     wrapper,
   });
@@ -237,6 +247,36 @@ describe("PortalCatalog", () => {
     await mount({ canRun: false });
 
     expect(screen.queryByRole("group", { name: "API trigger" })).toBeNull();
+  });
+
+  it("names the missing OAuth App on the card instead of after the click", async () => {
+    // Connecting GitHub builds its consent URL from the organization's own OAuth
+    // App credentials, so with none stored the press could only fail - and did,
+    // as a red toast. The prerequisite and where to fix it are on the card (#1068).
+    await mount({ org: [], blockedBy: "oauth_app_secret" });
+
+    const card = within(screen.getByRole("group", { name: "GitHub" }));
+
+    expect(card.getByText(/GitHub OAuth App credentials/)).toBeVisible();
+    expect(card.getByRole("link", { name: "Open the vault" })).toHaveAttribute("href", "/vault");
+  });
+
+  it("says which of the two credential problems it is", async () => {
+    await mount({ org: [], blockedBy: "ambiguous_oauth_app_secret" });
+
+    expect(
+      within(screen.getByRole("group", { name: "GitHub" })).getByText(/cannot tell which one/),
+    ).toBeVisible();
+  });
+
+  it("does not tell a caller who cannot fix it", async () => {
+    // Storing the secret needs `mcp:manage`, the same permission the connect
+    // control carries - so a Member reads a prerequisite they cannot act on.
+    await mount({ org: [], blockedBy: "oauth_app_secret", canManageConnections: false });
+
+    expect(
+      within(screen.getByRole("group", { name: "GitHub" })).queryByText(/OAuth App/),
+    ).toBeNull();
   });
 
   it("offers Connect account for an auto-webhook portal nobody has connected", async () => {

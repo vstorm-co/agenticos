@@ -59,6 +59,15 @@ export interface PortalCatalogEntry {
   connection_state: "connected" | "needs_authorization" | "disabled" | "error" | null;
   /** Whether the grant covers every webhook scope - create vs re-authorize. */
   connection_covers_webhook_scopes: boolean;
+  /**
+   * Why connecting cannot start yet, or null when it can.
+   *
+   * GitHub's flow spends the organization's own OAuth App credentials, so with
+   * none stored - or two org-visible ones and nothing to say which was meant -
+   * pressing Connect could only fail, which it did as a red toast. The card says
+   * the prerequisite instead, with the way to fix it (#1068).
+   */
+  connect_blocked_by: "oauth_app_secret" | "ambiguous_oauth_app_secret" | null;
   presets: PortalPreset[];
 }
 

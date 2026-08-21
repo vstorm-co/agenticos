@@ -35,6 +35,7 @@ function githubPortal(overrides: Partial<PortalCatalogEntry> = {}): PortalCatalo
     connection_id: null,
     connection_state: null,
     connection_covers_webhook_scopes: false,
+    connect_blocked_by: null,
     presets: [{ key: "issue_opened", label: "New issue", description: "…", target_required: true }],
     ...overrides,
   };
@@ -54,6 +55,7 @@ const EMAIL_PORTAL: PortalCatalogEntry = {
   connection_id: null,
   connection_state: null,
   connection_covers_webhook_scopes: false,
+  connect_blocked_by: null,
   presets: [{ key: "any_email", label: "Any email", description: "…", target_required: false }],
 };
 
@@ -144,6 +146,7 @@ describe("usePortals", () => {
         connection_id: "o1",
         connection_state: "connected",
         connection_covers_webhook_scopes: false,
+        connect_blocked_by: null,
       }),
     );
     const github = result.current.items.find((item) => item.portal.key === "github");
