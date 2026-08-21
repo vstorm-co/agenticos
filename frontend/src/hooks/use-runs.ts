@@ -202,15 +202,29 @@ export function usePrefetchRuns(runIds: (string | null | undefined)[]) {
 export function useRunTranscript(
   runId: string,
   scope: "run" | "conversation" = "run",
-  options?: { enabled?: boolean; refetchInterval?: number | false },
+  options?: { enabled?: boolean; refetchInterval?: number | false; tail?: boolean },
 ) {
+  // `tail` reads the *newest* page: the endpoint orders oldest-first and answers
+  // its first hundred, so a long-lived thread - a trigger's run-log after ~50
+  // fires - would otherwise show only its oldest history and never the run just
+  // fired. The first request learns the total; when more pages exist, a second
+  // asks for the last one. Keyed separately from the plain read, because the two
+  // are different answers over the same id.
+  const tail = options?.tail ?? false;
   const { data, isLoading, error } = useQuery({
-    queryKey: qk.runs.transcript(runId, scope),
-    queryFn: () =>
-      apiClient.get<RunTranscript>(
+    queryKey: tail
+      ? [...qk.runs.transcript(runId, scope), "tail"]
+      : qk.runs.transcript(runId, scope),
+    queryFn: async () => {
+      const first = await apiClient.get<RunTranscript>(
         `/runs/${runId}/transcript`,
         scope === "run" ? undefined : { params: { scope } },
-      ),
+      );
+      if (!tail || first.total <= first.items.length) return first;
+      return apiClient.get<RunTranscript>(`/runs/${runId}/transcript`, {
+        params: { scope, skip: String(Math.max(0, first.total - 100)) },
+      });
+    },
     // A trigger's run-log opens on `last_run_id`, which is null until the first
     // fire - there is nothing to read until then, so the caller opts out.
     enabled: options?.enabled ?? true,

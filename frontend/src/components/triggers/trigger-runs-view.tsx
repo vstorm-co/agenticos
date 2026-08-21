@@ -51,6 +51,10 @@ export function TriggerRunsView({
   const { transcript, isLoading, error } = useRunTranscript(runId ?? "", "conversation", {
     enabled: runId !== null,
     refetchInterval: pendingSince !== null ? POLL_WHILE_WAITING_MS : false,
+    // The newest page, not the first: a run-log past a hundred messages would
+    // otherwise show only its oldest fires, and the waiting poll would re-read
+    // a page the just-fired reply can never appear on.
+    tail: true,
   });
 
   // On a trigger that has never fired, "Run now" leaves last_run_id null until

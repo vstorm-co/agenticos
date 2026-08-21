@@ -131,6 +131,46 @@ describe("TriggerRow run-log view", () => {
     expect(drawer.getByText("Here is the summary")).toBeVisible();
   });
 
+  it("reads the newest page of a long run-log, not its oldest history", async () => {
+    // The transcript endpoint orders oldest-first and answers its first hundred,
+    // so a log past that - about fifty fires - needs the *last* page asked for,
+    // or the drawer shows ancient history and the waiting poll re-reads a page
+    // the just-fired reply can never appear on.
+    vi.mocked(apiClient.get).mockImplementation(
+      async (path: string, opts?: { params?: Record<string, string> | [string, string][] }) => {
+        const params = opts?.params;
+        const skip = params && !Array.isArray(params) ? params.skip : undefined;
+        if (path === "/agents") return { items: [], total: 0 };
+        if (path === "/runs/r1/transcript") {
+          if (skip === "150")
+            return {
+              run_id: "r1",
+              conversation_id: "c1",
+              items: [{ id: "m249", role: "assistant", content: "The newest answer" }],
+              total: 250,
+            };
+          return {
+            run_id: "r1",
+            conversation_id: "c1",
+            items: Array.from({ length: 100 }, (_, i) => ({
+              id: `m${i}`,
+              role: "assistant",
+              content: `Ancient answer ${i}`,
+            })),
+            total: 250,
+          };
+        }
+        throw new Error(`unexpected GET ${path}`);
+      },
+    );
+    render(<TriggerRow trigger={trigger({ last_run_id: "r1" })} />, { wrapper });
+
+    await userEvent.click(screen.getByRole("button", { name: "See what this trigger has done" }));
+
+    expect(await screen.findByText("The newest answer")).toBeVisible();
+    expect(screen.queryByText("Ancient answer 0")).toBeNull();
+  });
+
   it("keeps the action buttons working without opening the view", async () => {
     vi.mocked(apiClient.patch).mockResolvedValue(trigger({ is_active: false }));
     serveGets(() => ({}));
