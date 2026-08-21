@@ -38,7 +38,7 @@ An impersonated action names who was really acting.
   alike, reads `act` onto a context variable - the actor behind a request is a
   property of the request rather than something to thread through every service that
   records an action. `record_audit` writes it as `impersonator_user_id` beside the
-  actor, `0044_audit_impersonator` adds the nullable column and its index, and the
+  actor, `0045_audit_impersonator` adds the nullable column and its index, and the
   audit read schema and service expose it. Null on an ordinary request, and nothing
   is backfilled: whether a past action was impersonated is unknowable after the fact.
   `docs/governance.md` says what an impersonated action records. (#943)

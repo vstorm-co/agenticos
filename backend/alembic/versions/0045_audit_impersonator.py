@@ -12,8 +12,8 @@ acting as anybody else, and nothing is backfilled - there is no way to know afte
 the fact whether a past action was impersonated, and guessing one would be a
 false accusation rather than a missing one.
 
-Revision ID: 0044_audit_impersonator
-Revises: 0043_rag_document_source_path
+Revision ID: 0045_audit_impersonator
+Revises: 0044_agent_embed_key_version
 Create Date: 2026-08-20
 
 """
@@ -24,8 +24,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0044_audit_impersonator"
-down_revision: str | None = "0043_rag_document_source_path"
+revision: str = "0045_audit_impersonator"
+down_revision: str | None = "0044_agent_embed_key_version"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
