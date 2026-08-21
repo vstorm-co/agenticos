@@ -2672,6 +2672,83 @@ class TestKeepingTheLeaseAlive:
         )
 
 
+class TestAPolledPresetMintsNothing:
+    """Creating a Gmail trigger hands out no URL and no secret.
+
+    It did both: every event trigger minted a secret and was born `manual`, so the
+    create response carried a webhook URL and a reveal-once secret - an instruction
+    to go and configure a relay for a door that refuses a delivery naming a polled
+    source. `ck_trigger_shape` forbids the row shape now, and this is the service
+    half (#1068).
+    """
+
+    async def _create(self):
+        agent = _agent()
+        service = _service(agent)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.conversation_repo") as conversations,
+        ):
+            repo.create = AsyncMock(
+                return_value=_trigger(
+                    event_source="gmail",
+                    conversation_id=uuid.uuid4(),
+                    delivery_mode="polling",
+                    event_secret_encrypted=None,
+                    secret_key_version=None,
+                )
+            )
+            conversations.create = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+            created = await service.create(
+                _ctx(),
+                agent.id,
+                _preset_create(portal_key="google", preset_key="any_message", target=None),
+            )
+        return repo, created
+
+    async def test_no_secret_is_sealed_for_it(self):
+        repo, _ = await self._create()
+        assert repo.create.await_args.kwargs["event_secret_encrypted"] is None
+        assert repo.create.await_args.kwargs["secret_key_version"] is None
+
+    async def test_it_is_born_polling_not_manual(self):
+        repo, _ = await self._create()
+        assert repo.create.await_args.kwargs["delivery_mode"] == "polling"
+
+    async def test_the_response_reveals_no_secret(self):
+        _, created = await self._create()
+        assert created.reveal_secret is None
+
+    def test_and_the_read_model_offers_no_url_for_a_polled_row(self):
+        """The URL is computed, so this is where it is refused: nothing POSTs to a
+        Gmail trigger, and the client showed one as "add this to your provider"."""
+        read = TriggerRead.model_construct(
+            trigger_type="event", event_source="gmail", delivery_mode="polling", id=uuid.uuid4()
+        )
+        assert read.webhook_url is None
+        posted = TriggerRead.model_construct(
+            trigger_type="event", event_source="webhook", delivery_mode="manual", id=uuid.uuid4()
+        )
+        assert posted.webhook_url is not None
+
+    async def test_rotating_it_is_refused_rather_than_writing_a_dead_credential(self):
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(
+            trigger_type="event",
+            event_source="gmail",
+            conversation_id=uuid.uuid4(),
+            delivery_mode="polling",
+            event_secret_encrypted=None,
+            secret_key_version=None,
+        )
+        trigger.agent_id = agent.id
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get = AsyncMock(return_value=trigger)
+            with pytest.raises(BadRequestError, match="no secret"):
+                await service.rotate_secret(_ctx(), agent.id, trigger.id)
+
+
 class TestPortalCatalogConnectionState:
     """The catalog carries each portal's org-connection state, so a caller who may
     create a trigger (agents:run, per agent) sees a connected portal as usable

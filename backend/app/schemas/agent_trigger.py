@@ -349,7 +349,7 @@ class TriggerRead(BaseSchema, TimestampSchema):
     # schedule leaves it null. `portal_key` is null on a schedule and on a raw
     # event trigger, which came from no preset.
     portal_key: str | None = None
-    delivery_mode: Literal["auto_webhook", "manual"] | None = None
+    delivery_mode: Literal["auto_webhook", "manual", "polling"] | None = None
     connection_id: UUID | None = None
     # The target the webhook was registered against (a `owner/repo`), so a listing
     # can read "New issue in acme/repo" rather than just the source. Null on a
@@ -368,8 +368,15 @@ class TriggerRead(BaseSchema, TimestampSchema):
         (`api.<domain>`), which is a different origin from the dashboard, so a
         client that prepended its own origin would hand the provider a URL that
         404s. The secret that authenticates a delivery is never part of it.
+
+        **Null for a polled source too.** Nothing POSTs to a Gmail trigger - the
+        door refuses a delivery naming one - so a URL here is an address that
+        answers nothing, and the client showed it as "add this webhook URL to your
+        provider" for a provider there is nothing to add it to (#1068).
         """
         if self.trigger_type != "event" or self.event_source is None:
+            return None
+        if self.delivery_mode == "polling":
             return None
         base = settings.PUBLIC_BASE_URL.rstrip("/")
         return f"{base}/api/v1/webhooks/triggers/{self.event_source}/{self.id}"

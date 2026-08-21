@@ -67,7 +67,7 @@ export interface Trigger {
    * so a partial fixture need not carry them - the live `TriggerRead` always does.
    */
   portal_key?: string | null;
-  delivery_mode?: "auto_webhook" | "manual" | null;
+  delivery_mode?: "auto_webhook" | "manual" | "polling" | null;
   connection_id?: string | null;
   /**
    * Where a preset points - a repository, a channel - carried on `TriggerRead` so

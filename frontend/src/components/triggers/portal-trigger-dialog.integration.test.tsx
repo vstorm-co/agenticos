@@ -271,6 +271,35 @@ describe("PortalTriggerDialog", () => {
     return user;
   }
 
+  it("hands over nothing at all for a polled portal", async () => {
+    // What the user saw instead: "Add this webhook URL to your provider" and a
+    // reveal-once signing secret, under a Gmail trigger - for a door that refuses
+    // a delivery naming a polled source (#1068).
+    const user = userEvent.setup();
+    serve();
+    vi.mocked(apiClient.post).mockResolvedValue({
+      id: "t1",
+      trigger_type: "event",
+      delivery_mode: "polling",
+      webhook_url: null,
+      reveal_secret: null,
+    });
+    render(<PortalTriggerDialog portal={GMAIL} connectionId={null} open onOpenChange={vi.fn()} />, {
+      wrapper,
+    });
+
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: /Any new message/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    await user.type(within(dialog).getByLabelText("Message"), "Read it");
+    await user.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    expect(await screen.findByText(/Nothing else to set up/)).toBeVisible();
+    expect(screen.queryByLabelText("Webhook URL")).toBeNull();
+    expect(screen.queryByLabelText("Signing secret")).toBeNull();
+    expect(screen.queryByText(/add this webhook URL/i)).toBeNull();
+  });
+
   it("reveals the webhook URL when the result is a manual delivery", async () => {
     await createManual({
       id: "t1",

@@ -289,9 +289,17 @@ class AgentTrigger(Base, TimestampMixin):
         # The discriminator across both concepts, in one constraint so a row can
         # never be a half-schedule-half-event. A schedule carries a next fire, one
         # cadence field (interval xor cron), and no event source; an event carries
-        # a source, a sealed secret to verify its deliveries against, and none of
-        # the schedule machinery - no next fire, no interval, no cron. So "why
-        # would this fire, and how is it authenticated" always has one answer.
+        # a source, none of the schedule machinery, and a sealed secret *if and
+        # only if* its source is one something POSTs to. So "why would this fire,
+        # and how is it authenticated" always has one answer.
+        #
+        # The secret is conditional because a polled source has nothing to
+        # authenticate: `gmail` is read from a connected mailbox, so a secret on
+        # such a row is a credential nobody can spend and a URL nobody should be
+        # given. Stated here rather than trusted to the service, because it was
+        # the service that got it wrong - every event trigger minted a secret and
+        # was born `manual`, so creating a Gmail trigger handed out a webhook URL
+        # for a door that refuses it (#1068).
         CheckConstraint(
             "(trigger_type = 'schedule' AND next_fire_at IS NOT NULL "
             "AND event_source IS NULL "
@@ -300,7 +308,10 @@ class AgentTrigger(Base, TimestampMixin):
             "OR (schedule_kind = 'cron' AND cron_expression IS NOT NULL "
             "AND interval_seconds IS NULL))) "
             "OR (trigger_type = 'event' AND event_source IS NOT NULL "
-            "AND event_secret_encrypted IS NOT NULL AND secret_key_version IS NOT NULL "
+            "AND ((event_source IN ('gmail') AND event_secret_encrypted IS NULL "
+            "AND secret_key_version IS NULL) "
+            "OR (event_source NOT IN ('gmail') AND event_secret_encrypted IS NOT NULL "
+            "AND secret_key_version IS NOT NULL)) "
             "AND next_fire_at IS NULL AND interval_seconds IS NULL "
             "AND cron_expression IS NULL)",
             name="ck_trigger_shape",

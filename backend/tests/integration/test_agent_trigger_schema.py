@@ -196,13 +196,42 @@ class TestTheEventShapeRejectsABadRow:
         with pytest.raises(IntegrityError):
             await db.flush()
 
-    async def test_an_event_trigger_without_a_sealed_secret_is_refused(self, db):
+    async def test_a_posted_event_trigger_without_a_sealed_secret_is_refused(self, db):
         """Without a secret there is nothing to verify a delivery against."""
         org = await _org(db)
         agent = await _agent(db, org)
         db.add(_event(org, agent, event_secret_encrypted=None, secret_key_version=None))
         with pytest.raises(IntegrityError):
             await db.flush()
+
+    async def test_a_polled_event_trigger_carrying_a_secret_is_refused(self, db):
+        """The other direction, and the one that shipped broken.
+
+        Nothing POSTs to a polled source, so a secret on such a row is a
+        credential nobody can spend - and the create path minted one anyway,
+        answering with a webhook URL and a reveal-once secret for a door that
+        refuses a delivery naming `gmail`. The schema forbids the shape now, so
+        the mistake cannot be made twice (#1068).
+        """
+        org = await _org(db)
+        agent = await _agent(db, org)
+        db.add(_event(org, agent, event_source="gmail"))
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    async def test_a_polled_event_trigger_with_no_secret_is_accepted(self, db):
+        org = await _org(db)
+        agent = await _agent(db, org)
+        db.add(
+            _event(
+                org,
+                agent,
+                event_source="gmail",
+                event_secret_encrypted=None,
+                secret_key_version=None,
+            )
+        )
+        await db.flush()
 
     async def test_an_event_trigger_carrying_an_interval_is_refused(self, db):
         org = await _org(db)
@@ -239,7 +268,19 @@ class TestTheEventShapeRejectsABadRow:
         org = await _org(db)
         agent = await _agent(db, org)
         for source in tuple(member.value for member in EventSource):
-            db.add(_event(org, agent, event_source=source))
+            # A polled source carries no secret and a posted one must - the shape
+            # constraint's other half, so the row has to be built per source
+            # rather than from one template.
+            polled = source == EventSource.GMAIL.value
+            db.add(
+                _event(
+                    org,
+                    agent,
+                    event_source=source,
+                    event_secret_encrypted=None if polled else "sealed",
+                    secret_key_version=None if polled else 1,
+                )
+            )
         await db.flush()
 
 

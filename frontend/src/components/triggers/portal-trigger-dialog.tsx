@@ -172,15 +172,25 @@ export function PortalTriggerDialog({
     !create.isPending;
 
   if (created !== null) {
+    // Three outcomes, not two. `manual` is the only one with anything to hand
+    // over; `auto_webhook` says we registered the hook; and `polling` says there
+    // is nothing to do at all, because the mailbox is read rather than posted to.
+    // Collapsing the third into either of the others is what put "add this webhook
+    // URL to your provider" under a Gmail trigger (#1068).
     const manual = created.delivery_mode === "manual";
+    const polled = created.delivery_mode === "polling";
+    const title = manual ? tt("createdTitle") : polled ? t("polledTitle") : t("registeredTitle");
+    const description = manual
+      ? t("manualResultDescription")
+      : polled
+        ? t("polledDescription")
+        : t("registeredDescription");
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{manual ? tt("createdTitle") : t("registeredTitle")}</DialogTitle>
-            <DialogDescription>
-              {manual ? t("manualResultDescription") : t("registeredDescription")}
-            </DialogDescription>
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
           {manual && created.webhook_url && <WebhookField url={created.webhook_url} />}
           {manual && created.reveal_secret && (

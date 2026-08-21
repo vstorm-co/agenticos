@@ -4756,6 +4756,8 @@
     "targetGeneric": "Target",
     "targetPlaceholder": "Choose one",
     "targetFreeText": "e.g. owner/repository",
+    "polledTitle": "Trigger created",
+    "polledDescription": "Nothing else to set up. Your mailbox is checked every minute and a matching message fires the agent.",
     "registeredTitle": "Trigger ready",
     "registeredDescription": "The webhook was registered for you. The agent runs when the event arrives.",
     "manualResultDescription": "Add this webhook URL to your provider. Nothing fires until it delivers.",

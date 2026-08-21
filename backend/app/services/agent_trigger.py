@@ -538,17 +538,30 @@ class AgentTriggerService:
                 if data.connection_id is not None:
                     await self.connections.get_org_connection(ctx, data.connection_id)
                 connection_id = data.connection_id
+                polled = portal.delivery is portal_catalog.DeliveryMode.POLLING
             else:
                 event_source = data.event_source
                 event_config = data.event_config or {}
                 plaintext_secret = cast(str, data.event_secret)
-            sealed = seal(plaintext_secret, scope=VaultScope.organization(ctx.organization_id))
-            event_secret_encrypted = sealed.ciphertext
-            secret_key_version = sealed.key_version
-            # Manual until an auto-registration below succeeds, so a preset whose
-            # account lacks the scope or whose provider refuses degrades to the
-            # pasted-URL path rather than a half-set trigger.
-            delivery_mode = "manual"
+                polled = False
+            if polled:
+                # A polled source has nothing to authenticate: nobody POSTs to it,
+                # so a secret would be a credential nobody can spend and the URL
+                # built from it an instruction to configure a relay the door
+                # refuses. `ck_trigger_shape` enforces the same thing, because this
+                # is where it was got wrong - every event trigger minted a secret
+                # and was born `manual`, so creating a Gmail trigger answered with
+                # a webhook URL and a reveal-once secret (#1068).
+                plaintext_secret = None
+                delivery_mode = "polling"
+            else:
+                sealed = seal(plaintext_secret, scope=VaultScope.organization(ctx.organization_id))
+                event_secret_encrypted = sealed.ciphertext
+                secret_key_version = sealed.key_version
+                # Manual until an auto-registration below succeeds, so a preset
+                # whose account lacks the scope or whose provider refuses degrades
+                # to the pasted-URL path rather than a half-set trigger.
+                delivery_mode = "manual"
         else:
             next_fire_at = _next_fire(
                 schedule_kind=data.schedule_kind,
@@ -935,6 +948,14 @@ class AgentTriggerService:
         if trigger.trigger_type != TriggerType.EVENT.value:
             raise BadRequestError(
                 message="only an event trigger has a secret to rotate",
+                details={"trigger_id": str(trigger.id)},
+            )
+        # A polled source has none. Rotating one would write a credential the
+        # shape constraint forbids on such a row, and hand somebody a secret with
+        # nothing to sign - the same mistake create made before #1068.
+        if trigger.delivery_mode == "polling":
+            raise BadRequestError(
+                message="a polled trigger is read from a connected account and has no secret",
                 details={"trigger_id": str(trigger.id)},
             )
         plaintext = secrets.token_urlsafe(32)
