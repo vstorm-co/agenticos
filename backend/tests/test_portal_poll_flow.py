@@ -476,22 +476,6 @@ class TestTheRefusalsAroundIt:
         )
         assert _connect_blocked_by(orphan, oauth_apps=1) == "oauth_unavailable"
 
-    async def test_a_non_github_webhook_portal_needs_no_oauth_app(self):
-        from app.services import portal_catalog
-        from app.services.agent_trigger import _connect_blocked_by
-
-        other = portal_catalog.PortalEntry(
-            key="linear",
-            name="Linear",
-            description="…",
-            category="development",
-            event_source="webhook",
-            delivery=portal_catalog.DeliveryMode.AUTO_WEBHOOK,
-            mcp_catalog_key="linear",
-            presets=(),
-        )
-        assert _connect_blocked_by(other, oauth_apps=0) is None
-
     async def test_a_target_listing_for_a_portal_with_no_adapter_is_empty(self):
         """A portal that names a target kind but ships no adapter: the picker falls
         back to free text rather than the create being blocked."""

@@ -156,6 +156,18 @@ describe("the vendor and key facets", () => {
     // `tab-failures.integration.test.tsx` covers the difference between them.
     expect(await screen.findByText("Nothing spent yet.")).toBeVisible();
   });
+
+  it("hands the person facet to its own table", async () => {
+    // The by-person breakdown reads a different endpoint with its own paging, so
+    // it is its own component - this only proves the pill actually mounts it
+    // (its behaviour lives in spend-by-person.integration.test.tsx).
+    serve({});
+
+    render(<SpendTab period={PERIOD} />, { wrapper });
+    await facet("By person");
+
+    expect(await screen.findByText("Nobody has run anything yet.")).toBeVisible();
+  });
 });
 
 describe("the unpriced-runs caveat over the whole window", () => {

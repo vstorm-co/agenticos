@@ -2772,6 +2772,34 @@ class TestPortalGrantLookup:
         }
 
 
+class TestPortalGrantById:
+    @pytest.mark.anyio
+    async def test_the_orgs_own_grant_is_returned(self, monkeypatch):
+        service = McpConnectionService(AsyncMock())
+        ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER.value)
+        grant = _connection(scope="org")
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_portal_by_id",
+            AsyncMock(return_value=grant),
+        )
+        assert await service.get_org_portal_connection(ctx, uuid4()) is grant
+
+    @pytest.mark.anyio
+    async def test_a_foreign_or_bogus_grant_id_is_not_found(self, monkeypatch):
+        """The same unprobeable refusal every org-scoped lookup gives: a trigger
+        created against another tenant's mailbox grant reads as missing."""
+        service = McpConnectionService(AsyncMock())
+        ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER.value)
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_portal_by_id",
+            AsyncMock(return_value=None),
+        )
+        with pytest.raises(NotFoundError):
+            await service.get_org_portal_connection(ctx, uuid4())
+
+
 class TestGithubPortalOAuth:
     """The GitHub OAuth App connect flow: the org's stored creds, fixed endpoints.
 

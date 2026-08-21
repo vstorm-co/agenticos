@@ -121,6 +121,7 @@ class TestListing:
             "aws_credentials",
             "gcp_service_account",
             "github_oauth_app",
+            "google_oauth_app",
         }
         assert all(entry["json_schema"]["properties"] for entry in response.json()["items"])
 

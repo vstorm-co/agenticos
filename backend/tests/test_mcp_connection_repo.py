@@ -207,6 +207,23 @@ class TestGetByCatalogKey:
         assert found is None
 
 
+class TestGetPortalGrantById:
+    async def test_the_lookup_demands_a_portal_grant_in_the_callers_org(self):
+        """Either filter missing is severe on its own: no organization reads
+        another tenant's mailbox grant, and no purpose filter would let a trigger
+        prove itself against a plain MCP row (or the reverse surface a grant as a
+        bindable server)."""
+        session = _RecordingSession(_Result(scalar=None))
+        connection_id, organization_id = uuid.uuid4(), uuid.uuid4()
+
+        found = await mcp_connection_repo.get_org_scoped_portal_by_id(
+            session, connection_id=connection_id, organization_id=organization_id
+        )
+
+        assert found is None
+        assert set(_filters(session).values()) == {connection_id, organization_id, "portal", "org"}
+
+
 class TestGetByName:
     async def test_a_name_is_only_unique_within_one_users_connections(self):
         """`uq_mcp_connections_user_name` is per user, so a lookup that

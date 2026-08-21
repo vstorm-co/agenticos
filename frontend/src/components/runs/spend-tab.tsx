@@ -119,7 +119,10 @@ export function SpendTab({ period }: { period: Period }) {
     );
   }
   if (isLoading) return <LoadingState variant="stats" rows={2} />;
-  if (error)
+  // One guard for both absences: a failed request, and the body react-query
+  // itself refuses (`undefined` data is an error there, so past this line the
+  // answer exists - which is also what narrows the type for everything below).
+  if (error || spend === undefined)
     return (
       <ErrorState
         title={t("spendCouldNotBeRead")}
@@ -231,8 +234,6 @@ export function SpendTab({ period }: { period: Period }) {
       cell: (row) => <CostCell cost={row.cost_usd} title={t("theCostIsAFloor")} />,
     },
   ];
-
-  if (spend === undefined) return <ErrorState title={t("spendCouldNotBeRead")} />;
 
   const windowTotal = spend.by_agent.reduce((sum, row) => sum + Number(row.cost_usd), 0);
   const runCount = spend.by_agent.reduce((sum, row) => sum + row.run_count, 0);
