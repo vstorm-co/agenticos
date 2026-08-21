@@ -157,40 +157,57 @@ describe("WorkspaceBrowser", () => {
 
     render(<WorkspaceBrowser />);
 
-    expect(screen.getByText("12 conversations")).toBeVisible();
+    expect(screen.getByText(/12 conversations/)).toBeVisible();
   });
 
-  it("says nothing about chats for a workspace that ends with its run", () => {
+  it("leads with whose it is for a workspace that ends with its run", () => {
+    // No chat to name it after and no count to give, so the heading is the owner
+    // - which under `agent` scope is the whole point of the row.
     state.workspaces = [
-      workspace({ conversation_id: null, conversation_title: null, conversations: 0 }),
+      workspace({
+        conversation_id: null,
+        conversation_title: null,
+        conversations: 0,
+        owner_label: "Every chat with Analyst",
+      }),
     ];
 
     render(<WorkspaceBrowser />);
 
-    expect(screen.getByText("—")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Every chat with Analyst" })).toBeVisible();
+    // Not the access label, which legitimately says "conversation": a count.
+    expect(screen.queryByText(/\d+ conversations/)).toBeNull();
   });
 
-  it("sorts by agent, and puts a container's unmeasured size last either way", async () => {
+  it("sorts by what the row leads with, and puts an unmeasured workspace last", async () => {
     state.workspaces = [
       workspace(),
-      workspace({ id: "w-2", backend: "service", agent_name: "Builder", bytes_total: 0 }),
+      // Alphabetically last *and* the unmeasured one, so the two orders this
+      // asserts cannot agree by accident.
+      workspace({
+        id: "w-2",
+        backend: "service",
+        agent_name: "Builder",
+        conversation_title: "Webhook wiring",
+        bytes_total: 0,
+      }),
     ];
     render(<WorkspaceBrowser />);
-    // The avatar's initials are decoration inside the same cell, so the name
+    // The avatar's initials are decoration inside the same cell, so the heading
     // is what is left once the aria-hidden part is dropped.
-    const firstAgent = () => {
+    const firstRow = () => {
       const cell = screen.getAllByRole("rowgroup")[1]!.querySelector("tr > td")!;
       cell.querySelector('[aria-hidden="true"]')?.remove();
       return cell.textContent;
     };
 
     await userEvent.click(screen.getByRole("button", { name: "Workspace" }));
-    expect(firstAgent()).toContain("Builder");
+    expect(firstRow()).toContain("Webhook wiring");
 
-    // Descending by size: the stored workspace has a number, the container
-    // has none - and an absence is not a small number, so it sorts last.
-    await userEvent.click(screen.getByRole("button", { name: "Size" }));
-    expect(firstAgent()).toContain("Analyst");
+    // Descending: the stored workspace has a number, the container has none -
+    // and an absence is not a small number, so it sorts last.
+    await userEvent.click(screen.getByRole("button", { name: "Where" }));
+    expect(firstRow()).toContain("Refund policy");
   });
 
   it("links the reader's own conversation to its chat", () => {
@@ -199,16 +216,16 @@ describe("WorkspaceBrowser", () => {
 
     const link = screen.getByRole("link", { name: "Open the chat these files belong to" });
     expect(link).toHaveAttribute("href", "/chat?id=c-1");
-    expect(link).toHaveTextContent("Refund policy");
+    // The title is the row's heading now; this link is the icon beside the agent,
+    // so what identifies it is its label rather than its text.
+    expect(screen.getByRole("link", { name: "Refund policy" })).toBeVisible();
   });
 
   it("names an untitled chat rather than drawing a hole", () => {
     state.workspaces = [workspace({ conversation_is_mine: true, conversation_title: null })];
     render(<WorkspaceBrowser />);
 
-    expect(
-      screen.getByRole("link", { name: "Open the chat these files belong to" }),
-    ).toHaveTextContent("Untitled chat");
+    expect(screen.getByRole("link", { name: "Untitled chat" })).toBeVisible();
   });
 
   it("offers no chat link on somebody else's conversation", () => {
@@ -228,8 +245,8 @@ describe("WorkspaceBrowser", () => {
     ];
     render(<WorkspaceBrowser />);
 
-    expect(screen.getByText("1.0 MB")).toBeVisible();
-    expect(screen.getByText("on the host")).toBeVisible();
+    expect(screen.getByText("stored · 1.0 MB")).toBeVisible();
+    expect(screen.getByText("container · on the host")).toBeVisible();
   });
 
   it("says when a workspace was last touched", () => {
@@ -257,11 +274,11 @@ describe("WorkspaceBrowser", () => {
 
   it("reads a workspace with no recorded size as unmeasured", () => {
     // A container's `bytes_total` is the JSONB document's, which is zero for it -
-    // so the column says where its files actually are instead of claiming a size.
+    // so the column says what holds the files instead of claiming a size.
     state.workspaces = [workspace({ backend: "service" })];
     render(<WorkspaceBrowser />);
 
-    expect(screen.getByText("on the host")).toBeVisible();
+    expect(screen.getByText("container · on the host")).toBeVisible();
   });
 
   it("says an organization is keeping nothing rather than showing an empty table", () => {
@@ -291,24 +308,27 @@ describe("WorkspaceBrowser", () => {
 
   it("opens a workspace as its own page rather than a panel under the table", () => {
     // A workspace with a `skills/` directory is a tree, and a URL is what makes
-    // "look at this file" something one person can send another. The agent's name
-    // is that link now - the trailing `Open` button was a seventh column saying
-    // what the row already meant (#1039).
+    // "look at this file" something one person can send another. What the row
+    // leads with is that link - the trailing `Open` button was a seventh column
+    // saying what the row already meant (#1039).
     render(<WorkspaceBrowser />);
 
-    expect(screen.getByRole("link", { name: "Analyst" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Refund policy" })).toHaveAttribute(
       "href",
       "/workspaces/w-1",
     );
   });
 
-  it("says what holds the files beside who can see them", () => {
-    // Two halves of one answer about reach, folded into one cell: seven columns of
-    // small grey text was a table nobody could scan.
+  it("says who can see the files without repeating what holds them", () => {
+    // The `container` badge beside the access label repeated on every row of a
+    // deployment that runs one kind of host - a column of one word, twenty times,
+    // saying what `Where` says once per row.
     render(<WorkspaceBrowser />);
 
     const cell = screen.getByText("Whoever is in that conversation").closest("td")!;
-    expect(cell).toHaveTextContent("stored");
+
+    expect(cell).not.toHaveTextContent("stored");
+    expect(screen.getByText("stored · 1.0 MB")).toBeVisible();
   });
 
   describe("the flat view", () => {
@@ -622,5 +642,32 @@ describe("WorkspaceBrowser", () => {
       expect(screen.getByText("Analyst")).toBeVisible();
       expect(screen.queryByText("/report.csv")).toBeNull();
     });
+  });
+});
+
+describe("what a row is about", () => {
+  it("leads with the conversation, because that is what the rows differ by", () => {
+    // An organization runs a handful of agents and a great many conversations, so
+    // an agent's name as the heading made twenty rows all called `jarvis`.
+    state.workspaces = [
+      workspace({ conversation_title: "Refund policy" }),
+      workspace({ id: "w-2", conversation_title: "Webhook wiring" }),
+    ];
+
+    render(<WorkspaceBrowser />);
+
+    expect(screen.getByRole("link", { name: "Refund policy" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Webhook wiring" })).toBeVisible();
+    // Twice, once per row, and no longer the thing being read first.
+    expect(screen.getAllByText("Analyst")).toHaveLength(2);
+  });
+
+  it("counts the workspaces rather than repeating the page's own sentences", () => {
+    // The card's count line carried the two sentences the page header already
+    // shows, so the same prose was on screen twice. `counted` is a count.
+    render(<WorkspaceBrowser />);
+
+    expect(screen.getByText("1 workspace")).toBeVisible();
+    expect(screen.queryByText(/A workspace is scratch space/)).toBeNull();
   });
 });

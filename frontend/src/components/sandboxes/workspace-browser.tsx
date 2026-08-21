@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { Download, MessageSquare } from "lucide-react";
 
 import {
-  Badge,
   Button,
   DataTable,
   ListCard,
@@ -56,6 +55,19 @@ function compareFlat(sort: FlatSort, a: FlatFile, b: FlatFile): number {
     default:
       return a.path.localeCompare(b.path);
   }
+}
+
+/**
+ * What identifies one workspace, in words.
+ *
+ * The conversation where there is one, because that is what an agent's twenty
+ * workspaces differ by. A `run`- or `agent`-scoped workspace has no single chat,
+ * so it leads with whose it is - which under `agent` scope is the whole point.
+ */
+function title(workspace: WorkspaceSummary, t: (key: string) => string): string {
+  if (workspace.conversation_title !== null) return workspace.conversation_title;
+  if (workspace.conversation_id !== null) return t("untitledChat");
+  return workspace.owner_label;
 }
 
 /** When it was last touched, roughly. */
@@ -112,10 +124,15 @@ export function WorkspaceBrowser() {
         header: t("workspace"),
         className: "pl-5",
         sortable: true,
-        sortValue: (workspace) => workspace.agent_name,
+        sortValue: (workspace) => title(workspace, t),
+        // **The chat is the heading, and the agent is under it.** It was the other
+        // way round, which read as twenty rows called `jarvis`: an organization
+        // runs a handful of agents and a great many conversations, so the agent is
+        // the part every row shares and the conversation is the part that tells
+        // them apart.
         cell: (workspace) => (
           <div className="flex min-w-0 items-center gap-3">
-            {/* Decorative beside the name it initials - the presentation every
+            {/* Decorative beside the agent it initials - the presentation every
                 list of agents draws. */}
             <span aria-hidden>
               <AgentAvatar
@@ -130,32 +147,33 @@ export function WorkspaceBrowser() {
                 href={ROUTES.WORKSPACE_DETAIL(workspace.id)}
                 className="text-foreground block truncate text-sm font-medium underline-offset-4 hover:underline"
               >
-                {workspace.agent_name}
+                {title(workspace, t)}
               </Link>
-              {/* A conversation-scoped workspace has exactly one chat; a shared
-                  one has however many the agent has answered in, and that number
-                  is the difference between "my files" and "everybody's". The
-                  reader's own thread links to the chat itself - anybody else's
-                  would land on an empty sidebar dressed as the conversation. */}
-              {workspace.conversation_id !== null && workspace.conversation_is_mine ? (
-                <Link
-                  href={`${ROUTES.CHAT}?id=${workspace.conversation_id}`}
-                  className="text-muted-foreground inline-flex max-w-64 items-center gap-1 truncate text-xs underline-offset-4 hover:underline"
-                  aria-label={t("openTheChatBehindFiles")}
-                >
-                  <MessageSquare className="h-3 w-3 shrink-0" aria-hidden />
-                  <span className="truncate">
-                    {workspace.conversation_title ?? t("untitledChat")}
+              <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
+                <span className="truncate">{workspace.agent_name}</span>
+                {/* How many chats reach these files, where that is not one. Under
+                    `agent` scope it is the difference between "my files" and
+                    "everybody's", and the heading above cannot carry it because
+                    such a workspace has no single conversation to be named after. */}
+                {workspace.conversation_id === null && workspace.conversations > 0 && (
+                  <span className="shrink-0">
+                    · {t("conversationCount", { count: workspace.conversations })}
                   </span>
-                </Link>
-              ) : (
-                <span className="text-muted-foreground block max-w-64 truncate text-xs">
-                  {workspace.conversation_title ??
-                    (workspace.conversations > 0
-                      ? t("conversationCount", { count: workspace.conversations })
-                      : "—")}
-                </span>
-              )}
+                )}
+                {/* The chat itself, for the reader's own thread only - anybody
+                    else's would land on an empty sidebar dressed as the
+                    conversation. An icon rather than the title again, which is
+                    now the heading above it. */}
+                {workspace.conversation_id !== null && workspace.conversation_is_mine && (
+                  <Link
+                    href={`${ROUTES.CHAT}?id=${workspace.conversation_id}`}
+                    className="hover:text-foreground shrink-0"
+                    aria-label={t("openTheChatBehindFiles")}
+                  >
+                    <MessageSquare className="h-3 w-3" aria-hidden />
+                  </Link>
+                )}
+              </span>
             </div>
           </div>
         ),
@@ -163,27 +181,28 @@ export function WorkspaceBrowser() {
       {
         key: "whoCanSeeIt",
         header: t("whoCanSeeIt"),
+        // The label alone. The `container` badge beside it repeated on every row
+        // of a deployment that runs one kind of host - a column of one word,
+        // twenty times, saying what `Where` now says once per row.
         cell: (workspace) => (
-          <div className="min-w-0">
-            <Badge variant="outline">
-              {workspace.backend === "state" ? t("stored") : t("container")}
-            </Badge>
-            <span className="text-muted-foreground mt-1 block truncate text-xs">
-              {workspace.access_label}
-            </span>
-          </div>
+          <span className="text-muted-foreground block min-w-0 truncate text-xs">
+            {workspace.access_label}
+          </span>
         ),
       },
       {
-        key: "size",
-        header: t("size"),
+        key: "where",
+        header: t("where"),
         sortable: true,
         sortValue: (workspace) => (workspace.backend === "state" ? workspace.bytes_total : null),
+        // What holds the files, and how much where that is knowable. This was
+        // `Size`, and for a container workspace every cell read `on the host` -
+        // a column whose every answer was "ask somewhere else".
         cell: (workspace) => (
           <span className="text-muted-foreground text-xs">
-            {/* Only meaningful for a stored workspace: a container's files are on
-                its host volume and this column is the JSONB document's size. */}
-            {workspace.backend === "state" ? formatBytes(workspace.bytes_total) : t("host")}
+            {workspace.backend === "state"
+              ? t("storedBytes", { size: formatBytes(workspace.bytes_total) })
+              : t("onTheHost")}
           </span>
         ),
       },
@@ -201,8 +220,14 @@ export function WorkspaceBrowser() {
   return (
     <div className="space-y-4">
       <ListCard
-        title={t("workspacesHeading")}
-        counted={isLoading ? null : t("whatAgentsAreKeeping")}
+        // The view, not the page's own title again. Under a page headed
+        // `Workspaces` the card said `Workspaces` and then repeated the page's
+        // two sentences - three lines of chrome saying one thing.
+        title={flat ? t("everyFile") : t("byWorkspace")}
+        // A count, which is what this line is for. It carried the page header's
+        // own two sentences, so the same prose was on screen twice - once under
+        // the title and once under the card's.
+        counted={isLoading ? null : t("workspaceCount", { count: workspaces.length })}
         controls={
           /* Two questions, not two designs: "which workspaces exist" is a table
              of rows, and "who is holding a copy of that CSV" is a flat list of

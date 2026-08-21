@@ -4182,7 +4182,6 @@
     },
     "turningOffRefusesNew": "Turning it off refuses new sandboxes here without deleting the record of what agents did on it.",
     "whatAgentAuthorsWill": "What agent authors will see when they pick a host.",
-    "whatAgentsAreKeeping": "What the agents are keeping. A workspace is scratch space — it is deleted with the conversation it belongs to, and is not a place to store anything durable.",
     "whatAllows": "What it allows",
     "whereOrganizationAposS": "Where this organization's agents run shell commands and keep files. The token is stored in the vault and never shown again.",
     "whereSandboxServiceAnswers": "Where the sandbox service answers. It holds the Docker socket, so it should not be reachable from outside your network.",
@@ -4195,6 +4194,7 @@
       "container": "container",
       "conversation": "Conversation",
       "conversationCount": "{count, plural, =1 {1 conversation} other {# conversations}}",
+      "everyFile": "Every file",
       "files": "Files",
       "folderEmpty": "This folder is empty.",
       "folders": "Folders",
@@ -4203,6 +4203,7 @@
       "noAgentKeepingFiles": "No agent is keeping files yet. One appears here the first time an agent with a workspace writes something.",
       "noMatches": "Nothing in this workspace matches “{query}”.",
       "nothingListed": "Nothing could be listed here.",
+      "onTheHost": "container · on the host",
       "open": "Open",
       "openTheChatBehindFiles": "Open the chat these files belong to",
       "pickAFile": "Pick a file to read it here.",
@@ -4212,17 +4213,17 @@
       "size": "Size",
       "source": "Source",
       "stored": "stored",
+      "storedBytes": "stored · {size}",
       "untitledChat": "Untitled chat",
       "usedDaysAgo": "{days} days ago",
       "usedNever": "never",
       "usedToday": "today",
       "usedYesterday": "yesterday",
-      "whatAgentsAreKeeping": "What the agents are keeping. A workspace is scratch space — it is deleted with the conversation it belongs to, and is not a place to store anything durable.",
+      "where": "Where",
       "whoCanSeeIt": "Who can see it",
       "workspace": "Workspace",
-      "workspacesHeading": "Workspaces"
-    },
-    "workspacesHeading": "Workspaces"
+      "workspaceCount": "{count, plural, =0 {No workspaces} =1 {1 workspace} other {# workspaces}}"
+    }
   },
   "settings": {
     "builtCommands": "Built-in commands",
