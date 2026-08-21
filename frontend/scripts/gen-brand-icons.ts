@@ -37,11 +37,6 @@ const OUT = join(here, "..", "src", "lib", "brand-glyphs.generated.ts");
  */
 type IconSet = "simple" | "fontawesome" | "lobehub";
 
-// Simple Icons' own metadata, from the package the paths come from: it carries a
-// brand `hex` per icon, which is the only honest source for a mark's colour. One
-// fetch for the whole table rather than one per mark.
-const SIMPLE_METADATA = "https://cdn.jsdelivr.net/npm/simple-icons@15/data/simple-icons.json";
-
 const SOURCES: Readonly<Record<IconSet, (slug: string) => string>> = {
   simple: (slug) => `https://cdn.jsdelivr.net/npm/simple-icons@15/icons/${slug}.svg`,
   fontawesome: (slug) =>
@@ -184,7 +179,6 @@ interface Glyph {
   readonly viewBox: string;
   readonly fillRule?: "evenodd";
   readonly paths: readonly GlyphPath[];
-  readonly color?: string;
 }
 
 const SVG_OPEN = /<svg\b[^>]*>/;
@@ -269,65 +263,21 @@ function parseGlyph(name: string, svg: string): Glyph {
   return rule === "evenodd" ? { viewBox, fillRule: "evenodd", paths } : { viewBox, paths };
 }
 
-/**
- * Every Simple Icons brand colour, by slug, or an empty map if the fetch failed.
- *
- * Not fatal: a mark with no colour is drawn in `currentColor`, which is what
- * every mark did before colour existed here - so a metadata endpoint that moves
- * costs the marks their colour rather than costing the build its icons.
- */
-async function fetchBrandColors(): Promise<Map<string, string>> {
-  const res = await fetch(SIMPLE_METADATA, { redirect: "follow" });
-  if (!res.ok) {
-    console.warn(`brand colours: ${SIMPLE_METADATA} answered ${res.status} - marks stay ink`);
-    return new Map();
-  }
-  // The package has shipped both shapes: a bare array, and an object wrapping one.
-  const body: unknown = await res.json();
-  const icons: readonly SimpleIconMeta[] = Array.isArray(body)
-    ? (body as readonly SimpleIconMeta[])
-    : ((body as { icons?: readonly SimpleIconMeta[] }).icons ?? []);
-  return new Map(
-    icons.map((icon) => [icon.slug ?? icon.title.toLowerCase(), `#${icon.hex}`] as const),
-  );
-}
-
-interface SimpleIconMeta {
-  readonly title: string;
-  readonly slug?: string;
-  readonly hex: string;
-}
-
-async function fetchGlyph(
-  name: string,
-  source: Source,
-  colors: Map<string, string>,
-): Promise<Glyph> {
+async function fetchGlyph(name: string, source: Source): Promise<Glyph> {
   const url = SOURCES[source.set](source.slug);
   const res = await fetch(url, { redirect: "follow" });
   if (!res.ok) throw new GlyphError(`${name}: ${url} answered ${res.status}`);
-  const glyph = parseGlyph(name, await res.text());
-  if (source.set !== "simple") return glyph;
-  // Every Simple Icons mark carries its colour, with no filter on which ones are
-  // "worth" it. Colouring some and not others is what reads as a mistake: a grid
-  // of marks is either one set in ink or one set in brand colours, and a surface
-  // built to be scanned wants the second. Whether a colour is legible where it is
-  // drawn is the caller's problem, not this file's - see `BrandIcon`.
-  const color = colors.get(source.slug);
-  return color === undefined ? glyph : { ...glyph, color };
+  return parseGlyph(name, await res.text());
 }
 
 /** Every mark in a table, fetched together, sorted by the product's own name. */
-async function fetchAll(
-  table: Readonly<Record<string, Source>>,
-  colors: Map<string, string>,
-): Promise<Map<string, Glyph>> {
+async function fetchAll(table: Readonly<Record<string, Source>>): Promise<Map<string, Glyph>> {
   const entries = Object.entries(table).sort(([a], [b]) => a.localeCompare(b));
   return new Map(
     await Promise.all(
       entries.map(async ([name, source]): Promise<[string, Glyph]> => [
         name,
-        await fetchGlyph(name, source, colors),
+        await fetchGlyph(name, source),
       ]),
     ),
   );
@@ -340,9 +290,8 @@ function renderPath(path: GlyphPath): string {
 
 function renderGlyph(glyph: Glyph): string {
   const rule = glyph.fillRule === undefined ? "" : `\n    fillRule: "evenodd",`;
-  const color = glyph.color === undefined ? "" : `\n    color: ${JSON.stringify(glyph.color)},`;
   const paths = glyph.paths.map((path) => `      ${renderPath(path)},`).join("\n");
-  return `{\n    viewBox: ${JSON.stringify(glyph.viewBox)},${rule}${color}\n    paths: [\n${paths}\n    ],\n  }`;
+  return `{\n    viewBox: ${JSON.stringify(glyph.viewBox)},${rule}\n    paths: [\n${paths}\n    ],\n  }`;
 }
 
 function renderTable(name: string, type: string, glyphs: Map<string, Glyph>): string {
@@ -375,23 +324,12 @@ export interface Glyph {
   /** Set where the mark's holes depend on it; \`nonzero\` is SVG's default. */
   readonly fillRule?: "evenodd";
   readonly paths: readonly GlyphPath[];
-  /**
-   * The brand's own colour, where drawing it in ink would lose the brand.
-   *
-   * Absent for a mark whose identity *is* monochrome: GitHub's \`#181717\` is the
-   * text colour, so colouring it changes nothing on a light page and hides it on
-   * a dark one. Decided at generation time by luminance, so no consumer knows
-   * which brands are ink and no card carries a hardcoded hex. \`BrandIcon\` reads
-   * it only when a caller asks, so every mark drawn today is unchanged.
-   */
-  readonly color?: string;
 }
 
 `;
 
-const colors = await fetchBrandColors();
-const brands = await fetchAll(BRANDS, colors);
-const providers = await fetchAll(PROVIDERS, colors);
+const brands = await fetchAll(BRANDS);
+const providers = await fetchAll(PROVIDERS);
 
 const union = [...brands.keys()].map((name) => `  | ${JSON.stringify(name)}`).join("\n");
 const body =

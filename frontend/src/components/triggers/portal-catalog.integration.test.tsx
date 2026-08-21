@@ -249,6 +249,42 @@ describe("PortalCatalog", () => {
     expect(screen.queryByRole("group", { name: "API trigger" })).toBeNull();
   });
 
+  it("does not offer Connect at all when it could only fail", async () => {
+    // The button stayed beside the explanation and went on erroring, which is
+    // worse than the toast it replaced: a control that says it will connect and
+    // cannot (#1068).
+    await mount({ org: [], blockedBy: "oauth_app_secret" });
+
+    const card = within(screen.getByRole("group", { name: "GitHub" }));
+
+    expect(card.queryByRole("button", { name: "Connect account" })).toBeNull();
+    expect(card.getByRole("button", { name: /Add credentials/ })).toBeEnabled();
+  });
+
+  it("offers the vault's own form rather than sending you to another page", async () => {
+    const user = userEvent.setup();
+    await mount({ org: [], blockedBy: "oauth_app_secret" });
+
+    await user.click(
+      within(screen.getByRole("group", { name: "GitHub" })).getByRole("button", {
+        name: /Add credentials/,
+      }),
+    );
+
+    expect(await screen.findByRole("dialog", { name: /secret/i })).toBeInTheDocument();
+  });
+
+  it("cannot add a second one when two are already stored", async () => {
+    // Ambiguity is fixed by removing one, which is the vault's job - so the add
+    // control would make it worse.
+    await mount({ org: [], blockedBy: "ambiguous_oauth_app_secret" });
+
+    const card = within(screen.getByRole("group", { name: "GitHub" }));
+
+    expect(card.getByRole("button", { name: /Add credentials/ })).toBeDisabled();
+    expect(card.getByRole("link", { name: "Open the vault" })).toHaveAttribute("href", "/vault");
+  });
+
   it("names the missing OAuth App on the card instead of after the click", async () => {
     // Connecting GitHub builds its consent URL from the organization's own OAuth
     // App credentials, so with none stored the press could only fail - and did,
@@ -259,6 +295,9 @@ describe("PortalCatalog", () => {
 
     expect(card.getByText(/GitHub OAuth App credentials/)).toBeVisible();
     expect(card.getByRole("link", { name: "Open the vault" })).toHaveAttribute("href", "/vault");
+    // And the toast that used to be the only way to learn this is not the path:
+    // nothing was clicked to get here.
+    expect(vi.mocked(startGithubOrgOAuth)).not.toHaveBeenCalled();
   });
 
   it("says which of the two credential problems it is", async () => {

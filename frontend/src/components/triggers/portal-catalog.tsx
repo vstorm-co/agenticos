@@ -1,13 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plug, RefreshCw, Sparkles, Webhook } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { KeyRound, Plug, RefreshCw, Sparkles, Webhook } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import Link from "next/link";
 
-import { BrandTile, isBrandName } from "@/components/icons/brand-icon";
+import { BrandIcon, isBrandName } from "@/components/icons/brand-icon";
 import { Monogram } from "@/components/icons/monogram";
+import { AddSecretDialog } from "@/components/vault/secret-dialog";
 import { PortalTriggerDialog } from "@/components/triggers/portal-trigger-dialog";
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { ErrorState, LoadingState } from "@/components/states";
@@ -27,8 +29,9 @@ import {
   SelectValue,
   useListControls,
 } from "@/components/ui";
-import { usePortals, type PortalWithState } from "@/hooks";
+import { usePortals, useSecrets, type PortalWithState } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
+import { qk } from "@/lib/query-keys";
 import { startGithubOrgOAuth, startMcpOAuth } from "@/lib/mcp-connections-api";
 import { getErrorMessage } from "@/lib/api-error";
 
@@ -64,6 +67,11 @@ interface PortalCatalogProps {
  * The raw source-and-secret form is still reachable, as "Advanced: API
  * trigger" - the escape hatch for a provider no portal covers.
  */
+/** Whether this portal's connect flow cannot start yet - see `connect_blocked_by`. */
+function blocked(item: PortalWithState): boolean {
+  return item.portal.connect_blocked_by !== null;
+}
+
 export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogProps) {
   const t = useTranslations("portals");
   const tErrors = useTranslations("errors");
@@ -73,6 +81,9 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [dialog, setDialog] = useState<PortalWithState | null>(null);
   const [advanced, setAdvanced] = useState(false);
+  const [addingSecret, setAddingSecret] = useState(false);
+  const { kinds, create: createSecret } = useSecrets();
+  const queryClient = useQueryClient();
 
   const categories = useMemo(
     () => [...new Set(items.map((item) => item.portal.category))].sort(),
@@ -178,12 +189,16 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
               <CardContent className="flex h-full flex-col gap-3 p-4">
                 <div className="flex items-start gap-2.5">
                   {item.portal.icon && isBrandName(item.portal.icon) ? (
-                    // In brand colours here, unlike every list and step that draws
-                    // these in ink: on this grid the mark is the subject - what
-                    // somebody scans when deciding what to connect - and an
-                    // envelope in ink is not one anybody reads as Gmail. All of
-                    // them or none, on the light tile their palettes assume.
-                    <BrandTile name={item.portal.icon} className="mt-0.5 h-8 w-8" />
+                    // Ink, like every other mark in the product. Brand colours were
+                    // tried here and cannot make this grid consistent: GitHub's own
+                    // colour is `#181717`, so colouring every mark leaves GitHub
+                    // black beside a red Gmail - the same odd-one-out, reached by a
+                    // longer route. Monochrome is what makes a set read as a set.
+                    <BrandIcon
+                      name={item.portal.icon}
+                      aria-hidden
+                      className="mt-0.5 h-6 w-6 shrink-0"
+                    />
                   ) : (
                     <Monogram label={item.portal.name} className="mt-0.5 h-6 w-6" />
                   )}
@@ -207,31 +222,49 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
                 </div>
 
                 <div className="mt-auto">
-                  {/* The prerequisite, said here rather than as a red toast after
-                      the click. GitHub's consent URL is built from the
-                      organization's own OAuth App credentials, so with none stored
-                      - or two and nothing to say which was meant - Connect could
-                      only ever fail, and pressing it was the only way to find out
-                      (#1068). Gated on the same permission the connect control is:
-                      a Member who cannot fix it is not told to. */}
-                  {item.portal.connect_blocked_by !== null && canManageConnections && (
+                  {/* The prerequisite, said before the click rather than as a red
+                      toast after it - and answerable *here*, which is the half
+                      that was missing. GitHub's consent URL is built from the
+                      organization's own OAuth App credentials, so with none
+                      stored Connect could only ever fail, and leaving the button
+                      beside an explanation is still leaving a control that lies
+                      (#1068). Gated on the same permission the connect control
+                      is: a Member who cannot fix it is not told to. */}
+                  {blocked(item) && canManageConnections && (
                     <p className="text-muted-foreground border-border mt-3 border-t pt-3 text-xs">
                       {item.portal.connect_blocked_by === "oauth_app_secret"
                         ? t("needsOAuthApp")
-                        : t("ambiguousOAuthApp")}{" "}
-                      <Link href={ROUTES.VAULT} className="text-foreground underline">
-                        {t("openVault")}
-                      </Link>
+                        : t("ambiguousOAuthApp")}
                     </p>
                   )}
                   <div className="border-border mt-3 flex flex-wrap items-center gap-1.5 border-t pt-3">
+                    {/* The credentials, added without leaving the grid. The Vault
+                        page stays a link rather than the only way in: this is a
+                        shortcut to the same store, not a second one - the dialog
+                        is the vault's own, built from the kind's schema. */}
+                    {blocked(item) && canManageConnections && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setAddingSecret(true)}
+                          disabled={item.portal.connect_blocked_by !== "oauth_app_secret"}
+                        >
+                          <KeyRound className="mr-1 h-3.5 w-3.5" />
+                          {t("addCredentials")}
+                        </Button>
+                        <Button size="sm" variant="ghost" asChild>
+                          <Link href={ROUTES.VAULT}>{t("openVault")}</Link>
+                        </Button>
+                      </>
+                    )}
                     {item.action === "create" && canRun && (
                       <Button size="sm" variant="outline" onClick={() => setDialog(item)}>
                         <Sparkles className="mr-1 h-3.5 w-3.5" />
                         {t("createAction")}
                       </Button>
                     )}
-                    {item.action === "connect" && canManageConnections && (
+                    {item.action === "connect" && canManageConnections && !blocked(item) && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -242,7 +275,7 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
                         {busyKey === item.portal.key ? t("redirecting") : t("connectAction")}
                       </Button>
                     )}
-                    {item.action === "reauthorize" && canManageConnections && (
+                    {item.action === "reauthorize" && canManageConnections && !blocked(item) && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -311,6 +344,28 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
           onOpenChange={(next) => !next && setDialog(null)}
         />
       )}
+
+      {/* The vault's own add-secret dialog, filtered to the one kind this card
+          needs. Reusing it rather than writing a two-field form here is what keeps
+          "where secrets are stored" a single answer - and it builds its fields from
+          the kind's schema, so a change to what a GitHub OAuth App requires lands
+          in both places at once. */}
+      <AddSecretDialog
+        open={addingSecret}
+        onOpenChange={setAddingSecret}
+        kinds={kinds.filter((kind) => kind.kind === "github_oauth_app")}
+        onSubmit={async (data) => {
+          // Org-visible, because that is the only visibility the connect flow
+          // will spend: a member's private one is deliberately never taken for
+          // the whole organization's connection.
+          const stored = await createSecret.mutateAsync({ ...data, visibility: "org" });
+          // The catalog answers `connect_blocked_by` server-side, so it has to be
+          // asked again before the card can stop saying the prerequisite.
+          await queryClient.invalidateQueries({ queryKey: qk.portals.catalog() });
+          return stored;
+        }}
+        isPending={createSecret.isPending}
+      />
 
       {advanced && (
         <TriggerFormDialog
