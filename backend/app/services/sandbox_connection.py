@@ -35,6 +35,7 @@ from app.repositories import (
     organization_secret_repo,
     sandbox_connection_repo,
 )
+from app.repositories import conversation as conversation_repo
 from app.schemas.sandbox_connection import (
     SandboxConnectionCreate,
     SandboxConnectionRead,
@@ -50,6 +51,7 @@ from app.schemas.sandbox_connection import (
     SandboxSessionUsage,
 )
 from app.services.organization_secret import OrganizationSecretService
+from app.services.sandbox_runtimes import CATALOG
 
 logger = logging.getLogger(__name__)
 
@@ -230,24 +232,24 @@ class SandboxConnectionService:
 
     @staticmethod
     def runtime_catalog() -> list[SandboxRuntimeOption]:
-        """Every runtime the sandbox library ships, read from the library.
+        """What this deployment ships, from `app/core/catalog/sandbox_runtimes.json`.
 
-        Read rather than copied. `BUILTIN_RUNTIMES` is what a `sandboxd` is built
-        from, so a list of aliases maintained here would drift the first time the
-        library added one - and the failure is invisible: a form offering fewer
-        runtimes than exist looks complete.
+        The same file the compose files' `SANDBOXD_RUNTIMES` is generated from, so
+        the form offers what a `sandboxd` started by this project was actually
+        given. It used to read the library's `BUILTIN_RUNTIMES` instead, which
+        offered fifteen aliases of which a host allowed three - and the reason it
+        no longer does is that changing what this product ships should not be a
+        release of a dependency.
 
         This is not the same question as `policy`. A service can be started with a
-        narrower allowlist, so what it *permits* is only knowable by asking it. What
-        this answers is the earlier and cheaper question - which aliases exist at
-        all - so the form has a populated select before anybody has typed an
-        address or picked a key.
+        narrower allowlist - or a wider one, by a deployment that generated its own -
+        so what it *permits* is only knowable by asking it. What this answers is the
+        earlier and cheaper question, so the form has a populated select before
+        anybody has typed an address or picked a key.
         """
-        from pydantic_ai_backends import BUILTIN_RUNTIMES
-
         return [
             SandboxRuntimeOption(
-                alias=alias,
+                alias=runtime.alias,
                 description=runtime.description,
                 # A ready-made image names `image`; a built one names the base its
                 # build starts from. Both are worth showing - "python:3.12-slim"
@@ -255,7 +257,7 @@ class SandboxConnectionService:
                 image=runtime.image or runtime.base_image,
                 builds=runtime.image is None,
             )
-            for alias, runtime in BUILTIN_RUNTIMES.items()
+            for runtime in CATALOG
         ]
 
     async def local_service(self, ctx: AuthContext) -> SandboxLocalServiceRead:
@@ -368,7 +370,41 @@ class SandboxConnectionService:
             BadRequestError: If the address does not answer, the credential is
                 missing, is not an API key, or is refused.
         """
+        token = await self._probe_token(ctx, data)
+        payload = await self._get_json(
+            base_url=data.base_url,
+            token=token,
+            path="/policy",
+            field="base_url",
+            not_found="No sandbox service answers at this address - check the address and the port",
+            context={},
+        )
+        return SandboxPolicyRead.model_validate({**payload, "kind": "docker"})
+
+    async def _probe_token(self, ctx: AuthContext, data: SandboxProbeRequest) -> str:
+        """What to authenticate a probe with, which is not always a vault key.
+
+        **This deployment's own token, for this deployment's own service, and for
+        nothing else.** Adding the service `make dev` starts is the commonest path
+        through this dialog and it names no key at all - `storeCredential` runs at
+        submission - so there was no way to check the address or read its runtime
+        allowlist before saving, and an outdated local service was registered with
+        a default runtime its first tool call refuses.
+
+        The address is compared against `LOCAL_SERVICE_URLS` rather than against
+        whatever `local_service` last answered, because a probe must not be a way
+        to make this process send `SANDBOXD_TOKEN` - root-equivalent on a sandbox
+        host - to an address somebody typed. Two fixed addresses out of this
+        project's own compose file are not that.
+
+        Raises:
+            BadRequestError: If there is no key and no token that may be used for
+                this address, or if the key named is not an API key.
+        """
         if data.secret_id is None:
+            local = data.base_url.rstrip("/") in LOCAL_SERVICE_URLS
+            if local and settings.SANDBOXD_TOKEN:
+                return settings.SANDBOXD_TOKEN
             raise refused_field(
                 "secret_id", "Pick the key this service was started with before testing it"
             )
@@ -379,15 +415,7 @@ class SandboxConnectionService:
                 message="That credential is not an API key, so it cannot authenticate a service",
                 details={"secret_id": str(data.secret_id)},
             )
-        payload = await self._get_json(
-            base_url=data.base_url,
-            token=secret.api_key.get_secret_value(),
-            path="/policy",
-            field="base_url",
-            not_found="No sandbox service answers at this address - check the address and the port",
-            context={},
-        )
-        return SandboxPolicyRead.model_validate({**payload, "kind": "docker"})
+        return secret.api_key.get_secret_value()
 
     async def _refuse_duplicate_name(self, ctx: AuthContext, name: str) -> None:
         existing = await sandbox_connection_repo.get_by_name(
@@ -654,6 +682,19 @@ class SandboxConnectionService:
             self.db, organization_id=ctx.organization_id
         )
         by_session = {row.session_id: row for row in rows if row.session_id}
+        # Whose thread each one is. One query for the page, the same one the
+        # workspace listing asks, and for the same reason: the chat page lists its
+        # owner's conversations, so a link offered to anybody else lands on an
+        # empty sidebar dressed as the conversation - and this listing is
+        # organization-wide, so that is most of it.
+        threads = [row.conversation_id for row in by_session.values() if row.conversation_id]
+        owners = (
+            await conversation_repo.titles_for(
+                self.db, threads, organization_id=ctx.organization_id
+            )
+            if threads
+            else {}
+        )
         attributed: list[SandboxSessionRead] = []
         for session in sessions:
             row = by_session.get(session.get("session_id"))
@@ -664,6 +705,12 @@ class SandboxConnectionService:
                     **session,
                     "agent_id": row.agent_id,
                     "conversation_id": row.conversation_id,
+                    "conversation_is_callers": (
+                        row.conversation_id is not None
+                        and (owner := owners.get(row.conversation_id)) is not None
+                        and owner.user_id is not None
+                        and owner.user_id == ctx.user_id
+                    ),
                     "scope": row.scope,
                 }
             )

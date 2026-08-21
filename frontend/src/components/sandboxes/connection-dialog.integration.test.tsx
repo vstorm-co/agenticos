@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConnectionDialog } from "./connection-dialog";
@@ -17,18 +18,21 @@ import type { Permission } from "@/types/permissions";
  */
 
 const state = vi.hoisted(() => ({
+  local: null as { url: string; reachable: boolean; token_available: boolean } | null,
   permissions: [] as Permission[],
   create: { mutate: vi.fn(), isPending: false },
+  secrets: [] as { id: string; name: string; kind: string }[],
+  probe: vi.fn(),
 }));
 
 vi.mock("@/hooks", () => ({
-  useSecrets: () => ({ secrets: [], create: state.create }),
+  useSecrets: () => ({ secrets: state.secrets, create: state.create }),
   useLocalSandboxService: () => ({
-    local: null,
+    local: state.local,
     runtimes: [],
     isLoading: false,
     storeCredential: vi.fn(),
-    probe: vi.fn(),
+    probe: state.probe,
   }),
   usePermissions: () => ({
     can: (permission: Permission) => state.permissions.includes(permission),
@@ -47,8 +51,11 @@ function mount() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.local = null;
   state.permissions = [Perm.connectionsManage, Perm.secretsEdit];
   state.create = { mutate: vi.fn(), isPending: false };
+  state.secrets = [];
+  state.probe = vi.fn().mockResolvedValue({ runtimes: [] });
 });
 
 describe("storing a sandbox service's token from the connection dialog", () => {
@@ -72,5 +79,62 @@ describe("storing a sandbox service's token from the connection dialog", () => {
     // a write, and the dialog is still usable for one.
     expect(screen.getByLabelText("Credential")).toBeInTheDocument();
     expect(screen.getByText(/permission you do not hold/)).toBeInTheDocument();
+  });
+});
+
+/**
+ * The runtime list is the sandbox library's catalogue until a host has answered,
+ * and a service may have been started with three of its fifteen aliases. The field
+ * marks the difference - but only once somebody has asked, so a form filled in and
+ * saved without pressing `Test` registered a default the first tool call refuses
+ * (#1039).
+ */
+describe("asking the host what it allows", () => {
+  beforeEach(() => {
+    state.secrets = [{ id: "s-1", name: "Sandbox token", kind: "api_key" }];
+  });
+
+  it("asks the address this deployment reported, once there is a credential", async () => {
+    // The prefilled one, which the backend found by probing its own compose file.
+    state.local = { url: "http://sandboxd:8080", reachable: true, token_available: false };
+    mount();
+
+    await userEvent.click(screen.getByLabelText("Credential"));
+    await userEvent.click(await screen.findByRole("option", { name: /Sandbox token/ }));
+
+    await waitFor(() => expect(state.probe).toHaveBeenCalledWith("http://sandboxd:8080", "s-1"));
+  });
+
+  it("does not send the credential to an address somebody typed", async () => {
+    // `X-Sandbox-Token` on a sandbox host is root-equivalent: it starts containers
+    // there. Asking automatically about a typed or pasted address discloses it
+    // before anybody decided to, and debouncing only delays that. Found by the
+    // review on #1040.
+    state.local = { url: "http://sandboxd:8080", reachable: true, token_available: false };
+    mount();
+
+    await userEvent.clear(screen.getByLabelText("Address"));
+    await userEvent.type(screen.getByLabelText("Address"), "http://attacker.example");
+    await userEvent.click(screen.getByLabelText("Credential"));
+    await userEvent.click(await screen.findByRole("option", { name: /Sandbox token/ }));
+
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    expect(state.probe).not.toHaveBeenCalled();
+
+    // The button is how that host gets asked, which is a decision somebody made.
+    await userEvent.click(screen.getByRole("button", { name: "Test and check this host" }));
+
+    expect(state.probe).toHaveBeenCalledWith("http://attacker.example", "s-1");
+  });
+
+  it("asks nothing with only half of what it needs", async () => {
+    // A request per keystroke would ask about `htt` and be wrong about it; a
+    // request with no credential cannot be authorised at all.
+    mount();
+
+    await userEvent.type(screen.getByLabelText("Address"), "http://sandboxd:8080");
+
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    expect(state.probe).not.toHaveBeenCalled();
   });
 });

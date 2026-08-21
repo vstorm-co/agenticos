@@ -39,6 +39,9 @@ export function AttachmentCard({ file, pasted, onRemove }: AttachmentCardProps) 
           ? t("pastedLabel")
           : suffixOf(file.filename).toUpperCase() || file.file_type.toUpperCase()
       }
+      // A chip, because a file here is pending rather than being read: the
+      // preview band belongs in the transcript, where a file is content (#927).
+      compact
       onRemove={onRemove}
       removeLabel={t("removeAttachment", { name: file.filename })}
     />
@@ -46,5 +49,5 @@ export function AttachmentCard({ file, pasted, onRemove }: AttachmentCardProps) 
 }
 
 export function PendingAttachmentCard({ name, size }: { name: string; size: number }) {
-  return <PendingFileCard name={name} size={size} />;
+  return <PendingFileCard name={name} size={size} compact />;
 }

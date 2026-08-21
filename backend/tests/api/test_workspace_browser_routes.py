@@ -28,7 +28,7 @@ from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
-from app.services.sandbox_workspace import FlatEntry, WorkspaceContents
+from app.services.sandbox_workspace import FlatEntry, MeasuredWorkspaces, WorkspaceContents
 
 pytestmark = pytest.mark.anyio
 
@@ -71,6 +71,13 @@ def _overview(**overrides: Any) -> SimpleNamespace:
 def service() -> MagicMock:
     stub = MagicMock()
     stub.visible_to = AsyncMock(return_value=[_overview()])
+    # The route counts files as well as listing rows, and a `MagicMock` returns
+    # something no `await` accepts - which surfaced as an asyncpg error, because the
+    # failing request's session tried to roll back against a database these tests
+    # do not have.
+    stub.measured = AsyncMock(
+        return_value=MeasuredWorkspaces(counts={}, measured=0, unreadable=0, truncated=False)
+    )
     stub.flat_files = AsyncMock(
         return_value=SimpleNamespace(
             files=[
@@ -158,7 +165,14 @@ class TestListing:
             response = await opened.get(_url(""))
 
         assert response.status_code == 200
-        assert response.json() == {"items": [], "total": 0}
+        assert response.json() == {
+            "items": [],
+            "total": 0,
+            # What the count cost, which is nothing when there is nothing to count.
+            "measured": 0,
+            "unreadable": 0,
+            "truncated": False,
+        }
 
 
 class TestServingBytes:
@@ -432,3 +446,94 @@ class TestOpeningOne:
 
         assert response.status_code == 422
         service.read_file_of.assert_not_called()
+
+
+class TestCountingTheFiles:
+    """How many files, and what they weigh, per workspace.
+
+    Free for a stored workspace - its files are a column of the row the listing
+    already read - and a round trip per workspace for a container, which is why the
+    default listing does not pay for those and says so when it stops.
+    """
+
+    async def test_a_measured_workspace_carries_its_count_and_its_bytes(
+        self, client, service
+    ) -> None:
+        service.measured = AsyncMock(
+            return_value=MeasuredWorkspaces(
+                counts={_WORKSPACE_ID: (4, 2048)}, measured=1, unreadable=0, truncated=False
+            )
+        )
+
+        async with client() as opened:
+            response = await opened.get(_url(""))
+
+        row = response.json()["items"][0]
+        assert row["file_count"] == 4
+        assert row["measured_bytes"] == 2048
+
+    async def test_a_workspace_nobody_counted_says_nothing_rather_than_zero(self, client) -> None:
+        """Zero files is an answer about a workspace; `null` is the absence of one,
+        and a size column claiming a container is empty is the defect this replaced."""
+        async with client() as opened:
+            response = await opened.get(_url(""))
+
+        row = response.json()["items"][0]
+        assert row["file_count"] is None
+        assert row["measured_bytes"] is None
+
+    async def test_asking_for_hosts_is_the_callers_decision(self, client, service) -> None:
+        """A round trip per workspace, so the default listing does not make it."""
+        async with client() as opened:
+            await opened.get(_url(""))
+            await opened.get(_url("?measure=true"))
+
+        assert [call.kwargs["hosts"] for call in service.measured.await_args_list] == [False, True]
+
+    async def test_the_answer_says_what_it_left_out(self, client, service) -> None:
+        service.measured = AsyncMock(
+            return_value=MeasuredWorkspaces(counts={}, measured=25, unreadable=2, truncated=True)
+        )
+
+        async with client() as opened:
+            response = await opened.get(_url("?measure=true"))
+
+        assert response.json()["measured"] == 25
+        assert response.json()["unreadable"] == 2
+        assert response.json()["truncated"] is True
+
+
+class TestWhoPutTheFileThere:
+    """Attached by a person, or written by an agent.
+
+    Read off the path, because it is the only signal there is: `uploads/` is this
+    application's own convention and a host records no author.
+    """
+
+    async def test_a_file_under_uploads_is_marked_as_attached(self, client, service) -> None:
+        service.flat_files = AsyncMock(
+            return_value=SimpleNamespace(
+                files=[
+                    FlatEntry(
+                        overview=_overview(),
+                        info={"path": "uploads/8b1e-report.pdf", "size": 12, "is_dir": False},
+                        preview=None,
+                        thumbnail=None,
+                    )
+                ],
+                workspaces_read=1,
+                unreadable=0,
+                truncated=False,
+            )
+        )
+
+        async with client() as opened:
+            response = await opened.get(_url("/files"))
+
+        assert response.json()["items"][0]["from_upload"] is True
+
+    async def test_anything_else_is_the_agents_own(self, client) -> None:
+        async with client() as opened:
+            response = await opened.get(_url("/files"))
+
+        assert response.json()["items"][0]["from_upload"] is False

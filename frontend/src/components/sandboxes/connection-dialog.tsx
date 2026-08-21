@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   Button,
@@ -20,6 +20,7 @@ import {
   SelectValue,
   Switch,
 } from "@/components/ui";
+import { ConnectionKindIcon } from "./connection-kind-icon";
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
@@ -76,9 +77,12 @@ interface FormState {
   isActive: boolean;
 }
 
-function initialState(editing: SandboxConnectionRecord | null): FormState {
+function initialState(editing: SandboxConnectionRecord | null, defaultName: string): FormState {
   return {
-    name: editing?.name ?? "",
+    // Filled in rather than suggested. A placeholder is a name nobody has typed,
+    // so the form opened invalid and the first thing an operator did was type
+    // the two words the box was already showing them. Editing keeps its own.
+    name: editing?.name ?? defaultName,
     kind: editing?.kind ?? "docker",
     baseUrl: editing?.base_url ?? "",
     urlTouched: editing !== null,
@@ -120,6 +124,20 @@ const FORM = { fields: ["base_url"], identifiedBy: "name" } as const;
  * a token that can run commands on a host out of the browser's memory and out of
  * this component's props.
  */
+/**
+ * What one host answered, and which host-and-key it answered about.
+ *
+ * The pair is the point. A probe cannot be cancelled, so a reply can arrive after
+ * the address or the credential has moved on - and an answer whose `for` is not
+ * the form as it stands is not displayed at all, rather than being checked against
+ * a ref that only the asking code updates.
+ */
+interface ProbeAnswer {
+  for: string;
+  runtimes: SandboxRuntime[] | null;
+  failure: ReturnType<typeof submitFailure> | null;
+}
+
 export function ConnectionDialog({ editing, onOpenChange, onSubmit }: ConnectionDialogProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("sandboxes.connection");
@@ -128,11 +146,10 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
   // already decided which host it points at, and probing on their behalf would be
   // offering to change it.
   const { local, runtimes, storeCredential, probe } = useLocalSandboxService(editing === null);
-  const [form, setForm] = useState<FormState>(() => initialState(editing));
+  const [form, setForm] = useState<FormState>(() => initialState(editing, t("namePlaceholder")));
   const [saving, setSaving] = useState(false);
-  const [storing, setStoring] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [allowed, setAllowed] = useState<SandboxRuntime[] | null>(null);
+  const [answer, setAnswer] = useState<ProbeAnswer | null>(null);
   const [failure, setFailure] = useState(NO_FAILURE);
 
   // Derived rather than written into state by an effect: what a service answered
@@ -141,19 +158,100 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
   // is what separates "not filled in yet" from "deliberately empty".
   const baseUrl = form.urlTouched ? form.baseUrl : form.baseUrl || (local?.url ?? "");
 
+  const address = baseUrl.trim();
+  const secretId = form.secretId;
+  // Which host-and-key an answer is about, and it is stored *with* the answer
+  // rather than checked when one arrives. A probe cannot be cancelled, and a reply
+  // about a host that is no longer in the box is the same defect whether it lost a
+  // race with a second probe or simply landed after the address was edited - which
+  // is what a "is this still current?" check written inside `ask` cannot see. Kept
+  // as data, so an answer for anything but the form as it stands now is not an
+  // answer this form displays: the field falls back to the catalogue's own list
+  // until the host has been asked again.
+  const identity = `${address}\u0000${secretId ?? ""}`;
+  const allowed = answer !== null && answer.for === identity ? answer.runtimes : null;
+  const refused = answer !== null && answer.for === identity ? answer.failure : null;
+  const shown = refused ?? failure;
+
+  // Which question is outstanding, so a slower earlier reply does not overwrite a
+  // faster later one. This is the *other* half: `for` above stops an answer being
+  // displayed for a host that is no longer in the box, and this stops one being
+  // recorded over a newer host's. Neither covers both.
+  const inFlight = useRef<string | null>(null);
+  const ask = useCallback(async () => {
+    const forWhom = `${address}\u0000${secretId ?? ""}`;
+    inFlight.current = forWhom;
+    setTesting(true);
+    setFailure(NO_FAILURE);
+    try {
+      const policy = await probe(address, secretId);
+      if (inFlight.current !== forWhom) return;
+      setAnswer({ for: forWhom, runtimes: policy.runtimes, failure: null });
+    } catch (error) {
+      if (inFlight.current !== forWhom) return;
+      setAnswer({ for: forWhom, runtimes: null, failure: submitFailure(error, FORM, tErrors) });
+    } finally {
+      if (inFlight.current === forWhom) setTesting(false);
+    }
+  }, [address, secretId, probe, tErrors]);
+
+  /**
+   * Ask, but only the address this deployment reported itself.
+   *
+   * The runtime list is what this deployment ships until a host has answered, and
+   * a service can have been started with a different allowlist - which the field
+   * marks, but only after somebody presses `Test`. So a form filled in and saved
+   * without pressing it registered a default the first tool call refuses, and the
+   * button that would have said so looked optional (#1039).
+   *
+   * **And a probe sends the vault credential to whatever address is in the box.**
+   * `X-Sandbox-Token` on a sandbox host is root-equivalent - it starts containers
+   * there - so asking automatically about a typed or pasted address means
+   * disclosing that token to it before anybody decided to. Debouncing does not
+   * make that safe; it only delays it. So the automatic ask is limited to the
+   * address the backend itself found (`local.url`), which is this project's own
+   * compose file, and every other host is asked when an operator presses the
+   * button. Found by the review on #1040.
+   */
+  const knownAddress = local?.url ?? null;
+  // The service this deployment found, with a token this deployment holds. The
+  // backend accepts a probe with no key for its own compose addresses and only
+  // those, so this is the same bound stated on the button.
+  const askableWithLocalToken = local !== null && local.token_available && address === knownAddress;
+  useEffect(() => {
+    if (address !== knownAddress || !address) return;
+    if (!secretId && !askableWithLocalToken) return;
+    const timer = setTimeout(() => void ask(), 600);
+    return () => clearTimeout(timer);
+  }, [address, secretId, knownAddress, askableWithLocalToken, ask]);
+
   const usable = secrets.filter((secret) => secret.kind === "api_key");
+
+  /**
+   * Whether creating this connection will store this deployment's own token.
+   *
+   * Only where there is one to store, the kind that uses it, and nothing already
+   * chosen - picking a key from the vault is a decision, and overriding it with
+   * the local token would undo it.
+   */
+  const usesDeploymentToken =
+    form.kind === "docker" && local?.token_available === true && form.secretId === null;
 
   async function submit(): Promise<void> {
     setSaving(true);
     setFailure(NO_FAILURE);
     try {
+      // Before the connection, because the connection names it. A failure here is
+      // reported the same way a refused form is, rather than leaving a row whose
+      // credential does not exist.
+      const secretId = usesDeploymentToken ? await storeCredential() : form.secretId;
       await onSubmit({
         name: form.name.trim(),
         kind: form.kind,
         // Daytona has an address of its own, so ours is deliberately cleared
         // rather than left holding whatever was typed before the kind changed.
         base_url: form.kind === "docker" ? baseUrl.trim() : null,
-        secret_id: form.secretId,
+        secret_id: secretId,
         default_runtime: form.defaultRuntime.trim() || null,
         is_default: form.isDefault,
         is_active: form.isActive,
@@ -171,46 +269,63 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      {/* Wider and two-up rather than one field per row down a page: with a
+          paragraph under every input this dialog was 1150 pixels tall, which on a
+          laptop is a form somebody scrolls to find the button of (#1039). Wide
+          enough that `Container service - a sandboxd you run` fits its trigger,
+          because a truncated kind is the one field nobody can guess. */}
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{editing ? t("editTitle") : t("addTitle")}</DialogTitle>
           <DialogDescription>{t("whereOrganizationAposS")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          <FormField
-            htmlFor="connection-name"
-            label={t("name")}
-            description={t("whatAgentAuthorsWill")}
-            error={failure.fields.name}
-          >
-            <Input
-              id="connection-name"
-              value={form.name}
-              placeholder={t("namePlaceholder")}
-              onChange={(event) => {
-                setForm({ ...form, name: event.target.value });
-                setFailure(NO_FAILURE);
-              }}
-            />
-          </FormField>
-
-          <div className="space-y-2">
-            <Label htmlFor="connection-kind">{t("kind")}</Label>
-            <Select
-              value={form.kind}
-              onValueChange={(kind) =>
-                setForm({ ...form, kind: kind as SandboxConnectionKind, secretId: null })
-              }
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField
+              htmlFor="connection-name"
+              label={t("name")}
+              description={t("whatAgentAuthorsWill")}
+              error={shown.fields.name}
             >
-              <SelectTrigger id="connection-kind">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="docker">{t("kindDocker")}</SelectItem>
-                <SelectItem value="daytona">{t("kindDaytona")}</SelectItem>
-              </SelectContent>
-            </Select>
+              <Input
+                id="connection-name"
+                value={form.name}
+                placeholder={t("namePlaceholder")}
+                onChange={(event) => {
+                  setForm({ ...form, name: event.target.value });
+                  setFailure(NO_FAILURE);
+                }}
+              />
+            </FormField>
+
+            <div className="space-y-2">
+              <Label htmlFor="connection-kind">{t("kind")}</Label>
+              <Select
+                value={form.kind}
+                onValueChange={(kind) =>
+                  setForm({ ...form, kind: kind as SandboxConnectionKind, secretId: null })
+                }
+              >
+                <SelectTrigger id="connection-kind">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="docker">
+                    <span className="flex items-center gap-2">
+                      <ConnectionKindIcon kind="docker" />
+                      {t("kindDocker")}
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="daytona">
+                    <span className="flex items-center gap-2">
+                      <ConnectionKindIcon kind="daytona" />
+                      {t("kindDaytona")}
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {form.kind === "docker" && (
@@ -219,7 +334,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
                 htmlFor="connection-url"
                 label={t("address")}
                 description={t("whereSandboxServiceAnswers")}
-                error={failure.fields.base_url}
+                error={shown.fields.base_url}
               >
                 <Input
                   id="connection-url"
@@ -272,38 +387,12 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
             </p>
             {/* The token is not something to go and find: `make sandbox-token`
                 generated it into `backend/.env`, and that is the file the service
-                was started from. This stores the value this deployment already
-                holds, so nobody has to copy a secret out of a file to describe a
-                service their own stack is running. */}
-            {form.kind === "docker" && local?.token_available === true && (
-              <div className="bg-muted/40 space-y-2 rounded-md p-3">
-                <p className="text-xs">
-                  {t.rich("deploymentHoldsToken", {
-                    command: t("makeSandboxToken"),
-                    file: "backend/.env",
-                    mono: (chunks) => <span className="font-mono">{chunks}</span>,
-                  })}
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={storing}
-                  onClick={async () => {
-                    setStoring(true);
-                    setFailure(NO_FAILURE);
-                    try {
-                      const secretId = await storeCredential();
-                      setForm((current) => ({ ...current, secretId }));
-                    } catch (error) {
-                      setFailure(submitFailure(error, FORM, tErrors));
-                    } finally {
-                      setStoring(false);
-                    }
-                  }}
-                >
-                  {storing ? t("storing") : t("storeInVault")}
-                </Button>
-              </div>
+                was started from. So it is stored when the connection is created
+                and nobody is asked to press a button first - and *at* creation
+                rather than on open, or a dialog somebody opened and cancelled
+                would leave a vault entry nobody asked for. */}
+            {usesDeploymentToken && (
+              <p className="text-muted-foreground text-xs">{t("willUseDeploymentToken")}</p>
             )}
             <InlineSecret
               kind="api_key"
@@ -319,25 +408,13 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
               onChange={(defaultRuntime) => setForm({ ...form, defaultRuntime })}
               catalog={runtimes}
               allowed={allowed}
-              // Nothing to ask with until there is an address and a key, and a
-              // button that answers "fill both in first" is a button that wasted
-              // somebody's click.
-              onTest={
-                baseUrl.trim() && form.secretId
-                  ? async () => {
-                      setTesting(true);
-                      setFailure(NO_FAILURE);
-                      try {
-                        const policy = await probe(baseUrl.trim(), form.secretId);
-                        setAllowed(policy.runtimes);
-                      } catch (error) {
-                        setFailure(submitFailure(error, FORM, tErrors));
-                      } finally {
-                        setTesting(false);
-                      }
-                    }
-                  : null
-              }
+              // Nothing to ask with until there is an address and something to
+              // authenticate with, and a button that answers "fill both in first"
+              // is a button that wasted somebody's click. The deployment's own
+              // token counts as something: adding the service `make dev` started
+              // names no key until submission, which is the commonest path through
+              // this dialog and had no way to test the host at all.
+              onTest={address && (secretId || askableWithLocalToken) ? ask : null}
               testing={testing}
             />
           ) : (
@@ -383,7 +460,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
         {/* What could not be placed under an input - a refused permission, a
             vault write that failed, a server fault. A refusal that found its
             field is not also announced here. */}
-        {failure.toast !== null && <p className="text-destructive text-sm">{failure.toast}</p>}
+        {shown.toast !== null && <p className="text-destructive text-sm">{shown.toast}</p>}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

@@ -38,10 +38,14 @@ describe("AttachmentCard", () => {
     expect(screen.getByText("allegro_system_prompt_v2_final.txt")).toBeVisible();
   });
 
-  it("shows what is in the file, which is the part a filename cannot carry", () => {
+  it("leaves the excerpt to the transcript, and stays a chip", () => {
+    // #133 put the preview band in the card and it is right *in the transcript*,
+    // where a file is content somebody reads. In the composer a file is pending
+    // confirmation, and twenty preview bands is seven rows of composer (#927).
     render(<AttachmentCard file={file()} onRemove={vi.fn()} />);
 
-    expect(screen.getByText(/2026-01,EU,120/)).toBeVisible();
+    expect(screen.queryByText(/2026-01,EU,120/)).toBeNull();
+    expect(screen.getByTitle("quarterly-report.txt")).toBeInTheDocument();
   });
 
   it("says what it is and how big, from the extension rather than the MIME type", () => {

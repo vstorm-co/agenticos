@@ -626,3 +626,20 @@ def _http_client(response: Any) -> MagicMock:
     client.__aenter__ = AsyncMock(return_value=client)
     client.__aexit__ = AsyncMock(return_value=None)
     return client
+
+
+async def test_an_upload_is_not_posted_back_whichever_backend_holds_it(tmp_path) -> None:
+    """The snapshot is taken before the attachment router writes, so a person's own
+    upload looks like a file the turn produced - and this exclusion is the only
+    thing between that and a reply posting somebody's PDF back at them as the
+    agent's work.
+
+    A stored workspace's paths begin with `/` and a container's come back from the
+    host's `ls` relative, so a tuple of `/uploads/` matched one and not the other.
+    """
+    from app.services.channels.attachments import _NOT_THE_AGENTS
+
+    for path in ("uploads/8b1e-report.pdf", "/uploads/8b1e-report.pdf"):
+        assert path.lstrip("/").startswith(_NOT_THE_AGENTS)
+
+    assert not "reports/summary.csv".lstrip("/").startswith(_NOT_THE_AGENTS)

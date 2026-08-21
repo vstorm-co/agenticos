@@ -305,7 +305,6 @@ async def _prepare(
             "open",
             new=AsyncMock(return_value=None if workspace is None else MagicMock(backend=workspace)),
         ),
-        patch(f"{RUNNER}.materialise_skills", new=AsyncMock(return_value=None)),
         patch(f"{RUNNER}.workspace_snapshot", new=AsyncMock(return_value=set())),
         patch(f"{RUNNER}.knowledge_base_repo.get_by_id", new=AsyncMock(side_effect=get_collection)),
         patch(

@@ -106,7 +106,7 @@ requires-dist = [
     { name = "prefect", specifier = ">=3.8.3" },
     { name = "psycopg2-binary", specifier = ">=2.9.0" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.13.4" },
-    { name = "pydantic-ai-backend", extras = ["console", "remote"], specifier = ">=0.2.26" },
+    { name = "pydantic-ai-backend", extras = ["console", "remote"], specifier = ">=0.2.27" },
     { name = "pydantic-ai-harness", specifier = ">=0.21.0" },
     { name = "pydantic-ai-skills", specifier = ">=0.11.0" },
     { name = "pydantic-ai-slim", extras = ["mcp"], specifier = ">=2.30.0" },
@@ -3718,15 +3718,15 @@ email = [
 
 [[package]]
 name = "pydantic-ai-backend"
-version = "0.2.26"
+version = "0.2.27"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "wcmatch" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f2/61/cadb38eebeff1b7827361165bc6830697d5d2998312858cf96b4033551a6/pydantic_ai_backend-0.2.26.tar.gz", hash = "sha256:e8a91c3eff0058e2f7d0008475e1bcc3f016e1b9d2a5697305f8cec24e5ea7dd", size = 15168896, upload-time = "2026-08-16T18:47:46.311Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3d/6a/81d716b1dab095f356df4f78d7c94215f2467bfad6551a8d1a886345979b/pydantic_ai_backend-0.2.27.tar.gz", hash = "sha256:f26564244f6914eae1a29726f57f5292dbaddb5163cf08ce9fb248bdea3c9f67", size = 15170457, upload-time = "2026-08-20T16:01:25.731Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e0/45/f87019fb494d2a062b49fd4066b10cba081e3dfcb230dbcc1b91486c99dd/pydantic_ai_backend-0.2.26-py3-none-any.whl", hash = "sha256:3821e4f721a205781daf9c0f0d29200f970f8299e532ec364177efffb273009e", size = 198522, upload-time = "2026-08-16T18:47:44.613Z" },
+    { url = "https://files.pythonhosted.org/packages/e0/6f/23d8f9fab09b05589744dd3e46868396745a2df7efc3424086d0e869ea0b/pydantic_ai_backend-0.2.27-py3-none-any.whl", hash = "sha256:c248c85be11c657abd92fa722be470a4dab32c46aeffc0cb025d1b0605331e6e", size = 199290, upload-time = "2026-08-20T16:01:23.814Z" },
 ]
 
 [package.optional-dependencies]

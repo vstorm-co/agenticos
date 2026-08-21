@@ -511,6 +511,26 @@ class TestChoosingWhatToSendBack:
         assert delivered.attachments == []
         assert delivered.note() == ""
 
+    async def test_the_snapshot_is_taken_of_the_working_directory(self):
+        """Not of the machine, which is what omitting the root asked for.
+
+        The client's default is `/`, which a virtual-path backend reads as the
+        top of its namespace and a shell reads as the filesystem root - so on a
+        container this snapshot was 2540 paths of `/proc` and `/usr`, taken twice
+        per turn, and "what did the agent write" came down to whether `/proc` had
+        changed (#1039).
+        """
+        asked: list[tuple[str, str]] = []
+
+        class _Backend:
+            def glob_info(self, pattern, path="/"):
+                asked.append((pattern, path))
+                return []
+
+        await files_written(_Backend(), set())
+
+        assert {path for _, path in asked} == {"."}
+
     async def test_a_file_that_cannot_be_read_is_skipped_rather_than_failing_the_reply(self):
         class _Backend:
             def glob_info(self, pattern, path="/"):

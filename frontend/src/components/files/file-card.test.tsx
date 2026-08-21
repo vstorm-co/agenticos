@@ -94,3 +94,70 @@ describe("a file on a card", () => {
     expect(screen.getByText(/4\.8 MB/)).toBeVisible();
   });
 });
+
+describe("cards in a strip beside each other", () => {
+  it("reserves two lines for the name whether it needs one or two", () => {
+    // `report.pdf` beside `1773207574972.jpg` was two cards of two heights in one
+    // strip, which reads as two kinds of thing. The band below was already fixed
+    // for exactly this reason; the name was not.
+    render(<FileCard name="a.pdf" />);
+
+    expect(screen.getByTitle("a.pdf")).toHaveClass("h-8", "line-clamp-2");
+  });
+
+  it("keeps the whole name reachable when it clamps", () => {
+    const long = "Jak_zdobyc_przyjaciol_i_zjednac_sobie_ludzi_wydanie_rozszerzone.pdf";
+
+    render(<FileCard name={long} />);
+
+    expect(screen.getByTitle(long)).toBeInTheDocument();
+  });
+
+  it("draws the picture for an image it was given an address for", () => {
+    // A grey glyph standing in for a photograph is the one case where the card
+    // knows enough to show the thing itself.
+    render(<FileCard name="conf.jpg" mimeType="image/jpeg" imageUrl="/api/files/f-1" />);
+
+    expect(screen.getByAltText("conf.jpg")).toBeInTheDocument();
+  });
+});
+
+describe("the chip a composer draws", () => {
+  it("is one row with the name on one line, not a preview band", () => {
+    // A file in the composer is pending confirmation, not content being read:
+    // what is wanted is whether it is the right file, how big, and how to remove
+    // it. Twenty tiles is seven rows of composer; twenty chips is one row (#927).
+    const { container } = render(<FileCard name="report.csv" size={12} compact />);
+
+    const chip = container.firstElementChild!;
+
+    expect(chip.className).toContain("items-center");
+    expect(chip.className).not.toContain("flex-col");
+    expect(screen.getByTitle("report.csv")).toBeInTheDocument();
+  });
+
+  it("gives remove its own hit area at chip height", () => {
+    // The tile's × is a 12px glyph in a corner. At chip height the card is about
+    // the size that corner used to be.
+    render(<FileCard name="report.csv" compact onRemove={vi.fn()} />);
+
+    const remove = screen.getByRole("button", { name: /report\.csv/ });
+
+    expect(remove.className).toContain("h-6");
+    expect(remove.className).toContain("w-6");
+  });
+
+  it("draws a thumbnail in the chip for an image", () => {
+    render(<FileCard name="conf.jpg" mimeType="image/jpeg" imageUrl="/api/files/f-1" compact />);
+
+    expect(screen.getByAltText("conf.jpg")).toBeInTheDocument();
+  });
+
+  it("uploads at the size the finished ones are", () => {
+    // A tile among chips would make the row jump when the upload lands.
+    const { container } = render(<PendingFileCard name="big.csv" size={2048} compact />);
+
+    expect(container.firstElementChild!.className).toContain("items-center");
+    expect(screen.getByText(/Uploading/)).toBeVisible();
+  });
+});

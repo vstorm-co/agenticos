@@ -8,9 +8,12 @@ that arrived with one of that run's turns. What a browser is then allowed to
 404 for bytes the row still points at live here rather than twice.
 """
 
+from typing import Literal
+
 from fastapi import HTTPException, status
 from fastapi.responses import FileResponse
 
+from app.api.responses import content_disposition
 from app.db.models.chat_file import ChatFile
 from app.services.file_storage import RENDER_SAFE_MIME_TYPES
 from app.services.file_upload import FileUploadService
@@ -26,6 +29,11 @@ def chat_file_response(
     URL - and `?disposition=attachment` for the explicit download, which is the
     reason the header is built by hand: `FileResponse(filename=...)` always says
     `attachment`.
+
+    The name reaches the header through `content_disposition`, which is the whole
+    of why: built by hand here, `filename="…"` raised `UnicodeEncodeError` on the
+    first character outside latin-1, so every attachment with a Polish name was a
+    500 on preview and on download alike.
 
     Raises:
         HTTPException: 404 where the row points at bytes the storage no longer
@@ -45,14 +53,15 @@ def chat_file_response(
     # past. The `mime_type` was set from the client's declared header, not the
     # bytes, which is why the type alone cannot be trusted here.
     render_safe = chat_file.mime_type in RENDER_SAFE_MIME_TYPES
-    mode = "inline" if disposition != "attachment" and render_safe else "attachment"
-    safe_name = chat_file.filename.replace('"', "")
+    mode: Literal["inline", "attachment"] = (
+        "inline" if disposition != "attachment" and render_safe else "attachment"
+    )
     # The preview embeds this URL in an iframe for a PDF, which `X-Frame-Options:
     # DENY` from `SecurityHeadersMiddleware` would refuse. Opted down to the same
     # origin the app itself runs on, no wider; the CSP is the modern spelling of it
     # and browsers honour whichever they recognise.
     headers = {
-        "Content-Disposition": f'{mode}; filename="{safe_name}"',
+        "Content-Disposition": content_disposition(mode, chat_file.filename),
         "X-Content-Type-Options": "nosniff",
         "X-Frame-Options": "SAMEORIGIN",
         "Content-Security-Policy": "frame-ancestors 'self'",
