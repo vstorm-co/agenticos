@@ -73,7 +73,11 @@ def get_rag_services() -> tuple[
     )
     processor = DocumentProcessor(settings=settings)
     retrieval = RetrievalService(vector_store=vector_store, settings=settings)
-    ingestion = IngestionService(processor=processor, vector_store=vector_store)
+    # CLI admin context: no single tenant, so resolution falls back to the name.
+    # Uploads through the API are org-scoped.
+    ingestion = IngestionService(
+        processor=processor, vector_store=vector_store, organization_id=None
+    )
     return settings, vector_store, processor, retrieval, ingestion
 
 
@@ -93,7 +97,7 @@ async def list_collections_async(vector_store: BaseVectorStore) -> None:
 
     for name in collection_names:
         try:
-            info_obj = await vector_store.get_collection_info(name)
+            info_obj = await vector_store.get_collection_info(name, organization_id=None)
             click.echo(f"  {name}")
             click.echo(f"    Vectors: {info_obj.total_vectors:,}")
             click.echo(f"    Dimension: {info_obj.dim}")
@@ -474,7 +478,7 @@ async def stats_async(settings: RAGSettings, vector_store: BaseVectorStore) -> N
         total_vectors = 0
         for name in collection_names:
             try:
-                info_obj = await vector_store.get_collection_info(name)
+                info_obj = await vector_store.get_collection_info(name, organization_id=None)
                 click.echo(f"  {name}:")
                 click.echo(f"    Vectors: {info_obj.total_vectors:,}")
                 total_vectors += info_obj.total_vectors

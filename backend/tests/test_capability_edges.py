@@ -71,7 +71,7 @@ class TestSearchingSeveralCollections:
 
         with pytest.raises(RuntimeError):
             await _retrieval_over(store).retrieve_multi(
-                query="anything", collection_names=["healthy", "broken"]
+                query="anything", collection_names=["healthy", "broken"], organization_id=None
             )
 
     @pytest.mark.anyio
@@ -83,7 +83,7 @@ class TestSearchingSeveralCollections:
         )
 
         results = await _retrieval_over(store).retrieve_multi(
-            query="anything", collection_names=["populated", "never_ingested"]
+            query="anything", collection_names=["populated", "never_ingested"], organization_id=None
         )
 
         assert [r.content for r in results] == ["found"]
@@ -100,7 +100,7 @@ class TestSearchingSeveralCollections:
         store.search = AsyncMock(return_value=[SearchResult(content="chunk", score=0.5)])
 
         results = await _retrieval_over(store).retrieve(
-            query="anything", collection_name="handbook"
+            query="anything", collection_name="handbook", organization_id=None
         )
 
         assert [r.metadata["collection"] for r in results] == ["handbook"]
@@ -110,7 +110,9 @@ class TestKnowledgeSearchGuards:
     @pytest.mark.anyio
     async def test_no_collections_says_so_rather_than_searching_everything(self):
         """The dangerous failure mode would be an unscoped search."""
-        result = await search_knowledge_base(query="x", kb_collection_names=[])
+        result = await search_knowledge_base(
+            query="x", kb_collection_names=[], organization_id=None
+        )
         assert "No active knowledge bases" in result
 
     @pytest.mark.anyio
@@ -121,7 +123,9 @@ class TestKnowledgeSearchGuards:
             "app.agents.capabilities.knowledge._search.get_retrieval_service",
             return_value=service,
         ):
-            await search_knowledge_base(query="x", kb_collection_names=["kb_a"])
+            await search_knowledge_base(
+                query="x", kb_collection_names=["kb_a"], organization_id=None
+            )
         service.retrieve.assert_awaited_once()
 
     @pytest.mark.anyio
@@ -132,7 +136,9 @@ class TestKnowledgeSearchGuards:
             "app.agents.capabilities.knowledge._search.get_retrieval_service",
             return_value=service,
         ):
-            await search_knowledge_base(query="x", kb_collection_names=["kb_a", "kb_b"])
+            await search_knowledge_base(
+                query="x", kb_collection_names=["kb_a", "kb_b"], organization_id=None
+            )
         service.retrieve_multi.assert_awaited_once()
 
     @pytest.mark.anyio
@@ -147,7 +153,9 @@ class TestKnowledgeSearchGuards:
             ),
             pytest.raises(ExternalServiceError),
         ):
-            await search_knowledge_base(query="x", kb_collection_names=["kb_a"])
+            await search_knowledge_base(
+                query="x", kb_collection_names=["kb_a"], organization_id=None
+            )
 
     @pytest.mark.anyio
     async def test_an_unconfigured_deployment_keeps_saying_what_to_configure(self):
@@ -171,7 +179,9 @@ class TestKnowledgeSearchGuards:
             ),
             pytest.raises(ConfigurationError) as refusal,
         ):
-            await search_knowledge_base(query="x", kb_collection_names=["kb_a"])
+            await search_knowledge_base(
+                query="x", kb_collection_names=["kb_a"], organization_id=None
+            )
 
         assert refusal.value.details == {"setting": "OPENROUTER_API_KEY"}
 
@@ -227,7 +237,7 @@ class TestEmbeddingCredential:
         # empty collection must not depend on the query succeeding.
         store.async_session = MagicMock(side_effect=AssertionError("should not query"))
 
-        info = asyncio.run(store.get_collection_info("never_ingested"))
+        info = asyncio.run(store.get_collection_info("never_ingested", organization_id=None))
 
         assert (info.name, info.total_vectors, info.dim) == ("never_ingested", 0, 1536)
 
@@ -248,7 +258,7 @@ class TestEmbeddingCredential:
         store._for_collection = AsyncMock(side_effect=AssertionError("should not embed"))
         store.async_session = MagicMock(side_effect=AssertionError("should not query"))
 
-        assert asyncio.run(store.search("never_ingested", "anything")) == []
+        assert asyncio.run(store.search("never_ingested", "anything", organization_id=None)) == []
 
     def test_the_service_builds_on_a_deployment_with_no_key(self, monkeypatch):
         """`get_embedding_service` is a FastAPI dependency of every RAG route.

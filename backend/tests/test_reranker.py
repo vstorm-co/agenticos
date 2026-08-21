@@ -191,14 +191,14 @@ class TestBuildReranker:
             "app.services.rag.reranker.reranker_for_collection",
             new=AsyncMock(return_value=None),
         ):
-            assert await build_reranker("handbook") is None
+            assert await build_reranker("handbook", None) is None
 
     async def test_a_configured_collection_gets_a_cohere_reranker(self):
         with patch(
             "app.services.rag.reranker.reranker_for_collection",
             new=AsyncMock(return_value=ResolvedReranker(model="rerank-v3.5", api_key="co-key")),
         ):
-            reranker = await build_reranker("handbook")
+            reranker = await build_reranker("handbook", None)
         assert isinstance(reranker, CohereReranker)
         assert reranker.model == "rerank-v3.5"
 

@@ -216,7 +216,9 @@ async def get_collection_info(
 ) -> Any:
     """Retrieve stats for a specific collection."""
     collection = await access.readable(ctx, name)
-    return await vector_store.get_collection_info(collection.collection_name)
+    return await vector_store.get_collection_info(
+        collection.collection_name, organization_id=collection.organization_id
+    )
 
 
 @router.get(

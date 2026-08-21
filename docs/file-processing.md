@@ -428,6 +428,15 @@ the one caller that never asked the resolver at all, so every uploaded document
 was embedded with the deployment's model and key whatever its collection had
 chosen.
 
+Both resolvers take the organization the ingest or search acts for, because the
+vector namespace is deployment-global and a collection name is not unique across
+tenants — two organizations may hold one name. Resolving by name alone returned
+whichever row the database yielded first, so a shared name could embed or rerank
+on another tenant's model and unseal its key. `get_for_collection` narrows the
+candidates to the caller's own row, falling back to a deployment-wide
+(`app`-scoped) collection and, only for a CLI ingest with no tenant, to the name
+alone.
+
 ### Reranking — a second pass, off unless configured
 
 Vector search orders results by embedding distance, which is a proxy for

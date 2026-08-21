@@ -62,7 +62,7 @@ def _service_by_name(store: MagicMock, mapping: dict[str, BaseReranker | None]) 
     settings = MagicMock()
     settings.enable_hybrid_search = False
 
-    async def resolver(name: str) -> BaseReranker | None:
+    async def resolver(name: str, organization_id: object = None) -> BaseReranker | None:
         return mapping.get(name)
 
     return RetrievalService(vector_store=store, settings=settings, reranker_resolver=resolver)
@@ -75,22 +75,28 @@ def _hits(*names: str) -> list[SearchResult]:
 class TestSingleCollection:
     async def test_a_configured_collection_returns_the_reranked_order(self):
         store = _store_returning(_hits("a", "b", "c"))
-        results = await _service(store, _ReverseReranker()).retrieve("q", "kb", limit=3)
+        results = await _service(store, _ReverseReranker()).retrieve(
+            "q", "kb", limit=3, organization_id=None
+        )
         assert [r.content for r in results] == ["c", "b", "a"]
 
     async def test_it_truncates_to_the_limit_after_reranking(self):
         store = _store_returning(_hits("a", "b", "c", "d"))
-        results = await _service(store, _ReverseReranker()).retrieve("q", "kb", limit=2)
+        results = await _service(store, _ReverseReranker()).retrieve(
+            "q", "kb", limit=2, organization_id=None
+        )
         assert [r.content for r in results] == ["d", "c"]
 
     async def test_without_a_reranker_the_order_is_left_as_the_store_gave_it(self):
         store = _store_returning(_hits("a", "b", "c"))
-        results = await _service(store, None).retrieve("q", "kb", limit=3)
+        results = await _service(store, None).retrieve("q", "kb", limit=3, organization_id=None)
         assert [r.content for r in results] == ["a", "b", "c"]
 
     async def test_a_reranker_failure_falls_back_to_the_distance_order(self):
         store = _store_returning(_hits("a", "b", "c"))
-        results = await _service(store, _FailingReranker()).retrieve("q", "kb", limit=2)
+        results = await _service(store, _FailingReranker()).retrieve(
+            "q", "kb", limit=2, organization_id=None
+        )
         assert [r.content for r in results] == ["a", "b"]
 
 
@@ -99,13 +105,15 @@ class TestMultiCollection:
         store = _store_returning(_hits("a", "b"))
         reranker = _ReverseReranker()
         await _service(store, reranker).retrieve_multi(
-            "q", collection_names=["kb_a", "kb_b"], limit=3
+            "q", collection_names=["kb_a", "kb_b"], limit=3, organization_id=None
         )
         assert reranker.calls == 1
 
     async def test_the_collection_stamp_survives_reranking(self):
         store = _store_returning(_hits("a"))
-        results = await _service(store, _ReverseReranker()).retrieve("q", "handbook", limit=1)
+        results = await _service(store, _ReverseReranker()).retrieve(
+            "q", "handbook", limit=1, organization_id=None
+        )
         assert results[0].metadata["collection"] == "handbook"
 
 
@@ -121,7 +129,9 @@ class TestMixedRerankConfig:
         store = _store_returning(_hits("a", "b"))
         r1, r2 = _ReverseReranker(), _ReverseReranker()
         svc = _service_by_name(store, {"kb_a": r1, "kb_b": r2})
-        await svc.retrieve_multi("q", collection_names=["kb_a", "kb_b"], limit=3)
+        await svc.retrieve_multi(
+            "q", collection_names=["kb_a", "kb_b"], limit=3, organization_id=None
+        )
         assert r1.calls == 0
         assert r2.calls == 0
 
@@ -129,7 +139,9 @@ class TestMixedRerankConfig:
         store = _store_returning(_hits("a", "b"))
         r = _ReverseReranker()
         svc = _service_by_name(store, {"kb_a": r, "kb_b": None})
-        await svc.retrieve_multi("q", collection_names=["kb_a", "kb_b"], limit=3)
+        await svc.retrieve_multi(
+            "q", collection_names=["kb_a", "kb_b"], limit=3, organization_id=None
+        )
         assert r.calls == 0
 
 

@@ -2,6 +2,7 @@ import logging
 import re
 from abc import ABC, abstractmethod
 from typing import Any
+from uuid import UUID
 
 # Registers every model table on `Base.metadata`, which `list_collections` judges a
 # `rag_` table against and `_table` refuses a collection name against. Another import
@@ -42,12 +43,20 @@ class BaseVectorStore(ABC):
         """
 
     @abstractmethod
-    async def insert_document(self, collection_name: str, document: Document) -> None:
+    async def insert_document(
+        self, collection_name: str, document: Document, *, organization_id: UUID | None
+    ) -> None:
         pass
 
     @abstractmethod
     async def search(
-        self, collection_name: str, query: str, limit: int = 4, filter_expr: str = ""
+        self,
+        collection_name: str,
+        query: str,
+        limit: int = 4,
+        filter_expr: str = "",
+        *,
+        organization_id: UUID | None,
     ) -> list[SearchResult]:
         pass
 
@@ -60,7 +69,9 @@ class BaseVectorStore(ABC):
         pass
 
     @abstractmethod
-    async def get_collection_info(self, collection_name: str) -> CollectionInfo:
+    async def get_collection_info(
+        self, collection_name: str, *, organization_id: UUID | None
+    ) -> CollectionInfo:
         pass
 
     @abstractmethod
@@ -178,7 +189,7 @@ from app.services.rag.embeddings import EmbeddingService
 # How a store learns which model a collection embeds with. Async because the
 # answer lives in the database, injected so the template's store never imports
 # platform policy.
-EmbeddingResolver = Callable[[str], Awaitable[ResolvedEmbeddings | None]]
+EmbeddingResolver = Callable[[str, UUID | None], Awaitable[ResolvedEmbeddings | None]]
 
 # pgvector's HNSW builds over a `vector` column only up to this width; past it,
 # `CREATE INDEX` fails with "column cannot have more than 2000 dimensions for
@@ -274,7 +285,9 @@ class PgVectorStore(BaseVectorStore):
         validate_collection_name(name, metadata=Base.metadata)
         return f"{VECTOR_TABLE_PREFIX}{name}"
 
-    async def _for_collection(self, name: str) -> tuple[EmbeddingService, int]:
+    async def _for_collection(
+        self, name: str, organization_id: UUID | None
+    ) -> tuple[EmbeddingService, int]:
         """The embedder and vector width this one collection uses.
 
         Cached per (collection, model, key): an `EmbeddingService` holds an
@@ -290,7 +303,7 @@ class PgVectorStore(BaseVectorStore):
         The recorded width wins over the catalog's: the table was created at
         that number.
         """
-        resolved = await self._resolver(name)
+        resolved = await self._resolver(name, organization_id)
         if resolved is None:
             return self.embedder, self.dim
         cache_key = (name, resolved.model, resolved.api_key)
@@ -324,10 +337,10 @@ class PgVectorStore(BaseVectorStore):
             return f"(embedding::halfvec({dim}))"
         return "embedding"
 
-    async def _ensure_collection(self, name: str) -> None:
+    async def _ensure_collection(self, name: str, organization_id: UUID | None) -> None:
         """Create table for collection if not exists."""
         table = self._table(name)
-        _, dim = await self._for_collection(name)
+        _, dim = await self._for_collection(name, organization_id)
         operator_class = "halfvec_cosine_ops" if dim > _HNSW_MAX_VECTOR_DIM else "vector_cosine_ops"
         async with self.async_session() as session:
             await session.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
@@ -363,7 +376,9 @@ class PgVectorStore(BaseVectorStore):
             )
             return result.scalar() is not None
 
-    async def insert_document(self, collection_name: str, document: Document) -> None:
+    async def insert_document(
+        self, collection_name: str, document: Document, *, organization_id: UUID | None
+    ) -> None:
         """Write a document's chunks, a batch of rows per statement.
 
         One statement per `_CHUNK_INSERT_BATCH` chunks rather than one per chunk:
@@ -383,10 +398,10 @@ class PgVectorStore(BaseVectorStore):
         while leaving the worker's memory exactly where it was.
         """
         table = self._table(collection_name)
-        await self._ensure_collection(collection_name)
+        await self._ensure_collection(collection_name, organization_id)
         if not document.chunked_pages:
             raise ValueError("Document has no chunked pages.")
-        embedder, _ = await self._for_collection(collection_name)
+        embedder, _ = await self._for_collection(collection_name, organization_id)
         vectors = embedder.embed_document(document)
         statement = text(f"""
             INSERT INTO {table} (id, parent_doc_id, content, embedding, metadata)
@@ -411,7 +426,13 @@ class PgVectorStore(BaseVectorStore):
             await session.commit()
 
     async def search(
-        self, collection_name: str, query: str, limit: int = 4, filter_expr: str = ""
+        self,
+        collection_name: str,
+        query: str,
+        limit: int = 4,
+        filter_expr: str = "",
+        *,
+        organization_id: UUID | None,
     ) -> list[SearchResult]:
         """Nearest chunks in a collection, reporting an absent one as empty.
 
@@ -425,7 +446,7 @@ class PgVectorStore(BaseVectorStore):
         table = self._table(collection_name)
         if not await self._collection_exists(collection_name):
             return []
-        embedder, dim = await self._for_collection(collection_name)
+        embedder, dim = await self._for_collection(collection_name, organization_id)
         query_vector = embedder.embed_query(query)
 
         # Parse the shared `parent_doc_id == "<value>"` filter format and apply
@@ -469,7 +490,9 @@ class PgVectorStore(BaseVectorStore):
             for row in rows
         ]
 
-    async def get_collection_info(self, collection_name: str) -> CollectionInfo:
+    async def get_collection_info(
+        self, collection_name: str, *, organization_id: UUID | None
+    ) -> CollectionInfo:
         """Vector count for a collection, reporting an absent one as empty.
 
         A collection's table is created lazily by the first ingest, so "no table"
@@ -481,7 +504,7 @@ class PgVectorStore(BaseVectorStore):
         question with an empty list; its comment claimed this method already did
         the same, and now it does.
         """
-        _, dim = await self._for_collection(collection_name)
+        _, dim = await self._for_collection(collection_name, organization_id)
         if not await self._collection_exists(collection_name):
             return CollectionInfo(name=collection_name, total_vectors=0, dim=dim)
         table = self._table(collection_name)

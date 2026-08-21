@@ -57,6 +57,7 @@ def _service(processor: MagicMock) -> IngestionService:
     return IngestionService(
         processor=processor,
         vector_store=MagicMock(insert_document=AsyncMock(), delete_document=AsyncMock()),
+        organization_id=None,
     )
 
 

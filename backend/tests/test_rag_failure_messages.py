@@ -148,7 +148,7 @@ class TestTheIngestionServiceMovesItToTheLog:
     def _service(*, parse: AsyncMock, insert: AsyncMock) -> IngestionService:
         processor = MagicMock(process_file=parse)
         store = MagicMock(insert_document=insert)
-        return IngestionService(processor=processor, vector_store=store)
+        return IngestionService(processor=processor, vector_store=store, organization_id=None)
 
     @staticmethod
     def _document() -> MagicMock:

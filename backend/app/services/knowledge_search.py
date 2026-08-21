@@ -80,6 +80,7 @@ class KnowledgeSearchService:
                         collection_names=collections,
                         limit=request.limit,
                         min_score=request.min_score,
+                        organization_id=ctx.organization_id,
                     )
                 else:
                     results = await self.retrieval.retrieve(
@@ -88,6 +89,7 @@ class KnowledgeSearchService:
                         limit=request.limit,
                         min_score=request.min_score,
                         filter=request.filter or "",
+                        organization_id=ctx.organization_id,
                     )
         except Exception:
             # The query embedding is booked before the vector query it pays for,
