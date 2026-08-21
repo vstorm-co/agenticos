@@ -615,6 +615,7 @@ class McpConnectionService:
         create: Callable[..., Awaitable[McpConnection]],
         payload: McpOAuthPayload,
         state: str,
+        upgrade: bool = False,
     ) -> None:
         """Write a staged consent flow onto an existing row or a fresh one.
 
@@ -624,9 +625,17 @@ class McpConnectionService:
         until the callback lands. Abandoning the consent screen therefore leaves a
         working connection working, and re-authorizing never overwrites a URL or a
         token that still works - both move over in :meth:`oauth_callback`.
+
+        `upgrade` lets the GitHub portal flow stage onto an existing *bearer* row:
+        an organization that connected the GitHub catalog entry before the OAuth
+        flow existed holds one, agents may already be bound to it, and refusing it
+        would wedge the portal on Re-authorize until somebody deletes that row.
+        The bearer token keeps working until the consent lands; the callback then
+        promotes the row to OAuth. The discovery flow never passes it - there a
+        name collision with a bearer row is a genuine conflict.
         """
         if existing is not None:
-            if existing.auth_type != "oauth":
+            if existing.auth_type != "oauth" and not upgrade:
                 raise AlreadyExistsError(
                     message="A connection with this name already exists",
                     details={"name": name},
@@ -710,12 +719,24 @@ class McpConnectionService:
             redirect_uri=redirect_uri,
             provider=github_oauth.PROVIDER,
         )
+        # The organization's existing row for this catalog entry, whatever it is
+        # named - the catalog key is how the frontend joins portal to connection,
+        # so staging anywhere else would leave the portal reading a different row
+        # than the one just authorized. A pre-OAuth bearer connection to the same
+        # entry is upgraded in place rather than refused or duplicated: agents may
+        # already be bound to it. Only a row that genuinely is this catalog entry
+        # may be upgraded - a coincidentally like-named bearer row keeps the
+        # refusal, since flipping it would hijack an unrelated connection.
+        existing = await mcp_connection_repo.get_org_scoped_by_catalog_key(
+            self.db, organization_id=ctx.organization_id, catalog_key=catalog_key
+        ) or await mcp_connection_repo.get_org_scoped_by_name(
+            self.db, organization_id=ctx.organization_id, name=catalog_key
+        )
         await self._stage_pending_oauth(
             name=catalog_key,
             url=entry.url,
-            existing=await mcp_connection_repo.get_org_scoped_by_name(
-                self.db, organization_id=ctx.organization_id, name=catalog_key
-            ),
+            existing=existing,
+            upgrade=existing is not None and existing.catalog_key == catalog_key,
             vault_scope=VaultScope.organization(ctx.organization_id),
             create=lambda **kwargs: mcp_connection_repo.create_org_scoped(
                 self.db,
@@ -762,6 +783,12 @@ class McpConnectionService:
             update_data={
                 # The URL moves together with the tokens issued for it.
                 "url": payload.server_url,
+                # A row staged as an upgrade (a pre-OAuth bearer connection to a
+                # catalog entry) is promoted only now, with the consent in hand:
+                # the OAuth token takes over and the static one is dropped, so a
+                # flow abandoned at the consent screen never broke the bearer.
+                "auth_type": "oauth",
+                "auth_token": None,
                 "oauth_payload": _seal_for(connection, payload.model_dump_json()).ciphertext,
                 "oauth_pending_payload": None,
                 "oauth_state": None,
@@ -897,6 +924,19 @@ class McpConnectionService:
             update_data.setdefault("last_error", None)
             update_data.setdefault("last_checked_at", None)
 
+        # OAuth tokens are bound to the resource they were issued for - never
+        # carry them over to a different host. The same safeguard the personal
+        # path has, and here it is also a boundary between administrators: an
+        # org connection's GitHub token must not follow a repointed URL to a
+        # host another `mcp:manage` holder chose. The mirrored scopes go with
+        # the token they described; the organization re-authorizes instead.
+        moved = "url" in update_data and update_data["url"] != db_connection.url
+        if moved and db_connection.auth_type == "oauth":
+            update_data["oauth_payload"] = None
+            update_data["oauth_pending_payload"] = None
+            update_data["oauth_state"] = None
+            update_data["granted_scopes"] = None
+
         if not update_data:
             return db_connection
         return await mcp_connection_repo.update(
@@ -905,6 +945,14 @@ class McpConnectionService:
 
     async def delete_for_org(self, ctx: AuthContext, *, connection_id: UUID) -> None:
         db_connection = await self._get_org(ctx, connection_id)
+        # Any trigger webhook this account registered is deregistered first,
+        # while its token still exists, and the trigger falls back to manual -
+        # otherwise the trigger FK's SET NULL trips the shape CHECK (a registered
+        # hook with no account to remove it by) and the delete fails at flush.
+        # Imported locally: the trigger service imports this module at module scope.
+        from app.services.agent_trigger import AgentTriggerService
+
+        await AgentTriggerService(self.db).release_connection(ctx, connection_id)
         await mcp_connection_repo.delete(self.db, db_connection=db_connection)
         await record_audit(
             self.db,

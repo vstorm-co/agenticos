@@ -103,7 +103,7 @@ async def check_agent_triggers_flow() -> None:
             # enqueue the run on the Prefect API and then lose or time out the
             # response - so clearing it here would let the next tick submit a second
             # fire on top of an accepted-but-queued one, duplicating the spend and its
-            # side effects (#589). Leaving it set means `_FIRE_LEASE`, not this loop,
+            # side effects (#589). Leaving it set means `FIRE_LEASE`, not this loop,
             # governs re-dispatch: a genuinely lost submit waits out the lease rather
             # than risking a double fire.
             logger.exception("agent_trigger_dispatch_failed", extra={"trigger_id": str(trigger.id)})

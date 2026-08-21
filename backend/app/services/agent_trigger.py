@@ -31,6 +31,8 @@ retrying a refusal for ever.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import json
 import logging
 import secrets
@@ -58,6 +60,7 @@ from app.core.permissions import AuthContext, Perm
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.agent_trigger import AgentTrigger, ScheduleKind, TriggerType
+from app.db.session import get_db_context
 from app.db.updates import writable
 from app.repositories import (
     agent_environment_repo,
@@ -80,6 +83,11 @@ from app.services.mcp_connection import McpConnectionService
 from app.services.portal_catalog import DeliveryMode
 
 logger = logging.getLogger(__name__)
+
+# How often a running fire re-stamps its in-flight marker - a third of
+# `agent_trigger_repo.FIRE_LEASE`, so a renewal has two more chances to land
+# before the lease would free the marker under a run that is still executing.
+_LEASE_RENEW_SECONDS = int(agent_trigger_repo.FIRE_LEASE.total_seconds() / 3)
 
 
 @dataclass(frozen=True)
@@ -240,21 +248,24 @@ class AgentTriggerService:
         """Every schedule on this agent, each flagged whether this caller manages it.
 
         Requires only `agents:view` (the registry's default): seeing when an agent
-        runs itself is part of understanding what it is. `can_manage` is the
-        `agents:edit`-on-the-agent the write path enforces, resolved once for the
-        agent, OR ownership of the row - so the page renders edit, pause, run-now
-        and delete for exactly the rows the caller could act on, and a Viewer with
-        an explicit grant is no longer hidden from their own.
+        runs itself is part of understanding what it is. `can_manage` mirrors what
+        the write path will actually accept - `agents:run` on the agent (the floor
+        `_owned` checks first, so a creator whose run grant was revoked is not
+        shown controls that all 404) AND (`agents:edit` on the agent OR ownership
+        of the row) - so the page renders edit, pause, run-now and delete for
+        exactly the rows the caller could act on, and a Viewer with an explicit
+        grant is no longer hidden from their own.
         """
         agent = await self.agents.get(ctx, agent_id)
         rows = await agent_trigger_repo.list_for_agent(
             self.db, agent_id=agent.id, organization_id=ctx.organization_id
         )
+        can_run = await resolve_access(self.db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT)
         can_edit = await resolve_access(self.db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT)
         reads: list[TriggerRead] = []
         for trigger in rows:
             read = TriggerRead.model_validate(trigger)
-            read.can_manage = can_edit or trigger.created_by_user_id == ctx.subject_id
+            read.can_manage = can_run and (can_edit or trigger.created_by_user_id == ctx.subject_id)
             reads.append(read)
         return reads
 
@@ -294,32 +305,48 @@ class AgentTriggerService:
             limit=limit,
         )
         triggers: list[TriggerRead] = []
-        # `agents:edit` resolved once per agent, not once per row: an org-wide list
-        # is many triggers over few agents, and the answer is the agent's.
+        # `agents:run` and `agents:edit` resolved once per agent, not once per
+        # row: an org-wide list is many triggers over few agents, and the answer
+        # is the agent's. Run is the write path's floor (`_owned`), so it gates
+        # the flag too - controls a revoked creator could only 404 on stay hidden.
+        can_run: dict[UUID, bool] = {}
         can_edit: dict[UUID, bool] = {}
         for trigger, agent in rows:
             read = TriggerRead.model_validate(trigger)
             read.agent_name = agent.name
             read.agent_has_avatar = agent.has_avatar
             read.agent_avatar_color = agent.avatar_color
-            if agent.id not in can_edit:
+            if agent.id not in can_run:
+                can_run[agent.id] = await resolve_access(
+                    self.db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT
+                )
                 can_edit[agent.id] = await resolve_access(
                     self.db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT
                 )
-            read.can_manage = can_edit[agent.id] or trigger.created_by_user_id == ctx.subject_id
+            read.can_manage = can_run[agent.id] and (
+                can_edit[agent.id] or trigger.created_by_user_id == ctx.subject_id
+            )
             triggers.append(read)
         return triggers, total
 
     async def list_portal_targets(
-        self, ctx: AuthContext, portal_key: str, connection_id: UUID
+        self, ctx: AuthContext, portal_key: str, connection_id: UUID, *, agent_id: UUID
     ) -> list[portals.PortalTarget]:
         """The targets a portal's preset can point at, from the connected account.
+
+        Authorized like the create it feeds: `agents:run` on the agent the trigger
+        is being built for, resolved per resource - so a Viewer holding one
+        explicit run grant browses the account's repositories exactly where they
+        may create the trigger, where a role-level gate refused them before any
+        grant was consulted. An agent the caller may not run is the same
+        unprobeable 404 the create answers.
 
         Empty rather than an error when the portal registers no webhooks, or the
         account cannot be read for the scope - the picker falls back to a free-text
         target, so a listing that cannot answer must not block building a trigger.
         A portal key that names nothing is a 404, because a bad key is a mistake.
         """
+        await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
         portal = portal_catalog.get_portal(portal_key)
         if portal is None:
             raise NotFoundError(message="Portal not found", details={"portal_key": portal_key})
@@ -574,6 +601,31 @@ class AgentTriggerService:
             logger.warning(
                 "trigger_webhook_deregister_failed",
                 extra={"trigger_id": str(trigger.id)},
+            )
+
+    async def release_connection(self, ctx: AuthContext, connection_id: UUID) -> None:
+        """Shed every hook this connected account registered, ahead of its delete.
+
+        Called by the connection service before the row goes: the FK is SET NULL,
+        but the shape CHECK refuses `provider_webhook_id` with no connection - a
+        hook nobody could ever deregister - so left alone the delete itself fails
+        at flush. Each auto-registered trigger has its provider hook removed
+        (best-effort, while the token still exists) and falls back to `manual`
+        delivery: the webhook URL and secret still stand, so re-pointing a
+        provider at it by hand keeps working. Non-webhook triggers just lose the
+        account reference, which is what SET NULL already says.
+        """
+        triggers = await agent_trigger_repo.list_for_connection(
+            self.db, connection_id=connection_id, organization_id=ctx.organization_id
+        )
+        for trigger in triggers:
+            if not _is_auto_webhook(trigger):
+                continue
+            await self._deregister_webhook(ctx, trigger)
+            await agent_trigger_repo.update(
+                self.db,
+                trigger=trigger,
+                update_data={"provider_webhook_id": None, "delivery_mode": "manual"},
             )
 
     async def deregister_agent_webhooks(self, ctx: AuthContext, agent_id: UUID) -> None:
@@ -1061,22 +1113,65 @@ class AgentTriggerService:
         fire never cleared, and a dispatch that never started a run leaves the marker
         for the lease to free rather than clearing it eagerly - the child flow may
         have started even when the submit call raised.
+
+        While the run executes, the marker is *renewed* (`_keep_lease_alive`): a
+        run longer than the lease is otherwise indistinguishable from a crashed
+        one - its own `running` row commits only when it finishes, so no other
+        session can see it - and the next heartbeat would re-claim the trigger and
+        fire it on top of itself. Each renewal moves the ticket, so the clear here
+        names the timestamp the row actually holds.
         """
         trigger = await agent_trigger_repo.get_by_id(self.db, trigger_id)
         if trigger is None:
             logger.info("trigger_fire_skipped", extra={"trigger_id": str(trigger_id)})
             return
+        if claimed_at is None:
+            await self._fire_loaded(trigger, event_context=event_context)
+            return
+        # The ticket the marker currently holds, renewed in place while the run
+        # executes: a run longer than the lease would otherwise look dead to the
+        # next heartbeat - its own `running` row is invisible to other sessions
+        # until this transaction commits - and be fired on top of itself. A list,
+        # because the renewer moves it and the `finally` must clear the *latest*.
+        ticket = [claimed_at]
+        renewer = asyncio.create_task(self._keep_lease_alive(trigger.id, ticket))
         try:
             await self._fire_loaded(trigger, event_context=event_context)
         finally:
-            if claimed_at is not None:
-                # A conditional UPDATE against the committed row, not a comparison
-                # on the instance loaded when this fire began: a fire that outran
-                # the lease may find a newer claim's marker there, and only the
-                # database can judge that freshly (`clear_fire_marker`).
-                await agent_trigger_repo.clear_fire_marker(
-                    self.db, trigger_id=trigger.id, claimed_at=claimed_at
+            renewer.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await renewer
+            # A conditional UPDATE against the committed row, not a comparison
+            # on the instance loaded when this fire began: a fire that outran
+            # the lease may find a newer claim's marker there, and only the
+            # database can judge that freshly (`clear_fire_marker`).
+            await agent_trigger_repo.clear_fire_marker(
+                self.db, trigger_id=trigger.id, claimed_at=ticket[-1]
+            )
+
+    async def _keep_lease_alive(self, trigger_id: UUID, ticket: list[datetime]) -> None:
+        """Re-stamp the fire's in-flight marker for as long as the run executes.
+
+        The lease (`agent_trigger_repo.FIRE_LEASE`) frees a marker whose fire
+        *died*; only the fire itself can distinguish "died" from "still running",
+        so it renews the marker on an interval well inside the lease, each renewal
+        on a session of its own so the new timestamp commits and other heartbeat
+        sessions see it. A renewal that misses - the marker was re-claimed after
+        all, cleared, or the trigger deleted - stops the loop: the marker is no
+        longer this fire's to touch. Cancelled by `fire`'s finally once the run
+        settles; appends each accepted ticket so the final clear names the one the
+        row actually holds.
+        """
+        while True:
+            await asyncio.sleep(_LEASE_RENEW_SECONDS)
+            renewed_at = datetime.now(UTC)
+            async with get_db_context() as db:
+                renewed = await agent_trigger_repo.renew_fire_marker(
+                    db, trigger_id=trigger_id, claimed_at=ticket[-1], renewed_at=renewed_at
                 )
+            if not renewed:
+                return
+            ticket.append(renewed_at)
 
     async def _fire_loaded(
         self, trigger: AgentTrigger, *, event_context: str | None = None

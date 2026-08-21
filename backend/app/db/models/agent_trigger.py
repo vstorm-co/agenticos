@@ -224,7 +224,7 @@ class AgentTrigger(Base, TimestampMixin):
     # written only when `execute` returns - so for the whole time a run executes it
     # still names the *previous* (terminal) run, and a run slower than its interval
     # would fire on top of itself. This marker closes that window: a trigger with it
-    # set is in flight and is not re-claimed. Bounded by a lease (`_FIRE_LEASE` in the
+    # set is in flight and is not re-claimed. Bounded by a lease (`FIRE_LEASE` in the
     # repo) so a child that died without clearing it un-wedges rather than parking the
     # schedule for ever.
     fire_in_flight_since: Mapped[datetime | None] = mapped_column(

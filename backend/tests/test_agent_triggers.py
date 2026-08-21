@@ -11,6 +11,8 @@ mocked, so these tests are about triggers, not about re-proving that.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import uuid
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -25,7 +27,7 @@ from app.core.exceptions import (
     NotFoundError,
     ValidationError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.schemas.agent_trigger import TriggerCreate, TriggerRead, TriggerUpdate
 from app.services.agent_trigger import (
@@ -397,22 +399,42 @@ class TestReading:
     async def test_a_listing_flags_only_the_callers_own_rows_without_agents_edit(self):
         """No `agents:edit` on the agent, so `can_manage` is exactly the rows this
         caller created - the controls the agent page renders for a Viewer holding
-        an explicit grant, no longer hidden by a role-only gate."""
+        an explicit run grant, no longer hidden by a role-only gate."""
         agent = _agent()
         service = _service(agent)
         mine = _read()
         mine.created_by_user_id = _CALLER
         theirs = _read()
         theirs.created_by_user_id = uuid.uuid4()
+
+        async def resolve(_db, _ctx, _agent, perm, **_kw):
+            return perm == Perm.AGENTS_RUN  # may run the agent, may not edit it
+
         with (
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
-            patch("app.services.agent_trigger.resolve_access", new=AsyncMock(return_value=False)),
+            patch("app.services.agent_trigger.resolve_access", new=AsyncMock(side_effect=resolve)),
         ):
             repo.list_for_agent = AsyncMock(return_value=[mine, theirs])
             reads = await service.list_for_agent(_ctx(), agent.id)
         by_id = {read.id: read for read in reads}
         assert by_id[mine.id].can_manage is True
         assert by_id[theirs.id].can_manage is False
+
+    async def test_a_creator_who_lost_run_access_is_shown_no_controls(self):
+        """Ownership alone must not advertise controls the write path will refuse:
+        `_owned` demands `agents:run` first, so a creator whose run grant was
+        revoked would get a 404 from every one of them. The flag says so."""
+        agent = _agent()
+        service = _service(agent)
+        mine = _read()
+        mine.created_by_user_id = _CALLER
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.resolve_access", new=AsyncMock(return_value=False)),
+        ):
+            repo.list_for_agent = AsyncMock(return_value=[mine])
+            reads = await service.list_for_agent(_ctx(), agent.id)
+        assert reads[0].can_manage is False
 
     async def test_agents_edit_makes_every_row_on_the_agent_manageable(self):
         agent = _agent()
@@ -461,8 +483,8 @@ class TestOrgListing:
         assert items[0].agent_has_avatar is True
         assert items[0].agent_avatar_color == 3
         assert items[0].can_manage is True
-        # Resolved once for the shared agent, not per row.
-        assert resolve.await_count == 1
+        # Resolved once for the shared agent (run and edit), not once per row.
+        assert resolve.await_count == 2
 
     async def test_a_role_that_reaches_every_agent_asks_for_no_predicate(self):
         """`visible_resource_ids` returning None means "sees all" - `see_all` True."""
@@ -2553,23 +2575,132 @@ class TestDeletingTheAgentSweepsItsWebhooks:
         assert adapter.delete_webhook.await_count == 2
 
 
+class TestReleasingAConnection:
+    """`release_connection` - the sweep before a connected account is deleted.
+
+    The connection FK is SET NULL, but the shape CHECK refuses a registered hook
+    with no connection, so a delete that skipped this would fail at flush - and a
+    hook left at the provider would deliver into a signature check for ever."""
+
+    async def test_registered_hooks_are_shed_and_fall_back_to_manual(self):
+        agent = _agent()
+        service = _service(agent)
+        service.connections.webhook_access_token = AsyncMock(return_value="tok")
+        adapter = MagicMock(delete_webhook=AsyncMock())
+        connection_id = uuid.uuid4()
+        hooked = _event_trigger(
+            agent_id=agent.id,
+            provider_webhook_id="hook-1",
+            connection_id=connection_id,
+            portal_key="github",
+            provider_target="acme/api",
+            delivery_mode="auto_webhook",
+        )
+        manual = _event_trigger(agent_id=agent.id, connection_id=connection_id)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter),
+        ):
+            repo.list_for_connection = AsyncMock(return_value=[hooked, manual])
+            repo.update = AsyncMock()
+            await service.release_connection(_ctx(), connection_id)
+        # The registered hook is removed at the provider while the token still
+        # exists, and its row sheds the id the CHECK ties to the connection. The
+        # manual trigger has nothing at the provider and is left alone.
+        adapter.delete_webhook.assert_awaited_once()
+        repo.update.assert_awaited_once()
+        assert repo.update.await_args.kwargs["update_data"] == {
+            "provider_webhook_id": None,
+            "delivery_mode": "manual",
+        }
+
+
+class TestKeepingTheLeaseAlive:
+    async def test_a_renewal_moves_the_ticket_until_the_marker_is_no_longer_ours(self, monkeypatch):
+        """Each accepted renewal becomes the next ticket, so the loop always renews
+        the marker it last stamped; the first refusal - re-claimed, cleared, or
+        deleted - ends it, because the marker is no longer this fire's to touch."""
+        service = _service()
+
+        @contextlib.asynccontextmanager
+        async def fake_db():
+            yield MagicMock()
+
+        monkeypatch.setattr("app.services.agent_trigger._LEASE_RENEW_SECONDS", 0)
+        monkeypatch.setattr("app.services.agent_trigger.get_db_context", fake_db)
+        ticket = [datetime(2026, 1, 1, tzinfo=UTC)]
+        renew = AsyncMock(side_effect=[True, False])
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.renew_fire_marker = renew
+            await service._keep_lease_alive(uuid.uuid4(), ticket)
+        assert len(ticket) == 2  # one accepted renewal, then the refusal stopped it
+        assert renew.await_args_list[0].kwargs["claimed_at"] == ticket[0]
+        assert renew.await_args_list[1].kwargs["claimed_at"] == ticket[1]
+
+    async def test_the_final_clear_names_the_ticket_the_row_actually_holds(self, monkeypatch):
+        """A renewal moves the marker, so clearing with the original `claimed_at`
+        would miss its own marker and park the trigger for the whole lease. The
+        finally reads the ticket the renewer last landed."""
+        service = _service()
+        trigger = _trigger()
+        dispatched_with = datetime(2026, 1, 1, tzinfo=UTC)
+        renewed_to = datetime(2026, 1, 1, 0, 20, tzinfo=UTC)
+
+        async def keep(trigger_id: uuid.UUID, ticket: list[datetime]) -> None:
+            ticket.append(renewed_to)
+            await asyncio.sleep(3600)
+
+        async def fire_loaded(*_args, **_kwargs) -> None:
+            # Two real suspension points, so the renewer task gets to run.
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+
+        monkeypatch.setattr(service, "_keep_lease_alive", keep)
+        monkeypatch.setattr(service, "_fire_loaded", fire_loaded)
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            repo.clear_fire_marker = AsyncMock()
+            await service.fire(trigger.id, claimed_at=dispatched_with)
+        repo.clear_fire_marker.assert_awaited_once_with(
+            service.db, trigger_id=trigger.id, claimed_at=renewed_to
+        )
+
+
 class TestListingPortalTargets:
+    async def test_an_agent_the_caller_may_not_run_is_not_found(self):
+        """The listing is authorized like the create it feeds: `agents:run` on the
+        agent, per resource - so a Viewer with one run grant can browse targets
+        exactly where they may create the trigger, and an agent outside their
+        reach answers the same unprobeable 404 the create does."""
+        service = _service()
+        service.agents.get = AsyncMock(side_effect=NotFoundError(message="Agent not found"))
+        with pytest.raises(NotFoundError):
+            await service.list_portal_targets(_ctx(), "github", uuid.uuid4(), agent_id=uuid.uuid4())
+        assert service.agents.get.call_args.kwargs["perm"] == Perm.AGENTS_RUN
+
     async def test_an_unknown_portal_is_not_found(self):
         service = _service()
         with pytest.raises(NotFoundError):
-            await service.list_portal_targets(_ctx(), "no-such-portal", uuid.uuid4())
+            await service.list_portal_targets(
+                _ctx(), "no-such-portal", uuid.uuid4(), agent_id=uuid.uuid4()
+            )
 
     async def test_a_portal_with_no_adapter_has_no_targets(self):
         # A manual portal (email) registers no webhooks and enumerates nothing.
         service = _service()
-        assert await service.list_portal_targets(_ctx(), "email", uuid.uuid4()) == []
+        assert (
+            await service.list_portal_targets(_ctx(), "email", uuid.uuid4(), agent_id=uuid.uuid4())
+            == []
+        )
 
     async def test_no_scoped_token_lists_nothing(self):
         service = _service()
         service.connections.webhook_access_token = AsyncMock(return_value=None)
         adapter = MagicMock(list_preset_targets=AsyncMock())
         with patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter):
-            targets = await service.list_portal_targets(_ctx(), "github", uuid.uuid4())
+            targets = await service.list_portal_targets(
+                _ctx(), "github", uuid.uuid4(), agent_id=uuid.uuid4()
+            )
         assert targets == []
         adapter.list_preset_targets.assert_not_awaited()
 
@@ -2579,5 +2710,7 @@ class TestListingPortalTargets:
         target = PortalTarget(id="acme/api", label="acme/api")
         adapter = MagicMock(list_preset_targets=AsyncMock(return_value=[target]))
         with patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter):
-            targets = await service.list_portal_targets(_ctx(), "github", uuid.uuid4())
+            targets = await service.list_portal_targets(
+                _ctx(), "github", uuid.uuid4(), agent_id=uuid.uuid4()
+            )
         assert targets == [target]

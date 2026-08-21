@@ -442,6 +442,32 @@ class TestClearingTheFireMarker:
         await db.refresh(trigger)
         assert trigger.fire_in_flight_since is None
 
+    async def test_a_renewal_moves_only_its_own_marker(self, db):
+        """The long-run renewal is the same conditional shape: a stale ticket
+        renews nothing and reports the miss, its own ticket moves the marker."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        stale = datetime.now(UTC) - timedelta(hours=2)
+        current = datetime.now(UTC) - timedelta(minutes=30)
+        forward = datetime.now(UTC)
+        trigger = _trigger(org, agent, fire_in_flight_since=current)
+        db.add(trigger)
+        await db.flush()
+
+        missed = await agent_trigger_repo.renew_fire_marker(
+            db, trigger_id=trigger.id, claimed_at=stale, renewed_at=forward
+        )
+        assert missed is False
+        await db.refresh(trigger)
+        assert trigger.fire_in_flight_since == current
+
+        renewed = await agent_trigger_repo.renew_fire_marker(
+            db, trigger_id=trigger.id, claimed_at=current, renewed_at=forward
+        )
+        assert renewed is True
+        await db.refresh(trigger)
+        assert trigger.fire_in_flight_since == forward
+
 
 class TestACreatedTriggerSerializes:
     async def test_a_created_trigger_survives_response_serialization(self, db):

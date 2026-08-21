@@ -107,23 +107,24 @@ async def list_trigger_templates() -> Any:
 @org_router.get(
     "/trigger-portals/{portal_key}/targets",
     response_model=PortalTargetList,
-    dependencies=[Depends(require(Perm.AGENTS_RUN))],
 )
 async def list_portal_targets(
     portal_key: str,
     ctx: Auth,
     service: AgentTriggerSvc,
     connection_id: UUID = Query(..., description="The connected account to enumerate targets from"),
+    agent_id: UUID = Query(..., description="The agent the trigger is being built for"),
 ) -> Any:
     """The repositories (or channels) a portal's preset can point at.
 
-    Gated on `agents:run`, not the catalog's `agents:view`: enumerating an
-    account's repositories through its token is part of building a trigger, not
-    browsing what exists. An empty list is a legitimate answer - a portal that
-    registers no webhooks, or a connection that cannot be read - and the picker
-    falls back to a free-text target.
+    No role gate: enumerating an account's repositories is part of building a
+    trigger on one agent, so the service resolves `agents:run` on *that* agent
+    per resource - a role gate here refused a Viewer whose one run grant is
+    exactly what lets them create the trigger. An empty list is a legitimate
+    answer - a portal that registers no webhooks, or a connection that cannot
+    be read - and the picker falls back to a free-text target.
     """
-    targets = await service.list_portal_targets(ctx, portal_key, connection_id)
+    targets = await service.list_portal_targets(ctx, portal_key, connection_id, agent_id=agent_id)
     items = [PortalTargetRead(id=target.id, label=target.label) for target in targets]
     return PortalTargetList(items=items, total=len(items))
 

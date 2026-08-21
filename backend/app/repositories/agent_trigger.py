@@ -24,7 +24,7 @@ _NON_TERMINAL_STATUSES = (RunStatus.RUNNING.value, RunStatus.AWAITING_APPROVAL.v
 # settles in seconds to minutes; past this lease the fired flow is assumed dead - a
 # worker crash that skipped its `finally` - and the schedule is freed rather than
 # parked for ever.
-_FIRE_LEASE = timedelta(hours=1)
+FIRE_LEASE = timedelta(hours=1)
 
 
 async def get(db: AsyncSession, trigger_id: UUID, *, organization_id: UUID) -> AgentTrigger | None:
@@ -72,6 +72,25 @@ async def list_for_agent(
             AgentTrigger.organization_id == organization_id,
         )
         .order_by(AgentTrigger.created_at.asc())
+    )
+    return list(result.scalars().all())
+
+
+async def list_for_connection(
+    db: AsyncSession, *, connection_id: UUID, organization_id: UUID
+) -> list[AgentTrigger]:
+    """The triggers whose webhooks were registered through this connected account.
+
+    For the sweep that runs before the connection is deleted: its FK is
+    `ON DELETE SET NULL`, but the shape CHECK refuses a registered hook with no
+    connection - deliberately, since such a hook could never be deregistered - so
+    the rows must shed their hooks first or the delete fails at flush.
+    """
+    result = await db.execute(
+        select(AgentTrigger).where(
+            AgentTrigger.connection_id == connection_id,
+            AgentTrigger.organization_id == organization_id,
+        )
     )
     return list(result.scalars().all())
 
@@ -195,11 +214,39 @@ async def delete(db: AsyncSession, trigger: AgentTrigger) -> None:
     await db.flush()
 
 
+async def renew_fire_marker(
+    db: AsyncSession, *, trigger_id: UUID, claimed_at: datetime, renewed_at: datetime
+) -> bool:
+    """Move the in-flight marker forward, but only while it is still this claim's.
+
+    How a fire longer than `FIRE_LEASE` keeps its trigger claimed: the lease is
+    sized for a run that died, and only the running fire can tell the difference,
+    so it re-stamps the marker on an interval well inside the lease. Conditional
+    exactly like :func:`clear_fire_marker`, and for the same reason - a renewal
+    racing a heartbeat that already re-claimed must lose, not overwrite. `False`
+    says the marker is no longer this fire's to renew (re-claimed, cleared, or the
+    trigger deleted); the caller stops touching it.
+    """
+    result = await db.execute(
+        sql_update(AgentTrigger)
+        .where(
+            AgentTrigger.id == trigger_id,
+            AgentTrigger.fire_in_flight_since == claimed_at,
+        )
+        .values(fire_in_flight_since=renewed_at)
+    )
+    await db.flush()
+    # `execute` is typed to return `Result`, which has no `rowcount`; a DML
+    # statement actually returns `CursorResult`, which does (`resource_grant`
+    # documents the same suppression).
+    return result.rowcount == 1  # ty: ignore[unresolved-attribute]
+
+
 async def clear_fire_marker(db: AsyncSession, *, trigger_id: UUID, claimed_at: datetime) -> None:
     """Free the in-flight marker, but only while it is still this claim's own.
 
     A conditional UPDATE rather than a read-compare-assign on the loaded row: the
-    row was loaded when the fire began, and a fire that outran `_FIRE_LEASE` may
+    row was loaded when the fire began, and a fire that outran `FIRE_LEASE` may
     since have had its trigger re-claimed by a heartbeat that committed a *newer*
     `fire_in_flight_since`. Comparing against the session's cached value and
     assigning `None` would clear that newer claim's marker and reopen the trigger
@@ -235,7 +282,7 @@ async def claim_due(db: AsyncSession, *, now: datetime, limit: int = 100) -> lis
       it and disables it instead, so the cleanup happens rather than being filtered
       away.
     * no fire is in flight: `fire_in_flight_since` is null, or older than
-      `_FIRE_LEASE`. The claim sets this marker in the same UPDATE that advances
+      `FIRE_LEASE`. The claim sets this marker in the same UPDATE that advances
       `next_fire_at`, and the fired run clears it in a `finally` - so a run slower
       than its interval is not fired on top of itself, and a run that died without
       clearing un-wedges once the lease lapses. This is the guard `last_run_id`
@@ -279,7 +326,7 @@ async def claim_due(db: AsyncSession, *, now: datetime, limit: int = 100) -> lis
             (AgentTrigger.last_run_id.is_(None)) | (AgentRun.status.not_in(_NON_TERMINAL_STATUSES)),
             ~has_run_in_flight,
             (AgentTrigger.fire_in_flight_since.is_(None))
-            | (AgentTrigger.fire_in_flight_since <= now - _FIRE_LEASE),
+            | (AgentTrigger.fire_in_flight_since <= now - FIRE_LEASE),
         )
         .order_by(AgentTrigger.next_fire_at.asc())
         .limit(limit)

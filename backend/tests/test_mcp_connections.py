@@ -3,7 +3,7 @@
 import contextlib
 import logging
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import httpx
@@ -1674,6 +1674,31 @@ class TestOrganizationConnections:
         assert update_data["last_checked_at"] is None
 
     @pytest.mark.anyio
+    async def test_moving_an_oauth_connections_url_drops_its_tokens_and_scopes(
+        self, service, ctx, repo, monkeypatch
+    ):
+        """The same safeguard the personal path has, and here it is a boundary
+        between administrators: without it, any `mcp:manage` holder could repoint
+        an org connection another admin authorized at a host of their choosing and
+        have the platform send that GitHub token there on the next Test or run.
+        The mirrored scopes describe the dropped token, so they go with it."""
+        _allow_any_url(monkeypatch)
+        conn = self._org_connection(ctx, auth_type="oauth", granted_scopes=["repo"])
+        repo.get_org_scoped_by_id.return_value = conn
+
+        await service.update_for_org(
+            ctx,
+            connection_id=conn.id,
+            data=OrgMcpConnectionUpdate(url="https://elsewhere.example/mcp"),
+        )
+
+        update_data = repo.update.call_args.kwargs["update_data"]
+        assert update_data["oauth_payload"] is None
+        assert update_data["oauth_pending_payload"] is None
+        assert update_data["oauth_state"] is None
+        assert update_data["granted_scopes"] is None
+
+    @pytest.mark.anyio
     async def test_renaming_onto_another_servers_name_is_refused(self, service, ctx, repo):
         conn = self._org_connection(ctx, name="github")
         repo.get_org_scoped_by_id.return_value = conn
@@ -1782,8 +1807,14 @@ class TestOrganizationConnections:
         conn = self._org_connection(ctx, name="github")
         repo.get_org_scoped_by_id.return_value = conn
 
-        await service.delete_for_org(ctx, connection_id=conn.id)
+        with patch("app.services.agent_trigger.AgentTriggerService") as triggers_cls:
+            triggers = triggers_cls.return_value
+            triggers.release_connection = AsyncMock()
+            await service.delete_for_org(ctx, connection_id=conn.id)
 
+        # The triggers this account registered hooks for shed them first - while
+        # the token still exists - or the FK's SET NULL trips the shape CHECK.
+        triggers.release_connection.assert_awaited_once_with(ctx, conn.id)
         assert repo.delete.call_args.kwargs == {"db_connection": conn}
         recorded = audit.call_args.kwargs
         assert recorded["action"] == "mcp_connection.deleted"
@@ -2450,6 +2481,7 @@ class TestGithubPortalOAuth:
     def repo(self, monkeypatch):
         mock_repo = MagicMock()
         mock_repo.get_org_scoped_by_name = AsyncMock(return_value=None)
+        mock_repo.get_org_scoped_by_catalog_key = AsyncMock(return_value=None)
         mock_repo.create_org_scoped = AsyncMock()
         mock_repo.update = AsyncMock()
         mock_repo.get_by_oauth_state = AsyncMock()
@@ -2545,7 +2577,7 @@ class TestGithubPortalOAuth:
         live.oauth_payload = _seal_into(
             live, _base_payload(access_token="live-token").model_dump_json()
         )
-        repo.get_org_scoped_by_name.return_value = live
+        repo.get_org_scoped_by_catalog_key.return_value = live
 
         await service.oauth_start_for_org_github(ctx, portal_key="github")
 
@@ -2553,6 +2585,54 @@ class TestGithubPortalOAuth:
         assert update_data["oauth_pending_payload"]
         assert "oauth_payload" not in update_data  # the working token survives
         repo.create_org_scoped.assert_not_called()
+
+    async def test_a_pre_oauth_bearer_catalog_connection_is_upgraded_not_refused(
+        self, service, ctx, repo, creds
+    ):
+        """An organization that connected the GitHub catalog entry before the OAuth
+        flow existed holds a bearer row agents may already be bound to. The start
+        stages onto that row - found by its catalog key, whatever it is named - so
+        the portal is never wedged on Re-authorize behind an AlreadyExists, and no
+        duplicate row appears for the frontend's catalog-key join to miss."""
+        bearer = _connection(
+            scope="org",
+            user_id=None,
+            organization_id=ctx.organization_id,
+            catalog_key="github",
+            auth_type="bearer",
+            name="My GitHub",
+        )
+        repo.get_org_scoped_by_catalog_key.return_value = bearer
+
+        await service.oauth_start_for_org_github(ctx, portal_key="github")
+
+        # Staged on the existing row: no new row, and the bearer token survives
+        # untouched until the callback promotes the connection to OAuth.
+        repo.create_org_scoped.assert_not_called()
+        assert repo.update.await_args.kwargs["db_connection"] is bearer
+        update_data = repo.update.await_args.kwargs["update_data"]
+        assert update_data["oauth_pending_payload"]
+        assert "auth_type" not in update_data
+        assert "auth_token" not in update_data
+
+    async def test_a_like_named_bearer_row_outside_the_catalog_is_still_refused(
+        self, service, ctx, repo, creds
+    ):
+        """A bearer connection that merely *shares the name* `github` is not the
+        catalog row - staging onto it would hijack an unrelated connection into a
+        GitHub one at the callback, so the name collision keeps its refusal."""
+        unrelated = _connection(
+            scope="org",
+            user_id=None,
+            organization_id=ctx.organization_id,
+            catalog_key=None,
+            auth_type="bearer",
+            name="github",
+        )
+        repo.get_org_scoped_by_name.return_value = unrelated
+
+        with pytest.raises(AlreadyExistsError):
+            await service.oauth_start_for_org_github(ctx, portal_key="github")
 
     async def test_the_callback_exchanges_the_code_and_persists_the_granted_scopes(
         self, service, repo, monkeypatch
@@ -2599,6 +2679,11 @@ class TestGithubPortalOAuth:
         assert update_data["oauth_pending_payload"] is None
         assert update_data["oauth_state"] is None
         assert update_data["last_status"] == "ok"
+        # A row staged as an upgrade of a pre-OAuth bearer connection is promoted
+        # only now, with the consent in hand: OAuth takes over, the static token
+        # goes. On an already-OAuth row both are no-ops.
+        assert update_data["auth_type"] == "oauth"
+        assert update_data["auth_token"] is None
         payload = McpOAuthPayload.model_validate_json(
             _open_from(pending, update_data["oauth_payload"])
         )

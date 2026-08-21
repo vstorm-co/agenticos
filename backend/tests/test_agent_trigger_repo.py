@@ -101,6 +101,19 @@ class TestReading:
         await agent_trigger_repo.get_by_conversation_id(session, conversation_id)
         assert set(_filters(session).values()) == {conversation_id}
 
+    async def test_the_connection_sweep_reads_only_that_accounts_rows_in_the_org(self):
+        """`list_for_connection` feeds the pre-delete hook sweep; without the
+        organization filter it would hand the sweep another tenant's triggers to
+        deregister with this tenant's context."""
+        connection_id, organization_id = uuid.uuid4(), uuid.uuid4()
+        session = _RecordingSession(_scalars([]))
+        await agent_trigger_repo.list_for_connection(
+            session, connection_id=connection_id, organization_id=organization_id
+        )
+        params = _filters(session)
+        assert connection_id in params.values()
+        assert organization_id in params.values()
+
     async def test_a_listing_is_scoped_to_the_agent_and_its_organization(self):
         agent_id, organization_id = uuid.uuid4(), uuid.uuid4()
         session = _RecordingSession(_scalars([]))
@@ -253,6 +266,33 @@ class TestClaiming:
         session = _RecordingSession(_scalars(rows))
         claimed = await agent_trigger_repo.claim_due(session, now=datetime(2026, 6, 1, tzinfo=UTC))
         assert claimed == rows
+
+    async def test_a_renewal_moves_only_its_own_ticket_and_reports_a_miss(self):
+        """The renewal is the same conditional UPDATE as the clear - a renewer
+        racing a heartbeat that already re-claimed must lose, and the `False` it
+        answers is what stops the loop touching a marker no longer its own."""
+        claimed_at = datetime(2026, 6, 1, tzinfo=UTC)
+        renewed_at = datetime(2026, 6, 1, 0, 20, tzinfo=UTC)
+        trigger_id = uuid.uuid4()
+        session = _RecordingSession(MagicMock(rowcount=1))
+        renewed = await agent_trigger_repo.renew_fire_marker(
+            session, trigger_id=trigger_id, claimed_at=claimed_at, renewed_at=renewed_at
+        )
+        assert renewed is True
+        sql = _sql(session)
+        assert "update agent_triggers set fire_in_flight_since" in sql
+        assert "agent_triggers.fire_in_flight_since = " in sql
+        params = _filters(session)
+        assert claimed_at in params.values()
+        assert renewed_at in params.values()
+
+        missed = _RecordingSession(MagicMock(rowcount=0))
+        assert (
+            await agent_trigger_repo.renew_fire_marker(
+                missed, trigger_id=trigger_id, claimed_at=claimed_at, renewed_at=renewed_at
+            )
+            is False
+        )
 
     async def test_the_marker_clear_is_conditioned_on_its_own_ticket(self):
         """The clear is one UPDATE whose WHERE re-checks the marker against the

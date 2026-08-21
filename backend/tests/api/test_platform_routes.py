@@ -243,12 +243,10 @@ CALLS: tuple[Call, ...] = (
     # The trigger-templates catalog, gated on `agents:view` like `/trigger-portals`
     # beside it - browsing ready-made schedules, not acting on one agent.
     Call("GET", "/trigger-templates", Perm.AGENTS_VIEW),
-    Call(
-        "GET",
-        "/trigger-portals/{portal_key}/targets",
-        Perm.AGENTS_RUN,
-        query="?connection_id=00000000-0000-0000-0000-000000000000",
-    ),
+    # `/trigger-portals/{portal_key}/targets` carries no role gate: it feeds one
+    # agent's trigger create, so the service resolves `agents:run` on the agent
+    # named in the query - a role gate refused the Viewer whose one run grant is
+    # exactly what lets them create the trigger there.
     Call("GET", "/runs", Perm.RUNS_VIEW),
     Call(
         "GET",

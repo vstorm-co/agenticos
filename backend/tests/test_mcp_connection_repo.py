@@ -66,10 +66,13 @@ class _RecordingSession:
 
 
 class _Scalars(list[McpConnection]):
-    """What `.scalars()` returns: iterable, and answers `.all()`."""
+    """What `.scalars()` returns: iterable, and answers `.all()` and `.first()`."""
 
     def all(self) -> list[McpConnection]:
         return list(self)
+
+    def first(self) -> McpConnection | None:
+        return self[0] if self else None
 
 
 class _Result:
@@ -175,6 +178,33 @@ class TestGetOrgScopedById:
         )
 
         assert set(_filters(session).values()) == {connection_id, organization_id, "org"}
+
+
+class TestGetByCatalogKey:
+    async def test_the_lookup_is_scoped_and_prefers_the_oldest_row(self):
+        """The catalog key is the identity the frontend joins a portal to its
+        connection by, so the GitHub connect flow finds "the org's GitHub row"
+        here whatever a person named it. Scoped like every org lookup - either
+        filter missing reads another tenant's account - and oldest-first, because
+        an upgrade must land on the row agents were already bound to."""
+        older = _connection(catalog_key="github")
+        session = _RecordingSession(_Result(rows=[older]))
+        organization_id = uuid.uuid4()
+
+        found = await mcp_connection_repo.get_org_scoped_by_catalog_key(
+            session, organization_id=organization_id, catalog_key="github"
+        )
+
+        assert found is older
+        assert set(_filters(session).values()) == {organization_id, "github", "org"}
+        assert "ORDER BY mcp_connections.created_at ASC" in _sql(session)
+
+    async def test_an_organization_without_that_entry_answers_none(self):
+        session = _RecordingSession(_Result(rows=[]))
+        found = await mcp_connection_repo.get_org_scoped_by_catalog_key(
+            session, organization_id=uuid.uuid4(), catalog_key="github"
+        )
+        assert found is None
 
 
 class TestGetByName:

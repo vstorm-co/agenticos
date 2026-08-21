@@ -115,6 +115,30 @@ async def get_org_scoped_by_name(
     return result.scalar_one_or_none()
 
 
+async def get_org_scoped_by_catalog_key(
+    db: AsyncSession, *, organization_id: UUID, catalog_key: str
+) -> McpConnection | None:
+    """The organization's connection for this catalog entry, whatever it is named.
+
+    The catalog key is the identity the frontend joins a trigger portal to its
+    connection by, so a flow that must find "the GitHub connection" looks here
+    rather than at the name - a name is the person's label and may be anything.
+    `first()` rather than `one`: nothing constrains an organization to a single
+    row per catalog entry, and for an upgrade the oldest is the one agents were
+    bound to.
+    """
+    result = await db.execute(
+        select(McpConnection)
+        .where(
+            McpConnection.organization_id == organization_id,
+            McpConnection.catalog_key == catalog_key,
+            McpConnection.scope == "org",
+        )
+        .order_by(McpConnection.created_at.asc())
+    )
+    return result.scalars().first()
+
+
 async def list_oauth_connections(db: AsyncSession) -> list[McpConnection]:
     """Every OAuth connection on the deployment, for the scheduled sweep.
 

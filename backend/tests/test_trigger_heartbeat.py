@@ -12,7 +12,7 @@ The marker of a failed dispatch is deliberately *left set*: `run_deployment` can
 accept the flow creation on the Prefect API and then lose or time out the response,
 so a submit that raised may still have started the child flow. Clearing the marker
 would let the next tick fire again on top of that accepted-but-queued run (#589), so
-`_FIRE_LEASE`, not this loop, governs re-dispatch.
+`FIRE_LEASE`, not this loop, governs re-dispatch.
 """
 
 from __future__ import annotations
