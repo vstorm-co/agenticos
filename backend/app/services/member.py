@@ -150,8 +150,14 @@ class MemberService:
         if not requester or not role_has(requester.role, Perm.MEMBERS_MANAGE):
             raise AuthorizationError(message="You cannot remove members")
 
+        # Locked for the same reason `change_role` locks: the role read here is
+        # what decides the refusal below, and the row is written (deleted) after
+        # it. Without the lock an Owner promoting this target between the check and
+        # the delete leaves an Admin removing a member who is, by the time the row
+        # goes, a peer Admin - the authority the last rule in this method exists to
+        # protect. Found sweeping the sibling of the lock #700 added.
         target = await member_repo.get(
-            self.db, organization_id=organization_id, user_id=target_user_id
+            self.db, organization_id=organization_id, user_id=target_user_id, for_update=True
         )
         if not target:
             raise NotFoundError(
