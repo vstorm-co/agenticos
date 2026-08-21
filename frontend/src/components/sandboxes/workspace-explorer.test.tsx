@@ -346,3 +346,33 @@ describe("what sits inside one folder", () => {
     expect(level.files.map((entry) => entry.path)).toEqual(["/a.txt", "/z.txt"]);
   });
 });
+
+describe("the height it occupies", () => {
+  it("fills the page rather than being as tall as its content", () => {
+    // Two panes 300px tall under 600px of empty page: `min-h-[24rem]` was the only
+    // height in the chain and nothing above it passed one down. Every link has to
+    // carry `min-h-0`, or a flex child's default minimum is its content and the
+    // panes grow the page instead of scrolling inside it.
+    const { container } = render(<WorkspaceExplorer workspaceId="w-1" />);
+
+    const root = container.firstElementChild!;
+
+    expect(root.className).toContain("flex-1");
+    expect(root.className).toContain("min-h-0");
+
+    const grid = container.querySelector(".grid")!;
+
+    expect(grid.className).toContain("flex-1");
+    expect(grid.className).toContain("min-h-0");
+  });
+
+  it("scrolls each pane inside its own share", () => {
+    // A workspace with two hundred files scrolls the list, not the page - and the
+    // reader's file stays where they left it.
+    const { container } = render(<WorkspaceExplorer workspaceId="w-1" />);
+    const [tree, reader] = [...container.querySelectorAll(".grid > div")];
+
+    expect(tree!.className).toContain("overflow-y-auto");
+    expect(reader!.className).toContain("overflow-hidden");
+  });
+});

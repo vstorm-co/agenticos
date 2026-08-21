@@ -113,7 +113,10 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
   const kind = chosen === null ? null : resolveFileKind(chosen.path);
 
   return (
-    <div className="space-y-4">
+    // A column that fills what the page gives it: the two panes were 300 px tall
+    // under 600 px of empty page, because `min-h-[24rem]` was the only height in
+    // the chain and nothing above it passed one down.
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       {/* Whose files these are and what holds them, on the page rather than only in
           the table that linked here. Under `agent` scope one workspace is shared by
           everybody who talks to that agent, so somebody opens this and finds a file
@@ -140,8 +143,10 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
 
       {/* The tree beside the file rather than a dialog over it. Stacked below `lg`,
           where two columns would each be too narrow to read a path in. */}
-      <div className="grid gap-4 lg:grid-cols-[20rem_1fr]">
-        <div className="border-border bg-card min-w-0 space-y-3 rounded-xl border p-3">
+      {/* `min-h-0` on both the grid and its children, or a flex child's default
+          minimum is its content and the panes grow the page instead of scrolling. */}
+      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[20rem_1fr]">
+        <div className="border-border bg-card flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto rounded-xl border p-3">
           <div className="relative">
             <Search
               className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2"
@@ -241,7 +246,7 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
           )}
         </div>
 
-        <div className="border-border bg-card flex min-h-[24rem] min-w-0 flex-col rounded-xl border">
+        <div className="border-border bg-card flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border">
           {chosen === null || kind === null ? (
             <p className="text-muted-foreground m-auto p-6 text-center text-sm">{t("pickAFile")}</p>
           ) : (
