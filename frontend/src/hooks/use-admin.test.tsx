@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import { useAdminUsers } from "./use-admin-users";
 import { apiClient } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-error";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -145,6 +146,23 @@ describe("useAdminUsers", () => {
     await act(() => result.current.deleteUser("u-1"));
 
     expect(toast.error).toHaveBeenCalledWith("Failed to delete user");
+  });
+
+  it("surfaces the backend's reason when a deletion is refused (#941)", async () => {
+    // Deleting your own row is refused with an explanation; the admin should see
+    // it, not a generic "failed" that reads as a transient error.
+    vi.mocked(apiClient.delete).mockRejectedValue(
+      new ApiError(403, "You cannot delete your own account; ask another app admin to.", {
+        error: { code: "AUTHORIZATION_ERROR" },
+      }),
+    );
+    const { result } = renderHook(() => useAdminUsers());
+
+    await act(() => result.current.deleteUser("u-1"));
+
+    expect(toast.error).toHaveBeenCalledWith(
+      "You cannot delete your own account; ask another app admin to.",
+    );
   });
 
   it("marks who is being impersonated while the request is in flight", async () => {

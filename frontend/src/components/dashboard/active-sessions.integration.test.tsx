@@ -121,6 +121,41 @@ describe("ActiveSessions", () => {
     expect(screen.queryByText("Device 1")).not.toBeInTheDocument();
   });
 
+  it("keeps the current page on screen while the next one is in flight", async () => {
+    // Hold the second page open so the in-flight state is observable rather
+    // than a microtask that resolves before the assertions run.
+    const rows = Array.from({ length: 12 }, (_, i) => session(i + 1));
+    let releaseSecondPage!: () => void;
+    const secondPage = new Promise<void>((resolve) => {
+      releaseSecondPage = resolve;
+    });
+    vi.mocked(apiClient.get).mockImplementation(async (_url, options) => {
+      const params = (options as { params: Record<string, string> }).params;
+      const skip = Number(params.skip);
+      if (skip > 0) await secondPage;
+      return { items: rows.slice(skip, skip + Number(params.limit)), total: rows.length };
+    });
+
+    const user = userEvent.setup();
+    render(<ActiveSessions />);
+    await screen.findByText("Device 1");
+
+    await user.click(screen.getByLabelText("Next page"));
+
+    expect(screen.getByText("Device 1")).toBeInTheDocument();
+    const heldList = screen.getByRole("list");
+    expect(heldList).toHaveAttribute("aria-busy", "true");
+    // Inert, so a keyboard or assistive technology cannot reach a revoke button
+    // on the held page and revoke the wrong page's session (#944).
+    expect(heldList).toHaveAttribute("inert");
+    expect(screen.getByLabelText("Next page")).toBeDisabled();
+
+    releaseSecondPage();
+
+    await screen.findByText("Device 6");
+    expect(screen.queryByText("Device 1")).not.toBeInTheDocument();
+  });
+
   it("revokes a session that is not on the first page", async () => {
     const rows = server(12);
     render(<ActiveSessions />);
@@ -147,7 +182,7 @@ describe("ActiveSessions", () => {
     // Not an empty card on a page that no longer exists.
     await screen.findByText("Device 1");
     expect(lastRequest().skip).toBe("0");
-    expect(screen.queryByLabelText("Next page")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Next page")).toBeDisabled();
   });
 
   it("shows no revoked device after revoking every other one from a later page", async () => {

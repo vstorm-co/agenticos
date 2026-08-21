@@ -979,9 +979,7 @@
     "failedRevokeSession": "Nie udało się unieważnić sesji",
     "failedRevokeSessions": "Nie udało się unieważnić sesji",
     "lastActive": "Ostatnia aktywność {when}",
-    "nextPage": "Następna strona",
     "noSessionDataAvailable": "Brak danych o sesjach.",
-    "previousPage": "Poprzednia strona",
     "revokeAll": "Unieważnij wszystkie",
     "revokeAllOtherSessions": "Unieważnić wszystkie pozostałe sesje?",
     "revokeAllOthers": "Unieważnij pozostałe",
@@ -1458,7 +1456,7 @@
       },
       "chat-model-picker": {
         "title": "Dostrój model",
-        "body": "Wybierz model stojący za agentem i ustaw jego wysiłek rozumowania albo temperaturę — tylko dla tej rozmowy."
+        "body": "Wybierz, który z modeli organizacji odpowiada — tylko dla tej rozmowy, bez zmiany agenta."
       },
       "agents-new": {
         "title": "Zbuduj agenta",

@@ -14,7 +14,7 @@ is why every write in this API used to be acknowledged before it was durable
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 
 from collections.abc import AsyncGenerator, Awaitable, Callable
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import Depends
 from fastapi import Header
@@ -266,10 +266,28 @@ from app.core.exceptions import (
     RateLimitError,
 )
 from app.services import rate_limit
+from app.core.audit import set_impersonator
 from app.core.security import verify_token
 from app.db.models.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
+
+
+def _impersonator_from(payload: dict[str, Any]) -> UUID | None:
+    """The administrator behind an impersonated token, or None for an ordinary one.
+
+    An `act` claim that is not a valid uuid is dropped rather than trusted: a
+    malformed actor is no actor, and the request is still attributable to its
+    subject. Set on the audit context so every action the request records names
+    who was really acting (#943).
+    """
+    act = payload.get("act")
+    if not act:
+        return None
+    try:
+        return UUID(str(act))
+    except ValueError:
+        return None
 
 
 async def get_current_user(
@@ -294,6 +312,8 @@ async def get_current_user(
     user_id = payload.get("sub")
     if user_id is None:
         raise AuthenticationError(message="Invalid token payload")
+
+    set_impersonator(_impersonator_from(payload))
 
     user = await user_service.get_by_id(UUID(user_id))
     if not user.is_active:
@@ -585,6 +605,30 @@ def _refuse_if_over(decision: rate_limit.Decision, message: str) -> None:
         )
 
 
+async def enforce_auth_limit(
+    request: Request, *, surface: str, identifier: str | None = None
+) -> None:
+    """Refuse an auth attempt from a caller who has made too many this minute.
+
+    Called at the top of an `auth.py` route rather than as a `Depends`, because
+    the per-address half needs the parsed body the route has and a dependency
+    does not. Both halves count against `auth_limit()`: the IP first, because it
+    cannot be varied for free and it is what bounds the unauthenticated bcrypt
+    DoS; then the submitted address, where the body carries one, which is what
+    bounds a brute force against a single account. Lower-casing the identifier so
+    two spellings of one address share a bucket.
+    """
+    limit = rate_limit.auth_limit()
+    decision = await rate_limit.consume(
+        surface=surface, caller=f"ip:{rate_limit.caller_ip(request)}", limit=limit
+    )
+    if decision.allowed and identifier:
+        decision = await rate_limit.consume(
+            surface=surface, caller=f"id:{identifier.strip().lower()}", limit=limit
+        )
+    _refuse_if_over(decision, "Too many attempts. Please wait and try again.")
+
+
 async def limit_embed_script(request: Request) -> None:
     """Refuse an address asking for a widget's script too often.
 
@@ -754,6 +798,8 @@ async def get_current_user_ws(
     user_id = payload.get("sub")
     if user_id is None:
         raise WebSocketException(code=4001, reason="Invalid token payload")
+
+    set_impersonator(_impersonator_from(payload))
 
     async with get_db_context() as db:
         user_service = UserService(db)

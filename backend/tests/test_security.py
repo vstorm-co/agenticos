@@ -38,6 +38,18 @@ class TestPasswordHashing:
 
         assert verify_password(wrong_password, hashed) is False
 
+    def test_a_password_over_bcrypts_limit_hashes_and_verifies_rather_than_raising(self):
+        """bcrypt 5.0 raises past 72 bytes; both helpers truncate to it, so an
+        overlong password is an ordinary credential (and a mismatch stays a
+        mismatch) instead of an unauthenticated 500 (#947)."""
+        overlong = "p" * 200
+        hashed = get_password_hash(overlong)
+
+        assert verify_password(overlong, hashed) is True
+        # Agrees only on the first 72 bytes, which is all bcrypt reads.
+        assert verify_password("p" * 72, hashed) is True
+        assert verify_password("q" * 200, hashed) is False
+
 
 class TestAccessToken:
     """Tests for access token functions."""
@@ -71,6 +83,22 @@ class TestAccessToken:
         assert payload is not None
         assert payload["sub"] == subject
         assert payload["type"] == "access"
+
+    def test_an_ordinary_token_carries_no_actor_claim(self):
+        """The `act` claim is absent unless someone is impersonating, so an
+        ordinary token is exactly what it was before #943."""
+        payload = verify_token(create_access_token("user123"))
+
+        assert payload is not None
+        assert "act" not in payload
+
+    def test_an_impersonation_token_names_the_actor_behind_the_subject(self):
+        """The subject is the account being acted as; `act` is who is acting."""
+        payload = verify_token(create_access_token("target-user", act="admin-user"))
+
+        assert payload is not None
+        assert payload["sub"] == "target-user"
+        assert payload["act"] == "admin-user"
 
     def test_verify_invalid_token(self):
         """Test verifying invalid token."""

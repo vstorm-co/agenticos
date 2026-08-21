@@ -6,7 +6,13 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 
-from app.api.deps import CurrentUser, DeploymentSettingsSvc, SessionSvc, UserSvc
+from app.api.deps import (
+    CurrentUser,
+    DeploymentSettingsSvc,
+    SessionSvc,
+    UserSvc,
+    enforce_auth_limit,
+)
 from app.core.config import settings
 from app.core.exceptions import AuthenticationError
 from app.core.security import (
@@ -38,6 +44,7 @@ async def login(
     session_service: SessionSvc,
 ) -> Any:
     """OAuth2 password login, returns access and refresh tokens."""
+    await enforce_auth_limit(request, surface="auth_login", identifier=form_data.username)
     user = await user_service.authenticate(form_data.username, form_data.password)
     access_token = create_access_token(subject=str(user.id))
     refresh_token = create_refresh_token(subject=str(user.id))
@@ -54,10 +61,12 @@ async def login(
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 async def register(
+    request: Request,
     user_in: UserCreate,
     user_service: UserSvc,
 ) -> Any:
     """Register a new user."""
+    await enforce_auth_limit(request, surface="auth_register", identifier=user_in.email)
     return await user_service.register(user_in)
 
 
@@ -69,6 +78,7 @@ async def refresh_token(
     session_service: SessionSvc,
 ) -> Any:
     """Exchange a refresh token for a new access token."""
+    await enforce_auth_limit(request, surface="auth_refresh")
 
     session = await session_service.validate_refresh_token(body.refresh_token)
     if not session:
@@ -93,6 +103,7 @@ async def refresh_token(
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def logout(
+    request: Request,
     body: RefreshTokenRequest,
     session_service: SessionSvc,
 ) -> None:
@@ -100,6 +111,7 @@ async def logout(
 
     Invalidates the refresh token, preventing further token refresh.
     """
+    await enforce_auth_limit(request, surface="auth_logout")
     await session_service.logout_by_refresh_token(body.refresh_token)
 
 
@@ -111,6 +123,7 @@ async def get_current_user_info(current_user: CurrentUser) -> Any:
 
 @router.post("/password-reset/request", response_model=PasswordResetResponse)
 async def request_password_reset(
+    request: Request,
     body: PasswordResetRequest,
     user_service: UserSvc,
     branding: DeploymentSettingsSvc,
@@ -120,6 +133,7 @@ async def request_password_reset(
     Always returns 200 with the same body - we don't disclose whether the
     email is in our system. The caller (email service) is best-effort.
     """
+    await enforce_auth_limit(request, surface="auth_password_reset", identifier=body.email)
     issued = await user_service.issue_password_reset_token(body.email)
     if issued is not None:
         reset_user, token = issued
@@ -138,16 +152,19 @@ async def request_password_reset(
 
 @router.post("/password-reset/confirm", response_model=PasswordResetConfirmResponse)
 async def confirm_password_reset(
+    request: Request,
     body: PasswordResetConfirm,
     user_service: UserSvc,
 ) -> Any:
     """Set a new password using a token from the reset email."""
+    await enforce_auth_limit(request, surface="auth_password_reset_confirm")
     await user_service.confirm_password_reset(body.token, body.new_password)
     return PasswordResetConfirmResponse()
 
 
 @router.post("/magic-link/request", response_model=PasswordResetResponse)
 async def request_magic_link(
+    request: Request,
     body: MagicLinkRequest,
     user_service: UserSvc,
     branding: DeploymentSettingsSvc,
@@ -156,6 +173,7 @@ async def request_magic_link(
 
     Symmetric response to request_password_reset to avoid email enumeration.
     """
+    await enforce_auth_limit(request, surface="auth_magic_link", identifier=body.email)
     issued = await user_service.issue_magic_link_token(body.email)
     if issued is not None:
         link_user, token = issued
@@ -180,6 +198,7 @@ async def verify_magic_link(
     session_service: SessionSvc,
 ) -> Any:
     """Exchange a magic-link token for an access + refresh token pair."""
+    await enforce_auth_limit(request, surface="auth_magic_link_verify")
     user = await user_service.consume_magic_link_token(body.token)
     access_token = create_access_token(subject=str(user.id))
     refresh_token = create_refresh_token(subject=str(user.id))

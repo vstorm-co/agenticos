@@ -3,6 +3,7 @@
 import { useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient, ApiError } from "@/lib/api-client";
+import { assignableRoles } from "@/lib/assignable-roles";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
 import type { OrgRole } from "@/types";
@@ -81,33 +82,38 @@ export function usePermissions() {
  * changes when the backend is redeployed.
  */
 export function useRoleCatalog() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: qk.organizations.roleCatalog(),
     queryFn: () => apiClient.get<RoleCatalog>("/roles/catalog"),
     staleTime: Infinity,
   });
 
-  return { catalog: data, isLoading };
+  // `error` is returned because every role picker is derived from this: a
+  // catalog that never arrives leaves them offering nothing, which is the same
+  // pixels as a caller who may assign nothing and a different fact. Whoever
+  // draws the picker says which (#1028).
+  return { catalog: data, isLoading, error };
 }
 
-/** What a role picker offers before the catalog has answered. */
-const ASSIGNABLE_FALLBACK: OrgRole[] = ["admin", "builder", "operator", "member", "viewer"];
-
 /**
- * The roles a picker may offer, in catalog order.
+ * The roles this caller may offer, in catalog order.
  *
- * From the server where possible: the roles a deployment actually seeds are the
- * backend's to decide, and a picker offering one it does not have puts a 422
- * behind a control that looked fine. Owner is never among them - ownership
- * moves by transferring the organization, not by a role edit.
+ * Not every role the deployment seeds: the ones the caller's own role strictly
+ * outranks, which is the relation the server enforces on every write that hands
+ * a role out. It used to be "the catalog, minus owner" whoever was asking, so an
+ * Admin was offered Admin and refused after filling the form in - the shape
+ * `.claude/rules/frontend.md` names, a control the caller may not use rendered
+ * and then 403'd (#1028).
+ *
+ * Empty until both answers are in, because that is the safe direction: a picker
+ * that offers nothing for a beat is a control somebody waits for, where one that
+ * offers too much is a refusal they walk into. `assignableRoles` explains the
+ * arithmetic.
  */
 export function useAssignableRoles(): OrgRole[] {
   const { catalog } = useRoleCatalog();
-  // Stable per catalog, so a memo keyed on the result does not rebuild every render.
-  return useMemo(
-    () =>
-      catalog?.roles.map((role) => role.name).filter((name) => name !== "owner") ??
-      ASSIGNABLE_FALLBACK,
-    [catalog],
-  );
+  const { role } = usePermissions();
+  // Stable per catalog and role, so a memo keyed on the result does not rebuild
+  // every render.
+  return useMemo(() => assignableRoles(catalog, role), [catalog, role]);
 }

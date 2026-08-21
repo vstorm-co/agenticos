@@ -214,6 +214,13 @@ class Settings(BaseSettings):
     # counts nobody. Wide, because it bounds a page rather than rationing
     # visitors - what rations spend is the socket, counted per address.
     RATE_LIMIT_HOSTED_PAGE_PER_MINUTE: int = 240
+    # How many auth attempts one caller gets per minute - login, register, token
+    # refresh, and the reset/magic-link request and verify routes. Counted per IP
+    # and, where the body carries one, per submitted address, both in the shared
+    # Redis: the IP bounds the unauthenticated DoS bcrypt makes possible, the
+    # address bounds a brute force against one account. Low, because a person
+    # signing in does it a handful of times and a script does it thousands.
+    RATE_LIMIT_AUTH_PER_MINUTE: int = 10
     # Whether `X-Forwarded-For` names the caller. Off by default because the
     # header is set by whoever is calling, so trusting it unconditionally is a
     # per-IP limit anybody bypasses by varying one string. On costs the mirror

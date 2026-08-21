@@ -38,6 +38,7 @@ for the same reason, as the deduplication claim.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from dataclasses import dataclass
 
@@ -49,6 +50,14 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 _redis: RedisClient | None = None
+
+# The longest a caller may be before it is replaced by a digest. The auth limiter
+# counts a submitted login identifier, which an unauthenticated caller controls
+# and need not keep short - so a raw interpolation lets one request store the
+# whole value as a Redis key, and the body limit permits tens of megabytes. Past
+# this bound the caller becomes a fixed-size hash; a real identifier (an email is
+# at most 254 characters, plus a short prefix) never reaches it (#947).
+_MAX_CALLER_LEN = 320
 
 
 def configure(redis: RedisClient | None) -> None:
@@ -113,6 +122,13 @@ def caller_ip(connection: HTTPConnection) -> str:
     return connection.client.host if connection.client else "unknown"
 
 
+def _bounded(caller: str) -> str:
+    """A caller short enough to be a Redis key, digesting anything oversized."""
+    if len(caller) <= _MAX_CALLER_LEN:
+        return caller
+    return f"h:{hashlib.sha256(caller.encode()).hexdigest()}"
+
+
 async def consume(*, surface: str, caller: str, limit: Limit) -> Decision:
     """Count one attempt by `caller` against `surface`, and say whether it may.
 
@@ -124,7 +140,7 @@ async def consume(*, surface: str, caller: str, limit: Limit) -> Decision:
         logger.warning("Rate limiting not configured - %s reached unmetered by %s", surface, caller)
         return Decision(allowed=True, retry_after_seconds=0)
 
-    key = f"ratelimit:{surface}:{caller}"
+    key = f"ratelimit:{surface}:{_bounded(caller)}"
     try:
         used = await _redis.count_in_window(key, ttl=limit.window_seconds)
     except Exception:
@@ -139,6 +155,18 @@ async def consume(*, surface: str, caller: str, limit: Limit) -> Decision:
 def run_limit() -> Limit:
     """What one caller may spend the public run API on, per minute."""
     return Limit(attempts=settings.RATE_LIMIT_RUN_PER_MINUTE)
+
+
+def auth_limit() -> Limit:
+    """How many auth attempts one caller gets per minute.
+
+    The one surface where the cost of an attempt is the defence rather than a
+    detail: `verify_password` is bcrypt, ~170ms with no suspension point, so an
+    unmetered `/login` flood saturates a worker's event loop with no credentials
+    at all. Counted per IP and per submitted address both - see
+    `deps.enforce_auth_limit` - because the two stop different attacks.
+    """
+    return Limit(attempts=settings.RATE_LIMIT_AUTH_PER_MINUTE)
 
 
 async def hosted_admission_allowed(public_key: str) -> Decision:

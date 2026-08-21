@@ -13,6 +13,7 @@ from app import __version__
 from app.commands import register_commands
 from app.main import app
 from app.core.exceptions import AlreadyExistsError
+from app.core.logging import setup_logging
 from app.db.session import async_session_maker
 from app.schemas.user import UserCreate
 from app.services.user import UserService
@@ -220,6 +221,9 @@ register_commands(cmd_cli)
 
 def main():
     """Main entry point."""
+    # So a CLI command that logs a credential - a doctor probe, a bootstrap, a
+    # rag-* command hitting a provider - is redacted like the API's logs (#440).
+    setup_logging()
     cli()
 
 

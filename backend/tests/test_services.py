@@ -1,13 +1,20 @@
 """Tests for service layer."""
 
+import asyncio
+import threading
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
 
-from app.core.exceptions import AlreadyExistsError, AuthenticationError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthenticationError,
+    AuthorizationError,
+    NotFoundError,
+)
 from app.schemas.user import UserCreate, UserUpdate
-from app.services.user import UserService
+from app.services.user import _DUMMY_HASH, UserService
 
 
 class MockUser:
@@ -190,6 +197,66 @@ class TestUserServicePostgresql:
                 await user_service.authenticate("test@example.com", "password")
 
     @pytest.mark.anyio
+    async def test_authenticate_runs_bcrypt_off_the_event_loop(
+        self, user_service: UserService, mock_user: MockUser
+    ):
+        """bcrypt is ~170ms with no suspension point, so an unmetered /login flood
+        saturates a worker's event loop (#947). It runs in a thread now: while it
+        blocks in there, the loop keeps turning. If it ran on the loop, the poll
+        below could never observe `in_bcrypt` and the test would hang.
+        """
+        gate = threading.Event()
+        in_bcrypt = threading.Event()
+
+        def blocking_verify(_password: str, _hash: str) -> bool:
+            in_bcrypt.set()
+            gate.wait(timeout=5)
+            return True
+
+        with (
+            patch("app.services.user.user_repo") as mock_repo,
+            patch("app.services.user.verify_password", blocking_verify),
+        ):
+            mock_repo.get_by_email = AsyncMock(return_value=mock_user)
+            login = asyncio.create_task(user_service.authenticate("test@example.com", "password"))
+            try:
+                # Waiting off the loop, so the loop stays free to run `login` up to
+                # its own bcrypt. If bcrypt ran on the loop, `login` would block it
+                # here and this would only resume once bcrypt finished - by which
+                # point `login` is done and the assertion below fails.
+                assert await asyncio.to_thread(in_bcrypt.wait, 5) is True
+                assert not login.done()
+            finally:
+                gate.set()
+            assert await login is mock_user
+
+    @pytest.mark.anyio
+    async def test_authenticate_runs_bcrypt_even_for_an_unknown_address(
+        self, user_service: UserService
+    ):
+        """The timing oracle: an address with no account used to skip bcrypt and be
+        refused in milliseconds, where a known one took ~170ms - two orders of
+        magnitude, measurable over the internet (#947). An unknown address is now
+        verified against `_DUMMY_HASH`, so both refuse in the same time.
+        """
+        checked: list[str] = []
+
+        def recording_verify(_password: str, stored_hash: str) -> bool:
+            checked.append(stored_hash)
+            return False
+
+        with (
+            patch("app.services.user.user_repo") as mock_repo,
+            patch("app.services.user.verify_password", recording_verify),
+        ):
+            mock_repo.get_by_email = AsyncMock(return_value=None)
+
+            with pytest.raises(AuthenticationError):
+                await user_service.authenticate("nobody@example.com", "password")
+
+        assert checked == [_DUMMY_HASH]
+
+    @pytest.mark.anyio
     async def test_update_success(self, user_service: UserService, mock_user: MockUser):
         """Test updating user."""
         with patch("app.services.user.user_repo") as mock_repo:
@@ -234,3 +301,87 @@ class TestUserServicePostgresql:
 
             with pytest.raises(NotFoundError):
                 await user_service.delete(uuid4())
+
+    @pytest.mark.anyio
+    async def test_an_admin_cannot_suspend_their_own_account(self, user_service: UserService):
+        """is_active is enforced on the next request, so this signs the admin out
+        of a deployment they administer - refused before the repo is touched (#941)."""
+        me = uuid4()
+        with patch("app.services.user.user_repo") as mock_repo:
+            mock_repo.update = AsyncMock()
+
+            with pytest.raises(AuthorizationError):
+                await user_service.admin_update(me, UserUpdate(is_active=False), acting_admin_id=me)
+
+            mock_repo.update.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_an_app_admin_cannot_suspend_themselves_through_the_self_route(
+        self, user_service: UserService
+    ):
+        """`/users/me` reaches the same `is_active` column as the admin route, so
+        without the same guard it is the way around #941 - an app admin suspends
+        themselves and the next request signs them out."""
+        me = MagicMock(id=uuid4(), is_app_admin=True)
+        with patch("app.services.user.user_repo") as mock_repo:
+            mock_repo.update = AsyncMock()
+
+            with pytest.raises(AuthorizationError):
+                await user_service.update_current(me, UserUpdate(is_active=False))
+
+            mock_repo.update.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_non_admin_may_deactivate_their_own_account_through_the_self_route(
+        self, user_service: UserService, mock_user: MockUser
+    ):
+        """The guard is the app admin's alone - a member deactivating their own
+        row only affects themselves, and an admin can restore it."""
+        mock_user.is_app_admin = False
+        with patch("app.services.user.user_repo") as mock_repo:
+            mock_repo.get_by_id = AsyncMock(return_value=mock_user)
+            mock_repo.update = AsyncMock(return_value=mock_user)
+
+            await user_service.update_current(mock_user, UserUpdate(is_active=False))
+
+            mock_repo.update.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_an_admin_may_suspend_another_user(
+        self, user_service: UserService, mock_user: MockUser
+    ):
+        """The refusal is about your own row, not about suspension."""
+        with patch("app.services.user.user_repo") as mock_repo:
+            mock_repo.get_by_id = AsyncMock(return_value=mock_user)
+            mock_repo.update = AsyncMock(return_value=mock_user)
+
+            await user_service.admin_update(
+                mock_user.id, UserUpdate(is_active=False), acting_admin_id=uuid4()
+            )
+
+            mock_repo.update.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_an_admin_cannot_delete_their_own_account(self, user_service: UserService):
+        """Deleting your own row takes administration with it on a single-admin
+        install; because is_app_admin cannot be cleared over the API, refusing this
+        is what keeps the last admin from being removed (#941)."""
+        me = uuid4()
+        with patch("app.services.user.user_repo") as mock_repo:
+            mock_repo.delete = AsyncMock()
+
+            with pytest.raises(AuthorizationError):
+                await user_service.admin_delete(me, acting_admin_id=me)
+
+            mock_repo.delete.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_an_admin_may_delete_another_user(
+        self, user_service: UserService, mock_user: MockUser
+    ):
+        with patch("app.services.user.user_repo") as mock_repo:
+            mock_repo.delete = AsyncMock(return_value=mock_user)
+
+            await user_service.admin_delete(mock_user.id, acting_admin_id=uuid4())
+
+            mock_repo.delete.assert_awaited_once()

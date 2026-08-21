@@ -25,11 +25,13 @@ import pytest
 
 from app.core.exceptions import NotFoundError
 from app.db.models.conversation import Conversation, Message
-from app.db.models.organization import Organization
+from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import conversation as conversation_repo
+from app.repositories import conversation_share as conversation_share_repo
 from app.schemas.conversation import MessageCreate
 from app.services.conversation import ConversationService
+from app.services.conversation_share import ConversationShareService
 
 pytestmark = pytest.mark.anyio
 
@@ -57,6 +59,11 @@ async def _org(db, *, name: str) -> Organization:
     db.add(organization)
     await db.flush()
     return organization
+
+
+async def _membership(db, organization: Organization, user: User) -> None:
+    db.add(OrganizationMember(id=uuid.uuid4(), organization_id=organization.id, user_id=user.id))
+    await db.flush()
 
 
 async def _conversation(db, organization: Organization, owner: User) -> Conversation:
@@ -194,3 +201,87 @@ class TestAColleagueInTheSameOrganization:
 
         remaining = await conversation_repo.get_messages_by_conversation(db, conversation.id)
         assert [message.content for message in remaining] == ["secret", "and another thing"]
+
+
+class TestListingSharesDropsCrossOrgRows:
+    """A share already written to somebody outside the tenant is unreadable - the
+    read path refuses on the tenant before it consults the share (#930) - so the
+    owner's "Shared with" list must not present it as access somebody has."""
+
+    async def test_a_share_to_a_non_member_is_dropped_and_the_link_kept(self, db) -> None:
+        organization = await _org(db, name="Acme")
+        owner = await _member(db)
+        await _membership(db, organization, owner)
+        conversation = await _conversation(db, organization, owner)
+
+        colleague = await _member(db)
+        await _membership(db, organization, colleague)
+
+        other = await _org(db, name="Other")
+        outsider = await _member(db)
+        await _membership(db, other, outsider)
+
+        # Seed the rows directly: the share-time guard now refuses the outsider,
+        # but rows already in that state predate it and must still drop out here.
+        await conversation_share_repo.create(
+            db, conversation_id=conversation.id, shared_by=owner.id, shared_with=colleague.id
+        )
+        await conversation_share_repo.create(
+            db, conversation_id=conversation.id, shared_by=owner.id, shared_with=outsider.id
+        )
+        await conversation_share_repo.create(
+            db, conversation_id=conversation.id, shared_by=owner.id, share_token="tok-123"
+        )
+
+        shares = await ConversationShareService(db).list_shares(conversation.id, owner.id)
+        shared_with = {share.shared_with for share in shares}
+
+        assert colleague.id in shared_with
+        assert outsider.id not in shared_with
+        # The public link carries no member and is not a cross-org row.
+        assert None in shared_with
+
+
+class TestSharedWithMeDropsCrossOrgRows:
+    """The recipient's own "Shared with me" list must not present a conversation
+    from an organization they do not belong to - opening it is denied on the
+    tenant (#930), so listing and counting it would show a title, an owner and an
+    organization the recipient has no access to."""
+
+    async def test_a_conversation_from_another_org_is_neither_listed_nor_counted(self, db) -> None:
+        organization = await _org(db, name="Acme")
+        owner = await _member(db)
+        await _membership(db, organization, owner)
+        conversation = await _conversation(db, organization, owner)
+
+        colleague = await _member(db)
+        await _membership(db, organization, colleague)
+
+        other = await _org(db, name="Other")
+        outsider = await _member(db)
+        await _membership(db, other, outsider)
+
+        # A row already in the cross-org state the share-time guard now refuses.
+        await conversation_share_repo.create(
+            db, conversation_id=conversation.id, shared_by=owner.id, shared_with=colleague.id
+        )
+        await conversation_share_repo.create(
+            db, conversation_id=conversation.id, shared_by=owner.id, shared_with=outsider.id
+        )
+
+        for_colleague = await conversation_share_repo.get_conversations_shared_with_user(
+            db, colleague.id
+        )
+        assert [c.id for c in for_colleague] == [conversation.id]
+        assert (
+            await conversation_share_repo.count_conversations_shared_with_user(db, colleague.id)
+            == 1
+        )
+
+        for_outsider = await conversation_share_repo.get_conversations_shared_with_user(
+            db, outsider.id
+        )
+        assert for_outsider == []
+        assert (
+            await conversation_share_repo.count_conversations_shared_with_user(db, outsider.id) == 0
+        )
