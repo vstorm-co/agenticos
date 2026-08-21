@@ -209,6 +209,36 @@ describe("PortalCatalog", () => {
     expect(screen.queryByRole("group", { name: "Email" })).toBeNull();
   });
 
+  it("draws the API trigger as a card in the grid, not a button above it", async () => {
+    // It is one of the ways to make an event trigger, so it sits beside the
+    // others rather than as a ghost button in the filter row (#1071).
+    await mount();
+
+    const card = within(screen.getByRole("group", { name: "API trigger" }));
+
+    expect(card.getByRole("button", { name: "Create trigger" })).toBeInTheDocument();
+  });
+
+  it("keeps the API trigger reachable when a search matches no portal", async () => {
+    // The filter searches portals; the API card is not one, and a filter must not
+    // take away the only way to trigger from a provider no portal covers.
+    await mount();
+
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Search portals…" }),
+      "no-such-portal",
+    );
+
+    expect(await screen.findByText("No portals match")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "API trigger" })).toBeInTheDocument();
+  });
+
+  it("hides the API trigger from a caller who may not run an agent", async () => {
+    await mount({ canRun: false });
+
+    expect(screen.queryByRole("group", { name: "API trigger" })).toBeNull();
+  });
+
   it("offers Connect account for an auto-webhook portal nobody has connected", async () => {
     await mount({ org: [] });
     expect(githubRow().getByRole("button", { name: "Connect account" })).toBeInTheDocument();

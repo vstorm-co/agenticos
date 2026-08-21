@@ -125,6 +125,17 @@ describe("New-schedule template picker", () => {
     );
   });
 
+  it("draws a mark on every card, so the grid is scannable", async () => {
+    // Four bordered rectangles of two text lines each is a grid nobody reads
+    // (#1069). The glyph is keyed on the template's key on this side, because
+    // which mark illustrates a card is not the catalog's business.
+    const dialog = await open();
+
+    const card = await dialog.findByRole("button", { name: /Daily standup/ });
+
+    expect(card.querySelector("svg")).not.toBeNull();
+  });
+
   it("stays out of the way when the catalog is empty", async () => {
     serve([]);
     const dialog = await open();

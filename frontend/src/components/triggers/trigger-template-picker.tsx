@@ -2,8 +2,10 @@
 
 import { useTranslations } from "next-intl";
 
+import { EventSourceMark } from "@/components/triggers/event-source-mark";
 import { Label } from "@/components/ui";
 import { useTriggerTemplates } from "@/hooks";
+import { templateIcon } from "@/lib/trigger-template-icons";
 import { cn } from "@/lib/utils";
 import type { TriggerTemplate } from "@/types/trigger-templates";
 import type { EventSource, TriggerType } from "@/types/triggers";
@@ -57,6 +59,7 @@ export function TriggerTemplatePicker({
       <div className="grid gap-2 sm:grid-cols-2">
         {offered.map((template) => {
           const active = template.key === selectedKey;
+          const Glyph = templateIcon(template.key);
           return (
             <button
               key={template.key}
@@ -64,14 +67,26 @@ export function TriggerTemplatePicker({
               onClick={() => onPick(template)}
               aria-pressed={active}
               className={cn(
-                "rounded-md border p-2.5 text-left transition-colors",
+                "flex items-start gap-2.5 rounded-md border p-2.5 text-left transition-colors",
                 active
                   ? "border-foreground/30 bg-accent"
                   : "border-input hover:border-foreground/30",
               )}
             >
-              <p className="text-sm font-medium">{template.label}</p>
-              <p className="text-muted-foreground text-xs">{template.description}</p>
+              {/* An event template wears its source's brand mark and a schedule
+                    one a glyph for what it does - decorative either way, since the
+                    label sits beside it. */}
+              <span className="text-muted-foreground mt-0.5 shrink-0" aria-hidden>
+                {template.event_source ? (
+                  <EventSourceMark source={template.event_source} className="h-4 w-4" />
+                ) : (
+                  <Glyph className="h-4 w-4" />
+                )}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">{template.label}</span>
+                <span className="text-muted-foreground block text-xs">{template.description}</span>
+              </span>
             </button>
           );
         })}

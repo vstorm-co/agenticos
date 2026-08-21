@@ -107,6 +107,7 @@ export function PortalTriggerDialog({
   const { create } = useTriggers(effectiveAgentId || null);
   const { environments } = useAgentEnvironments(effectiveAgentId || null);
   const namedEnvironments = environments.filter((environment) => !environment.is_default);
+  const defaultEnvironment = environments.find((environment) => environment.is_default) ?? null;
 
   const [step, setStep] = useState<"preset" | "configure" | "message">("preset");
   const [presetKey, setPresetKey] = useState<string>("");
@@ -346,6 +347,7 @@ export function PortalTriggerDialog({
                   value={environmentId}
                   onChange={setEnvironmentId}
                   environments={namedEnvironments}
+                  defaultEnvironment={defaultEnvironment}
                 />
               )}
             </div>

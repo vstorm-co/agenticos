@@ -24,9 +24,22 @@ function env(overrides: Partial<AgentEnvironment>): AgentEnvironment {
 }
 
 /** Controlled, so picking an option actually moves the caption. */
-function Harness({ environments }: { environments: AgentEnvironment[] }) {
+function Harness({
+  environments,
+  defaultEnvironment = null,
+}: {
+  environments: AgentEnvironment[];
+  defaultEnvironment?: AgentEnvironment | null;
+}) {
   const [value, setValue] = useState(DEFAULT_ENV);
-  return <EnvironmentField value={value} onChange={setValue} environments={environments} />;
+  return (
+    <EnvironmentField
+      value={value}
+      onChange={setValue}
+      environments={environments}
+      defaultEnvironment={defaultEnvironment}
+    />
+  );
 }
 
 /**
@@ -83,5 +96,36 @@ describe("EnvironmentField", () => {
         "The next fire runs v7 - this environment follows publishes, so the next publish changes what runs.",
       ),
     ).toBeVisible();
+  });
+});
+
+describe("the default item", () => {
+  it("names the environment it currently is, so the list accounts for all of them", async () => {
+    // An agent with `production` (default) and `dev` offered `Default` and `dev`,
+    // and whoever created `production` read that as an environment missing. The
+    // row is still not offered twice: binding to "the default" is a different
+    // choice from pinning to whichever row is default today (#1070).
+    render(
+      <Harness
+        environments={[env({ id: "e2", name: "dev", tracks_latest: true })]}
+        defaultEnvironment={env({ id: "e1", name: "production", version: 7, is_default: true })}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("combobox"));
+
+    const options = screen.getAllByRole("option");
+    expect(options).toHaveLength(2);
+    expect(options[0]).toHaveTextContent("production");
+    expect(options[0]).toHaveTextContent("v7");
+    expect(options[1]).toHaveTextContent("dev");
+  });
+
+  it("says only Default where the agent has no default row to name", async () => {
+    render(<Harness environments={[env({ id: "e2", name: "dev" })]} />);
+
+    await userEvent.click(screen.getByRole("combobox"));
+
+    expect(screen.getAllByRole("option")[0]).toHaveTextContent("Default");
   });
 });

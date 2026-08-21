@@ -26,16 +26,27 @@ export const DEFAULT_ENV = "__default__";
  * own docstring says it tells "pinned on purpose" from "forgotten". Each row
  * carries both, and the caption under the field says which version the next
  * fire will run.
+ *
+ * **And the default item names the environment it currently is.** Binding to
+ * "the default" is a real choice, distinct from pinning to the row that happens
+ * to be default today - so the row is not offered twice. But labelled `Default`
+ * and nothing else, the list could not be reconciled with the environments the
+ * agent has: an agent with `production` (default) and `dev` offered `Default`
+ * and `dev`, and whoever created `production` read that as an environment
+ * missing (#1070).
  */
 export function EnvironmentField({
   value,
   onChange,
   environments,
+  defaultEnvironment = null,
   id = "trigger-environment",
 }: {
   value: string;
   onChange: (value: string) => void;
   environments: AgentEnvironment[];
+  /** The agent's default environment, named on the default item. */
+  defaultEnvironment?: AgentEnvironment | null;
   id?: string;
 }) {
   const t = useTranslations("triggers");
@@ -53,7 +64,19 @@ export function EnvironmentField({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={DEFAULT_ENV}>{t("defaultEnvironment")}</SelectItem>
+          <SelectItem value={DEFAULT_ENV}>
+            <span className="flex items-center gap-2">
+              <span>{t("defaultEnvironment")}</span>
+              {defaultEnvironment !== null && (
+                <>
+                  <span className="text-muted-foreground text-xs">{defaultEnvironment.name}</span>
+                  <span className="text-muted-foreground text-xs">
+                    v{defaultEnvironment.version}
+                  </span>
+                </>
+              )}
+            </span>
+          </SelectItem>
           {environments.map((environment) => (
             <SelectItem key={environment.id} value={environment.id}>
               <span className="flex items-center gap-2">

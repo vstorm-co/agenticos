@@ -162,6 +162,11 @@ export function TriggerFormDialog({
   const { create, update, runNow, rotateSecret } = useTriggers(effectiveAgentId);
   const { environments } = useAgentEnvironments(effectiveAgentId);
   const namedEnvironments = environments.filter((environment) => !environment.is_default);
+  // Named on the default item rather than offered as a second row: binding to
+  // "the default" is not the same choice as pinning to whichever row is default
+  // today, but a list that would not say which one that is read as an
+  // environment missing (#1070).
+  const defaultEnvironment = environments.find((environment) => environment.is_default) ?? null;
 
   // A trigger's kind is fixed once the dialog opens: editing keeps the row's type,
   // and creating takes whichever kind the entry point chose - "New schedule" opens
@@ -570,6 +575,7 @@ export function TriggerFormDialog({
                 value={environmentId}
                 onChange={setEnvironmentId}
                 environments={namedEnvironments}
+                defaultEnvironment={defaultEnvironment}
               />
             )}
           </div>
@@ -598,10 +604,13 @@ export function TriggerFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* Near-full-screen, unlike the edit panel: a trigger's whole payload is a
-          prompt, so the message step needs the room of a page, not a modal. The
-          grid rows pin the header and nav and give the body everything between. */}
-      <DialogContent className="h-[90vh] w-[95vw] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden p-0 sm:max-w-5xl">
+      {/* A ceiling, not a height. The message step's editor asks for eighteen
+          rows and so fills a page on its own; the configure step holds three
+          fields, and `h-[90vh]` gave it the same page with six hundred pixels of
+          white under the last caption and the Continue button pinned to the
+          bottom of the screen (#1069). The grid rows still pin the header and the
+          nav and give the body whatever is between. */}
+      <DialogContent className="max-h-[90vh] w-[95vw] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden p-0 sm:max-w-5xl">
         <DialogHeader className="border-foreground/10 border-b px-6 py-4">
           <DialogTitle className="text-base font-semibold">
             {type === "event" ? t("newEvent") : t("newSchedule")}
@@ -667,6 +676,7 @@ export function TriggerFormDialog({
                   value={environmentId}
                   onChange={setEnvironmentId}
                   environments={namedEnvironments}
+                  defaultEnvironment={defaultEnvironment}
                 />
               )}
             </div>
@@ -832,9 +842,10 @@ function CadencePresets({
 
   return (
     <div className="space-y-2">
-      <Label className="text-foreground/80 text-xs font-medium tracking-wider uppercase">
-        {t("presetsLabel")}
-      </Label>
+      {/* The label the rest of the form uses, not a faint uppercase one: this is
+          the control the cadence is actually steered by, and at 11px uppercase
+          mono it was the least legible text in the dialog (#1069). */}
+      <Label>{t("presetsLabel")}</Label>
       <div className="flex flex-wrap gap-2">
         {CADENCE_PRESETS.map((preset) => {
           const active = isActive(preset);
@@ -845,10 +856,10 @@ function CadencePresets({
               aria-pressed={active}
               onClick={() => onApply(preset)}
               className={cn(
-                "border-foreground/15 inline-flex rounded-full border px-3 py-1.5 font-mono text-[11px] tracking-wider uppercase transition-colors",
+                "border-input inline-flex rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
                 active
                   ? "bg-foreground text-background border-foreground"
-                  : "text-foreground/65 hover:text-foreground hover:border-foreground/40",
+                  : "text-foreground hover:border-foreground/40 hover:bg-accent",
               )}
             >
               {t(preset.key)}
