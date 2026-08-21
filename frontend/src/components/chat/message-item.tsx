@@ -134,6 +134,11 @@ export function MessageItem({
         // Tight against the segment above, because it is the same turn: the
         // ordinary gap between messages would read as a pause the run never took.
         continuesTurn && "pt-0",
+        // And tight against the one below, for the same reason. Only the top half
+        // was closed, so three tool calls in one turn - each its own segment, each
+        // carrying one step - sat a message-gap apart, which read as three
+        // separate things the agent did rather than one run of three commands.
+        !endsTurn && "pb-0",
         isUser && "flex-row-reverse",
       )}
     >

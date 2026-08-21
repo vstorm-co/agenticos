@@ -769,6 +769,30 @@ describe("a segment that continues the turn above it", () => {
     expect(screen.queryByText("Support")).toBeNull();
   });
 
+  it("closes the gap below it as well as above, inside one turn", () => {
+    // A turn that ran three commands is three segments, each carrying one step.
+    // Only the top half was tightened, so they sat a message-gap apart and read
+    // as three separate things the agent did rather than one run.
+    const { container } = item(
+      {},
+      { agent: { id: "a-1", name: "Support" } as Agent, continuesTurn: true, endsTurn: false },
+    );
+
+    const row = container.firstElementChild!;
+
+    expect(row.className).toContain("pt-0");
+    expect(row.className).toContain("pb-0");
+  });
+
+  it("keeps its bottom padding on the segment that ends the turn", () => {
+    const { container } = item(
+      {},
+      { agent: { id: "a-1", name: "Support" } as Agent, continuesTurn: true, endsTurn: true },
+    );
+
+    expect(container.firstElementChild!.className).not.toContain("pb-0");
+  });
+
   it("keeps the gutter, so the whole turn stays in one column", () => {
     const { container } = item(
       {},
