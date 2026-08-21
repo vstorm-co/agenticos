@@ -159,7 +159,7 @@ async def create_collection(
     is refused rather than quietly aliased onto their vector table.
     """
     await access.claim(ctx, name)
-    await vector_store.create_collection(name)
+    await vector_store.create_collection(name, organization_id=ctx.organization_id)
     await kb_svc.create_for_rag_collection(
         name, user_id=ctx.subject_id, organization_id=ctx.organization_id
     )
@@ -216,7 +216,9 @@ async def get_collection_info(
 ) -> Any:
     """Retrieve stats for a specific collection."""
     collection = await access.readable(ctx, name)
-    return await vector_store.get_collection_info(collection.collection_name)
+    return await vector_store.get_collection_info(
+        collection.collection_name, organization_id=collection.organization_id
+    )
 
 
 @router.get(

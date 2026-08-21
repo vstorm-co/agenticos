@@ -5,6 +5,7 @@ import logging
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
+from uuid import UUID
 
 from rank_bm25 import BM25Okapi
 
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 # How a retrieval service learns whether a collection reranks, and with what.
 # Async because the answer lives in the database, injected so the store never
 # imports platform policy - the same shape as the embedding resolver.
-RerankerResolver = Callable[[str], Awaitable[BaseReranker | None]]
+RerankerResolver = Callable[[str, UUID | None], Awaitable[BaseReranker | None]]
 
 # Recall overfetches so min-score filtering and dedup still leave `limit`
 # results. A reranker wants a wider net than that - the point of it is to
@@ -43,6 +44,8 @@ class BaseRetrievalService(ABC):
         limit: int = 5,
         min_score: float = 0.0,
         filter: str = "",
+        *,
+        organization_id: UUID | None,
     ) -> list[SearchResult]:
         pass
 
@@ -94,14 +97,17 @@ class RetrievalService(BaseRetrievalService):
         ]
 
     async def _bm25_search(
-        self, query: str, collection_name: str, limit: int
+        self, query: str, collection_name: str, limit: int, organization_id: UUID | None
     ) -> list[SearchResult]:
         docs = await self.store.get_documents(collection_name)
         if not docs:
             return []
 
         all_results = await self.store.search(
-            collection_name=collection_name, query=query, limit=min(limit * 10, 100)
+            collection_name=collection_name,
+            query=query,
+            limit=min(limit * 10, 100),
+            organization_id=organization_id,
         )
         if not all_results:
             return []
@@ -123,15 +129,20 @@ class RetrievalService(BaseRetrievalService):
             if s > 0
         ]
 
-    async def _reranker_for(self, collection_name: str) -> BaseReranker | None:
+    async def _reranker_for(
+        self, collection_name: str, organization_id: UUID | None
+    ) -> BaseReranker | None:
         """The reranker one collection uses, or None when none is configured.
 
         None whenever no resolver was injected, so a service built without one
         never reranks and never touches the database looking for a key.
+
+        `organization_id` scopes the resolution: a shared collection name must
+        resolve the caller's own rerank config, never another tenant's (#913).
         """
         if self._reranker_resolver is None:
             return None
-        return await self._reranker_resolver(collection_name)
+        return await self._reranker_resolver(collection_name, organization_id)
 
     @staticmethod
     def _shared_reranker(rerankers: list[BaseReranker | None]) -> BaseReranker | None:
@@ -179,11 +190,19 @@ class RetrievalService(BaseRetrievalService):
         limit: int = 5,
         min_score: float = 0.0,
         filter: str = "",
+        *,
+        organization_id: UUID | None,
     ) -> list[SearchResult]:
-        reranker = await self._reranker_for(collection_name)
+        reranker = await self._reranker_for(collection_name, organization_id)
         multiplier = _RERANK_FETCH_MULTIPLIER if reranker else _DEFAULT_FETCH_MULTIPLIER
         candidates = await self._recall(
-            query, collection_name, limit, min_score, filter, fetch_multiplier=multiplier
+            query,
+            collection_name,
+            limit,
+            min_score,
+            filter,
+            fetch_multiplier=multiplier,
+            organization_id=organization_id,
         )
         return await self._rank_and_truncate(reranker, query, candidates, limit)
 
@@ -196,6 +215,7 @@ class RetrievalService(BaseRetrievalService):
         filter: str,
         *,
         fetch_multiplier: int,
+        organization_id: UUID | None,
     ) -> list[SearchResult]:
         """Vector (and optionally BM25) recall, filtered and deduplicated.
 
@@ -225,6 +245,7 @@ class RetrievalService(BaseRetrievalService):
             query=query,
             filter_expr=filter,
             limit=limit * fetch_multiplier,
+            organization_id=organization_id,
         )
 
         search_time = time.time() - start_time
@@ -235,7 +256,9 @@ class RetrievalService(BaseRetrievalService):
         )
 
         if self._hybrid_enabled:
-            bm25_results = await self._bm25_search(query, collection_name, limit * fetch_multiplier)
+            bm25_results = await self._bm25_search(
+                query, collection_name, limit * fetch_multiplier, organization_id
+            )
             if bm25_results:
                 pipeline_results = self._rrf_fuse(pipeline_results, bm25_results)
                 logger.info("[RETRIEVAL] Hybrid search: fused %d results", len(pipeline_results))
@@ -297,6 +320,8 @@ class RetrievalService(BaseRetrievalService):
         collection_names: list[str],
         limit: int = 5,
         min_score: float = 0.0,
+        *,
+        organization_id: UUID | None,
     ) -> list[SearchResult]:
         """Search several collections and merge what they return.
 
@@ -326,14 +351,20 @@ class RetrievalService(BaseRetrievalService):
         merge - each collection's top `limit`, fused, sorted, deduplicated,
         truncated.
         """
-        rerankers = [await self._reranker_for(name) for name in collection_names]
+        rerankers = [await self._reranker_for(name, organization_id) for name in collection_names]
         reranker = self._shared_reranker(rerankers)
         multiplier = _RERANK_FETCH_MULTIPLIER if reranker else _DEFAULT_FETCH_MULTIPLIER
 
         all_results: list[SearchResult] = []
         for name in collection_names:
             recalled = await self._recall(
-                query, name, limit, min_score, "", fetch_multiplier=multiplier
+                query,
+                name,
+                limit,
+                min_score,
+                "",
+                fetch_multiplier=multiplier,
+                organization_id=organization_id,
             )
             all_results.extend(recalled if reranker else recalled[:limit])
 

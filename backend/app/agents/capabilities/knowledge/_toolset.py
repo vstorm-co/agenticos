@@ -40,6 +40,9 @@ def build_knowledge_toolset(*, default_top_k: int) -> FunctionToolset[AgentDeps]
                 # model chooses *what* to search, never *where*.
                 kb_collection_names=ctx.deps.kb_collection_names,
                 top_k=top_k or default_top_k,
+                # The run's own organization, so a collection name shared with
+                # another tenant resolves this agent's config, not theirs (#913).
+                organization_id=ctx.deps.organization_id,
             )
         except Exception as exc:
             raise ModelRetry("Knowledge base temporarily unavailable, please try again.") from exc

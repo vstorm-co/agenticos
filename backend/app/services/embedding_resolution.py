@@ -28,6 +28,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from enum import StrEnum
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -132,16 +133,24 @@ class ResolvedEmbeddings:
         return f"collection {collection_name!r}, which embeds on {self.key_source.explanation}"
 
 
-async def embeddings_for_collection(collection_name: str) -> ResolvedEmbeddings | None:
-    """Resolve one collection's embedding model and credential.
+async def embeddings_for_collection(
+    collection_name: str, organization_id: UUID | None
+) -> ResolvedEmbeddings | None:
+    """Resolve one collection's embedding model and credential, for one organization.
 
     Returns None for a collection no knowledge base claims - the store then
     uses its deployment defaults, which is what such collections have always
     gotten. Opens its own session because the store embeds from places with no
     request in sight: a worker mid-ingestion, a capability mid-run.
+
+    `organization_id` is required and scopes the resolution: `collection_name`
+    is not unique across tenants, so resolving by name alone could return - and
+    unseal and bill - another organization's key (#913). The caller passes the
+    organization the search or ingest is acting for; `None` only where there is
+    no tenant (a CLI ingest).
     """
     async with get_db_context() as db:
-        kb = await knowledge_base_repo.get_by_collection_name(db, collection_name)
+        kb = await knowledge_base_repo.get_for_collection(db, collection_name, organization_id)
         if kb is None:
             return None
         api_key, key_source = await _api_key_for(db, kb)

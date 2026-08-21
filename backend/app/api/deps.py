@@ -940,9 +940,14 @@ DocumentProcessorSvc = Annotated[DocumentProcessor, Depends(get_document_process
 def get_ingestion_service(
     processor: DocumentProcessorSvc,
     vector_store: VectorStoreSvc,
+    org: ActiveOrg,
 ) -> IngestionService:
-    """Create IngestionService instance."""
-    return IngestionService(processor=processor, vector_store=vector_store)
+    """Create IngestionService instance, scoped to the active organization.
+
+    The organization is what lets the store resolve this tenant's embedding key
+    on a collection name another tenant may share, rather than another's (#913).
+    """
+    return IngestionService(processor=processor, vector_store=vector_store, organization_id=org.id)
 
 
 IngestionSvc = Annotated[IngestionService, Depends(get_ingestion_service)]

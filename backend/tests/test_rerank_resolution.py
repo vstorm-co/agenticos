@@ -70,9 +70,9 @@ async def _resolve(kb, secret_row=None):
     ):
         db_ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
         db_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
-        kbs.get_by_collection_name = AsyncMock(return_value=kb)
+        kbs.get_for_collection = AsyncMock(return_value=kb)
         secrets.get = AsyncMock(return_value=secret_row)
-        return await reranker_for_collection("handbook"), secrets
+        return await reranker_for_collection("handbook", organization_id=uuid.uuid4()), secrets
 
 
 class TestResolution:

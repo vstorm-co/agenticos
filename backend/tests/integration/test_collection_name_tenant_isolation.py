@@ -1,0 +1,119 @@
+"""Two organizations sharing a collection name each resolve their own config.
+
+`collection_name` is indexed but not unique, so two tenants can name a
+collection the same thing. Resolving one by name alone returned whichever row
+the database yielded first, which could unseal and bill another organization's
+key (#913). The resolvers now take the organization the search or ingest acts
+for; these run them against a real database with two tenants on one name and
+assert each gets its own embedding and rerank configuration - never the other's.
+"""
+
+from __future__ import annotations
+
+import uuid
+
+import pytest
+from pydantic import SecretStr
+
+from app.core.secret_kinds import ApiKeySecret, seal_secret
+from app.core.vault import VaultScope
+from app.db.models.knowledge_base import KBScope, KnowledgeBase
+from app.db.models.organization import Organization
+from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.user import User
+from app.services.embedding_resolution import embeddings_for_collection
+from app.services.rerank_resolution import reranker_for_collection
+
+pytestmark = pytest.mark.anyio
+
+_SHARED = "shared_collection"
+
+
+async def _org(db, name: str) -> Organization:
+    founder = User(
+        id=uuid.uuid4(),
+        email=f"{uuid.uuid4().hex}@example.com",
+        hashed_password="x",
+        is_active=True,
+    )
+    db.add(founder)
+    await db.flush()
+    org = Organization(
+        id=uuid.uuid4(),
+        name=name,
+        slug=f"{name}-{uuid.uuid4().hex[:8]}",
+        created_by_user_id=founder.id,
+    )
+    db.add(org)
+    await db.flush()
+    return org
+
+
+async def _cohere_secret(db, org: Organization, key: str) -> OrganizationSecret:
+    sealed = seal_secret(
+        ApiKeySecret(api_key=SecretStr(key)), scope=VaultScope.organization(org.id)
+    )
+    secret = OrganizationSecret(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        name="cohere",
+        kind="api_key",
+        purpose="cohere",
+        sealed_secret=sealed.ciphertext,
+        hint=sealed.hint,
+        key_version=sealed.key_version,
+    )
+    db.add(secret)
+    await db.flush()
+    return secret
+
+
+async def _kb(db, org: Organization, *, embedding_model: str, rerank_key: str) -> None:
+    secret = await _cohere_secret(db, org, rerank_key)
+    db.add(
+        KnowledgeBase(
+            id=uuid.uuid4(),
+            name=f"{org.name} handbook",
+            scope=KBScope.ORG.value,
+            collection_name=_SHARED,
+            embedding_model=embedding_model,
+            embedding_dim=1536,
+            rerank_model="rerank-v3.5",
+            rerank_secret_id=secret.id,
+            organization_id=org.id,
+            ingestion_config={},
+        )
+    )
+    await db.flush()
+
+
+async def test_each_organization_resolves_its_own_embedding_and_rerank_config(db) -> None:
+    org_a = await _org(db, "acme")
+    org_b = await _org(db, "globex")
+    await _kb(db, org_a, embedding_model="model-a", rerank_key="cohere-key-a")
+    await _kb(db, org_b, embedding_model="model-b", rerank_key="cohere-key-b")
+    # The resolvers open their own session, so the rows must be committed to be
+    # visible to it.
+    await db.commit()
+
+    emb_a = await embeddings_for_collection(_SHARED, organization_id=org_a.id)
+    emb_b = await embeddings_for_collection(_SHARED, organization_id=org_b.id)
+    assert emb_a is not None and emb_a.model == "model-a"
+    assert emb_b is not None and emb_b.model == "model-b"
+
+    rer_a = await reranker_for_collection(_SHARED, organization_id=org_a.id)
+    rer_b = await reranker_for_collection(_SHARED, organization_id=org_b.id)
+    assert rer_a is not None and rer_a.api_key == "cohere-key-a"
+    assert rer_b is not None and rer_b.api_key == "cohere-key-b"
+
+
+async def test_an_organization_without_a_row_for_the_name_resolves_nothing(db) -> None:
+    """A third organization sharing neither row gets no config - not another
+    tenant's - so it can never unseal a key that is not its own (#913)."""
+    org_a = await _org(db, "acme")
+    await _kb(db, org_a, embedding_model="model-a", rerank_key="cohere-key-a")
+    stranger = await _org(db, "initech")
+    await db.commit()
+
+    assert await embeddings_for_collection(_SHARED, organization_id=stranger.id) is None
+    assert await reranker_for_collection(_SHARED, organization_id=stranger.id) is None

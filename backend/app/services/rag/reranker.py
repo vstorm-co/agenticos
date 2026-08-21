@@ -26,6 +26,7 @@ from abc import ABC, abstractmethod
 from decimal import Decimal
 from math import ceil
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 import cohere
 
@@ -159,7 +160,7 @@ class CohereReranker(BaseReranker):
         )
 
 
-async def build_reranker(collection_name: str) -> BaseReranker | None:
+async def build_reranker(collection_name: str, organization_id: UUID | None) -> BaseReranker | None:
     """Bind a collection's resolved rerank credential to a concrete reranker.
 
     The one composition point for reranking: resolution answers whether a
@@ -169,7 +170,7 @@ async def build_reranker(collection_name: str) -> BaseReranker | None:
     wired the same way in both, and a second provider is a branch here rather
     than a change at each call site.
     """
-    resolved = await reranker_for_collection(collection_name)
+    resolved = await reranker_for_collection(collection_name, organization_id)
     if resolved is None:
         return None
     return CohereReranker(model=resolved.model, api_key=resolved.api_key)

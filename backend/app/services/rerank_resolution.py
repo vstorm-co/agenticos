@@ -22,6 +22,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from enum import StrEnum
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -100,7 +101,9 @@ class ResolvedReranker:
         return f"ResolvedReranker(model={self.model!r}, api_key='***')"
 
 
-async def reranker_for_collection(collection_name: str) -> ResolvedReranker | None:
+async def reranker_for_collection(
+    collection_name: str, organization_id: UUID | None
+) -> ResolvedReranker | None:
     """Resolve one collection's reranker, or `None` if it has none.
 
     `None` for a collection no knowledge base claims, for one that named no
@@ -108,9 +111,14 @@ async def reranker_for_collection(collection_name: str) -> ResolvedReranker | No
     kind - the last three with a warning, because they are a misconfiguration
     rather than the off state. Opens its own session because retrieval reaches
     here from places with no request in sight: an agent mid-run, a direct search.
+
+    `organization_id` scopes the resolution: `collection_name` is not unique
+    across tenants, so resolving by name alone could read another organization's
+    rerank config and unseal its key (#913). The caller passes the organization
+    the search is acting for.
     """
     async with get_db_context() as db:
-        kb = await knowledge_base_repo.get_by_collection_name(db, collection_name)
+        kb = await knowledge_base_repo.get_for_collection(db, collection_name, organization_id)
         if kb is None:
             return None
         resolved, source = await _resolve_reranker(db, kb)
