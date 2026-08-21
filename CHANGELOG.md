@@ -17,6 +17,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.242] - 2026-08-21
+
+The migration chain has one head again.
+
+### Fixed
+
+- **`main` had two alembic heads, so `alembic upgrade head` exited 255 and no
+  deployment could move off 0.0.238.** `0044_agent_embed_key_version` (0.0.239) and
+  `0044_audit_impersonator` (0.0.241) both carried
+  `down_revision = "0043_rag_document_source_path"`: each was written against a `main`
+  that ended at `0043`, each was green on its own branch, and the fork existed only in
+  the merged history. The audit migration is `0045_audit_impersonator` now and points
+  at the embed one. (#1059)
+
+### Added
+
+- **A guard that needs no database.** `backend/tests/test_migration_chain.py` asserts
+  the chain has exactly one head, and that no two revisions claim the same parent -
+  the same defect one step earlier, where the message names the two files that
+  collided rather than the two heads they produced. It is a module of its own rather
+  than a case in `tests/test_migrations.py`, because that one skips where no Postgres
+  answers and a divergence is made by a merge on a laptop hours before CI's database
+  sees it. `make db-check` is `alembic check`, which compares the models to the head
+  and never counts them. (#1059)
 ## [0.0.241] - 2026-08-21
 
 An impersonated action names who was really acting.
@@ -38,7 +62,7 @@ An impersonated action names who was really acting.
   alike, reads `act` onto a context variable - the actor behind a request is a
   property of the request rather than something to thread through every service that
   records an action. `record_audit` writes it as `impersonator_user_id` beside the
-  actor, `0044_audit_impersonator` adds the nullable column and its index, and the
+  actor, `0045_audit_impersonator` adds the nullable column and its index, and the
   audit read schema and service expose it. Null on an ordinary request, and nothing
   is backfilled: whether a past action was impersonated is unknowable after the fact.
   `docs/governance.md` says what an impersonated action records. (#943)
