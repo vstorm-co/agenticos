@@ -17,6 +17,155 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.244] - 2026-08-21
+
+One runtime this repository defines, and a workspace anybody can read.
+
+### Added
+
+- **`backend/app/core/catalog/sandbox_runtimes.json` is where a runtime is
+  described, and the three compose files are generated from it.**
+  `SANDBOXD_RUNTIMES` was hand-written JSON in each of them, describing the same
+  images the connection dialog offers — four places to edit, three of which had to
+  remember that `network_mode` is not inherited from anywhere.
+  `make sandbox-runtimes` writes the line and
+  `backend/tests/test_sandbox_runtime_catalog.py` fails when a file has drifted
+  from the catalogue, naming the file. (#1039)
+- **One runtime, `workbench`, instead of eight.** Python 3.12, Node 24.19.0 and
+  LibreOffice, with `liteparse`, `pypdf`, `python-docx`, `openpyxl`,
+  `python-pptx`, Pillow, pandas, duckdb, matplotlib, httpx, requests,
+  BeautifulSoup, lxml, markdownify, PyYAML, tabulate and reportlab. `prewarm`
+  builds every entry as the service starts, so eight aliases was eight
+  `pip install`s in a start-up nobody watches. (#1039)
+- **The agent is told what its container holds**, in the run's instructions rather
+  than by trying something and reading the error: the package list is derived from
+  the catalogue and the prose beside it says what cannot be — that a large file is
+  extracted to disk and grepped rather than read whole, that OCR costs about nine
+  seconds a page, that `soffice` converts, and that there is no C compiler.
+  `None` for a Daytona sandbox or a `state` workspace, whose image this deployment
+  does not build and so cannot honestly describe. (#1039)
+- **The Running tab says whose sandbox each one is** — the agent's name with the
+  session key under it, the conversation it belongs to as a link, and how long it
+  has before it is reaped, measured against the service's own `idle_timeout`. Its
+  activity log opens in a near-fullscreen dialog with search, an operation filter
+  built from the log itself, and a failed-only switch. (#1039)
+- **`/workspaces` opens on every file rather than on a table of workspaces.**
+  "Where is that CSV" and "what did the agent write" are the questions somebody
+  opens the page with. A file a person attached carries a badge and the list
+  filters on it; an image draws a thumbnail, on a host as well as in a stored
+  document. (#1039)
+- **A workspace's own page is a tree that opens in place**, indented, with
+  `uploads` open by default and search over every folder rather than the one on
+  screen. The file renders beside the tree instead of over it, because reading a
+  workspace means reading several files in turn. (#1039)
+- **The table counts files and totals their bytes, sortable**, and says what it
+  cost: a stored workspace is counted anyway because its files came with the row,
+  and a container's are a round trip to its host, so `measure=true` is a switch
+  rather than something the page pays for on open. (#1039)
+- **One scrolling row of attachment chips above the composer**, in its own
+  container, with arrows only where there is something to scroll to. (#927)
+- **A file opens in a modal with a carousel under it**, so moving between the
+  files of one turn is a click or an arrow key, from the transcript as well as
+  from the panel. (#1039)
+
+### Fixed
+
+- **Compose interpolated the runtime's shell variables, so every session 502'd.**
+  `$arch` and `${node_arch}` in a setup command are variables to compose,
+  undefined ones, so the service was handed `case "" in amd64) … esac` and the
+  build failed with `no Node build for ` on every session. Nothing in the chain
+  says the word "compose": the library passes a setup command through verbatim and
+  Docker does not expand `$` in a `RUN`. The generator writes `$$`. (#1039)
+- **An attachment landed outside the workspace and nothing reported it.**
+  `UPLOAD_DIR` was `/uploads`, and a sandbox resolves an absolute path as
+  absolute — so the file landed at the container's filesystem root, the agent's
+  `ls` did not see it, the browser could not list it, and it died with the
+  container. An agent asked to read one answered that the directory was empty,
+  having summarised the file from the head sample in its own prompt. (#1039)
+- **`_workspace_paths` globbed from `/` rather than from the working directory**,
+  so "what did the agent write" was 2,540 paths of `/proc` and `/usr`, taken twice
+  a turn. (#1039)
+- **A workspace listing read one directory.** The archive's `ls` lists one, and it
+  was called once on the root — so a workspace whose files are all under
+  `uploads/` reported a single directory entry and nothing else. It walks now,
+  breadth-first, six levels deep and 2,000 entries at most; a directory that will
+  not answer is logged and skipped, and only the root refusing makes the workspace
+  unreadable. (#1039)
+- **A Polish filename 500'd, and the browser was told the file did not exist.**
+  ASGI headers are latin-1, so `Content-Disposition: filename="…ł.pdf"` raised
+  inside the response — reported to the client as `FILE_NOT_FOUND`. One helper
+  builds the header as RFC 5987 for every route that serves bytes. (#1039)
+- **A `.txt` copy of every PDF, `.docx` and spreadsheet was written beside it.** On
+  a runtime carrying `liteparse` that is a second copy of the file's contents on
+  disk to save a tool call the agent should be making. It is written only where the
+  workspace cannot read the original itself. (#1039)
+- **A failed workspace write was reported to the model as "too large".** The
+  sentence was reasoned from the stored backend's four-megabyte ceiling, and a
+  container write fails for reasons that have nothing to do with size — so a
+  782 KB PDF attached while `sandboxd` was down was described as too large, the
+  model repeated that to the person who attached it, and the two of them spent a
+  conversation on a limit that was never the problem. (#1046)
+- **And the turn is told once that the workspace itself is unavailable**, so a
+  failing `ls` is not read as a problem with the command: without it one turn tried
+  `ls`, then a `curl` of a `data:` URI, then offered three workarounds, across two
+  turns and 57k tokens. (#1046)
+- **Skills are written to the workspace again**, because a resource is a script the
+  shell runs and `collect_changes` diffs it into a proposal a person accepts;
+  removing the files broke both, one of them silently. The listings drop `skills/`
+  and the spill directory instead — the complaint was right about the listing and
+  wrong about the mechanism. (#1064)
+- **A channel reply could post somebody's own attachment back at them as the
+  agent's work.** The prefixes a reply must not send were written with a leading
+  slash, which a stored workspace's paths have and a container's do not. (#1039)
+- **A probe sent the vault credential to whatever address was in the box.**
+  `X-Sandbox-Token` on a sandbox host starts containers there, so the automatic ask
+  is limited to the address the backend itself found; every other host is asked
+  when an operator presses the button. (#1039)
+- **`re.sub` reads escapes in its replacement string**, and the generated compose
+  line was passed as one — so the first setup command needing a `sed 's/\1/x/'`
+  would have been written into three files as a capture group. (#1039)
+- **An agent on somebody else's host was told it could read a PDF itself when it
+  could not.** Whether the extracted text is written beside an attachment was
+  derived from whether the runtime could be described - and a description falls
+  back to this catalogue's first entry for a run that named no runtime, which is
+  the case where the *host* chooses. On a custom or pre-upgrade host that left the
+  model twenty lines of prompt and a binary it could not open. The two questions
+  are answered separately now. (#1039)
+- **And the extracted text was named whether or not it was written.** A document
+  with room for a spreadsheet and not for its parse refuses the second write on
+  its own, so the model was told about a file that was not there. What is named is
+  what the workspace answers for. (#1039)
+- **The sandbox listing linked conversations their reader cannot open**, which on
+  an organization-wide page was most of the column: the chat page lists its
+  owner's threads, so the rest landed on an empty sidebar dressed as the
+  conversation. (#1039)
+- **A container's file tree stopped without saying so.** Reading a host is a round
+  trip per folder, so the walk ends at six levels and 2,000 entries - which for a
+  workspace holding a checkout is a tree somebody reads as everything the agent is
+  keeping. The page says when it is not. A folder that will not answer is skipped
+  rather than failing the whole listing, and a folder's file count includes what is
+  nested under it. (#1039)
+- **The sandbox service this deployment starts could not be tested before it was
+  saved**, because that path stores its credential at submission and there was
+  nothing to test with. A probe with no key uses `SANDBOXD_TOKEN` for the two
+  addresses in this project's own compose file and no others - that token starts
+  containers on whatever host accepts it. (#1039)
+- Smaller ones, each with a test: the name field is a value rather than a
+  placeholder; the runtime picker's trigger says what an image is for on one line
+  instead of overflowing it; the explorer fills the page it is on; the segments of
+  one turn no longer have a gap between them; a file's carousel no longer takes the
+  arrow keys away from the Preview/Source tabs; a probe's answer about a host that
+  is no longer in the box is not displayed; and a stored image's base64 body is no
+  longer decoded to discover that its suffix was never an image.
+
+### Documentation
+
+- **`docs/sandbox.md`** — how a sandbox is built and by whom, that the containers
+  are siblings of the API rather than nested in it, one per session, what a tenant
+  is, how long a workspace survives, what `sandbox_runtimes.json` holds and how to
+  change it, and what the browser leaves out. `SANDBOXD_MAX_SESSIONS_PER_TENANT` is
+  10. (#1039)
+
 ## [0.0.243] - 2026-08-21
 
 The agent avatar is served as an image or not at all.
