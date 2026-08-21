@@ -17,6 +17,34 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.237] - 2026-08-21
+
+Two chat controls that did nothing are gone.
+
+### Removed
+
+- **The temperature slider and the thinking-effort picker in the chat Settings tab.**
+  Both were sent on every turn and read by nothing: `agent_session` reads
+  `model_profile_id` and the environment off the frame and no other key, and
+  `thinking_effort` appears nowhere in the backend at all. Whatever the person chose,
+  the run used the agent's spec. Worse than doing nothing, the controls said they did
+  something - `chat-controls`' own docstring claimed "both are recorded on the run, so
+  an override stays attributable", and neither was, because neither arrived. The same
+  class as #29 and #561: a stated contract the code does not keep, and a control that
+  lies is worse than one that is absent. (#924)
+- The Settings tab was those two controls, so it goes with them - leaving the model
+  picker, which works and no longer needs tabs - along with the `use-chat` refs,
+  setters and send-frame lines behind them, and the orphaned `chat.controls.*` keys
+  (and a stray `chat.settingsPersistCurrentChat` their removal orphaned). The
+  docstring now says what is true. (#924)
+
+### Changed
+
+- Thinking effort stays a **capability binding** rather than a model setting
+  (`spec.py`), so overriding it per turn is a larger design than a slider: it is not
+  being quietly dropped, it never worked, and wiring it is its own issue. Temperature
+  is genuinely a model setting and the easy half, but half-wiring one while deleting
+  the other leaves the same one-control-in-a-tab shape. (#924)
 ## [0.0.236] - 2026-08-21
 
 PII is redacted where records are actually emitted.
