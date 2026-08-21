@@ -987,6 +987,16 @@ question that is cheap to answer now and impossible to reconstruct later.
 `audit:read` gates reading it. An app admin's bypass is exactly what the trail
 exists to hold to account.
 
+An **impersonated** action names both. When an app admin acts as another account,
+the access token carries the administrator as an `act` claim; every entry that
+request records keeps `actor_user_id` as the account being acted as and adds
+`impersonator_user_id` — the administrator behind it. So "who read this customer's
+conversation" resolves to a person even when the action was recorded as the
+customer's own. It is null on an ordinary request, where nobody is acting as
+anybody else, and nothing is backfilled: whether a past action was impersonated
+cannot be known after the fact, and inventing an answer would be a false
+accusation rather than a missing one.
+
 ## What none of this covers
 
 Worth stating, because a governance page implies otherwise:

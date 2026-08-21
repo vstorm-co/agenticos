@@ -81,7 +81,12 @@ from app.services.access import (
 )
 from app.services.channels.base import ROOM_HANDLES
 from app.services.deployment_settings import DeploymentSettingsService
-from app.services.file_storage import IMAGE_MIME_TYPES, MAX_AVATAR_SIZE, get_file_storage
+from app.services.file_storage import (
+    IMAGE_MIME_TYPES,
+    MAX_AVATAR_SIZE,
+    avatar_filename,
+    get_file_storage,
+)
 from app.services.sandbox_workspace import sandbox_config
 
 logger = logging.getLogger(__name__)
@@ -1759,7 +1764,6 @@ class AgentRegistryService:
         agent_id: UUID,
         *,
         file_data: bytes,
-        filename: str,
         content_type: str | None,
     ) -> Agent:
         """Replace an agent's picture.
@@ -1780,7 +1784,11 @@ class AgentRegistryService:
             # old file is unreachable the moment the row stops pointing at it.
             with contextlib.suppress(Exception):
                 await storage.delete(agent.avatar_url)
-        path = await storage.save(f"avatars/agents/{agent.id}", filename, file_data)
+        # Stored under a suffix from the validated type, not the caller's
+        # filename, so a valid image is renderable whatever it was named (#702).
+        path = await storage.save(
+            f"avatars/agents/{agent.id}", avatar_filename(content_type), file_data
+        )
         return await agent_repo.update(self.db, agent=agent, update_data={"avatar_url": path})
 
     async def set_avatar_color(

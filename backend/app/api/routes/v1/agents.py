@@ -18,7 +18,6 @@ client of it, and a client's own scripts are another. There is deliberately no
 private variant, which is what keeps "the Builder is just another client" true.
 """
 
-import mimetypes
 from typing import Any
 from uuid import UUID
 
@@ -28,6 +27,7 @@ from fastapi.responses import FileResponse
 from app.agents.capabilities import all_capabilities
 from app.agents.spec import AgentSpec
 from app.api.deps import AgentRegistrySvc, AgentRunnerSvc, Auth, limit_agent_run, require
+from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
 from app.db.models.agent_run import RunSurface
 from app.schemas.agent import (
@@ -55,6 +55,7 @@ from app.schemas.agent import (
     SpecialistPromote,
 )
 from app.services.capability_contracts import tool_contracts
+from app.services.file_storage import sniff_image_media_type
 from app.services.mcp_catalog import CATALOG
 
 router = APIRouter()
@@ -368,7 +369,6 @@ async def upload_agent_avatar(
         ctx,
         agent_id,
         file_data=await file.read(),
-        filename=file.filename or "avatar.jpg",
         content_type=file.content_type,
     )
 
@@ -395,8 +395,16 @@ async def set_agent_avatar_color(
 async def get_agent_avatar(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> FileResponse:
     """Stream the agent's picture to someone entitled to see the agent."""
     path = await service.avatar_path(ctx, agent_id)
-    media_type = mimetypes.guess_type(path)[0] or "application/octet-stream"
-    return FileResponse(path=path, media_type=media_type)
+    # The type comes from the file's own bytes, not its stored name, and it is
+    # refused if the bytes are not an image: the avatar is served from the app's
+    # own origin, so a file whose bytes are HTML must never be served as something
+    # a browser runs, whatever it was named (#1035, same class as #702).
+    media_type = sniff_image_media_type(path)
+    if media_type is None:
+        raise NotFoundError(message="This agent has no avatar", details={"agent_id": str(agent_id)})
+    return FileResponse(
+        path=path, media_type=media_type, headers={"X-Content-Type-Options": "nosniff"}
+    )
 
 
 @router.post(

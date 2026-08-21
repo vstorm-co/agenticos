@@ -17,6 +17,114 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.243] - 2026-08-21
+
+The agent avatar is served as an image or not at all.
+
+### Fixed
+
+- **`GET /api/v1/agents/{agent_id}/avatar` guessed its content-type from the filename
+  on disk** - `mimetypes.guess_type(path)[0] or "application/octet-stream"`, straight
+  into a `FileResponse`. An avatar is stored under whatever suffix the uploader chose
+  and the app serves from an origin whose CSP allows inline script, so a file uploaded
+  as `x.html` was served as `text/html` from that origin and executed. Stored XSS,
+  exactly the class 0.0.238 fixed for the user and organization avatars, and the route
+  it deliberately left out of scope. (#1035)
+- The route reuses `image_media_type_for` rather than growing a second copy of the
+  helper: the type is pinned to the file's actual image type, anything that is not an
+  image is refused with a 404, and `X-Content-Type-Options: nosniff` goes out with it -
+  the same shape the user and organization avatar routes already use. `mimetypes` is
+  dropped from the module. (#1035)
+## [0.0.242] - 2026-08-21
+
+The migration chain has one head again.
+
+### Fixed
+
+- **`main` had two alembic heads, so `alembic upgrade head` exited 255 and no
+  deployment could move off 0.0.238.** `0044_agent_embed_key_version` (0.0.239) and
+  `0044_audit_impersonator` (0.0.241) both carried
+  `down_revision = "0043_rag_document_source_path"`: each was written against a `main`
+  that ended at `0043`, each was green on its own branch, and the fork existed only in
+  the merged history. The audit migration is `0045_audit_impersonator` now and points
+  at the embed one. (#1059)
+
+### Added
+
+- **A guard that needs no database.** `backend/tests/test_migration_chain.py` asserts
+  the chain has exactly one head, and that no two revisions claim the same parent -
+  the same defect one step earlier, where the message names the two files that
+  collided rather than the two heads they produced. It is a module of its own rather
+  than a case in `tests/test_migrations.py`, because that one skips where no Postgres
+  answers and a divergence is made by a merge on a laptop hours before CI's database
+  sees it. `make db-check` is `alembic check`, which compares the models to the head
+  and never counts them. (#1059)
+## [0.0.241] - 2026-08-21
+
+An impersonated action names who was really acting.
+
+### Fixed
+
+- **`POST /admin/users/{id}/impersonate` minted an access token whose `sub` is the
+  target account**, so every request made with it - every row written, every audit
+  entry triggered - was attributed to the target and to nobody else. An admin who
+  read a customer's conversation and one who deleted their agent left the same trace:
+  the customer's own. "Who accessed my account" had no answer. (#943)
+
+### Added
+
+- **An `act` claim.** `create_access_token(..., act=...)` carries the administrator
+  behind the subject, and the impersonate route sets it. It is absent on every
+  ordinary token, so those are byte for byte unchanged. (#943)
+- **A request-scoped audit context.** The auth dependency, over HTTP and WebSocket
+  alike, reads `act` onto a context variable - the actor behind a request is a
+  property of the request rather than something to thread through every service that
+  records an action. `record_audit` writes it as `impersonator_user_id` beside the
+  actor, `0045_audit_impersonator` adds the nullable column and its index, and the
+  audit read schema and service expose it. Null on an ordinary request, and nothing
+  is backfilled: whether a past action was impersonated is unknowable after the fact.
+  `docs/governance.md` says what an impersonated action records. (#943)
+
+### Changed
+
+- Deliberately not the whole of #943. A raw token still reaches the clipboard, and an
+  impersonation session is still neither revocable nor endable in product - those two
+  are one larger full-stack flow, with a banner, an End button and revocation, filed
+  as a follow-up. #943 stays open for it, along with the policy question of whether
+  the target is notified. (#943)
+## [0.0.240] - 2026-08-21
+
+An answered `ask_user` question survives the conversation.
+
+### Fixed
+
+- **A mid-turn `ask_user` question and the person's answer were written down
+  nowhere**, so a reopened conversation showed neither the question the agent put nor
+  the answer it acted on. `ask_user` is a callback rather than a tool, so it never
+  touched the turn timeline the transcript is replayed from. (#502)
+
+### Added
+
+- `MessagePart` gains an `ask_user` kind carrying the question and the answer,
+  `TurnTimeline.add_ask_user` records it, and the session hands the running turn's
+  timeline to `_ask_one`, which appends the pair once the answer is in hand, in the
+  position it happened. A lone `ask_user` part is stored even as a turn's only part -
+  unlike a tool call or a block of text it has no column to fall back to. No
+  migration: the timeline is already a JSONB column and only the part union widens.
+  (#502)
+- The frontend gains the raw and typed part shapes, the replay in
+  `conversation-to-chat`, a `runsOf` run, and an `AskUserBlock` that draws the
+  question and the answer as a step inside the turn rather than as a chat bubble.
+  (#502)
+
+### Changed
+
+- Replay only. Live, the question is the composer's own `ask_user` form and the answer
+  returns through it, so what was missing was a conversation reopened from history.
+  **Delegate attribution - saying which delegate asked - is deliberately not here**:
+  `subagents-pydantic-ai` reaches the parent through `ctx.deps.ask_user(question, [])`
+  with no asker name and `SubAgentState` carries none, so naming the delegate needs an
+  upstream change to that package first. #502 stays open for it. (#502)
 ## [0.0.239] - 2026-08-21
 
 A multi-column row is sealed under one key version.

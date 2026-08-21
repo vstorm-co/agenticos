@@ -12,14 +12,25 @@ from app.core.config import settings
 def create_access_token(
     subject: str | Any,
     expires_delta: timedelta | None = None,
+    *,
+    act: str | None = None,
 ) -> str:
-    """Create a JWT access token."""
+    """Create a JWT access token.
+
+    `act` is the actor behind the subject when the two differ - an administrator
+    impersonating another account. It is carried as its own claim so a request
+    made with the token is attributable to the person who is really acting, not
+    only to the account they are acting as (#943). Omitted from the payload when
+    unset, so an ordinary token is byte-for-byte what it was.
+    """
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
     else:
         expire = datetime.now(UTC) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
-    to_encode = {"exp": expire, "sub": str(subject), "type": "access"}
+    to_encode: dict[str, Any] = {"exp": expire, "sub": str(subject), "type": "access"}
+    if act is not None:
+        to_encode["act"] = str(act)
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
