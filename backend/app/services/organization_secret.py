@@ -29,7 +29,12 @@ from app.core.secret_purposes import CUSTOM
 from app.core.vault import VaultScope
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.resource_grant import Visibility
-from app.repositories import member_repo, organization_secret_repo, resource_grant_repo
+from app.repositories import (
+    knowledge_base_repo,
+    member_repo,
+    organization_secret_repo,
+    resource_grant_repo,
+)
 from app.schemas.resource_grant import as_visibility
 from app.schemas.secret import SecretRead, SecretUsage
 from app.services.access import SECRET, resolve_access, visible_resource_ids
@@ -126,6 +131,9 @@ class OrganizationSecretService:
             used = await organization_secret_repo.agents_using(
                 self.db, organization_id=ctx.organization_id, secret_id=secret.id
             )
+            kbs = await knowledge_base_repo.knowledge_bases_using(
+                self.db, organization_id=ctx.organization_id, secret_id=secret.id
+            )
             rows.append(
                 SecretRead(
                     id=secret.id,
@@ -143,6 +151,10 @@ class OrganizationSecretService:
                     shared_with=shared_counts.get(secret.id, 0),
                     used_by=[
                         SecretUsage(kind="agent", id=agent_id, name=name) for agent_id, name in used
+                    ]
+                    + [
+                        SecretUsage(kind="knowledge_base", id=kb_id, name=name)
+                        for kb_id, name in kbs
                     ],
                     created_at=secret.created_at,
                     updated_at=secret.updated_at,

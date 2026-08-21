@@ -91,7 +91,7 @@ export interface SecretKindList {
 /** A stored secret, identified by everything except what it holds. */
 /** One place a secret is bound, so "can I delete this" has an answer. */
 export interface SecretUsage {
-  kind: "agent";
+  kind: "agent" | "knowledge_base";
   id: string;
   name: string;
 }

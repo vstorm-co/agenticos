@@ -31,6 +31,7 @@ from app.core.secret_kinds import (
 )
 from app.core.vault import VaultScope
 from app.repositories import member_repo
+from app.schemas.secret import SecretUsage
 from app.services.organization_secret import OrganizationSecretService
 from tests.test_model_profiles import service_account_json
 
@@ -269,11 +270,62 @@ class TestStoringASecret:
                 "app.services.organization_secret.organization_secret_repo.agents_using",
                 new=AsyncMock(return_value=[]),
             ),
+            patch(
+                "app.services.organization_secret.knowledge_base_repo.knowledge_bases_using",
+                new=AsyncMock(return_value=[]),
+            ),
         ):
             rows = await OrganizationSecretService(_db()).list_secrets(ctx)
 
         assert rows[0].created_by_user_id == author_id
         assert rows[0].created_by_email == "ada@acme.test"
+
+    @pytest.mark.anyio
+    async def test_a_key_bound_only_by_a_knowledge_base_is_not_reported_unused(self):
+        """A Cohere key used solely as a KB rerank (or embedding) credential still
+        shows what breaks on deletion. Reporting it unused - because only agent
+        specs were checked - invited deleting a key a collection was resolving,
+        which the SET NULL foreign key then silently turned off."""
+        ctx = _ctx()
+        secret = _row(ctx, ApiKeySecret(api_key="co-live-4242"))
+        secret.description = None
+        secret.purpose = "custom"
+        secret.visibility = "org"
+        secret.owner_user_id = None
+        secret.created_by_user_id = None
+        secret.created_at = datetime.now(UTC)
+        secret.updated_at = None
+        kb_id = uuid.uuid4()
+
+        with (
+            patch(
+                "app.services.organization_secret.visible_resource_ids",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.services.organization_secret.organization_secret_repo.list_secrets",
+                new=AsyncMock(return_value=[secret]),
+            ),
+            patch(
+                "app.services.organization_secret.member_repo.get_identities_for_users",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                "app.services.organization_secret.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                "app.services.organization_secret.organization_secret_repo.agents_using",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
+                "app.services.organization_secret.knowledge_base_repo.knowledge_bases_using",
+                new=AsyncMock(return_value=[(kb_id, "Handbook")]),
+            ),
+        ):
+            rows = await OrganizationSecretService(_db()).list_secrets(ctx)
+
+        assert rows[0].used_by == [SecretUsage(kind="knowledge_base", id=kb_id, name="Handbook")]
 
 
 class TestRotatingASecret:

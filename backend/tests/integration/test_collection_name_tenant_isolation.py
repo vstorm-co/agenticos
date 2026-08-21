@@ -117,3 +117,45 @@ async def test_an_organization_without_a_row_for_the_name_resolves_nothing(db) -
 
     assert await embeddings_for_collection(_SHARED, organization_id=stranger.id) is None
     assert await reranker_for_collection(_SHARED, organization_id=stranger.id) is None
+
+
+def _kb_row(org: Organization, name: str, **secret_ids: uuid.UUID) -> KnowledgeBase:
+    return KnowledgeBase(
+        id=uuid.uuid4(),
+        name=name,
+        scope=KBScope.ORG.value,
+        collection_name=name,
+        embedding_model="model",
+        embedding_dim=1536,
+        organization_id=org.id,
+        ingestion_config={},
+        **secret_ids,
+    )
+
+
+async def test_knowledge_bases_using_finds_embedding_and_rerank_bindings(db) -> None:
+    """A key bound as either a KB embedding or rerank credential is reported, so
+    the vault does not call it unused and invite a deletion that SET NULL then
+    turns off. Scoped to the organization: another tenant's binding never shows."""
+    from app.repositories import knowledge_base_repo
+
+    org = await _org(db, "acme")
+    other = await _org(db, "globex")
+    secret = await _cohere_secret(db, org, "co-key")
+    other_secret = await _cohere_secret(db, other, "other-key")
+
+    db.add_all(
+        [
+            _kb_row(org, "reranked", rerank_secret_id=secret.id),
+            _kb_row(org, "embedded", embedding_secret_id=secret.id),
+            _kb_row(org, "unrelated"),
+            _kb_row(other, "other-tenant", rerank_secret_id=other_secret.id),
+        ]
+    )
+    await db.flush()
+
+    found = await knowledge_base_repo.knowledge_bases_using(
+        db, organization_id=org.id, secret_id=secret.id
+    )
+
+    assert {name for _id, name in found} == {"reranked", "embedded"}

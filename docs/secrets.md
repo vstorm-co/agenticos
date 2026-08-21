@@ -110,6 +110,14 @@ them through `vault.seal_fields`, which seals every field at one version and han
 that version back to store: the one way to write such a row, so "no version column"
 and "reset one field to v1" cannot be spelled by hand.
 
+**Knowledge bases.** A collection may resolve its embedding key
+(`embedding_secret_id`) and its rerank key (`rerank_secret_id`) from the
+organization's vault. Both are `SET NULL` on delete, so deleting the key does not
+break the row — it silently stops embedding or reranking. The vault's usage
+listing (`used_by`, "what breaks if I delete this") reports these bindings
+alongside the agents that hold a key, so a Cohere key a collection reranks with
+does not read as unused and invite exactly that deletion.
+
 **Third-party services.** A small catalog of services an organization may bring its
 own key for:
 
