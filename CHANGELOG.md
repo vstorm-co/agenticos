@@ -17,6 +17,39 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.241] - 2026-08-21
+
+An impersonated action names who was really acting.
+
+### Fixed
+
+- **`POST /admin/users/{id}/impersonate` minted an access token whose `sub` is the
+  target account**, so every request made with it - every row written, every audit
+  entry triggered - was attributed to the target and to nobody else. An admin who
+  read a customer's conversation and one who deleted their agent left the same trace:
+  the customer's own. "Who accessed my account" had no answer. (#943)
+
+### Added
+
+- **An `act` claim.** `create_access_token(..., act=...)` carries the administrator
+  behind the subject, and the impersonate route sets it. It is absent on every
+  ordinary token, so those are byte for byte unchanged. (#943)
+- **A request-scoped audit context.** The auth dependency, over HTTP and WebSocket
+  alike, reads `act` onto a context variable - the actor behind a request is a
+  property of the request rather than something to thread through every service that
+  records an action. `record_audit` writes it as `impersonator_user_id` beside the
+  actor, `0044_audit_impersonator` adds the nullable column and its index, and the
+  audit read schema and service expose it. Null on an ordinary request, and nothing
+  is backfilled: whether a past action was impersonated is unknowable after the fact.
+  `docs/governance.md` says what an impersonated action records. (#943)
+
+### Changed
+
+- Deliberately not the whole of #943. A raw token still reaches the clipboard, and an
+  impersonation session is still neither revocable nor endable in product - those two
+  are one larger full-stack flow, with a banner, an End button and revocation, filed
+  as a follow-up. #943 stays open for it, along with the policy question of whether
+  the target is notified. (#943)
 ## [0.0.240] - 2026-08-21
 
 An answered `ask_user` question survives the conversation.
