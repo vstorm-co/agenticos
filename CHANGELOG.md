@@ -17,6 +17,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.243] - 2026-08-21
+
+The agent avatar is served as an image or not at all.
+
+### Fixed
+
+- **`GET /api/v1/agents/{agent_id}/avatar` guessed its content-type from the filename
+  on disk** - `mimetypes.guess_type(path)[0] or "application/octet-stream"`, straight
+  into a `FileResponse`. An avatar is stored under whatever suffix the uploader chose
+  and the app serves from an origin whose CSP allows inline script, so a file uploaded
+  as `x.html` was served as `text/html` from that origin and executed. Stored XSS,
+  exactly the class 0.0.238 fixed for the user and organization avatars, and the route
+  it deliberately left out of scope. (#1035)
+- The route reuses `image_media_type_for` rather than growing a second copy of the
+  helper: the type is pinned to the file's actual image type, anything that is not an
+  image is refused with a 404, and `X-Content-Type-Options: nosniff` goes out with it -
+  the same shape the user and organization avatar routes already use. `mimetypes` is
+  dropped from the module. (#1035)
 ## [0.0.242] - 2026-08-21
 
 The migration chain has one head again.
