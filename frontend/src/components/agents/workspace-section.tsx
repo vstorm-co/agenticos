@@ -358,10 +358,19 @@ function RuntimeField({ connection, runtime, disabled, onChange }: RuntimeFieldP
         disabled={disabled || runtimes.length === 0}
         onValueChange={(value) => onChange(value === "default" ? null : value)}
       >
+        {/* The trigger says the alias and nothing else, and says it itself. An
+            option is two lines - the alias, then what the image is for - and
+            Radix mirrors an item's `ItemText` into the closed trigger, which is
+            36 px with `line-clamp-1`: a two-line block lands in there clipped
+            and pushes the alias sideways. */}
         <SelectTrigger id="workspace-runtime">
-          <SelectValue placeholder={isLoading ? t("askingService") : t("connectionSDefault")} />
+          <SelectValue placeholder={isLoading ? t("askingService") : t("connectionSDefault")}>
+            <span className="truncate font-mono text-xs">
+              {runtime ?? connection?.default_runtime ?? t("serviceSOwnDefault")}
+            </span>
+          </SelectValue>
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="max-w-[min(28rem,90vw)]">
           {/* What this option *means*, then what it currently resolves to - never
               the alias alone. Labelled with the connection's default it read
               `workbench`, and the allowlist below it read `workbench` too: two
@@ -388,7 +397,18 @@ function RuntimeField({ connection, runtime, disabled, onChange }: RuntimeFieldP
                 )
               }
             >
-              {entry.alias}
+              {/* What the image is *for*, under its alias. `workbench` says
+                  nothing to somebody choosing between two of them, and the
+                  description was drawn only below the closed field - for the one
+                  already selected, which is the wrong moment to learn it. */}
+              <span className="flex min-w-0 flex-col">
+                <span className="font-mono text-xs">{entry.alias}</span>
+                {entry.description !== "" && (
+                  <span className="text-muted-foreground truncate text-xs">
+                    {entry.description}
+                  </span>
+                )}
+              </span>
             </SelectItem>
           ))}
         </SelectContent>

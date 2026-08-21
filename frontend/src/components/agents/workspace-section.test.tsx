@@ -378,6 +378,24 @@ describe("WorkspaceSection", () => {
   });
 
   describe("the runtime", () => {
+    it("says what each runtime is for, in the list rather than after the choice", async () => {
+      // `workbench` says nothing to somebody choosing between two of them. The
+      // description was drawn only under the closed field, for the one already
+      // selected - the wrong moment to learn it.
+      render(
+        <WorkspaceSection
+          definition={SANDBOX}
+          binding={binding({ backend: "service" })}
+          onChange={vi.fn()}
+        />,
+        { wrapper },
+      );
+
+      await userEvent.click(screen.getByRole("combobox", { name: "Runtime" }));
+
+      expect(screen.getByRole("option", { name: /Python and the standard library/ })).toBeVisible();
+    });
+
     it("shows what kind of host each connection is", async () => {
       // The row knows: `docker` or `daytona`. A list of names alone made two hosts
       // of different kinds look like two of the same thing, and the mark is the
@@ -421,7 +439,9 @@ describe("WorkspaceSection", () => {
       expect(
         screen.getByRole("option", { name: "The connection's default — python" }),
       ).toBeVisible();
-      expect(screen.getByRole("option", { name: "python" })).toBeVisible();
+      // Matched loosely: an option's accessible name now carries what the image
+      // is for as well as its alias.
+      expect(screen.getByRole("option", { name: /^python/ })).toBeVisible();
     });
 
     it("offers what the service allows rather than free text", async () => {
@@ -486,7 +506,7 @@ describe("WorkspaceSection", () => {
       expect(picker).not.toHaveTextContent("512m");
 
       await userEvent.click(picker);
-      const chosen = await screen.findByRole("option", { name: "python" });
+      const chosen = await screen.findByRole("option", { name: /^python/ });
       expect(within(chosen).getByText("512m")).toBeVisible();
     });
 
