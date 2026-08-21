@@ -17,6 +17,33 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.232] - 2026-08-21
+
+The active-sessions card holds while the next page loads.
+
+### Fixed
+
+- **Paging the Active sessions card on `/settings/profile` blanked it and threw the
+  scroll to the top.** The query keyed on the page number with no `placeholderData`,
+  so each page change was a new key: `data` went `undefined`, `isPending` flipped
+  true, and the `loading && sessions.length === 0` branch drew two skeletons in
+  place of five rows. The card collapsed from roughly 340px to 120px, everything
+  below it jumped, and a card below the fold took the scroll with it.
+  `placeholderData: keepPreviousData` holds the current rows while the next page
+  loads, so the skeleton branch means first load again - the treatment
+  `use-agents`, `use-runs`, `use-skills` and `use-context` already had, and this was
+  the one paged list without it. (#944)
+- The held list is dimmed and marked `aria-busy` while stale, as `UsageBody` does,
+  and the pager is disabled while the fetch is in flight - so the hold is visible,
+  and audible to a screen reader, rather than silently wrong. (#944)
+
+### Changed
+
+- The card's hand-rolled pager is now the shared `PaginationBar` that admin/users,
+  run history and version history already use; it was the fourth implementation of
+  one control. Single-page behaviour differs - the chevrons render disabled rather
+  than the pager disappearing - so the orphaned `dashboard.previousPage` and
+  `dashboard.nextPage` keys are removed from both catalogs. (#944)
 ## [0.0.231] - 2026-08-20
 
 The organization in the URL is the tenant.
