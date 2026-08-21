@@ -17,6 +17,43 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.235] - 2026-08-21
+
+The auth surface is rate-limited, and bcrypt is off the event loop.
+
+### Fixed
+
+- **No route in `auth.py` was rate-limited, and `verify_password` ran bcrypt on the
+  request event loop** - about 170ms with no suspension point in it. Each is
+  survivable; together they are not. `/login` against any address that holds an
+  account, at 20 requests a second, blocks the loop 171ms at a time with no `await`,
+  so the worker serves nothing else: not the readiness probe, not an in-flight agent
+  socket. On a single-worker deployment the product is down for as long as the
+  attacker keeps typing. (#947)
+- **Unlimited brute force.** The bcrypt cost was the only brake on it, and the
+  denial-of-service above is what that brake bought the attacker. (#947)
+- **A user-enumeration timing oracle.** `authenticate` skipped bcrypt for an unknown
+  address and ran it for a known one, so the two refused in visibly different times.
+  An unknown address is now verified against a real hash computed once at import, and
+  the two refusals take the same time. (#947)
+- **An email amplifier.** `/password-reset/request` and `/magic-link/request` sent
+  mail on every call, unlimited. (#947)
+
+### Changed
+
+- The Redis-backed limiter this repository already had in `services/rate_limit.py`,
+  shared across workers, is wired to the auth surface: `auth_limit()` and
+  `deps.enforce_auth_limit` are called at the top of **every** auth route, before any
+  bcrypt or database work. Counted per IP always, and per submitted address wherever
+  the body carries one - which is why it is called from the handler rather than as a
+  `Depends`, since the per-address half needs the parsed body.
+  `RATE_LIMIT_AUTH_PER_MINUTE` defaults to 10 and is documented in
+  `docs/configuration.md`. (#947)
+- Every bcrypt call - the verify in `authenticate` and the three `get_password_hash`
+  sites - runs in a thread through `asyncio.to_thread`. (#947)
+- `GET /me` is deliberately not rate-limited here: a per-IP limit on an authenticated
+  no-op punishes an office behind one NAT, and per-user limiting of an already
+  authenticated cheap read is a separate decision. (#947)
 ## [0.0.234] - 2026-08-21
 
 An app admin cannot suspend or delete their own account.
