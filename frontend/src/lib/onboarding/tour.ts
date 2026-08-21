@@ -421,6 +421,22 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.connectionsView,
   },
 
+  // Routines — the org-wide home for everything an agent does on its own. Two
+  // stops: what is already running, and the two ways to start one. The create
+  // stop is gated on the run floor a trigger is created at, not on a role: a
+  // Viewer holding one explicit run grant may create one, and an ungated step
+  // would wait four seconds for a control a refusal never mounted.
+  // "?"-only, like the workspaces stop: the launch pass is deliberately six steps
+  // - welcome, the dashboard, the chat, finish - and a seventh about work nobody
+  // has scheduled yet is a page a first login has no reason to visit.
+  { id: "routines-list", page: ROUTES.ROUTINES, target: "routines-list" },
+  {
+    id: "routines-create",
+    page: ROUTES.ROUTINES,
+    target: "routines-create",
+    permission: Perm.agentsRun,
+  },
+
   { id: "workspaces-browser", page: ROUTES.WORKSPACES, target: "workspaces-browser" },
   // The detail a workspace opens onto — the file tree. "?"-only and shown in
   // place: the reader is already on one of their own workspaces, so the walk

@@ -2908,6 +2908,14 @@
         "title": "Where agents run code",
         "body": "Agents that write and run code do it on these hosts. Watch the live sessions and set the ceilings from here."
       },
+      "routines-list": {
+        "title": "What runs without you",
+        "body": "Every schedule and trigger across the organization, with what it last did. An agent working while nobody is at the keyboard shows up here first."
+      },
+      "routines-create": {
+        "title": "Two ways to start one",
+        "body": "A schedule runs on the clock - every hour, weekday mornings, the first of the month. A trigger runs when something happens: a GitHub issue, an email arriving, or a signed POST from your own code."
+      },
       "workspaces-browser": {
         "title": "Files agents kept for you",
         "body": "When an agent saves a file, it lands here — browse, preview and download whatever your conversations produced."

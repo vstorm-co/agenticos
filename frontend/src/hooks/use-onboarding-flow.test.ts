@@ -28,6 +28,7 @@ const rig = vi.hoisted(() => ({
   personalConnections: [] as unknown[],
   mcpLoading: false,
   orgs: [] as unknown[] | undefined,
+  routines: 0,
   can: (_permission: Permission): boolean => true,
 }));
 
@@ -75,6 +76,9 @@ vi.mock("@/hooks/use-mcp-connections", () => ({
 vi.mock("@/hooks/use-organizations", () => ({
   useOrganizationList: () => ({ data: rig.orgs, isLoading: false, isFetching: false }),
 }));
+vi.mock("@/hooks/use-org-triggers", () => ({
+  useOrgTriggers: () => ({ total: rig.routines, isLoading: false }),
+}));
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: rig.can, isLoading: false, error: null }),
 }));
@@ -115,6 +119,7 @@ beforeEach(() => {
   rig.personalConnections = [];
   rig.mcpLoading = false;
   rig.orgs = [];
+  rig.routines = 0;
   rig.can = () => true;
   nav.pathname = "/dashboard";
   useAgentSelectionStore.setState({ selectedAgentId: null });

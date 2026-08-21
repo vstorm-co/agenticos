@@ -35,7 +35,7 @@ export default function RoutinesPage() {
       <PageHeader title={t("title")} description={t("description")} />
 
       {canCreate && (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2" data-tour="routines-create">
           <Button variant="outline" onClick={() => setCreatingSchedule(true)}>
             <CalendarClock className="mr-2 h-4 w-4" />
             {tt("newSchedule")}
@@ -47,7 +47,11 @@ export default function RoutinesPage() {
         </div>
       )}
 
-      <ScheduledTab />
+      {/* The anchor is the wrapper, not the table: a card whose body is the whole
+          org-wide list spotlights the viewport, which highlights nothing. */}
+      <div data-tour="routines-list">
+        <ScheduledTab />
+      </div>
 
       {creatingSchedule && (
         <TriggerFormDialog
