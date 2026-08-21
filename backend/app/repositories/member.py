@@ -15,13 +15,22 @@ async def get(
     *,
     organization_id: UUID,
     user_id: UUID,
+    for_update: bool = False,
 ) -> OrganizationMember | None:
-    result = await db.execute(
-        select(OrganizationMember).where(
-            OrganizationMember.organization_id == organization_id,
-            OrganizationMember.user_id == user_id,
-        )
+    """The membership, optionally locked for the rest of the transaction.
+
+    `for_update` takes a row lock, so a caller that decides something from the
+    role it reads and then writes it back cannot be overtaken by a concurrent
+    change to that same row - the classic read-check-write race under
+    `READ COMMITTED`. Left off by default: a lock costs a caller that only reads.
+    """
+    query = select(OrganizationMember).where(
+        OrganizationMember.organization_id == organization_id,
+        OrganizationMember.user_id == user_id,
     )
+    if for_update:
+        query = query.with_for_update()
+    result = await db.execute(query)
     return result.scalar_one_or_none()
 
 

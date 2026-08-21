@@ -82,6 +82,47 @@ class TestUserRepository:
         assert "is_app_admin" in statement
 
 
+class TestMemberRepositoryLock:
+    """The lock a caller takes before deciding something from the role it reads.
+
+    `change_role` and `remove` both read a membership, refuse or allow on the role
+    they find, and then write that same row. Under `READ COMMITTED` that is the
+    read-check-write race: an Owner promoting the target in between leaves an Admin
+    demoting or removing a peer Admin, which is the authority both methods exist to
+    protect (#700). The parameter is what the two callers pass; this is what says it
+    reaches the database as a lock.
+    """
+
+    @staticmethod
+    async def _sql(*, for_update: bool) -> str:
+        from uuid import uuid4
+
+        from sqlalchemy.dialects import postgresql
+
+        from app.repositories import member as member_repo
+
+        session = MagicMock()
+        session.execute = AsyncMock(
+            return_value=MagicMock(scalar_one_or_none=lambda: None),
+        )
+
+        await member_repo.get(
+            session, organization_id=uuid4(), user_id=uuid4(), for_update=for_update
+        )
+
+        statement = session.execute.call_args.args[0]
+        return str(statement.compile(dialect=postgresql.dialect()))
+
+    @pytest.mark.anyio
+    async def test_it_locks_the_row_when_asked(self):
+        assert "FOR UPDATE" in await self._sql(for_update=True)
+
+    @pytest.mark.anyio
+    async def test_it_takes_no_lock_by_default(self):
+        """A reader pays nothing. Every listing and permission check calls this."""
+        assert "FOR UPDATE" not in await self._sql(for_update=False)
+
+
 class TestAgentRepositoryLock:
     """The lock `existing_ids_locked` takes when the approval writer resolves delegates."""
 
