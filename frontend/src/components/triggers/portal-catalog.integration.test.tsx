@@ -34,10 +34,33 @@ function wrapper({ children }: { children: ReactNode }) {
 /** The catalog as the server answers it: GitHub's connection state is derived
  * from the org connection exactly the way `AgentTriggerService.list_portals`
  * derives it, so these tests keep expressing states as connections. */
-function portalsFor(
-  org: OrgMcpConnectionRecord[],
-  blockedBy: "oauth_app_secret" | "ambiguous_oauth_app_secret" | null = null,
-) {
+type BlockedBy = "oauth_app_secret" | "ambiguous_oauth_app_secret" | "oauth_unavailable" | null;
+
+/** A polled portal - Gmail - appended only for the tests that ask for one. */
+function polledPortal(blockedBy: BlockedBy) {
+  return {
+    key: "google",
+    name: "Gmail",
+    description: "Run an agent when a message arrives in your mailbox.",
+    category: "productivity",
+    icon: "gmail",
+    event_source: "gmail",
+    delivery: "polling",
+    webhook_admin_scopes: [],
+    target_kind: null,
+    connection_catalog_key: null,
+    connection_id: null,
+    connection_state: null,
+    connection_covers_webhook_scopes: false,
+    connect_blocked_by: blockedBy,
+    oauth_app_kind: "google_oauth_app",
+    presets: [
+      { key: "any_message", label: "Any new message", description: "…", target_required: false },
+    ],
+  };
+}
+
+function portalsFor(org: OrgMcpConnectionRecord[], blockedBy: BlockedBy = null) {
   const c = org.find((row) => row.catalog_key === "github") ?? null;
   const state =
     c === null
@@ -66,6 +89,7 @@ function portalsFor(
         connection_state: state,
         connection_covers_webhook_scopes: (c?.granted_scopes ?? []).includes("admin:repo_hook"),
         connect_blocked_by: blockedBy,
+        oauth_app_kind: "github_oauth_app",
         presets: [
           {
             key: "issue_opened",
@@ -90,6 +114,7 @@ function portalsFor(
         connection_state: null,
         connection_covers_webhook_scopes: false,
         connect_blocked_by: null,
+        oauth_app_kind: null,
         presets: [
           {
             key: "any_email",
@@ -116,6 +141,7 @@ function portalsFor(
         connection_state: null,
         connection_covers_webhook_scopes: false,
         connect_blocked_by: null,
+        oauth_app_kind: null,
         presets: [
           { key: "new_ticket", label: "New ticket", description: "…", target_required: false },
         ],
@@ -142,6 +168,67 @@ const MCP_CATALOG = {
   total: 1,
 };
 
+/** Enough of the vault's own catalog for its dialog to render inside this grid. */
+const SECRET_KINDS = {
+  items: [
+    {
+      kind: "api_key",
+      label: "API key",
+      json_schema: { type: "object", properties: { api_key: { type: "string" } } },
+    },
+    {
+      kind: "github_oauth_app",
+      label: "GitHub OAuth App",
+      json_schema: {
+        type: "object",
+        properties: { client_id: { type: "string" }, client_secret: { type: "string" } },
+      },
+    },
+    {
+      kind: "google_oauth_app",
+      label: "Google OAuth client",
+      json_schema: {
+        type: "object",
+        properties: { client_id: { type: "string" }, client_secret: { type: "string" } },
+      },
+    },
+  ],
+  total: 3,
+};
+
+const SECRET_PURPOSES = {
+  items: [
+    {
+      id: "openai",
+      label: "OpenAI",
+      category: "model_provider",
+      kind: "api_key",
+      help_url: null,
+      description: "Run models on OpenAI.",
+      icon: "",
+    },
+    {
+      id: "github_oauth_app",
+      label: "GitHub OAuth App",
+      category: "other",
+      kind: "github_oauth_app",
+      help_url: null,
+      description: "A GitHub OAuth App's client id and secret.",
+      icon: "github",
+    },
+    {
+      id: "google_oauth_app",
+      label: "Google OAuth client",
+      category: "other",
+      kind: "google_oauth_app",
+      help_url: null,
+      description: "A Google OAuth client's id and secret.",
+      icon: "google",
+    },
+  ],
+  total: 3,
+};
+
 function orgConnection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConnectionRecord {
   return {
     id: "o1",
@@ -165,13 +252,21 @@ function orgConnection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpC
 
 function serve(
   org: OrgMcpConnectionRecord[],
-  blockedBy: "oauth_app_secret" | "ambiguous_oauth_app_secret" | null = null,
+  blockedBy: BlockedBy = null,
+  polled: BlockedBy | undefined = undefined,
 ) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
-    if (path === "/trigger-portals") return portalsFor(org, blockedBy);
+    if (path === "/trigger-portals") {
+      const catalog = portalsFor(org, blockedBy);
+      if (polled === undefined) return catalog;
+      return { items: [...catalog.items, polledPortal(polled)], total: catalog.total + 1 };
+    }
     if (path === "/agents/mcp-catalog") return MCP_CATALOG;
     if (path === "/mcp-connections") return { items: org, total: org.length };
     if (path === "/me/mcp-connections") return { items: [], total: 0 };
+    if (path === "/secrets") return { items: [], total: 0 };
+    if (path === "/secrets/kinds") return SECRET_KINDS;
+    if (path === "/secrets/purposes") return SECRET_PURPOSES;
     throw new Error(`unexpected GET ${path}`);
   });
 }
@@ -180,9 +275,10 @@ async function mount({
   canRun = true,
   canManageConnections = true,
   org = [] as OrgMcpConnectionRecord[],
-  blockedBy = null as "oauth_app_secret" | "ambiguous_oauth_app_secret" | null,
+  blockedBy = null as BlockedBy,
+  polled = undefined as BlockedBy | undefined,
 } = {}) {
-  serve(org, blockedBy);
+  serve(org, blockedBy, polled);
   render(<PortalCatalog canRun={canRun} canManageConnections={canManageConnections} />, {
     wrapper,
   });
@@ -259,6 +355,9 @@ describe("PortalCatalog", () => {
 
     expect(card.queryByRole("button", { name: "Connect account" })).toBeNull();
     expect(card.getByRole("button", { name: /Add credentials/ })).toBeEnabled();
+    // And one control, not two: a link to the vault beside it is a second door to
+    // the same store, for a card whose answer is "there are none yet".
+    expect(card.queryByRole("link", { name: "Open the vault" })).toBeNull();
   });
 
   it("offers the vault's own form rather than sending you to another page", async () => {
@@ -274,14 +373,15 @@ describe("PortalCatalog", () => {
     expect(await screen.findByRole("dialog", { name: /secret/i })).toBeInTheDocument();
   });
 
-  it("cannot add a second one when two are already stored", async () => {
-    // Ambiguity is fixed by removing one, which is the vault's job - so the add
-    // control would make it worse.
+  it("sends you to the vault to remove one when two are stored, and offers no add", async () => {
+    // Ambiguity is fixed by removing one, which is the vault's job - so adding a
+    // third is the one thing that would make it worse, and a disabled button
+    // beside the link was two controls for one answer.
     await mount({ org: [], blockedBy: "ambiguous_oauth_app_secret" });
 
     const card = within(screen.getByRole("group", { name: "GitHub" }));
 
-    expect(card.getByRole("button", { name: /Add credentials/ })).toBeDisabled();
+    expect(card.queryByRole("button", { name: /Add credentials/ })).toBeNull();
     expect(card.getByRole("link", { name: "Open the vault" })).toHaveAttribute("href", "/vault");
   });
 
@@ -294,7 +394,7 @@ describe("PortalCatalog", () => {
     const card = within(screen.getByRole("group", { name: "GitHub" }));
 
     expect(card.getByText(/GitHub OAuth App credentials/)).toBeVisible();
-    expect(card.getByRole("link", { name: "Open the vault" })).toHaveAttribute("href", "/vault");
+    expect(card.getByRole("button", { name: /Add credentials/ })).toBeEnabled();
     // And the toast that used to be the only way to learn this is not the path:
     // nothing was clicked to get here.
     expect(vi.mocked(startGithubOrgOAuth)).not.toHaveBeenCalled();
@@ -306,6 +406,68 @@ describe("PortalCatalog", () => {
     expect(
       within(screen.getByRole("group", { name: "GitHub" })).getByText(/cannot tell which one/),
     ).toBeVisible();
+  });
+
+  it("says a polled portal's own prerequisite, not the GitHub one beside it", async () => {
+    // `connect_blocked_by` has three values and the card chose its sentence with a
+    // two-way ternary, so the third fell through to GitHub's: a Gmail card on a
+    // deployment with no Google client read "Two org-visible GitHub OAuth App
+    // secrets are stored, so connecting cannot tell which one you meant" - about a
+    // portal that has nothing to do with OAuth Apps, and while none were stored.
+    await mount({ blockedBy: "oauth_app_secret", polled: "oauth_unavailable" });
+
+    const gmail = within(screen.getByRole("group", { name: "Gmail" }));
+
+    expect(gmail.getByText(/Google client/)).toBeVisible();
+    expect(gmail.queryByText(/cannot tell which one/)).toBeNull();
+    expect(gmail.queryByText(/GitHub OAuth App credentials/)).toBeNull();
+  });
+
+  it("offers no vault control for a prerequisite the vault cannot fix", async () => {
+    // An operator sets the deployment's Google client in the environment. A
+    // disabled Add credentials and a link to a store holding nothing relevant are
+    // two controls that lie about what would help.
+    await mount({ polled: "oauth_unavailable" });
+
+    const gmail = within(screen.getByRole("group", { name: "Gmail" }));
+
+    expect(gmail.queryByRole("button", { name: /Add credentials/ })).toBeNull();
+    expect(gmail.queryByRole("link", { name: "Open the vault" })).toBeNull();
+  });
+
+  it("opens the secret form on the service the card is asking for", async () => {
+    // The shortcut passed the dialog one kind and left its own pickers alone, so
+    // it opened on Model provider with OpenAI chosen - and `kindInfo` then found
+    // nothing for `api_key` in a list holding only `github_oauth_app`, leaving a
+    // form with no value fields and Store secret disabled for ever.
+    const user = userEvent.setup();
+    await mount({ org: [], blockedBy: "oauth_app_secret" });
+
+    await user.click(
+      within(screen.getByRole("group", { name: "GitHub" })).getByRole("button", {
+        name: /Add credentials/,
+      }),
+    );
+
+    const dialog = within(await screen.findByRole("dialog", { name: /secret/i }));
+    expect(dialog.getByDisplayValue("GitHub OAuth App")).toBeInTheDocument();
+  });
+
+  it("asks for the credential the card's own portal spends", async () => {
+    // Hardcoded, this opened Gmail's dialog on a GitHub OAuth App - which is not
+    // merely the wrong default: with GitHub's kind chosen, the form asks for the
+    // wrong two fields and stores a credential the mailbox flow will not find.
+    const user = userEvent.setup();
+    await mount({ polled: "oauth_app_secret" });
+
+    await user.click(
+      within(screen.getByRole("group", { name: "Gmail" })).getByRole("button", {
+        name: /Add credentials/,
+      }),
+    );
+
+    const dialog = within(await screen.findByRole("dialog", { name: /secret/i }));
+    expect(dialog.getByDisplayValue("Google OAuth client")).toBeInTheDocument();
   });
 
   it("does not tell a caller who cannot fix it", async () => {

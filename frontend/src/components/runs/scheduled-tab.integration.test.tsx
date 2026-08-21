@@ -104,6 +104,53 @@ describe("ScheduledTab", () => {
     expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/triggers/t1", { is_active: false });
   });
 
+  it("pages an organization's routines rather than rendering all of them", async () => {
+    // `useOrgTriggers` walks every page of the endpoint into one array, so past
+    // the page size this card was rendering sixty rows into one scroll with no
+    // control to reach the sixty-first.
+    serveOrg(
+      Array.from({ length: 58 }, (_, index) =>
+        trigger({ id: `t${index}`, name: `Routine ${index}` }),
+      ),
+    );
+    render(<ScheduledTab />, { wrapper });
+
+    expect(await screen.findByText("Routine 0")).toBeVisible();
+    expect(screen.queryByText("Routine 57")).toBeNull();
+    expect(screen.getByText(/58 routines/)).toBeVisible();
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Next page" }));
+
+    expect(screen.getByText("Routine 57")).toBeVisible();
+  });
+
+  it("finds one routine among many by name, agent or message", async () => {
+    const user = userEvent.setup();
+    serveOrg([
+      trigger({ id: "t1", name: "Invoice sweep", prompt: "Chase the unpaid ones" }),
+      trigger({ id: "t2", name: "Standup digest", prompt: "Summarise yesterday" }),
+    ]);
+    render(<ScheduledTab />, { wrapper });
+
+    await user.type(await screen.findByPlaceholderText("Search routines"), "unpaid");
+
+    expect(screen.getByText("Invoice sweep")).toBeVisible();
+    expect(screen.queryByText("Standup digest")).toBeNull();
+  });
+
+  it("says no routine matches rather than that nothing runs on its own", async () => {
+    // Two different answers that used to render the same empty state: a filter
+    // matching none reads as an organization that has never scheduled anything.
+    const user = userEvent.setup();
+    serveOrg([trigger({ name: "Invoice sweep" })]);
+    render(<ScheduledTab />, { wrapper });
+
+    await user.type(await screen.findByPlaceholderText("Search routines"), "zzz");
+
+    expect(screen.getByText("No routine matches that.")).toBeVisible();
+    expect(screen.queryByText("Nothing runs on its own yet")).toBeNull();
+  });
+
   it("shows no row actions on a trigger the caller may not manage", async () => {
     // The server resolves manage rights per row: a caller with no run grant on
     // this agent gets a read-only row, and the controls do not render.

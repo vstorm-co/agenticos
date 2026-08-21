@@ -126,20 +126,13 @@ const DELEGATED = [
   }),
 ];
 
-/**
- * The stat card holding `anchor`, read by its own copy rather than by position.
- *
- * "Runs" is anchored on the card's caption because the tab strip says "Runs"
- * too, and a locator that matched either would sometimes assert against a tab.
- */
-function figure(anchor: string | RegExp) {
-  return screen.getByText(anchor).parentElement as HTMLElement;
+/** The tab whose badge carries a figure - what the three stat cards became. */
+function tab(name: RegExp) {
+  return screen.getByRole("tab", { name });
 }
 
-const RUNS_CARD = /Delegations are counted in the run they came from/;
-
 async function openRunsTab() {
-  await userEvent.click(await screen.findByRole("tab", { name: "Runs" }));
+  await userEvent.click(await screen.findByRole("tab", { name: /^Runs/ }));
 }
 
 beforeEach(() => {
@@ -204,8 +197,8 @@ describe("the run count and the spend beside it", () => {
     render(<RunsPage />, { wrapper });
 
     // One run and $1.00: the two figures are now answers to the same question.
-    await waitFor(() => expect(figure(RUNS_CARD)).toHaveTextContent("1"));
-    expect(figure(/Over the window above/)).toHaveTextContent("$1.00");
+    await waitFor(() => expect(tab(/^Runs/)).toHaveTextContent("1"));
+    expect(tab(/^Spend/)).toHaveTextContent("$1.00");
   });
 
   it("reports the whole history rather than the length of one page", async () => {
@@ -215,7 +208,7 @@ describe("the run count and the spend beside it", () => {
 
     render(<RunsPage />, { wrapper });
 
-    await waitFor(() => expect(figure(RUNS_CARD)).toHaveTextContent("213"));
+    await waitFor(() => expect(tab(/^Runs/)).toHaveTextContent("213"));
   });
 
   it("asks only for top-level runs, leaving delegations to be asked for by parent", async () => {

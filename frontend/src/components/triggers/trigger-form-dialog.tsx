@@ -223,7 +223,12 @@ export function TriggerFormDialog({
   // prefilled stay freely editable below.
   const [templateKey, setTemplateKey] = useState<string | null>(null);
 
-  const [eventSource, setEventSource] = useState<EventSource>(trigger?.event_source ?? "github");
+  // `webhook` for a new one, not `github`: the portal grid is the way to a GitHub
+  // or Gmail trigger now, and this form is reached from the "API trigger" card -
+  // your own code posting signed JSON. Defaulting to GitHub opened that card on
+  // "Fires on: a GitHub issue" with a GitHub template picked under it, for
+  // somebody who had just chosen the opposite. An edit reads the row.
+  const [eventSource, setEventSource] = useState<EventSource>(trigger?.event_source ?? "webhook");
   const [secret, setSecret] = useState("");
   // Two generic substring filters; what they mean is the source's business - a
   // subject and sender for email - so the keys are mapped in `buildCreate` and

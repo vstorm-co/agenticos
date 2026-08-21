@@ -36,6 +36,7 @@ function githubPortal(overrides: Partial<PortalCatalogEntry> = {}): PortalCatalo
     connection_state: null,
     connection_covers_webhook_scopes: false,
     connect_blocked_by: null,
+    oauth_app_kind: "github_oauth_app",
     presets: [{ key: "issue_opened", label: "New issue", description: "…", target_required: true }],
     ...overrides,
   };
@@ -56,6 +57,7 @@ const EMAIL_PORTAL: PortalCatalogEntry = {
   connection_state: null,
   connection_covers_webhook_scopes: false,
   connect_blocked_by: null,
+  oauth_app_kind: null,
   presets: [{ key: "any_email", label: "Any email", description: "…", target_required: false }],
 };
 
@@ -185,6 +187,7 @@ function gmailPortal(overrides: Partial<PortalCatalogEntry> = {}): PortalCatalog
     connection_state: null,
     connection_covers_webhook_scopes: false,
     connect_blocked_by: null,
+    oauth_app_kind: "google_oauth_app",
     presets: [{ key: "any_message", label: "Any", description: "…", target_required: false }],
     ...overrides,
   };

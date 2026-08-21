@@ -111,16 +111,16 @@ async function openApprovals() {
 
 describe("the count of calls waiting on a person", () => {
   it("is the server's total, not the number of rows on one page", async () => {
+    // The figure used to be a card of its own above the strip; it is the tab's
+    // badge now, which is the same claim in a tenth of the height. `items.length`
+    // here is 2, which is what a page length looks like once the queue is over
+    // the ceiling.
     serve(2, 120);
 
     render(<RunsPage />, { wrapper });
 
-    expect(await screen.findByText("Waiting on a person")).toBeVisible();
-    // The card holding the label, so the figure is read against its own subject
-    // rather than against whichever "120" is on screen. `items.length` here is 2,
-    // which is what a page length looks like once the queue is over the ceiling.
     await waitFor(() =>
-      expect(screen.getByText("Waiting on a person").parentElement).toHaveTextContent("120"),
+      expect(screen.getByRole("tab", { name: /^Approvals/ })).toHaveTextContent("120"),
     );
   });
 

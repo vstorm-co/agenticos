@@ -5,14 +5,14 @@ import { useSearchParams } from "next/navigation";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { PeriodControl } from "@/components/dashboard/period-control";
-import { ActivityFigures } from "@/components/runs/activity-figures";
 import { ApprovalsTab } from "@/components/runs/approvals-tab";
 import { RunDetailPanel } from "@/components/runs/run-detail-panel";
 import { RunHistoryTab } from "@/components/runs/run-history-tab";
 import { SpendTab } from "@/components/runs/spend-tab";
 import { LoadingState } from "@/components/states";
-import { Badge, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
-import { useApprovals, usePermissions, useUrlState } from "@/hooks";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
+import { useApprovals, usePermissions, useRuns, useSpend, useUrlState } from "@/hooks";
+import { periodEnd, periodStart } from "@/lib/dashboard/period";
 import { formatPeriodParam, parsePeriodParam, type Period } from "@/lib/dashboard/period";
 import { parseRunFilters, writeRunFilters, type RunFilters } from "@/lib/runs/filter-params";
 import { cn, setUrlParam } from "@/lib/utils";
@@ -31,6 +31,23 @@ import { useTranslations } from "next-intl";
  * loading flag and one empty state to spend across four concerns, and the
  * reassuring reading is the one that wins by default.
  */
+/**
+ * A figure on a tab: how many runs, how much spent, how many are waiting.
+ *
+ * Its own pill rather than a bare number, because a bare one reads as part of
+ * the tab's label - "Runs 189" is a tab called Runs 189 - and its own ground
+ * rather than `bg-secondary`, which is the *active* tab's background too and so
+ * disappeared on whichever tab was open. Tabular figures so switching windows
+ * does not shuffle the strip sideways.
+ */
+function TabCount({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="bg-foreground/10 text-foreground/80 ml-2 rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums">
+      {children}
+    </span>
+  );
+}
+
 export default function RunsPage() {
   const t = useTranslations("pages.runs");
   // `?agent=` is how the Builder hands over. Its Recent runs panel answers the
@@ -88,80 +105,94 @@ export default function RunsPage() {
   // `total` rather than the page's length: the endpoint answers fifty rows at a
   // time, and a badge that stops at fifty is a badge that stops being a count.
   const { total: waiting } = useApprovals({ enabled: canDecide });
+  // The two figures that were three cards above the strip. On the tab they name
+  // instead: a card of one number is a lot of the page's height for something a
+  // badge says, and the height mattered - the three of them cost about 380px, so
+  // a 900px viewport left the table three rows deep under them.
+  const range = { from: periodStart(period), to: periodEnd(period) };
+  const { total: runCount } = useRuns(undefined, {
+    startedFrom: range.from,
+    startedTo: range.to,
+    enabled: canView,
+  });
+  const { spend } = useSpend(range, { enabled: canView });
+  const spent = (spend?.by_agent ?? []).reduce((sum, row) => sum + Number(row.cost_usd), 0);
 
   return (
-    // A full-height column, like the chat's: the two panes below scroll apart,
-    // so `PageTransition` constrains this route rather than letting the page
-    // scroll. What that buys is a table that keeps its column headers and a run
-    // detail that keeps its own header while the reader is deep in either.
-    //
-    // The negative bottom margin is the chat page's trick for the same reason:
-    // `main` reserves 80px under a page that scrolls, and under one that does
-    // not it is dead space below the two panes. Most of it is given back, and
-    // 24px of breathing room is kept.
-    <div className="-mb-14 flex min-h-0 flex-1 flex-col gap-6 lg:-mb-10">
-      <PageHeader title={t("activity2")} description={t("whatYourAgentsDid2")} />
+    // An ordinary page that scrolls, not a full-height column with panes that
+    // scroll apart. That arrangement bought sticky column headers and cost the
+    // table its rows: the figures and the period control took about 380px, so a
+    // 900px viewport left a run history three rows deep inside its own scroll
+    // box - a second scrollbar to reach what the page had room for all along.
+    <div className="flex flex-col">
+      {/* `mb-4` rather than the header's own `mb-6 md:mb-8`: the window control
+          belongs *to* the heading above it - everything below is what it filters -
+          and two centimetres of white between a title and its own filter reads as
+          two unrelated bands. The room goes below the dates instead, where the
+          break actually is. */}
+      <PageHeader title={t("activity2")} description={t("whatYourAgentsDid2")} className="mb-4" />
 
-      <PeriodControl period={period} onChange={changePeriod} />
+      <div className="mb-6">
+        <PeriodControl period={period} onChange={changePeriod} />
+      </div>
 
       {/* Not until the permission set has answered. `Tabs` is uncontrolled, so
           Radix captures `defaultValue` on first mount and never reads it again -
           mounted while `can()` still answers `false` for everything, the strip
           opens on Runs and stays there even once the Approvals tab appears
           beside it. The strip's *shape* depends on this permission, so drawing
-          it before the answer arrives is guessing at it. The figures wait with
-          it: mounted early they would draw their no-access state at a holder
-          whose `can()` simply has not answered yet. */}
+          it before the answer arrives is guessing at it. The badges wait with
+          it: mounted early they would count against a `can()` that simply has
+          not answered yet. */}
       {permissionsLoading ? (
         <LoadingState variant="skeleton-table" columns={6} rows={6} />
       ) : (
         <>
-          <div data-tour="activity-overview">
-            <ActivityFigures canView={canView} canDecide={canDecide} period={period} />
-          </div>
-          <Tabs defaultValue="runs" className="flex min-h-0 flex-1 flex-col">
-            <TabsList className="shrink-0">
+          <Tabs
+            defaultValue="runs"
+            className="flex min-h-0 flex-1 flex-col"
+            onValueChange={() => focusRun(null)}
+          >
+            <TabsList className="shrink-0" data-tour="activity-overview">
               {/* Runs first: the page's main question is what ran. The queue
                   keeps its count badge, so what is waiting is visible from the
                   strip without opening it. */}
               <TabsTrigger value="runs" data-tour="activity-tab-runs">
                 {t("runs2")}
+                {runCount > 0 && <TabCount>{runCount.toLocaleString()}</TabCount>}
               </TabsTrigger>
               {canDecide && (
                 <TabsTrigger value="approvals" data-tour="activity-tab-approvals">
                   {t("approvals")}
-                  {waiting > 0 && (
-                    <Badge variant="secondary" className="ml-2">
-                      {waiting}
-                    </Badge>
-                  )}
+                  {waiting > 0 && <TabCount>{waiting}</TabCount>}
                 </TabsTrigger>
               )}
               <TabsTrigger value="spend" data-tour="activity-tab-spend">
                 {t("spend")}
+                {spent > 0 && <TabCount>{`$${spent.toFixed(2)}`}</TabCount>}
               </TabsTrigger>
             </TabsList>
 
             {/* Two columns above `lg`: the tab's own panel narrows and the run
-                detail takes the right-hand side, both filling the row's height
-                and scrolling inside themselves. Inside the tabs rather than
+                detail takes the right-hand side. Inside the tabs rather than
                 around them, and the row owns the gap under the strip while each
                 panel gives up the `mt-2` `TabsContent` applies - otherwise the
                 card starts eight pixels below the panel beside it. Below `lg`
                 there is room for one column, so the focused run replaces the
                 list rather than squeezing beside it.
 
-                The floor is what keeps the arrangement honest on a short screen:
-                the figures and the period control above cost about 380px, so a
-                900px viewport would otherwise leave the table three rows deep.
-                Below the floor the page scrolls in `main` again, which is the
-                right trade - a list you can scroll to beats a list with nothing
-                in it. */}
-            <div className="mt-2 flex min-h-[28rem] flex-1 items-stretch gap-4">
+                `items-start`, so the shorter of the two columns is its own
+                height rather than stretched to match the other: a run detail
+                beside a three-row table used to be a card of white space. */}
+            <div className="mt-2 flex items-start gap-4">
               <div
                 className={cn(
-                  "flex min-w-0 flex-1 flex-col",
-                  focusedRunId !== null && "hidden lg:flex",
+                  // `overflow-hidden` is load-bearing: the run table carries a
+                  // minimum width of its own, and without a clip here it ran on
+                  // underneath the detail panel rather than scrolling inside its
+                  // own column.
+                  "min-w-0 flex-1 overflow-hidden",
+                  focusedRunId !== null && "hidden lg:block",
                 )}
               >
                 {canDecide && (
@@ -174,11 +205,7 @@ export default function RunsPage() {
                   </TabsContent>
                 )}
 
-                <TabsContent
-                  value="runs"
-                  data-tour="activity-runs"
-                  className="mt-0 flex min-h-0 flex-1 flex-col"
-                >
+                <TabsContent value="runs" data-tour="activity-runs" className="mt-0">
                   {/* The export lives on the tab's control row, beside the
                       filters it exports the result of - see RunHistoryTab. */}
                   <RunHistoryTab
@@ -193,11 +220,7 @@ export default function RunsPage() {
                   />
                 </TabsContent>
 
-                <TabsContent
-                  value="spend"
-                  data-tour="activity-spend"
-                  className="mt-0 min-h-0 flex-1 overflow-y-auto"
-                >
+                <TabsContent value="spend" data-tour="activity-spend" className="mt-0">
                   <SpendTab period={period} />
                 </TabsContent>
               </div>
@@ -206,7 +229,37 @@ export default function RunsPage() {
                   and an approval row are both doors to the same view. `?run=`
                   still deep-links here - the page opens with it already out. */}
               {focusedRunId !== null && (
-                <RunDetailPanel runId={focusedRunId} onFocusRun={focusRun} />
+                // Sticky *and* bounded to the scrollport, which has to be both:
+                // sticky alone left a panel taller than the window hanging past
+                // it, so its own header - the agent, the status, the cost - was
+                // scrolled off above and the timeline had to be scrolled back up
+                // to read. A sticky element taller than the viewport pins at its
+                // top edge and no more.
+                //
+                // A definite height rather than a cap, because `RunDetailPanel`
+                // is `h-full` over `FocusedRun`'s one scrolling column: with only
+                // a `max-height` the percentage resolves against auto, the chain
+                // grows past the cap and `overflow-hidden` clips the timeline
+                // instead of scrolling it. `dvh` so mobile browser chrome is not
+                // counted twice.
+                //
+                // The offset is negative, and the arithmetic is the point: a
+                // sticky top is measured from the scroll container's *padding*
+                // edge, and `main` carries `pt-4 sm:pt-8`. So a plain `top-4`
+                // pinned the panel 48px down the window while the table's rows
+                // scrolled past above it - the panel read as hanging in the
+                // middle of a moving column. Cancelling that padding and adding
+                // 8px back puts its top edge 8px from the window at either
+                // breakpoint, with nothing scrolling above it.
+                //
+                // `-mr-4` is the same trick sideways, and only where there are two
+                // columns: `main`'s `sm:px-6` plus its scrollbar left about forty
+                // pixels of nothing to the right of the panel while the table ran
+                // flush to the left edge. Sixteen of those are given back, which
+                // matches the eight above and below.
+                <div className="sticky top-[calc(0.5rem-1rem)] h-[calc(100dvh-1rem)] self-start sm:top-[calc(0.5rem-2rem)] lg:-mr-4">
+                  <RunDetailPanel runId={focusedRunId} onFocusRun={focusRun} />
+                </div>
               )}
             </div>
           </Tabs>

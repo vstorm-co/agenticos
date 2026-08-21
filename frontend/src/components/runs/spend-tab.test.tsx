@@ -55,8 +55,13 @@ function serve(spend: Partial<CostSummary>) {
 
 /** The table row holding `label`, so a figure is read against its own subject. */
 function row(label: string): HTMLElement {
-  const found = screen.getByText(label).closest<HTMLElement>("tr");
-  if (found === null) throw new Error(`no spend row for ${label}`);
+  // `getAllByText`, because the Spending-the-most card names an agent too: the
+  // one inside a `tr` is the breakdown's own row.
+  const found = screen
+    .getAllByText(label)
+    .map((node) => node.closest<HTMLElement>("tr"))
+    .find((node) => node !== null);
+  if (found === undefined || found === null) throw new Error(`no spend row for ${label}`);
   return found;
 }
 
@@ -129,6 +134,18 @@ describe("the vendor and key facets", () => {
     expect(row("Deleted key")).toHaveTextContent("$0.7500");
   });
 
+  it("says so when the request answered with no body at all", async () => {
+    // A 200 with nothing in it is not the failure the error state catches, and it
+    // used to be seven `?? []` fallbacks scattered down the component - none of
+    // them reachable by a test, and together a tab that would have drawn "$0.00"
+    // and empty tables for an answer nobody received.
+    vi.mocked(apiClient.get).mockResolvedValue(undefined);
+
+    render(<SpendTab period={PERIOD} />, { wrapper });
+
+    expect(await screen.findByText("Spend could not be read")).toBeVisible();
+  });
+
   it("says nothing spent when a facet genuinely has no rows", async () => {
     serve({});
 
@@ -189,7 +206,8 @@ describe("the agent facet, which is the tab's opening view", () => {
 
     render(<SpendTab period={PERIOD} />, { wrapper });
 
-    expect(await screen.findByText("Billing clerk")).toBeVisible();
+    expect(await screen.findByRole("table")).toBeVisible();
+    expect(row("Billing clerk")).toBeVisible();
     expect(row("Billing clerk")).toHaveTextContent("5");
     expect(row("Billing clerk")).toHaveTextContent("$1.2500");
   });
@@ -199,7 +217,8 @@ describe("the agent facet, which is the tab's opening view", () => {
 
     render(<SpendTab period={PERIOD} />, { wrapper });
 
-    expect(await screen.findByText("Billing clerk")).toBeVisible();
+    expect(await screen.findByRole("table")).toBeVisible();
+    expect(row("Billing clerk")).toBeVisible();
     expect(screen.getByText("Researcher")).toBeVisible();
   });
 
@@ -210,7 +229,8 @@ describe("the agent facet, which is the tab's opening view", () => {
 
     render(<SpendTab period={PERIOD} />, { wrapper });
 
-    expect(await screen.findByText("Billing clerk")).toBeVisible();
+    expect(await screen.findByRole("table")).toBeVisible();
+    expect(row("Billing clerk")).toBeVisible();
     expect(screen.getByTitle(/3 runs in this row could not be priced/)).toBeVisible();
   });
 
@@ -219,7 +239,8 @@ describe("the agent facet, which is the tab's opening view", () => {
 
     render(<SpendTab period={PERIOD} />, { wrapper });
 
-    expect(await screen.findByText("Billing clerk")).toBeVisible();
+    expect(await screen.findByRole("table")).toBeVisible();
+    expect(row("Billing clerk")).toBeVisible();
     expect(screen.queryByTitle(/could not be priced/)).toBeNull();
   });
 

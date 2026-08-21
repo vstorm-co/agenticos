@@ -82,6 +82,7 @@ function purpose(id: string, label: string): SecretPurpose {
     category: "model_provider",
     kind: "api_key",
     help_url: null,
+    icon: "",
     description: `${label} keys`,
   };
 }

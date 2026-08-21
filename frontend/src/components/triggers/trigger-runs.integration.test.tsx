@@ -7,7 +7,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TriggerRow } from "./trigger-row";
 import { apiClient } from "@/lib/api-client";
 import { useTriggers } from "@/hooks/use-triggers";
-import type { ChatMessage } from "@/types";
 import type { Trigger } from "@/types/triggers";
 
 vi.mock("@/lib/api-client", async () => {
@@ -19,18 +18,9 @@ vi.mock("@/lib/api-client", async () => {
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-// The chat renderer is exercised by its own tests; here it is stubbed so what
-// this asserts is the run-log view's own job - which turns it hands over, and
-// whether it appends the just-sent prompt and a waiting placeholder.
-vi.mock("@/components/chat/message-list", () => ({
-  MessageList: ({ messages }: { messages: ChatMessage[] }) => (
-    <ul>
-      {messages.map((m) => (
-        <li key={m.id} data-streaming={m.isStreaming ? "true" : "false"}>
-          {m.isStreaming ? <span role="status">waiting</span> : m.content}
-        </li>
-      ))}
-    </ul>
+vi.mock("next/link", () => ({
+  default: ({ href, children }: { href: string; children: ReactNode }) => (
+    <a href={href}>{children}</a>
   ),
 }));
 
@@ -69,229 +59,183 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
   };
 }
 
-const transcript = (
-  items: { id: string; role: string; content: string; created_at?: string }[],
-) => ({
-  run_id: "r1",
-  conversation_id: "c1",
-  items,
-  total: items.length,
-});
+function run(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "r1",
+    agent_id: "a1",
+    agent_version_id: null,
+    user_id: null,
+    surface: "schedule",
+    status: "completed",
+    model_label: null,
+    provider: null,
+    input_tokens: 0,
+    output_tokens: 0,
+    cost_usd: "0.0042",
+    cost_is_partial: false,
+    logfire_trace_id: null,
+    error: null,
+    down_rated: false,
+    conversation_id: "c1",
+    started_at: "2026-08-21T07:00:00Z",
+    ended_at: "2026-08-21T07:00:09Z",
+    ...overrides,
+  };
+}
 
-// A moment safely after "Run now" was pressed, so a reply carrying it counts as
-// the fresh one that ends the wait.
-const AFTER_NOW = () => new Date(Date.now() + 3_600_000).toISOString();
-
-function serveGets(handler: (path: string) => unknown) {
+/** The runs listing, as the drawer asks for it. */
+function serveRuns(runs: Record<string, unknown>[], total?: number) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/agents") return { items: [], total: 0 };
-    return handler(path);
+    if (path === "/runs") return { items: runs, total: total ?? runs.length };
+    if (path.startsWith("/agents/")) return { items: [trigger()], total: 1 };
+    throw new Error(`unexpected GET ${path}`);
   });
 }
 
-describe("TriggerRow run-log view", () => {
+const OPEN = { name: "See what this trigger has done" };
+
+/**
+ * What a trigger has done, as a list of runs.
+ *
+ * It was the chat's own transcript over the run-log conversation, which reads
+ * well for one fire and badly for forty identical ones: the prompt is the same
+ * every time, the only thing distinguishing two fires is the reply, and a failed
+ * run's half-answer looks exactly like a complete one. There was also nowhere to
+ * go from it - the run detail is where "why did this fail" is answered.
+ */
+describe("TriggerRow run list", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("says there are no messages yet for a trigger that has never fired", async () => {
-    serveGets(() => {
-      throw new Error("no transcript should be read for a never-fired trigger");
-    });
+  it("lists each fire with when it ran and how it went", async () => {
+    serveRuns([
+      run({ id: "r1", status: "completed" }),
+      run({ id: "r2", status: "failed", started_at: "2026-08-21T08:00:00Z" }),
+    ]);
     render(<TriggerRow trigger={trigger()} />, { wrapper });
 
-    await userEvent.click(screen.getByRole("button", { name: "See what this trigger has done" }));
-
-    expect(await screen.findByText("No messages yet")).toBeVisible();
-    expect(apiClient.get).not.toHaveBeenCalledWith("/runs/r1/transcript", expect.anything());
-  });
-
-  it("opens the run-log conversation when the row is clicked", async () => {
-    serveGets((path) => {
-      if (path === "/runs/r1/transcript")
-        return {
-          run_id: "r1",
-          // A log whose conversation the read could not name still renders its turns.
-          conversation_id: null,
-          items: [
-            { id: "m1", role: "user", content: "Summarise the day" },
-            { id: "m2", role: "assistant", content: "Here is the summary" },
-          ],
-          total: 2,
-        };
-      throw new Error(`unexpected GET ${path}`);
-    });
-    // A named trigger titles the drawer by its name.
-    render(<TriggerRow trigger={trigger({ last_run_id: "r1", name: "Morning digest" })} />, {
-      wrapper,
-    });
-
-    await userEvent.click(screen.getByRole("button", { name: "See what this trigger has done" }));
+    await userEvent.click(screen.getByRole("button", OPEN));
 
     const drawer = within(await screen.findByRole("dialog"));
-    expect(drawer.getByText("Morning digest")).toBeVisible();
-    expect(drawer.getByText("Here is the summary")).toBeVisible();
+    expect(drawer.getAllByRole("time")).toHaveLength(2);
+    expect(drawer.getByText(/succeeded/)).toBeVisible();
+    expect(drawer.getByText(/failed/)).toBeVisible();
   });
 
-  it("reads the newest page of a long run-log, not its oldest history", async () => {
-    // The transcript endpoint orders oldest-first and answers its first hundred,
-    // so a log past that - about fifty fires - needs the *last* page asked for,
-    // or the drawer shows ancient history and the waiting poll re-reads a page
-    // the just-fired reply can never appear on.
-    vi.mocked(apiClient.get).mockImplementation(
-      async (path: string, opts?: { params?: Record<string, string> | [string, string][] }) => {
-        const params = opts?.params;
-        const skip = params && !Array.isArray(params) ? params.skip : undefined;
-        if (path === "/agents") return { items: [], total: 0 };
-        if (path === "/runs/r1/transcript") {
-          if (skip === "150")
-            return {
-              run_id: "r1",
-              conversation_id: "c1",
-              items: [{ id: "m249", role: "assistant", content: "The newest answer" }],
-              total: 250,
-            };
-          return {
-            run_id: "r1",
-            conversation_id: "c1",
-            items: Array.from({ length: 100 }, (_, i) => ({
-              id: `m${i}`,
-              role: "assistant",
-              content: `Ancient answer ${i}`,
-            })),
-            total: 250,
-          };
-        }
-        throw new Error(`unexpected GET ${path}`);
-      },
+  it("says what each fire cost, which the transcript could not", async () => {
+    serveRuns([run()]);
+    render(<TriggerRow trigger={trigger()} />, { wrapper });
+
+    await userEvent.click(screen.getByRole("button", OPEN));
+
+    expect(within(await screen.findByRole("dialog")).getByText(/\$0\.0042/)).toBeVisible();
+  });
+
+  it("links each fire to its own run detail", async () => {
+    // The point of listing runs rather than turns: the requests, the tools and
+    // the cost per turn are on that page, and there was no way to reach it.
+    serveRuns([run({ id: "r-42" })]);
+    render(<TriggerRow trigger={trigger()} />, { wrapper });
+
+    await userEvent.click(screen.getByRole("button", OPEN));
+
+    const link = within(await screen.findByRole("dialog")).getByRole("link", { name: /Open run/ });
+    expect(link).toHaveAttribute("href", "/runs?run=r-42");
+  });
+
+  it("asks only for this trigger's own fires", async () => {
+    // Every fire of one trigger appends to a single run-log conversation, so the
+    // conversation is the trigger's identity in the run history.
+    serveRuns([run()]);
+    render(<TriggerRow trigger={trigger({ conversation_id: "c-9" })} />, { wrapper });
+
+    await userEvent.click(screen.getByRole("button", OPEN));
+    await screen.findByRole("dialog");
+
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenCalledWith("/runs", {
+        params: expect.objectContaining({ conversation_id: "c-9" }),
+      }),
     );
-    render(<TriggerRow trigger={trigger({ last_run_id: "r1" })} />, { wrapper });
+  });
 
-    await userEvent.click(screen.getByRole("button", { name: "See what this trigger has done" }));
+  it("says nothing has run rather than drawing an empty list", async () => {
+    serveRuns([]);
+    render(<TriggerRow trigger={trigger({ conversation_id: null })} />, { wrapper });
 
-    expect(await screen.findByText("The newest answer")).toBeVisible();
-    expect(screen.queryByText("Ancient answer 0")).toBeNull();
+    await userEvent.click(screen.getByRole("button", OPEN));
+
+    expect(await screen.findByText(/has not run yet/)).toBeVisible();
+  });
+
+  it("pages a trigger that has fired more times than one request answers", async () => {
+    serveRuns([run()], 130);
+    render(<TriggerRow trigger={trigger()} />, { wrapper });
+
+    await userEvent.click(screen.getByRole("button", OPEN));
+
+    const drawer = within(await screen.findByRole("dialog"));
+    expect(drawer.getByText(/130 runs/)).toBeVisible();
+
+    await userEvent.click(drawer.getByRole("button", { name: "Next page" }));
+
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenCalledWith("/runs", {
+        params: expect.objectContaining({ skip: "50" }),
+      }),
+    );
+  });
+
+  it("shows a starting row for a fire that has no run yet", async () => {
+    // A fire is dispatched after its request commits, so for a second there is no
+    // row for it - and "has not run yet" is the opposite of what just happened.
+    const user = userEvent.setup();
+    serveRuns([]);
+    vi.mocked(apiClient.post).mockResolvedValue(trigger());
+    render(<TriggerRow trigger={trigger()} />, { wrapper });
+
+    await user.click(screen.getByRole("button", { name: "Run now" }));
+
+    expect(await screen.findByText("Starting…")).toBeVisible();
   });
 
   it("keeps the action buttons working without opening the view", async () => {
+    const user = userEvent.setup();
+    serveRuns([]);
     vi.mocked(apiClient.patch).mockResolvedValue(trigger({ is_active: false }));
-    serveGets(() => ({}));
-    render(<TriggerRow trigger={trigger({ last_run_id: "r1" })} />, { wrapper });
-
-    await userEvent.click(screen.getByRole("button", { name: "Pause" }));
-
-    await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
-    expect(screen.queryByText("Trigger runs")).toBeNull();
-    expect(screen.queryByRole("status")).toBeNull();
-  });
-
-  it("opens the view showing the prompt and a waiting animation after Run now", async () => {
-    vi.mocked(apiClient.post).mockResolvedValue(trigger());
-    serveGets(() => ({}));
     render(<TriggerRow trigger={trigger()} />, { wrapper });
 
-    await userEvent.click(screen.getByRole("button", { name: "Run now" }));
+    await user.click(screen.getByRole("button", { name: "Pause" }));
 
-    // The prompt just sent, and the pending-agent placeholder beneath it -
-    // scoped to the drawer, since the row itself also shows the prompt.
-    const drawer = within(await screen.findByRole("dialog"));
-    expect(await drawer.findByText("Summarise the day")).toBeVisible();
-    expect(drawer.getByRole("status")).toBeVisible();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/triggers/t1", { is_active: false });
   });
-
-  it("shows the existing log plus the waiting turn when re-firing a trigger", async () => {
-    vi.mocked(apiClient.post).mockResolvedValue(trigger({ last_run_id: "r1" }));
-    serveGets((path) => {
-      if (path === "/runs/r1/transcript")
-        return transcript([{ id: "m1", role: "assistant", content: "Earlier answer" }]);
-      throw new Error(`unexpected GET ${path}`);
-    });
-    render(<TriggerRow trigger={trigger({ last_run_id: "r1" })} />, { wrapper });
-
-    await userEvent.click(screen.getByRole("button", { name: "Run now" }));
-
-    expect(await screen.findByText("Earlier answer")).toBeVisible();
-    expect(screen.getByRole("status")).toBeVisible();
-  });
-
-  it("keeps polling a never-fired trigger until its first run acquires an id", async () => {
-    // The transcript query is disabled while last_run_id is null, so the
-    // trigger itself is what must be re-read - through a mounted list query,
-    // as the panel mounts it, or the invalidation would have nothing to
-    // refetch and the drawer would spin forever on its optimistic waiting.
-    let listCalls = 0;
-    vi.mocked(apiClient.post).mockResolvedValue(trigger());
-    serveGets((path) => {
-      if (path === "/agents/a1/triggers") {
-        listCalls += 1;
-        return { items: [trigger(listCalls >= 3 ? { last_run_id: "r1" } : {})], total: 1 };
-      }
-      if (path === "/runs/r1/transcript")
-        return transcript([
-          { id: "m1", role: "assistant", content: "Done it", created_at: AFTER_NOW() },
-        ]);
-      throw new Error(`unexpected GET ${path}`);
-    });
-    function Harness() {
-      const { triggers } = useTriggers("a1");
-      const row = triggers[0];
-      return row ? <TriggerRow trigger={row} /> : null;
-    }
-    render(<Harness />, { wrapper });
-
-    await userEvent.click(await screen.findByRole("button", { name: "Run now" }));
-    const drawer = within(await screen.findByRole("dialog"));
-
-    // One poll later the id has landed, the transcript answers, and the
-    // fresh reply replaces the optimistic placeholder.
-    expect(await drawer.findByText("Done it", undefined, { timeout: 10_000 })).toBeVisible();
-    expect(drawer.queryByRole("status")).toBeNull();
-    expect(listCalls).toBeGreaterThanOrEqual(3);
-  }, 15_000);
 
   it("closes the drawer from its close button", async () => {
-    serveGets(() => ({}));
-    // No name and no agent name, so the drawer falls back to its generic title.
-    render(<TriggerRow trigger={trigger({ name: null, agent_name: null })} />, { wrapper });
+    const user = userEvent.setup();
+    serveRuns([run()]);
+    render(<TriggerRow trigger={trigger()} />, { wrapper });
+    await user.click(screen.getByRole("button", OPEN));
+    await screen.findByRole("dialog");
 
-    await userEvent.click(screen.getByRole("button", { name: "See what this trigger has done" }));
-    expect(await screen.findByText("Trigger runs")).toBeVisible();
-    expect(await screen.findByText("No messages yet")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Close" }));
 
-    await userEvent.click(screen.getByRole("button", { name: "Close" }));
-
-    await waitFor(() => expect(screen.queryByText("No messages yet")).toBeNull());
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("says a failed read out loud rather than as an empty log", async () => {
-    serveGets((path) => {
-      if (path === "/runs/r1/transcript") throw new Error("boom");
-      throw new Error(`unexpected GET ${path}`);
+  it("says a failed read out loud rather than as an empty list", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === "/agents") return { items: [], total: 0 };
+      if (path.startsWith("/agents/")) return { items: [trigger()], total: 1 };
+      throw new Error("boom");
     });
-    render(<TriggerRow trigger={trigger({ last_run_id: "r1" })} />, { wrapper });
+    render(<TriggerRow trigger={trigger()} />, { wrapper });
 
-    await userEvent.click(screen.getByRole("button", { name: "See what this trigger has done" }));
+    await userEvent.click(screen.getByRole("button", OPEN));
 
-    expect(await screen.findByText("This trigger's runs could not be read.")).toBeVisible();
-  });
-
-  it("drops the waiting animation once a newer run has landed", async () => {
-    vi.mocked(apiClient.post).mockResolvedValue(trigger());
-    serveGets((path) => {
-      if (path === "/runs/r2/transcript")
-        return transcript([
-          { id: "m1", role: "assistant", content: "Fresh answer", created_at: AFTER_NOW() },
-        ]);
-      return {};
-    });
-    const { rerender } = render(<TriggerRow trigger={trigger()} />, { wrapper });
-
-    await userEvent.click(screen.getByRole("button", { name: "Run now" }));
-    expect(await screen.findByRole("status")).toBeVisible();
-
-    // The list refetches and the trigger now names the run the fire produced;
-    // once its reply is recorded, the waiting turn gives way to what was said.
-    rerender(<TriggerRow trigger={trigger({ last_run_id: "r2" })} />);
-
-    expect(await screen.findByText("Fresh answer")).toBeVisible();
-    await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+    expect(await screen.findByText(/could not be read/)).toBeVisible();
   });
 });
+
+/** `useTriggers` is imported so the row's own mutations resolve against it. */
+void useTriggers;

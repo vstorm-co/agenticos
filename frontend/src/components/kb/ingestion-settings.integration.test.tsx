@@ -52,6 +52,7 @@ const PURPOSE: SecretPurpose = {
   kind: "api_key",
   help_url: null,
   description: "OpenAI keys",
+  icon: "",
 };
 
 function profile(overrides: Partial<ModelProfile> = {}): ModelProfile {

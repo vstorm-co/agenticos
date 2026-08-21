@@ -137,6 +137,7 @@ export const qk = {
         surface?: string;
         modelLabel?: string;
         userId?: string;
+        conversationId?: string;
         agentVersionId?: string;
         skip?: number;
       } = {},

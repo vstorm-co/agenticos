@@ -30,6 +30,7 @@ import {
   useListControls,
 } from "@/components/ui";
 import { usePortals, useSecrets, type PortalWithState } from "@/hooks";
+import type { PortalCatalogEntry } from "@/types/portals";
 import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
 import {
@@ -71,6 +72,35 @@ interface PortalCatalogProps {
  * The raw source-and-secret form is still reachable, as "Advanced: API
  * trigger" - the escape hatch for a provider no portal covers.
  */
+/**
+ * What each blocked reason says, as a key.
+ *
+ * A two-way ternary over a three-value field is what put GitHub's "two OAuth
+ * Apps are stored, remove one" on the Gmail card, which is blocked by something
+ * else entirely: this deployment has no Google client configured. A table cannot
+ * fall through.
+ */
+const BLOCKED_REASON: Record<NonNullable<PortalCatalogEntry["connect_blocked_by"]>, string> = {
+  oauth_app_secret: "needsOAuthApp",
+  ambiguous_oauth_app_secret: "ambiguousOAuthApp",
+  oauth_unavailable: "oauthUnavailable",
+};
+
+/**
+ * Whether the vault is where this portal's prerequisite is fixed.
+ *
+ * `oauth_unavailable` is not: a polled portal connects on the deployment's own
+ * Google client, which is an environment variable an operator sets, so a
+ * disabled "Add credentials" and a link to a store holding nothing relevant are
+ * two controls that lie about what would help.
+ */
+function vaultFixable(item: PortalWithState): boolean {
+  return (
+    item.portal.connect_blocked_by === "oauth_app_secret" ||
+    item.portal.connect_blocked_by === "ambiguous_oauth_app_secret"
+  );
+}
+
 /** Whether this portal's connect flow cannot start yet - see `connect_blocked_by`. */
 function blocked(item: PortalWithState): boolean {
   return item.portal.connect_blocked_by !== null;
@@ -85,7 +115,10 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [dialog, setDialog] = useState<PortalWithState | null>(null);
   const [advanced, setAdvanced] = useState(false);
-  const [addingSecret, setAddingSecret] = useState(false);
+  // Which card asked, not merely that one did: the dialog opens on the credential
+  // that card's own connect flow spends, and a hardcoded one opened Gmail's on a
+  // GitHub OAuth App.
+  const [addingSecret, setAddingSecret] = useState<PortalWithState | null>(null);
   const { kinds, create: createSecret } = useSecrets();
   const queryClient = useQueryClient();
 
@@ -240,9 +273,7 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
                       is: a Member who cannot fix it is not told to. */}
                   {blocked(item) && canManageConnections && (
                     <p className="text-muted-foreground border-border mt-3 border-t pt-3 text-xs">
-                      {item.portal.connect_blocked_by === "oauth_app_secret"
-                        ? t("needsOAuthApp")
-                        : t("ambiguousOAuthApp")}
+                      {t(BLOCKED_REASON[item.portal.connect_blocked_by ?? "oauth_app_secret"])}
                     </p>
                   )}
                   <div className="border-border mt-3 flex flex-wrap items-center gap-1.5 border-t pt-3">
@@ -250,22 +281,22 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
                         page stays a link rather than the only way in: this is a
                         shortcut to the same store, not a second one - the dialog
                         is the vault's own, built from the kind's schema. */}
-                    {blocked(item) && canManageConnections && (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setAddingSecret(true)}
-                          disabled={item.portal.connect_blocked_by !== "oauth_app_secret"}
-                        >
+                    {vaultFixable(item) &&
+                      canManageConnections &&
+                      (item.portal.connect_blocked_by === "oauth_app_secret" ? (
+                        <Button size="sm" variant="outline" onClick={() => setAddingSecret(item)}>
                           <KeyRound className="mr-1 h-3.5 w-3.5" />
                           {t("addCredentials")}
                         </Button>
+                      ) : (
+                        // Ambiguity is fixed by *removing* one of the two, which is
+                        // the vault's job - so adding a third is the one thing that
+                        // would make it worse, and a disabled button beside a link
+                        // was two controls for one answer.
                         <Button size="sm" variant="ghost" asChild>
                           <Link href={ROUTES.VAULT}>{t("openVault")}</Link>
                         </Button>
-                      </>
-                    )}
+                      ))}
                     {item.action === "create" && canRun && (
                       <Button size="sm" variant="outline" onClick={() => setDialog(item)}>
                         <Sparkles className="mr-1 h-3.5 w-3.5" />
@@ -359,9 +390,10 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
           the kind's schema, so a change to what a GitHub OAuth App requires lands
           in both places at once. */}
       <AddSecretDialog
-        open={addingSecret}
-        onOpenChange={setAddingSecret}
-        kinds={kinds.filter((kind) => kind.kind === "github_oauth_app")}
+        open={addingSecret !== null}
+        onOpenChange={(next) => !next && setAddingSecret(null)}
+        kinds={kinds}
+        purposeId={addingSecret?.portal.oauth_app_kind ?? undefined}
         onSubmit={async (data) => {
           // Org-visible, because that is the only visibility the connect flow
           // will spend: a member's private one is deliberately never taken for

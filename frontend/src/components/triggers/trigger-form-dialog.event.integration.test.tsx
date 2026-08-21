@@ -92,7 +92,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     expect(dialog.getByLabelText("Signing secret")).toBeInTheDocument();
   });
 
-  it("creates a GitHub event trigger with its signing secret", async () => {
+  it("creates an API event trigger with its signing secret", async () => {
     const user = userEvent.setup();
     vi.mocked(apiClient.post).mockResolvedValue(trigger());
     const dialog = await openEvent();
@@ -108,7 +108,11 @@ describe("TriggerFormDialog custom-webhook event form", () => {
       name: null,
       trigger_type: "event",
       environment_id: null,
-      event_source: "github",
+      // `webhook` because this form is the API-trigger path: the portal grid is
+      // how somebody reaches a GitHub or Gmail trigger, and defaulting to GitHub
+      // here opened the card they had just chosen *instead of* GitHub on "Fires
+      // on: a GitHub issue".
+      event_source: "webhook",
       event_secret: "a-strong-shared-secret",
       event_config: undefined,
     });
@@ -223,8 +227,16 @@ describe("TriggerFormDialog custom-webhook event form", () => {
               trigger_type: "event",
               event_source: "gmail",
             },
+            {
+              key: "webhook_handle",
+              label: "Act on the payload",
+              description: "Do something with what was posted",
+              prompt: "Act on this payload.",
+              trigger_type: "event",
+              event_source: "webhook",
+            },
           ],
-          total: 2,
+          total: 3,
         };
       }
       return { items: [], total: 0 };
@@ -236,10 +248,14 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     await user.click(dialog.getByRole("button", { name: "Continue" }));
 
     // Only the templates written for the source picked on step one - a prompt
-    // about an email makes no sense against a GitHub delivery.
+    // about an email makes no sense against a signed POST from your own code, and
+    // neither does one about a GitHub issue.
     expect(dialog.queryByRole("button", { name: /Draft a reply/ })).toBeNull();
-    await user.click(dialog.getByRole("button", { name: /Triage the new issue/ }));
-    expect(dialog.getByLabelText<HTMLTextAreaElement>("Message").value).toBe("Triage this issue.");
+    expect(dialog.queryByRole("button", { name: /Triage the new issue/ })).toBeNull();
+    await user.click(dialog.getByRole("button", { name: /Act on the payload/ }));
+    expect(dialog.getByLabelText<HTMLTextAreaElement>("Message").value).toBe(
+      "Act on this payload.",
+    );
   });
 
   it("marks each event source in the Fires on picker", async () => {

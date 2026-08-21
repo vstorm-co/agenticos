@@ -22,6 +22,8 @@ interface ProviderRowProps {
    * vault shows one.
    */
   hint?: string;
+  /** The mark the catalog named, for an id that is not itself a glyph key. */
+  brand?: string;
 }
 
 /**
@@ -46,10 +48,10 @@ interface ProviderRowProps {
  * `text-embedding-3-large` answers to `openroutertext-embedding-3-large` and
  * typing `t` finds nothing. `provider-row.test.tsx` holds the case.
  */
-export function ProviderRow({ provider, name, hint }: ProviderRowProps) {
+export function ProviderRow({ provider, name, hint, brand }: ProviderRowProps) {
   return (
     <span className="flex min-w-0 items-center gap-2">
-      <ProviderIcon provider={provider} />
+      <ProviderIcon provider={provider} brand={brand} />
       <span className="truncate">{name}</span>
       {hint && <span className="text-muted-foreground shrink-0 font-mono">····{hint}</span>}
     </span>

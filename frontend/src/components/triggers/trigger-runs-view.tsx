@@ -1,42 +1,51 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { MessagesSquare } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { ArrowUpRight, CheckCircle2, Loader2, PlayCircle, XCircle } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
+import Link from "next/link";
 
-import { MessageList } from "@/components/chat/message-list";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
-import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from "@/components/ui";
-import { useRunTranscript } from "@/hooks";
-import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
+import { ErrorState, LoadingState } from "@/components/states";
+import {
+  Button,
+  Pager,
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui";
+import { useRuns } from "@/hooks";
+import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
-import type { ChatMessage } from "@/types";
+import { cn } from "@/lib/utils";
+import type { AgentRun } from "@/types/runs";
 import type { Trigger } from "@/types/triggers";
 
 const POLL_WHILE_WAITING_MS = 3000;
+/** What one page of fires holds. The server's own ceiling for a run listing. */
+const PAGE = 50;
 
 /**
- * What a trigger has actually done: the run-log conversation every fire appends
- * to, read the way the chat reads a thread.
+ * Every time a trigger has fired: when, how it went, and a way into the run.
  *
- * Keyed on `last_run_id` rather than `conversation_id`: the transcript endpoint
- * is gated on run visibility (the same reach a trigger's own controls have),
- * where the conversation endpoint is scoped to its owner, so a manager who did
- * not create the trigger can still read what it ran. `scope: "conversation"`
- * widens that one run to the whole log.
+ * **A list of runs, not a transcript.** It was the chat's own `MessageList` over
+ * the run-log conversation, which reads well for one fire and badly for forty
+ * identical ones: the prompt is the same every time, so the only thing
+ * distinguishing two fires is the reply, and a failed run's half-answer looks
+ * exactly like a complete one. There was also nowhere to go from it - the run
+ * detail, with the model's requests, the tools and the cost, is where somebody
+ * asking "why did this fail" is actually headed.
  *
- * A trigger that has never fired has no `last_run_id` and no runs, so the
- * transcript is not asked for at all - "no messages yet" is said plainly rather
- * than drawn as an empty thread, which a failed read would look identical to.
+ * Read through `GET /runs?conversation_id=`: every fire of one trigger appends to
+ * a single run-log conversation, so that conversation *is* the trigger's identity
+ * in the run history. Which is also what gives each row a status, a duration and
+ * a cost the transcript could not - and a link to `/runs?run=<id>`.
  *
- * `pendingSince` is the moment "Run now" was pressed, or null. Because a fire is
- * dispatched after the request commits, `last_run_id` still names the previous
- * run for a moment; while no reply has been recorded *after* that moment the
- * view shows the prompt just sent and a waiting animation, and polls the log
- * until a fresh assistant turn appears - at which point the placeholder gives
- * way to what the agent actually said. A timestamp rather than a flag so the
- * waiting state is derived, never a second copy of it to keep in sync.
+ * `pendingSince` is the moment "Run now" was pressed, or null. A fire is
+ * dispatched after the request commits, so for a second there is no row for it:
+ * the list shows a starting row and polls until one appears.
  */
 export function TriggerRunsView({
   trigger,
@@ -46,98 +55,131 @@ export function TriggerRunsView({
   pendingSince: number | null;
 }) {
   const t = useTranslations("triggers");
-  const runId = trigger.last_run_id;
+  const [page, setPage] = useState(0);
+  const conversationId = trigger.conversation_id;
 
-  const { transcript, isLoading, error } = useRunTranscript(runId ?? "", "conversation", {
-    enabled: runId !== null,
-    refetchInterval: pendingSince !== null ? POLL_WHILE_WAITING_MS : false,
-    // The newest page, not the first: a run-log past a hundred messages would
-    // otherwise show only its oldest fires, and the waiting poll would re-read
-    // a page the just-fired reply can never appear on.
-    tail: true,
+  const { runs, total, isLoading, error } = useRuns(undefined, {
+    enabled: conversationId !== null,
+    conversationId: conversationId ?? undefined,
+    skip: page * PAGE,
+    // While a fire is in flight the row for it does not exist yet; once it does,
+    // its status is still `running` for as long as the agent takes.
+    ...(pendingSince !== null ? { refetchIntervalMs: POLL_WHILE_WAITING_MS } : {}),
   });
 
-  // On a trigger that has never fired, "Run now" leaves last_run_id null until
-  // the background fire records its run - and the transcript query above is
-  // disabled without an id, so nothing else would ever notice it appearing. The
-  // trigger itself is what has to be re-read: poll its list queries until the
-  // id arrives, at which point the transcript poll takes over.
+  // A trigger that has never fired has no run-log conversation either, so there
+  // is nothing to poll but the trigger itself: its `conversation_id` appears with
+  // the first fire, at which point the listing above takes over.
   const queryClient = useQueryClient();
   useEffect(() => {
-    if (pendingSince === null || runId !== null) return;
+    if (pendingSince === null) return;
     const timer = setInterval(() => {
       void queryClient.invalidateQueries({ queryKey: qk.triggers.all() });
+      void queryClient.invalidateQueries({ queryKey: qk.runs.all() });
     }, POLL_WHILE_WAITING_MS);
     return () => clearInterval(timer);
-  }, [pendingSince, runId, queryClient]);
+  }, [pendingSince, queryClient]);
 
-  const repliedAfter =
-    pendingSince !== null &&
-    (transcript?.items ?? []).some(
-      (item) =>
-        item.role === "assistant" &&
-        item.created_at !== undefined &&
-        Date.parse(item.created_at) > pendingSince,
-    );
-  const waiting = pendingSince !== null && !repliedAfter;
+  if (conversationId !== null && isLoading) {
+    return <LoadingState variant="skeleton-table" columns={1} rows={4} className="m-5" />;
+  }
+  if (conversationId !== null && error !== null) {
+    return <ErrorState title={t("runsCouldNotBeRead")} className="m-5" />;
+  }
 
-  const messages = useMemo<ChatMessage[]>(
-    () =>
-      (transcript?.items ?? []).map((item) =>
-        conversationMessageToChatMessage({
-          id: item.id,
-          conversation_id: transcript?.conversation_id ?? "",
-          role: item.role as "user" | "assistant" | "system",
-          content: item.content,
-          created_at: item.created_at ?? "",
-          thinking: item.thinking,
-          parts: item.parts,
-          tool_calls: item.tool_calls,
-          run_id: item.run_id,
-        }),
-      ),
-    [transcript],
+  // A row for the fire that has been dispatched and has not recorded itself yet:
+  // without it, pressing Run now on a trigger with no history answers with "not
+  // run yet" for a few seconds, which is the opposite of what just happened.
+  const starting = pendingSince !== null && !runs.some((run) => run.status === "running");
+
+  if (runs.length === 0 && !starting) {
+    return <p className="text-muted-foreground p-5 text-sm">{t("noMessagesDescription")}</p>;
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <ul className="min-h-0 flex-1 divide-y overflow-y-auto">
+        {starting && (
+          <li className="text-muted-foreground flex items-center gap-2 px-5 py-3 text-sm">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            {t("fireStarting")}
+          </li>
+        )}
+        {runs.map((run) => (
+          <FireRow key={run.id} run={run} />
+        ))}
+      </ul>
+      <div className="border-border border-t px-5 py-3">
+        <Pager
+          page={page}
+          pageCount={Math.max(1, Math.ceil(total / PAGE))}
+          matched={total}
+          total={total}
+          onPage={setPage}
+          counted={t("fireCount", { count: total })}
+        />
+      </div>
+    </div>
   );
+}
 
-  if (runId !== null && isLoading) return <LoadingState variant="skeleton-panel" rows={3} />;
-  // A read that answered with nothing once the wait is over is a failure, not an
-  // empty log - said out loud so it is never mistaken for "this trigger is idle".
-  if (runId !== null && (error || transcript === undefined)) {
-    return <ErrorState title={t("runsCouldNotBeRead")} />;
-  }
+/** One fire: when it ran, how it went, what it cost, and a way into it. */
+function FireRow({ run }: { run: AgentRun }) {
+  const t = useTranslations("triggers");
+  const locale = useLocale();
+  const failed = run.status === "failed" || run.status === "budget_exceeded";
+  const done = run.status === "completed";
+  const Mark = failed ? XCircle : done ? CheckCircle2 : PlayCircle;
 
-  if (messages.length === 0 && !waiting) {
-    return (
-      <EmptyState
-        icon={MessagesSquare}
-        title={t("noMessagesYet")}
-        description={t("noMessagesDescription")}
+  return (
+    <li className="flex items-center gap-3 px-5 py-3 text-sm">
+      <Mark
+        className={cn(
+          "h-4 w-4 shrink-0",
+          failed ? "text-destructive" : done ? "text-success" : "text-muted-foreground",
+        )}
+        aria-hidden
       />
-    );
-  }
-
-  const shown: ChatMessage[] = waiting
-    ? [
-        ...messages,
-        { id: "pending-user", role: "user", content: trigger.prompt, timestamp: new Date() },
-        {
-          id: "pending-agent",
-          role: "assistant",
-          content: "",
-          isStreaming: true,
-          timestamp: new Date(),
-        },
-      ]
-    : messages;
-
-  return <MessageList messages={shown} />;
+      <div className="min-w-0 flex-1">
+        <p className="truncate">
+          {run.started_at === null ? (
+            t(`fireStatus.${run.status}`)
+          ) : (
+            <time dateTime={run.started_at} className="tabular-nums">
+              {new Date(run.started_at).toLocaleString(locale, {
+                dateStyle: "medium",
+                timeStyle: "short",
+              })}
+            </time>
+          )}
+        </p>
+        <p className="text-muted-foreground truncate text-xs">
+          {t("fireSummary", {
+            status: t(`fireStatus.${run.status}`),
+            cost: run.cost_usd,
+          })}
+        </p>
+      </div>
+      {/* Into the run itself, which is where "why did this fail" is answered -
+          the requests, the tools and what each turn cost. */}
+      <Button variant="ghost" size="sm" asChild>
+        <Link href={`${ROUTES.RUNS}?run=${run.id}`}>
+          {t("openRun")}
+          <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
+        </Link>
+      </Button>
+    </li>
+  );
 }
 
 /**
- * The runs view in a right-hand drawer, opened from a trigger row.
+ * The runs list in a right-hand drawer, opened from a trigger row.
  *
- * A sheet, mirroring the Activity page's run detail: a row is a door to what it
- * has done, and the drawer keeps the list it opened over visible behind it.
+ * Opaque, unlike the navigation sheets that share the primitive: `glass-strong`
+ * is right for a panel somebody glances at over a page they still want to see,
+ * and wrong for one they read - behind translucency the rows of the list
+ * underneath print through the middle of it. The same argument the dialog
+ * primitive already carries for a centred modal.
  */
 export function TriggerRunsSheet({
   trigger,
@@ -153,16 +195,14 @@ export function TriggerRunsSheet({
   const t = useTranslations("triggers");
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-2xl">
+      <SheetContent side="right" className="bg-background w-full sm:max-w-xl">
         <SheetHeader className="px-5">
           <SheetTitle className="text-sm">
             {trigger.name ?? trigger.agent_name ?? t("runsTitle")}
           </SheetTitle>
           <SheetClose onClick={() => onOpenChange(false)} />
         </SheetHeader>
-        <div className="flex-1 overflow-y-auto p-5">
-          {open && <TriggerRunsView trigger={trigger} pendingSince={pendingSince} />}
-        </div>
+        {open && <TriggerRunsView trigger={trigger} pendingSince={pendingSince} />}
       </SheetContent>
     </Sheet>
   );
