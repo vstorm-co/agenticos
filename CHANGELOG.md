@@ -17,6 +17,39 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.240] - 2026-08-21
+
+An answered `ask_user` question survives the conversation.
+
+### Fixed
+
+- **A mid-turn `ask_user` question and the person's answer were written down
+  nowhere**, so a reopened conversation showed neither the question the agent put nor
+  the answer it acted on. `ask_user` is a callback rather than a tool, so it never
+  touched the turn timeline the transcript is replayed from. (#502)
+
+### Added
+
+- `MessagePart` gains an `ask_user` kind carrying the question and the answer,
+  `TurnTimeline.add_ask_user` records it, and the session hands the running turn's
+  timeline to `_ask_one`, which appends the pair once the answer is in hand, in the
+  position it happened. A lone `ask_user` part is stored even as a turn's only part -
+  unlike a tool call or a block of text it has no column to fall back to. No
+  migration: the timeline is already a JSONB column and only the part union widens.
+  (#502)
+- The frontend gains the raw and typed part shapes, the replay in
+  `conversation-to-chat`, a `runsOf` run, and an `AskUserBlock` that draws the
+  question and the answer as a step inside the turn rather than as a chat bubble.
+  (#502)
+
+### Changed
+
+- Replay only. Live, the question is the composer's own `ask_user` form and the answer
+  returns through it, so what was missing was a conversation reopened from history.
+  **Delegate attribution - saying which delegate asked - is deliberately not here**:
+  `subagents-pydantic-ai` reaches the parent through `ctx.deps.ask_user(question, [])`
+  with no asker name and `SubAgentState` carries none, so naming the delegate needs an
+  upstream change to that package first. #502 stays open for it. (#502)
 ## [0.0.239] - 2026-08-21
 
 A multi-column row is sealed under one key version.
