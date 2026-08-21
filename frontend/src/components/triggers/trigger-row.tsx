@@ -126,6 +126,7 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
             aria-label={t("runNow")}
             disabled={!trigger.is_active || runNow.isPending}
             onClick={fireAndWatch}
+            data-tour="routine-run-now"
           >
             <Zap className="h-4 w-4" />
           </Button>

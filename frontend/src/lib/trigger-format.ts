@@ -1,3 +1,4 @@
+import type { Translate } from "./agent-step-captions";
 import type { EventSource, Trigger } from "@/types/triggers";
 
 const MINUTE = 60;
@@ -190,4 +191,71 @@ export function triggerSummary(trigger: Trigger): TriggerSummary {
   }
   const { unit, count } = intervalToUnit(trigger.interval_seconds ?? MINUTE);
   return { kind: "interval", unit, count };
+}
+
+/** The event phrase for a portal preset, as a fixed key under `triggers.event`. */
+function presetEventKey(portalKey: string): string {
+  switch (portalKey) {
+    case "github":
+      return "event.presetGithub";
+    case "google":
+      return "event.presetGmail";
+    default:
+      return "event.presetGeneric";
+  }
+}
+
+/**
+ * What makes a trigger fire, in one line - "Every 15 minutes", "Daily at 09:00
+ * UTC", "On new GitHub issues".
+ *
+ * A function over the reduced summary rather than markup, because two surfaces
+ * need the same sentence in different shapes: `TriggerSummary` renders it, and a
+ * dashboard card needs it as a *string* to put beside a cost. Every branch is a
+ * fixed key and a count - an interval is an ICU plural per unit, so "1 minute"
+ * and "15 minutes" are the message's job rather than English glued together
+ * here.
+ *
+ * Takes the caller's `useTranslations("triggers")`: a module function has no
+ * translator of its own, and answering with a key would not work for the
+ * branches that interpolate.
+ */
+export function cadenceText(trigger: Trigger, t: Translate): string {
+  const summary = triggerSummary(trigger);
+  switch (summary.kind) {
+    case "interval":
+      if (summary.unit === "days") return t("cadence.everyDays", { count: summary.count });
+      if (summary.unit === "hours") return t("cadence.everyHours", { count: summary.count });
+      return t("cadence.everyMinutes", { count: summary.count });
+    case "cron":
+      return t("cadence.cron", { expression: summary.expression });
+    case "cronDaily":
+      return t("cadence.cronDaily", { time: summary.time });
+    case "cronWeekly":
+      // Monday-first, the order the picker shows, not cron's Sunday-zero order.
+      return t("cadence.cronWeekly", {
+        time: summary.time,
+        days: WEEKDAYS.filter((day) => summary.weekdays.includes(day.value))
+          .map((day) => t(day.key))
+          .join(", "),
+      });
+    case "cronMonthly":
+      return t("cadence.cronMonthly", { day: summary.day, time: summary.time });
+    case "preset":
+      // One static ICU key, "{event} in {target}", with the event phrase chosen
+      // per portal by a fixed key so the catalog check can see it.
+      return t("event.presetSummary", {
+        event: t(presetEventKey(summary.portalKey)),
+        target: summary.target,
+      });
+    case "event":
+      switch (summary.source) {
+        case "github":
+          return t("event.github");
+        case "gmail":
+          return t("event.gmail");
+        case "webhook":
+          return t("event.webhook");
+      }
+  }
 }

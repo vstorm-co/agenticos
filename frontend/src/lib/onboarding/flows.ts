@@ -730,6 +730,13 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         target: "routines-create",
         signal: { kind: "created", resource: "routine" },
       },
+      // A schedule created at 09:00 and next due at midnight taught nothing: the
+      // reader had no way to see it work and no reason to believe it would
+      // (#594). Run now fires it against the same agent, on the same prompt, into
+      // the same run log - so the walk ends on a routine that has actually run.
+      // No signal: the fire is a mutation on a row rather than something
+      // appearing, and it is fine to end the walk having pointed at it.
+      { id: "flow-routine-run-now", page: ROUTES.ROUTINES, target: "routine-run-now" },
     ],
   },
   "create-org": {

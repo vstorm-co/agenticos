@@ -30,7 +30,7 @@ interface TriggersPanelProps {
  * The empty state says what the absence means: an agent with no triggers is not
  * misconfigured, it simply answers only when someone messages it, which is the
  * default. The rows are the shared `TriggerRow`, so a pause here behaves exactly
- * as it does in the sidebar and the Activity tab; this panel adds only the
+ * as it does in the sidebar and on the Routines page; this panel adds only the
  * create buttons, which are hidden - not merely disabled - for a caller who may
  * not manage them. "New schedule" opens the cadence form; "New event trigger"
  * opens the portal grid, the default path to an event trigger.

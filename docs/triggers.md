@@ -22,6 +22,29 @@ event template - "triage the new issue", "draft a reply to the email" - pre-fill
 prompt on its own source's message step, so neither starts from a blank box. Everything
 below is for the event case.
 
+## Where they live in the product, and what to call them
+
+**Routines** is the umbrella - the nav, the page, the agent's own panel, the chat
+sidebar and the dashboard card all use that one word, so a person meets the same
+noun wherever they arrive. The two families under it stay distinct because they
+behave differently: a **schedule** fires on the clock, a **trigger** fires on an
+arrival. What was not allowed to differ was the umbrella, which is how the nav
+came to say "Routines" over a panel headed "Schedules & triggers" (#594).
+
+Four surfaces, one list:
+
+| Where | What it is for |
+|---|---|
+| **Routines** (`/routines`) | Every routine in the organization, and the two ways to start one |
+| An agent's **Availability** tab | Only that agent's, beside where its exposure is configured |
+| The **chat** sidebar's Routines section | What the agent you are talking to does on its own |
+| The **Routines** dashboard card | Soonest first, with how the last fire went - a routine failing every hour is invisible anywhere else on that page |
+
+The dashboard card is addable from `Customize` and is on the default arrangement
+under **Needs attention**. It reads the same org-wide list, so a reader who may
+see the agents sees their routines; the outcome and cost on each row need
+`runs:view` and are simply absent without it.
+
 ## The mechanism, once
 
 An event trigger hands you two things: a **webhook URL** and a **signing secret**. A

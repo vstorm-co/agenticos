@@ -283,6 +283,11 @@ const DEFAULT_SECTIONS: SectionDef[] = [
       { widget: "recent-failures", span: "s6", rows: "r3" },
       { widget: "knowledge-freshness", span: "s6", rows: "r3" },
       { widget: "channels", span: "s6", rows: "r3" },
+      // Beside the channels rather than under Usage: an unattended run nobody is
+      // watching is the definition of something that wants attention, and a
+      // routine that has been failing every hour is invisible anywhere else on
+      // this page (#594).
+      { widget: "routines", span: "s6", rows: "r3" },
       { widget: "knowledge", span: "s6", rows: "r2" },
     ],
   },

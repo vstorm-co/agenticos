@@ -82,7 +82,7 @@ describe("ScheduledTab", () => {
     serveOrg([]);
     render(<ScheduledTab />, { wrapper });
 
-    expect(await screen.findByText("Nothing scheduled yet")).toBeVisible();
+    expect(await screen.findByText("Nothing runs on its own yet")).toBeVisible();
   });
 
   it("says a failed request out loud instead of as an empty list", async () => {

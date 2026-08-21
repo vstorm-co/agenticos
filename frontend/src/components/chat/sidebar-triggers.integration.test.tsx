@@ -75,7 +75,7 @@ describe("SidebarTriggers", () => {
     serve([trigger()]);
     render(<SidebarTriggers onOpenConversation={vi.fn()} />, { wrapper });
 
-    await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
+    await user.click(screen.getByRole("button", { name: "Routines" }));
 
     expect(await screen.findByText("Nightly")).toBeVisible();
     expect(screen.getByText("Every 15 minutes")).toBeVisible();
@@ -86,9 +86,9 @@ describe("SidebarTriggers", () => {
     serve([]);
     render(<SidebarTriggers onOpenConversation={vi.fn()} />, { wrapper });
 
-    await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
+    await user.click(screen.getByRole("button", { name: "Routines" }));
 
-    expect(await screen.findByText("Nothing scheduled yet.")).toBeVisible();
+    expect(await screen.findByText("Nothing runs on its own yet.")).toBeVisible();
   });
 
   it("says the list failed to load rather than showing it as empty", async () => {
@@ -96,7 +96,7 @@ describe("SidebarTriggers", () => {
     vi.mocked(apiClient.get).mockRejectedValue(new Error("boom"));
     render(<SidebarTriggers onOpenConversation={vi.fn()} />, { wrapper });
 
-    await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
+    await user.click(screen.getByRole("button", { name: "Routines" }));
 
     expect(await screen.findByText("Could not load the list.")).toBeVisible();
   });
@@ -107,7 +107,7 @@ describe("SidebarTriggers", () => {
     serve([trigger({ last_run_id: null, conversation_id: "c1" })]);
     render(<SidebarTriggers onOpenConversation={onOpenConversation} />, { wrapper });
 
-    await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
+    await user.click(screen.getByRole("button", { name: "Routines" }));
     await user.click(await screen.findByRole("button", { name: "Open Nightly trigger" }));
 
     // A run-less trigger opens its eager, empty conversation - not a config form.
@@ -121,7 +121,7 @@ describe("SidebarTriggers", () => {
     serve([trigger({ last_run_id: null, conversation_id: null })]);
     render(<SidebarTriggers onOpenConversation={onOpenConversation} />, { wrapper });
 
-    await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
+    await user.click(screen.getByRole("button", { name: "Routines" }));
     await user.click(await screen.findByRole("button", { name: "Open Nightly trigger" }));
 
     // Nothing to read and nothing to open: fall back to what can be acted on.
@@ -135,7 +135,7 @@ describe("SidebarTriggers", () => {
     serve([trigger({ last_run_id: "r1", conversation_id: "c1" })]);
     render(<SidebarTriggers onOpenConversation={onOpenConversation} />, { wrapper });
 
-    await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
+    await user.click(screen.getByRole("button", { name: "Routines" }));
     await user.click(await screen.findByRole("button", { name: "Open Nightly trigger" }));
 
     expect(onOpenConversation).toHaveBeenCalledWith("c1");
@@ -148,7 +148,7 @@ describe("SidebarTriggers", () => {
     vi.mocked(apiClient.patch).mockResolvedValue(trigger({ is_active: false }));
     render(<SidebarTriggers onOpenConversation={vi.fn()} />, { wrapper });
 
-    await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
+    await user.click(screen.getByRole("button", { name: "Routines" }));
     await user.click(await screen.findByRole("button", { name: "Actions for Nightly trigger" }));
     await user.click(await screen.findByRole("menuitem", { name: "Pause" }));
 
@@ -165,7 +165,7 @@ describe("SidebarTriggers", () => {
     vi.mocked(apiClient.post).mockResolvedValue(trigger());
     render(<SidebarTriggers onOpenConversation={vi.fn()} />, { wrapper });
 
-    await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
+    await user.click(screen.getByRole("button", { name: "Routines" }));
     await user.click(await screen.findByRole("button", { name: "Actions for Nightly trigger" }));
     await user.click(await screen.findByRole("menuitem", { name: "Run now" }));
 
@@ -180,7 +180,7 @@ describe("SidebarTriggers", () => {
     vi.mocked(apiClient.delete).mockResolvedValue(undefined);
     render(<SidebarTriggers onOpenConversation={vi.fn()} />, { wrapper });
 
-    await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
+    await user.click(screen.getByRole("button", { name: "Routines" }));
     await user.click(await screen.findByRole("button", { name: "Actions for Nightly trigger" }));
     await user.click(await screen.findByRole("menuitem", { name: "Delete" }));
     // Confirmed first - a destructive one-click from a menu is a trap.
@@ -196,7 +196,7 @@ describe("SidebarTriggers", () => {
     vi.mocked(apiClient.patch).mockResolvedValue(trigger({ is_active: true }));
     render(<SidebarTriggers onOpenConversation={vi.fn()} />, { wrapper });
 
-    await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
+    await user.click(screen.getByRole("button", { name: "Routines" }));
     await user.click(await screen.findByRole("button", { name: "Actions for Nightly trigger" }));
     await user.click(await screen.findByRole("menuitem", { name: "Resume" }));
 
@@ -212,7 +212,7 @@ describe("SidebarTriggers", () => {
     serve([trigger({ last_run_id: "r1", conversation_id: "c1" })]);
     render(<SidebarTriggers onOpenConversation={vi.fn()} />, { wrapper });
 
-    await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
+    await user.click(screen.getByRole("button", { name: "Routines" }));
     await user.click(await screen.findByRole("button", { name: "Actions for Nightly trigger" }));
     await user.click(await screen.findByRole("menuitem", { name: "Edit" }));
 
@@ -234,7 +234,7 @@ describe("SidebarTriggers", () => {
       wrapper,
     });
 
-    await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
+    await user.click(screen.getByRole("button", { name: "Routines" }));
     // The list is visible - viewing is `agents:view`.
     expect(await screen.findByText("Nightly")).toBeVisible();
     // No manage controls, but the run-log conversation is a read: a viewer
@@ -256,7 +256,7 @@ describe("SidebarTriggers", () => {
     ]);
     render(<SidebarTriggers onOpenConversation={vi.fn()} />, { wrapper });
 
-    await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
+    await user.click(screen.getByRole("button", { name: "Routines" }));
     await screen.findByText("Mine");
 
     expect(screen.getByRole("button", { name: "Actions for Mine trigger" })).toBeVisible();

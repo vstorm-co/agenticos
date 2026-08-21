@@ -17,17 +17,19 @@ import { useOrgTriggers } from "@/hooks/use-org-triggers";
 import { getErrorMessage } from "@/lib/api-error";
 
 /**
- * Every schedule and event trigger across the organization, on the Activity page.
+ * Every schedule and event trigger across the organization - the body of the
+ * Routines page.
  *
- * A failed request is said out loud rather than drawn as "nothing scheduled":
- * this page fans out to several queries and an empty list and a 502 are the same
- * pixels, so the error is its own state. Each row gates its own controls on the
- * trigger's `can_manage`, resolved per row by the server, and the list itself
+ * A failed request is said out loud rather than drawn as "nothing runs on its
+ * own": that page fans out to several queries and an empty list and a 502 are the
+ * same pixels, so the error is its own state. Each row gates its own controls on
+ * the trigger's `can_manage`, resolved per row by the server, and the list itself
  * only carries triggers on agents the caller may already see.
  *
- * The card wears the Activity page's shared list dialect - the same border-b
- * header, text-sm title and flush content as the Runs and Spend tabs beside it -
- * so the four tabs read as one surface rather than four.
+ * The card keeps the list dialect it was born with on the Activity page - the
+ * same border-b header, text-sm title and flush content as the Runs and Spend
+ * tabs - because it is still the same kind of thing: an org-wide list read rather
+ * than scanned.
  */
 export function ScheduledTab() {
   const t = useTranslations("triggers");

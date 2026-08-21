@@ -1621,6 +1621,29 @@
         "title": "Version to version",
         "description": "Whether a new agent version behaves better than the last."
       },
+      "routines": {
+        "title": "Routines",
+        "description": "What runs with nobody at the keyboard, soonest first, and how the last one went.",
+        "unnamed": "Untitled routine",
+        "cost": "${cost}",
+        "paused": "paused",
+        "neverRun": "not run yet",
+        "fired": "fired",
+        "succeeded": "ok",
+        "ratedDown": "rated down",
+        "status": {
+          "failed": "failed",
+          "budget_exceeded": "over budget",
+          "running": "running",
+          "pending": "starting",
+          "cancelled": "cancelled",
+          "awaiting_approval": "awaiting approval"
+        },
+        "empty": {
+          "title": "Nothing runs on its own yet",
+          "description": "A schedule runs an agent on the clock; a trigger runs one when something arrives."
+        }
+      },
       "channels": {
         "title": "Channels",
         "description": "Which messaging channels the agents can be reached on, and whether each door is open.",
@@ -2684,6 +2707,10 @@
         "title": "Connect it",
         "body": "Choose Connect. We check the server answers and move on the moment it's connected — a server that signs in through the provider will hand off to their consent screen instead."
       },
+      "flow-routine-run-now": {
+        "title": "Fire it once, now",
+        "body": "Run now runs the routine immediately - same agent, same prompt, same run log - without waiting for its schedule. It is how you find out whether the prompt says what you meant before the clock does."
+      },
       "flow-org-create": {
         "title": "Create the organization",
         "body": "Choose New organization, give it a name, and create it. We'll move on as soon as it exists."
@@ -2722,7 +2749,7 @@
       },
       "dashboard-customize": {
         "title": "Make it your own",
-        "body": "Customize opens an editor where you add, hide and rearrange the cards; Layouts saves an arrangement and switches between them. The dashboard is yours to shape, per person."
+        "body": "Customize opens an editor: drag a card to move it between sections, drag its edge to resize it from a quarter of the row to the whole width, hide the ones you never read, and Add a widget for the rest of the catalog - the same card more than once if you want it per agent. Sections can be renamed, coloured, collapsed and added to. Save keeps it, Cancel discards it, and Reset to default puts back the arrangement you started with. Layouts holds several of these arrangements and switches between them, so the one you read on a Monday need not be the one you read while something is on fire. All of it is per person - nobody else sees your arrangement."
       },
       "chat-start": {
         "title": "Chat with your agents",
@@ -4599,7 +4626,7 @@
       "presetGmail": "New email",
       "presetGeneric": "New event"
     },
-    "panelTitle": "Schedules & triggers",
+    "panelTitle": "Routines",
     "panelDescription": "When this agent runs itself - on a schedule, or when an event arrives.",
     "empty": "This agent runs only when someone messages it.",
     "paused": "Paused",
@@ -4687,14 +4714,14 @@
     "noMessagesDescription": "This trigger has not run yet. Its runs will appear here once it fires.",
     "runsCouldNotBeRead": "This trigger's runs could not be read.",
     "unit": "Unit",
-    "activityTitle": "Schedules & triggers",
+    "activityTitle": "Routines",
     "activityDescription": "Every agent running itself across the organization - on a schedule or an event.",
-    "activityEmptyTitle": "Nothing scheduled yet",
+    "activityEmptyTitle": "Nothing runs on its own yet",
     "activityEmptyDescription": "When an agent is set to run itself, it shows here.",
     "agent": "Agent",
     "chooseAgent": "Choose an agent",
-    "sectionTitle": "Schedules & triggers",
-    "sectionEmpty": "Nothing scheduled yet.",
+    "sectionTitle": "Routines",
+    "sectionEmpty": "Nothing runs on its own yet.",
     "sectionError": "Could not load the list.",
     "newMenu": "New schedule or trigger",
     "openItem": "Open {agent} trigger",

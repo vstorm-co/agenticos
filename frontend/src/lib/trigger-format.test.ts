@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  cadenceText,
   intervalToUnit,
   parseCron,
   triggerSummary,
@@ -174,5 +175,84 @@ describe("triggerSummary", () => {
       unit: "minutes",
       count: 1,
     });
+  });
+});
+
+describe("cadenceText", () => {
+  // The sentence two surfaces read - `TriggerSummary` renders it, the dashboard's
+  // routines card puts it beside a cost - so it is asserted here rather than
+  // through either of them. `t` echoes the key and its values, which is what makes
+  // the branch visible: the point of each case is *which* message and *which*
+  // parameters, not the English.
+  const t = (key: string, values?: Record<string, string | number>) =>
+    values === undefined ? key : `${key}(${JSON.stringify(values)})`;
+
+  it("reads an interval through its own unit's plural", () => {
+    expect(cadenceText(trigger({ interval_seconds: 900 }), t)).toBe(
+      'cadence.everyMinutes({"count":15})',
+    );
+    expect(cadenceText(trigger({ interval_seconds: 7200 }), t)).toBe(
+      'cadence.everyHours({"count":2})',
+    );
+    expect(cadenceText(trigger({ interval_seconds: 172800 }), t)).toBe(
+      'cadence.everyDays({"count":2})',
+    );
+  });
+
+  it("reads a builder-made cron in the language the builder showed", () => {
+    const cron = (expression: string) =>
+      cadenceText(trigger({ schedule_kind: "cron", cron_expression: expression }), t);
+
+    expect(cron("0 9 * * *")).toBe('cadence.cronDaily({"time":"09:00"})');
+    // The weekday names are themselves keys, resolved by the same translator -
+    // Monday-first, the order the picker shows, not cron's Sunday-zero order.
+    expect(cron("0 9 * * 1,2")).toBe(
+      'cadence.cronWeekly({"time":"09:00","days":"weekdayMon, weekdayTue"})',
+    );
+    expect(cron("0 9 3 * *")).toBe('cadence.cronMonthly({"day":3,"time":"09:00"})');
+    expect(cron("0 9 */3 * *")).toBe('cadence.everyDays({"count":3})');
+  });
+
+  it("shows raw notation only for an expression somebody typed themselves", () => {
+    expect(cadenceText(trigger({ schedule_kind: "cron", cron_expression: "*/7 * * * *" }), t)).toBe(
+      'cadence.cron({"expression":"*/7 * * * *"})',
+    );
+  });
+
+  it("names each event source", () => {
+    const event = (source: "github" | "gmail" | "webhook") =>
+      cadenceText(trigger({ trigger_type: "event", event_source: source }), t);
+
+    expect(event("github")).toBe("event.github");
+    expect(event("gmail")).toBe("event.gmail");
+    expect(event("webhook")).toBe("event.webhook");
+  });
+
+  it("reads a preset as one sentence, with the portal's own phrase in it", () => {
+    // A preset that knows its target reads "New issue in acme/repo" - one ICU
+    // message with the event phrase interpolated, never two halves glued in the
+    // component.
+    const preset = (portal: string) =>
+      cadenceText(
+        trigger({
+          trigger_type: "event",
+          event_source: "github",
+          portal_key: portal,
+          provider_target: "acme/repo",
+        }),
+        t,
+      );
+
+    expect(preset("github")).toBe(
+      'event.presetSummary({"event":"event.presetGithub","target":"acme/repo"})',
+    );
+    expect(preset("google")).toBe(
+      'event.presetSummary({"event":"event.presetGmail","target":"acme/repo"})',
+    );
+    // A portal added to the catalog tomorrow has no phrase of its own and takes
+    // the generic one, rather than rendering a missing key.
+    expect(preset("linear")).toBe(
+      'event.presetSummary({"event":"event.presetGeneric","target":"acme/repo"})',
+    );
   });
 });

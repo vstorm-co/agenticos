@@ -1445,7 +1445,7 @@
       },
       "dashboard-customize": {
         "title": "Dostosuj po swojemu",
-        "body": "Customize otwiera edytor, w którym dodajesz, ukrywasz i przestawiasz karty; Layouts zapisuje układ i przełącza między nimi. Pulpit jest Twój do ułożenia, dla każdej osoby osobno."
+        "body": "Customize otwiera edytor: przeciągnij kartę, żeby przenieść ją między sekcjami, pociągnij jej krawędź, żeby zmienić szerokość - od czwartej części rzędu do całej, ukryj te, których nigdy nie czytasz, a Add a widget daje resztę katalogu, tę samą kartę nawet kilka razy, jeśli chcesz ją mieć per agent. Sekcje można nazwać, pokolorować, zwinąć i dodać nowe. Save zapisuje, Cancel odrzuca, a Reset to default przywraca układ, od którego zaczynałeś. Layouts trzyma kilka takich układów i przełącza między nimi, więc ten czytany w poniedziałek nie musi być tym czytanym, kiedy się pali. Wszystko to jest per osoba - nikt inny nie widzi Twojego układu."
       },
       "chat-start": {
         "title": "Rozmawiaj ze swoimi agentami",
@@ -1965,7 +1965,7 @@
       "presetEmail": "Nowy e-mail",
       "presetGeneric": "Nowe zdarzenie"
     },
-    "panelTitle": "Harmonogramy i wyzwalacze",
+    "panelTitle": "Rutyny",
     "panelDescription": "Kiedy ten agent uruchamia się sam - według harmonogramu lub gdy nadejdzie zdarzenie.",
     "empty": "Ten agent działa tylko wtedy, gdy ktoś do niego napisze.",
     "paused": "Wstrzymany",
@@ -2054,14 +2054,14 @@
     "noMessagesDescription": "Ten wyzwalacz jeszcze się nie uruchomił. Jego uruchomienia pojawią się tutaj, gdy zadziała.",
     "runsCouldNotBeRead": "Nie udało się odczytać uruchomień tego wyzwalacza.",
     "unit": "Jednostka",
-    "activityTitle": "Harmonogramy i wyzwalacze",
+    "activityTitle": "Rutyny",
     "activityDescription": "Każdy agent uruchamiający się sam w organizacji - według harmonogramu lub zdarzenia.",
-    "activityEmptyTitle": "Nic jeszcze nie zaplanowano",
+    "activityEmptyTitle": "Nic jeszcze nie dzieje się samo",
     "activityEmptyDescription": "Gdy agent zostanie ustawiony, by uruchamiał się sam, pojawi się tutaj.",
     "agent": "Agent",
     "chooseAgent": "Wybierz agenta",
-    "sectionTitle": "Harmonogramy i wyzwalacze",
-    "sectionEmpty": "Nic jeszcze nie zaplanowano.",
+    "sectionTitle": "Rutyny",
+    "sectionEmpty": "Nic jeszcze nie dzieje się samo.",
     "sectionError": "Nie udało się wczytać listy.",
     "newMenu": "Nowy harmonogram lub wyzwalacz",
     "openItem": "Otwórz wyzwalacz agenta {agent}",
