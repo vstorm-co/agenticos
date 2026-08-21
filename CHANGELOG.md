@@ -17,6 +17,34 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.239] - 2026-08-21
+
+A multi-column row is sealed under one key version.
+
+### Fixed
+
+- **"A row has several ciphertext columns sharing one `key_version`" was hand-rolled
+  at several models, each differently, and the vault offered no primitive for it.**
+  The failures are latent - `rewrap`, master-key rotation, has no production caller
+  yet - but the day it runs, a rotated `jwt` widget can never be opened again and a
+  channel bot's row disagrees with its own envelopes. `vault.seal_fields(values, *,
+  scope, key_version)` seals every field at one version and hands that version back
+  to store, so "seal at v2 but record v1" and "no version column at all" cannot be
+  written by hand. (#552)
+- **`agent_embed` had no `key_version` column**, and `_verify_token` unsealed at an
+  implicit v1 - so a rotated widget would answer `EmbedDenied` to every visitor. It
+  gains `secret_key_version` (the migration backfills existing rows to 1), seals
+  through `seal_fields` and unseals at the row's own version. `docs/secrets.md` now
+  lists the embed among the sealed rows. (#552)
+- **`channel_bot`'s `update` re-sealed a changed token at the default v1 and reset the
+  column** while its siblings kept the rotated version, leaving the row's version
+  disagreeing with its envelopes (AUD-008). It seals at the row's existing version,
+  beside its siblings, and never resets the column. (#552)
+- Left alone deliberately: `mcp_connection` already seals one field per write at the
+  row's `secret_key_version`, and `organization_secret` stores its ciphertext, hint
+  and version through the typed `secret_kinds` wrappers. Both already record one
+  version per row, so routing them through the multi-field helper would be churn
+  rather than a fix. (#552)
 ## [0.0.238] - 2026-08-21
 
 A stored file is served as what it is, or not served inline at all.
