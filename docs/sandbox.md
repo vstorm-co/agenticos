@@ -346,9 +346,12 @@ from that: an agent writing into `uploads/` itself is indistinguishable from a
 person, and nothing stops it.
 
 **Listing a container costs round trips, so two things are bounded.** The archive's
-`ls` reads one directory, so the listing walks - depth-first bounded, and stopping
-at 2,000 entries, because a host holding a `node_modules` must not turn one
-workspace into ten thousand rows. And an image's thumbnail is a `read_bytes` for
+`ls` reads one directory, so the listing walks — breadth-first, six levels deep at
+most and stopping at 2,000 entries, because a host holding a `node_modules` must
+not turn one workspace into ten thousand rows. A directory that will not answer is
+logged and skipped; only the root refusing makes the workspace unreadable, because
+one folder the agent chmod'ed away is not a host nobody can read. And an image's
+thumbnail is a `read_bytes` for
 that file: the suffix and the size are checked off the listing entry before
 anything is fetched, and one request draws at most 24. Past that a tile keeps the
 glyph. A *stored* workspace pays neither - its files and their bytes are a column

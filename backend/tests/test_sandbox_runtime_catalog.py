@@ -247,6 +247,38 @@ class TestWritingTheComposeFiles:
         assert f"      SANDBOXD_RUNTIMES: '{compose_value()}'\n" in written
         assert ">-" not in written
 
+    def test_a_backslash_in_a_command_is_written_as_it_was_read(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        """`re.sub` reads escapes in a replacement string.
+
+        So a setup command holding `\\1` would be substituted as a capture group
+        and one holding `\\d` refused outright - by which point the compose files
+        hold a mangled command and the service answers 502 on every session, which
+        is how the `$arch` interpolation was found. Nothing in the catalogue holds
+        a backslash today; this is what makes the first one safe.
+        """
+        from app.commands.sandbox_runtimes import sandbox_runtimes
+        from app.services import sandbox_runtimes as catalog_module
+
+        awkward = SandboxRuntimeDefinition(
+            alias="sed",
+            description="Escapes nothing",
+            base_image="python:3.12-slim",
+            setup_commands=[r"sed -i 's/\1/x/' /etc/hosts && echo '\d'"],
+        )
+        monkeypatch.setattr(catalog_module, "CATALOG", [awkward])
+        self._tree(tmp_path, monkeypatch)
+
+        sandbox_runtimes.callback(write=True)
+
+        # Read back the way compose reads it: the YAML scalar, then the JSON in it.
+        value = yaml.safe_load((tmp_path / COMPOSE_FILES[0]).read_text())["services"]["sandboxd"][
+            "environment"
+        ]["SANDBOXD_RUNTIMES"]
+        entry = json.loads(value.replace("$$", "$"))["sed"]
+        assert entry["runtime"]["setup_commands"] == awkward.setup_commands
+
     def test_a_file_already_carrying_it_is_left_alone(self, tmp_path, monkeypatch) -> None:
         """Idempotent, and it has to be: the command is what a test tells somebody
         to run, so a second run reporting a change would read as a failing gate."""

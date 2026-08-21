@@ -109,7 +109,13 @@ def sandbox_runtimes(write: bool) -> None:
         if _BLOCK.search(text) is None:
             error(f"{name} has no {_KEY} block to replace")
             raise SystemExit(1)
-        updated = _BLOCK.sub(_rendered(text), text, count=1)
+        # A function, not the string: `re.sub` reads escapes in a replacement, so
+        # a setup command holding `\1` or `\d` would be substituted as a group
+        # reference or refused outright. Nothing in the catalogue holds a backslash
+        # today, which is exactly why this would be found by whoever added the
+        # first one rather than by this file.
+        line = _rendered(text)
+        updated = _BLOCK.sub(lambda _, written=line: written, text, count=1)
         if updated != text:
             path.write_text(updated)
             changed += 1
