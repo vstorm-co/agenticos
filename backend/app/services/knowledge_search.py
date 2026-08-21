@@ -66,7 +66,13 @@ class KnowledgeSearchService:
         refused search never reaches a paid call.
         """
         names = request.collection_names or [request.collection_name]
-        collections = [kb.collection_name for kb in await self.access.readable_all(ctx, names)]
+        # Keep the authorized rows, not just their names: `collection_name` is
+        # not unique, so resolution must read the exact knowledge base access
+        # granted - passing the name back would let it re-select a different
+        # same-named row and unseal that row's key (#913).
+        authorized = await self.access.readable_all(ctx, names)
+        collections = [kb.collection_name for kb in authorized]
+        knowledge_base_ids = [kb.id for kb in authorized]
 
         if ctx.organization_id is not None:
             await assert_organization_within_budget(self.db, ctx.organization_id)
@@ -81,6 +87,7 @@ class KnowledgeSearchService:
                         limit=request.limit,
                         min_score=request.min_score,
                         organization_id=ctx.organization_id,
+                        knowledge_base_ids=knowledge_base_ids,
                     )
                 else:
                     results = await self.retrieval.retrieve(
@@ -90,6 +97,7 @@ class KnowledgeSearchService:
                         min_score=request.min_score,
                         filter=request.filter or "",
                         organization_id=ctx.organization_id,
+                        knowledge_base_id=knowledge_base_ids[0],
                     )
         except Exception:
             # The query embedding is booked before the vector query it pays for,

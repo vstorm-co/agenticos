@@ -10,6 +10,7 @@ union of candidates once, not each collection.
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import pytest
 
@@ -62,7 +63,9 @@ def _service_by_name(store: MagicMock, mapping: dict[str, BaseReranker | None]) 
     settings = MagicMock()
     settings.enable_hybrid_search = False
 
-    async def resolver(name: str, organization_id: object = None) -> BaseReranker | None:
+    async def resolver(
+        name: str, organization_id: object = None, knowledge_base_id: object = None
+    ) -> BaseReranker | None:
         return mapping.get(name)
 
     return RetrievalService(vector_store=store, settings=settings, reranker_resolver=resolver)
@@ -115,6 +118,53 @@ class TestMultiCollection:
             "q", "handbook", limit=1, organization_id=None
         )
         assert results[0].metadata["collection"] == "handbook"
+
+
+class TestAuthorizedKnowledgeBaseIsPinned:
+    """The authorized KB id reaches resolution, so a shared collection name
+    resolves the row access granted rather than one re-looked-up by name (#913)."""
+
+    @staticmethod
+    def _svc(store: MagicMock, resolver: AsyncMock) -> RetrievalService:
+        settings = MagicMock()
+        settings.enable_hybrid_search = False
+        return RetrievalService(vector_store=store, settings=settings, reranker_resolver=resolver)
+
+    async def test_retrieve_threads_the_kb_id_to_the_resolver_and_the_store(self):
+        store = _store_returning(_hits("a"))
+        resolver = AsyncMock(return_value=None)
+        kb = uuid4()
+
+        await self._svc(store, resolver).retrieve(
+            "q", "handbook", limit=1, organization_id=None, knowledge_base_id=kb
+        )
+
+        assert resolver.await_args.args == ("handbook", None, kb)
+        assert store.search.await_args.kwargs["knowledge_base_id"] == kb
+
+    async def test_retrieve_multi_pins_each_collection_to_its_own_kb_id(self):
+        store = _store_returning(_hits("a"))
+        resolver = AsyncMock(return_value=None)
+        a, b = uuid4(), uuid4()
+
+        await self._svc(store, resolver).retrieve_multi(
+            "q",
+            collection_names=["kb_a", "kb_b"],
+            limit=1,
+            organization_id=None,
+            knowledge_base_ids=[a, b],
+        )
+
+        resolved = {call.args[0]: call.args[2] for call in resolver.await_args_list}
+        assert resolved == {"kb_a": a, "kb_b": b}
+
+    async def test_no_kb_id_falls_back_to_the_organization_scope(self):
+        store = _store_returning(_hits("a"))
+        resolver = AsyncMock(return_value=None)
+
+        await self._svc(store, resolver).retrieve("q", "handbook", limit=1, organization_id=None)
+
+        assert resolver.await_args.args == ("handbook", None, None)
 
 
 class TestMixedRerankConfig:

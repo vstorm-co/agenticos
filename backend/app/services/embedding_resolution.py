@@ -134,7 +134,7 @@ class ResolvedEmbeddings:
 
 
 async def embeddings_for_collection(
-    collection_name: str, organization_id: UUID | None
+    collection_name: str, organization_id: UUID | None, knowledge_base_id: UUID | None = None
 ) -> ResolvedEmbeddings | None:
     """Resolve one collection's embedding model and credential, for one organization.
 
@@ -143,14 +143,21 @@ async def embeddings_for_collection(
     gotten. Opens its own session because the store embeds from places with no
     request in sight: a worker mid-ingestion, a capability mid-run.
 
-    `organization_id` is required and scopes the resolution: `collection_name`
-    is not unique across tenants, so resolving by name alone could return - and
-    unseal and bill - another organization's key (#913). The caller passes the
-    organization the search or ingest is acting for; `None` only where there is
-    no tenant (a CLI ingest).
+    `knowledge_base_id`, when given, is the knowledge base the caller was already
+    authorized against, and resolution reads *that* row. `collection_name` is not
+    unique, so a name+organization lookup can return a different row than the
+    access check authorized - a restricted `org` collection sharing an `app`
+    collection's name - and then unseal and bill a key the caller was never
+    granted (#913). The search path passes the authorized id; ingestion and the
+    CLI, which choose the row themselves, pass none and fall back to the
+    `organization_id`-scoped lookup.
     """
     async with get_db_context() as db:
-        kb = await knowledge_base_repo.get_for_collection(db, collection_name, organization_id)
+        kb = (
+            await knowledge_base_repo.get_by_id(db, knowledge_base_id)
+            if knowledge_base_id is not None
+            else await knowledge_base_repo.get_for_collection(db, collection_name, organization_id)
+        )
         if kb is None:
             return None
         api_key, key_source = await _api_key_for(db, kb)

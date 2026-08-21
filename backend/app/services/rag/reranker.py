@@ -179,7 +179,9 @@ class CohereReranker(BaseReranker):
         return ceil(candidate_count / _DOCS_PER_SEARCH_UNIT)
 
 
-async def build_reranker(collection_name: str, organization_id: UUID | None) -> BaseReranker | None:
+async def build_reranker(
+    collection_name: str, organization_id: UUID | None, knowledge_base_id: UUID | None = None
+) -> BaseReranker | None:
     """Bind a collection's resolved rerank credential to a concrete reranker.
 
     The one composition point for reranking: resolution answers whether a
@@ -188,8 +190,12 @@ async def build_reranker(collection_name: str, organization_id: UUID | None) -> 
     `/rag/search` route and the agent-run knowledge tool alike - so reranking is
     wired the same way in both, and a second provider is a branch here rather
     than a change at each call site.
+
+    `knowledge_base_id` pins resolution to the knowledge base the caller was
+    authorized against, rather than one looked up by the non-unique collection
+    name (#913); see `reranker_for_collection`.
     """
-    resolved = await reranker_for_collection(collection_name, organization_id)
+    resolved = await reranker_for_collection(collection_name, organization_id, knowledge_base_id)
     if resolved is None:
         return None
     return CohereReranker(model=resolved.model, api_key=resolved.api_key)

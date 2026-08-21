@@ -225,7 +225,7 @@ class TestTheCollectionsKeyPays:
             ),
         }
         store._resolver = AsyncMock(
-            side_effect=lambda name, organization_id=None: resolutions[name]
+            side_effect=lambda name, organization_id=None, knowledge_base_id=None: resolutions[name]
         )
 
         origins = []
@@ -368,7 +368,11 @@ class TestWhatTheFlowLogSays:
         with (
             patch(
                 "app.worker.tasks.rag_tasks.embeddings_for_collection",
-                new=AsyncMock(side_effect=lambda name, organization_id=None: resolutions[name]),
+                new=AsyncMock(
+                    side_effect=lambda name, organization_id=None, knowledge_base_id=None: (
+                        resolutions[name]
+                    )
+                ),
             ),
             patch("app.worker.tasks.rag_tasks._say_in_flow_log") as said,
         ):

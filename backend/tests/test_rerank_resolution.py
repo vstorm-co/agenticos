@@ -123,6 +123,35 @@ class TestResolution:
         assert secrets.get.await_args.kwargs["organization_id"] == _ORG
 
 
+class TestAuthorizedKnowledgeBaseId:
+    """A given `knowledge_base_id` resolves that exact row, not a name lookup.
+
+    The search path passes the knowledge base access already authorized, so a
+    shared collection name cannot re-select a different same-named row and unseal
+    its key (#913)."""
+
+    async def test_a_given_kb_id_reads_that_row_and_skips_the_name_lookup(self):
+        with (
+            patch(f"{_MODULE}.get_db_context") as db_ctx,
+            patch(f"{_MODULE}.knowledge_base_repo") as kbs,
+            patch(f"{_MODULE}.organization_secret_repo") as secrets,
+        ):
+            db_ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+            db_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
+            kbs.get_by_id = AsyncMock(return_value=_kb(model=None, secret_id=None))
+            kbs.get_for_collection = AsyncMock(return_value=_kb(secret_id=uuid.uuid4()))
+            secrets.get = AsyncMock()
+            kb_id = uuid.uuid4()
+
+            resolved = await reranker_for_collection(
+                "handbook", organization_id=_ORG, knowledge_base_id=kb_id
+            )
+
+            kbs.get_by_id.assert_awaited_once_with(kbs.get_by_id.await_args.args[0], kb_id)
+            kbs.get_for_collection.assert_not_called()
+            assert resolved is None
+
+
 class TestDegradationTurnsRerankingOff:
     """A chosen key that is gone drops reranking to off, with a line saying why.
 

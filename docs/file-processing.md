@@ -457,6 +457,16 @@ candidates to the caller's own row, falling back to a deployment-wide
 (`app`-scoped) collection and, only for a CLI ingest with no tenant, to the name
 alone.
 
+Even own-org narrowing is not enough on the search path, though: an `app`
+collection everyone may read and a restricted `org` collection of the same name
+are both the caller's to resolve, but access may have authorized only the first.
+So the search path passes the **authorized** knowledge base's id down to the
+resolvers, which read that exact row rather than looking one up by name — the id
+comes from the same `readable_all` that granted access, so resolution can never
+land on a row access did not (#913). Ingestion and the CLI, which choose the row
+themselves and have no distinct authorized identity, pass none and keep the
+`organization_id`-scoped `get_for_collection` lookup.
+
 ### Reranking — a second pass, off unless configured
 
 Vector search orders results by embedding distance, which is a proxy for

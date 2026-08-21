@@ -102,7 +102,7 @@ class ResolvedReranker:
 
 
 async def reranker_for_collection(
-    collection_name: str, organization_id: UUID | None
+    collection_name: str, organization_id: UUID | None, knowledge_base_id: UUID | None = None
 ) -> ResolvedReranker | None:
     """Resolve one collection's reranker, or `None` if it has none.
 
@@ -112,13 +112,23 @@ async def reranker_for_collection(
     rather than the off state. Opens its own session because retrieval reaches
     here from places with no request in sight: an agent mid-run, a direct search.
 
-    `organization_id` scopes the resolution: `collection_name` is not unique
-    across tenants, so resolving by name alone could read another organization's
-    rerank config and unseal its key (#913). The caller passes the organization
-    the search is acting for.
+    `knowledge_base_id`, when given, is the knowledge base the caller was already
+    authorized against, and resolution reads *that* row rather than looking one
+    up by name. `collection_name` is not unique, and the access check and a
+    name+organization lookup can pick different rows for the same name - an `app`
+    collection everyone may read and a restricted `org` collection of the same
+    name - so resolving by name could unseal and spend the key of a row the
+    caller was never granted (#913). The search path passes the authorized id;
+    ingestion and the CLI, which choose the row themselves and have no distinct
+    authorized identity, pass none and fall back to the `organization_id`-scoped
+    lookup.
     """
     async with get_db_context() as db:
-        kb = await knowledge_base_repo.get_for_collection(db, collection_name, organization_id)
+        kb = (
+            await knowledge_base_repo.get_by_id(db, knowledge_base_id)
+            if knowledge_base_id is not None
+            else await knowledge_base_repo.get_for_collection(db, collection_name, organization_id)
+        )
         if kb is None:
             return None
         resolved, source = await _resolve_reranker(db, kb)

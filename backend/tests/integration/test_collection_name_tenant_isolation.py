@@ -133,6 +133,56 @@ def _kb_row(org: Organization, name: str, **secret_ids: uuid.UUID) -> KnowledgeB
     )
 
 
+async def test_an_authorized_kb_id_pins_resolution_to_that_row_not_a_same_named_one(db) -> None:
+    """The residual of #913: an `app` KB and a restricted `org` KB can share a
+    name, and a name+organization lookup returns the org row (own-org wins) even
+    when access only authorized the app row. Passing the authorized `kb.id`
+    resolves *that* row, so a member who may read the app collection never
+    unseals or spends the restricted org collection's key."""
+    org = await _org(db, "acme")
+    org_secret = await _cohere_secret(db, org, "org-only-key")
+
+    app_kb = KnowledgeBase(
+        id=uuid.uuid4(),
+        name="shared (app)",
+        scope=KBScope.APP.value,
+        collection_name=_SHARED,
+        embedding_model="app-model",
+        embedding_dim=1536,
+        organization_id=None,
+        ingestion_config={},
+    )
+    org_kb = KnowledgeBase(
+        id=uuid.uuid4(),
+        name="shared (org, restricted)",
+        scope=KBScope.ORG.value,
+        collection_name=_SHARED,
+        embedding_model="org-model",
+        embedding_dim=1536,
+        rerank_model="rerank-v3.5",
+        rerank_secret_id=org_secret.id,
+        organization_id=org.id,
+        ingestion_config={},
+    )
+    db.add_all([app_kb, org_kb])
+    await db.flush()
+    await db.commit()
+
+    # By name+org, own-org wins: the restricted org row, and its key.
+    assert (await embeddings_for_collection(_SHARED, organization_id=org.id)).model == "org-model"
+    assert await reranker_for_collection(_SHARED, organization_id=org.id) is not None
+
+    # Pinned to the authorized app row: the app config, and no org key.
+    pinned_emb = await embeddings_for_collection(
+        _SHARED, organization_id=org.id, knowledge_base_id=app_kb.id
+    )
+    assert pinned_emb is not None and pinned_emb.model == "app-model"
+    assert (
+        await reranker_for_collection(_SHARED, organization_id=org.id, knowledge_base_id=app_kb.id)
+        is None
+    )
+
+
 async def test_knowledge_bases_using_finds_embedding_and_rerank_bindings(db) -> None:
     """A key bound as either a KB embedding or rerank credential is reported, so
     the vault does not call it unused and invite a deletion that SET NULL then

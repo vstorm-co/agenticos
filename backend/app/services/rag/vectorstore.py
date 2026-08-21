@@ -57,6 +57,7 @@ class BaseVectorStore(ABC):
         filter_expr: str = "",
         *,
         organization_id: UUID | None,
+        knowledge_base_id: UUID | None = None,
     ) -> list[SearchResult]:
         pass
 
@@ -189,7 +190,7 @@ from app.services.rag.embeddings import EmbeddingService
 # How a store learns which model a collection embeds with. Async because the
 # answer lives in the database, injected so the template's store never imports
 # platform policy.
-EmbeddingResolver = Callable[[str, UUID | None], Awaitable[ResolvedEmbeddings | None]]
+EmbeddingResolver = Callable[[str, UUID | None, UUID | None], Awaitable[ResolvedEmbeddings | None]]
 
 # pgvector's HNSW builds over a `vector` column only up to this width; past it,
 # `CREATE INDEX` fails with "column cannot have more than 2000 dimensions for
@@ -286,7 +287,7 @@ class PgVectorStore(BaseVectorStore):
         return f"{VECTOR_TABLE_PREFIX}{name}"
 
     async def _for_collection(
-        self, name: str, organization_id: UUID | None
+        self, name: str, organization_id: UUID | None, knowledge_base_id: UUID | None = None
     ) -> tuple[EmbeddingService, int]:
         """The embedder and vector width this one collection uses.
 
@@ -303,7 +304,7 @@ class PgVectorStore(BaseVectorStore):
         The recorded width wins over the catalog's: the table was created at
         that number.
         """
-        resolved = await self._resolver(name, organization_id)
+        resolved = await self._resolver(name, organization_id, knowledge_base_id)
         if resolved is None:
             return self.embedder, self.dim
         cache_key = (name, resolved.model, resolved.api_key)
@@ -433,6 +434,7 @@ class PgVectorStore(BaseVectorStore):
         filter_expr: str = "",
         *,
         organization_id: UUID | None,
+        knowledge_base_id: UUID | None = None,
     ) -> list[SearchResult]:
         """Nearest chunks in a collection, reporting an absent one as empty.
 
@@ -442,11 +444,17 @@ class PgVectorStore(BaseVectorStore):
         knowledge base nobody has uploaded to yet turned asyncpg's
         `UndefinedTableError` into a 500, and it is checked before embedding so
         an empty collection costs no embedding call either.
+
+        `knowledge_base_id` pins the query's embedding config to the knowledge
+        base the caller was authorized against rather than one looked up by the
+        non-unique collection name (#913).
         """
         table = self._table(collection_name)
         if not await self._collection_exists(collection_name):
             return []
-        embedder, dim = await self._for_collection(collection_name, organization_id)
+        embedder, dim = await self._for_collection(
+            collection_name, organization_id, knowledge_base_id
+        )
         query_vector = embedder.embed_query(query)
 
         # Parse the shared `parent_doc_id == "<value>"` filter format and apply

@@ -84,9 +84,13 @@ def _announcing_resolver() -> EmbeddingResolver:
     announced: set[str] = set()
 
     async def resolve(
-        collection_name: str, organization_id: UUID | None
+        collection_name: str,
+        organization_id: UUID | None,
+        knowledge_base_id: UUID | None = None,
     ) -> ResolvedEmbeddings | None:
-        resolved = await embeddings_for_collection(collection_name, organization_id)
+        resolved = await embeddings_for_collection(
+            collection_name, organization_id, knowledge_base_id
+        )
         if (
             resolved is not None
             and resolved.key_source.is_degraded
