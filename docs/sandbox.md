@@ -321,6 +321,39 @@ What remains, stated rather than implied:
    `workbench` a network, and worth knowing before copying the local file to a
    shared host.
 
+## What the file browser shows, and what it leaves out
+
+`/workspaces` lists what an agent is keeping **for a person**, which is not the
+same set as what is on the volume. Two prefixes are dropped from every listing a
+person reads - the flat view, a workspace's own files, a conversation's panel, and
+the file counts:
+
+- `skills/` — a skill's body and its resources, written at the start of every run
+  that has both skills and a workspace. They are needed there: a resource is a
+  script the shell runs, and `collect_changes` diffs these files into a proposal
+  somebody accepts. They were removed once because the listing was mostly them,
+  which was the right complaint about the wrong thing (#1064).
+- the spill directory — where a tool's overflowing output was written.
+
+A count has to drop them too, or a workspace reporting four files where one is
+visible is a count nobody can check.
+
+**A file says who put it there.** `uploads/` is where an attachment lands, so a
+path under it is a file a person attached and anything else is the agent's own
+work — offered as a filter and said on the tile. It is the only signal available:
+a host records no author and neither does the state document. Its limit follows
+from that: an agent writing into `uploads/` itself is indistinguishable from a
+person, and nothing stops it.
+
+**Listing a container costs round trips, so two things are bounded.** The archive's
+`ls` reads one directory, so the listing walks - depth-first bounded, and stopping
+at 2,000 entries, because a host holding a `node_modules` must not turn one
+workspace into ten thousand rows. And an image's thumbnail is a `read_bytes` for
+that file: the suffix and the size are checked off the listing entry before
+anything is fetched, and one request draws at most 24. Past that a tile keeps the
+glyph. A *stored* workspace pays neither - its files and their bytes are a column
+of the row the listing already read.
+
 ## How long anything survives
 
 Files live on the host, at `{SANDBOXD_WORKSPACE_ROOT}/{session_id}/workspace` —
