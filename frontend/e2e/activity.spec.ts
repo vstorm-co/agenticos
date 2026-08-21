@@ -43,12 +43,13 @@ test.describe("Activity", () => {
     }
 
     // The spend figure's caption, not its "Spend" label - the tab strip says
-    // "Spend" too, and an exact-text locator would match both (#760 renamed the
-    // figure from "Spend this month" to the page's shared window).
+    // "Spend" too, and an exact-text locator would match both. The caption lives
+    // on the Spend tab since the Activity rewrite folded the landing figures
+    // into the tabs, so it is reached the way a person reaches it.
+    await page.getByRole("tab", { name: "Spend", exact: true }).click();
     await expect(
       page.getByText("Over the window above, so the two figures agree.", { exact: true }),
     ).toBeVisible();
-    await expect(page.getByText("Waiting on a person", { exact: true })).toBeVisible();
   });
 
   test("offers approvals, runs and spend", async ({ page }) => {
