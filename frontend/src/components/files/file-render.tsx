@@ -3,6 +3,7 @@
 import { Download } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { CopyButton } from "@/components/chat/copy-button";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { Button } from "@/components/ui";
 import { codeLanguage, type FileKind } from "@/lib/file-kinds";
@@ -167,11 +168,49 @@ export function FileUnavailable({
  * left margin destroys exactly the thing somebody switched to this view for. Prose
  * in a `.txt` loses nothing by scrolling, and gains not being reflowed.
  */
+/** Past this, the gutter costs more than it is worth: one element per line. */
+const NUMBERED_UP_TO = 5000;
+
+/**
+ * The characters of a file, as characters.
+ *
+ * A bare `<pre>` of 4,000 columns of CSV is a wall: nothing says which line
+ * anything is on, the block ends halfway up a tall dialog, and the only way to
+ * get the text out was to select it by hand. So: a numbered gutter that stays put
+ * while the code scrolls sideways, a copy button over the corner, and `h-full` so
+ * the block is the height of what it is shown in.
+ *
+ * **The gutter is `select-none` and outside the copied text.** A reader dragging
+ * across the block gets the file; numbers in the selection would make a paste
+ * that has to be cleaned up by hand - which is the thing the copy button exists
+ * to avoid.
+ *
+ * Lines are not wrapped, deliberately. A wrapped line and its number stop lining
+ * up, and a CSV row is a record rather than a paragraph: sideways is the direction
+ * it is read in.
+ */
 function PlainText({ text }: { text: string }) {
+  const lines = text.split("\n");
+  const numbered = lines.length <= NUMBERED_UP_TO;
+
   return (
-    <pre className="bg-muted text-foreground/90 overflow-x-auto rounded-md p-3 font-mono text-xs whitespace-pre">
-      {text}
-    </pre>
+    <div className="bg-muted/40 relative h-full min-h-64 overflow-hidden rounded-md border">
+      <CopyButton text={text} className="absolute top-1 right-1 z-10" />
+
+      <div className="h-full overflow-auto">
+        <div className="flex min-w-max font-mono text-xs leading-[1.6]">
+          {numbered && (
+            <pre
+              aria-hidden
+              className="text-muted-foreground/45 bg-muted/40 sticky left-0 shrink-0 border-r px-2 py-3 text-right tabular-nums select-none"
+            >
+              {lines.map((_, index) => index + 1).join("\n")}
+            </pre>
+          )}
+          <pre className="text-foreground/90 px-3 py-3 whitespace-pre">{text}</pre>
+        </div>
+      </div>
+    </div>
   );
 }
 

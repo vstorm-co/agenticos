@@ -244,6 +244,28 @@ describe("how big the dialog is", () => {
   });
 });
 
+describe("the two rows of chrome", () => {
+  it("puts what kind of file it is on the name's line, not among the tabs", () => {
+    // `CSV · 9 of 9` sat beside `Preview` and `Source`, cramped against them and
+    // on a baseline the underlined triggers do not share - so it read as a third
+    // tab that did nothing, and looked right only on the files with no tabs.
+    open({ name: "runs_export.csv", size: 2048 });
+
+    const heading = screen.getByRole("heading");
+    const description = screen.getByText(/CSV/);
+
+    expect(heading.parentElement).toBe(description.parentElement);
+  });
+
+  it("still describes the dialog exactly once", () => {
+    // Radix wires `aria-describedby` to it wherever it sits; two copies is one
+    // sentence a screen reader reads twice.
+    open({ name: "runs_export.csv", size: 2048 });
+
+    expect(screen.getAllByText(/CSV/)).toHaveLength(1);
+  });
+});
+
 describe("paging between the files it was opened from", () => {
   /** Three files, so "the middle one" is a state both arrows can act on. */
   const NAMES = ["invoice.pdf", "notes.txt", "chart.png"];

@@ -201,3 +201,38 @@ describe("a file that cannot be shown", () => {
     expect(screen.getByText("This host can only read text")).toBeInTheDocument();
   });
 });
+
+describe("the Source view", () => {
+  const CSV = ["run_id,cost", "a-1,0.04", "a-2,0.09"].join("\n");
+
+  it("numbers the lines, and keeps the numbers out of the text", () => {
+    // A bare `pre` of 4,000 columns of CSV says nothing about which line anything
+    // is on - and a reader dragging across the block must not pick up the gutter,
+    // or every paste needs cleaning by hand.
+    render(<FileTextView kind="csv" name="runs.csv" text={CSV} asSource />);
+
+    // Testing Library normalises whitespace, so the gutter is found by what it is
+    // rather than by its text.
+    const gutter = document.querySelector("pre[aria-hidden]")!;
+
+    expect(gutter.textContent).toBe("1\n2\n3");
+
+    expect(gutter).toHaveClass("select-none");
+  });
+
+  it("offers the whole file to the clipboard", () => {
+    render(<FileTextView kind="csv" name="runs.csv" text={CSV} asSource />);
+
+    expect(screen.getByRole("button", { name: /copy/i })).toBeInTheDocument();
+  });
+
+  it("draws no gutter for a file with more lines than one is worth", () => {
+    // One element per line, and a numbered gutter on fifty thousand of them costs
+    // more than it tells anybody.
+    const huge = Array.from({ length: 5001 }, (_, n) => `row-${n}`).join("\n");
+
+    render(<FileTextView kind="csv" name="runs.csv" text={huge} asSource />);
+
+    expect(document.querySelector("pre[aria-hidden]")).toBeNull();
+  });
+});

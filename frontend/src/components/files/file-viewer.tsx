@@ -142,25 +142,41 @@ export function FileViewer({ file, access, navigation, extraTabs = [], onClose }
         onKeyDown={onKeyDown}
         className="flex h-[calc(100vh-4rem)] max-h-none w-[calc(100vw-4rem)] max-w-none flex-col gap-3 overflow-hidden p-4 sm:max-w-none sm:p-6"
       >
-        {/* Two rows, not four. The header used to stack a title, a metadata line and
-            the path, with the tabs and the actions on a fourth - four bands of chrome
-            above the file somebody opened the dialog to look at. The path belongs
-            *in* the title, where it says which of two files called `mockup.html` this
-            is, and the metadata sits beside the tabs. */}
-        <DialogHeader className="gap-0 pr-8">
-          <DialogTitle className="flex min-w-0 items-baseline gap-2 text-base">
-            <FileIcon
-              name={file.name}
-              mimeType={file.mimeType}
-              className="text-muted-foreground h-4 w-4 shrink-0 self-center"
-            />
-            <span className="shrink-0 truncate">{file.name}</span>
-            {showsPath(file.path) && (
-              <span className="text-muted-foreground truncate font-mono text-xs font-normal">
-                {file.path}
-              </span>
-            )}
-          </DialogTitle>
+        {/* Two rows, not four. The header used to stack a title, a metadata line
+            and the path, with the tabs and the actions on a fourth - four bands of
+            chrome above the file somebody opened the dialog to look at. The path
+            belongs *in* the title, where it says which of two files called
+            `mockup.html` this is; what kind of file it is belongs at the end of
+            that same line, opposite the name. `pr-10` keeps it clear of the close
+            button in the corner. */}
+        <DialogHeader className="gap-0 pr-10">
+          <div className="flex min-w-0 items-baseline justify-between gap-3">
+            <DialogTitle className="flex min-w-0 items-baseline gap-2 text-base">
+              <FileIcon
+                name={file.name}
+                mimeType={file.mimeType}
+                className="text-muted-foreground h-4 w-4 shrink-0 self-center"
+              />
+              <span className="shrink-0 truncate">{file.name}</span>
+              {showsPath(file.path) && (
+                <span className="text-muted-foreground truncate font-mono text-xs font-normal">
+                  {file.path}
+                </span>
+              )}
+            </DialogTitle>
+
+            {/* Beside the name, not beside the tabs. It sat with them and read as
+                a fourth tab that did nothing - cramped against `Source`, on a
+                baseline the underlined triggers do not share, and fine only on
+                the files that happen to have no tabs at all. Still exactly one
+                `DialogDescription`, because Radix wires `aria-describedby` to it
+                wherever it sits and two would be one sentence read twice. */}
+            <DialogDescription className="shrink-0 truncate text-xs">
+              {describe(file, kind, t, tTime, locale)}
+              {strip !== null &&
+                ` · ${t("fileOfTotal", { index: strip.index + 1, total: strip.names.length })}`}
+            </DialogDescription>
+          </div>
         </DialogHeader>
 
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -176,15 +192,6 @@ export function FileViewer({ file, access, navigation, extraTabs = [], onClose }
                 </TabsList>
               </Tabs>
             )}
-            {/* The dialog's own description, placed here rather than under the
-                title: Radix wires it to `aria-describedby` wherever it sits, and a
-                copy in the header plus a copy beside the tabs is one sentence a
-                screen reader reads twice. */}
-            <DialogDescription className="truncate text-xs">
-              {describe(file, kind, t, tTime, locale)}
-              {strip !== null &&
-                ` · ${t("fileOfTotal", { index: strip.index + 1, total: strip.names.length })}`}
-            </DialogDescription>
           </div>
           {/* Download alone. "Open in new tab" sat beside it doing very nearly the
               same thing - the API answers most types as `application/octet-stream`
