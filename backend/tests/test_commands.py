@@ -447,6 +447,28 @@ class TestSeedSkillsSurvivesARacingListing:
         assert db.begin_nested.call_count == 2
 
 
+class TestRagSearchCommand:
+    """`rag-search` is a tenantless operator path.
+
+    `RetrievalService.retrieve` takes `organization_id` as a required
+    keyword-only argument to scope reranker resolution. The CLI has no acting
+    tenant, so it must pass `organization_id=None` explicitly; omitting it
+    raised `TypeError` before any search ran.
+    """
+
+    def test_search_async_scopes_retrieval_to_no_organization(self):
+        from unittest.mock import AsyncMock
+
+        from app.commands import rag as rag_command
+
+        retrieval = AsyncMock()
+        retrieval.retrieve = AsyncMock(return_value=[])
+
+        asyncio.run(rag_command.search_async("q", "handbook", 4, retrieval))
+
+        assert retrieval.retrieve.await_args.kwargs["organization_id"] is None
+
+
 class TestTheConsoleScript:
     """`agenticos` lives in `cli/`, which the unit suite never imported, so its
     dependencies were only ever exercised by the e2e seed step - 45 seconds into

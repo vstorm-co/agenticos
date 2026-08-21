@@ -348,6 +348,7 @@ async def search_async(
         query=query,
         collection_name=collection,
         limit=top_k,
+        organization_id=None,
     )
 
     if not results:
