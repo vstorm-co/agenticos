@@ -1765,6 +1765,29 @@ class TestTheThreadAModelIsGivenBack:
         assert after.await_args.kwargs["ordinal"] == 4
         conversation_repo.get_recent_messages.assert_not_awaited()
 
+    async def test_a_summary_the_library_no_longer_reads_costs_one_turn_not_the_thread(
+        self, monkeypatch
+    ):
+        """The blob is written by `pydantic-ai` and read back turns later, so an
+        upgrade is exactly where the two disagree. Raising would make the thread
+        unanswerable for ever, on every message anybody sent it - the transcript
+        is still whole, and the cost is one summary bought again."""
+        conversation = MockConversation()
+        conversation.summary_messages = [{"kind": "a shape from another version"}]
+        conversation.summary_ordinal = 4
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(
+            conversation_repo,
+            "get_recent_messages",
+            AsyncMock(return_value=[self._row("user", "hi")]),
+        )
+
+        history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
+
+        assert [part.content for message in history for part in message.parts] == ["hi"]
+
     async def test_the_turn_being_answered_is_not_read_back_as_history(self, monkeypatch):
         """The prompt is written before the run so a refusal cannot lose it, so it
         is a row by the time this reads. Left in, the model is asked twice."""

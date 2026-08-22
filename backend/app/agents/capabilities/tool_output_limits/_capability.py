@@ -33,15 +33,17 @@ run degrades to a cheaper one rather than to a silent drop.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 from pydantic_ai.capabilities import WrapperCapability
 from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.tools import AgentDepsT, RunContext, ToolDefinition
+from pydantic_ai.toolsets import AbstractToolset, AgentToolset
 from pydantic_ai_backends import StateBackend
 from pydantic_ai_harness.tool_output_limits import (
+    READ_TOOL_NAME,
     Action,
     Band,
     Spill,
@@ -51,6 +53,7 @@ from pydantic_ai_harness.tool_output_limits import (
     TruncationStrategy,
 )
 
+from app.agents.capabilities._tool_text import ToolText
 from app.agents.capabilities.budget import record_ambient_usage, usage_counts, usage_delta
 from app.agents.capabilities.tool_output_limits._store import BackendOverflowStore
 
@@ -233,6 +236,34 @@ def build_limits(
     )
 
 
+READ_TOOL_RESULT_TEXT = ToolText(
+    summary="Read part of a tool result that was too large to return whole.",
+    usage=(
+        "The handle comes from a tool return that said it had been spilled. Read "
+        "the part you need rather than the whole payload: narrow with `pattern` "
+        "first, then page with `offset` and `limit`."
+    ),
+    returns=(
+        "The matching lines, under a header saying which slice of how many they "
+        "are, so a further call can pick up where this one stopped. A handle this "
+        "run never spilled says so - that result is gone, not elsewhere, and no "
+        "other handle will find it."
+    ),
+)
+
+
+def _describe_read_tool_result(
+    _ctx: RunContext[object], tool_defs: list[ToolDefinition]
+) -> list[ToolDefinition]:
+    """Give `read_tool_result` this repository's text, and leave anything else."""
+    return [
+        replace(tool_def, description=READ_TOOL_RESULT_TEXT.render())
+        if tool_def.name == READ_TOOL_NAME
+        else tool_def
+        for tool_def in tool_defs
+    ]
+
+
 @dataclass
 class MeteredToolOutputLimits(WrapperCapability[AgentDepsT]):
     """Books what a `summarize` reduction spent against the run that spent it.
@@ -256,6 +287,31 @@ class MeteredToolOutputLimits(WrapperCapability[AgentDepsT]):
     later. What this cannot do is *stop* the spend - `BudgetGuard` refuses on the
     request after it, the same as for compaction.
     """
+
+    def get_toolset(self) -> AgentToolset[AgentDepsT] | None:
+        """The wrapped toolset, with `read_tool_result` described properly.
+
+        The library's own text is one sentence and says nothing about what comes
+        back - and this is the tool a model reaches for holding a handle to a
+        result it could not be given whole, which is the worst moment to leave it
+        guessing whether an empty answer means "no matches" or "gone". Rewritten
+        here rather than upstream because `pydantic-ai-harness` is Pydantic's
+        package, not this organization's: a change to its default is a pull
+        request to them, and this is a deployment's own wording either way.
+        """
+        toolset = super().get_toolset()
+        if toolset is None:  # pragma: no cover - the library always builds one
+            return None
+        if not isinstance(toolset, AbstractToolset):
+            # The same refusal `ToolOverrides` makes, for the same reason: a
+            # toolset resolved per run has no tool list to rewrite here, and
+            # returning it untouched would leave the model reading the library's
+            # sentence while the Builder shows this one, with nothing saying so.
+            raise TypeError(
+                "Tool output limits resolved its toolset per run, "
+                "so `read_tool_result` cannot be described here"
+            )
+        return toolset.prepared(_describe_read_tool_result)
 
     async def after_tool_execute(
         self,

@@ -1212,6 +1212,24 @@ four things, and the fourth is the one usually left out:
    `output_mode`, or that `glob` stops at 100 paths, reasons from a slice as
    though it were everything.
 
+All four reach the model in one shape, and it is pydantic-ai's own: the prose
+inside `<summary>`, the return description inside `<returns>`. A tool written
+here gets that for free — the framework builds it from the docstring's
+`Returns:` section. A tool that comes from a library is registered with an
+explicit description, which takes that path away, so its text goes through
+`ToolText` in `app/agents/capabilities/_tool_text.py`, which renders what the
+framework would have. Two conventions in one tool list is one more thing for the
+model to reconcile, and `tests/test_tool_text_shape.py` is what keeps there
+being one — it pins `ToolText` against a tool pydantic-ai builds itself, and
+checks that every capability's tools carry a return shape.
+
+That covers the tools this deployment did not write, either: `planning` and the
+delegation tools are handed this repository's text, `web_fetch` and
+`search_tools` are re-described where they are built, and `read_tool_result` is
+re-described by the wrapper that meters it — the library's own sentence said
+nothing about what a handle answers with, which is the one thing a model holding
+a handle needs.
+
 ### A mistake, a result, and a refusal
 
 How a tool reports trouble decides what the model does next, and the three are
