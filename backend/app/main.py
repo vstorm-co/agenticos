@@ -123,8 +123,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     except Exception as e:
         logger.error("Embedding service warmup failed: %s. RAG will not be available.", e)
     if embedder is not None:
-        # On the application's own engine: the store used to build a private
-        # pool here, one of three the API process ran beside `db_engine` (#12).
         state["vector_store"] = PgVectorStore(
             settings=settings.rag,
             embedding_service=embedder,
