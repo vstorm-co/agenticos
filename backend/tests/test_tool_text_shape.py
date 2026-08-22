@@ -149,7 +149,7 @@ class TestEveryToolSaysWhatItReturns:
             "<returns>" in (tool.tool_def.description or "") for tool in toolset.tools.values()
         )
 
-    async def test_a_toolset_resolved_per_run_is_refused_rather_than_left_alone(self) -> None:
+    async def test_a_toolset_it_cannot_rewrite_is_refused_rather_than_left_alone(self) -> None:
         """Left alone, the model reads one text and the Builder shows another."""
         from dataclasses import dataclass
         from typing import Any
@@ -167,7 +167,7 @@ class TestEveryToolSaysWhatItReturns:
 
         wrapped = MeteredToolOutputLimits(wrapped=_PerRun(id="per_run"))
 
-        with pytest.raises(TypeError, match="per run"):
+        with pytest.raises(TypeError, match="read_tool_result"):
             wrapped.get_toolset()
 
     async def test_tool_search_carries_one(self) -> None:
@@ -178,3 +178,32 @@ class TestEveryToolSaysWhatItReturns:
 
         assert capability.tool_description == SEARCH_TEXT.render()
         assert "<returns>" in SEARCH_TEXT.render()
+
+
+class TestTheBuilderReadsWhatTheModelReads:
+    """A contract is the whole text; the catalog entry is its first sentence."""
+
+    def test_every_capability_that_builds_reports_its_tools(self) -> None:
+        """An unreadable toolset shows the catalog one-liner and logs, silently."""
+        from app.services.capability_contracts import tool_contracts
+
+        contracts = tool_contracts()
+
+        for capability_id in ("context", "tool_output_limits", "planning", "sandbox", "charts"):
+            assert contracts.get(capability_id), capability_id
+
+    def test_the_contract_opens_with_the_sentence_the_catalog_shows(self) -> None:
+        """Two copies drift; the Builder must not paraphrase what the model reads."""
+        from app.agents.capabilities._registry import all_capabilities
+        from app.services.capability_contracts import tool_contracts
+
+        contracts = tool_contracts()
+
+        for definition in all_capabilities():
+            for tool in definition.tools:
+                contract = contracts.get(definition.id, {}).get(tool.id)
+                if contract is None:
+                    continue
+                assert contract.description.startswith(
+                    f"<summary>{tool.description}"
+                ) or contract.description.startswith(tool.description), f"{definition.id}.{tool.id}"

@@ -33,14 +33,14 @@ run degrades to a cheaper one rather than to a silent drop.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 from pydantic_ai.capabilities import WrapperCapability
 from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.tools import AgentDepsT, RunContext, ToolDefinition
-from pydantic_ai.toolsets import AbstractToolset, AgentToolset
+from pydantic_ai.toolsets import AgentToolset, FunctionToolset
 from pydantic_ai_backends import StateBackend
 from pydantic_ai_harness.tool_output_limits import (
     READ_TOOL_NAME,
@@ -252,18 +252,6 @@ READ_TOOL_RESULT_TEXT = ToolText(
 )
 
 
-def _describe_read_tool_result(
-    _ctx: RunContext[object], tool_defs: list[ToolDefinition]
-) -> list[ToolDefinition]:
-    """Give `read_tool_result` this repository's text, and leave anything else."""
-    return [
-        replace(tool_def, description=READ_TOOL_RESULT_TEXT.render())
-        if tool_def.name == READ_TOOL_NAME
-        else tool_def
-        for tool_def in tool_defs
-    ]
-
-
 @dataclass
 class MeteredToolOutputLimits(WrapperCapability[AgentDepsT]):
     """Books what a `summarize` reduction spent against the run that spent it.
@@ -289,29 +277,43 @@ class MeteredToolOutputLimits(WrapperCapability[AgentDepsT]):
     """
 
     def get_toolset(self) -> AgentToolset[AgentDepsT] | None:
-        """The wrapped toolset, with `read_tool_result` described properly.
+        """The library's toolset, with `read_tool_result` described properly.
 
         The library's own text is one sentence and says nothing about what comes
         back - and this is the tool a model reaches for holding a handle to a
         result it could not be given whole, which is the worst moment to leave it
         guessing whether an empty answer means "no matches" or "gone". Rewritten
         here rather than upstream because `pydantic-ai-harness` is Pydantic's
-        package, not this organization's: a change to its default is a pull
-        request to them, and this is a deployment's own wording either way.
+        package, not this organization's: its default is a pull request to them,
+        and the text a deployment shows is its own either way.
+
+        Re-registered rather than wrapped in `prepared`: a prepared toolset
+        resolves its tools per request, so it has no tool list for
+        `app/services/capability_contracts.py` to read, and the Builder would
+        show the catalog's one-liner for the one tool somebody had just taken the
+        trouble to describe.
         """
         toolset = super().get_toolset()
         if toolset is None:  # pragma: no cover - the library always builds one
             return None
-        if not isinstance(toolset, AbstractToolset):
+        if not isinstance(toolset, FunctionToolset):
             # The same refusal `ToolOverrides` makes, for the same reason: a
-            # toolset resolved per run has no tool list to rewrite here, and
-            # returning it untouched would leave the model reading the library's
-            # sentence while the Builder shows this one, with nothing saying so.
+            # toolset this cannot rewrite would leave the model reading the
+            # library's sentence while the Builder shows this one.
             raise TypeError(
-                "Tool output limits resolved its toolset per run, "
+                "Tool output limits no longer offers a function toolset, "
                 "so `read_tool_result` cannot be described here"
             )
-        return toolset.prepared(_describe_read_tool_result)
+        described: FunctionToolset[AgentDepsT] = FunctionToolset()
+        for name, tool in toolset.tools.items():
+            described.add_function(
+                tool.function,
+                name=name,
+                description=(
+                    READ_TOOL_RESULT_TEXT.render() if name == READ_TOOL_NAME else tool.description
+                ),
+            )
+        return described
 
     async def after_tool_execute(
         self,
