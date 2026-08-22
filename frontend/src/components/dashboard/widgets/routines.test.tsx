@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -165,6 +166,31 @@ describe("the routines widget", () => {
     expect(screen.getByText(/\$0\.0042/)).toBeVisible();
   });
 
+  it("says when a live schedule fires next", () => {
+    // Matched on the caption word, not the formatted instant: the time renders in
+    // the machine's own timezone, which differs between a laptop and CI.
+    renderWidget([trigger({ next_fire_at: "2099-01-05T12:00:00Z" })]);
+
+    expect(screen.getByText(/next /)).toBeVisible();
+  });
+
+  it("does not call an overdue fire 'next' - a missed time is not a future", () => {
+    // The heartbeat claims a due schedule at tick time, so a next_fire_at in the
+    // past is a fire that has not happened yet; "next <past instant>" would
+    // assert a future that already failed, loudest exactly when the worker is
+    // down. The fixture's default next_fire_at is such an instant.
+    renderWidget([trigger()]);
+
+    expect(screen.queryByText(/next /)).toBeNull();
+  });
+
+  it("gives a paused routine no next fire, whatever its row still holds", () => {
+    renderWidget([trigger({ is_active: false, next_fire_at: "2099-01-05T12:00:00Z" })]);
+
+    expect(screen.queryByText(/next /)).toBeNull();
+    expect(screen.getByText("paused")).toBeVisible();
+  });
+
   it("reads an event trigger's own phrase rather than a cadence it has none of", () => {
     renderWidget([
       trigger({
@@ -255,7 +281,7 @@ describe("the routines widget", () => {
     expect(screen.queryByText("Nothing runs on its own yet")).toBeNull();
   });
 
-  it("says the list could not be read, rather than that there is nothing", () => {
+  it("says the list could not be read, rather than that there is nothing", async () => {
     // This page fans out to a query per card: an empty list and a 502 are the
     // same pixels unless the failure is its own state.
     const refetch = vi.fn();
@@ -275,5 +301,8 @@ describe("the routines widget", () => {
     );
 
     expect(screen.queryByText("Nothing runs on its own yet")).toBeNull();
+    // The failure state must offer the retry, and the retry must reach the query.
+    await userEvent.click(screen.getByRole("button", { name: /retry/i }));
+    expect(refetch).toHaveBeenCalledOnce();
   });
 });

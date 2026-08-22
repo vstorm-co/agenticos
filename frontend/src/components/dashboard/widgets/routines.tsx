@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { StatusList, type StatusRow, type StatusTone } from "../primitives/status-list";
 import { WidgetFrame } from "../widget-frame";
@@ -47,6 +47,7 @@ export function RoutinesWidget({ title, hint, seeAll, options }: DashboardWidget
   // row and the chat's own summary read it from - one wording for "every 15
   // minutes" across the product rather than a second copy under this card.
   const tt = useTranslations("triggers");
+  const locale = useLocale();
   const { can } = usePermissions();
   const mayReadRuns = can(Perm.runsView);
   const { triggers, isLoading, isError, refetch } = useOrgTriggers();
@@ -68,7 +69,7 @@ export function RoutinesWidget({ title, hint, seeAll, options }: DashboardWidget
   const rows = [...triggers]
     .sort((left, right) => rank(left) - rank(right) || due(left) - due(right))
     .slice(0, SHOWN)
-    .map((trigger) => row(trigger, lastRun.get(trigger.last_run_id ?? ""), t, tt));
+    .map((trigger) => row(trigger, lastRun.get(trigger.last_run_id ?? ""), t, tt, locale));
 
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
@@ -98,19 +99,52 @@ function due(trigger: Trigger): number {
  *
  * The pill is the *outcome*, because that is the question a glance asks: a
  * routine that has been failing every hour for a day looks exactly like a
- * healthy one if the card only says when it next fires. What it cost goes in the
- * subtitle beside the cadence, where it is legible without competing.
+ * healthy one if the card only says when it next fires. When it next fires and
+ * what the last run cost go in the subtitle beside the cadence, where they are
+ * legible without competing.
  */
-function row(trigger: Trigger, run: AgentRun | undefined, t: Translate, tt: Translate): StatusRow {
+function row(
+  trigger: Trigger,
+  run: AgentRun | undefined,
+  t: Translate,
+  tt: Translate,
+  locale: string,
+): StatusRow {
   const [pill, tone] = outcome(trigger, run, t);
   return {
     label: trigger.name ?? trigger.agent_name ?? t("unnamed"),
-    sub: [cadenceText(trigger, tt), run ? t("cost", { cost: run.cost_usd }) : null]
+    sub: [
+      cadenceText(trigger, tt),
+      nextFireText(trigger, t, locale),
+      run ? t("cost", { cost: run.cost_usd }) : null,
+    ]
       .filter((part) => part !== null)
       .join(" · "),
     pill,
     tone,
   };
+}
+
+/**
+ * "next Aug 22, 09:00" for a live schedule whose next fire is still ahead.
+ *
+ * A `next_fire_at` in the past is a fire the heartbeat has yet to claim, so
+ * "next" about it would assert a future that already failed to happen - loudest
+ * exactly when the worker is down - and the caption drops instead, leaving the
+ * cadence. Compact, no year: a live schedule's next fire is near by
+ * construction, and the row has two other facts to hold.
+ */
+function nextFireText(trigger: Trigger, t: Translate, locale: string): string | null {
+  if (!trigger.is_active || trigger.next_fire_at === null) return null;
+  const at = new Date(trigger.next_fire_at);
+  if (at.getTime() < Date.now()) return null;
+  const shown = at.toLocaleString(locale, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return t("nextFire", { at: shown });
 }
 
 function outcome(trigger: Trigger, run: AgentRun | undefined, t: Translate): [string, StatusTone] {

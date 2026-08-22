@@ -1626,6 +1626,7 @@
         "description": "What runs with nobody at the keyboard, soonest first, and how the last one went.",
         "unnamed": "Untitled routine",
         "cost": "${cost}",
+        "nextFire": "next {at}",
         "paused": "paused",
         "neverRun": "not run yet",
         "fired": "fired",
