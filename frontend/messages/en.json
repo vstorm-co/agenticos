@@ -892,6 +892,17 @@
       "hint": "↑↓ to navigate · ↵ to run · esc to dismiss",
       "noMatching": "No matching commands. Press <key>Esc</key> to dismiss."
     },
+    "plan": {
+      "heading": "Plan",
+      "allDone": "Every step is done",
+      "count": "{completed}/{total}",
+      "progress": "{completed} of {total, plural, =1 {1 step} other {# steps}} completed",
+      "statusPending": "Not started",
+      "statusInProgress": "In progress",
+      "statusCompleted": "Done",
+      "statusCancelled": "Cancelled",
+      "statusBlocked": "Blocked"
+    },
     "queuedSendsAfterCurrent": "Queued · sends after current reply",
     "rating": {
       "unknownError": "Unknown error"
@@ -1026,6 +1037,8 @@
       "messageDelegate": "Message Delegate",
       "moreEntries": "and {count, plural, =1 {1 more} other {# more}} — open the raw view for all of them",
       "noArguments": "No arguments",
+      "noContext": "No context files are attached to this agent.",
+      "noSkills": "No skills are attached to this agent.",
       "noRelevantDocuments": "No relevant documents found",
       "noWebResults": "No web results found",
       "output": "Output",
@@ -2763,6 +2776,10 @@
       "chat-composer": {
         "title": "Ask anything",
         "body": "Type a message, drop in a file, or start with a slash-command. Enter sends; Shift+Enter adds a line."
+      },
+      "chat-plan": {
+        "title": "What it is working to",
+        "body": "An agent that plans keeps a checklist here, above the composer - the step in flight, and how much is left. Open it for the whole plan; it stays current as the run works through it."
       },
       "chat-model-picker": {
         "title": "Tune the model",
