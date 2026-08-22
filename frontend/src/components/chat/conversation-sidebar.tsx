@@ -3,17 +3,28 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useConversations } from "@/hooks";
+import { useCanCreateTrigger, useConversations } from "@/hooks";
 import { Button, Skeleton } from "@/components/ui";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui";
 import { useDebounced } from "@/components/ui/list-controls";
 import { ConversationAgents } from "@/components/agents/conversation-agents";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { SidebarTriggers } from "@/components/chat/sidebar-triggers";
+import { NewEventTriggerDialog } from "@/components/triggers/new-event-trigger-dialog";
+import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { cn, setUrlParam } from "@/lib/utils";
 import { useChatSidebarStore } from "@/stores";
 import {
   Archive,
   ArchiveRestore,
+  CalendarClock,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   MessageSquare,
@@ -24,6 +35,7 @@ import {
   Share2,
   SquarePen,
   Trash2,
+  Zap,
 } from "lucide-react";
 import type { Conversation } from "@/types";
 import {
@@ -250,7 +262,17 @@ function ConversationList({
 }: ConversationListProps) {
   const t = useTranslations("chat");
   const ts = useTranslations("chat.sidebar");
+  const tt = useTranslations("triggers");
+  // The floor for creating a trigger is a per-agent signal, not the role-level
+  // `agents:run`: a caller who may run any one agent - by role or by a grant on
+  // that agent - may create a trigger on it, so this menu shows for them. The
+  // section itself still shows to a viewer (viewing a schedule is `agents:view`),
+  // and each row decides its own controls from its `can_manage`, so a create menu
+  // hidden here never hides a row the caller may in fact manage.
+  const canManageTriggers = useCanCreateTrigger();
   const [shareConversationId, setShareConversationId] = useState<string | null>(null);
+  const [creatingSchedule, setCreatingSchedule] = useState(false);
+  const [creatingEvent, setCreatingEvent] = useState(false);
 
   const handleSelect = (id: string) => {
     onSelect(id);
@@ -266,17 +288,45 @@ function ConversationList({
 
   return (
     <>
-      <div className="px-3 pt-3 pb-2">
+      {/* A split button: the wide half is New Chat exactly as before, and the
+          chevron opens the two unattended kinds - a schedule, an event trigger -
+          which are "new conversations nobody types into" and so belong here. */}
+      <div className="flex items-center gap-1 px-3 pt-3 pb-2">
         <button
           type="button"
           data-tour="chat-start"
           onClick={handleNewChat}
-          className="text-muted-foreground hover:text-foreground hover:bg-secondary flex h-9 w-full items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors"
+          className="text-muted-foreground hover:text-foreground hover:bg-secondary flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors"
         >
           <SquarePen className="h-4 w-4 shrink-0" />
           {t("newChat")}
         </button>
+        {canManageTriggers && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={tt("newMenu")}
+                className="text-muted-foreground hover:text-foreground hover:bg-secondary flex h-9 w-8 shrink-0 items-center justify-center rounded-lg transition-colors"
+              >
+                <ChevronDown className="h-4 w-4" aria-hidden />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setCreatingSchedule(true)}>
+                <CalendarClock className="mr-2 h-4 w-4" />
+                {tt("newSchedule")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setCreatingEvent(true)}>
+                <Zap className="mr-2 h-4 w-4" />
+                {tt("newEvent")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
+
+      <SidebarTriggers />
 
       {filters}
 
@@ -382,6 +432,19 @@ function ConversationList({
             if (!open) setShareConversationId(null);
           }}
         />
+      )}
+      {creatingSchedule && (
+        <TriggerFormDialog
+          // No agent in context here - the dialog offers its picker, seeded
+          // with the user's default agent.
+          agentId={null}
+          open
+          initialType="schedule"
+          onOpenChange={(next) => !next && setCreatingSchedule(false)}
+        />
+      )}
+      {creatingEvent && (
+        <NewEventTriggerDialog open onOpenChange={(next) => !next && setCreatingEvent(false)} />
       )}
     </>
   );

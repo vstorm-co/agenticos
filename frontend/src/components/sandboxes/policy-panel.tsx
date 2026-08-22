@@ -14,6 +14,7 @@ import {
 import { useSandboxPolicy } from "@/hooks";
 import type { SandboxConnectionRecord, SandboxRuntime } from "@/lib/sandbox-connections-api";
 import { useTranslations } from "next-intl";
+import { DIALOG_FORM } from "@/lib/dialog-sizes";
 
 interface PolicyPanelProps {
   /** The connection to ask, or `null` while the panel is closed. */
@@ -74,7 +75,7 @@ export function PolicyPanel({ connection, onOpenChange }: PolicyPanelProps) {
 
   return (
     <Dialog open={connection !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className={DIALOG_FORM}>
         <DialogHeader>
           <DialogTitle>{t("whatConnectionAllows", { name: connection?.name ?? "" })}</DialogTitle>
           <DialogDescription>{t("readFromServiceItself")}</DialogDescription>

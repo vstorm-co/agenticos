@@ -24,6 +24,8 @@ import { getErrorMessage } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
 import type { Secret } from "@/types/secrets";
 import { useTranslations } from "next-intl";
+import { cn } from "@/lib/utils";
+import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 
 /**
  * One sentence, in one place, so the skeleton and the page cannot disagree -
@@ -145,7 +147,7 @@ export default function VaultPage() {
           secret has nothing else to show - the value is unreadable by design -
           so a page for one would be a page containing only this panel. */}
       <Dialog open={sharing !== null} onOpenChange={(open) => !open && setSharing(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent className={cn(DIALOG_SCROLL, DIALOG_FORM)}>
           <DialogHeader>
             <DialogTitle>{t("accessTo", { name: sharing?.name ?? "" })}</DialogTitle>
             <DialogDescription>{t("whoCanBindKey")}</DialogDescription>

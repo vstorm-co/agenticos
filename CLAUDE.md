@@ -57,6 +57,15 @@ changes" is. Concretely, in this repo:
 - **Scoped diffs.** Fix what was asked. Propose follow-ups instead of taking them.
 - **Tests are part of the change.** New behaviour ships with a test; a bug ships with a
   regression test that fails without the fix.
+- **A user-facing feature ships its seams, not just its surface.** If it produces
+  activity or state somebody would want at a glance, it ships a **dashboard widget**
+  (registry entry, component, backend id parity). If it adds something somebody
+  creates or configures, it ships an **onboarding touch** — a tour stop, and a coach
+  flow when it is a create flow. This is not polish: four W3 features landed on
+  branches that could not see each other and #594 is the bill, three of the four
+  reading as bolted-on because the branch that owned each seam shipped before its
+  neighbour. The mechanics are in `.claude/rules/frontend.md` and
+  "A new surface owes the walkthrough a stop" below.
 
 ## Hard boundaries
 

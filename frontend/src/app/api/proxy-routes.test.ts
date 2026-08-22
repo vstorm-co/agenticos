@@ -26,6 +26,7 @@ import * as rag from "./rag/[[...path]]/route";
 import * as ratings from "./ratings/[[...path]]/route";
 import * as roles from "./roles/[[...path]]/route";
 import * as runs from "./runs/[[...path]]/route";
+import * as triggerTemplates from "./trigger-templates/[[...path]]/route";
 import * as sandboxConnections from "./sandbox-connections/[[...path]]/route";
 import * as sandboxWorkspaces from "./sandbox-workspaces/[[...path]]/route";
 import * as secrets from "./secrets/[[...path]]/route";
@@ -33,6 +34,8 @@ import * as skillChanges from "./skill-changes/[[...path]]/route";
 import * as skills from "./skills/[[...path]]/route";
 import * as spend from "./spend/[[...path]]/route";
 import * as stats from "./stats/[[...path]]/route";
+import * as triggerPortals from "./trigger-portals/[[...path]]/route";
+import * as triggers from "./triggers/[[...path]]/route";
 import * as users from "./users/[userId]/route";
 
 /**
@@ -63,11 +66,14 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["runs", runs],
   ["sandbox-connections", sandboxConnections],
   ["sandbox-workspaces", sandboxWorkspaces],
+  ["trigger-templates", triggerTemplates],
   ["secrets", secrets],
   ["skill-changes", skillChanges],
   ["skills", skills],
   ["spend", spend],
   ["stats", stats],
+  ["trigger-portals", triggerPortals],
+  ["triggers", triggers],
   ["users/[userId]", users],
   ["me/permissions", permissions],
   ["me/dashboard-layout", dashboardLayout],

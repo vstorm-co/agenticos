@@ -15,6 +15,7 @@ import {
   CardHeader,
   CardTitle,
   DataTable,
+  FigureCard,
   ListCardControlsRow,
   type Column,
 } from "@/components/ui";
@@ -118,7 +119,10 @@ export function SpendTab({ period }: { period: Period }) {
     );
   }
   if (isLoading) return <LoadingState variant="stats" rows={2} />;
-  if (error)
+  // One guard for both absences: a failed request, and the body react-query
+  // itself refuses (`undefined` data is an error there, so past this line the
+  // answer exists - which is also what narrows the type for everything below).
+  if (error || spend === undefined)
     return (
       <ErrorState
         title={t("spendCouldNotBeRead")}
@@ -231,14 +235,50 @@ export function SpendTab({ period }: { period: Period }) {
     },
   ];
 
+  const windowTotal = spend.by_agent.reduce((sum, row) => sum + Number(row.cost_usd), 0);
+  const runCount = spend.by_agent.reduce((sum, row) => sum + row.run_count, 0);
+  const dearest = [...spend.by_agent].sort(
+    (left, right) => Number(right.cost_usd) - Number(left.cost_usd),
+  )[0];
+
   return (
     <div className="space-y-4">
+      {/* The figures the tab was making a reader compute from its own table: what
+          the window cost, what the month has cost so far, what one run costs on
+          average, and which agent is spending the most. The last two are the ones
+          worth a card - an average is the number a budget is set from, and the
+          dearest agent is where a bill is questioned first. */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <FigureCard
+          label={t("spendWindow")}
+          caption={t("overTheWindowAbove")}
+          value={`$${windowTotal.toFixed(2)}`}
+        />
+        <FigureCard
+          label={t("monthToDate")}
+          caption={t("calendarAligned")}
+          value={`$${Number(spend.month_to_date_usd).toFixed(2)}`}
+        />
+        <FigureCard
+          label={t("perRun")}
+          caption={t("overRunsInWindow", { count: runCount })}
+          value={runCount === 0 ? "\u2014" : `$${(windowTotal / runCount).toFixed(4)}`}
+        />
+        <FigureCard
+          label={t("dearestAgent")}
+          caption={
+            dearest === undefined ? t("noAgentHasSpent") : `$${Number(dearest.cost_usd).toFixed(2)}`
+          }
+          value={dearest?.agent_name ?? "\u2014"}
+        />
+      </div>
+
       {/* The one caveat that governs every figure below: how many of the
           window's run trees could not be fully priced. Saying it once at
           the top is what stops a reader treating the totals as exact. It marks
           the provider and key facets without measuring them, and measures the
           agent facet - see `CostSummary.partial_run_count` for which is which. */}
-      {spend != null && spend.partial_run_count > 0 && (
+      {spend.partial_run_count > 0 && (
         <p className="text-muted-foreground text-sm" role="note">
           {t("someRunsCouldNotBePriced", { count: spend.partial_run_count })}
         </p>
@@ -284,7 +324,7 @@ export function SpendTab({ period }: { period: Period }) {
           {facet === "agent" && (
             <DataTable<CostByAgent>
               columns={agentColumns}
-              rows={spend?.by_agent ?? []}
+              rows={spend.by_agent}
               getRowKey={(row) => row.agent_id}
               empty={t("nothingSpentYet")}
               className="rounded-none border-0 bg-transparent"
@@ -293,7 +333,7 @@ export function SpendTab({ period }: { period: Period }) {
           {facet === "provider" && (
             <DataTable<CostByProvider>
               columns={providerColumns}
-              rows={spend?.by_provider ?? []}
+              rows={spend.by_provider}
               getRowKey={(row) => row.provider ?? "unrecorded"}
               empty={t("nothingSpentYet")}
               className="rounded-none border-0 bg-transparent"
@@ -302,7 +342,7 @@ export function SpendTab({ period }: { period: Period }) {
           {facet === "key" && (
             <DataTable<CostByKey>
               columns={keyColumns}
-              rows={spend?.by_key ?? []}
+              rows={spend.by_key}
               getRowKey={(row) => row.secret_id ?? "deleted"}
               empty={t("nothingSpentYet")}
               className="rounded-none border-0 bg-transparent"

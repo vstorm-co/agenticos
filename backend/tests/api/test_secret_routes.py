@@ -115,7 +115,14 @@ class TestListing:
 
         assert response.status_code == 200
         kinds = {entry["kind"] for entry in response.json()["items"]}
-        assert kinds == {"api_key", "azure_openai", "aws_credentials", "gcp_service_account"}
+        assert kinds == {
+            "api_key",
+            "azure_openai",
+            "aws_credentials",
+            "gcp_service_account",
+            "github_oauth_app",
+            "google_oauth_app",
+        }
         assert all(entry["json_schema"]["properties"] for entry in response.json()["items"])
 
 

@@ -24,6 +24,10 @@ export const qk = {
     all: () => ["agents"] as const,
     /** `includeArchived` is part of the key: the two lists are different rows. */
     list: (includeArchived = false) => ["agents", "list", includeArchived] as const,
+    // One boolean assembled from as many pages as it takes - "may this caller
+    // create a trigger anywhere". Its own key, not a list page's, and under
+    // "agents" so the same invalidations that move the list refresh the answer.
+    anyRunnable: () => ["agents", "any-runnable"] as const,
     detail: (id: string) => ["agents", id] as const,
     // The page is part of the key: a history past its page size is several
     // answers, and caching one as another shows the wrong decade of the timeline.
@@ -51,6 +55,36 @@ export const qk = {
     all: () => ["exposures"] as const,
     list: (agentId: string) => ["exposures", agentId] as const,
     targets: (agentId: string) => ["exposures", agentId, "targets"] as const,
+  },
+  triggers: {
+    all: () => ["triggers"] as const,
+    // One agent's schedules and event triggers, for the Builder's panel.
+    list: (agentId: string) => ["triggers", agentId] as const,
+    // Every trigger across the organization, for the sidebar and the Activity
+    // tab. A separate key from `list`: it is a different question and a different
+    // endpoint, and a mutation on one agent's trigger invalidates both under the
+    // shared `all()` prefix.
+    orgList: () => ["triggers", "org"] as const,
+  },
+  triggerTemplates: {
+    all: () => ["trigger-templates"] as const,
+    // The seeded template catalog, both modes. Curated and compiled into the
+    // deployment, so it changes on redeploy and never on a mutation - cached
+    // like the portal one.
+    catalog: () => ["trigger-templates", "catalog"] as const,
+  },
+  portals: {
+    all: () => ["portals"] as const,
+    // The trigger-portals catalog. Curated and compiled into the deployment, so
+    // it changes on redeploy and never on a mutation - cached like the MCP one.
+    catalog: () => ["portals", "catalog"] as const,
+    // The repositories one connected account can point a preset at. Keyed per
+    // (portal, connection) because that is what is fetched - two accounts see two
+    // different lists, and a shared key would serve one for the other.
+    // The agent is part of the key: the server answers per the caller's access
+    // on that agent, so one agent's answer must not serve another's picker.
+    targets: (portalKey: string, connectionId: string, agentId: string) =>
+      ["portals", "targets", portalKey, connectionId, agentId] as const,
   },
   embeds: {
     all: () => ["embeds"] as const,
@@ -103,6 +137,7 @@ export const qk = {
         surface?: string;
         modelLabel?: string;
         userId?: string;
+        conversationId?: string;
         agentVersionId?: string;
         skip?: number;
       } = {},
@@ -358,6 +393,11 @@ export const qk = {
     // request than one without, so the two must not share a cache entry.
     sessions: (id: string, usage = false) =>
       ["sandbox-connections", "sessions", id, usage] as const,
+    // The durable record, keyed on the whole query: the filters narrow a request
+    // rather than an array, so two filters are two cache entries - which is what
+    // makes paging back and forth free.
+    operations: (query: Record<string, unknown>) =>
+      ["sandbox-connections", "operations", query] as const,
     events: (id: string, sessionId: string) =>
       ["sandbox-connections", "events", id, sessionId] as const,
   },

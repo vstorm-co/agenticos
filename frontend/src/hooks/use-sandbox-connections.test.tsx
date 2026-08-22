@@ -7,6 +7,7 @@ import {
   useLocalSandboxService,
   useSandboxConnections,
   useSandboxEvents,
+  useSandboxOperations,
   useSandboxPolicy,
   useSandboxSessions,
 } from "./use-sandbox-connections";
@@ -21,6 +22,7 @@ vi.mock("@/lib/sandbox-connections-api", () => ({
   readSandboxPolicy: vi.fn(),
   listSandboxSessions: vi.fn(),
   readSandboxEvents: vi.fn(),
+  readSandboxOperations: vi.fn(),
   readLocalSandboxService: vi.fn(),
   storeLocalSandboxCredential: vi.fn(),
   probeSandboxService: vi.fn(),
@@ -368,5 +370,57 @@ describe("the runtime catalog", () => {
     const { result } = renderHook(() => useLocalSandboxService(true), { wrapper });
 
     await waitFor(() => expect(result.current.runtimes).toEqual([]));
+  });
+});
+
+describe("useSandboxOperations", () => {
+  it("passes the whole query through, so a filter narrows the request", async () => {
+    vi.mocked(api.readSandboxOperations).mockResolvedValue({
+      items: [],
+      total: 137,
+      operations: ["execute", "write"],
+    });
+    const query = { sessionKey: "xc-1", op: "execute", failedOnly: true, skip: 50, limit: 50 };
+
+    const { result } = renderHook(() => useSandboxOperations(query), { wrapper });
+
+    await waitFor(() => expect(result.current.log?.total).toBe(137));
+    expect(api.readSandboxOperations).toHaveBeenCalledWith(query);
+  });
+
+  it("keeps the page it has while the next one loads", async () => {
+    // Otherwise paging blinks through an empty table, which reads as "nothing
+    // matches" for as long as the round trip takes.
+    vi.mocked(api.readSandboxOperations).mockResolvedValue({
+      items: [],
+      total: 1,
+      operations: [],
+    });
+    const { result, rerender } = renderHook(
+      ({ skip }: { skip: number }) => useSandboxOperations({ sessionKey: "xc-1", skip }),
+      { wrapper, initialProps: { skip: 0 } },
+    );
+    await waitFor(() => expect(result.current.log).not.toBeNull());
+
+    vi.mocked(api.readSandboxOperations).mockImplementation(() => new Promise(() => {}));
+    rerender({ skip: 50 });
+
+    expect(result.current.log?.total).toBe(1);
+  });
+
+  it("reports a log that could not be read", async () => {
+    vi.mocked(api.readSandboxOperations).mockRejectedValue(new Error("403 Forbidden"));
+
+    const { result } = renderHook(() => useSandboxOperations({ sessionKey: "xc-1" }), { wrapper });
+
+    await waitFor(() => expect(result.current.error).toBe("403 Forbidden"));
+  });
+
+  it("falls back to a sentence when the failure is not an Error", async () => {
+    vi.mocked(api.readSandboxOperations).mockRejectedValue("nope");
+
+    const { result } = renderHook(() => useSandboxOperations({ sessionKey: "xc-1" }), { wrapper });
+
+    await waitFor(() => expect(result.current.error).toBe("That activity log could not be read"));
   });
 });

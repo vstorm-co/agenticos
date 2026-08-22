@@ -24,14 +24,24 @@ vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+// The trigger split menu gates on whether any agent is runnable (`can_run`), not
+// on the role - so a runnable one in this list is what makes the menu render. A
+// gating suite below flips it to prove the menu tracks that signal.
+let mockAgents: Array<{ id: string; name: string; status: string; can_run: boolean }> = [];
 vi.mock("@/hooks/use-agents", () => ({
-  useAgents: () => ({ agents: [{ id: "a-1", name: "Analyst" }] }),
+  useAgents: () => ({ agents: mockAgents }),
 }));
 vi.mock("@/components/agents/agent-avatar", () => ({
   AgentAvatar: ({ name }: { name: string }) => <span>{name}</span>,
 }));
 vi.mock("@/components/agents/conversation-agents", () => ({
   ConversationAgents: () => null,
+}));
+// The event path is the portal grid, covered by the portal tests; stubbed here so
+// the sidebar menu's own job - opening it - is what this suite checks.
+vi.mock("@/components/triggers/new-event-trigger-dialog", () => ({
+  NewEventTriggerDialog: ({ open }: { open: boolean }) =>
+    open ? <div role="dialog" aria-label="New event trigger" /> : null,
 }));
 
 let urlParams = new URLSearchParams();
@@ -56,16 +66,18 @@ function conversation(id: string, title: string) {
 function serve(items: ReturnType<typeof conversation>[], total = items.length) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path.includes("/messages")) return { items: [], total: 0 };
+    // The trigger-menu gate sweeps /agents itself for a runnable one.
+    if (path === "/agents") return { items: mockAgents, total: mockAgents.length };
     return { items, total };
   });
 }
 
-/** Every list request made so far, newest last. */
+/** Every conversation-list request made so far, newest last. */
 function listRequests(): string[] {
   return vi
     .mocked(apiClient.get)
     .mock.calls.map(([path]) => path as string)
-    .filter((path) => !path.includes("/messages"));
+    .filter((path) => !path.includes("/messages") && path !== "/agents");
 }
 
 function mount() {
@@ -86,6 +98,7 @@ beforeEach(() => {
   urlParams = new URLSearchParams();
   window.history.replaceState({}, "", "/chat");
   useConversationStore.getState().reset();
+  mockAgents = [{ id: "a-1", name: "Analyst", status: "published", can_run: true }];
   serve([conversation("c-1", "Quarterly numbers")]);
 });
 
@@ -305,5 +318,65 @@ describe("the collapsed rail", () => {
     await userEvent.click(screen.getByRole("button", { name: "Expand conversations sidebar" }));
 
     expect(within(list()).getByRole("textbox", { name: "Search conversations" })).not.toHaveFocus();
+  });
+});
+
+describe("the New Chat split button", () => {
+  it("keeps New Chat itself starting a chat, not opening a menu", async () => {
+    mount();
+    await screen.findAllByText("Quarterly numbers");
+
+    await userEvent.click(within(list()).getByRole("button", { name: "New Chat" }));
+
+    // No dialog and no menu: the wide half of the split button is exactly the
+    // button it always was.
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("opens the schedule dialog from the chevron menu", async () => {
+    mount();
+    await screen.findAllByText("Quarterly numbers");
+
+    await userEvent.click(within(list()).getByRole("button", { name: "New schedule or trigger" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "New schedule" }));
+
+    const dialog = await screen.findByRole("dialog");
+    // No agent is in context here, so the form asks whom to schedule.
+    expect(within(dialog).getByRole("combobox", { name: "Agent" })).toBeVisible();
+  });
+
+  it("opens the portal grid for a new event trigger from the chevron menu", async () => {
+    mount();
+    await screen.findAllByText("Quarterly numbers");
+
+    await userEvent.click(within(list()).getByRole("button", { name: "New schedule or trigger" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "New event trigger" }));
+
+    // Portals are the default event path, so the menu opens the grid, not the
+    // raw source-and-secret form.
+    expect(await screen.findByRole("dialog", { name: "New event trigger" })).toBeVisible();
+  });
+});
+
+describe("who the trigger menu is offered to", () => {
+  it("shows it to a caller who may run at least one agent", async () => {
+    // Runnability, not role: this list holds a runnable agent, which is the whole
+    // floor - a Viewer granted run on one agent reads `can_run` true there.
+    mockAgents = [{ id: "a-1", name: "Analyst", status: "published", can_run: true }];
+    mount();
+    await screen.findAllByText("Quarterly numbers");
+
+    expect(
+      within(list()).getByRole("button", { name: "New schedule or trigger" }),
+    ).toBeInTheDocument();
+  });
+
+  it("withholds it when no agent is runnable", async () => {
+    mockAgents = [{ id: "a-1", name: "Analyst", status: "published", can_run: false }];
+    mount();
+    await screen.findAllByText("Quarterly numbers");
+
+    expect(within(list()).queryByRole("button", { name: "New schedule or trigger" })).toBeNull();
   });
 });

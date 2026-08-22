@@ -51,6 +51,7 @@ function agent(name: string, status: Agent["status"]): Agent {
     owner_user_id: "u1",
     current_version_id: status === "published" ? "v1" : null,
     has_avatar: false,
+    can_run: false,
     created_at: "2026-07-01T00:00:00Z",
   };
 }

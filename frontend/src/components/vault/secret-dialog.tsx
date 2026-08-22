@@ -42,6 +42,7 @@ import type {
 } from "@/types/secrets";
 import type { StorableSecretKind } from "@/types/secrets";
 import { useTranslations } from "next-intl";
+import { DIALOG_CONFIRM, DIALOG_FORM } from "@/lib/dialog-sizes";
 
 /** What the backend accepts, so an over-long value is refused before it is sent. */
 const MAX_NAME = 128;
@@ -53,16 +54,18 @@ interface AddSecretDialogProps {
   kinds: SecretKindInfo[];
   onSubmit: (data: NewSecret) => Promise<unknown>;
   isPending: boolean;
+  /**
+   * The service this dialog was opened *for* - a purpose id from the catalog.
+   *
+   * For a caller that is a shortcut rather than the vault page: the trigger
+   * portal's "Add credentials" is asking for one specific thing, so opening on
+   * Model provider with OpenAI chosen is asking the wrong question. The pickers
+   * stay live - somebody who opened it by mistake can still use it - but they
+   * start where the caller pointed them.
+   */
+  purposeId?: string;
 }
 
-/**
- * Store a secret a capability can be bound to.
- *
- * The kind is asked first because it decides every field below it, and it is
- * asked at all because a capability declares which kind it needs - binding an
- * `api_key` where the code wants `aws_credentials` is refused at publish, and
- * that is a much later place to find out.
- */
 /**
  * How the purposes are grouped in the picker, and in what order.
  *
@@ -84,18 +87,35 @@ const PURPOSE_GROUPS = [
 
 type PurposeCategory = (typeof PURPOSE_GROUPS)[number]["id"];
 
+/**
+ * Store a secret a capability can be bound to.
+ *
+ * The service is asked first because it decides every field below it, and it is
+ * asked at all because a capability declares which *kind* it needs - binding an
+ * `api_key` where the code wants `aws_credentials` is refused at publish, and
+ * that is a much later place to find out.
+ */
 export function AddSecretDialog({
   open,
   onOpenChange,
   kinds,
   onSubmit,
   isPending,
+  purposeId,
 }: AddSecretDialogProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("vault");
   const { purposes } = useSecretPurposes();
-  const [category, setCategory] = useState<PurposeCategory>("model_provider");
-  const [purpose, setPurpose] = useState("");
+  // `null` is "nobody has chosen yet", the same shape `name` below uses - and the
+  // reason this is not seeded state plus an effect: the catalog is fetched, so on
+  // the first render there is nothing to seed *from*, and a `setState` in an
+  // effect is both a wasted render and something eslint refuses outright.
+  // Deriving means the caller's service takes hold the moment the catalog lands.
+  const [chosenCategory, setCategory] = useState<PurposeCategory | null>(null);
+  const [chosenPurpose, setPurpose] = useState<string | null>(null);
+  const opened = purposes.find((entry) => entry.id === purposeId) ?? null;
+  const category = chosenCategory ?? (opened?.category as PurposeCategory) ?? "model_provider";
+  const purpose = chosenPurpose ?? opened?.id ?? "";
   const [visibility, setVisibility] = useState<SecretVisibility>("org");
   // `null` is "nobody has typed a name", which is not the same as an empty one:
   // it is what lets the field follow the chosen service until somebody makes it
@@ -125,8 +145,8 @@ export function AddSecretDialog({
     shownName.trim().length > 0 && info !== null && isSecretComplete(info.json_schema, value);
 
   function reset() {
-    setCategory("model_provider");
-    setPurpose("");
+    setCategory(null);
+    setPurpose(null);
     setVisibility("org");
     setName(null);
     setDescription("");
@@ -137,6 +157,10 @@ export function AddSecretDialog({
   /** A different family means a different list, and nothing chosen from it yet. */
   function chooseCategory(next: PurposeCategory) {
     setCategory(next);
+    // A different family means a different list, and nothing chosen from it - but
+    // `null` here would fall back to the caller's service, which is in the family
+    // just left. The empty string is "chosen nothing", and the list's first entry
+    // stands in for it below.
     setPurpose("");
     setValue({});
     setErrors({});
@@ -193,7 +217,7 @@ export function AddSecretDialog({
       {/* Wider than the default dialog. Six questions stacked in 512px is a
           form that scrolls before it is read; at this width the pairs that
           belong together sit on one line and the whole thing fits on a screen. */}
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className={DIALOG_FORM}>
         <DialogHeader>
           <DialogTitle>{t("addSecret")}</DialogTitle>
           <DialogDescription>{t("encryptedBoundOrganizationAgent")}</DialogDescription>
@@ -258,7 +282,7 @@ export function AddSecretDialog({
                     <SelectItem key={entry.id} value={entry.id} textValue={entry.label}>
                       {/* The mark, where there is one. A vault is scanned rather
                           than read, and a logo is what the eye lands on. */}
-                      <ProviderRow provider={entry.id} name={entry.label} />
+                      <ProviderRow provider={entry.id} name={entry.label} brand={entry.icon} />
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -443,7 +467,7 @@ export function RotateSecretDialog({
         onOpenChange(next);
       }}
     >
-      <DialogContent>
+      <DialogContent className={DIALOG_CONFIRM}>
         <DialogHeader>
           <DialogTitle>{t("rotateNamed", { name: secret?.name ?? "" })}</DialogTitle>
           <DialogDescription>{t("newValueReplacesOld")}</DialogDescription>

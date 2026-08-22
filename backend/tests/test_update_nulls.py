@@ -40,6 +40,7 @@ import app.schemas as schemas_package
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_exposure import AgentExposure
+from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.context import ContextFile
 from app.db.models.conversation import Conversation
@@ -59,6 +60,7 @@ from app.schemas.agent import AgentDraftUpdate
 from app.schemas.agent_embed import EmbedUpdate
 from app.schemas.agent_environment import EnvironmentUpdate
 from app.schemas.agent_exposure import ExposureUpdate
+from app.schemas.agent_trigger import TriggerUpdate
 from app.schemas.channel_bot import ChannelBotUpdate
 from app.schemas.context import ContextFileUpdate
 from app.schemas.conversation import ConversationUpdate
@@ -101,6 +103,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     SkillResourceUpdate: SkillResource,
     SkillUpdate: Skill,
     SyncSourceUpdate: SyncSource,
+    TriggerUpdate: AgentTrigger,
     UserSlashCommandUpdate: UserSlashCommand,
     UserUpdate: User,
     VisibilityUpdate: None,

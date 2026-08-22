@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import {
   DataTable,
+  Pager,
   SearchInput,
   Select,
   SelectContent,
@@ -12,10 +13,11 @@ import {
   SelectValue,
   Skeleton,
   Switch,
+  useDebounced,
   type Column,
 } from "@/components/ui";
-import { useSandboxEvents } from "@/hooks";
-import type { SandboxEvent } from "@/lib/sandbox-connections-api";
+import { useSandboxOperations } from "@/hooks";
+import type { SandboxOperation } from "@/lib/sandbox-connections-api";
 import { Check, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -24,92 +26,96 @@ import { useTranslations } from "next-intl";
 /** The "no filter" value. A `Select` cannot hold `""`, but it can hold this. */
 const ANY = "__any__";
 
-interface ActivityLogProps {
-  connectionId: string;
-  sessionId: string;
-}
+const PAGE = 50;
 
 /**
- * Seconds since an event, as a person reads them.
+ * How long ago, compactly.
  *
- * The clock is read here rather than in the component: calling `Date.now()`
- * during a render is impure and the React rule refuses it, which is why
- * `timeAgo` in `lib/utils` is shaped the same way. Two rows measured a
- * microsecond apart is not a difference anybody can see.
+ * Not `timeAgo` from `lib/utils`: that one writes prose ("3 minutes ago") for a
+ * sentence, and this is a 10px monospace column beside two hundred rows. The clock
+ * is read here rather than during render for the same reason `timeAgo` is shaped
+ * that way - `Date.now()` in a component is impure and the React rule refuses it.
  */
-function ago(at: number): string {
-  const seconds = Math.max(0, Math.round(Date.now() / 1000 - at));
+function ago(at: string): string {
+  const then = new Date(at).getTime();
+  if (Number.isNaN(then)) return "";
+  const seconds = Math.max(0, Math.round((Date.now() - then) / 1000));
   if (seconds < 60) return `${seconds}s`;
   if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
-  return `${Math.round(seconds / 3600)}h`;
+  if (seconds < 86400) return `${Math.round(seconds / 3600)}h`;
+  return `${Math.round(seconds / 86400)}d`;
+}
+
+interface ActivityLogProps {
+  sessionId: string;
 }
 
 /**
  * What was done to one sandbox.
  *
- * Paths and commands, never their contents or output — the service does not
- * record those, which is what keeps this from becoming a way to read an agent's
- * work rather than audit it.
+ * **Read from this platform's own record, not the service's.** The service keeps a
+ * 200-entry ring buffer in its process memory and its `after` parameter is a
+ * polling cursor rather than a page, so what it dropped could not be asked for, a
+ * conversation worked in all day had lost its morning, and restarting `sandboxd`
+ * lost every log on the host (#1061). These rows answer a week later.
  *
- * **Newest first, and each entry says when.** The service answers in the order it
- * recorded them, and a log read to find out what a sandbox is doing *now* had the
- * answer at the bottom of a scroll box - with no timestamp on any row, so "now"
- * and "an hour ago" looked identical. A failed operation gets a mark of its own
- * rather than only red text, which says nothing to anybody who cannot see the
- * difference.
+ * Which is also what makes the controls mean something: the search, the operation
+ * filter and the failed-only switch narrow a **query**, and the pager pages a
+ * result set with a real total - where before they filtered an array the client
+ * already held and the pager had nothing to page to.
+ *
+ * Paths and commands, never their contents or output. That is what keeps the log an
+ * audit rather than a way to read an agent's work, and it is the sentence below the
+ * table.
+ *
+ * One thing the service's buffer still did better: it showed a call the moment it
+ * happened. These rows are written into the run's own transaction, so a turn's
+ * operations arrive together when the turn commits - a second or so after it ends.
  */
-export function ActivityLog({ connectionId, sessionId }: ActivityLogProps) {
+export function ActivityLog({ sessionId }: ActivityLogProps) {
   const t = useTranslations("sandboxes");
-  const { log, isLoading, error } = useSandboxEvents(connectionId, sessionId);
   const [query, setQuery] = useState("");
   const [operation, setOperation] = useState(ANY);
   const [failedOnly, setFailedOnly] = useState(false);
+  const [page, setPage] = useState(0);
 
-  // Memoised, or the `?? []` mints a new array on every render and both `useMemo`s
-  // below recompute for nothing - which the exhaustive-deps rule is right about.
-  const events = useMemo(() => log?.events ?? [], [log]);
+  // Every control resets the page: filtering to nine rows while sitting on page
+  // four is an empty table that reads as "nothing matches".
+  function narrow(change: () => void) {
+    change();
+    setPage(0);
+  }
 
-  // The operations this log actually holds, rather than every one the service
-  // could record: a filter offering `edit` on a sandbox that has only ever been
-  // globbed is a filter that answers nothing.
-  const operations = useMemo(() => [...new Set(events.map((event) => event.op))].sort(), [events]);
+  // Debounced, because the search is a request rather than a filter over an array
+  // the client holds: a round trip per keystroke can also land out of order.
+  const settled = useDebounced(query.trim());
 
-  const visible = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    return (
-      [...events]
-        // Newest first. The service answers in the order it recorded, so the entry
-        // somebody opened this for was at the bottom of a scroll box.
-        .reverse()
-        .filter((event) => operation === ANY || event.op === operation)
-        .filter((event) => !failedOnly || !event.ok)
-        .filter(
-          (event) =>
-            needle === "" ||
-            [event.op, event.target, event.detail].some((field) =>
-              field.toLowerCase().includes(needle),
-            ),
-        )
-    );
-  }, [events, query, operation, failedOnly]);
+  const { log, error } = useSandboxOperations({
+    sessionKey: sessionId,
+    op: operation === ANY ? null : operation,
+    failedOnly,
+    query: settled,
+    skip: page * PAGE,
+    limit: PAGE,
+  });
 
-  const columns = useMemo<Column<SandboxEvent>[]>(
+  const columns = useMemo<Column<SandboxOperation>[]>(
     () => [
       {
         key: "when",
         header: t("sessions.when"),
         className: "pl-5",
-        cell: (event) => (
+        cell: (row) => (
           <span className="text-muted-foreground/70 font-mono text-[10px] whitespace-nowrap">
-            {t("sessions.ago", { time: ago(event.at) })}
+            {t("sessions.ago", { time: ago(row.at) })}
           </span>
         ),
       },
       {
         key: "outcome",
         header: "",
-        cell: (event) =>
-          event.ok ? (
+        cell: (row) =>
+          row.ok ? (
             <Check className="text-muted-foreground/40 h-3.5 w-3.5" aria-label={t("sessions.ok")} />
           ) : (
             <X className="text-destructive h-3.5 w-3.5" aria-label={t("sessions.failed")} />
@@ -118,27 +124,36 @@ export function ActivityLog({ connectionId, sessionId }: ActivityLogProps) {
       {
         key: "op",
         header: t("sessions.operation"),
-        cell: (event) => (
-          <span className={cn("font-mono text-xs", !event.ok && "text-destructive")}>
-            {event.op}
-          </span>
+        cell: (row) => (
+          <span className={cn("font-mono text-xs", !row.ok && "text-destructive")}>{row.op}</span>
         ),
       },
       {
         key: "target",
         header: t("sessions.target"),
-        cell: (event) => (
-          <span className={cn("font-mono text-xs break-all", !event.ok && "text-destructive")}>
-            {event.target}
+        cell: (row) => (
+          <span className={cn("font-mono text-xs break-all", !row.ok && "text-destructive")}>
+            {row.target}
+          </span>
+        ),
+      },
+      {
+        // The two facts the service's own log could never carry, and the two
+        // somebody auditing a sandbox actually came for.
+        key: "agent",
+        header: t("sessions.byAgent"),
+        cell: (row) => (
+          <span className="text-muted-foreground text-xs">
+            {row.agent_name ?? t("sessions.agentGone")}
           </span>
         ),
       },
       {
         key: "detail",
         header: t("sessions.detail"),
-        cell: (event) => (
-          <span className={cn("text-xs", event.ok ? "text-muted-foreground" : "text-destructive")}>
-            {event.detail}
+        cell: (row) => (
+          <span className={cn("text-xs", row.ok ? "text-muted-foreground" : "text-destructive")}>
+            {row.detail}
           </span>
         ),
       },
@@ -147,17 +162,28 @@ export function ActivityLog({ connectionId, sessionId }: ActivityLogProps) {
         header: t("sessions.duration"),
         align: "right",
         className: "pr-5",
-        cell: (event) => (
-          <span className="text-muted-foreground text-xs">{`${Math.round(event.duration_ms)}ms`}</span>
+        cell: (row) => (
+          <span className="text-muted-foreground text-xs">{`${row.duration_ms}ms`}</span>
         ),
       },
     ],
     [t],
   );
 
-  if (isLoading) return <Skeleton className="h-24 w-full" />;
   if (error !== null) return <p className="text-destructive text-sm">{error}</p>;
-  if (log === null || events.length === 0)
+  // A null log is the first fetch and nothing else: paging keeps the previous page
+  // on screen, so a later request never empties this. Reading it before the
+  // filters is also what keeps the three fields below from needing fallbacks that
+  // nothing could ever reach.
+  if (log === null) return <Skeleton className="h-24 w-full" />;
+
+  const { items, total, operations } = log;
+  const filtered = settled !== "" || operation !== ANY || failedOnly;
+
+  // Nothing recorded *and* nothing asked for: the sandbox has done nothing yet, or
+  // has done it before this record existed. Distinct from a filter matching none,
+  // which is the table's own empty line.
+  if (total === 0 && !filtered)
     return (
       <p className="text-muted-foreground text-sm">
         {t.rich("nothingRecordedYet", {
@@ -169,17 +195,14 @@ export function ActivityLog({ connectionId, sessionId }: ActivityLogProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      {/* Controls over the log rather than beside the page's own: a sandbox that
-          has run three hundred operations is one somebody opened this for a
-          reason, and scrolling is not that reason. */}
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput
           value={query}
-          onChange={setQuery}
+          onChange={(next) => narrow(() => setQuery(next))}
           placeholder={t("sessions.searchOperations")}
           className="min-w-48 flex-1"
         />
-        <Select value={operation} onValueChange={setOperation}>
+        <Select value={operation} onValueChange={(next) => narrow(() => setOperation(next))}>
           <SelectTrigger className="h-9 w-40" aria-label={t("sessions.operation")}>
             <SelectValue />
           </SelectTrigger>
@@ -195,36 +218,30 @@ export function ActivityLog({ connectionId, sessionId }: ActivityLogProps) {
         <label className="flex items-center gap-2 text-xs whitespace-nowrap">
           <Switch
             checked={failedOnly}
-            onCheckedChange={setFailedOnly}
+            onCheckedChange={(next) => narrow(() => setFailedOnly(next))}
             aria-label={t("sessions.failedOnly")}
           />
           <span className="text-muted-foreground">{t("sessions.failedOnly")}</span>
         </label>
-        <span className="text-muted-foreground/70 ml-auto text-xs whitespace-nowrap">
-          {t("sessions.showingOf", { shown: visible.length, total: events.length })}
-        </span>
       </div>
 
-      {/* Said only when it is true, and knowable exactly: the service keeps a
-          fixed number of entries per session, so a sequence starting above 1
-          means the earlier ones have been dropped. Without this the log simply
-          ends, and somebody looking for what a sandbox did an hour ago reads that
-          as "it did nothing". There is nothing to page to - `after` is a polling
-          cursor, and what the service no longer holds it cannot be asked for. */}
-      {(events[0]?.seq ?? 1) > 1 && (
-        <p className="text-muted-foreground/70 text-xs">
-          {t("sessions.olderDropped", { count: events.length })}
-        </p>
-      )}
-
       <div className="min-h-0 flex-1 overflow-auto">
-        <DataTable<SandboxEvent>
+        <DataTable<SandboxOperation>
           columns={columns}
-          rows={visible}
-          getRowKey={(event) => String(event.seq)}
+          rows={items}
+          getRowKey={(row) => row.id}
           empty={t("sessions.noOperationMatches")}
         />
       </div>
+
+      <Pager
+        page={page}
+        pageCount={Math.max(1, Math.ceil(total / PAGE))}
+        matched={total}
+        total={total}
+        onPage={setPage}
+        counted={t("sessions.operationCount", { count: total })}
+      />
     </div>
   );
 }

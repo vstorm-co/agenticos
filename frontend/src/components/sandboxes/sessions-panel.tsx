@@ -36,6 +36,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
+import { DIALOG_WINDOW } from "@/lib/dialog-sizes";
 
 interface SessionsPanelProps {
   /** The active container connections — the hosts that can be asked at all. */
@@ -359,11 +360,10 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
             this page somebody reads rather than scans, which is what a dialog is
             for. */}
         <Dialog open={watching !== null} onOpenChange={(open) => !open && setWatching(null)}>
-          {/* Nearly the whole window, the same geometry the file viewer uses: this
-              is a log with five columns and three hundred rows, read rather than
-              glanced at, and a `max-w-3xl` box turned every target into an
-              ellipsis. */}
-          <DialogContent className="flex h-[calc(100vh-4rem)] max-h-none w-[calc(100vw-4rem)] max-w-none flex-col gap-3 overflow-hidden p-4 sm:max-w-none sm:p-6">
+          {/* The same shape as the file viewer, for the same reason: this is a log
+              with five columns and three hundred rows, read rather than glanced at,
+              and a `max-w-3xl` box turned every target into an ellipsis. */}
+          <DialogContent className={DIALOG_WINDOW}>
             <DialogHeader className="gap-1 pr-8">
               <DialogTitle className="text-base">
                 {watched === null
@@ -381,9 +381,7 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
               )}
             </DialogHeader>
             <div className="min-h-0 flex-1 overflow-auto">
-              {watching !== null && (
-                <ActivityLog connectionId={connection.id} sessionId={watching} />
-              )}
+              {watching !== null && <ActivityLog sessionId={watching} />}
             </div>
           </DialogContent>
         </Dialog>

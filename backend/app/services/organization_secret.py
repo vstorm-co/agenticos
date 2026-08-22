@@ -2,14 +2,17 @@
 
 Everything above this deals in secret ids; everything below deals in ciphertext.
 There is deliberately no method that returns a plaintext to a caller who could
-keep one. Two methods unseal, and both hand what they opened straight to the thing
+keep one. Three methods unseal, and each hands what it opened straight to the thing
 that had to have it: :meth:`OrganizationSecretService.resolve_for_bindings`, called
-by the runner, and :meth:`OrganizationSecretService.listing_key`, which returns a
-bearer token for one outbound catalog request.
+by the runner; :meth:`OrganizationSecretService.listing_key`, which returns a
+bearer token for one outbound catalog request; and
+:meth:`OrganizationSecretService.oauth_app`, which hands an OAuth client's secret to
+the provider's own token endpoint inside the connect flow and to nowhere else.
 """
 
 from __future__ import annotations
 
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,8 +23,11 @@ from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import (
     ApiKeySecret,
+    GithubOAuthAppSecret,
+    GoogleOAuthAppSecret,
     SecretKind,
     StorableSecret,
+    describe_kind,
     seal_secret,
     unseal_secret,
 )
@@ -33,6 +39,10 @@ from app.repositories import member_repo, organization_secret_repo, resource_gra
 from app.schemas.resource_grant import as_visibility
 from app.schemas.secret import SecretRead, SecretUsage
 from app.services.access import SECRET, resolve_access, visible_resource_ids
+
+# The two credentials a connect flow spends: identical fields, separate kinds,
+# because a kind names what a credential is for.
+OAuthAppSecret = GithubOAuthAppSecret | GoogleOAuthAppSecret
 
 
 class OrganizationSecretService:
@@ -347,6 +357,72 @@ class OrganizationSecretService:
             if isinstance(value, ApiKeySecret):
                 return value.api_key.get_secret_value()
         return None
+
+    async def oauth_app(self, ctx: AuthContext, *, kind: SecretKind) -> OAuthAppSecret:
+        """Unseal the organization's OAuth client credentials for a token exchange.
+
+        The third plaintext reader here, and deliberately the narrowest: it opens one
+        kind of secret and the only field that leaves is the public `client_id`. The
+        `client_secret` is a `SecretStr` that escapes only when the connect flow
+        passes it straight to the provider's token endpoint - it is never returned to
+        a client, logged, or written to the audit trail.
+
+        One method over two kinds, because the rule is the same for both and it is
+        the rule that matters: `github_oauth_app` connects a repository account,
+        `google_oauth_app` a mailbox, and each organization registers its own client
+        for either. A deployment-wide client read from the environment would be a
+        second mechanism for a credential at rest, which this repository does not
+        have.
+
+        Not gated on `secrets:view`, for the same reason `resolve_for_bindings` is
+        not: this is the runtime spending a credential the organization stored, not a
+        member reading the vault. The caller's `mcp:manage` on the connect route is
+        what authorizes reaching it.
+
+        Only an *org-visible* credential qualifies, and only an unambiguous one: a
+        member's private client must never be spent for the whole organization's
+        connection behind their back, and with two org-visible ones stored, silently
+        taking whichever name sorts first would key the connection to a credential
+        nobody chose.
+
+        Raises:
+            NotFoundError: If the organization has stored no org-visible secret of
+                this kind. A 4xx the connect UI shows as "add the credentials
+                first", never a 500 - a missing prerequisite is the operator's to
+                fix, not a bug.
+            BadRequestError: If more than one org-visible one is stored - the fix
+                (keep exactly one) is named, with the candidate names so the
+                operator knows which rows collide.
+        """
+        rows = await organization_secret_repo.list_org_visible_by_kind(
+            self.db, organization_id=ctx.organization_id, kind=kind.value
+        )
+        label = describe_kind(kind)
+        if not rows:
+            raise NotFoundError(
+                message=f"Add an org-visible {label} secret in Vault, then connect.",
+                details={"kind": kind.value},
+            )
+        if len(rows) > 1:
+            raise BadRequestError(
+                message=(
+                    f"More than one org-visible {label} secret is stored; keep "
+                    "exactly one so the connection is keyed to a credential "
+                    "somebody chose."
+                ),
+                details={"kind": kind.value, "names": [row.name for row in rows]},
+            )
+        row = rows[0]
+        value = unseal_secret(
+            row.sealed_secret,
+            kind=kind,
+            scope=VaultScope.organization(ctx.organization_id),
+            key_version=row.key_version,
+        )
+        # `unseal_secret` refuses anything whose sealed kind is not the one asked
+        # for, so this is the concrete type - the cast narrows it without a branch
+        # that could never run.
+        return cast(OAuthAppSecret, value)
 
     async def _get(
         self, ctx: AuthContext, secret_id: UUID, *, perm: Perm = Perm.SECRETS_VIEW

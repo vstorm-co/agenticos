@@ -15,6 +15,7 @@ import { Input } from "./input";
 import { Label } from "./label";
 import { useChanged } from "@/hooks/use-changed";
 import { useTranslations } from "next-intl";
+import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -67,7 +68,7 @@ export function ConfirmDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className={DIALOG_CONFIRM}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}

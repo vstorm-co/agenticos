@@ -21,6 +21,7 @@ import { EmptyState } from "@/components/states";
 import { BUILTIN_COMMAND_LIST, isBuiltinEnabled, useSlashCommands } from "@/hooks";
 import type { UserSlashCommandRecord } from "@/lib/slash-commands-api";
 import { useTranslations } from "next-intl";
+import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 
 const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
 
@@ -228,7 +229,7 @@ export function SlashCommandsManager() {
       </section>
 
       <Dialog open={editingId !== null} onOpenChange={(o) => !o && closeDialog()}>
-        <DialogContent>
+        <DialogContent className={DIALOG_CONFIRM}>
           <DialogHeader>
             <DialogTitle>
               {editingId === "new" ? t("newCustomCommand") : `Edit /${draftName}`}

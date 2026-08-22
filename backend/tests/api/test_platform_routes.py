@@ -118,6 +118,10 @@ class _Absent:
 
 _SERVICE_DEPS = (
     deps.get_agent_registry_service,
+    # The org-wide `GET /triggers` is the one gated trigger route, so past its gate
+    # the stub answers 404 like the rest; the per-agent routes are ungated and never
+    # reach this sweep.
+    deps.get_agent_trigger_service,
     deps.get_agent_exposure_service,
     # Same shape again: a widget is one agent's public face, so who may publish
     # or take one down is `agents:publish` on that agent, resolved against its
@@ -231,6 +235,18 @@ CALLS: tuple[Call, ...] = (
             }
         },
     ),
+    # The org-wide trigger listing: a collection route gated on seeing agents, the
+    # same coarse door as `GET /agents`. Per-agent trigger routes stay ungated and
+    # let the service resolve `agents:run` per row.
+    Call("GET", "/triggers", Perm.AGENTS_VIEW),
+    Call("GET", "/trigger-portals", Perm.AGENTS_VIEW),
+    # The trigger-templates catalog, gated on `agents:view` like `/trigger-portals`
+    # beside it - browsing ready-made schedules, not acting on one agent.
+    Call("GET", "/trigger-templates", Perm.AGENTS_VIEW),
+    # `/trigger-portals/{portal_key}/targets` carries no role gate: it feeds one
+    # agent's trigger create, so the service resolves `agents:run` on the agent
+    # named in the query - a role gate refused the Viewer whose one run grant is
+    # exactly what lets them create the trigger there.
     Call("GET", "/runs", Perm.RUNS_VIEW),
     Call(
         "GET",
@@ -312,6 +328,22 @@ CALLS: tuple[Call, ...] = (
         "/mcp-connections/oauth/start",
         Perm.MCP_MANAGE,
         body={"name": "github", "url": "https://mcp.example.com/mcp"},
+    ),
+    Call(
+        # The GitHub OAuth App variant: fixed endpoints, the org's stored creds,
+        # keyed to a trigger portal rather than a raw server URL.
+        "POST",
+        "/mcp-connections/oauth/start/github",
+        Perm.MCP_MANAGE,
+        body={"portal_key": "github"},
+    ),
+    Call(
+        # The polled variant: no webhook to register, the deployment's own client,
+        # and the same permission - connecting an account for the organization.
+        "POST",
+        "/mcp-connections/oauth/start/portal",
+        Perm.MCP_MANAGE,
+        body={"portal_key": "google"},
     ),
     Call(
         "POST",
@@ -399,6 +431,9 @@ CALLS: tuple[Call, ...] = (
     Call("DELETE", "/sandbox-connections/{connection_id}", Perm.CONNECTIONS_MANAGE),
     Call("GET", "/sandbox-connections/{connection_id}/policy", Perm.CONNECTIONS_VIEW),
     Call("GET", "/sandbox-connections/{connection_id}/sessions", Perm.CONNECTIONS_VIEW),
+    # The durable record, read across sessions rather than under one connection: a
+    # sandbox outlives the connection row it was opened through (#1061).
+    Call("GET", "/sandbox-connections/operations", Perm.CONNECTIONS_VIEW),
     Call(
         "GET",
         "/sandbox-connections/{connection_id}/sessions/{session_id}/events",
@@ -648,6 +683,18 @@ _PLATFORM_PREFIXES = (
     "/sandbox-connections",
     "/sandbox-workspaces",
     "/skill-changes",
+    # The org-wide trigger listing, gated on `agents:view` like its siblings
+    # `GET /agents` and `GET /runs`, with the service still resolving scope and
+    # grants per agent behind the gate. Without the prefix the sweep would pass
+    # over `GET /triggers` and its "gated or resource-aware" claim would not
+    # actually cover it. (Per-agent triggers live under `/agents`.)
+    "/triggers",
+    # The trigger-portals catalog, gated on `agents:view` like `/mcp-catalog` -
+    # a distinct path, not a `/triggers` prefix, so it needs its own entry.
+    "/trigger-portals",
+    # The trigger-templates catalog, the prompt counterpart of the portals
+    # catalog above, gated the same way and needing its own prefix entry too.
+    "/trigger-templates",
 )
 
 
@@ -726,6 +773,11 @@ RESOURCE_AWARE_SERVICES = (
     # it before touching a binding - so where an agent is available is decided
     # by the same grants that decide whether it can be published at all.
     deps.get_agent_exposure_service,
+    # Triggers follow the exposures' shape exactly: every route acts on one agent,
+    # and scheduling it to run itself is `agents:run` on that agent, resolved
+    # against its grants - so a viewer with an explicit run grant is not refused
+    # before the service can widen their access.
+    deps.get_agent_trigger_service,
     # Environments follow the exposures' shape exactly: every route acts on one
     # agent, and which version answers under which name is `agents:publish` on
     # that agent, resolved against its grants.
@@ -1335,6 +1387,11 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # not sign bodies, so the handler compares the shared token the
         # integration was created with, and refuses when none is configured.
         ("POST", f"{V1}/mattermost/{{bot_id}}/webhook"),
+        # An event trigger's inbound webhook. Same arrangement as Slack: GitHub
+        # and the email relay sign the body with the trigger's own secret, and the
+        # service verifies that HMAC against the trigger named in the path. A
+        # session here would mean the integration could never deliver.
+        ("POST", f"{V1}/webhooks/triggers/{{source}}/{{trigger_id}}"),
         # The public face of an embedded agent. There is no session to have:
         # these are reached from a stranger's browser on somebody else's site.
         # What authorises them is the widget's key plus the `Origin` the browser

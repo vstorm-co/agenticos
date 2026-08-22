@@ -23,6 +23,7 @@ import { useFileActions } from "@/hooks";
 import type { FileAccess } from "@/lib/file-access";
 import { hasSourceView, resolveFileKind, suffixOf, type FileKind } from "@/lib/file-kinds";
 import { cn, formatBytes, timeAgo } from "@/lib/utils";
+import { DIALOG_WINDOW } from "@/lib/dialog-sizes";
 
 /** What is known about a file before anything is fetched. */
 export interface ViewerFile {
@@ -138,15 +139,11 @@ export function FileViewer({ file, access, navigation, extraTabs = [], onClose }
 
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
-      {/* Nearly the whole window, with a gutter. One size for every kind, because
-          the kind was deciding between two widths that were both too narrow: a page
-          an agent laid out for a browser, a PDF, a spreadsheet and a 200-character
-          line of source all want the room, and prose does not suffer from having it.
-          A flex column so the body takes whatever the two rows of chrome leave. */}
-      <DialogContent
-        onKeyDown={onKeyDown}
-        className="flex h-[calc(100vh-4rem)] max-h-none w-[calc(100vw-4rem)] max-w-none flex-col gap-3 overflow-hidden p-4 sm:max-w-none sm:p-6"
-      >
+      {/* One size for every kind, because the kind was deciding between two widths
+          that were both too narrow: a page an agent laid out for a browser, a PDF, a
+          spreadsheet and a 200-character line of source all want the room, and prose
+          does not suffer from having it. */}
+      <DialogContent onKeyDown={onKeyDown} className={DIALOG_WINDOW}>
         {/* Two rows, not four. The header used to stack a title, a metadata line
             and the path, with the tabs and the actions on a fourth - four bands of
             chrome above the file somebody opened the dialog to look at. The path

@@ -60,3 +60,24 @@ def test_no_two_migrations_claim_the_same_parent() -> None:
 
     forked = {parent: sorted(children) for parent, children in parents.items() if len(children) > 1}
     assert not forked, f"revisions sharing a parent: {forked}"
+
+
+# `alembic_version.version_num` is `VARCHAR(32)`, which alembic creates and never
+# widens. A longer id is not refused when the file is written or when the chain is
+# read - it is refused by the *database*, after the migration's DDL has run, on the
+# UPDATE that records the new version. So the schema change lands and the version
+# does not, which on a non-transactional step leaves a chain nobody can move.
+_VERSION_NUM_LIMIT = 32
+
+
+def test_no_revision_id_is_too_long_for_the_version_table() -> None:
+    too_long = {
+        revision.revision: len(revision.revision)
+        for revision in _chain().walk_revisions()
+        if len(revision.revision) > _VERSION_NUM_LIMIT
+    }
+    assert not too_long, (
+        f"revision ids longer than {_VERSION_NUM_LIMIT} characters: {too_long}. "
+        "`alembic_version.version_num` is VARCHAR(32), so such a migration runs "
+        "its DDL and then fails writing the version. Shorten the id."
+    )

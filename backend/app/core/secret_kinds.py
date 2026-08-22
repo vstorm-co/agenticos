@@ -29,6 +29,14 @@ The kinds are the shapes that actually exist, and no more:
     The service account JSON. Validated on the way in, because the failure mode
     of a malformed one is an authentication error hours later with nothing
     pointing back at the paste that caused it.
+`github_oauth_app`
+    A GitHub OAuth App's `client_id` and `client_secret`. The id is public and
+    the secret is not - a single field cannot express that, the same reason
+    `aws_credentials` is a pair.
+`google_oauth_app`
+    A Google OAuth client's `client_id` and `client_secret`, for connecting a
+    mailbox a trigger reads. The same two fields as GitHub's and a separate kind
+    on purpose: a kind names what a credential is *for*.
 
 Two unions, deliberately. :data:`StorableSecret` is what a person can save;
 :data:`SecretValue` adds `none`, which the runtime can hold but nobody can
@@ -66,6 +74,8 @@ class SecretKind(StrEnum):
     AZURE_OPENAI = "azure_openai"
     AWS_CREDENTIALS = "aws_credentials"
     GCP_SERVICE_ACCOUNT = "gcp_service_account"
+    GITHUB_OAUTH_APP = "github_oauth_app"
+    GOOGLE_OAUTH_APP = "google_oauth_app"
 
 
 def _reveal(value: SecretStr) -> str:
@@ -217,14 +227,75 @@ class GcpServiceAccountSecret(_SecretBase):
         return email[-4:]
 
 
+class GithubOAuthAppSecret(_SecretBase):
+    """A GitHub OAuth App's credentials: a public client id and a secret."""
+
+    kind: Literal[SecretKind.GITHUB_OAUTH_APP] = SecretKind.GITHUB_OAUTH_APP
+    client_id: str = Field(
+        min_length=1,
+        max_length=255,
+        title="Client ID",
+        description="The OAuth App's client id, e.g. Iv1.0123456789abcdef",
+    )
+    client_secret: SealedStr = Field(min_length=1, title="Client secret")
+
+    @property
+    def hint(self) -> str:
+        # The client id, not the secret: it is public, and it is what names the
+        # app in the GitHub settings the same key sits next to.
+        return self.client_id[-4:]
+
+
+class GoogleOAuthAppSecret(_SecretBase):
+    """A Google OAuth client's credentials: a public client id and a secret.
+
+    The same two fields as a GitHub OAuth App and deliberately a different kind:
+    the kind names what a credential is *for*, not what shape it is, so filing a
+    mailbox client under GitHub's - which takes the same fields - would group by
+    the shape and put the wrong app in the wrong consent flow. Same reasoning as
+    #937's split of a Drive service account from Vertex AI's.
+
+    Each organization registers its own client in its own Google project. It is not
+    the deployment's `GOOGLE_CLIENT_ID`, which is sign-in and a different thing
+    entirely; and a credential at rest goes through the vault, which is the whole
+    rule.
+    """
+
+    kind: Literal[SecretKind.GOOGLE_OAUTH_APP] = SecretKind.GOOGLE_OAUTH_APP
+    client_id: str = Field(
+        min_length=1,
+        max_length=255,
+        title="Client ID",
+        description="The OAuth client's id, e.g. 1234-abc.apps.googleusercontent.com",
+    )
+    client_secret: SealedStr = Field(min_length=1, title="Client secret")
+
+    @property
+    def hint(self) -> str:
+        # The client id, not the secret: it is public, and it is what names the
+        # client in the Google console the same key sits next to.
+        return self.client_id[-4:]
+
+
 StorableSecret = Annotated[
-    ApiKeySecret | AzureOpenAISecret | AwsCredentialsSecret | GcpServiceAccountSecret,
+    ApiKeySecret
+    | AzureOpenAISecret
+    | AwsCredentialsSecret
+    | GcpServiceAccountSecret
+    | GithubOAuthAppSecret
+    | GoogleOAuthAppSecret,
     Field(discriminator="kind"),
 ]
 """Every shape a person can actually save."""
 
 SecretValue = Annotated[
-    NoSecret | ApiKeySecret | AzureOpenAISecret | AwsCredentialsSecret | GcpServiceAccountSecret,
+    NoSecret
+    | ApiKeySecret
+    | AzureOpenAISecret
+    | AwsCredentialsSecret
+    | GcpServiceAccountSecret
+    | GithubOAuthAppSecret
+    | GoogleOAuthAppSecret,
     Field(discriminator="kind"),
 ]
 """What the runtime holds - :data:`StorableSecret` plus "there is no credential"."""
@@ -290,6 +361,8 @@ _KIND_MODELS: dict[SecretKind, type[BaseModel]] = {
     SecretKind.AZURE_OPENAI: AzureOpenAISecret,
     SecretKind.AWS_CREDENTIALS: AwsCredentialsSecret,
     SecretKind.GCP_SERVICE_ACCOUNT: GcpServiceAccountSecret,
+    SecretKind.GITHUB_OAUTH_APP: GithubOAuthAppSecret,
+    SecretKind.GOOGLE_OAUTH_APP: GoogleOAuthAppSecret,
 }
 
 _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
@@ -306,7 +379,25 @@ _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
         "Google service account",
         "The service account JSON downloaded from the Google Cloud console.",
     ),
+    SecretKind.GITHUB_OAUTH_APP: (
+        "GitHub OAuth App",
+        "A GitHub OAuth App's client id and secret, used to connect a GitHub "
+        "account for repository webhooks.",
+    ),
+    SecretKind.GOOGLE_OAUTH_APP: (
+        "Google OAuth client",
+        "A Google OAuth client's id and secret, used to connect a mailbox an agent is run by.",
+    ),
 }
+
+
+def describe_kind(kind: SecretKind) -> str:
+    """A kind's own label, for a refusal that names what to add.
+
+    "Add an org-visible Google OAuth client secret in Vault" is actionable where
+    "add a google_oauth_app" asks the reader to translate an identifier.
+    """
+    return _KIND_LABELS[kind][0]
 
 
 def describe_kinds() -> list[SecretKindInfo]:

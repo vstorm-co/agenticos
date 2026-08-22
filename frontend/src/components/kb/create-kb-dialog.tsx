@@ -35,10 +35,10 @@ import {
   ingestionProblems,
   sameIngestion,
 } from "@/lib/ingestion-config";
-import { DIALOG_WIDE } from "@/lib/dialog-widths";
 import { cn } from "@/lib/utils";
 import type { CreateKnowledgeBaseInput, IngestionConfig, KBScope } from "@/types";
 import { useTranslations } from "next-intl";
+import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 
 /** What the backend accepts, so an over-long value is refused before it is sent. */
 const MAX_NAME = 128;
@@ -158,7 +158,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* A column with one scrolling part, so expanding the settings never
           pushes Create off the bottom of the screen. */}
-      <DialogContent className={cn("flex max-h-[85vh] flex-col", DIALOG_WIDE)}>
+      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE)}>
         <DialogHeader>
           <DialogTitle>{t("createKnowledgeBase")}</DialogTitle>
         </DialogHeader>

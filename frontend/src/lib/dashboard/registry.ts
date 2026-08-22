@@ -53,7 +53,8 @@ export type WidgetId =
   | "sandbox-policy"
   | "channels"
   | "knowledge"
-  | "activity-rhythm";
+  | "activity-rhythm"
+  | "routines";
 
 /** The closed set of card widths the grid supports (12 columns). */
 export type Span = "s3" | "s4" | "s5" | "s6" | "s7" | "s8" | "s12";
@@ -224,6 +225,18 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     category: "usage",
     options: { period: true, agent: true, person: true },
     seeAll: ROUTES.RUNS,
+  },
+  routines: {
+    id: "routines",
+    // What `GET /triggers` itself demands. Not `runsView`: the outcome half of
+    // each row is a run read and is fetched only when the caller holds that,
+    // where the routines themselves - cadence, paused, next fire - need only to
+    // be allowed to see the agents they hang off.
+    gate: holds(Perm.agentsView),
+    defaultSpan: "s6",
+    defaultRows: "r3",
+    category: "attention",
+    seeAll: ROUTES.ROUTINES,
   },
   channels: {
     id: "channels",

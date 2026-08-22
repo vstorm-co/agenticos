@@ -119,6 +119,11 @@ dependencies = [
     "cryptography>=50.0.0",
     "aiogram>=3.17,<4.0",
     "slack-sdk>=3.35.0",
+    # Cron schedules: the next fire after a given instant for a crontab
+    # expression. Interval schedules need no library, but "daily/weekly at HH:MM"
+    # and any raw crontab do - and getting DST and month lengths right by hand is
+    # the kind of arithmetic a dependency exists to own.
+    "croniter>=3.0.0",
 ]
 
 # No `[project.optional-dependencies]` entry for the `browser_use` capability's
@@ -495,6 +500,11 @@ include = [
     "app/services/agent_chat.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
+    "app/services/agent_trigger.py",
+    "app/services/trigger_events.py",
+    "app/services/trigger_dedupe.py",
+    "app/services/trigger_templates.py",
+    "app/schemas/trigger_template.py",
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",
     "app/services/agent_session.py",
@@ -533,6 +543,13 @@ include = [
     # an agent that simply had nothing to say.
     "app/services/notifications.py",
     "app/services/mcp_catalog.py",
+    "app/services/portal_catalog.py",
+    "app/services/portals/__init__.py",
+    "app/services/portals/base.py",
+    "app/services/portals/exceptions.py",
+    "app/services/portals/github.py",
+    "app/services/portals/github_oauth.py",
+    "app/services/portals/registry.py",
     "app/services/mcp_connection.py",
     # Which providers can draw an image, derived from the SDK. What it decides is
     # what the Builder offers, and a probe that quietly starts answering "no"
@@ -558,6 +575,7 @@ include = [
     "app/services/transcript.py",
     "app/repositories/agent_environment.py",
     "app/repositories/agent_exposure.py",
+    "app/repositories/agent_trigger.py",
     "app/repositories/ingestion_spend.py",
     "app/repositories/mcp_connection.py",
     "app/repositories/organization_secret.py",
@@ -567,6 +585,8 @@ include = [
     "app/api/routes/v1/secrets.py",
     "app/api/routes/v1/agent_environments.py",
     "app/api/routes/v1/agent_exposures.py",
+    "app/api/routes/v1/agent_triggers.py",
+    "app/api/routes/v1/trigger_webhooks.py",
     "app/api/routes/v1/sandbox_connections.py",
     "app/api/routes/v1/skill_changes.py",
     "app/api/routes/v1/workspaces.py",
@@ -700,6 +720,11 @@ include = [
     "app/services/agent_chat.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
+    "app/services/agent_trigger.py",
+    "app/services/trigger_events.py",
+    "app/services/trigger_dedupe.py",
+    "app/services/trigger_templates.py",
+    "app/schemas/trigger_template.py",
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",
     # The whole dashboard chat wire format: every frame the WebSocket sends and
@@ -766,6 +791,13 @@ include = [
     # an agent that simply had nothing to say.
     "app/services/notifications.py",
     "app/services/mcp_catalog.py",
+    "app/services/portal_catalog.py",
+    "app/services/portals/__init__.py",
+    "app/services/portals/base.py",
+    "app/services/portals/exceptions.py",
+    "app/services/portals/github.py",
+    "app/services/portals/github_oauth.py",
+    "app/services/portals/registry.py",
     "app/services/mcp_connection.py",
     # Which providers can draw an image, derived from the SDK. What it decides is
     # what the Builder offers, and a probe that quietly starts answering "no"
@@ -791,6 +823,7 @@ include = [
     "app/services/transcript.py",
     "app/repositories/agent_environment.py",
     "app/repositories/agent_exposure.py",
+    "app/repositories/agent_trigger.py",
     "app/repositories/ingestion_spend.py",
     "app/repositories/mcp_connection.py",
     "app/repositories/organization_secret.py",
@@ -800,6 +833,8 @@ include = [
     "app/api/routes/v1/secrets.py",
     "app/api/routes/v1/agent_environments.py",
     "app/api/routes/v1/agent_exposures.py",
+    "app/api/routes/v1/agent_triggers.py",
+    "app/api/routes/v1/trigger_webhooks.py",
     "app/api/routes/v1/sandbox_connections.py",
     "app/api/routes/v1/skill_changes.py",
     "app/api/routes/v1/workspaces.py",

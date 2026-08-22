@@ -13,6 +13,7 @@ import {
   Switch,
 } from "@/components/ui";
 import type { ToolPickerState } from "@/components/mcp/mcp-server-list-types";
+import { DIALOG_SCROLL } from "@/lib/dialog-sizes";
 
 interface McpToolPickerDialogProps {
   toolPicker: ToolPickerState | null;
@@ -34,7 +35,7 @@ export function McpToolPickerDialog({
       open={toolPicker !== null}
       onOpenChange={(open) => !open && !submitting && setToolPicker(null)}
     >
-      <DialogContent className="max-h-[80vh] scrollbar-thin overflow-y-auto">
+      <DialogContent className={DIALOG_SCROLL}>
         <DialogHeader>
           <DialogTitle>{t("toolsFrom", { name: toolPicker?.connection.name ?? "" })}</DialogTitle>
         </DialogHeader>

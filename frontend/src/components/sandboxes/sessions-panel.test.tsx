@@ -5,7 +5,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SessionsPanel } from "./sessions-panel";
 import type {
   SandboxConnectionRecord,
-  SandboxEventList,
+  SandboxOperation,
+  SandboxOperationList,
+  SandboxOperationQuery,
   SandboxSession,
   SandboxSessionList,
 } from "@/lib/sandbox-connections-api";
@@ -18,10 +20,12 @@ const state = vi.hoisted(() => ({
   sessionsLoading: false,
   usageAsked: [] as boolean[],
   connectionsAsked: [] as (string | null)[],
-  log: null as SandboxEventList | null,
+  log: null as SandboxOperationList | null,
+  /** What a *narrowed* request answers, when a case needs the two to differ. */
+  narrowed: null as SandboxOperationList | null,
   logError: null as string | null,
   logLoading: false,
-  watched: [] as { connection: string | null; session: string | null }[],
+  asked: [] as SandboxOperationQuery[],
 }));
 
 vi.mock("@/hooks", () => ({
@@ -34,9 +38,13 @@ vi.mock("@/hooks", () => ({
       error: state.sessionsError,
     };
   },
-  useSandboxEvents: (id: string | null, sessionId: string | null) => {
-    state.watched.push({ connection: id, session: sessionId });
-    return { log: state.log, isLoading: state.logLoading, error: state.logError };
+  useSandboxOperations: (query: SandboxOperationQuery) => {
+    state.asked.push(query);
+    // A narrowed request is a different request, and the two answers differ - which
+    // is the whole point of the filters reaching the server.
+    const narrow = Boolean(query.op) || query.failedOnly === true || Boolean(query.query);
+    const log = narrow && state.narrowed !== null ? state.narrowed : state.log;
+    return { log, isLoading: state.logLoading, error: state.logError };
   },
   // The ceilings in force, which is what turns an idle time into a countdown.
   useSandboxPolicy: () => ({ policy: state.policy, isLoading: false, error: null }),
@@ -90,11 +98,34 @@ beforeEach(() => {
   state.sessionsLoading = false;
   state.usageAsked = [];
   state.connectionsAsked = [];
-  state.log = { events: [], latest_seq: 0 };
+  state.log = { items: [], total: 0, operations: [] };
+  state.narrowed = null;
   state.logError = null;
   state.logLoading = false;
-  state.watched = [];
+  state.asked = [];
 });
+
+function operation(overrides: Partial<SandboxOperation> = {}): SandboxOperation {
+  return {
+    id: "op-1",
+    at: new Date(Date.now() - 5_000).toISOString(),
+    op: "write",
+    target: "/run.py",
+    ok: true,
+    detail: "",
+    duration_ms: 12,
+    session_key: "xc-1",
+    agent_id: null,
+    agent_name: null,
+    run_id: null,
+    ...overrides,
+  };
+}
+
+/** A log of `total` matches, of which this page holds `items`. */
+function log(items: SandboxOperation[], total = items.length, operations: string[] = []) {
+  return { items, total, operations };
+}
 
 describe("SessionsPanel", () => {
   it("explains that nothing can be listed without a container connection", () => {
@@ -166,11 +197,11 @@ describe("SessionsPanel", () => {
           ]}
         />,
       );
-      // The log opens in a dialog, which takes the page behind it out of reach -
-      // so switching host while one is open is no longer a sequence a person can
-      // perform. The guard stays because a session id names a sandbox on *one*
-      // host, and this is what remains observable: nothing asks the new host for
-      // the old host's session.
+      // The log is read from this platform's own record, which is keyed on the
+      // session rather than on the host it was opened through - so the old
+      // cross-host mixup cannot arise. What is still worth holding: a log left
+      // open over a host switch would be titled for a sandbox the table below no
+      // longer lists.
       await userEvent.click(screen.getByRole("button", { name: "Activity of xc-1" }));
       expect(screen.getByRole("dialog")).toBeVisible();
 
@@ -179,7 +210,6 @@ describe("SessionsPanel", () => {
       await userEvent.click(screen.getByRole("option", { name: "Backup host" }));
 
       expect(screen.queryByRole("dialog")).toBeNull();
-      expect(state.watched).not.toContainEqual({ connection: "c-b", session: "xc-1" });
     });
   });
 
@@ -366,16 +396,22 @@ describe("SessionsPanel", () => {
       // panel nobody opened costs no request and no cache entry.
       render(<SessionsPanel connections={[connection()]} />);
 
-      expect(state.watched).toEqual([]);
+      expect(state.asked).toEqual([]);
+    });
+
+    it("reads this platform's own record rather than the service's log", async () => {
+      // The point of #1061: the service keeps a 200-entry ring buffer in its
+      // process memory, so what it dropped could not be asked for and a restart
+      // lost every log on the host. These rows answer a week later.
+      render(<SessionsPanel connections={[connection()]} />);
+
+      await userEvent.click(screen.getByRole("button", { name: "Activity of xc-1" }));
+
+      expect(state.asked.at(-1)?.sessionKey).toBe("xc-1");
     });
 
     it("shows the operations, their targets and how long each took", async () => {
-      state.log = {
-        events: [
-          { seq: 1, at: 1, op: "write", target: "/run.py", ok: true, detail: "", duration_ms: 12 },
-        ],
-        latest_seq: 1,
-      };
+      state.log = log([operation()]);
       render(<SessionsPanel connections={[connection()]} />);
 
       await userEvent.click(screen.getByRole("button", { name: "Activity of xc-1" }));
@@ -385,20 +421,44 @@ describe("SessionsPanel", () => {
       expect(screen.getByText("12ms")).toBeVisible();
     });
 
+    it("names the agent that performed each operation", async () => {
+      // One of the two facts the service's own log cannot carry, and one of the
+      // two somebody auditing a sandbox actually came for.
+      state.log = log([operation({ agent_name: "JARVIS" })]);
+      render(<SessionsPanel connections={[connection()]} />);
+
+      await userEvent.click(screen.getByRole("button", { name: "Activity of xc-1" }));
+
+      expect(within(screen.getByRole("dialog")).getByText("JARVIS")).toBeVisible();
+    });
+
+    it("still shows an operation whose agent has since been deleted", async () => {
+      // `SET NULL` on the FK, and the read has to survive it: the record of what
+      // happened is the whole reason for recording it.
+      state.log = log([operation({ agent_id: "a-gone", agent_name: null })]);
+      render(<SessionsPanel connections={[connection()]} />);
+
+      await userEvent.click(screen.getByRole("button", { name: "Activity of xc-1" }));
+
+      const dialog = within(screen.getByRole("dialog"));
+      expect(dialog.getByText("agent deleted")).toBeVisible();
+      expect(dialog.getByText("/run.py")).toBeVisible();
+    });
+
     it("closes again on a second press", async () => {
       render(<SessionsPanel connections={[connection()]} />);
       const toggle = screen.getByRole("button", { name: "Activity of xc-1" });
 
       await userEvent.click(toggle);
-      expect(state.watched.at(-1)).toEqual({ connection: "c-1", session: "xc-1" });
+      expect(state.asked.at(-1)?.sessionKey).toBe("xc-1");
 
-      const opened = state.watched.length;
+      const opened = state.asked.length;
       // Escape rather than the same button: the dialog is over it, and closing a
       // dialog is the dialog's own affair.
       await userEvent.keyboard("{Escape}");
 
       // Unmounted rather than re-queried with nothing.
-      expect(state.watched).toHaveLength(opened);
+      expect(state.asked).toHaveLength(opened);
       expect(screen.queryByRole("dialog")).toBeNull();
     });
 
@@ -430,149 +490,95 @@ describe("SessionsPanel", () => {
       expect(document.querySelector(".h-24")).not.toBeNull();
     });
 
-    it("searches, filters by operation, and can show the failures alone", async () => {
-      // Three hundred operations is what a sandbox that has been working looks
-      // like, and somebody who opened this log came to find one of them.
-      const now = Date.now() / 1000;
-      state.log = {
-        events: [
-          {
-            seq: 1,
-            at: now - 60,
-            op: "glob",
-            target: "**/*.py",
-            ok: true,
-            detail: "3 matches",
-            duration_ms: 20,
-          },
-          {
-            seq: 2,
-            at: now - 30,
-            op: "exec",
-            target: "pytest -q",
-            ok: false,
-            detail: "exit 1",
-            duration_ms: 900,
-          },
-          {
-            seq: 3,
-            at: now - 10,
-            op: "write",
-            target: "notes.md",
-            ok: true,
-            detail: "",
-            duration_ms: 5,
-          },
-        ],
-        latest_seq: 3,
-      };
+    it("narrows the request rather than an array it already holds", async () => {
+      // Which is the difference this table exists for. Filtering a page of fifty
+      // is a filter that cannot find the operation somebody came for, because the
+      // operation is on page six.
+      state.log = log([operation()], 300, ["execute", "write"]);
       render(<SessionsPanel connections={[connection()]} />);
       await userEvent.click(screen.getByRole("button", { name: "Activity of xc-1" }));
-
       const dialog = within(screen.getByRole("dialog"));
-      expect(dialog.getByText("3 of 3 operations")).toBeVisible();
 
       await userEvent.type(dialog.getByPlaceholderText("Search operations"), "pytest");
-      expect(dialog.getByText("1 of 3 operations")).toBeVisible();
-      expect(dialog.queryByText("notes.md")).toBeNull();
+      await vi.waitFor(() => expect(state.asked.at(-1)?.query).toBe("pytest"));
 
-      await userEvent.clear(dialog.getByPlaceholderText("Search operations"));
       await userEvent.click(dialog.getByRole("switch", { name: "Failed only" }));
+      expect(state.asked.at(-1)?.failedOnly).toBe(true);
+    });
 
-      expect(dialog.getByText("pytest -q")).toBeVisible();
-      expect(dialog.queryByText("notes.md")).toBeNull();
+    it("holds a keystroke back rather than asking per letter", async () => {
+      // The search is a request, so a round trip per keystroke is both wasteful
+      // and prone to answers landing out of order.
+      state.log = log([operation()], 300);
+      render(<SessionsPanel connections={[connection()]} />);
+      await userEvent.click(screen.getByRole("button", { name: "Activity of xc-1" }));
+      const dialog = within(screen.getByRole("dialog"));
+
+      await userEvent.type(dialog.getByPlaceholderText("Search operations"), "pytest");
+
+      expect(state.asked.map((asked) => asked.query)).not.toContain("pyt");
     });
 
     it("narrows to one kind of operation, and offers only the kinds it holds", async () => {
       // A filter offering `edit` on a sandbox that has only ever been globbed is a
-      // filter that answers nothing, so the list is built from the log.
-      const now = Math.round(Date.now() / 1000);
-      state.log = {
-        events: [
-          {
-            seq: 1,
-            at: now - 60,
-            op: "glob",
-            target: "**/*.py",
-            ok: true,
-            detail: "",
-            duration_ms: 20,
-          },
-          {
-            seq: 2,
-            at: now - 30,
-            op: "exec",
-            target: "pytest -q",
-            ok: true,
-            detail: "",
-            duration_ms: 900,
-          },
-        ],
-        latest_seq: 2,
-      };
+      // filter that answers nothing, so the list comes from the log itself.
+      state.log = log([operation()], 2, ["execute", "write"]);
       render(<SessionsPanel connections={[connection()]} />);
       await userEvent.click(screen.getByRole("button", { name: "Activity of xc-1" }));
       const dialog = within(screen.getByRole("dialog"));
 
       await userEvent.click(dialog.getByRole("combobox", { name: "Operation" }));
-      expect(screen.queryByRole("option", { name: "write" })).toBeNull();
-      await userEvent.click(screen.getByRole("option", { name: "exec" }));
+      expect(screen.queryByRole("option", { name: "glob_info" })).toBeNull();
+      await userEvent.click(screen.getByRole("option", { name: "execute" }));
 
-      expect(dialog.getByText("pytest -q")).toBeVisible();
-      expect(dialog.queryByText("**/*.py")).toBeNull();
-      expect(dialog.getByText("1 of 2 operations")).toBeVisible();
+      expect(state.asked.at(-1)?.op).toBe("execute");
     });
 
-    it("says when the service has dropped the earlier operations", async () => {
-      // The service keeps a fixed number of entries per session, so a log that
-      // starts above sequence 1 has lost its beginning. Without this it simply
-      // ends, and somebody looking for what a sandbox did an hour ago reads that
-      // as "it did nothing" - and there is nothing to page to, because what the
-      // service no longer holds it cannot be asked for.
-      state.log = {
-        events: [
-          { seq: 201, at: 1, op: "exec", target: "ls", ok: true, detail: "", duration_ms: 3 },
-        ],
-        latest_seq: 201,
-      };
-      render(<SessionsPanel connections={[connection()]} />);
-
-      await userEvent.click(screen.getByRole("button", { name: "Activity of xc-1" }));
-
-      expect(
-        within(screen.getByRole("dialog")).getByText(/Earlier ones are no longer kept/),
-      ).toBeVisible();
-    });
-
-    it("says nothing of the kind for a log that has its beginning", async () => {
-      state.log = {
-        events: [{ seq: 1, at: 1, op: "exec", target: "ls", ok: true, detail: "", duration_ms: 3 }],
-        latest_seq: 1,
-      };
-      render(<SessionsPanel connections={[connection()]} />);
-
-      await userEvent.click(screen.getByRole("button", { name: "Activity of xc-1" }));
-
-      expect(screen.queryByText(/Earlier ones are no longer kept/)).toBeNull();
-    });
-
-    it("offers only the operations this log holds", async () => {
-      // A filter offering `edit` on a sandbox that has only ever been globbed is
-      // a filter that answers nothing.
-      state.log = {
-        events: [
-          { seq: 1, at: 1, op: "glob", target: "**/*", ok: true, detail: "", duration_ms: 2 },
-        ],
-        latest_seq: 1,
-      };
+    it("pages a result set larger than one page, and says how many there are", async () => {
+      // What the service's log could never do: its `after` is a polling cursor,
+      // not a page, so there was nothing to page to and the count could only say
+      // how much of the buffer was left.
+      state.log = log([operation()], 137);
       render(<SessionsPanel connections={[connection()]} />);
       await userEvent.click(screen.getByRole("button", { name: "Activity of xc-1" }));
-
       const dialog = within(screen.getByRole("dialog"));
-      await userEvent.click(dialog.getByRole("combobox", { name: "Operation" }));
 
-      expect(screen.getByRole("option", { name: "glob" })).toBeVisible();
-      expect(screen.queryByRole("option", { name: "exec" })).toBeNull();
+      expect(dialog.getByText(/137 operations/)).toBeVisible();
+
+      await userEvent.click(dialog.getByRole("button", { name: "Next page" }));
+
+      expect(state.asked.at(-1)?.skip).toBe(50);
+    });
+
+    it("returns to the first page when a filter changes", async () => {
+      // Narrowing to nine rows while sitting on page four is an empty table that
+      // reads as "nothing matches".
+      state.log = log([operation()], 300, ["execute"]);
+      render(<SessionsPanel connections={[connection()]} />);
+      await userEvent.click(screen.getByRole("button", { name: "Activity of xc-1" }));
+      const dialog = within(screen.getByRole("dialog"));
+
+      await userEvent.click(dialog.getByRole("button", { name: "Next page" }));
+      expect(state.asked.at(-1)?.skip).toBe(50);
+
+      await userEvent.click(dialog.getByRole("switch", { name: "Failed only" }));
+
+      expect(state.asked.at(-1)?.skip).toBe(0);
+    });
+
+    it("says no operation matches, rather than that the sandbox did nothing", async () => {
+      // The two are different answers and used to render the same sentence: a
+      // filter that matched none looked like a sandbox that had never been used.
+      state.log = log([operation()], 300, ["execute"]);
+      state.narrowed = log([], 0, ["execute"]);
+      render(<SessionsPanel connections={[connection()]} />);
+      await userEvent.click(screen.getByRole("button", { name: "Activity of xc-1" }));
+      const dialog = within(screen.getByRole("dialog"));
+
+      await userEvent.click(dialog.getByRole("switch", { name: "Failed only" }));
+
+      expect(dialog.getByText("No operation matches that.")).toBeVisible();
+      expect(dialog.queryByText(/Nothing recorded/)).toBeNull();
     });
 
     it("opens in a dialog that names whose sandbox it is", async () => {
@@ -594,63 +600,44 @@ describe("SessionsPanel", () => {
       expect(within(dialog).getByText(/a file's contents/)).toBeVisible();
     });
 
-    it("puts the newest operation first, and says how long ago it was", async () => {
-      // The service answers in the order it recorded them, so a log read to find
-      // out what a sandbox is doing *now* had the answer at the bottom of a scroll
-      // box - and with no timestamp anywhere, "now" and "an hour ago" looked the
-      // same.
-      const now = Date.now() / 1000;
-      state.log = {
-        events: [
-          {
-            seq: 1,
-            at: now - 3600,
-            op: "write",
-            target: "old.txt",
-            ok: true,
-            detail: "",
-            duration_ms: 4,
-          },
-          {
-            seq: 2,
-            at: now - 5,
-            op: "exec",
-            target: "python run.py",
-            ok: true,
-            detail: "",
-            duration_ms: 40,
-          },
-        ],
-        latest_seq: 2,
-      };
+    it("says how long ago each operation was", async () => {
+      // With no timestamp anywhere, "now" and "an hour ago" looked the same - and
+      // the order is the server's, newest first, so the top row is what the
+      // sandbox is doing now.
+      state.log = log([
+        operation({ id: "op-new", at: new Date(Date.now() - 5_000).toISOString(), op: "execute" }),
+        operation({ id: "op-mid", at: new Date(Date.now() - 120_000).toISOString() }),
+        operation({ id: "op-old", at: new Date(Date.now() - 3_600_000).toISOString() }),
+        // Days matter: these rows are kept for thirty of them, where the
+        // service's buffer rarely held an hour.
+        operation({ id: "op-ancient", at: new Date(Date.now() - 259_200_000).toISOString() }),
+      ]);
       render(<SessionsPanel connections={[connection()]} />);
 
       await userEvent.click(screen.getByRole("button", { name: /Activity of/ }));
 
-      // Inside the dialog, which is what the log opens in now - the page's own
-      // table is still behind it.
       const rows = within(screen.getByRole("dialog")).getAllByRole("row").slice(1);
 
-      expect(rows[0]).toHaveTextContent("exec");
+      expect(rows[0]).toHaveTextContent("execute");
       expect(rows[0]).toHaveTextContent("5s ago");
-      expect(rows[1]).toHaveTextContent("1h ago");
+      expect(rows[1]).toHaveTextContent("2m ago");
+      expect(rows[2]).toHaveTextContent("1h ago");
+      expect(rows[3]).toHaveTextContent("3d ago");
+    });
+
+    it("says nothing about when, rather than a date it cannot read", async () => {
+      state.log = log([operation({ at: "not a date" })]);
+      render(<SessionsPanel connections={[connection()]} />);
+
+      await userEvent.click(screen.getByRole("button", { name: "Activity of xc-1" }));
+
+      expect(within(screen.getByRole("dialog")).getByText("ago")).toBeVisible();
     });
 
     it("is a labelled table, and marks an operation that failed", async () => {
-      state.log = {
-        events: [
-          {
-            seq: 1,
-            at: 1,
-            op: "exec",
-            target: "python run.py",
-            ok: false,
-            detail: "exit 1",
-            duration_ms: 40,
-          },
-        ],
-        latest_seq: 1,
-      };
+      state.log = log([
+        operation({ op: "execute", target: "python run.py", ok: false, detail: "exit 1" }),
+      ]);
       render(<SessionsPanel connections={[connection()]} />);
 
       await userEvent.click(screen.getByRole("button", { name: "Activity of xc-1" }));
@@ -659,7 +646,7 @@ describe("SessionsPanel", () => {
       // grey box (#140).
       expect(screen.getByRole("columnheader", { name: "Operation" })).toBeVisible();
       expect(screen.getByText("exit 1")).toBeVisible();
-      expect(screen.getByText("exec")).toHaveClass("text-destructive");
+      expect(screen.getByText("execute")).toHaveClass("text-destructive");
     });
   });
 });

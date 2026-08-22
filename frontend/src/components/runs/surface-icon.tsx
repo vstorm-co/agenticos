@@ -15,7 +15,8 @@ import type { Translate } from "@/lib/agent-step-captions";
  * (`surface-picker.tsx`): a run from the widget wears the Website widget
  * card's globe, an API run the Public API card's code tag - so what somebody
  * published and what ran through it carry the same face. The dashboard chat,
- * which no card publishes, is the chat bubble.
+ * which no card publishes, is the chat bubble. A scheduled run - the one member
+ * a trigger stamps rather than a person reaching the agent - wears the clock.
  */
 const MARKS = {
   web: MessageSquare,

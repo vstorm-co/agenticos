@@ -8,6 +8,7 @@ import { useKnowledgeBases } from "@/hooks/use-knowledge-bases";
 import { useMcpConnections } from "@/hooks/use-mcp-connections";
 import { useModelProviders } from "@/hooks/use-model-providers";
 import { useOrgMcpConnections } from "@/hooks/use-org-mcp-connections";
+import { useOrgTriggers } from "@/hooks/use-org-triggers";
 import { useOrganizationList } from "@/hooks/use-organizations";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useSkills } from "@/hooks/use-skills";
@@ -110,6 +111,9 @@ function useOrgSnapshot(): {
   const mcp = useOrgMcpConnections();
   const personalMcp = useMcpConnections();
   const orgs = useOrganizationList();
+  // The org-wide list, which is what the Routines page shows and therefore what
+  // grows by one when the reader creates a schedule or a trigger.
+  const routines = useOrgTriggers();
   const stateSettled =
     !agents.isLoading &&
     !models.isLoading &&
@@ -132,6 +136,7 @@ function useOrgSnapshot(): {
         mcp.connections.length + personalMcp.connections.length,
       ),
       org: settled(orgs.isLoading, orgs.isFetching, orgs.data?.length ?? 0),
+      routine: settled(routines.isLoading, false, routines.total),
     },
     // A profile is runnable when it is keyed by a vault secret, or self-hosted at
     // a `base_url` with no key — the same rule the model resolver enforces. A key

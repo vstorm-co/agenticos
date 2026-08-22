@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { useOrganizations } from "@/hooks";
 import { submitFailure } from "@/lib/api-error";
 import { useTranslations } from "next-intl";
+import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 
 /** What the backend accepts, so an over-long name is refused before it is sent. */
 const MAX_NAME = 128;
@@ -56,7 +57,7 @@ export function CreateOrgDialog({ open, onOpenChange, onCreated }: CreateOrgDial
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className={DIALOG_CONFIRM}>
         <DialogHeader>
           <DialogTitle>{t("createOrganization")}</DialogTitle>
         </DialogHeader>

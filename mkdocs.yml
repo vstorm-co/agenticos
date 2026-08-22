@@ -118,6 +118,7 @@ nav:
       - deployment.md
       - permissions.md
       - governance.md
+      - triggers.md
       - models.md
       - mcp.md
       - skills.md

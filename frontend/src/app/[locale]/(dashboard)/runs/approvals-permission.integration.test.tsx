@@ -18,7 +18,7 @@ import type { Permission } from "@/types/permissions";
  *
  * It used to show it anyway. The page computed `canDecide` and gated only the
  * Approve and Reject buttons with it, while the tab, its default selection and
- * the "Waiting on a person" figure were rendered unconditionally - so a Builder
+ * the queue's own count were rendered unconditionally - so a Builder
  * landed on a 403 drawn as **"Nothing waiting · Agents are running without
  * needing you."** A refusal rendered as reassurance, on the one page whose
  * purpose is to keep those two apart.
@@ -123,7 +123,7 @@ describe("the Approvals tab without approvals:decide", () => {
     // Waited on rather than assumed: the Runs tab appears once the page is past
     // its loading state, so anything missing below is a decision and not a query
     // still in flight.
-    expect(await screen.findByRole("tab", { name: "Runs" })).toBeVisible();
+    expect(await screen.findByRole("tab", { name: /^Runs/ })).toBeVisible();
 
     expect(screen.queryByRole("tab", { name: /Approvals/ })).toBeNull();
     // The sentence the defect produced. Absent is the whole point: an approver
@@ -133,15 +133,15 @@ describe("the Approvals tab without approvals:decide", () => {
     expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
   });
 
-  it("takes the figure above it down too, rather than printing a nought", async () => {
-    // `approvals.length` on a refused query is zero, and "Waiting on a person: 0"
+  it("takes the count down with it, rather than printing a nought", async () => {
+    // `approvals.length` on a refused query is zero, and a tab badge reading 0
     // is the same lie as the empty queue with a number in front of it.
     serve(["runs:view"]);
 
     render(<RunsPage />, { wrapper });
 
-    expect(await screen.findByRole("tab", { name: "Runs" })).toBeVisible();
-    expect(screen.queryByText("Waiting on a person")).toBeNull();
+    expect(await screen.findByRole("tab", { name: /^Runs/ })).toBeVisible();
+    expect(screen.queryByRole("tab", { name: /Approvals/ })).toBeNull();
   });
 
   it("does not ask for the queue at all", async () => {
@@ -149,7 +149,7 @@ describe("the Approvals tab without approvals:decide", () => {
 
     render(<RunsPage />, { wrapper });
 
-    expect(await screen.findByRole("tab", { name: "Runs" })).toBeVisible();
+    expect(await screen.findByRole("tab", { name: /^Runs/ })).toBeVisible();
     // Polled every thirty seconds, so a query left enabled behind a hidden tab
     // is a 403 for as long as the page stays open.
     expect(asked("/approvals")).toHaveLength(0);
@@ -163,7 +163,7 @@ describe("the Approvals tab without approvals:decide", () => {
 
     render(<RunsPage />, { wrapper });
 
-    expect(await screen.findByRole("tab", { name: "Runs" })).toHaveAttribute(
+    expect(await screen.findByRole("tab", { name: /^Runs/ })).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -182,7 +182,9 @@ describe("the Approvals tab with approvals:decide", () => {
     expect(await screen.findByRole("button", { name: "Approve" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Reject" })).toBeVisible();
     expect(screen.getByRole("tab", { name: /Approvals/ })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText("Waiting on a person")).toBeVisible();
+    // The count rides on the tab now: a card of one number was a lot of the
+    // page's height for something a badge says.
+    expect(screen.getByRole("tab", { name: /^Approvals/ })).toHaveTextContent("1");
     await waitFor(() => expect(asked("/approvals").length).toBeGreaterThan(0));
   });
 });

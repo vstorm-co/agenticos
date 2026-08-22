@@ -14,6 +14,9 @@ import {
   probeSandboxService,
   readLocalSandboxService,
   readSandboxEvents,
+  readSandboxOperations,
+  type SandboxOperationList,
+  type SandboxOperationQuery,
   readSandboxPolicy,
   storeLocalSandboxCredential,
   updateSandboxConnection,
@@ -247,12 +250,57 @@ interface UseSandboxEventsResult {
 }
 
 /**
- * What has been done to one sandbox: paths read, commands run, how each went.
+ * The durable record of what agents did in this organization's sandboxes.
  *
- * The whole log every time rather than incrementally. `after` exists for a
- * watcher that keeps state, and a panel somebody opens and closes is not one -
- * paging it would mean holding a merged list across mounts to save a few
- * kilobytes.
+ * Replaces the service's own log in the product: that one is a 200-entry ring
+ * buffer in the service's memory, so it could not answer a week later or after a
+ * restart (#1061). These rows can, and the filters narrow the request rather than
+ * an array the client already holds - which is what makes a pager mean something.
+ *
+ * `placeholderData` keeps the previous page on screen while the next one loads, so
+ * paging does not blink through an empty table.
+ *
+ * Re-read on an interval while mounted: rows land when a run's transaction
+ * commits, so a dialog opened over a working sandbox would otherwise sit on the
+ * page as it stood at open - empty or stale - until something else happened to
+ * refetch it. Ten seconds, because the rows arrive per turn, not per keystroke.
+ */
+export function useSandboxOperations(query: SandboxOperationQuery): {
+  log: SandboxOperationList | null;
+  isLoading: boolean;
+  error: string | null;
+} {
+  const t = useTranslations("sandboxes");
+  const {
+    data = null,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: qk.sandboxConnections.operations({ ...query }),
+    queryFn: () => readSandboxOperations(query),
+    placeholderData: (previous) => previous,
+    refetchInterval: 10_000,
+    retry: false,
+  });
+
+  return {
+    log: data,
+    isLoading,
+    error: error instanceof Error ? error.message : error ? t("activityLogUnreadable") : null,
+  };
+}
+
+/**
+ * The service's own live log for one sandbox, as it is happening.
+ *
+ * Kept beside `useSandboxOperations` rather than replaced by it, and the
+ * difference is timing: our rows are written into the run's transaction, so a
+ * turn's operations arrive together when the turn commits. The service answers
+ * mid-turn. So this is what a dashboard row watching a working sandbox reads, and
+ * the durable record is what an audit reads.
+ *
+ * The whole buffer every time rather than incrementally. `after` exists for a
+ * watcher that keeps state, and a widget that mounts with a row is not one.
  */
 export function useSandboxEvents(
   connectionId: string | null,

@@ -189,10 +189,18 @@ upload answered `{"status": "processing"}` that stays that way forever.
 
 `spawn_after_commit` queues the coroutine on the session instead. Nothing starts
 it until step 3, two statements after `commit()` returns, so a flow dispatched
-this way reads a row the database has already agreed to. Three call sites use
-it: the document upload, the local sync, and a manually triggered source sync.
-The ordering is proved against a real database in
-`tests/integration/test_flow_starts_after_commit.py`.
+this way reads a row the database has already agreed to. It is how a document
+upload, a sync somebody started, a channel connection's stream and a trigger's
+manual "run now" are all handed over. The ordering is proved against a real
+database in `tests/integration/test_flow_starts_after_commit.py`.
+
+The trigger's manual fire is there for a second reason worth naming, because it
+is the other half of why a request hands work over at all: `POST
+/agents/{id}/triggers/{id}/run` used to *await* the run it started, so an agent
+slower than a proxy's read timeout answered 504 while the run carried on and
+committed — a failure reported for something that was working, and an invitation
+to press the button again and fire the schedule twice ([#658][658]). The route
+answers `202` and the fire starts after the commit.
 
 Two things follow from where the queue lives:
 
@@ -212,6 +220,7 @@ deployment.
 
 [353]: https://github.com/vstorm-co/agenticos/issues/353
 [417]: https://github.com/vstorm-co/agenticos/issues/417
+[658]: https://github.com/vstorm-co/agenticos/issues/658
 
 ## Agent runs: a capability never fetches
 

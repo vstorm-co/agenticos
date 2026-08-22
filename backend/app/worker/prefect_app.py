@@ -40,6 +40,12 @@ from app.worker.tasks.report_tasks import (
     monthly_usage_report_flow,
     weekly_usage_report_flow,
 )
+from app.worker.tasks.trigger_tasks import (
+    check_agent_triggers_flow,
+    poll_portal_grants_flow,
+    run_scheduled_trigger_flow,
+    sweep_sandbox_operations_flow,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +63,36 @@ async def main() -> None:
     deployments.append(
         await check_scheduled_syncs_flow.ato_deployment(
             name="rag-sync-check",
+            schedules=[IntervalSchedule(interval=60)],
+        )
+    )
+    # On-demand: one fired run per due trigger, submitted by the heartbeat below.
+    deployments.append(
+        await run_scheduled_trigger_flow.ato_deployment(name="run-scheduled-trigger")
+    )
+    # Every minute: fire the agent triggers that have come due.
+    deployments.append(
+        await check_agent_triggers_flow.ato_deployment(
+            name="agent-triggers-check",
+            schedules=[IntervalSchedule(interval=60)],
+        )
+    )
+    # Daily: drop sandbox operations past the retention window. The window is
+    # thirty days, so the hour a row leaves is nobody's business - and a delete over
+    # a month-old boundary is cheap when it runs once rather than hourly.
+    deployments.append(
+        await sweep_sandbox_operations_flow.ato_deployment(
+            name="sandbox-log-sweep",
+            schedules=[IntervalSchedule(interval=86400)],
+        )
+    )
+    # Every minute: read the connected accounts nobody pushes to. A separate
+    # deployment rather than work inside the trigger heartbeat, because the two
+    # fail independently - a Gmail outage must not stop a cron schedule firing -
+    # and because one tick of each is a different amount of work.
+    deployments.append(
+        await poll_portal_grants_flow.ato_deployment(
+            name="portal-poll",
             schedules=[IntervalSchedule(interval=60)],
         )
     )
