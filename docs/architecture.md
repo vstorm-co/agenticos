@@ -169,6 +169,21 @@ handlers and CLI commands open `get_db_context()`, and worker tasks
 they commit on a clean exit of their own `async with` and start their deferred
 work in the same place — which has nothing to do with a response.
 
+One path deliberately commits earlier than "on the way out": an agent run. The
+runner commits once **before the model is called** and once more in the
+terminal `finally` (`AgentRunnerService._run`, and `ChatAgentRunner.run` for
+the streaming chat). A model call takes seconds to minutes, and a transaction
+left open across it holds a pooled connection `idle in transaction` for the
+duration — fifteen concurrent runs used to be the entire pool ([#12][12]).
+Committing first also makes the run row readable from every other session for
+the whole life of the run, and makes a resumed run's exit from the approval
+queue durable before the approved call is replayed, so a crash mid-replay
+cannot hand the same approval out twice ([#3][3]). The terminal commit is the
+other half: the session context only commits on a clean exit, which a failed,
+budget-stopped or cancelled run is not, and a run missing from history is a
+run nobody is accountable for. Both boundaries are proved against a real
+database in `tests/integration/test_run_commit_boundary.py`.
+
 ### Dispatching background work from a request
 
 **Work that will read a row this request wrote is handed over with
@@ -218,6 +233,8 @@ emails in `app/services/notifications.py` carry their own context and touch no
 row. Neither is a job queue: anything that must survive a restart is a Prefect
 deployment.
 
+[3]: https://github.com/vstorm-co/agenticos/issues/3
+[12]: https://github.com/vstorm-co/agenticos/issues/12
 [353]: https://github.com/vstorm-co/agenticos/issues/353
 [417]: https://github.com/vstorm-co/agenticos/issues/417
 [658]: https://github.com/vstorm-co/agenticos/issues/658

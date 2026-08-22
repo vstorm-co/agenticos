@@ -3092,11 +3092,12 @@ class AgentRunnerService:
         # end:
         #
         # A resume arriving *while this one is still building* waits at
-        # `claim_parked_run` - the row lock is held for the whole transaction -
-        # and then reads the status written here, so building first widens no
-        # window. A resume arriving *after this transaction commits* has no lock
-        # to wait on, and what refuses it is finding the run no longer parked; so
-        # the status has to change before the tool call is replayed, not after.
+        # `claim_parked_run` - the row lock is held until `_run` commits, which
+        # it does before anything is replayed - and then reads the status
+        # written here, so building first widens no window. A resume arriving
+        # *after that commit* has no lock to wait on, and what refuses it is
+        # finding the run no longer parked; so the status has to change before
+        # the tool call is replayed, not after.
         #
         # It is written last because a build refuses for reasons that have
         # nothing to do with this run: a secret a binding names deleted since the
@@ -3324,6 +3325,16 @@ class AgentRunnerService:
         called: list[RecordedToolCall] = []
         settled: dict[str, str] = {}
         summarized: list[dict[str, Any]] | None = None
+        # The transaction ends before the model is asked anything, and each half
+        # of that is load-bearing. The run row becomes visible to every other
+        # session while the run executes, and the pooled connection goes back to
+        # the pool for the seconds-to-minutes the model takes, instead of
+        # sitting `idle in transaction` holding a row lock (#12). And on a
+        # resume it is what makes `mark_running` durable: a crash mid-replay
+        # leaves the run `running` rather than parked with its approval still
+        # marked approved, which a second resume would replay - re-sending
+        # whatever the approved call already sent (#3).
+        await self.db.commit()
         try:
             result = await self._answer(
                 prepared,

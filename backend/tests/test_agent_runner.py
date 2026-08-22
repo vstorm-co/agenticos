@@ -1287,9 +1287,11 @@ class TestStoppingANonStreamingRun:
         assert recorded["error"] is None
         assert recorded["cost_usd"] == Decimal("2.00")
         # And it survives. `get_db_session` commits on a clean exit, which a
-        # propagating `BaseException` is not, so without this the row above was
-        # written and then rolled straight back.
-        db.commit.assert_awaited_once()
+        # propagating `BaseException` is not, so without the terminal commit the
+        # row above was written and then rolled straight back. Two commits: the
+        # one that made the run row visible before the model was called, and the
+        # one that lands the terminal write.
+        assert db.commit.await_count == 2
 
     @pytest.mark.anyio
     async def test_a_cancelled_run_keeps_the_delegation_rows_underneath_it(self):
@@ -1349,11 +1351,50 @@ class TestStoppingANonStreamingRun:
         ):
             await service.execute(_ctx(), uuid.uuid4(), "hello")
 
-        assert order == ["parent", "delegation", "commit"]
+        # The first commit is the one that opened the run to other sessions
+        # before the model was called; the terminal one comes after both writes,
+        # because the delegation rows carry `parent_run_id`.
+        assert order == ["commit", "parent", "delegation", "commit"]
         written = write.await_args.kwargs
         assert written["run_id"] == delegation.id
         assert written["status"] == RunStatus.CANCELLED.value
         assert written["cost_usd"] == Decimal("2.00")
+
+
+class TestTheTransactionEndsBeforeTheModelCall:
+    """The run row is committed before the model is asked anything (#12).
+
+    Two things hang on the order rather than on the commit merely happening:
+    the row is visible from another session for the whole life of the run, and
+    the pooled connection is returned instead of sitting `idle in transaction`
+    for the minutes a model call can take - fifteen concurrent runs used to be
+    the whole pool.
+    """
+
+    @pytest.mark.anyio
+    async def test_the_run_row_is_committed_before_the_model_is_called(self):
+        db = _db()
+        service = AgentRunnerService(db)
+        prepared = _prepared()
+        order: list[str] = []
+
+        async def commit() -> None:
+            order.append("commit")
+
+        async def model(*_args: Any, **_kwargs: Any) -> MagicMock:
+            order.append("model")
+            return MagicMock(output="hi")
+
+        db.commit = AsyncMock(side_effect=commit)
+        prepared.built.agent.run = AsyncMock(side_effect=model)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "hello")
+
+        assert order[:2] == ["commit", "model"]
 
 
 class TestApprovals:
@@ -1667,6 +1708,69 @@ class TestResume:
         assert channel.decided["call-1"] == ApprovalGranted(
             tool_args={"to": "customer@example.com"}
         )
+
+    @pytest.mark.anyio
+    async def test_leaving_the_queue_is_committed_before_the_call_is_replayed(self):
+        """A crash mid-replay must find the run `running`, not parked.
+
+        `mark_running` only flushed, so a process that died between replaying an
+        approved call and the terminal write rolled the status back to
+        `awaiting_approval` with the approval still marked approved - and the
+        next resume replayed the call, re-sending whatever it had already sent
+        (#3). The commit in `_run` sits between the two, so the state transition
+        `claim_parked_run` guards is durable before anything side-effecting runs.
+        """
+        db = _db()
+        service = AgentRunnerService(db)
+        approval = self._approval(status=ApprovalStatus.APPROVED.value, tool_args={})
+        run = _parked_run(
+            paused_state={"messages": [], "tool_call_ids": {str(approval.id): "call-1"}}
+        )
+        built = self._built()
+        order: list[str] = []
+
+        async def note_commit() -> None:
+            order.append("commit")
+
+        async def note_mark(*_args: Any, **_kwargs: Any) -> MagicMock:
+            order.append("mark_running")
+            return run
+
+        async def note_model(*_args: Any, **_kwargs: Any) -> MagicMock:
+            order.append("model")
+            return MagicMock(output="sent")
+
+        db.commit = AsyncMock(side_effect=note_commit)
+        built.agent.run = AsyncMock(side_effect=note_model)
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                new=AsyncMock(return_value=[approval]),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.mark_running",
+                new=AsyncMock(side_effect=note_mark),
+            ),
+            patch(
+                "app.services.agent_runner.agent_repo.get_version",
+                new=AsyncMock(return_value=self._version()),
+            ),
+            patch("app.services.agent_runner.build_agent", return_value=built),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+        ):
+            await service.resume(_ctx(), run.id)
+
+        assert order[:3] == ["mark_running", "commit", "model"]
 
     @pytest.mark.anyio
     async def test_a_resumed_run_records_its_continuation_and_invents_no_question(self):

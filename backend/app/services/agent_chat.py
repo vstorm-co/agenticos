@@ -382,6 +382,12 @@ class ChatAgentRunner:
         budget_scope: BudgetScope | None = None
         output = ""
         summarized: list[dict[str, Any]] | None = None
+        # The transaction ends before the model is asked anything, exactly as
+        # `AgentRunnerService._run` does: the run row and the prompt link above
+        # become visible to every other session mid-run, and the pooled
+        # connection is released for however long the stream takes, instead of
+        # sitting `idle in transaction` (#12).
+        await self.db.commit()
         try:
             async with prepared.iterate(
                 user_input,
