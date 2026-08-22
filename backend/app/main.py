@@ -14,9 +14,9 @@ from app import __version__
 from app.api.exception_handlers import register_exception_handlers
 from app.api.router import api_router
 from app.agents.capabilities import load_builtins
-from app.agents.capabilities.knowledge import aclose_retrieval_service
+from app.agents.capabilities.knowledge import reset_retrieval_service
 from app.core.config import settings
-from app.db.session import close_db, get_db_context
+from app.db.session import close_db, engine as db_engine, get_db_context
 from app.core.logfire_setup import instrument_app, setup_logfire
 from app.core.logfire_setup import instrument_asyncpg
 from app.core.logfire_setup import instrument_redis
@@ -123,15 +123,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     except Exception as e:
         logger.error("Embedding service warmup failed: %s. RAG will not be available.", e)
     if embedder is not None:
-        try:
-            vector_store = PgVectorStore(
-                settings=settings.rag,
-                embedding_service=embedder,
-                resolver=embeddings_for_collection,
-            )
-            state["vector_store"] = vector_store
-        except Exception as e:
-            logger.error("pgvector connection failed: %s. Vector store will not be available.", e)
+        # On the application's own engine: the store used to build a private
+        # pool here, one of three the API process ran beside `db_engine` (#12).
+        state["vector_store"] = PgVectorStore(
+            settings=settings.rag,
+            embedding_service=embedder,
+            resolver=embeddings_for_collection,
+            engine=db_engine,
+        )
 
     # Imported here rather than at module top so that importing `app.main` does
     # not pull in the channel SDKs (aiogram, the Slack client) - ~1.2s of import
@@ -171,25 +170,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # watched; app/core/watchdog.py says why.
     watchdog.start()
     yield state
-    # The channel consumers stop first, and the stores go after them. Serving is
-    # already drained by the time this runs, but a polling task is work this
-    # process owns: an inbound Telegram or Slack message can start a run, and a
-    # run can search, so disposing a store while one is still turning both races
-    # a search in flight and lets the next one build a replacement pool that
-    # nothing is left to close.
+    # The channel consumers stop first, and the engine goes after them (in
+    # `close_db` below). Serving is already drained by the time this runs, but a
+    # polling task is work this process owns: an inbound Telegram or Slack
+    # message can start a run, and a run can search, so disposing the engine
+    # while one is still turning races a search in flight.
     for _bid in list(_telegram_adapter._polling_tasks.keys()):
         await _telegram_adapter.stop_polling(_bid)
     for _sbid in list(_slack_adapter._socket_tasks.keys()):
         await _slack_adapter.stop_polling(_sbid)
     for _mbid in list(_mattermost_adapter._socket_tasks.keys()):
         await _mattermost_adapter.stop_polling(_mbid)
-    if "vector_store" in state:
-        with suppress(Exception):
-            await state["vector_store"].aclose()
-    # The knowledge capability holds a store of its own, built on the first
-    # search and reachable from no request, so the line above never saw it (#948).
+    # The knowledge capability caches a store of its own, built on the first
+    # search and reachable from no request; a shutdown followed by more work -
+    # a test, a reload - must not search through it once `close_db` has run.
     with suppress(Exception):
-        await aclose_retrieval_service()
+        reset_retrieval_service()
     channel_dedupe.configure(None)
     rate_limit.configure(None)
     channel_membership.configure(None)

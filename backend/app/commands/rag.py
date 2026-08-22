@@ -26,6 +26,7 @@ from app.core.background import drain
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
 from app.db.models.knowledge_base import KBScope
+from app.db.session import engine as db_engine
 from app.db.session import get_db_context
 from app.repositories import knowledge_base_repo, organization_repo
 from app.schemas.sync_source import SyncSourceCreate
@@ -68,8 +69,13 @@ def get_rag_services() -> tuple[
     """
     settings = RAGSettings()
     embedder = EmbeddingService(settings=settings)
+    # On the process engine, like the API's stores: a CLI command is one
+    # process, one piece of work, and its pool goes down with it.
     vector_store = PgVectorStore(
-        settings=settings, embedding_service=embedder, resolver=embeddings_for_collection
+        settings=settings,
+        embedding_service=embedder,
+        resolver=embeddings_for_collection,
+        engine=db_engine,
     )
     processor = DocumentProcessor(settings=settings)
     retrieval = RetrievalService(vector_store=vector_store, settings=settings)

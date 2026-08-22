@@ -39,7 +39,7 @@ from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.vectorstore import PgVectorStore
 from app.worker.tasks.rag_tasks import (
     _announcing_resolver,
-    _ingestion_service_for,
+    _ingestion_service,
     _say_in_flow_log,
 )
 
@@ -75,20 +75,28 @@ def _vault_row(plaintext: str, *, organization_id: uuid.UUID = _ORG):
     )
 
 
+@asynccontextmanager
+async def _db_stub() -> AsyncIterator[MagicMock]:
+    yield MagicMock()
+
+
 async def _store() -> PgVectorStore:
     """The store the ingestion flow actually builds.
 
-    Built through `_ingestion_service_for` rather than constructed here: what
-    #306 was is that function passing no `resolver=`, so a test that wires one
+    Built through `_ingestion_service` rather than constructed here: what
+    #306 was is that helper passing no `resolver=`, so a test that wires one
     itself would pass against the bug it exists to catch. Only the processor -
     parsers, chunker, image model, all of which need a session - is stubbed.
+    The store is used after the context exits, which these tests may: they
+    exercise `_for_collection`, and that never touches the engine.
     """
-    with patch("app.worker.tasks.rag_tasks.IngestionConfigService") as config_service:
+    with (
+        patch("app.worker.tasks.rag_tasks.IngestionConfigService") as config_service,
+        patch("app.worker.tasks.rag_tasks.get_worker_db_context", new=_db_stub),
+    ):
         config_service.return_value.build_processor = AsyncMock(return_value=MagicMock())
-        service = await _ingestion_service_for(
-            MagicMock(), config=IngestionConfig(), organization_id=_ORG
-        )
-    store = service.store
+        async with _ingestion_service(config=IngestionConfig(), organization_id=_ORG) as service:
+            store = service.store
     assert isinstance(store, PgVectorStore)
     return store
 

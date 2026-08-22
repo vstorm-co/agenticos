@@ -32,16 +32,6 @@ logger = logging.getLogger(__name__)
 
 class BaseVectorStore(ABC):
     @abstractmethod
-    async def aclose(self) -> None:
-        """Release whatever this store holds, when the work that built it ends.
-
-        Whoever constructs a store closes it: at shutdown for one that lives as
-        long as the process, in a `finally` for one built for a single flow. A
-        store that owns nothing to release implements this as a no-op;
-        `PgVectorStore` disposes its connection pool.
-        """
-
-    @abstractmethod
     async def insert_document(self, collection_name: str, document: Document) -> None:
         pass
 
@@ -167,10 +157,9 @@ from collections.abc import Awaitable, Callable
 from itertools import batched
 
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
-from app.core.config import settings as app_settings
 from app.services.embedding_resolution import ResolvedEmbeddings
 from app.services.rag.config import EmbeddingsConfig, RAGSettings
 from app.services.rag.embeddings import EmbeddingService
@@ -210,18 +199,20 @@ class PgVectorStore(BaseVectorStore):
     Uses the existing PostgreSQL database with pgvector extension.
     No additional Docker services needed.
 
-    **Each instance owns a pooled SQLAlchemy engine, so whoever builds one
-    closes it.** `aclose()` is not a shutdown hook: the API's lifespan happens
-    to build a store that lives as long as the process, but the ingestion worker
-    builds one per flow, and one abandoned there keeps its checked-in
-    connections until the process exits - two hundred uploads reached
-    `max_connections` and then every query failed, including the ones that would
-    have marked a document failed (#948). A caller whose store is bounded by a
-    piece of work disposes it in a `finally`.
+    **The store borrows its engine; it never builds or disposes one.** It used
+    to call `create_async_engine` in `__init__`, which gave every instance a
+    private pool of `DB_POOL_SIZE + DB_MAX_OVERFLOW` connections: the API
+    process ran three of them beside the application's own - the lifespan's,
+    the knowledge capability's, and one per request when the lifespan's was
+    absent - and a worker flow that forgot to dispose its own walked into
+    Postgres `max_connections` at around two hundred uploads (#948, #12).
+    Injection puts each of those decisions where it can be seen: the API and
+    the CLI pass the process engine and dispose nothing, and a worker flow
+    builds an engine for the flow and disposes it with the flow's own work.
 
-    The pool is worth having *within* that work: `insert_document` writes a
+    A pool is still worth having *within* a flow: `insert_document` writes a
     document's chunks over one connection each, and a flow runs in one event
-    loop. Across flows it is not shared, for the reason
+    loop. Across flows an engine is not shared, for the reason
     `get_worker_db_context` gives about cross-loop connections.
     """
 
@@ -230,6 +221,8 @@ class PgVectorStore(BaseVectorStore):
         settings: RAGSettings,
         embedding_service: EmbeddingService,
         resolver: "EmbeddingResolver",
+        *,
+        engine: AsyncEngine,
     ):
         self.settings = settings
         self.embedder = embedding_service
@@ -243,12 +236,7 @@ class PgVectorStore(BaseVectorStore):
         # now the resolver answering None rather than nobody asking.
         self._resolver = resolver
         self._services: dict[tuple[str, str, str], EmbeddingService] = {}
-        self.engine = create_async_engine(app_settings.DATABASE_URL, echo=False)
-        self.async_session = sessionmaker(self.engine, class_=AsyncSession, expire_on_commit=False)
-
-    async def aclose(self) -> None:
-        """Dispose the connection pool. Called by whoever built this store."""
-        await self.engine.dispose()
+        self.async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     def _table(self, name: str) -> str:
         """Get validated table name for a collection.

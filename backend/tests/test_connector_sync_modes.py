@@ -106,7 +106,6 @@ async def _syncing(
     file is skipped, so a stand-in service would be a test of the stand-in.
     """
     store = MagicMock()
-    store.aclose = AsyncMock()
     store.get_documents = AsyncMock(return_value=listing)
 
     source = MagicMock(
@@ -481,7 +480,6 @@ class TestAListingTheStoreCannotAnswer:
         unchanged, and the sync that believed it would leave the collection
         stale with nothing said."""
         store_error = MagicMock()
-        store_error.aclose = AsyncMock()
         store_error.get_documents = AsyncMock(side_effect=RuntimeError("no such table"))
 
         connector = _connector()
@@ -551,7 +549,7 @@ class TestTheLocalDirectorySync:
     @staticmethod
     @asynccontextmanager
     async def _syncing(*, result: MagicMock) -> Any:
-        store = MagicMock(aclose=AsyncMock(), get_documents=AsyncMock(return_value=[]))
+        store = MagicMock(get_documents=AsyncMock(return_value=[]))
         documents = MagicMock(
             create_document=AsyncMock(return_value=MagicMock(id=ROW_ID)),
             complete_ingestion=AsyncMock(),
