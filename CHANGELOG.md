@@ -17,6 +17,99 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.247] - 2026-08-22
+
+An agent runs itself, with nobody at the keyboard.
+
+### Added
+
+- **Routines - a schedule fires on the clock, a trigger fires on an arrival**, and
+  both are rows in `agent_triggers` beside the agent rather than fields in the
+  portable spec, modelled on `AgentExposure`. A `trigger_type` discriminator and a
+  shape CHECK keep "what makes this due" to exactly one answer per row. (#44)
+- **A schedule is an interval with a 60s floor or a crontab expression** validated
+  with `croniter`, and its cadence is edited in place - interval to cron and back -
+  rather than deleted and recreated. `next_fire_at` is computed on write and
+  advanced under the heartbeat's lock; an unschedulable edit is a 422 naming the
+  field, not a 500 out of the CHECK. (#44)
+- **An event trigger reaches us pushed or polled, and which one is the source's
+  business.** GitHub and the generic API source POST a payload signed
+  `HMAC-SHA256` over the exact raw request bytes, against a signing secret sealed
+  through the one vault the way a channel bot's is - rotatable, and never in a
+  response. Gmail is polled: a mailbox you connect, so there is no URL to configure
+  and no secret to keep. Deliveries are deduplicated before firing, because a
+  provider that retries is a provider that fires twice. (#44)
+- **The heartbeat** - `check_agent_triggers_flow`, once a minute - claims due
+  triggers `FOR UPDATE SKIP LOCKED`, advances `next_fire_at` and sets an in-flight
+  marker in the same `UPDATE`, and dispatches each fire in isolation so one failed
+  `run_deployment` does not drop the rest of the batch. A fire runs **as the
+  trigger's creator** with membership re-resolved every time, opens one run-log
+  conversation per trigger, passes no `message_history`, renews its lease on a long
+  run, and disables the trigger rather than retrying forever when it can no longer
+  run. (#44, #588)
+- **`RunSurface.SCHEDULE`** makes a fired run first-class in run history beside
+  web, api, slack and embed, so a triggered run is in Runs as well as in its own
+  view. (#44)
+- **Four surfaces and one list**: `/routines` for the whole organization, the
+  agent's Availability tab, the chat sidebar's Routines section, and a dashboard
+  card ordered soonest-first with how the last fire went - a routine failing every
+  hour is invisible everywhere else on that page. The Routines page has its stop in
+  the onboarding walkthrough and its creation flow. (#44, #594)
+- **Templates, so neither kind starts from a blank box** (`GET /trigger-templates`):
+  a schedule template pre-fills a prompt and a sane cadence, an event template
+  pre-fills the prompt on its own source's message step. The create flow is a
+  stepped wizard reading a cadence back in plain words rather than in cron. (#44)
+- **A portal is a connected account, and its state is carried on the catalog**:
+  GitHub and Gmail are connected through the organization's own OAuth app, whose
+  client credentials are a vault secret of their own kind rather than a deployment
+  environment variable. (#44, #1068)
+- **The sandbox keeps a record of what an agent did in it.** The activity log was a
+  200-entry ring buffer in the service's own process, gone on restart; operations are
+  rows now, per session, searchable and filterable by operation and to failures only.
+  The dashboard row's live ticker still reads the buffer, which is the one thing it
+  answers faster. (#1061)
+
+### Fixed
+
+- **Gmail handed out a webhook URL and a signing secret it never uses.** A polled
+  source has no inbound door, so the dialog offered setup for a delivery that
+  cannot arrive, and the email relay webhook it stood in for is gone. (#1068)
+- **The trigger create dialog was a fixed `90vh` with markless template cards and
+  unreadable presets.** It takes a token from the one dialog scale, the cards carry
+  their brand marks in brand colours, and the prerequisite is said before the form
+  asks for anything. (#1069)
+- **A trigger's Environment picker rendered the default as blank**, which reads as
+  an environment that is not there rather than as the one you already have. (#1070)
+- **The API trigger was a ghost button in the toolbar** rather than a tile beside
+  the portals, so the one source needing no account looked like a secondary action.
+  (#1071)
+- **Per-agent gating, everywhere a routine can be made.** Create controls are gated
+  on `agents:run` per agent rather than on the collection floor, each trigger read
+  says whether the caller may manage it, and a refusal on a per-resource route is
+  reported as not-found so agent ids stay unprobeable. `can_run` is on the agent
+  read for the same reason the client should not be re-deriving it. (#44)
+- **`run_now` executed the agent inside the HTTP request** - a 504 on a slow run, and
+  a double fire when the client retried it. A manual fire is dispatched like any
+  other. (#658)
+- **The flow dispatch is imported lazily**, so importing the API does not import
+  Prefect. (#44)
+
+### Schema
+
+- `agent_triggers` and its event columns, the trigger name, portal triggers and
+  portal connections, the webhook target, the in-flight fire marker, the Gmail
+  event source, the secret a polled trigger does not need, and the sandbox
+  operations log - migrations `0046` through `0055`, applied and rolled back
+  cleanly.
+
+### Documentation
+
+- **`docs/triggers.md`** - what an event trigger is, pushed versus polled, where
+  routines live in the product and what to call them, how to point a real provider
+  at the webhook, what a delivery must contain, and how to test the whole thing
+  from a laptop. `docs/concepts.md`, `governance.md`, `permissions.md`,
+  `secrets.md`, `mcp.md` and `sandbox.md` carry their side of it. (#44)
+
 ## [0.0.246] - 2026-08-21
 
 An Admin cannot take from a peer what they are not allowed to remove.
