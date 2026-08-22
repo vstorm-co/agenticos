@@ -29,7 +29,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_ai import Agent as PydanticAgent
-from pydantic_ai import ModelRetry
 from pydantic_ai.capabilities import NativeTool
 from pydantic_ai.exceptions import UnexpectedModelBehavior, UserError
 from pydantic_ai.messages import BinaryImage
@@ -40,6 +39,7 @@ from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai_backends import ensure_async
 
+from app.agents.capabilities._failures import steer
 from app.agents.capabilities.budget import record_ambient_usage
 from app.agents.deps import AgentDeps
 from app.services.generated_media import generated_image_url, save_generated_image
@@ -145,10 +145,10 @@ def build_image_toolset(
         """
         if api_key is None:
             # Unreachable once published - a missing required secret is refused at
-            # publish and again at build. It is a `ModelRetry` rather than a crash
-            # for the preview and test paths that build without a key: the run
+            # publish and again at build. It is a retry rather than a crash for
+            # the preview and test paths that build without a key: the run
             # survives, and nothing is spent or stored.
-            raise ModelRetry("Image generation has no API key configured.")
+            return steer(ctx, "Image generation has no API key configured.")
 
         model = _build_image_model(model_id, api_key)
         agent: PydanticAgent[None, BinaryImage] = PydanticAgent(
@@ -163,7 +163,7 @@ def build_image_toolset(
             # The image model refused or misbehaved - a bad prompt, an
             # unsupported setting. Hand it back for the model to rephrase rather
             # than ending the turn on an error string.
-            raise ModelRetry(f"Image generation failed: {exc}") from exc
+            return steer(ctx, f"Image generation failed: {exc}")
 
         image = result.output
         # Booked to the run's ledger, which the runner is holding open. The model

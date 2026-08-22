@@ -13,6 +13,9 @@ import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic_ai import RunContext
+from pydantic_ai.models.test import TestModel
+from pydantic_ai.usage import RunUsage
 
 from app.agents.capabilities._registry import CapabilityBinding, build, get
 from app.agents.capabilities.web_research import KEYED_METHODS, WebResearch, WebResearchConfig
@@ -23,6 +26,13 @@ from app.agents.capabilities.web_research._search import (
     search,
 )
 from app.core.secret_kinds import ApiKeySecret
+
+
+def _tool_ctx(*, retry: int = 0, max_retries: int = 1) -> RunContext[None]:
+    """A context with a retry left, which is what a real call starts with."""
+    return RunContext(
+        deps=None, model=TestModel(), usage=RunUsage(), retry=retry, max_retries=max_retries
+    )
 
 
 def _tavily_module(response: dict | Exception) -> MagicMock:
@@ -140,7 +150,18 @@ class TestFailures:
 
         toolset = build_toolset(provider="tavily", api_key=None, max_results=5)
         with pytest.raises(ModelRetry):
-            await toolset.tools["web_search"].function(query="x")
+            await toolset.tools["web_search"].function(_tool_ctx(), query="x")
+
+    @pytest.mark.anyio
+    async def test_the_last_attempt_says_so_rather_than_ending_the_run(self):
+        """A `ModelRetry` past the budget takes the conversation with it."""
+        from app.agents.capabilities.web_research._toolset import build_toolset
+
+        toolset = build_toolset(provider="tavily", api_key=None, max_results=5)
+
+        answered = await toolset.tools["web_search"].function(_tool_ctx(retry=1), query="x")
+
+        assert "tavily" in answered.lower()
 
 
 class TestConfiguration:

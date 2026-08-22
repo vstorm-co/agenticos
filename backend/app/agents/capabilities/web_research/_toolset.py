@@ -10,9 +10,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic_ai import ModelRetry
+from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 
+from app.agents.capabilities._failures import steer
 from app.agents.capabilities.web_research._search import (
     SearchProvider,
     SearchUnavailable,
@@ -25,7 +26,7 @@ def build_toolset(
 ) -> FunctionToolset[Any]:
     """A `web_search` tool bound to one provider."""
 
-    async def web_search(query: str) -> str:
+    async def web_search(ctx: RunContext[Any], query: str) -> str:
         """Search the public web for current information.
 
         Use for facts that change or post-date your training: prices, news,
@@ -43,12 +44,12 @@ def build_toolset(
                 query, provider=provider, api_key=api_key, max_results=max_results
             )
         except SearchUnavailable as exc:
-            # `ModelRetry` rather than a returned string: an error in the shape
-            # of a result is one the model reads as "nothing found", and it then
+            # A retry rather than a returned string: an error in the shape of a
+            # result is one the model reads as "nothing found", and it then
             # answers from memory - confidently, and without saying it had to.
-            raise ModelRetry(str(exc)) from exc
+            return steer(ctx, str(exc))
         return results.model_dump_json()
 
     toolset: FunctionToolset[Any] = FunctionToolset()
-    toolset.add_function(web_search, takes_ctx=False)
+    toolset.add_function(web_search)
     return toolset
