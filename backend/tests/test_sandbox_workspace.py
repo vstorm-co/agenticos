@@ -450,6 +450,10 @@ class TestBuildingTheCapability:
         the model reads that same sentence followed by the usage and the return
         shape. A paraphrase written here instead would leave the person deciding
         what to allow and the model deciding when to act reading different text.
+
+        The `<summary>` opening it is pydantic-ai's own shape for a tool that
+        says what it returns, which is what every docstring-built tool in this
+        product already sends - `create_chart` included.
         """
         definition = get_capability("sandbox")
         built = build_capabilities([CapabilityBinding(capability_id="sandbox")])
@@ -459,7 +463,7 @@ class TestBuildingTheCapability:
         for tool in definition.tools:
             described = toolset.tools[tool.id].tool_def.description
             assert described is not None
-            assert described.startswith(tool.description)
+            assert described.startswith(f"<summary>{tool.description}")
 
     def test_the_catalog_shows_a_sentence_rather_than_the_whole_prompt(self):
         """`execute` used to render 2501 characters beside a checkbox."""
