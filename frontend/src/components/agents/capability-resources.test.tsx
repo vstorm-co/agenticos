@@ -143,3 +143,39 @@ describe("what a capability reads of the organization's", () => {
     expect(screen.queryByText(/switched off/)).not.toBeInTheDocument();
   });
 });
+
+/**
+ * The Tools tab beside this one lists `list_context` and `read_context`, and the
+ * run carries neither unless something is bound for it to read on demand - which
+ * is what made an agent with one injected file look broken.
+ */
+describe("what the context capability will actually attach", () => {
+  const linked = { ...FILE, id: "f2", name: "runbook", mode: "link" } as ContextFileSummary;
+
+  it("says the read tools are not attached when every bound file is injected", () => {
+    mount("context", { contextIds: ["f1"] });
+
+    expect(screen.getByText(/read tools/)).toBeInTheDocument();
+  });
+
+  it("says nothing once a linked file gives the tools something to read", () => {
+    mount("context", { contextFiles: [FILE, linked], contextTotal: 2, contextIds: ["f1", "f2"] });
+
+    expect(screen.queryByText(/read tools/)).not.toBeInTheDocument();
+  });
+
+  it("counts a disabled linked file for nothing, because a run skips it", () => {
+    const off = { ...linked, enabled: false } as ContextFileSummary;
+    mount("context", { contextFiles: [off], contextTotal: 1, contextIds: ["f2"] });
+
+    expect(screen.getByText(/read tools/)).toBeInTheDocument();
+  });
+
+  it("says nothing about a bound file this page of the gallery cannot see", () => {
+    // An id the fetched page does not hold may be an orphan or may be on the
+    // next page; either way its mode is unknown, and guessing it is worse.
+    mount("context", { contextIds: ["f9"] });
+
+    expect(screen.queryByText(/read tools/)).not.toBeInTheDocument();
+  });
+});

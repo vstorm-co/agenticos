@@ -160,6 +160,7 @@
     "contextCount": "{count, plural, =1 {1 context file} other {# context files}}",
     "contextFilesDetail": "Standing context this agent reads - a glossary or policy injected into its prompt, or files it reads on demand.",
     "contextFilesHeading": "Context files",
+    "contextInjectOnlyNoTools": "Every file bound here is injected into the prompt, so the read tools (list_context, read_context) are not attached - the agent already has the text and has nothing to read on demand. Set a file to linked to give it the tools.",
     "contextLoadingHint": "An injected file is added to every run; a linked one the agent reads only when it decides it is relevant. <link>Manage context</link>",
     "contextOffButBound": "Context is switched off, so none of these files reach the model - not the injected ones either, because the injection happens here. They stay in the spec and are still checked at publish; switch it on above, or unpick them.",
     "contextPlacement": "Context for this placement",
