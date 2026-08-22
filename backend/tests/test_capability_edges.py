@@ -198,6 +198,8 @@ class TestEmbeddingCredential:
         assert OpenAIEmbeddingProvider(model="text-embedding-3-small").model
 
     def test_embedding_without_a_key_names_the_setting_to_set(self):
+        """The deployment itself asking - the warmup, a `rag-*` command. It has no
+        collection, so the environment variable is exactly what it is missing."""
         provider = OpenAIEmbeddingProvider(model="text-embedding-3-small")
 
         with pytest.raises(ConfigurationError) as refusal:
@@ -208,7 +210,25 @@ class TestEmbeddingCredential:
         assert refusal.value.details == {
             "setting": "OPENROUTER_API_KEY",
             "model": "text-embedding-3-small",
+            "endpoint": "the provider's default",
         }
+
+    def test_a_collections_refusal_advises_a_key_rather_than_the_deployments(self):
+        """A collection embedding through another provider cannot be fixed by
+        setting this deployment's key, and advising it would point one vendor's
+        credential at another vendor's endpoint."""
+        provider = OpenAIEmbeddingProvider(
+            model="text-embedding-3-small",
+            base_url="https://api.openai.com/v1",
+            key_origin="collection 'handbook', which embeds through openai on no key at all",
+        )
+
+        with pytest.raises(ConfigurationError) as refusal:
+            provider.embed_queries(["hello"])
+
+        assert "OPENROUTER_API_KEY" not in refusal.value.message
+        assert "handbook" in refusal.value.message
+        assert refusal.value.details["endpoint"] == "https://api.openai.com/v1"
 
     def test_the_client_is_built_once_and_reused(self):
         provider = OpenAIEmbeddingProvider(model="m", api_key="sk-test", base_url="https://x/v1")
