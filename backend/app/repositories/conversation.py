@@ -750,6 +750,16 @@ async def set_reminder_state(
     return db_conversation
 
 
+async def set_plan(
+    db: AsyncSession, *, db_conversation: Conversation, items: list[dict[str, Any]]
+) -> Conversation:
+    """Record the checklist this conversation's agent is working to."""
+    db_conversation.plan_items = items
+    await db.flush()
+    await db.refresh(db_conversation)
+    return db_conversation
+
+
 async def last_ordinal(db: AsyncSession, conversation_id: UUID) -> int:
     """The ordinal of the newest message, or 0 for a conversation with none."""
     highest = await db.scalar(

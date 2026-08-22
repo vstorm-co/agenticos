@@ -20,14 +20,18 @@ prompt every turn - which is declared here too and handed over through `guidance
 so a harness release that rewrites its default guidance cannot silently rewrite our
 system prompt. It is the same bargain `sandbox` strikes with its console library.
 
-*The plan has to survive an approval park, and the store is the runner's, not
-this capability's.* The library's default `InMemoryPlanStore` is fresh per run, so a
-run that parks on an approval mid-plan would resume with an empty checklist - the
-same shape of bug the delegation journal had before agenticos#175. The runner owns
-the store: it seeds one from `paused_state` on resume, injects it through
-:data:`PLANNING_STORE_RESOURCE`, and reads it back when the run parks. This
-capability only hands that store to the library. Building it needs no runner change
-because the store arrives as a resource, exactly as the subagent runtime does.
+*The plan has to survive both an approval park and the end of a turn, and the
+store is the runner's, not this capability's.* The library's default
+`InMemoryPlanStore` is fresh per run, so a run that parks on an approval mid-plan
+would resume with an empty checklist - the same shape of bug the delegation journal
+had before agenticos#175 - and, because a chat message *is* a run here, the next
+message would too: an agent wrote three steps and then answered that no plan
+existed and it had never made one (agenticos#1077). The runner owns the store: it
+seeds one from the conversation's `plan_items`, or from `paused_state` on a resume,
+injects it through :data:`PLANNING_STORE_RESOURCE`, and writes the checklist back
+when the run stops. This capability only hands that store to the library. Building
+it needs no runner change because the store arrives as a resource, exactly as the
+subagent runtime does.
 
 What is deliberately *not* wrapped: the toolset, the plan mutation logic, the
 dependency reconciliation and the tail reminder. Those are the library's job and it
@@ -53,6 +57,10 @@ Present when the runner assembled a store for this run - which it does whenever 
 spec binds `planning` - and absent for a preview, a unit test, or any build that
 does not go through the runner. Absent, the library keeps a fresh in-memory plan per
 run (its own default), which is the honest behaviour for a build with no run to park.
+
+The store the runner injects is seeded from the conversation's `plan_items`, or from
+`PausedRunState.plan` on a resume, and written back to the conversation when the run
+ends - so the plan belongs to the thread rather than to one turn of it (#1077).
 """
 
 WRITE_PLAN_TEXT = ToolText(
@@ -270,22 +278,26 @@ def new_plan_store() -> InMemoryPlanStore:
     """A fresh, empty in-memory store.
 
     The default a run holds before anything is planned, and the one a `PreparedRun`
-    carries when it is built outside the runner. In-memory rather than persistent
-    because a plan's lifetime here is one run - which may park and resume - not a
-    record kept across conversations.
+    carries when it is built outside the runner. In-memory because the store is a
+    run's working copy: what makes a plan durable is the runner writing it to the
+    conversation when the run ends and seeding the next one from it, not a
+    persistent store here - which would be a second writer of the same row.
     """
     return InMemoryPlanStore()
 
 
 async def open_plan_store(items: list[dict[str, Any]] | None) -> InMemoryPlanStore:
-    """A store seeded with a resume's stored plan, or empty on a fresh run.
+    """A store seeded with a plan already written down, or empty where none was.
 
-    `items` is `PausedRunState.plan` - the steps a run held when it parked, each a
-    JSON dump of a `PlanItem`. `None` and `[]` both mean a run that had no plan (a
-    fresh start, or a park before this capability existed), and both open an empty
-    store. Seeding here, behind the resource the builder reads, is what carries the
-    checklist across an approval park - the same shape as re-seeding a delegation's
-    registry from its frames.
+    `items` is a list of `PlanItem` dumps from one of two places, and the runner
+    decides which: `PausedRunState.plan` on a resume, and the conversation's own
+    `plan_items` on a fresh turn. `None` and `[]` both mean no plan, and both open
+    an empty store.
+
+    Seeding here, behind the resource the builder reads, is what carries a
+    checklist across both boundaries - an approval park, and the end of a turn.
+    The second one is #1077: a plan store is a run's, a chat message is a run, so
+    an agent wrote three steps and denied them one message later.
     """
     store = InMemoryPlanStore()
     await store.set_items([PlanItem.model_validate(item) for item in items or []])
@@ -293,9 +305,10 @@ async def open_plan_store(items: list[dict[str, Any]] | None) -> InMemoryPlanSto
 
 
 async def dump_plan(store: PlanStore) -> list[dict[str, Any]]:
-    """The store's steps as JSON, for `PausedRunState.plan`.
+    """The store's steps as JSON, for `PausedRunState.plan` and for the conversation.
 
     A plain list of `PlanItem` dumps rather than the store itself: what a parked run
-    needs to resume is the checklist, and the store's identity is this run's alone.
+    needs to resume, and what the next turn of a conversation needs to start from,
+    is the checklist - the store's identity is this run's alone.
     """
     return [item.model_dump(mode="json") for item in await store.get_items()]

@@ -42,6 +42,7 @@ class MockConversation:
         self.summary_ordinal: int | None = None
         self.overhead_tokens: int | None = None
         self.reminder_state: dict[str, Any] | None = None
+        self.plan_items: list[dict[str, Any]] | None = None
 
 
 class MockMessage:
@@ -1937,5 +1938,82 @@ class TestHowFarTheReminderCadenceHasAdvanced:
         monkeypatch.setattr(conversation_repo, "set_reminder_state", stored)
 
         await ConversationService(AsyncMock()).keep_reminder_state(uuid4(), {"request_count": 1})
+
+        stored.assert_not_awaited()
+
+
+@pytest.mark.anyio
+class TestThePlanAConversationIsWorkingTo:
+    """A plan store is one run's and a chat message is a run, so an agent wrote
+    three steps and then answered that no plan existed and it had never created
+    one (#1077). The checklist is the conversation's now."""
+
+    async def test_it_is_recorded_so_the_next_turn_starts_from_it(self, monkeypatch):
+        conversation = MockConversation()
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        stored = AsyncMock()
+        monkeypatch.setattr(conversation_repo, "set_plan", stored)
+
+        items = [{"id": "aa11", "content": "Write the fix", "status": "in_progress"}]
+        await ConversationService(AsyncMock()).keep_plan(conversation.id, items)
+
+        assert stored.await_args.kwargs["items"] == items
+
+    async def test_a_plan_that_has_not_moved_is_not_written_again(self, monkeypatch):
+        conversation = MockConversation()
+        conversation.plan_items = [{"id": "aa11", "content": "Write the fix", "status": "pending"}]
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        stored = AsyncMock()
+        monkeypatch.setattr(conversation_repo, "set_plan", stored)
+
+        await ConversationService(AsyncMock()).keep_plan(
+            conversation.id, [{"id": "aa11", "content": "Write the fix", "status": "pending"}]
+        )
+
+        stored.assert_not_awaited()
+
+    async def test_an_agent_that_plans_nothing_writes_nothing(self, monkeypatch):
+        """Every run calls this, planning capability or not: the store the runner
+        always opens dumps an empty list, and empty against a null column is not a
+        change. Without that, every turn of every conversation would UPDATE a row
+        to say the agent still has no plan."""
+        conversation = MockConversation()
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        stored = AsyncMock()
+        monkeypatch.setattr(conversation_repo, "set_plan", stored)
+
+        await ConversationService(AsyncMock()).keep_plan(conversation.id, [])
+
+        stored.assert_not_awaited()
+
+    async def test_a_plan_the_run_emptied_is_recorded_as_empty(self, monkeypatch):
+        """The other side of it: a stored plan whose last step was removed has to
+        be cleared, or the next turn seeds a checklist the agent deleted."""
+        conversation = MockConversation()
+        conversation.plan_items = [{"id": "aa11", "content": "Write the fix", "status": "pending"}]
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        stored = AsyncMock()
+        monkeypatch.setattr(conversation_repo, "set_plan", stored)
+
+        await ConversationService(AsyncMock()).keep_plan(conversation.id, [])
+
+        assert stored.await_args.kwargs["items"] == []
+
+    async def test_a_conversation_that_is_gone_records_nothing(self, monkeypatch):
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=None)
+        )
+        stored = AsyncMock()
+        monkeypatch.setattr(conversation_repo, "set_plan", stored)
+
+        await ConversationService(AsyncMock()).keep_plan(uuid4(), [{"content": "x"}])
 
         stored.assert_not_awaited()

@@ -164,6 +164,24 @@ class ConversationService:
             self.db, db_conversation=conversation, state=state
         )
 
+    async def keep_plan(self, conversation_id: UUID, items: list[dict[str, Any]]) -> None:
+        """Record the checklist the run left this conversation with.
+
+        Written only when it moved, for the reason :meth:`keep_overhead` is - and
+        an empty list is treated as no plan, which is what makes this safe to call
+        for every run: an agent that binds no planning capability dumps `[]` every
+        turn, and `[]` against a column that is null is not a change.
+
+        The next run seeds its store from this, so a plan written in one turn is
+        still there in the next. It used to be a run's alone, and a chat message
+        is a run: the agent denied a plan it had written two messages earlier
+        (#1077).
+        """
+        conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
+        if conversation is None or (conversation.plan_items or []) == items:
+            return
+        await conversation_repo.set_plan(self.db, db_conversation=conversation, items=items)
+
     async def keep_summary(self, conversation_id: UUID, messages: list[dict[str, Any]]) -> None:
         """Write down the history a summary reduced this conversation to.
 

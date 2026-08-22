@@ -785,11 +785,22 @@ declares `side_effecting=False`. The three subtask tools are declared even when 
 checklist does not offer them, because a tool absent from the declaration can be
 neither gated by the approval policy nor renamed by a binding.
 
-**The plan survives an approval park.** The checklist is state, and a run that parks
-on an approval mid-plan resumes as a fresh run — so the store is owned by the runner,
-not the capability: it is seeded from `paused_state` on resume and read back when the
-run stops. An agent that does not bind the capability pays nothing — no tools, no
-reminder, no stored plan.
+**The plan belongs to the conversation, not to one turn of it.** The checklist is
+state, and every boundary a run has would otherwise lose it. A run that parks on an
+approval mid-plan resumes as a fresh run; and a chat message *is* a run here, so the
+next message started from an empty store — an agent wrote three steps, was asked to
+begin the first, and answered that no plan existed and it had never created one
+(agenticos#1077). So the store is the runner's, not the capability's: it is seeded
+from the conversation's stored plan, or from `paused_state` on a resume, which is the
+newer copy, and written back to the conversation when the run stops. A surface with
+no conversation — a bare API call — keeps a plan for the length of its run, which is
+all it has.
+
+A finished checklist is kept rather than cleared. That is what the run which
+finished it saw too: every step ticked in the tail reminder, until `write_plan`
+replaces the plan wholesale — which is what starting new work does. An agent that
+does not bind the capability pays nothing: no tools, no reminder, and nothing stored,
+because an empty checklist against a column that is null is not a change to write.
 
 **It spends no tokens of its own.** The tools are local checklist edits with no model
 or embedding request behind them, so unlike knowledge or delegation there is no
