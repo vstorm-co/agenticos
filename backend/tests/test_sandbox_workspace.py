@@ -443,15 +443,41 @@ class TestBuildingTheCapability:
         assert toolset is not None
         assert "execute" not in toolset.tools
 
-    def test_the_catalog_and_the_model_read_the_same_description(self):
-        """Two copies in two repositories drift, and nothing reports it."""
+    def test_the_catalog_shows_the_first_sentence_the_model_reads(self):
+        """One source, two lengths - not two copies, which drift unreported.
+
+        The Builder shows `TOOL_TEXT[id].summary` beside an approval checkbox and
+        the model reads that same sentence followed by the usage and the return
+        shape. A paraphrase written here instead would leave the person deciding
+        what to allow and the model deciding when to act reading different text.
+        """
         definition = get_capability("sandbox")
         built = build_capabilities([CapabilityBinding(capability_id="sandbox")])
         toolset = built[0].get_toolset()
 
         assert toolset is not None
         for tool in definition.tools:
-            assert toolset.tools[tool.id].tool_def.description == tool.description
+            described = toolset.tools[tool.id].tool_def.description
+            assert described is not None
+            assert described.startswith(tool.description)
+
+    def test_the_catalog_shows_a_sentence_rather_than_the_whole_prompt(self):
+        """`execute` used to render 2501 characters beside a checkbox."""
+        definition = get_capability("sandbox")
+
+        execute = next(tool for tool in definition.tools if tool.id == "execute")
+
+        assert len(execute.description) < 100
+
+    def test_the_model_is_not_told_how_to_use_git_in_a_scratch_workspace(self):
+        """`profile="agent"` - the workspace dies with its conversation."""
+        built = build_capabilities([CapabilityBinding(capability_id="sandbox")])
+        toolset = built[0].get_toolset()
+
+        assert toolset is not None
+        described = toolset.tools["execute"].tool_def.description
+        assert described is not None
+        assert "git add -A" not in described
 
     def test_the_background_shells_are_not_offered(self):
         built = build_capabilities([CapabilityBinding(capability_id="sandbox")])

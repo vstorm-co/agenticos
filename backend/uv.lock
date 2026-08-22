@@ -108,7 +108,7 @@ requires-dist = [
     { name = "prefect", specifier = ">=3.8.3" },
     { name = "psycopg2-binary", specifier = ">=2.9.0" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.13.4" },
-    { name = "pydantic-ai-backend", extras = ["console", "remote"], specifier = ">=0.2.27" },
+    { name = "pydantic-ai-backend", extras = ["console", "remote"], specifier = ">=0.2.28" },
     { name = "pydantic-ai-harness", specifier = ">=0.21.0" },
     { name = "pydantic-ai-skills", specifier = ">=0.11.0" },
     { name = "pydantic-ai-slim", extras = ["mcp"], specifier = ">=2.30.0" },
@@ -3732,15 +3732,14 @@ email = [
 
 [[package]]
 name = "pydantic-ai-backend"
-version = "0.2.27"
+version = "0.2.28"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "wcmatch" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3d/6a/81d716b1dab095f356df4f78d7c94215f2467bfad6551a8d1a886345979b/pydantic_ai_backend-0.2.27.tar.gz", hash = "sha256:f26564244f6914eae1a29726f57f5292dbaddb5163cf08ce9fb248bdea3c9f67", size = 15170457, upload-time = "2026-08-20T16:01:25.731Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e0/6f/23d8f9fab09b05589744dd3e46868396745a2df7efc3424086d0e869ea0b/pydantic_ai_backend-0.2.27-py3-none-any.whl", hash = "sha256:c248c85be11c657abd92fa722be470a4dab32c46aeffc0cb025d1b0605331e6e", size = 199290, upload-time = "2026-08-20T16:01:23.814Z" },
+    { url = "https://files.pythonhosted.org/packages/35/12/f03aeb43ec9a45221809748db1d6beec3db7194e001f2c698920f359bb14/pydantic_ai_backend-0.2.28-py3-none-any.whl", hash = "sha256:d2b6ea9112ad6578d3491b703bcf7e1fee9606055bac48e972288e25d5a7a8a3", size = 204962, upload-time = "2026-08-22T09:36:55.675Z" },
 ]
 
 [package.optional-dependencies]

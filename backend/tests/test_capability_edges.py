@@ -12,8 +12,9 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pydantic_ai import ModelRetry
-from pydantic_ai.usage import RequestUsage
+from pydantic_ai import ModelRetry, RunContext
+from pydantic_ai.models.test import TestModel
+from pydantic_ai.usage import RequestUsage, RunUsage
 
 from app.agents.capabilities import CapabilityBinding, build, load_builtins
 from app.agents.capabilities.budget import BudgetGuard, SpendLedger
@@ -36,6 +37,13 @@ from app.services.rag.embeddings import EmbeddingService, OpenAIEmbeddingProvide
 from app.services.rag.models import SearchResult
 from app.services.rag.retrieval import RetrievalService
 from app.services.rag.vectorstore import PgVectorStore
+
+
+def _tool_ctx(*, retry: int = 0, max_retries: int = 1) -> RunContext[None]:
+    """A context with a retry left, which is what a real call starts with."""
+    return RunContext(
+        deps=None, model=TestModel(), usage=RunUsage(), retry=retry, max_retries=max_retries
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -411,7 +419,9 @@ class TestChartFailureModes:
         from app.agents.capabilities.charts import ChartsToolset
 
         with pytest.raises(ModelRetry, match="`x_values` was empty"):
-            ChartsToolset().create_chart(chart_type="bar", title="t", x_values=[], series=[])
+            ChartsToolset().create_chart(
+                _tool_ctx(), chart_type="bar", title="t", x_values=[], series=[]
+            )
 
     def test_unplottable_data_says_how_to_fix_it(self):
         """The model can only recover if it is told what was missing."""
@@ -420,6 +430,7 @@ class TestChartFailureModes:
 
         with pytest.raises(ModelRetry, match=r"'revenue' has 0 value\(s\) for 1 x value\(s\)"):
             ChartsToolset().create_chart(
+                _tool_ctx(),
                 chart_type="bar",
                 title="t",
                 x_values=["only-a-label"],
@@ -432,6 +443,7 @@ class TestChartFailureModes:
 
         toolset = Charts().get_toolset()
         result = toolset.tools["create_chart"].function(
+            _tool_ctx(),
             chart_type="bar",
             title="Revenue",
             x_values=["Jan"],
@@ -461,7 +473,7 @@ class TestWebSearchFailureModes:
             "app.agents.capabilities.web_research._toolset.search",
             new=AsyncMock(return_value=WebSearchResults(query="x", provider="brave")),
         ) as backend:
-            await toolset.tools["web_search"].function(query="x")
+            await toolset.tools["web_search"].function(_tool_ctx(), query="x")
 
         assert backend.call_args.kwargs["max_results"] == 3
         assert backend.call_args.kwargs["provider"] == "brave"
@@ -496,7 +508,7 @@ class TestSandboxResultRendering:
         with patch(
             "app.agents.capabilities.code_execution._sandbox.AsyncMonty", return_value=client
         ):
-            assert "42" in await run_python("6*7")
+            assert "42" in (await run_python("6*7")).text
 
 
 class TestCapabilityToolsetCaching:
@@ -520,6 +532,7 @@ class TestLastMileBranches:
 
         spec = parse_chart_spec(
             ChartsToolset().create_chart(
+                _tool_ctx(),
                 chart_type="bar",
                 title="t",
                 x_values=["Jan"],
