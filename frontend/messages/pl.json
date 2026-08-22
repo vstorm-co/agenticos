@@ -971,6 +971,30 @@
           "title": "Nic nie uruchomiono w tym okresie",
           "description": "Rytm pojawi się, gdy będą runy do rozłożenia."
         }
+      },
+      "routines": {
+        "title": "Rutyny",
+        "description": "Co działa, gdy nikogo nie ma przy klawiaturze - najbliższe najpierw - i jak poszło ostatnie uruchomienie.",
+        "unnamed": "Rutyna bez nazwy",
+        "cost": "${cost}",
+        "nextFire": "następne {at}",
+        "paused": "wstrzymana",
+        "neverRun": "jeszcze nie uruchomiona",
+        "fired": "odpalona",
+        "succeeded": "ok",
+        "ratedDown": "oceniona negatywnie",
+        "status": {
+          "failed": "niepowodzenie",
+          "budget_exceeded": "przekroczony budżet",
+          "running": "w toku",
+          "pending": "startuje",
+          "cancelled": "anulowana",
+          "awaiting_approval": "czeka na zatwierdzenie"
+        },
+        "empty": {
+          "title": "Nic jeszcze nie działa samo",
+          "description": "Harmonogram uruchamia agenta według zegara; wyzwalacz - gdy coś nadejdzie."
+        }
       }
     },
     "activeSessions": "Aktywne sesje",
@@ -1244,6 +1268,10 @@
       "create-org": {
         "title": "Utworzyć organizację?",
         "body": "Organizacja to osobna przestrzeń z własnymi agentami, członkami i ustawieniami. Utworzymy jedną teraz? Przeprowadzimy Cię przez to."
+      },
+      "create-routine": {
+        "title": "Ustawić pierwszą rutynę?",
+        "body": "Rutyna uruchamia agenta, gdy nikogo nie ma przy klawiaturze - według harmonogramu albo gdy nadejdzie zdarzenie. Ustawimy jedną teraz? Przeprowadzimy Cię przez to i razem odpalimy pierwszy run."
       },
       "explore-chat": {
         "title": "Krótki przewodnik po czacie?",

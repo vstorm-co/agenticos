@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 
 import { useAgent, useAgents } from "@/hooks/use-agents";
+import { useCanCreateTriggerQuery } from "@/hooks/use-can-create-trigger";
 import { useKnowledgeBases } from "@/hooks/use-knowledge-bases";
 import { useMcpConnections } from "@/hooks/use-mcp-connections";
 import { useModelProviders } from "@/hooks/use-model-providers";
@@ -70,6 +71,7 @@ const DEFAULT_STATE: OrgState = {
   hasSkill: false,
   hasOrgMcp: false,
   hasPublishedAgent: false,
+  hasRunnableAgent: false,
 };
 
 /**
@@ -114,13 +116,17 @@ function useOrgSnapshot(): {
   // The org-wide list, which is what the Routines page shows and therefore what
   // grows by one when the reader creates a schedule or a trigger.
   const routines = useOrgTriggers();
+  // The same query the Routines page gates its create buttons on
+  // (`qk.agents.anyRunnable()`), so the flow and the buttons can never disagree.
+  const anyRunnable = useCanCreateTriggerQuery();
   const stateSettled =
     !agents.isLoading &&
     !models.isLoading &&
     !kb.isLoading &&
     !skills.isLoading &&
     !mcp.isLoading &&
-    !personalMcp.isLoading;
+    !personalMcp.isLoading &&
+    !anyRunnable.isLoading;
   return {
     counts: {
       agent: settled(agents.isLoading, agents.isFetching, agents.total),
@@ -154,6 +160,7 @@ function useOrgSnapshot(): {
           hasSkill: skills.total > 0,
           hasOrgMcp: mcp.connections.length > 0,
           hasPublishedAgent: agents.agents.some((agent) => agent.status === "published"),
+          hasRunnableAgent: anyRunnable.canCreate,
         }
       : null,
   };

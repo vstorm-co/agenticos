@@ -1626,6 +1626,7 @@
         "description": "What runs with nobody at the keyboard, soonest first, and how the last one went.",
         "unnamed": "Untitled routine",
         "cost": "${cost}",
+        "nextFire": "next {at}",
         "paused": "paused",
         "neverRun": "not run yet",
         "fired": "fired",
@@ -2544,6 +2545,10 @@
       "create-org": {
         "title": "Create an organization?",
         "body": "An organization is a separate space with its own agents, members and settings. Want to create one now? We'll walk you through it."
+      },
+      "create-routine": {
+        "title": "Set up your first routine?",
+        "body": "A routine runs an agent with nobody at the keyboard - on a schedule, or when an event arrives. Want to set one up now? We'll walk you through it and fire the first run together."
       },
       "explore-chat": {
         "title": "Take a quick tour of chat?",

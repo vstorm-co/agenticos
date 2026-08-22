@@ -62,6 +62,18 @@ export function CreationOffer() {
   ) {
     return null;
   }
+  // The routine flow's first target is the Routines page's create buttons, which
+  // mount on the per-agent `can_run` answer, not on the scope-blind `can` above -
+  // and the coach waits on a flow target with no timeout. Read the same cache
+  // the page's own gate fills (`useCanCreateTrigger`): a caller it refused gets
+  // no offer, because accepting one would open a flow whose every step that
+  // answer excludes.
+  if (
+    offer === "create-routine" &&
+    queryClient.getQueryData<boolean>(qk.agents.anyRunnable()) === false
+  ) {
+    return null;
+  }
 
   return (
     <ConfirmDialog
