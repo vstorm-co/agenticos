@@ -2545,6 +2545,10 @@
         "title": "Create an organization?",
         "body": "An organization is a separate space with its own agents, members and settings. Want to create one now? We'll walk you through it."
       },
+      "create-routine": {
+        "title": "Set up your first routine?",
+        "body": "A routine runs an agent with nobody at the keyboard - on a schedule, or when an event arrives. Want to set one up now? We'll walk you through it and fire the first run together."
+      },
       "explore-chat": {
         "title": "Take a quick tour of chat?",
         "body": "See how to start a conversation, switch which agent answers, and change the model or thinking effort for a single chat. Want a quick guided run through it?"

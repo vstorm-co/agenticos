@@ -1245,6 +1245,10 @@
         "title": "Utworzyć organizację?",
         "body": "Organizacja to osobna przestrzeń z własnymi agentami, członkami i ustawieniami. Utworzymy jedną teraz? Przeprowadzimy Cię przez to."
       },
+      "create-routine": {
+        "title": "Ustawić pierwszą rutynę?",
+        "body": "Rutyna uruchamia agenta, gdy nikogo nie ma przy klawiaturze - według harmonogramu albo gdy nadejdzie zdarzenie. Ustawimy jedną teraz? Przeprowadzimy Cię przez to i razem odpalimy pierwszy run."
+      },
       "explore-chat": {
         "title": "Krótki przewodnik po czacie?",
         "body": "Zobacz, jak zacząć rozmowę, przełączyć, który agent odpowiada, i zmienić model albo wysiłek myślenia dla pojedynczego czatu. Chcesz szybki, prowadzony przegląd?"

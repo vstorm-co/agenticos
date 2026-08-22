@@ -19,10 +19,13 @@ vi.mock("@/hooks/use-permissions", () => ({
 // render needs a client, and `seed` fills whichever of those a test is about.
 function renderOffer(
   node: ReactElement,
-  seed: { catalog?: { items: unknown[] }; agents?: number } = {},
+  seed: { catalog?: { items: unknown[] }; agents?: number; anyRunnable?: boolean } = {},
 ) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   if (seed.catalog) client.setQueryData(qk.mcpServers.catalog(), seed.catalog);
+  if (seed.anyRunnable !== undefined) {
+    client.setQueryData(qk.agents.anyRunnable(), seed.anyRunnable);
+  }
   if (seed.agents !== undefined) {
     client.setQueryData(qk.agents.list(), { items: [], total: seed.agents });
   }
@@ -104,5 +107,22 @@ describe("CreationOffer", () => {
   it("renders nothing when there is no offer", () => {
     const { container } = renderOffer(<CreationOffer />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("suppresses the routine offer for a caller who can run no agent", () => {
+    // Role-level `agents:run` passes the flow's own gate, but the flow's first
+    // target is the Routines page's create buttons, which mount only on the
+    // per-agent answer - and the coach waits on a flow target without a timeout.
+    // The check reads the same cached answer the buttons read, so the two can
+    // never disagree.
+    useOnboardingStore.setState({ offer: "create-routine" });
+    renderOffer(<CreationOffer />, { anyRunnable: false });
+    expect(screen.queryByText("Set up your first routine?")).toBeNull();
+  });
+
+  it("offers the routine flow to a caller with a runnable agent", () => {
+    useOnboardingStore.setState({ offer: "create-routine" });
+    renderOffer(<CreationOffer />, { anyRunnable: true });
+    expect(screen.getByText("Set up your first routine?")).toBeInTheDocument();
   });
 });
