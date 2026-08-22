@@ -1225,10 +1225,16 @@ checks that every capability's tools carry a return shape.
 
 That covers the tools this deployment did not write, either: `planning` and the
 delegation tools are handed this repository's text, `web_fetch` and
-`search_tools` are re-described where they are built, and `read_tool_result` is
-re-described by the wrapper that meters it — the library's own sentence said
-nothing about what a handle answers with, which is the one thing a model holding
-a handle needs.
+`search_tools` are re-described where they are built, and `read_tool_result` and
+the three `skills` tools are re-described in place on the library's own toolset.
+Two of those were worth the trouble beyond consistency — the library's sentence
+for `read_tool_result` said nothing about what a handle answers with, which is
+the one thing a model holding a handle needs, and `list_skills` documented the
+Python return (a dictionary) rather than the text the model is handed.
+
+A tool from a library that this repository has no text for keeps the library's,
+which is the right default: `run_skill_script` is excluded rather than described,
+and if it ever arrives it arrives saying whatever its author wrote.
 
 ### A mistake, a result, and a refusal
 

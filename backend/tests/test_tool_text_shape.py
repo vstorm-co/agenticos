@@ -170,6 +170,42 @@ class TestEveryToolSaysWhatItReturns:
         with pytest.raises(TypeError, match="read_tool_result"):
             wrapped.get_toolset()
 
+    async def test_the_skills_tools_carry_one(self) -> None:
+        """A third party's library, this deployment's answer to "what do I get"."""
+        from app.agents.capabilities.skills._capability import SKILL_TEXTS, Skills
+        from app.db.models.skill import Skill
+
+        skill = Skill(name="probe", description="d", content="c")
+        skill.resources = []
+        toolset = Skills(skills=[skill]).get_toolset()
+
+        assert toolset is not None
+        assert set(toolset.tools) == set(SKILL_TEXTS)
+        assert all(
+            tool.description == SKILL_TEXTS[name].render() for name, tool in toolset.tools.items()
+        )
+
+    async def test_a_skills_tool_we_have_no_text_for_keeps_the_librarys(self) -> None:
+        """`run_skill_script` is excluded, not described - and may come back."""
+        from pydantic_ai_skills import Skill as ToolkitSkill
+        from pydantic_ai_skills import SkillsToolset
+
+        from app.agents.capabilities.skills._capability import SKILL_TEXTS, _describe
+
+        def _toolset() -> SkillsToolset:
+            return SkillsToolset(
+                skills=[ToolkitSkill(name="probe", description="d", content="c", resources=[])]
+            )
+
+        untouched = _toolset()
+        described = _describe(_toolset())
+
+        extra = set(described.tools) - set(SKILL_TEXTS)
+        assert extra
+        assert all(
+            described.tools[name].description == untouched.tools[name].description for name in extra
+        )
+
     async def test_tool_search_carries_one(self) -> None:
         """The tool a model reaches for when it is already lost."""
         from app.agents.capabilities.tool_search._capability import SEARCH_TEXT, build_tool_search

@@ -40,7 +40,7 @@ from pydantic import BaseModel, Field, field_validator
 from pydantic_ai.capabilities import WrapperCapability
 from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.tools import AgentDepsT, RunContext, ToolDefinition
-from pydantic_ai.toolsets import AgentToolset, FunctionToolset
+from pydantic_ai.toolsets import AgentToolset
 from pydantic_ai_backends import StateBackend
 from pydantic_ai_harness.tool_output_limits import (
     READ_TOOL_NAME,
@@ -287,33 +287,27 @@ class MeteredToolOutputLimits(WrapperCapability[AgentDepsT]):
         package, not this organization's: its default is a pull request to them,
         and the text a deployment shows is its own either way.
 
-        Re-registered rather than wrapped in `prepared`: a prepared toolset
-        resolves its tools per request, so it has no tool list for
+        Re-described in place rather than wrapped in `prepared`: a prepared
+        toolset resolves its tools per request, so it has no tool list for
         `app/services/capability_contracts.py` to read, and the Builder would
-        show the catalog's one-liner for the one tool somebody had just taken the
-        trouble to describe.
+        show the catalog's one-liner for the one tool somebody had just taken
+        the trouble to describe. `Tool.description` is what each request's
+        `ToolDefinition` is built from, so this reaches both readers.
         """
         toolset = super().get_toolset()
         if toolset is None:  # pragma: no cover - the library always builds one
             return None
-        if not isinstance(toolset, FunctionToolset):
-            # The same refusal `ToolOverrides` makes, for the same reason: a
-            # toolset this cannot rewrite would leave the model reading the
-            # library's sentence while the Builder shows this one.
+        tool = getattr(toolset, "tools", {}).get(READ_TOOL_NAME)
+        if tool is None:
+            # The same refusal `ToolOverrides` makes, for the same reason: left
+            # alone, the model would read the library's sentence while the
+            # Builder shows this one, with nothing reporting the difference.
             raise TypeError(
-                "Tool output limits no longer offers a function toolset, "
-                "so `read_tool_result` cannot be described here"
+                "Tool output limits no longer offers `read_tool_result` as a "
+                "readable tool, so it cannot be described here"
             )
-        described: FunctionToolset[AgentDepsT] = FunctionToolset()
-        for name, tool in toolset.tools.items():
-            described.add_function(
-                tool.function,
-                name=name,
-                description=(
-                    READ_TOOL_RESULT_TEXT.render() if name == READ_TOOL_NAME else tool.description
-                ),
-            )
-        return described
+        tool.description = READ_TOOL_RESULT_TEXT.render()
+        return toolset
 
     async def after_tool_execute(
         self,
