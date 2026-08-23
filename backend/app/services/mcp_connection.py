@@ -510,11 +510,9 @@ class McpConnectionService:
 
         if "auth_token" in update_data:
             token = (update_data["auth_token"] or "").strip()
-            # "" clears the stored token; a non-empty value replaces it. Sealed at
-            # the row's existing version, beside its OAuth envelopes - all of a
-            # row's ciphertexts share one version column, so bumping it here would
-            # leave the siblings sealed under a version the column no longer
-            # names (#552).
+            # "" clears the stored token; a non-empty value replaces it, sealed at
+            # the row's version - one version column covers every envelope in the
+            # row, so bumping it would orphan the OAuth siblings (#552).
             sealed = _seal_for(db_connection, token) if token else None
             update_data["auth_token"] = sealed.ciphertext if sealed else None
 
@@ -1197,11 +1195,9 @@ class McpConnectionService:
 
         if "auth_token" in update_data:
             token = (update_data["auth_token"] or "").strip()
-            # "" clears the stored token; a non-empty value replaces it. Sealed at
-            # the row's existing version, beside its OAuth envelopes - all of a
-            # row's ciphertexts share one version column, so bumping it here would
-            # leave the siblings sealed under a version the column no longer
-            # names (#552).
+            # "" clears the stored token; a non-empty value replaces it, sealed at
+            # the row's version - one version column covers every envelope in the
+            # row, so bumping it would orphan the OAuth siblings (#552).
             sealed = _seal_for(db_connection, token) if token else None
             update_data["auth_token"] = sealed.ciphertext if sealed else None
 
