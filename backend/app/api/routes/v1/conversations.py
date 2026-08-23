@@ -129,6 +129,7 @@ async def get_conversation(
     conversation_service: ConversationSvc,
     current_user: CurrentUser,
     active_org: ActiveOrg,
+    ctx: Auth,
 ) -> Any:
     """Get a conversation with all its messages.
 
@@ -138,12 +139,17 @@ async def get_conversation(
     of a column no other check on the platform respected. Reading another
     person's conversations is a deployment-administration act and lives on
     `/admin/conversations`, gated on `is_app_admin`.
+
+    `ctx` carries the caller's grants so a trigger's run-log - owned by nobody -
+    resolves against its agent's access; without it that thread would 404 for
+    the very person who created the schedule.
     """
     return await conversation_service.get_conversation(
         conversation_id,
         organization_id=active_org.id,
         include_messages=True,
         user_id=current_user.id,
+        ctx=ctx,
     )
 
 
@@ -213,6 +219,7 @@ async def list_messages(
     conversation_service: ConversationSvc,
     current_user: CurrentUser,
     active_org: ActiveOrg,
+    ctx: Auth,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
 ) -> Any:
@@ -233,11 +240,13 @@ async def list_messages(
         include_tool_calls=True,
         organization_id=active_org.id,
         user_id=current_user.id,
+        ctx=ctx,
     )
     cost = await conversation_service.conversation_cost(
         conversation_id,
         organization_id=active_org.id,
         user_id=current_user.id,
+        ctx=ctx,
     )
     return MessageList(items=items, total=total, cost=cost)  # ty: ignore[invalid-argument-type]
 

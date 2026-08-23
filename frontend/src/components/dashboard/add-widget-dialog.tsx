@@ -16,6 +16,7 @@ import type { Period } from "@/lib/dashboard/period";
 import { CATEGORY_ORDER, type WidgetCategory, type WidgetDef } from "@/lib/dashboard/registry";
 import { cn } from "@/lib/utils";
 import { WIDGET_COMPONENTS } from "./widgets";
+import { DIALOG_BROAD, DIALOG_COLUMN } from "@/lib/dialog-sizes";
 
 interface AddWidgetDialogProps {
   /** The widgets the caller may add - already gated, so nothing here leaks. */
@@ -152,7 +153,7 @@ export function AddWidgetDialog({
           product's dialogs on purpose: this one is a browsable catalogue of
           thirty cards beside a live rendering of one, and at `3xl` the preview
           pane was too narrow to show a card at anything like its real width. */}
-      <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden sm:max-w-5xl">
+      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_BROAD)}>
         <DialogHeader>
           <DialogTitle>{t("edit.addTitle")}</DialogTitle>
           <DialogDescription>{t("edit.addDescription")}</DialogDescription>

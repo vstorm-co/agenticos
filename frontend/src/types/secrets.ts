@@ -11,7 +11,13 @@ import type { JsonSchema } from "./agents";
 
 /** Which shape a secret has. Mirrors `SecretKind` in `app/core/secret_kinds.py`. */
 export type SecretKind =
-  "none" | "api_key" | "azure_openai" | "aws_credentials" | "gcp_service_account";
+  | "none"
+  | "api_key"
+  | "azure_openai"
+  | "aws_credentials"
+  | "gcp_service_account"
+  | "github_oauth_app"
+  | "google_oauth_app";
 
 /**
  * Every kind a person can save. `none` is not one of them: it says "there is no
@@ -100,11 +106,19 @@ export interface SecretUsage {
 export interface SecretPurpose {
   id: string;
   label: string;
-  category: "model_provider" | "search" | "observability" | "other";
+  // `connector` was missing here while the server sent it and the dialog grouped
+  // by it - the same stale-union shape as the portal card's blocked reason.
+  category: "model_provider" | "search" | "observability" | "connector" | "other";
   /** The shape of credential this service takes - the form follows from it. */
   kind: StorableSecretKind;
   help_url: string | null;
   description: string;
+  /**
+   * The brand mark to draw, as the console's glyph table names them. Empty for a
+   * model provider - whose id already is a key - and for a service whose brand
+   * has no mark, which falls back to a monogram.
+   */
+  icon: string;
 }
 
 export interface SecretPurposeList {

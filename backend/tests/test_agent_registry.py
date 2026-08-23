@@ -766,6 +766,94 @@ class TestList:
 
         assert ([row.id for row in agents], total) == ([agent.id], 37)
 
+    @pytest.mark.anyio
+    async def test_can_run_follows_a_per_agent_grant_not_only_the_role(self):
+        """The floor for offering "new trigger" on a card.
+
+        A Viewer holds no `agents:run` from their role, but a run grant on one
+        agent must light the create control there and nowhere else - the whole
+        point of resolving this per caller rather than off the role check.
+        """
+        ctx = _ctx(OrgRoleName.VIEWER)
+        granted = _agent(ctx, owner_user_id=uuid.uuid4())
+        ungranted = _agent(ctx, owner_user_id=uuid.uuid4())
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([granted, ungranted], 2)),
+            ),
+            patch(
+                "app.services.access.resource_grant_repo.list_shared_ids",
+                new=AsyncMock(return_value=[granted.id]),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={}),
+            ),
+        ):
+            rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
+
+        by_id = {row.id: row.can_run for row in rows}
+        assert by_id == {granted.id: True, ungranted.id: False}
+
+    @pytest.mark.anyio
+    async def test_a_role_that_runs_everything_marks_every_card_runnable(self):
+        """`agents:run` at `Scope.ALL` lights every card without a grant lookup."""
+        ctx = _ctx(OrgRoleName.OWNER)
+        agent = _agent(ctx)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([agent], 1)),
+            ),
+            patch(
+                "app.services.access.resource_grant_repo.list_shared_ids", new=AsyncMock()
+            ) as shared_ids,
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={}),
+            ),
+        ):
+            rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
+
+        assert rows[0].can_run is True
+        shared_ids.assert_not_awaited()
+
+
+class TestMayRun:
+    @pytest.mark.anyio
+    async def test_it_reports_a_run_grant_the_role_alone_would_refuse(self):
+        """The per-resource `can_run` the detail route reads for one loaded agent."""
+        ctx = _ctx(OrgRoleName.VIEWER)
+        agent = _agent(ctx, owner_user_id=uuid.uuid4())
+
+        with patch(
+            "app.services.access.resource_grant_repo.get_level",
+            new=AsyncMock(return_value=GrantLevel.USE),
+        ):
+            assert await AgentRegistryService(_db()).may_run(ctx, agent) is True
+
+    @pytest.mark.anyio
+    async def test_it_refuses_when_neither_role_nor_grant_reaches_the_agent(self):
+        ctx = _ctx(OrgRoleName.VIEWER)
+        agent = _agent(ctx, owner_user_id=uuid.uuid4())
+
+        with patch(
+            "app.services.access.resource_grant_repo.get_level",
+            new=AsyncMock(return_value=None),
+        ):
+            assert await AgentRegistryService(_db()).may_run(ctx, agent) is False
+
 
 class TestCreate:
     @pytest.mark.anyio
@@ -1868,7 +1956,10 @@ class TestArchiveAndDelete:
             ) as drop_grants,
             patch(f"{REGISTRY_PATH}.agent_repo.delete", new=AsyncMock()) as delete,
             patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()) as audit,
+            patch("app.services.agent_trigger.AgentTriggerService") as triggers_cls,
         ):
+            triggers = triggers_cls.return_value
+            triggers.deregister_agent_webhooks = AsyncMock()
             await AgentRegistryService(_db()).delete(ctx, agent.id)
 
         assert drop_grants.call_args.kwargs["resource_type"] == "agent"
@@ -1876,6 +1967,9 @@ class TestArchiveAndDelete:
         assert drop_grants.call_args.kwargs["organization_id"] == ctx.organization_id
         assert delete.call_args.args[1] is agent
         assert audit.call_args.kwargs["action"] == "agent.deleted"
+        # The provider side is swept before the rows cascade away - after that the
+        # stored webhook ids the hooks are removable by are gone for good.
+        triggers.deregister_agent_webhooks.assert_awaited_once_with(ctx, agent.id)
 
 
 class TestGetVersion:

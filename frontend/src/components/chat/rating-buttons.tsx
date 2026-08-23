@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 
 interface RatingButtonsProps {
   messageId: string;
@@ -200,7 +201,7 @@ export function RatingButtons({
       </div>
 
       <Dialog open={showCommentDialog} onOpenChange={setShowCommentDialog}>
-        <DialogContent>
+        <DialogContent className={DIALOG_CONFIRM}>
           <DialogHeader>
             <DialogTitle>{t("whatWentWrong")}</DialogTitle>
             <DialogDescription>{t("feedbackHelp")}</DialogDescription>

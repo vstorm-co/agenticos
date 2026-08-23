@@ -6,6 +6,27 @@ agent platform something you can put a credit card behind.
 All of them apply identically on every surface, because every surface goes through
 one runner.
 
+The newest of those surfaces is a **trigger**: an agent running itself on a schedule
+or on an incoming event - a GitHub issue, an inbound email (see
+[Concepts](concepts.md#trigger)). It changes none of what follows - it spends against
+the same two caps, parks on the same approval gate (routed to its creator, the member
+it runs as, and the administrators), and is recorded in the same audit trail. The one
+thing "unattended" adds is what happens to a *refusal*: a fired run the budget stops
+ends `budget_exceeded` and waits for the trigger's next fire rather than being retried,
+and a fired run the creator may no longer make - they left the organization, or lost
+their grant on the agent - disables the trigger and writes an audit entry saying why.
+A fired run that fails on the model itself - a provider outage, a revoked key - is the
+same: recorded `failed` and left for the next fire rather than failing the heartbeat
+into retrying the same wall, with the trigger's `last_run_id` left pointing at it so its
+history stays honest. A refusal a heartbeat retried every minute would be a bill, or an
+alert, that never stops. What is *not* swallowed is a failure that never became a
+record: if the run reached a terminal state but the write recording it did not commit -
+a transcript or conversation-state write that raised after the answer was in hand - the
+fire fails the flow rather than reporting success, so the half-written run rolls back
+instead of being committed as complete with nothing behind it. An event trigger adds one more refusal at its edge: a webhook
+whose signature does not verify against the trigger's own secret is a 403 that never
+reaches the runner at all.
+
 ## Budgets
 
 Two levels, and they are not variations on one number.

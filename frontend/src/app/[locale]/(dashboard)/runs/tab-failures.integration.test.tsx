@@ -82,10 +82,9 @@ function backend(failing: "/approvals" | "/runs" | "/spend") {
 }
 
 async function open(tab: "Runs" | "Spend" | "Approvals") {
-  // The Approvals trigger can carry a count badge, so it is matched by prefix.
-  await userEvent.click(
-    await screen.findByRole("tab", { name: tab === "Approvals" ? /^Approvals/ : tab }),
-  );
+  // Every trigger can carry a figure now - the three stat cards became three tab
+  // badges - so all of them are matched by prefix.
+  await userEvent.click(await screen.findByRole("tab", { name: new RegExp(`^${tab}`) }));
 }
 
 beforeEach(() => {
@@ -167,48 +166,46 @@ describe("a tab whose request failed", () => {
     expect(await screen.findByText("By provider")).toBeVisible();
     expect(screen.queryByText("Spend could not be read")).toBeNull();
   });
-
-  it("still prints the figures above it, which come from their own requests", async () => {
-    // The spend figure is `/spend`'s too, so a failed queue must not blank
-    // it - the tabs and the figures are separate answers.
-    backend("/approvals");
-
-    render(<RunsPage />, { wrapper });
-
-    expect(await screen.findByText("$12.40")).toBeVisible();
-  });
 });
 
-describe("a header figure whose own request failed", () => {
-  it("shows a failure marker for spend, not a fabricated $0.00", async () => {
-    // `$0.00` is what a working, empty deployment looks like. Drawing it for a
-    // request that never answered tells the reader something false about their
-    // money - the exact per-tab bug, one row up.
+describe("a tab's own figure, when its request failed", () => {
+  /**
+   * The three stat cards became three tab badges, and the claim they were
+   * protecting is unchanged: a figure whose request never answered must not be
+   * drawn as a number. `$0.00` and `0` are what a working, empty deployment looks
+   * like, so printing either for a failed read tells the reader something false
+   * about their own money.
+   *
+   * Absent rather than marked, which the cards could not be - a card with no
+   * number is a hole in a row, where a tab with no badge is simply a tab.
+   */
+  it("leaves the spend badge off rather than printing a fabricated $0.00", async () => {
     backend("/spend");
 
     render(<RunsPage />, { wrapper });
 
-    await waitFor(() => expect(screen.getAllByText("Couldn't load").length).toBeGreaterThan(0));
-    expect(screen.queryByText("$0.00")).toBeNull();
+    await waitFor(() => expect(screen.getByRole("tab", { name: /^Spend/ })).toBeVisible());
+    expect(screen.getByRole("tab", { name: /^Spend/ })).not.toHaveTextContent("$0.00");
   });
 
-  it("shows a failure marker for the run count, not a fabricated 0", async () => {
-    // `/runs` is what the count reads; a failed one must not read as "0 runs".
+  it("leaves the run badge off rather than printing a fabricated 0", async () => {
     backend("/runs");
 
     render(<RunsPage />, { wrapper });
 
-    await waitFor(() => expect(screen.getAllByText("Couldn't load").length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getByRole("tab", { name: /^Runs/ })).toBeVisible());
+    expect(screen.getByRole("tab", { name: /^Runs/ })).not.toHaveTextContent("0");
   });
 
-  it("blanks only the figure whose request failed", async () => {
-    // Spend fails; the run count and the queue come from their own requests, so
-    // exactly one figure carries the marker and the other two render real
-    // numbers - one failing query must not blank the row.
-    backend("/spend");
+  it("keeps the badge its own request answered", async () => {
+    // The queue fails; spend comes from its own request, so the strip keeps the
+    // figure it has - one failing query must not blank the others.
+    backend("/approvals");
 
     render(<RunsPage />, { wrapper });
 
-    await waitFor(() => expect(screen.getAllByText("Couldn't load")).toHaveLength(1));
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: /^Spend/ })).toHaveTextContent("$12.40"),
+    );
   });
 });

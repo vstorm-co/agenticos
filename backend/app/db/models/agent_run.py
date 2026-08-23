@@ -82,9 +82,10 @@ class RunSurface(enum.StrEnum):
     an observation.** This is a public vocabulary: anything that enumerates it
     offers a filter, so a value nobody writes is a filter that answers with
     nothing on every deployment for ever - and a reader reasonably concludes that
-    scheduled runs exist and none have happened yet. `PLAYGROUND` and `SCHEDULE`
-    were exactly that, and between them they cost two design documents a
-    paragraph each explaining an omission (#207).
+    scheduled runs exist and none have happened yet. `PLAYGROUND` is absent for
+    exactly that reason (#207); `SCHEDULE` was too until agenticos#44 gave it a
+    writer - the agent-triggers heartbeat stamps every run it fires, so the member
+    now earns its place.
 
     `EMBED` is the other half of the same lesson from the other direction. It did
     not exist, so an embedded-widget run was stamped `WEB` - and a widget on a
@@ -104,6 +105,10 @@ class RunSurface(enum.StrEnum):
     SLACK = "slack"
     TELEGRAM = "telegram"
     MATTERMOST = "mattermost"
+    # A run nobody typed into: the agent-triggers heartbeat fired it on a
+    # schedule. The one member here assigned by a machine rather than a surface a
+    # person reached the agent through (agenticos#44).
+    SCHEDULE = "schedule"
 
 
 class RunOrder(enum.StrEnum):

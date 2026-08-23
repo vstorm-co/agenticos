@@ -48,6 +48,7 @@ const purpose = (
   kind: "api_key",
   help_url: null,
   description: "",
+  icon: "",
 });
 
 const PURPOSES: SecretPurpose[] = [

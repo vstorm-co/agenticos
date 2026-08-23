@@ -48,6 +48,7 @@ from app.agents.capabilities.sandbox._identity import (
     WorkspaceScopeUnavailable,
     scope_key,
 )
+from app.agents.capabilities.sandbox._recording import RecordingBackend
 from app.agents.capabilities.tool_output_limits import OVERFLOW_PREFIX
 from app.agents.spec import AgentSpec
 from app.core.config import settings
@@ -430,8 +431,21 @@ class SandboxWorkspaceService:
         row = await self._row(
             config, identity, key, scope, session_id=key, connection_id=resolved.row.id
         )
+        # Wrapped so what the agent does in this sandbox is recorded on our side.
+        # The service keeps its own log and it is 200 entries in that process's
+        # memory, gone on restart, so a sandbox that outlives the service's uptime
+        # had no audit at all (#1061). Wrapping here rather than calling from each
+        # tool is what makes it impossible to forget for the ninth tool.
+        recorder = RecordingBackend(
+            backend,
+            db=self.db,
+            organization_id=identity.organization_id,
+            session_key=key,
+            agent_id=identity.agent_id,
+            run_id=identity.run_id,
+        )
         return OpenWorkspace(
-            backend=backend,
+            backend=recorder,
             kind="service",
             scope=scope,
             scope_key=key,

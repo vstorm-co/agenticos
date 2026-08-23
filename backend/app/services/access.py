@@ -12,6 +12,7 @@ Builder's org-wide view is not taken away by the absence of a grant.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID
@@ -150,6 +151,53 @@ async def resolve_access(
     if granted is None:
         return False
     return GRANT_ORDER[granted] >= GRANT_ORDER[required]
+
+
+async def accessible_ids(
+    db: AsyncSession,
+    ctx: AuthContext,
+    resources: Iterable[OwnedResource],
+    perm: Perm,
+    *,
+    resource_type: ResourceType,
+) -> set[UUID]:
+    """Which of `resources` the caller may exercise `perm` on, in one grant query.
+
+    The batch counterpart to :func:`resolve_access`, and it applies the same
+    `effective = max(role scope, grant on this resource)` rule to a whole set:
+    a resource is in when the role scope alone reaches it, or when an explicit
+    grant on that specific row does. What it does not do is ask the grant table
+    once per row - it reads every grant the caller holds on this resource type in
+    a single :func:`visible_resource_ids` lookup, so listing twenty agents costs
+    one query rather than twenty. When the role already reaches everything that
+    lookup answers `None` and no query is issued at all.
+
+    A context with no subject reaches nothing, the same as `resolve_access`, and
+    is answered with the empty set before any lookup. An empty `resources` is
+    answered the same way, because there is nothing to admit and no reason to pay
+    for a grant query to prove it.
+
+    Tenancy is enforced per row exactly as `resolve_access` enforces it: a
+    resource whose `organization_id` is not the caller's is excluded before
+    either the scope or the grant is consulted, so a stray cross-tenant row in
+    the input can never be returned.
+    """
+    subject = ctx.user_id
+    if subject is None:
+        return set()
+    resources = list(resources)
+    if not resources:
+        return set()
+
+    scope = ctx.scope_for(perm)
+    shared = await visible_resource_ids(db, ctx, resource_type=resource_type, perm=perm)
+    granted = set(shared) if shared is not None else set()
+    return {
+        resource.id
+        for resource in resources
+        if resource.organization_id == ctx.organization_id
+        and (_scope_allows(scope, resource, subject) or resource.id in granted)
+    }
 
 
 async def visible_resource_ids(

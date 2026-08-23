@@ -40,6 +40,31 @@ async def get_by_name(
     return result.scalar_one_or_none()
 
 
+async def list_org_visible_by_kind(
+    db: AsyncSession, *, organization_id: UUID, kind: str
+) -> list[OrganizationSecret]:
+    """The organization-visible secrets of a given kind, ordered by name.
+
+    For a kind whose credential is *spent by the platform* rather than picked by
+    a person - the GitHub OAuth App, read server-side to run a token exchange.
+    Only `org`-visible rows qualify: a member's private secret of the same kind
+    must never be silently spent for the whole organization's connection, which
+    is what an unfiltered by-kind lookup did. All matches are returned so the
+    caller can refuse ambiguity instead of taking whichever name sorts first;
+    `list_secrets` remains the path for a chooser that shows them all.
+    """
+    result = await db.execute(
+        select(OrganizationSecret)
+        .where(
+            OrganizationSecret.organization_id == organization_id,
+            OrganizationSecret.kind == kind,
+            OrganizationSecret.visibility == Visibility.ORG.value,
+        )
+        .order_by(OrganizationSecret.name.asc())
+    )
+    return list(result.scalars().all())
+
+
 async def get_many(
     db: AsyncSession, secret_ids: list[UUID], *, organization_id: UUID
 ) -> dict[UUID, OrganizationSecret]:

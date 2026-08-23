@@ -191,6 +191,44 @@ describe("useRunTranscript", () => {
     });
   });
 
+  it("reads the newest page when asked for the tail of a long log", async () => {
+    // The endpoint orders oldest-first and answers a hundred, so a trigger's
+    // run-log after fifty fires showed only its oldest history and the reply just
+    // fired could never appear on the page being polled.
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ run_id: "r", conversation_id: "c", items: [], total: 250 })
+      .mockResolvedValueOnce({ run_id: "r", conversation_id: "c", items: [], total: 250 });
+    const { result } = renderHook(() => useRunTranscript("run-9", "conversation", { tail: true }), {
+      wrapper,
+    });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenLastCalledWith("/runs/run-9/transcript", {
+      params: { scope: "conversation", skip: "150" },
+    });
+  });
+
+  it("asks for one page directly, with no discovery request before it", async () => {
+    // The caller learned the total from a previous answer, which is where its
+    // page number came from - so a second round trip to learn it again is a
+    // request for something already known.
+    vi.mocked(apiClient.get).mockResolvedValue({
+      run_id: "r",
+      conversation_id: "c",
+      items: [],
+      total: 250,
+    });
+    const { result } = renderHook(() => useRunTranscript("run-9", "conversation", { page: 1 }), {
+      wrapper,
+    });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
+    expect(apiClient.get).toHaveBeenCalledWith("/runs/run-9/transcript", {
+      params: { scope: "conversation", skip: "100" },
+    });
+  });
+
   it("hands back the failure rather than an empty transcript", async () => {
     // A run with nothing rated down and a request that failed are the same
     // absence to the surface, and only one of them is worth an error.

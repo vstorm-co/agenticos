@@ -26,6 +26,7 @@ import { useTranslations } from "next-intl";
 import { useConversationShares, useMembers } from "@/hooks";
 import { useOrgStore } from "@/stores";
 import type { ConversationShare, OrganizationMember } from "@/types";
+import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 
 interface ShareDialogProps {
   conversationId: string;
@@ -136,7 +137,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className={DIALOG_CONFIRM}>
         <DialogHeader>
           <DialogTitle>{t("shareConversationTitle")}</DialogTitle>
           <DialogDescription>{t("shareDescription")}</DialogDescription>

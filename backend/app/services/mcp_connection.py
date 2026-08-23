@@ -31,8 +31,8 @@ from __future__ import annotations
 
 import logging
 import secrets
-from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime
+from collections.abc import Awaitable, Callable, Sequence
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -56,6 +56,7 @@ from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundErr
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.core.sanitize import UrlRefusedError
+from app.core.secret_kinds import SecretKind
 from app.core.vault import SealedSecret, VaultScope, seal, unseal
 from app.db.models.mcp_connection import McpConnection
 from app.db.updates import writable
@@ -66,7 +67,10 @@ from app.schemas.mcp_connection import (
     OrgMcpConnectionCreate,
     OrgMcpConnectionUpdate,
 )
+from app.services import portal_catalog, portals
 from app.services.mcp_catalog import get_entry
+from app.services.organization_secret import OrganizationSecretService
+from app.services.portals import github_oauth, google_oauth
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +136,123 @@ def _apply_token(payload: McpOAuthPayload, token: OAuthToken) -> McpOAuthPayload
     )
 
 
+async def _complete_mcp_flow(
+    payload: McpOAuthPayload, code: str
+) -> tuple[McpOAuthPayload, list[str] | None]:
+    """Exchange a code through the discovery flow and fold the tokens in.
+
+    The PKCE `code_verifier` is what makes this an MCP-discovery payload; its
+    absence is a pending flow that can no longer be completed (a rotated master
+    key left the verifier unreadable), which the user restarts rather than 500s on.
+    """
+    if not payload.code_verifier:
+        raise OAuthError("This authorization session is no longer valid - start again.")
+    token = await mcp_oauth.exchange_code(
+        token_endpoint=payload.token_endpoint,
+        client_id=payload.client_id,
+        client_secret=payload.client_secret,
+        code=code,
+        code_verifier=payload.code_verifier,
+        redirect_uri=payload.redirect_uri,
+        resource=payload.resource,
+    )
+    payload = _apply_token(payload, token)
+    return payload, (payload.scope.split() if payload.scope else None)
+
+
+async def _initial_poll_cursor(*, portal_key: str, access_token: str) -> dict[str, Any] | None:
+    """Where a freshly consented polled grant starts reading, or None.
+
+    The adapter's own no-cursor poll is the snapshot - "the mailbox as of now,
+    nothing to emit" - taken at consent so mail arriving before the first
+    heartbeat lands *after* the boundary instead of inside it. Best-effort: a
+    provider that cannot answer leaves the cursor to the first poll, whose only
+    cost is the pre-heartbeat window this exists to close.
+    """
+    adapter = portals.get_adapter(portal_key)
+    if adapter is None:
+        return None
+    try:
+        read = await adapter.poll(access_token=access_token, cursor=None)
+    except portals.PortalError:
+        logger.warning("portal_initial_cursor_failed", extra={"portal_key": portal_key})
+        return None
+    return read.cursor
+
+
+async def _complete_google_flow(
+    payload: McpOAuthPayload, code: str
+) -> tuple[McpOAuthPayload, list[str] | None]:
+    """Exchange a code through Google's OAuth flow and fold the token in.
+
+    Unlike GitHub's, a Google access token *expires* - an hour - so the refresh
+    token and the expiry are both carried, and the shared `_refresh_under_lock`
+    spends them when a poll finds the token stale. That is the whole reason a
+    portal grant lives in this table rather than a new one.
+
+    The granted scopes come from Google's space-separated `scope` response, which
+    is what the account actually consented to: consent is per scope and a person
+    can withhold one, so the poller has to know what it got before it reads a
+    mailbox it may not have been given.
+    """
+    try:
+        token = await google_oauth.exchange_code(
+            client_id=payload.client_id,
+            client_secret=payload.client_secret or "",
+            code=code,
+            redirect_uri=payload.redirect_uri,
+        )
+    except google_oauth.GoogleOAuthError as exc:
+        raise OAuthError(str(exc)) from exc
+    payload = payload.model_copy(
+        update={
+            "access_token": token.access_token,
+            # Kept where Google sent one. Without `access_type=offline` it does not,
+            # and a grant with no refresh token stops working in an hour with
+            # nothing to say why - which is why the consent URL asks for it. A
+            # re-consent that omits one falls back to the live payload's, in the
+            # callback, where that payload is in hand.
+            "refresh_token": token.refresh_token,
+            "expires_at": (
+                None if token.expires_in is None else _now_epoch() + float(token.expires_in)
+            ),
+            "code_verifier": None,
+        }
+    )
+    return payload, (token.granted_scopes or None)
+
+
+async def _complete_github_flow(
+    payload: McpOAuthPayload, code: str
+) -> tuple[McpOAuthPayload, list[str] | None]:
+    """Exchange a code through GitHub's OAuth App flow and fold the token in.
+
+    A classic OAuth App token neither refreshes nor expires, so both fields are
+    cleared rather than carried; the granted scopes come from GitHub's own
+    comma-separated `scope`, which is what the account actually consented to. The
+    provider-specific failure is re-raised as :class:`OAuthError` so the shared
+    callback route reports it the same way as a discovery-flow failure.
+    """
+    try:
+        token = await github_oauth.exchange_code(
+            client_id=payload.client_id,
+            client_secret=payload.client_secret or "",
+            code=code,
+            redirect_uri=payload.redirect_uri,
+        )
+    except github_oauth.GithubOAuthError as exc:
+        raise OAuthError(str(exc)) from exc
+    payload = payload.model_copy(
+        update={
+            "access_token": token.access_token,
+            "refresh_token": None,
+            "expires_at": None,
+            "code_verifier": None,
+        }
+    )
+    return payload, (token.granted_scopes or None)
+
+
 def connection_scope(connection: McpConnection) -> VaultScope:
     """Whose envelope this connection's secrets are sealed under.
 
@@ -177,6 +298,22 @@ def _decode_payload(connection: McpConnection, encrypted: str | None) -> McpOAut
     except Exception:
         logger.warning("Cannot decrypt OAuth payload for MCP connection %r", connection.name)
         return None
+
+
+# Where a polled portal's grant is spent. `mcp_connections.url` is not nullable
+# and a portal row has no MCP server to name, so it carries the API the token is
+# actually used against - which is the honest answer to "what does this connection
+# point at". A portal added here needs a row; one absent from it cannot be polled,
+# and `oauth_start_for_polled_portal` would raise a `KeyError` before writing
+# anything, which is the loud failure a silent empty string would not be.
+_POLLED_PORTAL_URL = {"google": "https://gmail.googleapis.com"}
+
+# How stale a grant's `polled_at` must be before a tick claims it again, and how
+# many one tick takes. The interval matches the heartbeat's own minute; the batch
+# bounds a tick's cost on a deployment with many connected mailboxes - the rest
+# are claimed by the next tick, oldest first, so nothing starves.
+_POLL_INTERVAL = timedelta(seconds=55)
+_POLL_BATCH = 50
 
 
 def _token_is_fresh(payload: McpOAuthPayload) -> bool:
@@ -530,8 +667,54 @@ class McpConnectionService:
             redirect_uri=redirect_uri,
             code_verifier=pkce.code_verifier,
         )
+        await self._stage_pending_oauth(
+            name=name,
+            url=url,
+            existing=existing,
+            vault_scope=vault_scope,
+            create=create,
+            payload=payload,
+            state=state,
+        )
+        return mcp_oauth.authorization_url(
+            server,
+            client_id=client_id,
+            redirect_uri=redirect_uri,
+            state=state,
+            code_challenge=pkce.code_challenge,
+        )
+
+    async def _stage_pending_oauth(
+        self,
+        *,
+        name: str,
+        url: str,
+        existing: McpConnection | None,
+        vault_scope: VaultScope,
+        create: Callable[..., Awaitable[McpConnection]],
+        payload: McpOAuthPayload,
+        state: str,
+        upgrade: bool = False,
+    ) -> None:
+        """Write a staged consent flow onto an existing row or a fresh one.
+
+        Shared by the discovery-based MCP start and the GitHub-provider start: both
+        seal a pending :class:`McpOAuthPayload` under `oauth_pending_payload`, keyed
+        by `oauth_state`, and leave any live tokens in `oauth_payload` untouched
+        until the callback lands. Abandoning the consent screen therefore leaves a
+        working connection working, and re-authorizing never overwrites a URL or a
+        token that still works - both move over in :meth:`oauth_callback`.
+
+        `upgrade` lets the GitHub portal flow stage onto an existing *bearer* row:
+        an organization that connected the GitHub catalog entry before the OAuth
+        flow existed holds one, agents may already be bound to it, and refusing it
+        would wedge the portal on Re-authorize until somebody deletes that row.
+        The bearer token keeps working until the consent lands; the callback then
+        promotes the row to OAuth. The discovery flow never passes it - there a
+        name collision with a bearer row is a genuine conflict.
+        """
         if existing is not None:
-            if existing.auth_type != "oauth":
+            if existing.auth_type != "oauth" and not upgrade:
                 raise AlreadyExistsError(
                     message="A connection with this name already exists",
                     details={"name": name},
@@ -539,8 +722,6 @@ class McpConnectionService:
             # Sealed at the row's own key version: one row, one version, so the
             # pending payload stays readable alongside a token sealed before a
             # rotation moved the row on.
-            # Only the pending flow is written - the live tokens and the URL
-            # they belong to move over in oauth_callback, once consent lands.
             await mcp_connection_repo.update(
                 self.db,
                 db_connection=existing,
@@ -563,12 +744,276 @@ class McpConnectionService:
                 oauth_state=state,
                 oauth_pending_payload=sealed.ciphertext,
             )
-        return mcp_oauth.authorization_url(
-            server,
-            client_id=client_id,
+
+    async def oauth_start_for_org_github(self, ctx: AuthContext, *, portal_key: str) -> str:
+        """Begin the GitHub OAuth App flow for a trigger portal, using the org's creds.
+
+        Unlike :meth:`oauth_start_for_org`, which discovers an authorization server
+        and dynamically registers a client, GitHub OAuth Apps do neither: the
+        endpoints are fixed and the client is one the organization registered by hand
+        and stored in the vault (`github_oauth_app`). This reads those credentials,
+        builds GitHub's consent URL for the portal's scopes, and stages the pending
+        flow on the organization's connection.
+
+        The connection is named and keyed after the portal's MCP catalog entry
+        (`catalog_key`), so the trigger portal and the agent's MCP tools resolve to
+        one connected account: the frontend joins a portal to its connection by that
+        key. Re-running it re-authorizes the existing connection, keeping the live
+        token until the new consent lands.
+
+        Raises:
+            BadRequestError: If `portal_key` names no portal, or one that does not
+                connect through GitHub (no `mcp_catalog_key`).
+            NotFoundError: If the organization has stored no `github_oauth_app`
+                secret - a 4xx the connect UI shows, never a 500.
+        """
+        portal = portal_catalog.get_portal(portal_key)
+        if portal is None or portal.mcp_catalog_key is None:
+            raise BadRequestError(
+                message="This portal does not connect through GitHub",
+                details={"portal_key": portal_key},
+            )
+        entry = get_entry(portal.mcp_catalog_key)
+        if entry is None:
+            raise BadRequestError(
+                message="This portal's connection catalog entry is missing",
+                details={"portal_key": portal_key, "catalog_key": portal.mcp_catalog_key},
+            )
+        creds = await OrganizationSecretService(self.db).oauth_app(
+            ctx, kind=SecretKind.GITHUB_OAUTH_APP
+        )
+        redirect_uri = _oauth_redirect_uri()
+        state = secrets.token_urlsafe(32)
+        scopes = [*portal.read_scopes, *portal.webhook_admin_scopes]
+        catalog_key = portal.mcp_catalog_key
+        payload = McpOAuthPayload(
+            server_url=entry.url,
+            started_at=_now_epoch(),
+            authorization_endpoint=github_oauth.AUTHORIZE_ENDPOINT,
+            token_endpoint=github_oauth.TOKEN_ENDPOINT,
+            client_id=creds.client_id,
+            client_secret=creds.client_secret.get_secret_value(),
+            scope=" ".join(scopes),
+            # GitHub uses no RFC 8707 resource indicator; the field is required, so
+            # it carries the server the connection points at, like every payload.
+            resource=entry.url,
             redirect_uri=redirect_uri,
+            provider=github_oauth.PROVIDER,
+        )
+        # The organization's existing row for this catalog entry, whatever it is
+        # named - the catalog key is how the frontend joins portal to connection,
+        # so staging anywhere else would leave the portal reading a different row
+        # than the one just authorized. A pre-OAuth bearer connection to the same
+        # entry is upgraded in place rather than refused or duplicated: agents may
+        # already be bound to it. Only a row that genuinely is this catalog entry
+        # may be upgraded - a coincidentally like-named bearer row keeps the
+        # refusal, since flipping it would hijack an unrelated connection.
+        existing = await mcp_connection_repo.get_org_scoped_by_catalog_key(
+            self.db, organization_id=ctx.organization_id, catalog_key=catalog_key
+        ) or await mcp_connection_repo.get_org_scoped_by_name(
+            self.db, organization_id=ctx.organization_id, name=catalog_key
+        )
+        await self._stage_pending_oauth(
+            name=catalog_key,
+            url=entry.url,
+            existing=existing,
+            upgrade=existing is not None and existing.catalog_key == catalog_key,
+            vault_scope=VaultScope.organization(ctx.organization_id),
+            create=lambda **kwargs: mcp_connection_repo.create_org_scoped(
+                self.db,
+                organization_id=ctx.organization_id,
+                created_by_user_id=ctx.subject_id,
+                allowed_tools=None,
+                catalog_key=catalog_key,
+                sealed_token=None,
+                **kwargs,
+            ),
+            payload=payload,
             state=state,
-            code_challenge=pkce.code_challenge,
+        )
+        return github_oauth.authorization_url(
+            client_id=creds.client_id,
+            redirect_uri=redirect_uri,
+            scopes=scopes,
+            state=state,
+        )
+
+    async def claim_grants_to_poll(self, *, portal_keys: list[str]) -> list[McpConnection]:
+        """The portal grants this tick should read, claimed so no other tick does.
+
+        No `AuthContext`: the poller is the deployment's own work, not a member's
+        request, and it crosses organizations by design - one tick reads every
+        connected mailbox. Every later step is scoped by the grant's own
+        `organization_id`, which is what authorized reading that account.
+
+        Claimed with `polled_at` advanced under the row lock, the protocol the
+        trigger heartbeat already uses: a tick that outruns its minute cannot be
+        double-claimed by the next, and a worker that dies mid-poll frees its lock
+        without parking the mailbox - the next tick finds `polled_at` old again.
+        """
+        return await mcp_connection_repo.claim_portal_grants_to_poll(
+            self.db,
+            portal_keys=portal_keys,
+            not_polled_since=datetime.now(UTC) - _POLL_INTERVAL,
+            limit=_POLL_BATCH,
+        )
+
+    async def poll_grant(self, grant: McpConnection) -> portals.PolledEvents | None:
+        """Read one connected account, or `None` when it cannot be read now.
+
+        `None` rather than an exception for every recoverable case - no adapter, a
+        token that will not refresh, a provider that is down - because a poll is a
+        heartbeat's work: the tick moves on to the next mailbox and this one is
+        tried again in a minute. The grant's own status records what happened, so a
+        mailbox that has stopped working says so on the card rather than only in a
+        log.
+
+        A revoked grant is marked `error` and left enabled: re-consenting repairs
+        it, and disabling it would take it out of the claim and out of the card's
+        reach at the same time.
+        """
+        adapter = portals.get_adapter(grant.portal_key or "")
+        if adapter is None:
+            return None
+        token = await _oauth_access_token(self.db, grant)
+        if token is None:
+            await self._record_poll_failure(grant, "The connected account could not be renewed")
+            return None
+        try:
+            read = await adapter.poll(access_token=token, cursor=grant.poll_cursor)
+        except portals.PortalError as exc:
+            # The provider's own words are not carried: a portal's error body echoes
+            # the request, and the request carries a bearer token (#423).
+            logger.warning(
+                "portal_poll_failed",
+                extra={"portal_key": grant.portal_key, "error": exc.__class__.__name__},
+            )
+            await self._record_poll_failure(grant, "The provider refused or could not be reached")
+            return None
+        if grant.last_status != "ok":
+            await mcp_connection_repo.update(
+                self.db,
+                db_connection=grant,
+                update_data={"last_status": "ok", "last_error": None},
+            )
+        return read
+
+    async def store_poll_cursor(self, grant: McpConnection, *, cursor: dict[str, Any]) -> None:
+        """Advance where the reader has got to, after its fires were dispatched.
+
+        Written last on purpose. In the other order a crash between the two loses
+        every message the poll read - the cursor claims they were handled and
+        nothing handled them. This way a crash re-reads them and the delivery-id
+        claim dedups: at-least-once with the duplicate suppressed, rather than
+        at-most-once with a silent hole.
+        """
+        await mcp_connection_repo.update(
+            self.db,
+            db_connection=grant,
+            update_data={"poll_cursor": cursor, "last_checked_at": datetime.now(UTC)},
+        )
+
+    async def _record_poll_failure(self, grant: McpConnection, reason: str) -> None:
+        """Say on the row why a mailbox could not be read.
+
+        The reason is written here, not taken from the provider: `last_error` is
+        rendered to everyone who can see the connection, and a provider's message
+        carries the failing request URL - which carries a token (#423).
+        """
+        await mcp_connection_repo.update(
+            self.db,
+            db_connection=grant,
+            update_data={
+                "last_status": "error",
+                "last_error": reason,
+                "last_checked_at": datetime.now(UTC),
+            },
+        )
+
+    async def oauth_start_for_polled_portal(self, ctx: AuthContext, *, portal_key: str) -> str:
+        """Begin the consent flow for a portal this platform *reads* rather than
+        registers a webhook at.
+
+        Gmail is the case: the grant is spent by the heartbeat's poller, not by a
+        provider posting to us, so there is nothing to register and the only thing
+        the flow has to produce is a refreshable token with the portal's read
+        scopes on it.
+
+        **The client is the organization's, from the vault** - the same shape as
+        GitHub's, and for the reason that outranks any argument about who owns a
+        Google project: every secret at rest in this repository goes through
+        `app/core/vault.py`, and there is no second mechanism. It is emphatically
+        *not* the deployment's `GOOGLE_CLIENT_ID`, which is sign-in.
+
+        The grant is staged on a `purpose = 'portal'` row, so it never appears
+        among the organization's MCP servers: it has no tools and nobody should be
+        offered it to bind an agent to. One row per portal per organization, so
+        re-consenting replaces the grant rather than leaving two mailboxes with
+        nothing to choose between them.
+
+        Raises:
+            BadRequestError: If `portal_key` names no portal, or one that is not
+                polled - a webhook portal connects through its own flow.
+            NotFoundError: If the organization has stored no org-visible
+                `google_oauth_app` secret - a 4xx the card shows as a prerequisite,
+                the same way a missing GitHub OAuth App is, never a 500.
+            BadRequestError: If more than one is stored, or `portal_key` names no
+                polled portal.
+        """
+        portal = portal_catalog.get_portal(portal_key)
+        if portal is None or portal.delivery is not portal_catalog.DeliveryMode.POLLING:
+            raise BadRequestError(
+                message="This portal is not one the platform polls",
+                details={"portal_key": portal_key},
+            )
+        creds = await OrganizationSecretService(self.db).oauth_app(
+            ctx, kind=SecretKind.GOOGLE_OAUTH_APP
+        )
+        redirect_uri = _oauth_redirect_uri()
+        state = secrets.token_urlsafe(32)
+        scopes = list(portal.read_scopes)
+        payload = McpOAuthPayload(
+            # A portal grant points at the API it reads rather than at an MCP
+            # server. The column is not nullable and the value is not a lie: it is
+            # where the token is spent.
+            server_url=_POLLED_PORTAL_URL[portal_key],
+            started_at=_now_epoch(),
+            authorization_endpoint=google_oauth.AUTHORIZE_ENDPOINT,
+            token_endpoint=google_oauth.TOKEN_ENDPOINT,
+            client_id=creds.client_id,
+            client_secret=creds.client_secret.get_secret_value(),
+            scope=" ".join(scopes),
+            resource=_POLLED_PORTAL_URL[portal_key],
+            redirect_uri=redirect_uri,
+            provider=google_oauth.PROVIDER,
+        )
+        existing = await mcp_connection_repo.get_portal_grant(
+            self.db, organization_id=ctx.organization_id, portal_key=portal_key
+        )
+        await self._stage_pending_oauth(
+            name=portal.name,
+            url=_POLLED_PORTAL_URL[portal_key],
+            existing=existing,
+            vault_scope=VaultScope.organization(ctx.organization_id),
+            create=lambda **kwargs: mcp_connection_repo.create_org_scoped(
+                self.db,
+                organization_id=ctx.organization_id,
+                created_by_user_id=ctx.subject_id,
+                allowed_tools=None,
+                catalog_key=None,
+                sealed_token=None,
+                purpose="portal",
+                portal_key=portal_key,
+                **kwargs,
+            ),
+            payload=payload,
+            state=state,
+        )
+        return google_oauth.authorization_url(
+            client_id=creds.client_id,
+            redirect_uri=redirect_uri,
+            scopes=scopes,
+            state=state,
         )
 
     async def oauth_callback(self, *, state: str, code: str) -> McpConnection:
@@ -583,29 +1028,63 @@ class McpConnectionService:
         if connection is None or not connection.oauth_pending_payload:
             raise NotFoundError(message="OAuth session not found or already completed")
         payload = _decode_payload(connection, connection.oauth_pending_payload)
-        if payload is None or not payload.code_verifier:
+        if payload is None:
             raise OAuthError("This authorization session is no longer valid - start again.")
         if _now_epoch() - payload.started_at > mcp_oauth.FLOW_TTL_SECS:
             raise OAuthError("This authorization session has expired - start again.")
-        token = await mcp_oauth.exchange_code(
-            token_endpoint=payload.token_endpoint,
-            client_id=payload.client_id,
-            client_secret=payload.client_secret,
-            code=code,
-            code_verifier=payload.code_verifier,
-            redirect_uri=payload.redirect_uri,
-            resource=payload.resource,
-        )
-        payload = _apply_token(payload, token)
+        if payload.provider == github_oauth.PROVIDER:
+            payload, granted_scopes = await _complete_github_flow(payload, code)
+        elif payload.provider == google_oauth.PROVIDER:
+            payload, granted_scopes = await _complete_google_flow(payload, code)
+            # Google may omit the refresh token on a re-consent for a grant it
+            # already holds - the previous one stays valid, so it is carried
+            # forward from the live payload rather than overwritten with None,
+            # which would stop the mailbox's polling an hour later with nothing
+            # to say why (`_apply_token` does the same for the shared MCP flow).
+            if payload.refresh_token is None and connection.oauth_payload:
+                live = _decode_payload(connection, connection.oauth_payload)
+                if live is not None and live.refresh_token:
+                    payload = payload.model_copy(update={"refresh_token": live.refresh_token})
+        else:
+            payload, granted_scopes = await _complete_mcp_flow(payload, code)
+        # A polled grant's reading position starts *now*, at consent - not at the
+        # first heartbeat up to a minute later. The first poll with no cursor
+        # snapshots the mailbox and emits nothing, so mail arriving inside that
+        # gap would be inside the snapshot and permanently skipped as if it
+        # predated the connection. Best-effort: a provider that cannot answer
+        # right now leaves the cursor to the first poll, which is the old window
+        # rather than a broken flow.
+        poll_cursor = connection.poll_cursor
+        if (
+            connection.purpose == "portal"
+            and connection.portal_key is not None
+            and poll_cursor is None
+            and payload.access_token
+        ):
+            poll_cursor = await _initial_poll_cursor(
+                portal_key=connection.portal_key, access_token=payload.access_token
+            )
         return await mcp_connection_repo.update(
             self.db,
             db_connection=connection,
             update_data={
+                "poll_cursor": poll_cursor,
                 # The URL moves together with the tokens issued for it.
                 "url": payload.server_url,
+                # A row staged as an upgrade (a pre-OAuth bearer connection to a
+                # catalog entry) is promoted only now, with the consent in hand:
+                # the OAuth token takes over and the static one is dropped, so a
+                # flow abandoned at the consent screen never broke the bearer.
+                "auth_type": "oauth",
+                "auth_token": None,
                 "oauth_payload": _seal_for(connection, payload.model_dump_json()).ciphertext,
                 "oauth_pending_payload": None,
                 "oauth_state": None,
+                # The scopes the provider actually granted, mirrored out of the
+                # sealed payload into a plain column so the trigger-portal webhook
+                # path can read them without unwrapping the token. Only that path
+                # reads it; tool-calling is unaffected.
+                "granted_scopes": granted_scopes,
                 "last_status": "ok",
                 "last_error": None,
                 "last_checked_at": datetime.now(UTC),
@@ -733,6 +1212,19 @@ class McpConnectionService:
             update_data.setdefault("last_error", None)
             update_data.setdefault("last_checked_at", None)
 
+        # OAuth tokens are bound to the resource they were issued for - never
+        # carry them over to a different host. The same safeguard the personal
+        # path has, and here it is also a boundary between administrators: an
+        # org connection's GitHub token must not follow a repointed URL to a
+        # host another `mcp:manage` holder chose. The mirrored scopes go with
+        # the token they described; the organization re-authorizes instead.
+        moved = "url" in update_data and update_data["url"] != db_connection.url
+        if moved and db_connection.auth_type == "oauth":
+            update_data["oauth_payload"] = None
+            update_data["oauth_pending_payload"] = None
+            update_data["oauth_state"] = None
+            update_data["granted_scopes"] = None
+
         if not update_data:
             return db_connection
         return await mcp_connection_repo.update(
@@ -741,6 +1233,14 @@ class McpConnectionService:
 
     async def delete_for_org(self, ctx: AuthContext, *, connection_id: UUID) -> None:
         db_connection = await self._get_org(ctx, connection_id)
+        # Any trigger webhook this account registered is deregistered first,
+        # while its token still exists, and the trigger falls back to manual -
+        # otherwise the trigger FK's SET NULL trips the shape CHECK (a registered
+        # hook with no account to remove it by) and the delete fails at flush.
+        # Imported locally: the trigger service imports this module at module scope.
+        from app.services.agent_trigger import AgentTriggerService
+
+        await AgentTriggerService(self.db).release_connection(ctx, connection_id)
         await mcp_connection_repo.delete(self.db, db_connection=db_connection)
         await record_audit(
             self.db,
@@ -758,6 +1258,80 @@ class McpConnectionService:
         """Probe an organization server, persist the result, return its tools."""
         db_connection = await self._get_org(ctx, connection_id)
         return await self._probe(db_connection)
+
+    async def webhook_access_token(
+        self, ctx: AuthContext, connection_id: UUID, *, required_scopes: Sequence[str]
+    ) -> str | None:
+        """A live token for an org connection that consented to `required_scopes`.
+
+        For the trigger portals: registering a provider webhook needs a scope a
+        plain tool connection never requested, so this hands back a token only
+        when the account was re-authorized for it. `None` - the connection lacks
+        the scope, or its token cannot be refreshed - is the signal to fall back
+        to manual setup, never an error. A connection in another tenant is still
+        a `NotFoundError`, because a bad id is a client mistake, not a fallback.
+        """
+        connection = await self._get_org(ctx, connection_id)
+        # Disabled means disabled everywhere: the agent tool path already skips a
+        # disabled row, and a caller who kept a trigger's connection_id must not
+        # be able to keep enumerating repositories or registering hooks with a
+        # credential an administrator switched off.
+        if not connection.is_enabled:
+            return None
+        if not set(required_scopes).issubset(connection.granted_scopes or ()):
+            return None
+        return await _oauth_access_token(self.db, connection)
+
+    async def get_org_portal_grant(self, ctx: AuthContext, portal_key: str) -> McpConnection | None:
+        """The organization's grant for one polled portal, or `None`.
+
+        What tells a portal card that its mailbox is connected. A polled portal has
+        no entry in the MCP server catalog - there is no server, only an account we
+        read - so the catalog listing cannot find its connection the way an
+        `auto_webhook` portal's is found, by catalog key.
+        """
+        return await mcp_connection_repo.get_portal_grant(
+            self.db, organization_id=ctx.organization_id, portal_key=portal_key
+        )
+
+    async def get_org_portal_connection(
+        self, ctx: AuthContext, connection_id: UUID
+    ) -> McpConnection:
+        """One *portal grant* by id, resolved for the caller's tenant.
+
+        The counterpart of :meth:`get_org_connection` for a polled portal, whose
+        grant is not an MCP connection and is deliberately invisible to every
+        MCP-facing read. A trigger being created against a connected mailbox proves
+        the id is its own organization's through here.
+
+        Raises:
+            NotFoundError: If no grant with this id is visible to the caller's
+                organization - the same unprobeable refusal every org-scoped
+                connection lookup gives.
+        """
+        grant = await mcp_connection_repo.get_org_scoped_portal_by_id(
+            self.db, connection_id=connection_id, organization_id=ctx.organization_id
+        )
+        if grant is None:
+            raise NotFoundError(
+                message="Connection not found", details={"connection_id": connection_id}
+            )
+        return grant
+
+    async def get_org_connection(self, ctx: AuthContext, connection_id: UUID) -> McpConnection:
+        """One organization connection by id, resolved for the caller's tenant.
+
+        The public form of the org-scoped lookup, for a caller that only needs to
+        prove a `connection_id` belongs to its organization before storing it - a
+        trigger persisting the account whose token registers its webhook. A
+        connection in another tenant, or a bogus id, is a `NotFoundError`, the same
+        unprobeable refusal `_get_org` gives every other org-scoped path.
+
+        Raises:
+            NotFoundError: If no connection with this id is visible to the caller's
+                organization.
+        """
+        return await self._get_org(ctx, connection_id)
 
     async def _get_org(self, ctx: AuthContext, connection_id: UUID) -> McpConnection:
         """One organization connection, or a refusal that reveals nothing.

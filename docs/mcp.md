@@ -168,6 +168,29 @@ and stays in the log with everything else.
     organization's server working until it is authorized again. Consent with an
     account the organization controls.
 
+**A token never follows a moved URL.** Editing a connection's URL drops its OAuth
+payload, pending flow and mirrored scopes — personal and organization connections
+alike — so the connection reads "needs re-authorization" rather than sending a
+token issued for one host to a different one. On an organization row this is also
+a boundary between administrators: one `mcp:manage` holder repointing a connection
+another authorized must not have the platform deliver that token to the new host.
+
+**A disabled connection hands out no tokens anywhere.** The agent tool path skips
+it, and the trigger portals do too: a caller who kept a trigger's `connection_id`
+cannot keep enumerating repositories or registering hooks with a credential an
+administrator switched off.
+
+**Deleting a connection releases what was registered through it.** Any [event
+trigger](triggers.md) whose provider webhook was auto-registered with this
+account's token has that hook deregistered (best-effort, while the token still
+exists) and falls back to manual delivery — the trigger's URL and secret still
+stand, so re-pointing a provider at it by hand keeps working. The GitHub portal's
+connect flow is also upgrade-aware in the other direction: an organization that
+connected the GitHub catalog entry as a plain bearer connection before the OAuth
+flow existed has that same row re-authorized in place — found by its catalog key,
+whatever it was named — rather than refused or duplicated, and the bearer token
+keeps working until the new consent lands.
+
 ## What happens on a turn
 
 Each server is probed with a short `tools/list` round-trip — 3 seconds — before

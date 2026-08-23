@@ -39,6 +39,7 @@ const agent = (
   visibility: "private",
   owner_user_id: null,
   current_version_id: status === "published" ? "v1" : null,
+  can_run: true,
 });
 
 const PUBLISHED: Agent[] = [

@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui";
 import type { AgentEnvironment } from "@/types/agents";
+import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 
 interface PublishDialogProps {
   open: boolean;
@@ -49,7 +50,7 @@ export function PublishDialog({
   const defaultEnvironment = environments.find((environment) => environment.is_default);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className={DIALOG_CONFIRM}>
         <DialogHeader>
           <DialogTitle>{t("publishDialogTitle", { version })}</DialogTitle>
           <DialogDescription>{t("publishFreezesDraft", { version })}</DialogDescription>

@@ -31,6 +31,7 @@ from app.schemas.sandbox_connection import (
     SandboxEventList,
     SandboxLocalCredentialRead,
     SandboxLocalServiceRead,
+    SandboxOperationList,
     SandboxPolicyRead,
     SandboxProbeRequest,
     SandboxRuntimeCatalog,
@@ -207,6 +208,44 @@ async def list_sessions(
     should cost on load.
     """
     return await service.sessions(ctx, connection_id, usage=usage)
+
+
+@router.get(
+    "/operations",
+    response_model=SandboxOperationList,
+    dependencies=[Depends(require(Perm.CONNECTIONS_VIEW))],
+)
+async def read_sandbox_operations(
+    service: SandboxConnectionSvc,
+    ctx: Auth,
+    session_key: str | None = Query(None, description="Narrow to one sandbox session"),
+    op: str | None = Query(None, description="Narrow to one operation"),
+    failed_only: bool = Query(False, description="Only operations that did not succeed"),
+    query: str | None = Query(None, max_length=200, description="Substring of the op or target"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+) -> Any:
+    """This organization's record of what its agents did in their sandboxes.
+
+    Read from our own table, so it answers a week later and after a `sandboxd`
+    restart - which the service's own 200-entry buffer never could (#1061). The
+    filters narrow a query rather than an array the client holds, and the total is
+    what makes the pager honest.
+
+    Not under a connection: an operation is recorded against the *session* the
+    agent worked in, and a sandbox outlives the connection row it was opened
+    through - a log that could only be read per connection would lose the record
+    the moment somebody deleted the host.
+    """
+    return await service.operations(
+        ctx,
+        session_key=session_key,
+        op=op,
+        failed_only=failed_only,
+        query=query,
+        skip=skip,
+        limit=limit,
+    )
 
 
 @router.get(

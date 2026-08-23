@@ -25,7 +25,15 @@ import type { RunStatus } from "@/types/runs";
 const STATUSES = Object.keys(RUN_LABEL) as RunStatus[];
 
 /** `RunSurface` on the backend - every value something assigns, none invented. */
-export const SURFACES = ["web", "embed", "api", "slack", "telegram", "mattermost"] as const;
+export const SURFACES = [
+  "web",
+  "embed",
+  "api",
+  "slack",
+  "telegram",
+  "mattermost",
+  "schedule",
+] as const;
 
 // The shape and its defaults live in `lib/runs/filter-params.ts`, with the two
 // directions of the URL round-trip - a narrowing that travels in a link cannot

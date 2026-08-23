@@ -75,6 +75,7 @@ from app.services.access import (
     CONTEXT,
     SECRET,
     SKILL,
+    accessible_ids,
     resolve_access,
     visible_resource_ids,
 )
@@ -665,6 +666,18 @@ class AgentRegistryService:
             raise NotFoundError(message="Agent not found", details={"agent_id": str(agent_id)})
         return agent
 
+    async def may_run(self, ctx: AuthContext, agent: Agent) -> bool:
+        """Whether this caller may run this agent - the floor to create a trigger on it.
+
+        The per-resource counterpart to the `can_run` the listing fills in batch:
+        the detail route reads it for one agent it already loaded. It resolves the
+        run access the same way, through `resolve_access`, so a Viewer holding an
+        explicit run grant reads true here where the role-level check would refuse
+        them. The access call stays in the service rather than the route, which is
+        the layering every other per-resource decision here already follows.
+        """
+        return await resolve_access(self.db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT)
+
     async def list_agents(
         self,
         ctx: AuthContext,
@@ -734,6 +747,10 @@ class AgentRegistryService:
         )
         windows = await self._context_windows(version_ids, profile_ids, profiles)
         published_models = _published_models(profile_ids, profiles)
+        # Which of these the caller may run, in one grant query for the page - the
+        # floor for offering "new trigger" on a card. A grant widens it per row, so
+        # a Viewer shared run on one agent sees the control there and nowhere else.
+        runnable = await accessible_ids(self.db, ctx, agents, Perm.AGENTS_RUN, resource_type=AGENT)
         rows = [
             AgentRead(
                 id=agent.id,
@@ -746,6 +763,7 @@ class AgentRegistryService:
                 current_version_id=agent.current_version_id,
                 has_avatar=agent.has_avatar,
                 avatar_color=agent.avatar_color,
+                can_run=agent.id in runnable,
                 shared_user_count=shared_counts.get(agent.id, 0),
                 channels=surfaces.get(agent.id, []),
                 budget_monthly_usd=(
@@ -1806,6 +1824,13 @@ class AgentRegistryService:
     async def delete(self, ctx: AuthContext, agent_id: UUID) -> None:
         """Permanently remove an agent, its versions and its shares."""
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        # The agent's triggers go with it by CASCADE, which would silently discard
+        # the provider webhook ids their auto-registered hooks are removable by -
+        # so the provider side is swept first, best-effort. Imported locally:
+        # the trigger service imports this module at module scope.
+        from app.services.agent_trigger import AgentTriggerService
+
+        await AgentTriggerService(self.db).deregister_agent_webhooks(ctx, agent.id)
         # The grant table is generic and has no foreign key to the agent, so
         # nothing cascades on its behalf.
         await resource_grant_repo.delete_for_resource(

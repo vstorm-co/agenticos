@@ -1,13 +1,15 @@
 # Concepts
 
-Four nouns. Everything in the product is built from them, and most confusion
+Five nouns. Everything in the product is built from them, and most confusion
 about it comes from conflating two.
 
 ```mermaid
 graph LR
     S[Spec] -->|publish freezes| V[Version]
     V -->|an exposure admits a caller| E[Exposure]
+    V -->|a trigger fires on a schedule or an event| T[Trigger]
     E -->|one execution| R[Run]
+    T -->|one execution| R
     R -->|records| C[cost, tokens, version]
 ```
 
@@ -78,6 +80,54 @@ bot is refused and `@slug` is an alias for the agent behind it rather than a way
 to pick between several. And **the run executes as the sender**, never as the
 bot; an unlinked chat identity is refused rather than run with no role, because
 a run nobody can be held to is worse than a run that did not happen.
+
+## Trigger
+
+**When an agent runs with nobody at the keyboard.** A schedule - every *N* minutes -
+that fires the agent on its own. Like an exposure, a trigger is operational state
+beside the agent, not part of the spec: you add, pause and remove one without minting
+a version, and it is not exported in a client's YAML because it carries things a spec
+cannot - a subject, and when it last fired.
+
+The channel-mention rule above applies here, for the same reason: a triggered run
+executes **as the member who created the trigger**, re-resolved every fire, never as
+an invented service user. When that member can no longer run the agent - they left the
+organization, or their grant on it was revoked - the trigger disables itself and
+records why, rather than retrying a refusal for ever.
+
+Everything else is deliberately identical to any other run, because it goes through
+the same runner: the budget is enforced the same way, an approval parks it the same
+way, the audit trail names it the same way. It is stamped the `schedule` surface, so
+"how is this agent used" can tell an unattended run from a person's; each fire is its
+own run in Activity; and its answers accumulate in one run-log conversation the trigger
+opens once - eagerly, the moment the trigger is created, so it is a clickable item
+before it has ever fired.
+
+A trigger fires one of two ways. A **schedule** fires on the clock: an **interval**
+("every N seconds", a minute at the finest, since a heartbeat claims the due ones once
+a minute) or a **cron** expression evaluated in UTC - `0 9 * * *` for 09:00 each day,
+or any five-field crontab (a six-field shape with a seconds column is refused, since
+seconds are a cadence the once-a-minute heartbeat cannot honour) - the service
+computing the next fire for each the same way, and a run
+that outlives its own interval finishing before the next fire rather than piling up on
+itself. An **event** fires on an arrival: a GitHub issue, an inbound email, or the
+catch-all API source - anything that can POST signed JSON, so a Zapier or Make code
+step or a small script covers whatever else a user wants to fire on. It
+is delivered as a signed webhook the platform verifies against a per-trigger secret
+[sealed in the vault](secrets.md) and matched against an optional per-source filter
+before the agent runs with the payload appended to its prompt. An event has no next
+fire - nothing is due until a delivery lands - so the heartbeat never sees it. Adding a
+source is a value in one enum and a branch in one module; it changes nothing on the row.
+
+Any trigger can also be **run now**: one extra fire on demand that leaves its cadence
+untouched. It is accepted rather than awaited - the request answers as soon as the
+fire is handed to the worker as its own flow run, the same durable door a scheduled or
+delivered fire goes through, and the run appears in the trigger's run-log conversation
+as it happens - so an agent that takes minutes does not hold the browser's request open
+until a proxy gives up on it, and an accepted fire survives the API process that
+accepted it. And every schedule and event in an organization is
+listed together across its agents, each filtered to the ones the caller may run -
+the same per-resource `agents:run` that gates creating one.
 
 ## Run
 

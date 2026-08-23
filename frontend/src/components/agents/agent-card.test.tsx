@@ -25,6 +25,7 @@ function agent(overrides: Partial<Agent>): Agent {
     visibility: "private",
     owner_user_id: null,
     current_version_id: null,
+    can_run: false,
     ...overrides,
   };
 }

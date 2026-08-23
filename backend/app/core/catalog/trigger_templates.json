@@ -1,0 +1,100 @@
+[
+  {
+    "key": "pr_digest_weekday_mornings",
+    "label": "Pull-request digest, weekday mornings",
+    "description": "Every weekday at 08:00 UTC, summarise the open pull requests that need attention.",
+    "prompt": "Summarise my team's open pull requests. Group them by whether they are waiting on a review, waiting on changes from the author, or approved and ready to merge, and call out any that have been open for more than three days.",
+    "trigger_type": "schedule",
+    "suggested_cadence": {
+      "schedule_kind": "cron",
+      "cron_expression": "0 8 * * 1-5"
+    }
+  },
+  {
+    "key": "triage_new_issues_daily",
+    "label": "Triage new issues each morning",
+    "description": "Every day at 07:00 UTC, review the issues opened since yesterday and propose a triage.",
+    "prompt": "Review the issues opened in the last day. For each one, suggest a priority and a label, note any that look like duplicates of an existing issue, and flag anything that appears to be a security report.",
+    "trigger_type": "schedule",
+    "suggested_cadence": {
+      "schedule_kind": "cron",
+      "cron_expression": "0 7 * * *"
+    }
+  },
+  {
+    "key": "standup_prep_weekdays",
+    "label": "Stand-up prep, weekday mornings",
+    "description": "Every weekday at 08:30 UTC, draft a short stand-up update from yesterday's activity.",
+    "prompt": "Draft a concise stand-up update: what was merged or closed yesterday, what is in progress, and anything that looks blocked or is waiting on someone. Keep it to a few bullet points.",
+    "trigger_type": "schedule",
+    "suggested_cadence": {
+      "schedule_kind": "cron",
+      "cron_expression": "30 8 * * 1-5"
+    }
+  },
+  {
+    "key": "weekly_team_summary",
+    "label": "Weekly team summary, Friday afternoon",
+    "description": "Every Friday at 16:00 UTC, write a summary of the week's work.",
+    "prompt": "Write a summary of this week's work for the team: the notable pull requests merged, issues opened and closed, and any themes or recurring problems worth discussing. Aim for something a stakeholder could read in two minutes.",
+    "trigger_type": "schedule",
+    "suggested_cadence": {
+      "schedule_kind": "cron",
+      "cron_expression": "0 16 * * 5"
+    }
+  },
+  {
+    "key": "monthly_report",
+    "label": "Monthly report, first of the month",
+    "description": "On the 1st of each month at 09:00 UTC, compile a report of the previous month.",
+    "prompt": "Compile a report of last month: what shipped, the main issues resolved, any metrics worth highlighting, and the priorities that carry into this month. Structure it with clear headings so it can be shared as-is.",
+    "trigger_type": "schedule",
+    "suggested_cadence": {
+      "schedule_kind": "cron",
+      "cron_expression": "0 9 1 * *"
+    }
+  },
+  {
+    "key": "hourly_monitoring",
+    "label": "Hourly monitoring check",
+    "description": "Every hour, check the systems you watch and report anything that needs attention.",
+    "prompt": "Check the systems and dashboards you have access to. Report only what needs attention - a failing check, an error spike, an unusual metric - and stay silent about anything that is healthy.",
+    "trigger_type": "schedule",
+    "suggested_cadence": {
+      "schedule_kind": "interval",
+      "interval_seconds": 3600
+    }
+  },
+  {
+    "key": "github_triage_new_issue",
+    "label": "Triage the new issue",
+    "description": "When an issue is opened, propose a priority, labels and the next step.",
+    "prompt": "A new issue was just opened - its details are in this message. Read it, suggest a priority and labels, note whether it looks like a duplicate of an existing issue, and flag it immediately if it appears to be a security report. End with a comment-ready summary of your triage.",
+    "trigger_type": "event",
+    "event_source": "github"
+  },
+  {
+    "key": "email_draft_reply",
+    "label": "Draft a reply to the email",
+    "description": "When an email arrives, summarise what the sender needs and draft a reply to review.",
+    "prompt": "An email just arrived - its subject, sender and body are in this message. Summarise in one line what the sender needs, then draft a reply I can review and send. Match the sender's tone, answer every question they asked, and keep it brief.",
+    "trigger_type": "event",
+    "event_source": "gmail"
+  },
+  {
+    "key": "email_action_items",
+    "label": "Turn the email into action items",
+    "description": "When an email arrives, extract the action items, owners and deadlines.",
+    "prompt": "An email just arrived - its details are in this message. Extract every action item it contains, who owns each one, and any deadline mentioned or implied. List them ready to paste into our tracker, and say plainly if the email contains no actionable work.",
+    "trigger_type": "event",
+    "event_source": "gmail"
+  },
+  {
+    "key": "webhook_act_on_delivery",
+    "label": "Act on the delivery",
+    "description": "When a payload arrives, say what happened and take the next step.",
+    "prompt": "A webhook just delivered a payload - it is in this message. Say what happened in plain words, decide whether it needs action, and if it does, take it with the tools you have or spell out exactly what a person should do.",
+    "trigger_type": "event",
+    "event_source": "webhook"
+  }
+]

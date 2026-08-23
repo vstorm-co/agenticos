@@ -317,3 +317,25 @@ describe("pageHasSteps", () => {
     expect(pageHasSteps(ROUTES.SKILLS)).toBe(true);
   });
 });
+
+describe("the Routines page", () => {
+  it("has stops, so its header renders a help button at all", () => {
+    // A page absent from this registry renders no "?" - `pageHasSteps` - so the
+    // feature ships invisible to everyone who learns the product through the
+    // walkthrough. That is the silent failure, and this is the guard.
+    expect(pageHasSteps(ROUTES.ROUTINES)).toBe(true);
+  });
+
+  it("gates the create stop on the run floor a trigger is made at", () => {
+    // A Viewer with one explicit run grant may create a routine, and the page
+    // hides the buttons on the same test - so an ungated step would wait four
+    // seconds for a control a refusal never mounted.
+    const refused = stepsForPage(ROUTES.ROUTINES, (perm) => perm !== "agents:run").map(
+      (step) => step.id,
+    );
+    const allowed = stepsForPage(ROUTES.ROUTINES, () => true).map((step) => step.id);
+
+    expect(refused).toEqual(["routines-list"]);
+    expect(allowed).toEqual(["routines-list", "routines-create"]);
+  });
+});

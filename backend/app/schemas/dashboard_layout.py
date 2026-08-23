@@ -136,6 +136,7 @@ WIDGET_IDS: frozenset[str] = frozenset(
         "channels",
         "knowledge",
         "activity-rhythm",
+        "routines",
     }
 )
 

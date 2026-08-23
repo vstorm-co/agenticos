@@ -7,6 +7,7 @@ commands on a host may take in a response.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
@@ -295,6 +296,43 @@ class SandboxEventRead(BaseSchema):
     ok: bool
     detail: str = ""
     duration_ms: float = 0.0
+
+
+class SandboxOperationRead(BaseSchema):
+    """One operation this platform recorded, from its own table rather than the
+    service's buffer.
+
+    The two extra fields are the whole reason the table exists: `agent_name` and
+    `run_id` are what the service cannot know, and they are what somebody auditing
+    a sandbox actually asks. Never file contents and never command output - see the
+    model's own docstring.
+    """
+
+    id: UUID
+    at: datetime
+    op: str
+    target: str
+    ok: bool
+    detail: str = ""
+    duration_ms: int = 0
+    session_key: str
+    agent_id: UUID | None = None
+    agent_name: str | None = None
+    run_id: UUID | None = None
+
+
+class SandboxOperationList(BaseSchema):
+    """One page of the log, and what the page is of.
+
+    `total` is what makes the pager honest - the service's own log could only say
+    how much of its 200-entry buffer was left. `operations` is the vocabulary the
+    log actually holds, so the filter offers what is there rather than every method
+    a backend could have.
+    """
+
+    items: list[SandboxOperationRead] = Field(default_factory=list)
+    total: int = 0
+    operations: list[str] = Field(default_factory=list)
 
 
 class SandboxEventList(BaseSchema):

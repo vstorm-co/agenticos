@@ -100,12 +100,21 @@ describe("the Runs figure and the Spend figure", () => {
     );
   });
 
-  it("says on screen which window the count is over", async () => {
+  it("counts against the window the control names, not all time", async () => {
+    // The caption that used to say so out loud went with the card it was on; the
+    // claim it made is now this - the count is asked for over the chosen window,
+    // so the number on the tab and the rows under it describe one set.
     renderPage();
 
-    await waitFor(() =>
-      expect(screen.getByText(messages.pages.runs.delegationsCountedInTheir)).toBeInTheDocument(),
-    );
+    await waitFor(() => {
+      const call = vi
+        .mocked(apiClient.get)
+        .mock.calls.find(
+          ([path, opts]) =>
+            path === "/runs" && (opts?.params as Record<string, string> | undefined)?.started_from,
+        );
+      expect(call).toBeDefined();
+    });
   });
 
   it("shows the count the server reports, not the length of the page it returned", async () => {

@@ -67,11 +67,12 @@ export function RunDetailPanel({
       // Through a custom property rather than `style={{ width }}`, so the width
       // applies at the breakpoint where there are two columns and nowhere else.
       style={{ "--run-panel-width": `${width}px` } as React.CSSProperties}
-      // No sticky and no viewport arithmetic: the page is a full-height column
-      // now, so the panel simply takes the height of the row it is in and its
-      // body scrolls inside it. Sticky was the previous shape, and it left the
-      // list sliding *under* a floating card with a hundred pixels of dead
-      // space below it.
+      // `h-full` over a parent with a definite height, which the page gives it:
+      // the panel is sticky and bounded to the scrollport there, so this is what
+      // hands that height down to `FocusedRun`'s one scrolling column. Without a
+      // definite parent height the chain grows to its content and the
+      // `overflow-hidden` below clips the timeline rather than scrolling it -
+      // which is a transcript whose end cannot be reached.
       className="border-border bg-card @container relative flex h-full w-full shrink-0 flex-col overflow-hidden rounded-xl border lg:w-[var(--run-panel-width)]"
     >
       {/* The boundary. A button rather than a bare `separator`, because it is a

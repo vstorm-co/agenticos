@@ -29,9 +29,11 @@ from app.repositories import embed_visitor as embed_visitor_repo
 from app.repositories import agent_environment as agent_environment_repo
 from app.repositories import agent_exposure as agent_exposure_repo
 from app.repositories import agent_run as agent_run_repo
+from app.repositories import agent_trigger as agent_trigger_repo
 from app.repositories import run_manifest as run_manifest_repo
 from app.repositories import agent_workspace as agent_workspace_repo
 from app.repositories import sandbox_connection as sandbox_connection_repo
+from app.repositories import sandbox_operation as sandbox_operation_repo
 from app.repositories import skill_proposal as skill_proposal_repo
 from app.repositories import audit_log as audit_log_repo
 from app.repositories import ingestion_spend as ingestion_spend_repo
@@ -86,9 +88,11 @@ __all__ = [
     "agent_embed_repo",
     "embed_visitor_repo",
     "agent_run_repo",
+    "agent_trigger_repo",
     "run_manifest_repo",
     "agent_workspace_repo",
     "sandbox_connection_repo",
+    "sandbox_operation_repo",
     "skill_proposal_repo",
     "ingestion_spend_repo",
     "skill_repo",

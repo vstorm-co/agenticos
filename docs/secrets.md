@@ -66,7 +66,15 @@ decides which fields exist.
 | `azure_openai` | Key, endpoint, pinned API version |
 | `aws_credentials` | Access key id, secret access key, region, optional session token |
 | `gcp_service_account` | The service account JSON, validated on the way in |
+| `github_oauth_app` | A GitHub OAuth App's public client id and its secret |
 | `none` | Not a secret — the marker for an endpoint needing no credential |
+
+`github_oauth_app` is spent by the platform rather than picked by a person — the
+GitHub connect flow reads it server-side to run the token exchange — so it must be
+**org-visible, and there must be exactly one**: a member's private credential is
+never silently used for the whole organization's connection, and with two org-visible
+apps stored the connect is refused (naming both) rather than keyed to whichever name
+sorts first.
 
 `aws_credentials` is the clearest case for kinds existing at all: the access key id
 is not secret and the secret access key is, and a single field cannot express that.
@@ -98,6 +106,13 @@ one shared `key_version`: the bot token, a Slack app's signing secret and app
 token, and the shared secret an inbound webhook is authenticated against —
 Telegram's `X-Telegram-Bot-Api-Secret-Token`, a Mattermost outgoing webhook's
 token. See [Channels](channels.md).
+
+**Event triggers.** The secret an event trigger's inbound webhook is verified against -
+GitHub's HMAC key, or the signing secret a mail or API relay sends - sealed to the organization and
+stored inline on the trigger row with the `key_version` that sealed it, the same shape
+as a channel bot's signing secret. It is never returned or logged in the clear; the
+verification unseals it, compares in constant time, and a delivery that fails is a 403.
+See [Concepts](concepts.md#trigger).
 
 **Embeds.** A `jwt` widget verifies visitor tokens against an HS256 signing secret
 the customer's backend holds. It is sealed to the agent's organization and records

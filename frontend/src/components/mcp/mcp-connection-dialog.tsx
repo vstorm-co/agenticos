@@ -23,6 +23,7 @@ import {
   type DraftState,
   type Scope,
 } from "@/components/mcp/mcp-server-list-types";
+import { DIALOG_FORM } from "@/lib/dialog-sizes";
 
 const AUTH_CHOICES: { value: DraftAuth; labelKey: string; hintKey: string }[] = [
   { value: "none", labelKey: "authChoiceNone", hintKey: "authNoneHint" },
@@ -64,7 +65,7 @@ export function McpConnectionDialog({
 }: McpConnectionDialogProps) {
   return (
     <Dialog open={draft !== null} onOpenChange={(open) => !open && !submitting && onClose()}>
-      <DialogContent>
+      <DialogContent className={DIALOG_FORM}>
         {draft !== null && (
           <ConnectionForm
             key={draft.existing?.id ?? draft.row.key}

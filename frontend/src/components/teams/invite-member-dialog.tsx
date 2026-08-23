@@ -23,6 +23,7 @@ import { useAssignableRoles, useInvitations, useRoleCatalog } from "@/hooks";
 import { defaultAssignable } from "@/lib/assignable-roles";
 import type { OrgRole } from "@/types";
 import { useTranslations } from "next-intl";
+import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 
 interface InviteMemberDialogProps {
   open: boolean;
@@ -60,7 +61,7 @@ export function InviteMemberDialog({ open, onOpenChange, orgId }: InviteMemberDi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className={DIALOG_CONFIRM}>
         <DialogHeader>
           <DialogTitle>{t("inviteMember")}</DialogTitle>
         </DialogHeader>

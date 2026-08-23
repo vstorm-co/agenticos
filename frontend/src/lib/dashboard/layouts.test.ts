@@ -122,9 +122,12 @@ describe("visibleSections", () => {
     expect(sections.map((section) => section.id)).toEqual(["attention", "workspace"]);
     // Both collections cards survive on that one permission: freshness answers
     // whether documents are still arriving, knowledge whether the ones that
-    // did ever finished indexing.
+    // did ever finished indexing. Routines survives on `agents:view`, which is
+    // what its own data needs - the outcome half of each row asks for runs and
+    // is simply not fetched for a reader without them.
     expect(sections[0]?.entries.map((entry) => entry.widget)).toEqual([
       "knowledge-freshness",
+      "routines",
       "knowledge",
     ]);
     expect(sections[1]?.entries.map((entry) => entry.widget)).toEqual([

@@ -38,6 +38,7 @@ import { SharedWithYouWidget } from "./shared-with-you";
 import { SpendWidget } from "./spend";
 import { ActivityRhythmWidget } from "./activity-rhythm";
 import { ChannelsWidget } from "./channels";
+import { RoutinesWidget } from "./routines";
 import { KnowledgeWidget } from "./knowledge";
 import { SummaryWidget } from "./summary";
 import { SurfacesWidget } from "./surfaces";
@@ -49,6 +50,7 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   summary: SummaryWidget,
   "activity-rhythm": ActivityRhythmWidget,
   channels: ChannelsWidget,
+  routines: RoutinesWidget,
   knowledge: KnowledgeWidget,
   platform: PlatformWidget,
   health: HealthWidget,

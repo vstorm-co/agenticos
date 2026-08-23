@@ -15,11 +15,11 @@ import {
 } from "@/components/ui";
 import { submitFailure } from "@/lib/api-error";
 import { INGESTION_FORM_FIELDS, ingestionProblems, sameIngestion } from "@/lib/ingestion-config";
-import { DIALOG_WIDE } from "@/lib/dialog-widths";
 import { cn } from "@/lib/utils";
 import type { IngestionConfig } from "@/types";
 import { useChanged } from "@/hooks/use-changed";
 import { useTranslations } from "next-intl";
+import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 
 interface IngestionDialogProps {
   open: boolean;
@@ -89,7 +89,7 @@ export function IngestionDialog({
       {/* Header and footer stay put; only the settings scroll. Save is the way
           out of a long form and must not be the thing that scrolls away. Wide
           because the settings form lays its fields out in columns. */}
-      <DialogContent className={cn("flex max-h-[85vh] flex-col", DIALOG_WIDE)}>
+      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE)}>
         <DialogHeader>
           <DialogTitle>{t("ingestionSettings")}</DialogTitle>
           <DialogDescription>

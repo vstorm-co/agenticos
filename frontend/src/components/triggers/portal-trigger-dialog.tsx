@@ -1,0 +1,460 @@
+"use client";
+
+import { useState } from "react";
+import { Check, Cog, MessageSquare, Zap } from "lucide-react";
+import { useTranslations } from "next-intl";
+
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  FormField,
+  Input,
+  Label,
+  MarkdownEditor,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  WizardNav,
+  WizardSteps,
+} from "@/components/ui";
+import { useAgentEnvironments, useAgents } from "@/hooks";
+import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { DEFAULT_ENV, EnvironmentField } from "@/components/triggers/environment-field";
+import { SecretRevealField } from "@/components/triggers/secret-reveal-field";
+import { TriggerTemplatePicker } from "@/components/triggers/trigger-template-picker";
+import { usePortalTargets } from "@/hooks/use-portal-targets";
+import { useTriggers } from "@/hooks/use-triggers";
+import { useAgentSelectionStore } from "@/stores";
+import { cn } from "@/lib/utils";
+import { FILTER_KEYS, eventFilterConfig } from "@/lib/trigger-format";
+import type { PortalCatalogEntry } from "@/types/portals";
+import type { EventSource, TriggerCreate, TriggerCreated } from "@/types/triggers";
+import { DIALOG_BROAD, DIALOG_CONFIRM, DIALOG_FRAMED } from "@/lib/dialog-sizes";
+
+/** The field label for a portal's target kind, as a fixed key. */
+function targetLabelKey(targetKind: string | null): string {
+  switch (targetKind) {
+    case "repo":
+      return "targetRepo";
+    case "channel":
+      return "targetChannel";
+    default:
+      return "targetGeneric";
+  }
+}
+
+/**
+ * The `portals`-namespace label and placeholder for each `event_config` filter
+ * key. The keys themselves come from the shared `FILTER_KEYS` so the raw form and
+ * this one narrow on the same fields; the friendly copy - a concrete example per
+ * field - lives here, since the raw form uses one generic "optional" placeholder.
+ */
+const FILTER_COPY: Record<string, { labelKey: string; placeholderKey: string }> = {
+  subject_contains: { labelKey: "subjectFilterLabel", placeholderKey: "subjectFilterPlaceholder" },
+  sender_contains: { labelKey: "senderFilterLabel", placeholderKey: "senderFilterPlaceholder" },
+  author_contains: { labelKey: "authorFilterLabel", placeholderKey: "authorFilterPlaceholder" },
+  text_contains: { labelKey: "textFilterLabel", placeholderKey: "textFilterPlaceholder" },
+};
+
+interface PortalTriggerDialogProps {
+  portal: PortalCatalogEntry;
+  /** The shared connected account's id, or null for a manual portal that needs none. */
+  connectionId: string | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+/**
+ * Building an event trigger from a portal preset, the friendly path.
+ *
+ * Three wizard steps rather than a raw source-and-secret form: **Event** picks a
+ * ready-made preset, **Configure** points it at a target, an agent and the
+ * filters, and **Message** carries the prompt alone (it is often long) - the
+ * same stepper chrome as the KB sync-source wizard. The server
+ * fills the source, the filter and the signing secret from the preset - the
+ * payload carries only which portal, which preset, the connected account and the
+ * target - so nothing here mints or shows a secret. On a manual-delivery result
+ * the webhook URL is shown to paste into the provider; on an auto result the
+ * platform has already registered the hook and there is nothing left to do.
+ */
+export function PortalTriggerDialog({
+  portal,
+  connectionId,
+  open,
+  onOpenChange,
+}: PortalTriggerDialogProps) {
+  const t = useTranslations("portals");
+  const tt = useTranslations("triggers");
+
+  const { agents } = useAgents();
+  const defaultAgentId = useAgentSelectionStore((state) => state.defaultAgentId);
+  // Only agents the caller may actually run: a published version to run, and a
+  // `can_run` resolving the caller's role scope plus any run grant. Seeding the
+  // default from this set never points at an agent the create would refuse.
+  const runnable = agents.filter((agent) => agent.status === "published" && agent.can_run);
+  const [pickedAgentId, setPickedAgentId] = useState("");
+  const effectiveAgentId =
+    pickedAgentId ||
+    (runnable.find((agent) => agent.id === defaultAgentId) ?? runnable[0])?.id ||
+    "";
+
+  const { create } = useTriggers(effectiveAgentId || null);
+  const { environments } = useAgentEnvironments(effectiveAgentId || null);
+  const namedEnvironments = environments.filter((environment) => !environment.is_default);
+  const defaultEnvironment = environments.find((environment) => environment.is_default) ?? null;
+
+  const [step, setStep] = useState<"preset" | "configure" | "message">("preset");
+  const [presetKey, setPresetKey] = useState<string>("");
+  const [prompt, setPrompt] = useState("");
+  const [name, setName] = useState("");
+  const [environmentId, setEnvironmentId] = useState(DEFAULT_ENV);
+  const [target, setTarget] = useState("");
+  // Two generic substring slots, mapped to the source's `event_config` keys by
+  // `FILTER_KEYS` - a subject and sender for email, none for a source that
+  // filters nothing. Empty slots are not sent.
+  const [filterA, setFilterA] = useState("");
+  const [filterB, setFilterB] = useState("");
+  // Which seeded template the message started from, or null for "from scratch".
+  // Only tracked to light the picked card; the prompt stays freely editable.
+  const [templateKey, setTemplateKey] = useState<string | null>(null);
+  const [created, setCreated] = useState<TriggerCreated | null>(null);
+
+  const eventSource = portal.event_source as EventSource;
+  const filterKeys = FILTER_KEYS[eventSource] ?? [];
+
+  const preset = portal.presets.find((entry) => entry.key === presetKey) ?? null;
+  const needsTarget = portal.target_kind !== null && (preset?.target_required ?? false);
+  const { targets, isLoading: targetsLoading } = usePortalTargets(
+    needsTarget && connectionId ? portal.key : null,
+    needsTarget && connectionId ? connectionId : null,
+    needsTarget && connectionId && effectiveAgentId !== "" ? effectiveAgentId : null,
+  );
+
+  function choosePreset(key: string) {
+    setPresetKey(key);
+    setStep("configure");
+  }
+
+  async function submit() {
+    if (preset === null || effectiveAgentId === "") return;
+    const eventConfig = eventFilterConfig(eventSource, [filterA, filterB]);
+    const payload: TriggerCreate = {
+      prompt,
+      name: name.trim() || null,
+      trigger_type: "event",
+      portal_key: portal.key,
+      preset_key: preset.key,
+      environment_id: environmentId === DEFAULT_ENV ? null : environmentId,
+      ...(connectionId ? { connection_id: connectionId } : {}),
+      ...(needsTarget && target.trim() ? { target: target.trim() } : {}),
+      ...(eventConfig ? { event_config: eventConfig } : {}),
+    };
+    try {
+      const result = await create.mutateAsync(payload);
+      setCreated(result);
+    } catch {
+      // The hook toasts the server's refusal; the dialog stays open so nothing
+      // typed is lost.
+    }
+  }
+
+  const canSubmit =
+    preset !== null &&
+    effectiveAgentId !== "" &&
+    prompt.trim().length > 0 &&
+    (!needsTarget || target.trim().length > 0) &&
+    !create.isPending;
+
+  if (created !== null) {
+    // Three outcomes, not two. `manual` is the only one with anything to hand
+    // over; `auto_webhook` says we registered the hook; and `polling` says there
+    // is nothing to do at all, because the mailbox is read rather than posted to.
+    // Collapsing the third into either of the others is what put "add this webhook
+    // URL to your provider" under a Gmail trigger (#1068).
+    const manual = created.delivery_mode === "manual";
+    const polled = created.delivery_mode === "polling";
+    const title = manual ? tt("createdTitle") : polled ? t("polledTitle") : t("registeredTitle");
+    const description = manual
+      ? t("manualResultDescription")
+      : polled
+        ? t("polledDescription")
+        : t("registeredDescription");
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className={DIALOG_CONFIRM}>
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription>{description}</DialogDescription>
+          </DialogHeader>
+          {manual && created.webhook_url && <WebhookField url={created.webhook_url} />}
+          {manual && created.reveal_secret && (
+            <SecretRevealField
+              secret={created.reveal_secret}
+              label={t("secretLabel")}
+              note={t("secretRevealNote")}
+              id="portal-secret"
+            />
+          )}
+          <DialogFooter>
+            <Button onClick={() => onOpenChange(false)}>{tt("done")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {/* Near-full-screen for the same reason as the raw form's wizard: the
+          message step is where the trigger is actually written. */}
+      <DialogContent className={cn(DIALOG_FRAMED, DIALOG_BROAD)}>
+        <DialogHeader className="border-foreground/10 border-b px-6 py-4">
+          <DialogTitle className="text-base font-semibold">
+            {t("dialogTitle", { portal: portal.name })}
+          </DialogTitle>
+          <DialogDescription>{tt("createDescription")}</DialogDescription>
+          <WizardSteps
+            steps={[
+              { id: "preset", label: t("presetTab"), icon: Zap },
+              { id: "configure", label: t("configureTab"), icon: Cog },
+              { id: "message", label: tt("stepMessage"), icon: MessageSquare },
+            ]}
+            current={step}
+          />
+        </DialogHeader>
+
+        <div className="min-h-0 scrollbar-thin overflow-y-auto px-6 py-5">
+          {step === "preset" && (
+            <div className="space-y-2">
+              {portal.presets.map((entry) => {
+                const active = entry.key === presetKey;
+                return (
+                  <button
+                    key={entry.key}
+                    type="button"
+                    onClick={() => choosePreset(entry.key)}
+                    aria-pressed={active}
+                    className={cn(
+                      "flex w-full items-start gap-3 rounded-md border p-3 text-left transition-colors",
+                      active
+                        ? "border-foreground/30 bg-accent"
+                        : "border-input hover:border-foreground/30",
+                    )}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">{entry.label}</p>
+                      <p className="text-muted-foreground text-xs">{entry.description}</p>
+                    </div>
+                    {active && <Check className="text-foreground mt-0.5 h-4 w-4 shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {step === "configure" && (
+            <div className="space-y-4">
+              <FormField label={tt("agent")} htmlFor="portal-agent">
+                <Select
+                  value={effectiveAgentId}
+                  onValueChange={(next) => {
+                    setPickedAgentId(next);
+                    // A named environment belongs to one agent; carrying the
+                    // previous agent's choice across would be refused on create.
+                    setEnvironmentId(DEFAULT_ENV);
+                  }}
+                >
+                  <SelectTrigger id="portal-agent">
+                    <SelectValue placeholder={tt("chooseAgent")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {runnable.map((agent) => (
+                      <SelectItem key={agent.id} value={agent.id}>
+                        <span className="flex items-center gap-2">
+                          <AgentAvatar
+                            agentId={agent.id}
+                            name={agent.name}
+                            hasAvatar={agent.has_avatar}
+                            colorSlot={agent.avatar_color}
+                            size="sm"
+                          />
+                          {agent.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+
+              <FormField label={tt("nameLabel")} htmlFor="portal-name" description={tt("nameHelp")}>
+                <Input
+                  id="portal-name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder={tt("namePlaceholder")}
+                  maxLength={120}
+                />
+              </FormField>
+
+              {needsTarget && (
+                <FormField label={t(targetLabelKey(portal.target_kind))} htmlFor="portal-target">
+                  {targets.length > 0 ? (
+                    <Select value={target} onValueChange={setTarget}>
+                      <SelectTrigger id="portal-target">
+                        <SelectValue placeholder={t("targetPlaceholder")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {targets.map((entry) => (
+                          <SelectItem key={entry.id} value={entry.id}>
+                            {entry.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id="portal-target"
+                      value={target}
+                      onChange={(event) => setTarget(event.target.value)}
+                      placeholder={t("targetFreeText")}
+                      disabled={targetsLoading}
+                    />
+                  )}
+                </FormField>
+              )}
+
+              {filterKeys.map((key, index) => {
+                const copy = FILTER_COPY[key]!;
+                const value = index === 0 ? filterA : filterB;
+                const onChange = index === 0 ? setFilterA : setFilterB;
+                return (
+                  <FormField
+                    key={key}
+                    label={t(copy.labelKey)}
+                    htmlFor={`portal-filter-${key}`}
+                    description={index === 0 ? t("filterHelp") : undefined}
+                  >
+                    <Input
+                      id={`portal-filter-${key}`}
+                      value={value}
+                      onChange={(event) => onChange(event.target.value)}
+                      placeholder={t(copy.placeholderKey)}
+                      maxLength={255}
+                    />
+                  </FormField>
+                );
+              })}
+
+              {namedEnvironments.length > 0 && (
+                <EnvironmentField
+                  id="portal-environment"
+                  value={environmentId}
+                  onChange={setEnvironmentId}
+                  environments={namedEnvironments}
+                  defaultEnvironment={defaultEnvironment}
+                />
+              )}
+            </div>
+          )}
+
+          {step === "message" && (
+            <div className="space-y-4">
+              <TriggerTemplatePicker
+                triggerType="event"
+                eventSource={eventSource}
+                selectedKey={templateKey}
+                onPick={(template) => {
+                  setTemplateKey(template.key);
+                  setPrompt(template.prompt);
+                }}
+                onScratch={() => {
+                  setTemplateKey(null);
+                  setPrompt("");
+                }}
+              />
+              <div className="space-y-1.5">
+                <Label htmlFor="portal-prompt">{tt("prompt")}</Label>
+                <MarkdownEditor
+                  id="portal-prompt"
+                  label={tt("prompt")}
+                  value={prompt}
+                  onChange={setPrompt}
+                  placeholder={tt("promptPlaceholder")}
+                  rows={18}
+                  describedBy="portal-prompt-desc"
+                />
+                <p
+                  id="portal-prompt-desc"
+                  className="text-muted-foreground text-xs leading-relaxed"
+                >
+                  {tt("promptHelp")}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <WizardNav
+          backIsStep={step !== "preset"}
+          backLabel={step !== "preset" ? tt("back") : tt("cancel")}
+          onBack={
+            step === "message"
+              ? () => setStep("configure")
+              : step === "configure"
+                ? () => setStep("preset")
+                : () => onOpenChange(false)
+          }
+          nextLabel={step === "message" ? tt("create") : tt("continue")}
+          onNext={
+            step === "preset"
+              ? () => setStep("configure")
+              : step === "configure"
+                ? () => setStep("message")
+                : submit
+          }
+          nextDisabled={
+            step === "preset"
+              ? preset === null
+              : step === "configure"
+                ? effectiveAgentId === "" || (needsTarget && target.trim().length === 0)
+                : !canSubmit
+          }
+          isLast={step === "message"}
+          busy={create.isPending}
+          busyLabel={tt("creating")}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** The webhook URL to paste into the provider, with a copy button. */
+function WebhookField({ url }: { url: string }) {
+  const t = useTranslations("triggers");
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    await navigator.clipboard.writeText(url);
+    setCopied(true);
+  }
+
+  return (
+    <div className="space-y-1">
+      <Label htmlFor="portal-webhook">{t("webhookUrl")}</Label>
+      <div className="flex gap-2">
+        <Input id="portal-webhook" value={url} readOnly className="flex-1 font-mono text-xs" />
+        <Button type="button" variant="outline" onClick={copy}>
+          {copied ? t("copied") : t("copy")}
+        </Button>
+      </div>
+      <p className="text-muted-foreground text-xs">{t("webhookHelp")}</p>
+    </div>
+  );
+}

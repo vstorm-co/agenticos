@@ -62,6 +62,14 @@ class SecretPurposeRead(BaseSchema):
     kind: SecretKind
     help_url: str | None = None
     description: str = ""
+    icon: str = Field(
+        default="",
+        description=(
+            "The brand mark to draw, as the console's own glyph table names them. "
+            "Empty falls back to a monogram - the honest floor for a service whose "
+            "brand has no mark, and for a model provider, whose id already is one"
+        ),
+    )
 
 
 class SecretPurposeList(BaseSchema):

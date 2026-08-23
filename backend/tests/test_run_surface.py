@@ -1,9 +1,10 @@
 """Which surface each entry point stamps on the run it opens.
 
 `agent_runs.surface` answers "where did this come from", and it failed in both
-directions at once. Two members were never assigned - `PLAYGROUND` and `SCHEDULE`
-- so anything enumerating the vocabulary offered filters that answer with nothing
-on every deployment for ever (#207). And `EMBED` did not exist, so an embedded
+directions at once. `PLAYGROUND` is still unassigned and absent - nothing runs an
+agent in a playground yet - so a filter offering it would answer with nothing on
+every deployment for ever (#207); `SCHEDULE` was the same until agenticos#44 gave
+it a writer, the trigger heartbeat. And `EMBED` did not exist, so an embedded
 widget's run was stamped `WEB` while a Mattermost mention fell through a `.get`
 default and was recorded as an HTTP API call (#208).
 
@@ -35,7 +36,7 @@ class TestEveryMemberIsAssignedBySomething:
     design documents a paragraph each explaining the omission.
     """
 
-    def test_the_vocabulary_is_exactly_the_six_surfaces_that_exist(self):
+    def test_the_vocabulary_is_exactly_the_seven_surfaces_that_exist(self):
         assert {surface.value for surface in RunSurface} == {
             "web",
             "embed",
@@ -43,14 +44,17 @@ class TestEveryMemberIsAssignedBySomething:
             "slack",
             "telegram",
             "mattermost",
+            "schedule",
         }
 
-    def test_nothing_names_a_surface_that_was_deleted(self):
-        """`playground` and `schedule` are gone. A filter offering either would
-        answer with nothing, always - and a reader would conclude that scheduled
-        runs exist and none have happened yet."""
+    def test_playground_is_absent_but_schedule_now_has_a_writer(self):
+        """`playground` stays gone - nothing runs an agent in one, so a filter
+        offering it would answer with nothing, always. `schedule` is the opposite
+        case now: agenticos#44's heartbeat stamps every run it fires, so the
+        member earns its place (that it is written is proven in
+        `tests/test_agent_triggers.py`)."""
         assert not hasattr(RunSurface, "PLAYGROUND")
-        assert not hasattr(RunSurface, "SCHEDULE")
+        assert RunSurface.SCHEDULE.value == "schedule"
 
     def test_every_channel_this_router_serves_is_in_the_surface_map(self):
         """The map's `.get(platform, API)` default is what silently recorded a

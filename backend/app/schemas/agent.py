@@ -90,6 +90,16 @@ class AgentRead(BaseSchema):
             "listing, same bargain as shared_user_count."
         ),
     )
+    can_run: bool = Field(
+        default=False,
+        description=(
+            "Whether THIS caller may run the agent - the floor for creating a trigger, "
+            "schedule or event on it. Resolved per caller from their role scope and any "
+            "explicit run grant, so a Viewer granted run on one agent reads true here "
+            "where the role-level check would say false. Hides create controls; it is "
+            "not a security boundary, since every create endpoint re-checks server-side."
+        ),
+    )
     published_model: PublishedModel | None = Field(
         default=None,
         description=(

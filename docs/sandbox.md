@@ -298,6 +298,45 @@ a container can exist for a turn in which the agent never reached for the shell.
 Worth knowing when reading a session list: a sandbox whose activity log holds
 nothing but writes is one nothing asked for yet.
 
+## What was done in one, and where that record lives
+
+**In this platform's own table, `sandbox_operations` — not in the service.** The
+service keeps an activity log of its own and it is a 200-entry ring buffer in that
+process's memory, so what it dropped could not be asked for, a conversation worked
+in all day had lost its morning, and restarting `sandboxd` lost every log on the
+host. Nothing outside that process ever saw the entries (#1061).
+
+Every workspace call already passes through this application — the run calls us, we
+call the service — so the record is ours to make. `RecordingBackend` wraps the
+backend the capability's tools reach, which is why adding a ninth tool cannot
+forget to record: the wrapper records eight named operations (`write`, `edit`,
+`read`, `read_bytes`, `ls_info`, `glob_info`, `grep_raw`, `execute`) and delegates
+everything else untouched. `exists` and `is_alive` are questions rather than
+operations, and a log full of them would bury the writes somebody came to read.
+
+Two facts the service could never carry, and the two an audit actually asks for:
+**which agent, and which run**. Both are `SET NULL` on delete, because the record
+of what happened has to outlive the agent that was deleted afterwards.
+
+**A path, never a payload.** `write` records the path and that it succeeded;
+`execute` records the command and never its output - a nonzero exit is recorded
+as a failure with its numeric status (`exit 2`), the one safe fact about a failed
+command; `read` records the path and a byte count. These rows are readable by everyone who can see the sandbox, so a log
+carrying contents would be a way to read an agent's work rather than an audit of
+it — the same line the service draws, drawn again here. The one line about the
+outcome is written by us, never quoted from below: a shell's message *is* the
+command's output (#423).
+
+Rows land when the run's transaction commits, because they are written into the
+run's own session rather than a connection per tool call. So a turn's operations
+appear together, a second or so after the turn ends. The dashboard row's live
+ticker still reads the service's buffer for exactly that reason — it answers
+mid-turn, where the record answers a week later.
+
+`GET /api/v1/sandbox-connections/operations` pages it, and its filters narrow the
+**query**: the dialog's search, its operation filter and its failed-only switch are
+requests, so a pager over three hundred operations has something to page to.
+
 ## When a build is paid for
 
 `prewarm` is on, so the allowlist is pulled and built in the background **as the
@@ -390,6 +429,7 @@ product's Files panel possible: reading a workspace never starts a container.
 | An idle session | `SANDBOXD_IDLE_TIMEOUT` 1800 s | The container is closed and reaped. **The files stay** |
 | A stopped container | `SANDBOXD_CONTAINER_TTL` 86400 s | What the session installed — the build, the wheels, `node_modules` — is reclaimed. The workspace is untouched |
 | The workspace directory | `SANDBOXD_WORKSPACE_TTL` **unset** | Kept **indefinitely** |
+| The record of what was done | `OPERATION_RETENTION_DAYS` 30 | The daily `sandbox-log-sweep` deletes the rows. The files are untouched |
 
 The last row is the library's default and it is deliberate — the notes and scripts
 are the work, and an agent's user expects them next week. The consequence is that

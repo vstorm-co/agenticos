@@ -87,7 +87,7 @@ describe("exporting run history from a filtered Activity page", () => {
     render(<RunsPage />, { wrapper });
 
     // The Runs tab still renders (only Approvals is gated away); the export does not.
-    expect(await screen.findByRole("tab", { name: "Runs" })).toBeVisible();
+    expect(await screen.findByRole("tab", { name: /^Runs/ })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Export CSV" })).toBeNull();
   });
 });

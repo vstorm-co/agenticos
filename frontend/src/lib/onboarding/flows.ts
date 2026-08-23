@@ -21,7 +21,13 @@ import { Perm, type Permission } from "@/types/permissions";
  * against Radix's own stacking rather than a second one fighting it.
  */
 export type FlowId =
-  "create-agent" | "create-skill" | "create-kb" | "create-mcp" | "create-org" | "explore-chat";
+  | "create-agent"
+  | "create-skill"
+  | "create-kb"
+  | "create-mcp"
+  | "create-org"
+  | "create-routine"
+  | "explore-chat";
 
 /**
  * A resource whose *appearance* ends a step. It is the react-query list the coach
@@ -35,7 +41,7 @@ export type FlowId =
  * stays org-only. `model` is a model profile (`useModelProviders`), the resource a
  * new agent needs before it can run.
  */
-export type FlowResource = "agent" | "model" | "skill" | "kb" | "mcp" | "org";
+export type FlowResource = "agent" | "model" | "skill" | "kb" | "mcp" | "org" | "routine";
 
 /**
  * How a step knows it is finished. Five shapes.
@@ -713,6 +719,35 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       ...mcpDialogSteps(ROUTES.MCP_SERVERS),
     ],
   },
+  // Starting a routine. One step, and deliberately not two: the page's two buttons
+  // open two different dialogs - a cadence form and the portal grid - and a walk
+  // that picked one for the reader would teach the wrong half. So it points at the
+  // pair, says what each is for, and ends when a routine appears in the list,
+  // whichever door it came through.
+  "create-routine": {
+    id: "create-routine",
+    // The floor a trigger is actually created at, per resource: a Viewer holding
+    // one explicit run grant may create one, where a role-level `agents:run` reads
+    // false. The page hides the buttons on the same test, so a reader who cannot
+    // create one is offered no flow rather than a flow that waits for a control
+    // that never mounts.
+    permission: Perm.agentsRun,
+    steps: [
+      {
+        id: "flow-routine-create",
+        page: ROUTES.ROUTINES,
+        target: "routines-create",
+        signal: { kind: "created", resource: "routine" },
+      },
+      // A schedule created at 09:00 and next due at midnight taught nothing: the
+      // reader had no way to see it work and no reason to believe it would
+      // (#594). Run now fires it against the same agent, on the same prompt, into
+      // the same run log - so the walk ends on a routine that has actually run.
+      // No signal: the fire is a mutation on a row rather than something
+      // appearing, and it is fine to end the walk having pointed at it.
+      { id: "flow-routine-run-now", page: ROUTES.ROUTINES, target: "routine-run-now" },
+    ],
+  },
   "create-org": {
     id: "create-org",
     steps: [
@@ -786,6 +821,8 @@ export function flowForPage(pageId: string): FlowId | null {
       return "create-kb";
     case ROUTES.MCP_SERVERS:
       return "create-mcp";
+    case ROUTES.ROUTINES:
+      return "create-routine";
     case ROUTES.ORGS:
     case ORG_MEMBERS:
     case ORG_ROLES:

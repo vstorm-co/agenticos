@@ -49,6 +49,11 @@ export function useRuns(
   agentId?: string,
   options?: {
     enabled?: boolean;
+    /**
+     * Poll while something is expected to appear - a trigger's fire dispatched
+     * after its request committed, so for a moment there is no row for it.
+     */
+    refetchIntervalMs?: number;
     startedFrom?: string;
     startedTo?: string;
     orderBy?: "started_at" | "duration" | "cost" | "tokens";
@@ -62,6 +67,15 @@ export function useRuns(
     modelLabel?: string;
     /** Who the run ran as. */
     userId?: string;
+    /**
+     * The thread the runs ran inside.
+     *
+     * How a trigger's fires are listed: every fire appends to one run-log
+     * conversation, so the conversation is the trigger's identity in the run
+     * history - and read as *runs* each fire carries its own status, cost and a
+     * link to its detail, which a transcript of the same thread cannot give.
+     */
+    conversationId?: string;
     /** The frozen spec the run executed - "did v4 behave better than v3", as rows. */
     agentVersionId?: string;
     /** Rows to skip - the pager's, always a multiple of the page size. */
@@ -79,6 +93,7 @@ export function useRuns(
     surface,
     modelLabel,
     userId,
+    conversationId,
     agentVersionId,
     skip,
   } = options ?? {};
@@ -95,6 +110,7 @@ export function useRuns(
       surface,
       modelLabel,
       userId,
+      conversationId,
       agentVersionId,
       skip,
     }),
@@ -116,6 +132,7 @@ export function useRuns(
       if (surface) params.surface = surface;
       if (modelLabel) params.model_label = modelLabel;
       if (userId) params.user_id = userId;
+      if (conversationId) params.conversation_id = conversationId;
       if (agentVersionId) params.agent_version_id = agentVersionId;
       if (skip) params.skip = String(skip);
       return apiClient.get<AgentRunList>(
@@ -124,6 +141,7 @@ export function useRuns(
       );
     },
     enabled: options?.enabled ?? true,
+    refetchInterval: options?.refetchIntervalMs ?? false,
     // The RUNS figure and the Run history tab are left open while an agent runs
     // and read back on return, so they carry the dashboard's freshness like the
     // spend figure beside them; on the app-wide five-minute cache the list only
@@ -189,6 +207,9 @@ export function usePrefetchRuns(runIds: (string | null | undefined)[]) {
   }, [key, queryClient]);
 }
 
+/** What one transcript request answers, which is the server's own page size. */
+export const TRANSCRIPT_PAGE = 100;
+
 /**
  * A run's transcript - the turns it produced, with the ratings people gave.
  *
@@ -199,14 +220,61 @@ export function usePrefetchRuns(runIds: (string | null | undefined)[]) {
  * every page here renders its empty state on a failed query, and those two must
  * not be the same pixels.
  */
-export function useRunTranscript(runId: string, scope: "run" | "conversation" = "run") {
+export function useRunTranscript(
+  runId: string,
+  scope: "run" | "conversation" = "run",
+  options?: {
+    enabled?: boolean;
+    refetchInterval?: number | false;
+    tail?: boolean;
+    /**
+     * An explicit window into a long log, in pages of a hundred from the oldest.
+     *
+     * For a reader stepping back through a trigger's fires: `tail` answers the
+     * newest page and nothing else could reach the ones before it, so a run-log
+     * past a hundred turns had its history sealed off.
+     */
+    page?: number;
+  },
+) {
+  // `tail` reads the *newest* page: the endpoint orders oldest-first and answers
+  // its first hundred, so a long-lived thread - a trigger's run-log after ~50
+  // fires - would otherwise show only its oldest history and never the run just
+  // fired. The first request learns the total; when more pages exist, a second
+  // asks for the last one. Keyed separately from the plain read, because the two
+  // are different answers over the same id.
+  const tail = options?.tail ?? false;
+  const page = options?.page;
   const { data, isLoading, error } = useQuery({
-    queryKey: qk.runs.transcript(runId, scope),
-    queryFn: () =>
-      apiClient.get<RunTranscript>(
+    queryKey:
+      page !== undefined
+        ? [...qk.runs.transcript(runId, scope), "page", page]
+        : tail
+          ? [...qk.runs.transcript(runId, scope), "tail"]
+          : qk.runs.transcript(runId, scope),
+    queryFn: async () => {
+      // An asked-for page needs no discovery request: the caller learned the
+      // total from a previous answer, which is where its page number came from.
+      if (page !== undefined) {
+        return apiClient.get<RunTranscript>(`/runs/${runId}/transcript`, {
+          params: { scope, skip: String(page * TRANSCRIPT_PAGE) },
+        });
+      }
+      const first = await apiClient.get<RunTranscript>(
         `/runs/${runId}/transcript`,
         scope === "run" ? undefined : { params: { scope } },
-      ),
+      );
+      if (!tail || first.total <= first.items.length) return first;
+      return apiClient.get<RunTranscript>(`/runs/${runId}/transcript`, {
+        params: { scope, skip: String(Math.max(0, first.total - TRANSCRIPT_PAGE)) },
+      });
+    },
+    // A trigger's run-log opens on `last_run_id`, which is null until the first
+    // fire - there is nothing to read until then, so the caller opts out.
+    enabled: options?.enabled ?? true,
+    // Set while a fire is in flight, so the just-appended reply is picked up
+    // without a reload; left off otherwise, a transcript being an immutable record.
+    refetchInterval: options?.refetchInterval ?? false,
     // Held across a step for the reason `useRun` holds its row, and it matters
     // more here: read `scope=conversation`, two runs of one thread answer with
     // the *same* turns, so dropping the timeline to a skeleton between them

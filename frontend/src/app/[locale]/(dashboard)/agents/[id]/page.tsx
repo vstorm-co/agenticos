@@ -37,6 +37,7 @@ import { AlertsPanel } from "@/components/agents/alerts-panel";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
 import { ExposuresPanel } from "@/components/agents/exposures-panel";
+import { TriggersPanel } from "@/components/triggers/triggers-panel";
 import { McpServerPicker } from "@/components/agents/mcp-server-picker";
 import { McpServerList } from "@/components/mcp/mcp-server-list";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
@@ -113,6 +114,7 @@ import { cn } from "@/lib/utils";
 import type { AgentSpec, CapabilityBindingSpec } from "@/types/agents";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
+import { DIALOG_CANVAS, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -770,7 +772,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
       />
 
       <Dialog open={mapOpen} onOpenChange={setMapOpen}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-[80rem]">
+        <DialogContent className={cn(DIALOG_SCROLL, DIALOG_CANVAS)}>
           <DialogHeader>
             <DialogTitle>{t("visualMap")}</DialogTitle>
             <DialogDescription>{t("draftAsStandsWhat")}</DialogDescription>
@@ -793,7 +795,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           without a refetch, and without this page knowing how a connection is
           made. */}
       <Dialog open={connectingMcp} onOpenChange={setConnectingMcp}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-[72rem]">
+        <DialogContent className={cn(DIALOG_SCROLL, DIALOG_CANVAS)}>
           <DialogHeader>
             <DialogTitle>{t("connectMcpServer")}</DialogTitle>
             <DialogDescription>{t("connectServerOrganizationBecomes")}</DialogDescription>
@@ -1142,6 +1144,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
               )}
             />
           </div>
+          {/* Managing a trigger is the same floor as running the agent, not
+              publishing it - the server resolves `agents:run` per row. */}
+          <TriggersPanel agentId={id} canCreate={agent.can_run} />
           <EmbedsPanel agentId={id} canManage={canPublish} />
           <SharingPanel resourceType="agent" resourceId={id} canManage={canEdit} />
         </TabsContent>

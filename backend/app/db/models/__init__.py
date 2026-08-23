@@ -28,8 +28,10 @@ from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.sandbox_connection import SandboxConnection
+from app.db.models.sandbox_operation import SandboxOperation
 from app.db.models.agent_exposure import AgentExposure, ExposureSurface
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
+from app.db.models.agent_trigger import AgentTrigger, ScheduleKind
 from app.db.models.run_manifest import RunManifest
 from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.credential import ModelProfile
@@ -73,8 +75,11 @@ __all__ = [
     "AgentEnvironment",
     "AgentWorkspace",
     "SandboxConnection",
+    "SandboxOperation",
     "AgentExposure",
     "ExposureSurface",
+    "AgentTrigger",
+    "ScheduleKind",
     "AgentRun",
     "RunManifest",
     "IngestionSpend",
