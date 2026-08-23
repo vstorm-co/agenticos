@@ -145,6 +145,7 @@ from app.db.models.agent_run import AgentRun, ApprovalStatus, RunOrder, RunStatu
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Message
 from app.db.models.run_manifest import RunManifest
+from app.db.session import get_db_context
 from app.repositories import (
     agent_environment_repo,
     agent_exposure_repo,
@@ -1663,11 +1664,26 @@ class AgentRunnerService:
         # made `AgentSpec.budget.monthly_usd` a second organization cap wearing
         # an agent's name: an agent with a $10 limit was refused once its
         # *neighbours* had spent $10, and nothing ever isolated its own spend.
+        # Each on a session of its own, never the run's. The budget capability
+        # reads its baseline once, immediately before the run's first model
+        # request - a read on the shared session there would open a transaction
+        # that then sits `idle in transaction` for the rest of the run, holding
+        # the very connection the opening commit in `_run` exists to hand back:
+        # measured under 18 concurrent runs, the three past the pool waited 26
+        # seconds at this read (#12).
         async def agent_period_spend() -> Decimal:
-            return await self.monthly_spend(ctx, agent_id=agent.id)
+            async with get_db_context() as db:
+                return await agent_run_repo.sum_cost_since(
+                    db,
+                    organization_id=ctx.organization_id,
+                    since=month_start(),
+                    agent_id=agent.id,
+                    include_delegations=True,
+                )
 
         async def org_period_spend() -> Decimal:
-            return await self.monthly_spend(ctx)
+            async with get_db_context() as db:
+                return await organization_monthly_spend(db, ctx.organization_id)
 
         # Opened after the run row, because a run-scoped workspace keys on it,
         # and before the agent, because the capability reads the backend out of
