@@ -44,7 +44,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.permissions import AuthContext, Perm
-from app.core.vault import VaultScope, seal_fields, unseal
+from app.core.vault import VaultScope, current_key_version, seal_fields, unseal
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.chat_file import ChatFile
 from app.db.updates import cleared, writable
@@ -732,10 +732,10 @@ class AgentEmbedService:
     def _seal(self, organization_id: UUID, secret: str | None) -> tuple[str | None, int]:
         """The sealed JWT secret and the key version that sealed it, to store as a
         pair - so a master-key rotation can `rewrap` the row and it stays readable
-        (#552). A public embed carries no secret and keeps the default version.
+        (#552). A public embed carries no secret and records the current version.
         """
         if secret is None:
-            return None, 1
+            return None, current_key_version()
         sealed, version = seal_fields(
             {"jwt_secret": secret}, scope=VaultScope.organization(organization_id)
         )

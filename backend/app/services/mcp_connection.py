@@ -57,7 +57,7 @@ from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.core.sanitize import UrlRefusedError
 from app.core.secret_kinds import SecretKind
-from app.core.vault import SealedSecret, VaultScope, seal, unseal
+from app.core.vault import SealedSecret, VaultScope, current_key_version, seal, unseal
 from app.db.models.mcp_connection import McpConnection
 from app.db.updates import writable
 from app.repositories import mcp_connection_repo
@@ -477,7 +477,7 @@ class McpConnectionService:
                 name=data.name,
                 url=url,
                 auth_token=sealed.ciphertext if sealed else None,
-                secret_key_version=sealed.key_version if sealed else 1,
+                secret_key_version=sealed.key_version if sealed else current_key_version(),
                 allowed_tools=data.allowed_tools,
                 is_enabled=data.is_enabled,
             )
@@ -510,11 +510,13 @@ class McpConnectionService:
 
         if "auth_token" in update_data:
             token = (update_data["auth_token"] or "").strip()
-            # "" clears the stored token; a non-empty value replaces it.
-            sealed = seal(token, scope=VaultScope.user(user_id)) if token else None
+            # "" clears the stored token; a non-empty value replaces it. Sealed at
+            # the row's existing version, beside its OAuth envelopes - all of a
+            # row's ciphertexts share one version column, so bumping it here would
+            # leave the siblings sealed under a version the column no longer
+            # names (#552).
+            sealed = _seal_for(db_connection, token) if token else None
             update_data["auth_token"] = sealed.ciphertext if sealed else None
-            if sealed is not None:
-                update_data["secret_key_version"] = sealed.key_version
 
         if data.clear_allowed_tools:
             update_data["allowed_tools"] = None
@@ -1149,7 +1151,7 @@ class McpConnectionService:
                 name=data.name,
                 url=url,
                 sealed_token=sealed.ciphertext if sealed else None,
-                secret_key_version=sealed.key_version if sealed else 1,
+                secret_key_version=sealed.key_version if sealed else current_key_version(),
                 allowed_tools=data.allowed_tools,
                 catalog_key=data.catalog_key,
                 is_enabled=data.is_enabled,
@@ -1195,13 +1197,13 @@ class McpConnectionService:
 
         if "auth_token" in update_data:
             token = (update_data["auth_token"] or "").strip()
-            # "" clears the stored token; a non-empty value replaces it.
-            sealed = (
-                seal(token, scope=VaultScope.organization(ctx.organization_id)) if token else None
-            )
+            # "" clears the stored token; a non-empty value replaces it. Sealed at
+            # the row's existing version, beside its OAuth envelopes - all of a
+            # row's ciphertexts share one version column, so bumping it here would
+            # leave the siblings sealed under a version the column no longer
+            # names (#552).
+            sealed = _seal_for(db_connection, token) if token else None
             update_data["auth_token"] = sealed.ciphertext if sealed else None
-            if sealed is not None:
-                update_data["secret_key_version"] = sealed.key_version
 
         if data.clear_allowed_tools:
             update_data["allowed_tools"] = None

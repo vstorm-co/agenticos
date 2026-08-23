@@ -1048,15 +1048,19 @@ class TestMcpConnectionService:
         assert repo.delete.call_args.kwargs["db_connection"] is conn
 
     @pytest.mark.anyio
-    async def test_update_reseals_a_replacement_token_for_its_owner(self, service, repo):
-        """A rotation has to record which master key sealed the new envelope.
-
-        One version governs every secret in the row, so writing a new token
-        without it would leave the row claiming a version its ciphertext was not
-        sealed under.
+    async def test_update_reseals_a_replacement_token_at_the_rows_version(
+        self, service, repo, monkeypatch
+    ):
+        """One version governs every secret in the row, so a replacement token is
+        sealed at the version the row already records - never at whatever is
+        current, which would leave the OAuth envelopes two lines over sealed
+        under a version the column no longer names (#552).
         """
+        monkeypatch.setattr(
+            settings, "VAULT_MASTER_KEYS", {1: "k1" * 20, 2: "k2" * 20, 3: "k3" * 20}
+        )
         user_id = uuid4()
-        conn = _connection(user_id=user_id)
+        conn = _connection(user_id=user_id, secret_key_version=2)
         conn.auth_token = _seal_into(conn, "old")
         repo.get_by_id.return_value = conn
 
@@ -1067,8 +1071,11 @@ class TestMcpConnectionService:
         )
 
         update_data = repo.update.call_args.kwargs["update_data"]
-        assert update_data["secret_key_version"] == 1
-        assert unseal(update_data["auth_token"], scope=VaultScope.user(user_id)) == "new-token"
+        assert "secret_key_version" not in update_data
+        assert (
+            unseal(update_data["auth_token"], scope=VaultScope.user(user_id), key_version=2)
+            == "new-token"
+        )
 
     @pytest.mark.anyio
     async def test_update_empty_token_clears_it(self, service, repo):
@@ -1877,6 +1884,8 @@ class TestOrganizationConnections:
     async def test_a_replacement_credential_is_resealed_for_this_organization(
         self, service, ctx, repo, monkeypatch
     ):
+        """Sealed at the row's recorded version, and the version column is left
+        alone - one version governs every envelope in the row (#552)."""
         _allow_any_url(monkeypatch)
         conn = self._org_connection(ctx)
         repo.get_org_scoped_by_id.return_value = conn
@@ -1887,11 +1896,12 @@ class TestOrganizationConnections:
 
         update_data = repo.update.call_args.kwargs["update_data"]
         assert "ghp-rotated-4321" not in update_data["auth_token"]
+        assert "secret_key_version" not in update_data
         assert (
             unseal(
                 update_data["auth_token"],
                 scope=VaultScope.organization(ctx.organization_id),
-                key_version=update_data["secret_key_version"],
+                key_version=conn.secret_key_version,
             )
             == "ghp-rotated-4321"
         )

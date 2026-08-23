@@ -19,6 +19,7 @@ from httpx import AsyncClient
 
 from app.api import deps
 from app.core import background
+from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.channel_bot import ChannelBot
@@ -410,7 +411,8 @@ class TestUpdatingKeepsTheRowsKeyVersion:
     disagreeing with any sibling envelope - unreadable the day a rotation ran
     (#552)."""
 
-    async def test_updating_the_token_does_not_reset_the_key_version(self):
+    async def test_updating_the_token_does_not_reset_the_key_version(self, monkeypatch):
+        monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: "k1" * 20, 2: "k2" * 20})
         org_id = uuid.uuid4()
         bot = ChannelBot(
             id=uuid.uuid4(),
