@@ -58,7 +58,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, Perm
 from app.core.vault import VaultScope, seal, unseal
-from app.db.models.agent_run import RunStatus, RunSurface
+from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.agent_trigger import AgentTrigger, ScheduleKind, TriggerType
 from app.db.models.mcp_connection import McpConnection
 from app.db.session import get_db_context
@@ -1371,10 +1371,12 @@ class AgentTriggerService:
 
         While the run executes, the marker is *renewed* (`_keep_lease_alive`): a
         run longer than the lease is otherwise indistinguishable from a crashed
-        one - its own `running` row commits only when it finishes, so no other
-        session can see it - and the next heartbeat would re-claim the trigger and
-        fire it on top of itself. Each renewal moves the ticket, so the clear here
-        names the timestamp the row actually holds.
+        one, and the next heartbeat would re-claim the trigger and fire it on
+        top of itself. The run's own `running` row is committed and visible
+        while it executes (#12), but `claim_due` deliberately does not block on
+        it - a crash would leave it `running` for ever - so the renewed marker
+        stays the schedule's only liveness signal. Each renewal moves the
+        ticket, so the clear here names the timestamp the row actually holds.
         """
         trigger = await agent_trigger_repo.get_by_id(self.db, trigger_id)
         if trigger is None:
@@ -1385,9 +1387,9 @@ class AgentTriggerService:
             return
         # The ticket the marker currently holds, renewed in place while the run
         # executes: a run longer than the lease would otherwise look dead to the
-        # next heartbeat - its own `running` row is invisible to other sessions
-        # until this transaction commits - and be fired on top of itself. A list,
-        # because the renewer moves it and the `finally` must clear the *latest*.
+        # next heartbeat and be fired on top of itself - the marker is the
+        # schedule's liveness signal, not the run row (#12). A list, because
+        # the renewer moves it and the `finally` must clear the *latest*.
         ticket = [claimed_at]
         renewer = asyncio.create_task(self._keep_lease_alive(trigger.id, ticket))
         try:
@@ -1515,31 +1517,42 @@ class AgentTriggerService:
                 # this fire's to stamp; the next interval tries again once the cause
                 # is fixed.
                 return
-            if run.status == RunStatus.RUNNING.value:
-                # The error struck after `create_run` flushed the row `running` but
-                # before `_run` could record it terminal - `workspaces.open`,
-                # `build_agent` and delegation setup all run after the row exists, and
-                # an error from any of them escapes `_run`'s `finally`. Nothing else
-                # will ever finish this run, and a non-terminal `last_run_id` makes
-                # `claim_due`'s no-overlap guard skip the trigger on every tick for
-                # ever. It can only be this fire's own orphan - `claim_due` proved the
-                # previous run terminal at claim time, and an in-flight run's row is
-                # invisible to other transactions until its own commit lands - so
-                # settle it before stamping.
+            # What the database durably records for the row this session sees,
+            # read outside this session. A run's row is committed `running`
+            # before its model is called (#12), so the conversation's tail can
+            # now be a *concurrent* fire's live run - a `run_now`, an event
+            # delivery - and this session's view alone cannot tell that from
+            # its own half-written orphan. Only a row the fresh read cannot
+            # corroborate is this fire's own uncommitted flush.
+            durable_status = await self._committed_run_status(run.id)
+            if durable_status is None:
+                # Only this session's flush holds the row: the error struck
+                # after `create_run` but before `_run`'s opening commit -
+                # `workspaces.open`, `build_agent` and delegation setup all run
+                # in that window. Swallowing the error commits the flush with
+                # the session, so nothing would ever finish this run; settle it
+                # before stamping.
                 run.status = RunStatus.FAILED.value
                 run.ended_at = datetime.now(UTC)
                 run.error = "fire failed before the runner could record the run"
-            elif run.status != RunStatus.FAILED.value:
+            elif durable_status != run.status:
                 # This fire produced a terminal or parked write that never durably
                 # committed: a finalization or persistence step - the transcript, the
                 # conversation state, the run's own commit - failed after the run had
-                # finished, so `_run` never reached its commit and the row is only
-                # flushed, not durable. Unlike a recorded failure this is not an
-                # outcome to leave for the next fire: swallowing it would let the
-                # worker context commit a completed run with no transcript behind it
-                # while Prefect sees success. Re-raise, so the half-written state rolls
-                # back and the flow is marked failed.
+                # finished, so `_run` never reached its terminal commit and the row is
+                # durably `running` with the outcome only flushed here. Unlike a
+                # recorded failure this is not an outcome to leave for the next fire:
+                # swallowing it would let the worker context commit a completed run
+                # with no transcript behind it while Prefect sees success. Re-raise,
+                # so the half-written state rolls back and the flow is marked failed.
                 raise
+            elif run.status != RunStatus.FAILED.value:
+                # A durably committed row this fire cannot claim as its own: a
+                # concurrent fire's run, still executing or already settled. This
+                # fire made no row of its own - the error struck before
+                # `create_run` - so there is nothing of its to stamp, and the
+                # concurrent fire stamps its run itself.
+                return
 
         trigger.last_run_id = run.id
         # Stamp the fire on every path, not just the scheduled heartbeat: without
@@ -1551,6 +1564,18 @@ class AgentTriggerService:
             "trigger_fired",
             extra={"trigger_id": str(trigger.id), "run_id": str(run.id), "status": run.status},
         )
+
+    @staticmethod
+    async def _committed_run_status(run_id: UUID) -> str | None:
+        """The status the database durably records for a run, or `None` for no row.
+
+        Read on a session of its own, for the same reason `_keep_lease_alive`
+        renews on one: the caller's session sees its own uncommitted flushes,
+        and the question here is precisely what everybody *else* sees.
+        """
+        async with get_db_context() as db:
+            run = await db.get(AgentRun, run_id)
+            return None if run is None else str(run.status)
 
     async def _creator_context(self, trigger: AgentTrigger) -> AuthContext | None:
         """The creator's current authorization context, or None if they are gone.

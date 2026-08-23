@@ -18,6 +18,7 @@ from unittest.mock import MagicMock
 import pytest
 from sqlalchemy.dialects import postgresql
 
+from app.db.models.agent_run import RunStatus
 from app.db.models.agent_trigger import AgentTrigger
 from app.repositories import agent_trigger_repo
 
@@ -254,12 +255,28 @@ class TestClaiming:
         assert "for update of agent_triggers skip locked" in sql
         # The no-overlap join: a fire is skipped while its previous run is unfinished.
         assert "left outer join agent_runs" in sql
-        # The reconcile that closes the unlinked-run window: an in-flight top-level run
-        # in the trigger's own conversation blocks a claim even when `last_run_id` was
-        # never stamped against it (a worker that died before linking the parked run).
+        # The reconcile that closes the unlinked-run window: a parked top-level run
+        # in the trigger's own conversation blocks a claim even when `last_run_id`
+        # was never stamped against it (a worker that died before linking it).
         assert "not (exists" in sql
         assert "parent_run_id is null" in sql
         assert now in _filters(session).values()
+
+    async def test_a_crashed_runs_durable_running_row_does_not_wedge_the_schedule(self):
+        """The conversation reconcile blocks on `awaiting_approval` alone. A run's
+        row is committed `running` before its model is called (#12), so a worker
+        that dies mid-run leaves it `running` for ever - a status with no
+        resolver. Blocking on it would skip the trigger on every tick for good;
+        the scheduled fire's liveness is the lease, not the run row. A parked
+        row keeps the block: the person its approval waits on can settle it."""
+        session = _RecordingSession(_scalars([]))
+        await agent_trigger_repo.claim_due(session, now=datetime(2026, 6, 1, tzinfo=UTC))
+
+        sql = _sql(session)
+        exists_clause = sql.split("not (exists", 1)[1].split("))", 1)[0]
+        assert "status = " in exists_clause
+        assert "status in" not in exists_clause
+        assert RunStatus.AWAITING_APPROVAL.value in _filters(session).values()
 
     async def test_a_claim_returns_the_rows_it_locked(self):
         rows = [MagicMock(), MagicMock()]
