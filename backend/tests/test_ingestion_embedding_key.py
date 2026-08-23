@@ -33,7 +33,6 @@ from app.core.exceptions import ConfigurationError
 from app.core.secret_kinds import ApiKeySecret, SecretKind, seal_secret
 from app.core.vault import VaultScope
 from app.services.embedding_resolution import EmbeddingKeySource, ResolvedEmbeddings
-from app.services.ingestion_config import IngestionConfig
 from app.services.rag.config import RAGSettings
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.vectorstore import PgVectorStore
@@ -75,27 +74,20 @@ def _vault_row(plaintext: str, *, organization_id: uuid.UUID = _ORG):
     )
 
 
-@asynccontextmanager
-async def _db_stub() -> AsyncIterator[MagicMock]:
-    yield MagicMock()
-
-
 async def _store() -> PgVectorStore:
     """The store the ingestion flow actually builds.
 
     Built through `_ingestion_service` rather than constructed here: what
     #306 was is that helper passing no `resolver=`, so a test that wires one
-    itself would pass against the bug it exists to catch. Only the processor -
-    parsers, chunker, image model, all of which need a session - is stubbed.
-    The store is used after the context exits, which these tests may: they
-    exercise `_for_collection`, and that never touches the engine.
+    itself would pass against the bug it exists to catch. The engine is a
+    stand-in so no test here can open a live connection; these tests exercise
+    `_for_collection`, which never touches it.
     """
-    with (
-        patch("app.worker.tasks.rag_tasks.IngestionConfigService") as config_service,
-        patch("app.worker.tasks.rag_tasks.get_worker_db_context", new=_db_stub),
+    with patch(
+        "app.worker.tasks.rag_tasks.create_async_engine",
+        return_value=MagicMock(dispose=AsyncMock()),
     ):
-        config_service.return_value.build_processor = AsyncMock(return_value=MagicMock())
-        async with _ingestion_service(config=IngestionConfig(), organization_id=_ORG) as service:
+        async with _ingestion_service(processor=MagicMock()) as service:
             store = service.store
     assert isinstance(store, PgVectorStore)
     return store

@@ -157,10 +157,10 @@ from collections.abc import Awaitable, Callable
 from itertools import batched
 
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
-from app.services.embedding_resolution import ResolvedEmbeddings
+from app.db.session import engine as db_engine
+from app.services.embedding_resolution import ResolvedEmbeddings, embeddings_for_collection
 from app.services.rag.config import EmbeddingsConfig, RAGSettings
 from app.services.rag.embeddings import EmbeddingService
 
@@ -236,7 +236,7 @@ class PgVectorStore(BaseVectorStore):
         # now the resolver answering None rather than nobody asking.
         self._resolver = resolver
         self._services: dict[tuple[str, str, str], EmbeddingService] = {}
-        self.async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+        self.async_session = async_sessionmaker(engine, expire_on_commit=False)
 
     def _table(self, name: str) -> str:
         """Get validated table name for a collection.
@@ -575,3 +575,26 @@ class PgVectorStore(BaseVectorStore):
                 for row in result.fetchall()
                 if is_runtime_vector_table(row[0], metadata=Base.metadata)
             ]
+
+
+def process_vector_store(
+    settings: RAGSettings, embedding_service: EmbeddingService
+) -> PgVectorStore:
+    """A store on the process's own engine, resolving embeddings per collection.
+
+    The one construction the API's lifespan, its per-request fallback, the
+    knowledge capability and the CLI all mean. Spelled once because it carries
+    two invariants a call site can silently drop: the engine has to be the
+    application's own - not a private pool beside it (#12) - and the resolver
+    has to be the platform's, which one of five sites once forgot, billing
+    every collection's embeddings to the deployment key (#306). The worker's
+    flows are deliberately *not* this: they build an engine per flow, because a
+    pooled connection made on one event loop breaks the next
+    (`app.worker.tasks.rag_tasks._ingestion_service`).
+    """
+    return PgVectorStore(
+        settings=settings,
+        embedding_service=embedding_service,
+        resolver=embeddings_for_collection,
+        engine=db_engine,
+    )

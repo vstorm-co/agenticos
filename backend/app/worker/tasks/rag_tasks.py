@@ -37,6 +37,7 @@ from app.services.ingestion_config import (
 )
 from app.services.rag.config import DocumentExtensions
 from app.services.rag.connectors import CONNECTOR_REGISTRY
+from app.services.rag.documents import DocumentProcessor
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.failures import IngestionStage, failure_summary
 from app.services.rag.ingestion import IngestionService, StoredDocument
@@ -100,15 +101,14 @@ def _announcing_resolver() -> EmbeddingResolver:
 
 
 @asynccontextmanager
-async def _ingestion_service(
-    *,
-    config: IngestionConfig,
-    organization_id: UUID | None,
-) -> AsyncIterator[IngestionService]:
+async def _ingestion_service(*, processor: DocumentProcessor) -> AsyncIterator[IngestionService]:
     """An ingester that reads documents the way the collection asked to be read.
 
     Both halves come off the collection. The parser, the chunker and the image
-    model come from its `IngestionConfig`; the embedding model, its recorded
+    model come through the `processor` the caller built from its
+    `IngestionConfig` - built by the caller, on the session it already holds,
+    because it is the part that can fail for reasons of configuration and a
+    failed build must leave nothing open. The embedding model, its recorded
     vector width and the vault key that pays for it come from the resolver,
     which the store consults per collection.
 
@@ -121,29 +121,15 @@ async def _ingestion_service(
 
     A context manager because the store rides an engine built for this one
     piece of work, and the exit is what disposes it on every path out - the
-    parse that fails, the sync cancelled from inside its file loop, the early
-    "path not found" return. A flow that built a store and disposed none left
-    its pool open for the life of the worker, and two hundred uploads reached
-    Postgres `max_connections` (#948). The engine cannot be the process's own:
-    each flow runs in an event loop of its own, and a pooled connection made
-    on one loop breaks whoever checks it out on the next - the reason
-    `get_worker_db_context` builds per-call engines too.
-
-    An earlier version of this docstring said the model was fixed per
-    deployment and that "the check that the two still agree happens before an
-    upload is accepted". No such check exists, and none should: since
-    per-collection resolution landed, a collection keeps embedding with the
-    model it was built with whatever the deployment default became, which is
-    the point of recording it. What *is* checked before an upload is accepted
-    is `IngestionConfigService.check_embedding_model` - that this build knows a
-    width for the collection's model at all, because vectors it cannot produce
-    would fail in a worker with nothing on screen.
+    parse that fails, the sync cancelled from inside its file loop. A flow that
+    built a store and disposed none left its pool open for the life of the
+    worker, and two hundred uploads reached Postgres `max_connections` (#948).
+    The engine cannot be the process's own: each flow runs in an event loop of
+    its own, and a pooled connection made on one loop breaks whoever checks it
+    out on the next - the reason `get_worker_db_context` builds per-call
+    engines too.
     """
     rag_settings = settings.rag
-    # The processor first: it is the part that can fail for reasons of
-    # configuration, and failing before the engine exists leaves nothing open.
-    async with get_worker_db_context() as db:
-        processor = await IngestionConfigService(db).build_processor(organization_id, config)
     engine = create_async_engine(settings.DATABASE_URL)
     try:
         yield IngestionService(
@@ -330,10 +316,11 @@ async def _run_ingestion(
         if organization_id is not None:
             await assert_organization_within_budget(db, organization_id)
         config = IngestionConfig.model_validate(record.ingestion_config)
+        processor = await IngestionConfigService(db).build_processor(organization_id, config)
 
     ledger = SpendLedger(organization_id=organization_id)
     file_path = Path(filepath)
-    async with _ingestion_service(config=config, organization_id=organization_id) as ingester:
+    async with _ingestion_service(processor=processor) as ingester:
         try:
             with metered_by(ledger):
                 result = await ingester.ingest_file(
@@ -421,10 +408,11 @@ async def _run_sync(
         # parser read the document, and the rows used to carry no configuration at
         # all - so `parser` read `null` for every locally-synced file (#997).
         ingestion_config = await _config_for_collection(db, collection_name, None)
+        processor = await IngestionConfigService(db).build_processor(None, ingestion_config)
 
     # Entered after the validations above, so an early "path not found" return
     # builds no engine, and every return inside the loop still disposes one (#948).
-    async with _ingestion_service(config=ingestion_config, organization_id=None) as ingester:
+    async with _ingestion_service(processor=processor) as ingester:
         for filepath in files:
             async with get_worker_db_context() as db:
                 sync_log_check = await RAGSyncService(db).get_sync_log(sync_log_id)
@@ -765,6 +753,9 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
         image_description_model = await IngestionConfigService(db).resolved_image_model(
             organization_id, ingestion_config
         )
+        processor = await IngestionConfigService(db).build_processor(
+            organization_id, ingestion_config
+        )
 
     connector = connector_cls()
 
@@ -772,9 +763,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
     total = 0
     ledger = SpendLedger(organization_id=organization_id)
 
-    async with _ingestion_service(
-        config=ingestion_config, organization_id=organization_id
-    ) as ingester:
+    async with _ingestion_service(processor=processor) as ingester:
         try:
             files = await connector.list_files(config, credential)
             total = len(files)

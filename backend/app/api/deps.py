@@ -25,7 +25,6 @@ from fastapi.security import OAuth2PasswordBearer
 from app.core.config import settings
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.session import engine as db_engine
 from app.db.session import get_db_session
 
 DBSession = Annotated[AsyncSession, Depends(get_db_session, scope="function")]
@@ -911,12 +910,10 @@ from fastapi import Request
 
 from app.core.config import settings
 from app.services.rag.embeddings import EmbeddingService
-from app.services.embedding_resolution import embeddings_for_collection
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.retrieval import RetrievalService
-from app.services.rag.vectorstore import PgVectorStore
-from app.services.rag.vectorstore import BaseVectorStore
+from app.services.rag.vectorstore import BaseVectorStore, process_vector_store
 
 
 def get_embedding_service(request: Request) -> EmbeddingService:
@@ -941,12 +938,7 @@ def get_vectorstore(request: Request, embedder: EmbeddingSvc) -> BaseVectorStore
     """
     if hasattr(request.state, "vector_store"):
         return request.state.vector_store  # type: ignore[no-any-return]
-    return PgVectorStore(
-        settings=settings.rag,
-        embedding_service=embedder,
-        resolver=embeddings_for_collection,
-        engine=db_engine,
-    )
+    return process_vector_store(settings.rag, embedder)
 
 
 VectorStoreSvc = Annotated[BaseVectorStore, Depends(get_vectorstore)]

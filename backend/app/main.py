@@ -3,7 +3,7 @@
 
 import logging
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager
 from typing import TypedDict
 
 from fastapi import FastAPI
@@ -16,7 +16,7 @@ from app.api.router import api_router
 from app.agents.capabilities import load_builtins
 from app.agents.capabilities.knowledge import reset_retrieval_service
 from app.core.config import settings
-from app.db.session import close_db, engine as db_engine, get_db_context
+from app.db.session import close_db, get_db_context
 from app.core.logfire_setup import instrument_app, setup_logfire
 from app.core.logfire_setup import instrument_asyncpg
 from app.core.logfire_setup import instrument_redis
@@ -30,8 +30,7 @@ from app.core.middleware import RequestIDMiddleware
 from app.core.watchdog import EventLoopWatchdog
 from app.clients.redis import RedisClient
 from app.services.rag.embeddings import EmbeddingService
-from app.services.rag.vectorstore import PgVectorStore
-from app.services.embedding_resolution import embeddings_for_collection
+from app.services.rag.vectorstore import process_vector_store
 from app.services.rag.vectorstore import BaseVectorStore
 from app.repositories.channel_bot import get_active_polling_bots
 from app.services.channel_bot import unseal_bot_token, unseal_slack_app_token
@@ -115,20 +114,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # And the maintenance gate, which runs above the dependency graph on every
     # request and so has no `request.state` to read either.
     maintenance.configure(redis_client)
-    embedder: EmbeddingService | None = None
     try:
         embedder = EmbeddingService(settings=settings.rag)
         embedder.warmup()
         state["embedding_service"] = embedder
+        state["vector_store"] = process_vector_store(settings.rag, embedder)
     except Exception as e:
         logger.error("Embedding service warmup failed: %s. RAG will not be available.", e)
-    if embedder is not None:
-        state["vector_store"] = PgVectorStore(
-            settings=settings.rag,
-            embedding_service=embedder,
-            resolver=embeddings_for_collection,
-            engine=db_engine,
-        )
 
     # Imported here rather than at module top so that importing `app.main` does
     # not pull in the channel SDKs (aiogram, the Slack client) - ~1.2s of import
@@ -182,8 +174,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # The knowledge capability caches a store of its own, built on the first
     # search and reachable from no request; a shutdown followed by more work -
     # a test, a reload - must not search through it once `close_db` has run.
-    with suppress(Exception):
-        reset_retrieval_service()
+    reset_retrieval_service()
     channel_dedupe.configure(None)
     rate_limit.configure(None)
     channel_membership.configure(None)

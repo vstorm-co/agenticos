@@ -26,11 +26,9 @@ from app.core.background import drain
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
 from app.db.models.knowledge_base import KBScope
-from app.db.session import engine as db_engine
 from app.db.session import get_db_context
 from app.repositories import knowledge_base_repo, organization_repo
 from app.schemas.sync_source import SyncSourceCreate
-from app.services.embedding_resolution import embeddings_for_collection
 from app.services.rag.config import DEFAULT_COLLECTION_NAME, DocumentExtensions, RAGSettings
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.embeddings import EmbeddingService
@@ -39,7 +37,7 @@ from app.services.rag.ingestion import IngestionService
 from app.services.rag.retrieval import RetrievalService
 from app.services.rag.sources.google_drive import GoogleDriveSource
 from app.services.rag.sources.s3 import S3Source
-from app.services.rag.vectorstore import BaseVectorStore, PgVectorStore
+from app.services.rag.vectorstore import BaseVectorStore, process_vector_store
 from app.services.rag_document import RAGDocumentService
 from app.services.rag_sync import RAGSyncService
 from app.services.sync_source import SyncSourceService
@@ -71,12 +69,7 @@ def get_rag_services() -> tuple[
     embedder = EmbeddingService(settings=settings)
     # On the process engine, like the API's stores: a CLI command is one
     # process, one piece of work, and its pool goes down with it.
-    vector_store = PgVectorStore(
-        settings=settings,
-        embedding_service=embedder,
-        resolver=embeddings_for_collection,
-        engine=db_engine,
-    )
+    vector_store = process_vector_store(settings, embedder)
     processor = DocumentProcessor(settings=settings)
     retrieval = RetrievalService(vector_store=vector_store, settings=settings)
     ingestion = IngestionService(processor=processor, vector_store=vector_store)

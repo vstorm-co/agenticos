@@ -6,11 +6,9 @@ from typing import TYPE_CHECKING, Any
 
 from app.core.config import settings
 from app.core.exceptions import AppException, ExternalServiceError
-from app.db.session import engine
-from app.services.embedding_resolution import embeddings_for_collection
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.retrieval import RetrievalService
-from app.services.rag.vectorstore import PgVectorStore
+from app.services.rag.vectorstore import process_vector_store
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +31,9 @@ def get_retrieval_service() -> "BaseRetrievalService":
 
     rag_settings = settings.rag
     embedding_service = EmbeddingService(rag_settings)
-    vector_store = PgVectorStore(
-        rag_settings, embedding_service, resolver=embeddings_for_collection, engine=engine
+    _retrieval_service = RetrievalService(
+        process_vector_store(rag_settings, embedding_service), rag_settings
     )
-    _retrieval_service = RetrievalService(vector_store, rag_settings)
     return _retrieval_service
 
 

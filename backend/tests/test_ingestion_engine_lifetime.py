@@ -312,21 +312,35 @@ class TestAConnectorSyncsEngine:
         assert ledger.leaked == 0
 
 
-class TestARequestsStore:
+class TestTheProcessEngineStore:
     """The API's stores ride the application engine and own nothing to dispose."""
 
-    async def test_a_request_without_a_lifespan_store_builds_one_on_the_app_engine(self):
+    def test_the_factory_binds_the_process_engine_and_the_platform_resolver(self):
+        """The two invariants every process-store site used to spell by hand -
+        the engine that is not a private pool (#12), and the resolver one of
+        five sites once forgot (#306) - live in the factory and nowhere else."""
+        from app.db.session import engine
+        from app.services.embedding_resolution import embeddings_for_collection
+        from app.services.rag import vectorstore
+
+        with patch.object(vectorstore, "PgVectorStore") as store_cls:
+            store = vectorstore.process_vector_store(MagicMock(), MagicMock())
+
+        assert store is store_cls.return_value
+        assert store_cls.call_args.kwargs["engine"] is engine
+        assert store_cls.call_args.kwargs["resolver"] is embeddings_for_collection
+
+    async def test_a_request_without_a_lifespan_store_builds_a_process_store(self):
         """The lifespan's store is absent when the embedding warmup failed, and
         the per-request fallback used to open a pooled engine of its own - a
         degraded deployment spending its remaining connections (#948)."""
         from app.api import deps
 
         request = MagicMock(state=SimpleNamespace())
-        with patch.object(deps, "PgVectorStore") as store_cls:
+        with patch.object(deps, "process_vector_store") as factory:
             store = deps.get_vectorstore(request, MagicMock())
 
-        assert store is store_cls.return_value
-        assert store_cls.call_args.kwargs["engine"] is deps.db_engine
+        assert store is factory.return_value
 
     async def test_the_lifespans_store_is_handed_through_untouched(self):
         """It belongs to the process; a request neither rebuilds nor closes it."""
@@ -334,22 +348,22 @@ class TestARequestsStore:
 
         shared = MagicMock()
         request = MagicMock(state=SimpleNamespace(vector_store=shared))
-        with patch.object(deps, "PgVectorStore") as store_cls:
+        with patch.object(deps, "process_vector_store") as factory:
             assert deps.get_vectorstore(request, MagicMock()) is shared
 
-        store_cls.assert_not_called()
+        factory.assert_not_called()
 
 
 class TestTheKnowledgeCapabilitysStore:
-    def test_the_first_search_builds_on_the_process_engine(self):
+    def test_the_first_search_builds_a_process_store(self):
         """The capability's cached store used to open the second private pool an
         API process ran; it rides the application's engine now."""
         import app.agents.capabilities.knowledge._search as search_module
 
         with (
             patch.object(search_module, "EmbeddingService"),
-            patch.object(search_module, "PgVectorStore") as store_cls,
-            patch.object(search_module, "RetrievalService"),
+            patch.object(search_module, "process_vector_store") as factory,
+            patch.object(search_module, "RetrievalService") as retrieval_cls,
         ):
             search_module._retrieval_service = None
             try:
@@ -357,7 +371,7 @@ class TestTheKnowledgeCapabilitysStore:
             finally:
                 search_module._retrieval_service = None
 
-        assert store_cls.call_args.kwargs["engine"] is search_module.engine
+        assert retrieval_cls.call_args.args[0] is factory.return_value
 
     def test_the_next_search_after_a_reset_builds_a_fresh_store(self):
         """Shutdown disposes the process engine, so a shutdown followed by more
@@ -366,7 +380,7 @@ class TestTheKnowledgeCapabilitysStore:
 
         with (
             patch.object(search_module, "EmbeddingService"),
-            patch.object(search_module, "PgVectorStore") as store_cls,
+            patch.object(search_module, "process_vector_store") as factory,
             patch.object(search_module, "RetrievalService", side_effect=lambda *a, **k: object()),
         ):
             search_module._retrieval_service = None
@@ -378,4 +392,4 @@ class TestTheKnowledgeCapabilitysStore:
                 search_module._retrieval_service = None
 
         assert first is not second
-        assert store_cls.call_count == 2
+        assert factory.call_count == 2
