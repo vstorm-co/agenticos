@@ -3316,6 +3316,18 @@ class AgentRunnerService:
         :meth:`finish` queues with it, which is how a delegate that spent real
         money came to be recorded nowhere. Committing here is what makes the row
         survive; re-raising is what lets whoever cancelled see it happen.
+
+        **And the transaction ends before the model is asked anything.** Each
+        half of the opening commit is load-bearing: the run row becomes visible
+        to every other session while the run executes, and the pooled connection
+        goes back to the pool for the seconds-to-minutes the model takes,
+        instead of sitting `idle in transaction` holding a row lock - fifteen
+        concurrent runs used to be the entire pool (#12). On a resume it is also
+        what makes `mark_running` durable: a crash mid-replay leaves the run
+        `running` rather than parked with its approval still marked approved,
+        which a second resume would replay - re-sending whatever the approved
+        call already sent (#3). `ChatAgentRunner.run`, the one surface not
+        routed through here, sets the same boundary.
         """
         status = RunStatus.FAILED
         error: str | None = None
@@ -3325,15 +3337,9 @@ class AgentRunnerService:
         called: list[RecordedToolCall] = []
         settled: dict[str, str] = {}
         summarized: list[dict[str, Any]] | None = None
-        # The transaction ends before the model is asked anything, and each half
-        # of that is load-bearing. The run row becomes visible to every other
-        # session while the run executes, and the pooled connection goes back to
-        # the pool for the seconds-to-minutes the model takes, instead of
-        # sitting `idle in transaction` holding a row lock (#12). And on a
-        # resume it is what makes `mark_running` durable: a crash mid-replay
-        # leaves the run `running` rather than parked with its approval still
-        # marked approved, which a second resume would replay - re-sending
-        # whatever the approved call already sent (#3).
+        # The opening commit: the row is visible mid-run and no connection is
+        # held across the model call - the docstring carries the whole of it
+        # (#12, #3).
         await self.db.commit()
         try:
             result = await self._answer(

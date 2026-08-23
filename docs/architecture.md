@@ -121,9 +121,10 @@ matters as much as the fact.
 A route asks for `DBSession` (`app/api/deps.py`), which resolves `get_db_session`
 (`app/db/session.py`). Everything below the route shares that one session:
 services take it in their constructor, repositories take it as their first
-argument, and neither ever calls `commit()`. `flush()` sends the statements so
-the row has an id and the constraints have been checked; the commit happens once,
-on the way out.
+argument, and neither ever calls `commit()` — with one deliberate exception, the
+agent run path, described [below](#the-run-paths-two-commits). `flush()` sends
+the statements so the row has an id and the constraints have been checked; the
+commit happens once, on the way out.
 
 **On the way out means before the response is written.** The alias declares
 `Depends(get_db_session, scope="function")`, which registers the session's exit
@@ -169,6 +170,8 @@ handlers and CLI commands open `get_db_context()`, and worker tasks
 they commit on a clean exit of their own `async with` and start their deferred
 work in the same place — which has nothing to do with a response.
 
+### The run path's two commits
+
 One path deliberately commits earlier than "on the way out": an agent run. The
 runner commits once **before the model is called** and once more in the
 terminal `finally` (`AgentRunnerService._run`, and `ChatAgentRunner.run` for
@@ -183,6 +186,14 @@ other half: the session context only commits on a clean exit, which a failed,
 budget-stopped or cancelled run is not, and a run missing from history is a
 run nobody is accountable for. Both boundaries are proved against a real
 database in `tests/integration/test_run_commit_boundary.py`.
+
+Visibility cuts both ways: anything that used to reason "an executing run's
+row cannot be seen" now reasons about a row that *is* seen. The agent-triggers
+scheduler is the one place that did — its no-overlap guard blocks only on a
+parked `awaiting_approval` run, never on `running`, because a worker that dies
+mid-run leaves that row `running` forever and a schedule that blocked on it
+would wedge for good; the scheduled fire's liveness signal is its renewed
+lease, not the run row (`app/repositories/agent_trigger.py::claim_due`).
 
 ### Dispatching background work from a request
 

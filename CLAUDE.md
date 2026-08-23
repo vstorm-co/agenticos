@@ -75,7 +75,10 @@ Easy to violate, cross-cutting, and each one has been violated here at least onc
   session commits once, after the route returns and **before the response is written**.
   That ordering is `scope="function"` on the `DBSession` alias and nothing else; a bare
   `Depends(get_db_session)` puts the commit after the answer has gone out, which is #353.
-  `docs/architecture.md#the-requests-transaction` has the order and its three consequences.
+  The one sanctioned exception is the agent run path: `AgentRunnerService._run` and
+  `ChatAgentRunner.run` commit before the model call and again in the terminal
+  `finally` (#12, #3). `docs/architecture.md#the-requests-transaction` has the order,
+  its three consequences, and the run path's two commits.
 - **Background work that reads a row this request wrote is handed over with
   `spawn_after_commit`, never `spawn`.** `spawn` creates the task at once and the loop
   starts it before the commit, so the flow opens its own session and cannot see the row

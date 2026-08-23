@@ -113,25 +113,49 @@ async def _row(engine: AsyncEngine, run_id: uuid.UUID) -> AgentRun | None:
         return result.scalar_one_or_none()
 
 
-async def test_the_run_row_is_visible_from_another_session_mid_run(engine: AsyncEngine):
+async def test_the_run_row_is_visible_from_another_session_mid_run(
+    engine: AsyncEngine, db: AsyncSession
+):
     """The row is committed before the model is asked anything (#12).
 
     Asserted from inside the model call, on a second session: that is the whole
     window in which an operator, a budget query or a delegation panel needs the
     run to exist, and it used to be exactly the window in which it did not.
     """
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    async with factory() as db:
-        service = AgentRunnerService(db)
-        prepared = await _prepared(db)
-        seen: dict[str, str | None] = {}
+    service = AgentRunnerService(db)
+    prepared = await _prepared(db)
+    seen: dict[str, str | None] = {}
 
-        async def model(*_args: object, **_kwargs: object) -> MagicMock:
-            row = await _row(engine, prepared.run.id)
-            seen["status"] = None if row is None else row.status
-            return MagicMock(output="hi")
+    async def model(*_args: object, **_kwargs: object) -> MagicMock:
+        row = await _row(engine, prepared.run.id)
+        seen["status"] = None if row is None else row.status
+        return MagicMock(output="hi")
 
-        prepared.built.agent.run = AsyncMock(side_effect=model)
+    prepared.built.agent.run = AsyncMock(side_effect=model)
+    await service._run(
+        prepared,
+        user_prompt="hello",
+        said="hello",
+        message_history=None,
+        deferred_tool_results=None,
+    )
+
+    assert seen["status"] == "running"
+
+
+async def test_a_failed_run_is_still_accounted_on_a_fresh_connection(
+    engine: AsyncEngine, db: AsyncSession
+):
+    """The regression #3 names: `finish` flushed, nothing committed, the session
+    exit rolled the row back - so a provider failure erased the run, its cost,
+    and the budget baseline the *next* run would be checked against."""
+    ledger = SpendLedger()
+    ledger.record("gpt-4.1", RequestUsage(input_tokens=1_000_000), "openai")
+    service = AgentRunnerService(db)
+    prepared = await _prepared(db, ledger=ledger)
+    prepared.built.agent.run = AsyncMock(side_effect=RuntimeError("the provider 500d"))
+
+    with pytest.raises(RuntimeError):
         await service._run(
             prepared,
             user_prompt="hello",
@@ -140,54 +164,30 @@ async def test_the_run_row_is_visible_from_another_session_mid_run(engine: Async
             deferred_tool_results=None,
         )
 
-    assert seen["status"] == "running"
-
-
-async def test_a_failed_run_is_still_accounted_on_a_fresh_connection(engine: AsyncEngine):
-    """The regression #3 names: `finish` flushed, nothing committed, the session
-    exit rolled the row back - so a provider failure erased the run, its cost,
-    and the budget baseline the *next* run would be checked against."""
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    ledger = SpendLedger()
-    ledger.record("gpt-4.1", RequestUsage(input_tokens=1_000_000), "openai")
-    async with factory() as db:
-        service = AgentRunnerService(db)
-        prepared = await _prepared(db, ledger=ledger)
-        prepared.built.agent.run = AsyncMock(side_effect=RuntimeError("the provider 500d"))
-
-        with pytest.raises(RuntimeError):
-            await service._run(
-                prepared,
-                user_prompt="hello",
-                said="hello",
-                message_history=None,
-                deferred_tool_results=None,
-            )
-
     row = await _row(engine, prepared.run.id)
     assert row is not None
     assert row.status == "failed"
     assert row.cost_usd == Decimal("2.00")
 
 
-async def test_a_cancelled_run_is_still_accounted_on_a_fresh_connection(engine: AsyncEngine):
+async def test_a_cancelled_run_is_still_accounted_on_a_fresh_connection(
+    engine: AsyncEngine, db: AsyncSession
+):
     """`CancelledError` is a `BaseException`: it skips the session's own
     commit-on-clean-exit entirely, so only the explicit commit in `_run` puts
     the row where a fresh connection can read it."""
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    async with factory() as db:
-        service = AgentRunnerService(db)
-        prepared = await _prepared(db)
-        prepared.built.agent.run = AsyncMock(side_effect=asyncio.CancelledError)
+    service = AgentRunnerService(db)
+    prepared = await _prepared(db)
+    prepared.built.agent.run = AsyncMock(side_effect=asyncio.CancelledError)
 
-        with pytest.raises(asyncio.CancelledError):
-            await service._run(
-                prepared,
-                user_prompt="hello",
-                said="hello",
-                message_history=None,
-                deferred_tool_results=None,
-            )
+    with pytest.raises(asyncio.CancelledError):
+        await service._run(
+            prepared,
+            user_prompt="hello",
+            said="hello",
+            message_history=None,
+            deferred_tool_results=None,
+        )
 
     row = await _row(engine, prepared.run.id)
     assert row is not None
