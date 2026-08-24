@@ -197,7 +197,9 @@ uv run agenticos cmd vault-rotate
 `vault-rotate` walks every table holding envelopes and moves each row's
 ciphertexts together with its version column, or not at all: a row that fails is
 named and left as it was, and the command exits non-zero so the old key is not
-dropped on a partial rotation. Only the wrapped data key is re-sealed — payloads
+dropped on a partial rotation. A row holding no envelope but naming a version — a
+connection whose credentials were cleared — has that claim moved to the current
+version too, so the next secret sealed into it lands on a key that still exists. Only the wrapped data key is re-sealed — payloads
 are untouched, which is what makes rotation cheap.
 
 ```bash

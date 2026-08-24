@@ -117,6 +117,7 @@ class Report:
     """What the sweep did, and to how many rows."""
 
     rotated: int = 0
+    retagged: int = 0
     current: int = 0
     no_secret: int = 0
     failures: list[str] = field(default_factory=list)
@@ -125,15 +126,30 @@ class Report:
 async def _rotate_table(
     db: AsyncSession, spec: SealedTable, *, target: int, dry_run: bool, report: Report
 ) -> None:
-    rows = (await db.execute(select(spec.model))).scalars().all()
+    # Locked, because the deployment may be live: an OAuth refresh that rewrites
+    # a connection's payload between this read and the commit would be silently
+    # overwritten by the sweep's stale copy - restoring an already-spent refresh
+    # token. A dry run writes nothing, so it reads without blocking anybody.
+    stmt = select(spec.model) if dry_run else select(spec.model).with_for_update()
+    rows = (await db.execute(stmt)).scalars().all()
     for row in rows:
+        version = getattr(row, spec.version_attr)
         present = {
             name: value for name in spec.columns if (value := getattr(row, name)) is not None
         }
         if not present:
-            report.no_secret += 1
+            # A row with no envelope still names a version, and a later seal
+            # into it lands at that version (`_seal_for`) - left stale, it would
+            # point at a key the operator has since dropped. Nothing to rewrap,
+            # so the claim just moves. A null version (a polled trigger) names
+            # nothing and stays null.
+            if version is not None and version != target:
+                if not dry_run:
+                    setattr(row, spec.version_attr, target)
+                report.retagged += 1
+            else:
+                report.no_secret += 1
             continue
-        version = getattr(row, spec.version_attr)
         if not any(needs_rotation(value, key_version=version) for value in present.values()):
             report.current += 1
             continue
@@ -186,7 +202,10 @@ def vault_rotate(dry_run: bool) -> None:
     info(f"Rotating every stored secret to master-key version {target}...")
     report = asyncio.run(_run(dry_run=dry_run))
     success(f"{report.rotated} rows {mode}")
-    info(f"{report.current} already current, {report.no_secret} hold no secret")
+    info(
+        f"{report.retagged} credential-free rows moved to the current version, "
+        f"{report.current} already current, {report.no_secret} hold no secret"
+    )
     if report.failures:
         for failure in report.failures:
             error(failure)

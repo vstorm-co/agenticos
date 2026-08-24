@@ -137,6 +137,70 @@ class TestRotateTable:
         )
         assert report.no_secret == 1 and report.rotated == 0
 
+    async def test_a_credential_free_rows_stale_version_is_moved_to_the_current_one(self):
+        """A row with no envelope still names a version, and the next seal into
+        it lands there (`_seal_for`) - so a stale claim left behind by rotation
+        would point at a key the operator has since dropped, and the connection
+        could never be given credentials again."""
+        conn = McpConnection(
+            id=uuid.uuid4(),
+            user_id=uuid.uuid4(),
+            organization_id=None,
+            scope="user",
+            name="github",
+            url="https://example.com/mcp",
+            auth_token=None,
+            oauth_payload=None,
+            oauth_pending_payload=None,
+            secret_key_version=1,
+        )
+
+        report = Report()
+        await _rotate_table(
+            _db_returning([conn]), _spec("mcp_connections"), target=2, dry_run=False, report=report
+        )
+
+        assert report.retagged == 1 and report.no_secret == 0
+        assert conn.secret_key_version == 2
+
+    async def test_a_dry_run_leaves_a_stale_version_claim_in_place(self):
+        bot = _bot(uuid.uuid4())
+        report = Report()
+        await _rotate_table(
+            _db_returning([bot]), _spec("channel_bots"), target=2, dry_run=True, report=report
+        )
+        assert report.retagged == 1
+        assert bot.secret_key_version == 1
+
+    async def test_a_null_version_names_nothing_and_stays_null(self):
+        """A polled trigger holds no secret and no version - the shape
+        constraint ties the two - so there is no stale claim to move."""
+        trigger = MagicMock(event_secret_encrypted=None, secret_key_version=None)
+        report = Report()
+        await _rotate_table(
+            _db_returning([trigger]),
+            _spec("agent_triggers"),
+            target=2,
+            dry_run=False,
+            report=report,
+        )
+        assert report.no_secret == 1 and report.retagged == 0
+        assert trigger.secret_key_version is None
+
+    async def test_a_live_run_locks_the_rows_it_rewraps_and_a_dry_run_does_not(self):
+        """An unlocked sweep on a live deployment can overwrite a concurrent
+        credential write - an OAuth refresh between the read and the commit -
+        with its stale copy, restoring an already-spent refresh token."""
+        live_db = _db_returning([])
+        await _rotate_table(
+            live_db, _spec("channel_bots"), target=1, dry_run=False, report=Report()
+        )
+        assert live_db.execute.await_args.args[0]._for_update_arg is not None
+
+        dry_db = _db_returning([])
+        await _rotate_table(dry_db, _spec("channel_bots"), target=1, dry_run=True, report=Report())
+        assert dry_db.execute.await_args.args[0]._for_update_arg is None
+
     async def test_an_already_current_row_is_left_alone(self):
         org_id = uuid.uuid4()
         sealed = seal("bot-token", scope=VaultScope.organization(org_id)).ciphertext
