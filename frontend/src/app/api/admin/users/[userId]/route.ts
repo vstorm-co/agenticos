@@ -13,7 +13,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { accessToken } = adminCheck;
 
     const { userId } = await params;
-    const data = await backendFetch(`/api/v1/admin/users/${userId}`, {
+    const data = await backendFetch(`/api/v1/admin/users/${encodeURIComponent(userId)}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     return bffJson(data);
@@ -34,7 +34,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const { userId } = await params;
     const body = await request.json();
 
-    const data = await backendFetch(`/api/v1/admin/users/${userId}`, {
+    const data = await backendFetch(`/api/v1/admin/users/${encodeURIComponent(userId)}`, {
       method: "PATCH",
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -58,7 +58,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const { accessToken } = adminCheck;
 
     const { userId } = await params;
-    await backendFetch(`/api/v1/admin/users/${userId}`, {
+    await backendFetch(`/api/v1/admin/users/${encodeURIComponent(userId)}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${accessToken}` },
     });
