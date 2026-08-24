@@ -984,6 +984,10 @@ export writes a `runs.export`, `approvals.export` or `spend.export` entry naming
 the window and the row count, because who took the whole table off the screen is a
 question that is cheap to answer now and impossible to reconstruct later.
 
+The write shares the acting request's transaction, so it fails closed: an entry
+that cannot be recorded rolls back the action it describes rather than letting a
+privileged mutation land unaudited.
+
 `audit:read` gates reading it. An app admin's bypass is exactly what the trail
 exists to hold to account.
 

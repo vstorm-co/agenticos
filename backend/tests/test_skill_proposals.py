@@ -65,7 +65,9 @@ def _change(**overrides: object) -> SkillChange:
 
 def _service(monkeypatch) -> SkillProposalService:
     """A service whose skill writes succeed, so the tests are about the decision."""
-    service = SkillProposalService(MagicMock())
+    db = MagicMock()
+    db.flush = AsyncMock()
+    service = SkillProposalService(db)
     skill = MagicMock(id=uuid.uuid4())
     skill.name = "refunds"
     service.skills = MagicMock()
