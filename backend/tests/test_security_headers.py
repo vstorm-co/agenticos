@@ -47,3 +47,23 @@ async def test_a_per_response_x_frame_options_override_survives_the_middleware()
     assert resp.headers["x-frame-options"] == "SAMEORIGIN"
     assert "content-security-policy" in resp.headers
     assert resp.headers["x-content-type-options"] == "nosniff"
+
+
+async def test_an_excluded_path_keeps_its_framing_but_drops_the_csp() -> None:
+    # /docs drops only the CSP - Swagger's assets need it relaxed - but must keep
+    # its framing and MIME protections, or excluding it would leave the page
+    # embeddable by any origin.
+    app = FastAPI()
+    app.add_middleware(SecurityHeadersMiddleware, exclude_paths={"/docs"})
+
+    @app.get("/docs")
+    async def docs() -> Response:
+        return Response(content=b"<html></html>")
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        resp = await ac.get("/docs")
+
+    assert "content-security-policy" not in resp.headers
+    assert resp.headers["x-frame-options"] == "DENY"
+    assert resp.headers["x-content-type-options"] == "nosniff"
+    assert resp.headers["x-xss-protection"] == "0"

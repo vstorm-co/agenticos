@@ -74,19 +74,24 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         self.exclude_paths = exclude_paths or {"/docs", "/redoc", "/openapi.json"}
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        """Add security headers to the response."""
+        """Add security headers to the response.
+
+        `exclude_paths` drops only the Content-Security-Policy, never the rest of
+        the set: the CSP is what breaks Swagger and ReDoc, which pull assets a
+        strict policy forbids, but those pages still need their framing and MIME
+        protections - excluding them wholesale would leave /docs embeddable by any
+        origin while an operator uses its authenticated controls.
+        """
         response = await call_next(request)
 
-        if request.url.path in self.exclude_paths:
-            return response
+        if request.url.path not in self.exclude_paths:
+            csp_value = "; ".join(
+                f"{directive} {value}" for directive, value in self.csp_directives.items()
+            )
+            # Respect an already-set header so an endpoint can opt into a looser
+            # policy (e.g. user-content files in the chat preview panel).
+            response.headers.setdefault("Content-Security-Policy", csp_value)
 
-        csp_value = "; ".join(
-            f"{directive} {value}" for directive, value in self.csp_directives.items()
-        )
-
-        # Respect any already-set headers so an endpoint can opt into less
-        # restrictive framing (e.g. user-content files in the chat preview panel).
-        response.headers.setdefault("Content-Security-Policy", csp_value)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
         # 0, not "1; mode=block": the legacy auditor is deprecated and its
