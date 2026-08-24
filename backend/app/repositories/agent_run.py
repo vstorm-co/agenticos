@@ -1620,12 +1620,22 @@ async def fail_stale_runs(
     this does flip is flipped back by its own terminal write, which lands
     later and wins. `awaiting_approval` is deliberately not here: a parked row
     has a resolver, and the approvals sweep is its ceiling.
+
+    A run's age is its **last transition**, not its `started_at`. A resume
+    keeps the row's original start - the run's span covers both segments - and
+    flips it back to `running` with `mark_running`, whose UPDATE stamps
+    `updated_at`. Aged on `started_at` alone, a run approved more than the
+    ceiling after it first parked would be reaped the moment its replay began,
+    and a scheduled trigger could observe that false terminal status and fire
+    on top of the approved call still executing. `updated_at` is null until a
+    row's first UPDATE, so a never-touched orphan ages from its start.
     """
+    last_transition = func.coalesce(AgentRun.updated_at, AgentRun.started_at)
     result = await db.execute(
         sql_update(AgentRun)
         .where(
             AgentRun.status == RunStatus.RUNNING.value,
-            AgentRun.started_at < older_than,
+            last_transition < older_than,
         )
         .values(status=RunStatus.FAILED.value, ended_at=ended_at, error=error)
         .returning(AgentRun.id)

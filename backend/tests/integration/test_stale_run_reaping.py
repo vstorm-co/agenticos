@@ -62,14 +62,27 @@ async def _agent(db: AsyncSession, org: Organization) -> Agent:
 
 
 async def _run(
-    db: AsyncSession, org: Organization, agent: Agent, *, status: str, age: timedelta
+    db: AsyncSession,
+    org: Organization,
+    agent: Agent,
+    *,
+    status: str,
+    age: timedelta,
+    transitioned: timedelta | None = None,
 ) -> AgentRun:
+    """A run row `age` old; `transitioned` backdates its last UPDATE stamp.
+
+    `updated_at` stays null when `transitioned` is not given, which is what a
+    row that was opened and never touched again - the crash orphan - looks like.
+    """
+    now = datetime.now(UTC)
     run = AgentRun(
         id=uuid.uuid4(),
         organization_id=org.id,
         agent_id=agent.id,
         status=status,
-        started_at=datetime.now(UTC) - age,
+        started_at=now - age,
+        updated_at=None if transitioned is None else now - transitioned,
     )
     db.add(run)
     await db.flush()
@@ -77,9 +90,10 @@ async def _run(
 
 
 async def test_only_the_crash_orphan_is_reaped(engine: AsyncEngine, db: AsyncSession):
-    """One old `running` row falls; its fresh sibling, the parked run and the
-    settled one stand - and the verdict is read from a fresh session, because a
-    reap the sweep's own transaction never committed reaped nothing."""
+    """One old `running` row falls; its fresh sibling, the parked run, the
+    settled one and the freshly resumed one stand - and the verdict is read from
+    a fresh session, because a reap the sweep's own transaction never committed
+    reaped nothing."""
     org = await _org(db)
     agent = await _agent(db, org)
     orphan = await _run(db, org, agent, status=RunStatus.RUNNING.value, age=timedelta(hours=7))
@@ -88,6 +102,18 @@ async def test_only_the_crash_orphan_is_reaped(engine: AsyncEngine, db: AsyncSes
         db, org, agent, status=RunStatus.AWAITING_APPROVAL.value, age=timedelta(hours=7)
     )
     settled = await _run(db, org, agent, status=RunStatus.COMPLETED.value, age=timedelta(hours=7))
+    # A resume keeps the run's original start and re-marks it `running`, so its
+    # age is its last transition: reaped on `started_at` it would fall the
+    # moment its replay began, and a scheduled trigger could fire on top of the
+    # approved call still executing.
+    resumed = await _run(
+        db,
+        org,
+        agent,
+        status=RunStatus.RUNNING.value,
+        age=timedelta(hours=7),
+        transitioned=timedelta(minutes=5),
+    )
     await db.commit()
 
     assert await RunReaperService(db).reap_stale() == 1
@@ -109,3 +135,4 @@ async def test_only_the_crash_orphan_is_reaped(engine: AsyncEngine, db: AsyncSes
     assert rows[alive.id].status == RunStatus.RUNNING.value
     assert rows[parked.id].status == RunStatus.AWAITING_APPROVAL.value
     assert rows[settled.id].status == RunStatus.COMPLETED.value
+    assert rows[resumed.id].status == RunStatus.RUNNING.value

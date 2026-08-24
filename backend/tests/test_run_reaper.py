@@ -77,7 +77,7 @@ class TestTheFlow:
     async def test_the_sweep_runs_the_reaper_on_a_session_of_its_own(self):
         service = MagicMock(reap_stale=AsyncMock(return_value=3))
         with (
-            patch("app.worker.tasks.run_tasks.get_db_context") as ctx,
+            patch("app.worker.tasks.run_tasks.get_worker_db_context") as ctx,
             patch("app.worker.tasks.run_tasks.RunReaperService", return_value=service),
         ):
             ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())

@@ -867,8 +867,12 @@ off), as `failed` — nobody stopped this run, the infrastructure did, and an
 operator filtering run history for problems is exactly who should see it. The
 error on the row is the sweep's own sentence; the process that knew more died.
 
-The ceiling does not have to be exact, because a live run the sweep flips
-anyway flips itself back: its own terminal write lands later and wins. What a
+A run's age here is its **last transition**, not its first start: a resume
+keeps the original `started_at` — the run spans both segments — so a run
+approved days after it parked ages from the moment its replay began, not from
+a start that would have it reaped mid-replay. The ceiling does not have to be
+exact either way, because a live run the sweep flips anyway flips itself back:
+its own terminal write lands later and wins. What a
 reaped run cannot recover is its spend — the ledger died with the process — so
 the row keeps the zeros it was opened with rather than being given a number
 somebody would reconcile against a bill. And nobody is mailed: the failure

@@ -145,7 +145,7 @@ from app.db.models.agent_run import AgentRun, ApprovalStatus, RunOrder, RunStatu
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Message
 from app.db.models.run_manifest import RunManifest
-from app.db.session import get_db_context
+from app.db.session import get_worker_db_context
 from app.repositories import (
     agent_environment_repo,
     agent_exposure_repo,
@@ -1670,9 +1670,13 @@ class AgentRunnerService:
         # that then sits `idle in transaction` for the rest of the run, holding
         # the very connection the opening commit in `_run` exists to hand back:
         # measured under 18 concurrent runs, the three past the pool waited 26
-        # seconds at this read (#12).
+        # seconds at this read (#12). The worker context and not the pooled one,
+        # because a trigger fires runs inside Prefect flows: a pooled connection
+        # made on one flow's event loop breaks whoever checks it out on the
+        # next, and this read happens on whatever loop the run is on. One
+        # connect per run, next to a model call.
         async def agent_period_spend() -> Decimal:
-            async with get_db_context() as db:
+            async with get_worker_db_context() as db:
                 return await agent_run_repo.sum_cost_since(
                     db,
                     organization_id=ctx.organization_id,
@@ -1682,7 +1686,7 @@ class AgentRunnerService:
                 )
 
         async def org_period_spend() -> Decimal:
-            async with get_db_context() as db:
+            async with get_worker_db_context() as db:
                 return await organization_monthly_spend(db, ctx.organization_id)
 
         # Opened after the run row, because a run-scoped workspace keys on it,
