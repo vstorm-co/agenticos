@@ -26,8 +26,7 @@ export default function AuthCallbackPage() {
   const adoptSession = useAdoptSession();
 
   useEffect(() => {
-    const accessToken = searchParams.get("access_token");
-    const refreshToken = searchParams.get("refresh_token");
+    const code = searchParams.get("code");
     const errParam = searchParams.get("error");
 
     if (errParam) {
@@ -37,8 +36,8 @@ export default function AuthCallbackPage() {
       );
       return () => clearTimeout(t);
     }
-    if (!accessToken || !refreshToken) {
-      router.replace("/login?error=missing_tokens");
+    if (!code) {
+      router.replace("/login?error=missing_code");
       return;
     }
 
@@ -47,7 +46,7 @@ export default function AuthCallbackPage() {
       try {
         const data = await apiClient.post<{ user: User; access_token: string }>(
           "/auth/oauth-callback",
-          { access_token: accessToken, refresh_token: refreshToken },
+          { code },
         );
         if (cancelled) return;
         adoptSession(data.user, data.access_token);

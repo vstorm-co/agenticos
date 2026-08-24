@@ -64,13 +64,13 @@ beforeEach(() => {
 
 describe("the OAuth callback", () => {
   it("empties the previous account before adopting the one it exchanged", async () => {
-    searchParams.set("access_token", "a-1");
-    searchParams.set("refresh_token", "r-1");
+    searchParams.set("code", "one-time");
     vi.mocked(apiClient.post).mockResolvedValue({ user: arriving, access_token: "t-new" });
     mountOver(<CallbackPage />);
 
     await waitFor(() => expect(useAuthStore.getState().user?.id).toBe("u-new"));
 
+    expect(apiClient.post).toHaveBeenCalledWith("/auth/oauth-callback", { code: "one-time" });
     expect(client.getQueryData(["sessions", "list", 0])).toBeUndefined();
     expect(useConversationStore.getState().currentConversationId).toBeNull();
     expect(useAuthStore.getState().accessToken).toBe("t-new");
