@@ -22,11 +22,8 @@ vi.mock("@/lib/rag-api", async (importOriginal) => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 // Key-returning translator, the same convention as the sidebar tests: the
 // assertions below name message keys, not English copy.
-vi.mock("next-intl", () => ({
-  useTranslations:
-    (ns: string) =>
-    (key: string): string =>
-      `${ns}.${key}`,
+vi.mock("next-intl", async () => ({
+  useTranslations: (await import("@/test-utils/intl")).keyTranslations((ns, key) => `${ns}.${key}`),
 }));
 
 const perms = new Set<string>();
