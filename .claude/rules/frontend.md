@@ -181,7 +181,11 @@ There is no `(marketing)` route group.
   199 MB installed to draw 89 marks that are the same artwork either way.
   The generator refuses a source SVG it cannot draw with paths alone, or one
   carrying a literal fill: a mark that silently loses a layer still renders, and
-  is still the wrong logo.
+  is still the wrong logo. It also emits `src/lib/auth-glyphs.generated.ts` —
+  just the identity-provider marks — because `BrandIcon` reads the 89-mark table
+  by dynamic key, which no bundler can tree-shake, so importing it put every mark
+  on the critical path of the sign-in page; the auth pages import `AUTH_GLYPHS`
+  and draw it through `GlyphIcon` instead (#955).
 - Do not hand-edit `src/lib/mcp-logos.generated.ts` — run `bun run gen:mcp-logos`.
 - **A dependency nothing imports fails `make lint`.** `bun run lint:deps` is knip
   narrowed to that one question, and it runs in `lint-frontend`. A false positive
