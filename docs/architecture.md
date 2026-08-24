@@ -191,9 +191,12 @@ Visibility cuts both ways: anything that used to reason "an executing run's
 row cannot be seen" now reasons about a row that *is* seen. The agent-triggers
 scheduler is the one place that did — its no-overlap guard blocks only on a
 parked `awaiting_approval` run, never on `running`, because a worker that dies
-mid-run leaves that row `running` forever and a schedule that blocked on it
-would wedge for good; the scheduled fire's liveness signal is its renewed
-lease, not the run row (`app/repositories/agent_trigger.py::claim_due`).
+mid-run leaves that row `running` with nothing in-process left to finish it;
+the scheduled fire's liveness signal is its renewed lease, not the run row
+(`app/repositories/agent_trigger.py::claim_due`). The row itself is bounded by
+the hourly stale-run sweep, which ends it `failed` past
+`STALE_RUN_REAPED_AFTER_HOURS` —
+[Governance](governance.md#a-run-whose-process-died) has what that settles.
 
 ### Dispatching background work from a request
 

@@ -513,6 +513,7 @@ include = [
     # public surface filters at - so a toggle that fails open sends an agent's
     # reasoning to a stranger.
     "app/services/run_stream.py",
+    "app/services/run_reaper.py",
     "app/repositories/agent_workspace.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
@@ -736,6 +737,7 @@ include = [
     # public surface filters at - so a toggle that fails open sends an agent's
     # reasoning to a stranger.
     "app/services/run_stream.py",
+    "app/services/run_reaper.py",
     "app/repositories/agent_workspace.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",

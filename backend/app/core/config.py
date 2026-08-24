@@ -155,6 +155,15 @@ class Settings(BaseSettings):
     # wrong hour. Long enough that a decision is never taken away from someone
     # who was going to make it; short enough that the queue has a ceiling.
     APPROVAL_EXPIRY_HOURS: int = 72
+    # How long a run may sit `running` before the sweep decides its process
+    # died. The row is committed before the model is called (#12), so a worker
+    # killed mid-run leaves it `running` with nothing left to finish it - in
+    # Activity for ever, and blocking any trigger whose resume it was. Six
+    # hours is far past anything this platform executes in one run, and the
+    # ceiling does not have to be exact: a live run the sweep flips anyway is
+    # flipped back by its own terminal write, which lands later and wins.
+    # Zero or below switches the sweep off.
+    STALE_RUN_REAPED_AFTER_HOURS: float = 6.0
     ALGORITHM: str = "HS256"
     FRONTEND_URL: str = "http://localhost:3000"
     PUBLIC_BASE_URL: str = "http://localhost:8000"

@@ -8,6 +8,7 @@ from typing import Any, Literal, cast
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, and_, case, func, or_, select, tuple_
+from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -1599,6 +1600,38 @@ async def list_stale_approvals(
         .limit(limit)
     )
     return list(result.scalars().all())
+
+
+async def fail_stale_runs(
+    db: AsyncSession, *, older_than: datetime, ended_at: datetime, error: str
+) -> list[UUID]:
+    """End every run still `running` from before `older_than`, and name which.
+
+    A run's row is committed `running` before its model is called (#12), so a
+    process that dies mid-run - SIGKILL, OOM, a deploy that does not drain -
+    leaves a row nothing will ever finish. This is the write that bounds that:
+    the sweep's, on a schedule, which is why it is unscoped like
+    :func:`list_stale_approvals` and takes the same do-not-copy warning.
+
+    One conditional UPDATE rather than a read-then-write per row. The guard on
+    `status` re-evaluates against the committed row under the row lock, so a
+    run that reached its own terminal write between the sweep's tick and this
+    statement keeps its outcome - and a *live* run older than the ceiling that
+    this does flip is flipped back by its own terminal write, which lands
+    later and wins. `awaiting_approval` is deliberately not here: a parked row
+    has a resolver, and the approvals sweep is its ceiling.
+    """
+    result = await db.execute(
+        sql_update(AgentRun)
+        .where(
+            AgentRun.status == RunStatus.RUNNING.value,
+            AgentRun.started_at < older_than,
+        )
+        .values(status=RunStatus.FAILED.value, ended_at=ended_at, error=error)
+        .returning(AgentRun.id)
+    )
+    await db.flush()
+    return [row[0] for row in result.all()]
 
 
 async def decide_approval(

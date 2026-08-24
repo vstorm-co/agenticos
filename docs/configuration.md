@@ -196,6 +196,18 @@ approvals are a weekly ritual. Expiring a call also **ends its run** — see
 [Governance](governance.md#a-decision-nobody-makes) for what that settles and what
 it deliberately leaves alone.
 
+### Stale-run reaping
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `STALE_RUN_REAPED_AFTER_HOURS` | `6` | How long a run may sit `running` before the hourly sweep decides its process died and ends it as `failed`. Zero or below switches the sweep off |
+
+A run's row is committed before its model is called, so a worker killed mid-run
+leaves it `running` with nothing left to finish it. The ceiling does not have to
+be exact — a live run the sweep flips anyway is flipped back by its own terminal
+write — so set it well past your longest legitimate run and no closer. See
+[Governance](governance.md#a-run-whose-process-died).
+
 ## AI Models — configured in the app, not here
 
 Chat models are not environment variables. Each organization stores its own
