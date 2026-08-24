@@ -194,6 +194,13 @@ upload, a sync somebody started, a channel connection's stream and a trigger's
 manual "run now" are all handed over. The ordering is proved against a real
 database in `tests/integration/test_flow_starts_after_commit.py`.
 
+At the other end of the process's life, the application lifespan closes the loop:
+after intake stops and serving has drained, it `await`s `background.drain()` for
+whatever `spawn` handed off and is still in flight, **before** disposing the
+vector store, Redis and the session those tasks read. Without it a shutdown
+mid-ingestion cancelled the flow and left the document in `processing` — the same
+stuck row as [#417][417], reached from the other end.
+
 The trigger's manual fire is there for a second reason worth naming, because it
 is the other half of why a request hands work over at all: `POST
 /agents/{id}/triggers/{id}/run` used to *await* the run it started, so an agent
