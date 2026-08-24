@@ -75,6 +75,35 @@ describe("the OAuth callback", () => {
     expect(useConversationStore.getState().currentConversationId).toBeNull();
     expect(useAuthStore.getState().accessToken).toBe("t-new");
   });
+
+  it("spends a single-use code once across a remount", async () => {
+    // Strict Mode mounts this effect, cleans it up and mounts it again in dev;
+    // both must share the one request, or the second POSTs a code the first
+    // already redeemed and the sign-in 401s (#14, codex).
+    searchParams.set("code", "dupe");
+    let resolve!: (value: { user: typeof arriving; access_token: string }) => void;
+    vi.mocked(apiClient.post).mockReturnValue(
+      new Promise<{ user: typeof arriving; access_token: string }>((r) => {
+        resolve = r;
+      }),
+    );
+
+    render(
+      <QueryClientProvider client={client}>
+        <CallbackPage />
+      </QueryClientProvider>,
+    );
+    render(
+      <QueryClientProvider client={client}>
+        <CallbackPage />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledTimes(1));
+    resolve({ user: arriving, access_token: "t-new" });
+    await waitFor(() => expect(useAuthStore.getState().user?.id).toBe("u-new"));
+    expect(apiClient.post).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("the magic link", () => {

@@ -57,7 +57,7 @@ async def test_an_unknown_code_redeems_to_none() -> None:
 async def test_the_callback_redirect_carries_a_code_not_the_tokens(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    app.dependency_overrides[get_redis] = lambda: _FakeRedis()
+    app.dependency_overrides[get_redis] = _FakeRedis
     monkeypatch.setattr(
         oauth.google,
         "authorize_access_token",
@@ -92,7 +92,7 @@ async def test_exchange_returns_the_pair_for_a_valid_code(client: AsyncClient) -
 
 
 async def test_exchange_refuses_an_unknown_code(client: AsyncClient) -> None:
-    app.dependency_overrides[get_redis] = lambda: _FakeRedis()
+    app.dependency_overrides[get_redis] = _FakeRedis
 
     resp = await client.post(_EXCHANGE, json={"code": "never-issued"})
 

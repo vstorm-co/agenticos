@@ -1348,6 +1348,11 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("POST", f"{V1}/auth/magic-link/verify"),
         ("GET", f"{V1}/oauth/google/login"),
         ("GET", f"{V1}/oauth/google/callback"),
+        # The sign-in code exchange (#14). The callback redirects the browser
+        # with a single-use, one-minute code instead of the tokens; the frontend
+        # swaps it here server to server. There is no session yet - the code is
+        # the credential, and it redeems exactly once.
+        ("POST", f"{V1}/oauth/exchange"),
         # Redirect targets. The provider drives the browser back here with a
         # code, and it cannot be asked to carry our session while doing so; the
         # code itself is the credential.
