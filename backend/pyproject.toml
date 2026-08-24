@@ -21,7 +21,7 @@ dependencies = [
     # (#353), and an older FastAPI answers `TypeError` at import rather than
     # quietly reverting - but only 0.141.1 has been run against this suite.
     "fastapi>=0.141.1",
-    "uvicorn[standard]>=0.52.3",
+    "uvicorn[standard]>=0.52.4",
     "pydantic[email]>=2.13.4",
     "pydantic-settings>=2.15.0",
     "python-multipart>=0.0.20",
@@ -66,7 +66,7 @@ dependencies = [
     # Pydantic AI is: this is where those are maintained, and pinning would
     # freeze the detectors and the model registry they read. 0.21.0 is the floor
     # all three were written against.
-    "pydantic-ai-harness>=0.21.0",
+    "pydantic-ai-harness>=0.24.0",
     "websockets>=15.0",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason
@@ -79,11 +79,11 @@ dependencies = [
     "pillow>=10.0.0",
     "python-docx>=1.1.0",
     "openpyxl>=3.1.0",
-    "llama-cloud>=2.14.0",
+    "llama-cloud>=2.14.1",
     "liteparse>=2.12.0",
-    "google-api-python-client>=2.0.0",
+    "google-api-python-client>=2.199.0",
     "google-auth>=2.56.3",
-    "boto3>=1.43.72",
+    "boto3>=1.43.77",
     "httpx>=0.28.0",
     "click>=8.1.0",
     # `cli/commands.py` renders every list the CLI prints. It has no import site
@@ -145,8 +145,8 @@ dev = [
     "anyio[trio]>=4.14.2",
     "pytest-cov>=6.1.0",
     "httpx>=0.28.0",
-    "ruff>=0.16.3",
-    "ty>=0.0.72",
+    "ruff>=0.16.4",
+    "ty>=0.0.73",
     "pre-commit>=4.6.2",
     "pytest-xdist>=3.8.0",
     # Shuffles the suite every run and prints the seed, so an order-dependent
