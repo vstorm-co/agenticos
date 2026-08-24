@@ -35,6 +35,8 @@ curl http://localhost:8000/api/v1/health
 ### Reverse proxy
 Nginx config in `nginx/` proxies `/` → frontend, `/api` → backend, `/ws` → backend WebSocket. Update `server_name` and TLS cert paths in `nginx/conf.d/app.conf`.
 
+The backend sets its own security headers on every response — a Content-Security-Policy, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy` and `Permissions-Policy` — so a deployment behind any proxy, not only the bundled Nginx, is covered. HSTS is deliberately left to the proxy, which is where TLS terminates; a front proxy that sets its own CSP should make sure it is at least as strict.
+
 
 
 

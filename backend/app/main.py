@@ -26,7 +26,7 @@ from app.core.logging import setup_logging
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.core import maintenance
 from app.core.maintenance import MaintenanceModeMiddleware
-from app.core.middleware import RequestIDMiddleware
+from app.core.middleware import RequestIDMiddleware, SecurityHeadersMiddleware
 from app.core.watchdog import EventLoopWatchdog
 from app.clients.redis import RedisClient
 from app.services.rag.embeddings import EmbeddingService
@@ -306,6 +306,18 @@ OS for your agents.
     app.add_middleware(MaintenanceModeMiddleware)
 
     app.add_middleware(RequestIDMiddleware)
+
+    # Security headers on every response - CSP, nosniff, X-Frame-Options: DENY,
+    # Referrer-Policy, Permissions-Policy. It was written and never registered, so
+    # `files.py` already opts its one framed endpoint down to SAMEORIGIN against a
+    # default that was not there (#18); the headers use `setdefault`, so that
+    # per-response override still wins. The doc pages are excluded by their real
+    # mounted paths (the schema lives under the API prefix, not at `/openapi.json`),
+    # so the CSP cannot break Swagger/ReDoc loading their CDN assets.
+    app.add_middleware(
+        SecurityHeadersMiddleware,
+        exclude_paths={path for path in (docs_url, redoc_url, openapi_url) if path},
+    )
 
     register_exception_handlers(app)
 

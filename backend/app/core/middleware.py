@@ -89,7 +89,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers.setdefault("Content-Security-Policy", csp_value)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
-        response.headers.setdefault("X-XSS-Protection", "1; mode=block")
+        # 0, not "1; mode=block": the legacy auditor is deprecated and its
+        # blocking mode opens XS-Leak vectors in the browsers that still have it,
+        # so OWASP is to disable it and rely on the CSP above.
+        response.headers.setdefault("X-XSS-Protection", "0")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         response.headers["Permissions-Policy"] = (
             "accelerometer=(), camera=(), geolocation=(), gyroscope=(), "
