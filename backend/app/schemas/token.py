@@ -25,3 +25,9 @@ class RefreshTokenRequest(BaseSchema):
     """Request body for token refresh."""
 
     refresh_token: str
+
+
+class OAuthExchangeRequest(BaseSchema):
+    """Request body swapping a single-use OAuth code for its token pair."""
+
+    code: str

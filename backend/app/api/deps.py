@@ -83,6 +83,7 @@ Redis = Annotated[RedisClient, Depends(get_redis)]
 
 from app.services.user import UserService
 from app.services.session import SessionService
+from app.services.oauth_exchange import OAuthExchangeService
 from app.services.conversation import ConversationService
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.sandbox_workspace import SandboxWorkspaceService
@@ -99,8 +100,14 @@ def get_session_service(db: DBSession) -> SessionService:
     return SessionService(db)
 
 
+def get_oauth_exchange_service(redis: Redis) -> OAuthExchangeService:
+    """Create OAuthExchangeService instance with the Redis client."""
+    return OAuthExchangeService(redis)
+
+
 UserSvc = Annotated[UserService, Depends(get_user_service)]
 SessionSvc = Annotated[SessionService, Depends(get_session_service)]
+OAuthExchangeSvc = Annotated[OAuthExchangeService, Depends(get_oauth_exchange_service)]
 
 
 def get_conversation_service(db: DBSession) -> ConversationService:
