@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
   Switch,
+  Textarea,
 } from "@/components/ui";
 import { BrandIcon, type BrandName } from "@/components/icons/brand-icon";
 import { ProviderIcon } from "@/components/vault/provider-icon";
@@ -139,6 +140,9 @@ function SchemaField({
   // in would freeze it against a later change in code.
   const fallback = defaultOf(property);
   const multiline = property["x-multiline"] === true;
+  // A connector's plain-text config box (`textarea`), distinct from the prompt
+  // editor `multiline` gets: the two never coincide on one field.
+  const textarea = property["x-textarea"] === true && !multiline;
   // Off on every mount, including a re-open of the same dialog: revealing is a
   // decision about the room you are in, and the room changes.
   const [revealed, setRevealed] = useState(false);
@@ -259,7 +263,24 @@ function SchemaField({
         />
       )}
 
-      {kind === "string" && !multiline && (
+      {kind === "string" && textarea && (
+        /* A connector's plain-text config box (`textarea`) - not the
+           MarkdownEditor above, which is for prose, and not masked: a secret is
+           single-line and never a config field, so nothing emits a masked
+           textarea and the reveal machinery below never reaches here. */
+        <Textarea
+          id={id}
+          rows={6}
+          value={typeof value === "string" ? value : typeof fallback === "string" ? fallback : ""}
+          disabled={disabled}
+          spellCheck={false}
+          className="font-mono text-xs"
+          onChange={(event) => onChange(event.target.value === "" ? undefined : event.target.value)}
+          {...invalid}
+        />
+      )}
+
+      {kind === "string" && !multiline && !textarea && (
         <div className="relative">
           <Input
             id={id}

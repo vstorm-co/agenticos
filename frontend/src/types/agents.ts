@@ -572,6 +572,17 @@ export interface JsonSchemaProperty {
    */
   "x-multiline"?: boolean;
   /**
+   * Whether this string is a plain multi-line value - a raw textarea, not the
+   * Markdown editor `x-multiline` gets.
+   *
+   * The one field kind a capability's own JSON Schema never emits: it is how a
+   * connector's `textarea` config field crosses into this shape through
+   * `connectorConfigToJsonSchema`, so a connector's plain config box is not
+   * mistaken for prose and dressed with a Markdown toolbar. Exclusive with
+   * `x-multiline`.
+   */
+  "x-textarea"?: boolean;
+  /**
    * What a `list[...]` holds. Only `{"type": "string"}` is rendered; anything
    * else is the richer editor the generated form deliberately does not grow.
    */
