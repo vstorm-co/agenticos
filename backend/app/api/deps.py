@@ -957,6 +957,20 @@ async def get_vectorstore(
 VectorStoreSvc = Annotated[BaseVectorStore, Depends(get_vectorstore)]
 
 
+def get_organization_teardown_service(
+    db: DBSession, vector_store: VectorStoreSvc
+) -> OrganizationService:
+    """OrganizationService that can also drop a deleted tenant's vector tables.
+
+    Only the delete route wires the vector store in; every other org route uses
+    the plain factory so it does not build a store it never touches (#9).
+    """
+    return OrganizationService(db, vector_store=vector_store)
+
+
+OrganizationTeardownSvc = Annotated[OrganizationService, Depends(get_organization_teardown_service)]
+
+
 def get_retrieval_service(vector_store: VectorStoreSvc) -> RetrievalService:
     """Create RetrievalService instance."""
     return RetrievalService(vector_store=vector_store, settings=settings.rag)

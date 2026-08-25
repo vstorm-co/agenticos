@@ -12,6 +12,7 @@ from app.core.exceptions import (
     AlreadyExistsError,
     AuthenticationError,
     AuthorizationError,
+    BadRequestError,
     NotFoundError,
 )
 from app.core.security import (
@@ -23,7 +24,13 @@ from app.core.security import (
 )
 from app.db.models.user import User
 from app.db.updates import writable
-from app.repositories import session_repo, user_repo
+from app.repositories import (
+    member_repo,
+    organization_repo,
+    organization_secret_repo,
+    session_repo,
+    user_repo,
+)
 from app.schemas.conversation_share import AdminUserList, AdminUserRead
 from app.schemas.user import UserCreate, UserUpdate
 from app.services.deployment_settings import DeploymentSettingsService
@@ -301,13 +308,42 @@ class UserService:
         return str(full_path) if full_path is not None else None
 
     async def delete(self, user_id: UUID) -> User:
-        user = await user_repo.delete(self.db, user_id)
+        user = await user_repo.get_by_id(self.db, user_id)
         if not user:
             raise NotFoundError(
                 message="User not found",
                 details={"user_id": user_id},
             )
+        await self._release_owned_rows(user_id)
+        await user_repo.delete(self.db, user_id)
         return user
+
+    async def _release_owned_rows(self, user_id: UUID) -> None:
+        """Hand on or remove what would otherwise block the user's deletion (#9).
+
+        Three FK/CHECK pairs make a bare `DELETE users` 500: a private secret's
+        owner is `SET NULL` under a check that forbids an ownerless private
+        secret; every signup creates a personal org, and `created_by_user_id` is
+        `RESTRICT`. Each is resolved here in the request's own transaction, before
+        the row goes.
+        """
+        await organization_secret_repo.promote_owned_private_to_org(self.db, owner_user_id=user_id)
+
+        org_service = OrganizationService(self.db)
+        for org in await organization_repo.list_created_by(self.db, user_id):
+            if org.is_personal:
+                await org_service.purge(org)
+                continue
+            heir = await member_repo.other_owner_id(
+                self.db, organization_id=org.id, exclude_user_id=user_id
+            )
+            if heir is None:
+                raise BadRequestError(
+                    message="Cannot delete the sole owner of a shared organization; "
+                    "transfer ownership or delete the organization first",
+                    details={"user_id": user_id, "organization_id": org.id},
+                )
+            await organization_repo.reassign_creator(self.db, org=org, new_creator_id=heir)
 
     async def admin_update(
         self, user_id: UUID, user_in: UserUpdate, *, acting_admin_id: UUID

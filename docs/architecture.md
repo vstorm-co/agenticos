@@ -276,6 +276,33 @@ table in the schema. The index on `parent_run_id` serves
 [Governance](governance.md#what-run-history-shows) for why run history never lists
 the two kinds of row together.
 
+## Deleting a member or a tenant
+
+A few foreign keys would, on delete, drive precisely the write a `CHECK`
+constraint forbids — so the cascade the schema declares and the invariant it also
+declares disagree, and the delete raises inside the database as a 500 rather than
+doing anything. Three pairs are reconciled in the service before the row goes,
+inside the request's own transaction:
+
+- **A leaver's private secret.** `organization_secrets.owner_user_id` is
+  `SET NULL`, but `ck_secret_private_needs_owner` forbids an ownerless private
+  secret. `UserService.delete` promotes the leaver's private secrets to org
+  visibility first, so the null the cascade writes is legal and the key stays
+  reachable by the organization rather than stranded.
+- **A creator's organizations.** `organizations.created_by_user_id` is
+  `RESTRICT`, and every signup creates a personal org, so a bare `DELETE users`
+  never worked for a real account. The personal org is removed with its owner; a
+  shared one is handed to another owner, or the delete is refused when there is
+  none to hand it to.
+- **An org-scoped collection.** `knowledge_bases.organization_id` is `SET NULL`,
+  but `ck_knowledge_bases_org_scope_has_org` forbids an org-scoped row with no
+  org. `OrganizationService.delete` removes org-scoped collections explicitly —
+  vector table and all — before the org row goes; a personal collection that
+  merely carries the org's id is left to the `SET NULL`, which its scope permits.
+  Because dropping the vector table needs the request-scoped store, the delete
+  route wires it in through a dedicated dependency; every other org route uses the
+  plain service and builds no store it would never touch.
+
 ## What a run handed its model, and why it is a table
 
 `run_manifests` holds one row per run: the instructions as composed and sent,
