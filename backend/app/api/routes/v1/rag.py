@@ -349,14 +349,17 @@ async def list_rag_documents(
     access: CollectionAccessSvc,
     ctx: Auth,
     collection_name: str | None = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
 ) -> Any:
-    """List tracked RAG documents.
+    """List a page of tracked RAG documents.
 
     Without `collection_name` this answers with the caller's collections -
-    not, as it once did, with every document in the deployment.
+    not, as it once did, with every document in the deployment - and it pages
+    rather than serializing every row across them (#27).
     """
     collections = await access.readable_names_for(ctx, collection_name)
-    return await rag_doc_svc.list_documents(collections=collections)
+    return await rag_doc_svc.list_documents(collections=collections, skip=skip, limit=limit)
 
 
 @router.get(
