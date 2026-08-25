@@ -41,6 +41,15 @@ logger = logging.getLogger(__name__)
 # that is merely waiting on I/O.
 _running: set[asyncio.Task[Any]] = set()
 
+_CANCEL_GRACE_SECONDS = 5.0
+"""How long `drain` waits for a cancelled task to unwind before giving up on it.
+
+Cancellation is cooperative, so a task that suppresses it or blocks in an async
+`finally` would hang shutdown forever if awaited unbounded. Past this grace the
+task is left rather than waited on - accepting the resource-teardown race the
+await exists to avoid, in exchange for a shutdown that always terminates (#1095).
+"""
+
 
 def _on_done(task: asyncio.Task[Any]) -> None:
     """Release the reference and report anything that went wrong.
@@ -164,11 +173,13 @@ async def drain(timeout: float = 30.0) -> None:
     that freshly-spawned task still in flight. The whole wait shares one
     deadline, so work that keeps spawning work cannot postpone shutdown forever.
 
-    Whatever is still running at the deadline is cancelled *and then awaited to a
-    terminal state* before returning. A caller disposes shared resources once
-    this returns - the Redis client, the database engine - and a cancelled task
-    unwinds through its own `finally` on those same resources; returning before
-    it has settled races the two (#1095).
+    Whatever is still running at the deadline is cancelled and then awaited, for
+    a bounded grace, to a terminal state before returning. A caller disposes
+    shared resources once this returns - the Redis client, the database engine -
+    and a cancelled task unwinds through its own `finally` on those same
+    resources; returning before it has settled races the two. The grace is
+    bounded because cancellation is cooperative: a task that suppresses it must
+    not hang shutdown past `_CANCEL_GRACE_SECONDS` (#1095).
     """
     if not _running:
         return
@@ -189,4 +200,7 @@ async def drain(timeout: float = 30.0) -> None:
         )
         for task in overran:
             task.cancel()
-        await asyncio.gather(*overran, return_exceptions=True)
+        # Bounded, not an unconditional `gather`: give cancellation a grace to
+        # unwind through cleanup, but never wait past it - a task that ignores
+        # cancellation would otherwise hang shutdown forever (#1095).
+        await asyncio.wait(overran, timeout=_CANCEL_GRACE_SECONDS)

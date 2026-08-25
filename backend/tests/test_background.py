@@ -296,3 +296,26 @@ class TestDrainingOnShutdown:
 
         assert task.done()
         assert cleaned.is_set()
+
+    async def test_a_stubborn_cancelled_task_does_not_hang_shutdown(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Awaiting a cancelled task is bounded: cancellation is cooperative, so a
+        task that blocks in its cleanup must not hold shutdown open forever (#1095)."""
+        monkeypatch.setattr(background, "_CANCEL_GRACE_SECONDS", 0.05)
+        release = asyncio.Event()
+
+        async def stubborn() -> None:
+            try:
+                await asyncio.Event().wait()
+            finally:
+                await release.wait()
+
+        background.spawn(stubborn(), name="stubborn")
+        await asyncio.sleep(0)
+
+        # An unbounded await would hang here; drain must return after the grace.
+        await asyncio.wait_for(background.drain(timeout=0.01), timeout=1.0)
+
+        release.set()
+        await asyncio.sleep(0)
