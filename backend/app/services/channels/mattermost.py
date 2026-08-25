@@ -44,6 +44,7 @@ from app.agents.capabilities.channel_tools import (
     ChannelPost,
     ChannelSummary,
 )
+from app.core.security import encode_untrusted
 from app.db.session import get_db_context
 from app.services.channels.base import (
     ChannelAdapter,
@@ -657,7 +658,7 @@ class MattermostAdapter(ChannelAdapter):
             return False
         payload = decode_webhook_body(body)
         token = str(payload.get("token", ""))
-        return bool(token) and secrets.compare_digest(token.encode(), secret.encode())
+        return bool(token) and secrets.compare_digest(encode_untrusted(token), secret.encode())
 
     def parse_incoming(self, raw_payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:
         """Normalise a `posted` event or an outgoing-webhook body.
