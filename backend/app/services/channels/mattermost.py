@@ -657,7 +657,7 @@ class MattermostAdapter(ChannelAdapter):
             return False
         payload = decode_webhook_body(body)
         token = str(payload.get("token", ""))
-        return bool(token) and secrets.compare_digest(token, secret)
+        return bool(token) and secrets.compare_digest(token.encode(), secret.encode())
 
     def parse_incoming(self, raw_payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:
         """Normalise a `posted` event or an outgoing-webhook body.

@@ -898,7 +898,7 @@ async def verify_api_key(
     """
     if api_key is None:
         raise AuthenticationError(message="API Key header missing")
-    if not secrets.compare_digest(api_key, settings.API_KEY):
+    if not secrets.compare_digest(api_key.encode(), settings.API_KEY.encode()):
         raise AuthorizationError(message="Invalid API Key")
     return api_key
 
