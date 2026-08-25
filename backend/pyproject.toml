@@ -368,7 +368,7 @@ ignore = [
 # third-party SDK calls are its debt, tracked rather than silently accepted:
 # they move out of this list when that subsystem is rewritten.
 "app/services/rag/retrieval.py" = ["A002", "S324"]
-"app/services/file_upload.py" = ["ASYNC230", "TRY300", "PTH123", "PTH108"]
+"app/services/file_upload.py" = ["TRY300", "PTH123", "PTH108"]
 # Template-inherited subsystems. These are readability rules whose value is
 # real but whose cost right now is churn in code we did not design and are not
 # yet responsible for. They lift file by file as each subsystem is rewritten —
