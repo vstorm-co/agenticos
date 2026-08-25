@@ -731,21 +731,26 @@ Sync operations are tracked via the `SyncLog` model, recording source, mode,
 total files, ingested/updated/skipped/failed counts, and timing. View sync
 history via `GET /rag/sync/logs`.
 
-**Which stored document a file corresponds to is one question, asked once.**
-`IngestionService.existing_document` reads the collection's document listing a
-single time and answers with both the document's id and its stored
-`content_hash`, in one precedence: a `source_path` match beats a `filename`
-match, and a `content_hash` match is the last resort. The two answers come back
-together on purpose — they are facts about *one* document, and while they were
-computed by separate lookups they could disagree, so a sync compared a live
-file's hash against a different document's and either re-embedded an unchanged
-file every night or skipped a changed one as current
-([#548](https://github.com/vstorm-co/agenticos/issues/548)). That also made
-ingesting one changed file read the whole collection up to four times; it is now
-once for the decision and once inside the ingest
-([#566](https://github.com/vstorm-co/agenticos/issues/566)). Reading it at all is
-still a full scan — [#27](https://github.com/vstorm-co/agenticos/issues/27) is the
-pagination that would fix that.
+**Which stored document a file corresponds to is one question, and an indexed
+one.** `IngestionService.existing_document` hands it to the store's
+`find_existing_document`, which looks the document up one metadata key at a
+time — `source_path`, then a `filename` the document has not addressed under a
+different path, then `content_hash` — in that precedence, stopping at the first
+hit. It answers with both the document's id and its stored `content_hash`, and
+the two come back together on purpose: they are facts about *one* document, and
+while they were computed by separate lookups with different rules they could
+disagree, so a sync compared a live file's hash against a different document's
+and either re-embedded an unchanged file every night or skipped a changed one as
+current ([#548](https://github.com/vstorm-co/agenticos/issues/548)). `PgVectorStore`
+serves each lookup from an expression index on that metadata key — built with the
+runtime table, so an established collection gains the indexes on its next ingest —
+which makes the check a handful of indexed statements rather than the read of the
+whole `rag_<collection>` table into worker memory it used to be, once per ingested
+document on a collection that could hold hundreds of thousands of chunks
+([#1102](https://github.com/vstorm-co/agenticos/issues/1102), the ingest half of
+[#27](https://github.com/vstorm-co/agenticos/issues/27); its other half paginated
+the tracked-documents listing). A base-class fallback still answers by reading the
+listing, for a store that has no index to lean on.
 
 `new_only` skips a file whose stored hash matches, `update_only` skips one that
 is unchanged and ignores one that is new, and `full` replaces whatever it
