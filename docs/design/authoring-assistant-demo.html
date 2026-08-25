@@ -889,12 +889,24 @@ function editSugg(id) {
   actions.dataset.editing = "1";
   const addedRows = [...document.querySelectorAll(`tr.added[data-s="${id}"]`)]
     .map(tr => tr.querySelector(".text").textContent.replace(/ /g, "")).filter(Boolean);
-  actions.insertAdjacentHTML("beforebegin",
-    `<div class="pop-edit" id="edit-${id}"><textarea>${addedRows.join("\n")}</textarea>
-     <div class="pop-actions">
-       <button class="btn btn-sm btn-primary" onclick="saveEdit('${id}')">Save &amp; accept</button>
-       <button class="btn btn-sm btn-ghost" onclick="cancelEdit('${id}')">Cancel</button>
-     </div></div>`);
+  const box = document.createElement("div");
+  box.className = "pop-edit";
+  box.id = "edit-" + id;
+  const ta = document.createElement("textarea");
+  ta.value = addedRows.join("\n");
+  const row = document.createElement("div");
+  row.className = "pop-actions";
+  const save = document.createElement("button");
+  save.className = "btn btn-sm btn-primary";
+  save.textContent = "Save & accept";
+  save.addEventListener("click", () => saveEdit(id));
+  const cancel = document.createElement("button");
+  cancel.className = "btn btn-sm btn-ghost";
+  cancel.textContent = "Cancel";
+  cancel.addEventListener("click", () => cancelEdit(id));
+  row.append(save, cancel);
+  box.append(ta, row);
+  actions.before(box);
   actions.hidden = true;
   anchor.classList.add("pinned");
 }
