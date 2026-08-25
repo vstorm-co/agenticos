@@ -7,8 +7,10 @@ asks for, written for review by @DEENUU1 before any implementation. A companion
 demo of the review UI is beside it: `docs/design/authoring-assistant-demo.html`.
 
 The one-sentence design: **the assistant reads the org's own run record and
-ratings, proposes changes as evidence-backed diffs, and everything it proposes
-lands in a draft a person reviews and publishes — it writes nothing on its own.**
+ratings, proposes changes as evidence-backed diffs — or verifies changes a
+person made by hand — and everything lands in a draft a person reviews,
+replays against real past prompts, and publishes; it writes nothing on its
+own, and an organization can switch it off entirely.**
 
 ## 0. What already exists — corrected
 
@@ -103,20 +105,39 @@ Mechanism, per surface:
   `run_id`/`conversation_id`, status pending/accepted/dismissed, terminal
   decisions, one pending proposal per target — a later run supersedes it).
   Two target kinds:
-  - `instructions`: the **whole proposed body**, same argument as skills — a
-    stored diff rots as the draft moves; the reviewer compares two complete
-    texts, and the UI computes the diff at render time with the existing
-    `frontend/src/lib/diff.ts`.
+  - `instructions`: **a base snapshot plus a list of anchored hunks**, each
+    `{old_text, new_text, rationale, evidence}`, decided independently.
+    This deliberately diverges from `skill_proposals`' whole-body shape,
+    because the decision differs: a skill proposal is accepted or discarded
+    whole, where a prompt review is per-change — the demo's Accept / Edit /
+    Dismiss on each suggestion is the product. Staleness is handled openly
+    rather than avoided: a hunk applies only while its `old_text` still
+    matches the current draft; a hunk whose anchor is gone renders as
+    *stale* with a side-by-side view, never applies silently. The UI
+    computes the visible diff with the existing `frontend/src/lib/diff.ts`.
   - `tool_override`: `capability_id` + stable `tool_id` + the proposed
     `description` (and rarely `name`) — the same two fields
     `ToolOverride` carries, so acceptance is a two-field write into
     `capabilities[i].tool_overrides[tool_id]` that must survive
     `_tool_override_problems` at publish.
-- Each row also carries `rationale` (one paragraph, the assistant's argument)
+- Each hunk carries `rationale` (one paragraph, the assistant's argument)
   and `evidence` (JSONB: rating ids, run ids, the numbers behind "3 of 5 👎") —
   rendered in the review UI as the hover popover the demo shows, resolved
   through org-scoped reads so a stale or foreign id renders as absent, never
   as a leak.
+- **Accepting must not race the Builder's autosave.** The Builder holds the
+  draft client-side and autosaves the whole spec, so a server-side accept
+  while the page is open would be clobbered by the next autosave. Accept
+  therefore happens *in* the Builder: the client applies the hunk to its own
+  state and the server write and query invalidation travel together.
+
+Propose-only is also the security boundary, not just the review ergonomics.
+The assistant reads rating comments and transcripts — text written by
+whoever chats with the agent, which makes it a prompt-injection surface: a
+comment can try to steer the improver into proposing a hostile instruction
+("ignore the refund policy"). A proposal rendered as a diff with its evidence
+quoted is exactly the artifact a person can catch that in; an assistant that
+wrote directly would carry the injection straight into the spec.
 
 *Rejected: auto-accept below some confidence bar; a version-controlled "agent
 edited this" publish path. Both make the assistant a writer, and the platform's
@@ -215,11 +236,12 @@ code-defined catalog pre-filling the create form) and kept as complementary:
 templates answer "give me the usual shape", the assistant answers "design this
 from my description". Neither replaces the other.
 
-## Decision 6 — evaluation is out: phase 2, its own milestone
+## Decision 6 — synthetic evaluation is out; replay on real prompts is in
 
 Synthetic datasets, a scoring function and result storage are a schema change
 and a ground-truth question this issue should not carry — scoped out exactly as
-the issue suggests. Two things belong in this plan anyway:
+the issue suggests. What *is* in scope is the evaluation the org's own history
+already funds — Decision 9's replay — plus two things worth stating here:
 
 - **The cheap loop already exists.** `rating_counts_by_version` answers "did
   the accepted change help" without any harness: after a proposal is accepted
@@ -227,9 +249,9 @@ the issue suggests. Two things belong in this plan anyway:
   rating shift as evidence — the improvement loop closes on data we already
   keep.
 - **Phase 2 sketch, deliberately undesigned:** dataset rows (input, expected
-  qualities), eval runs as ordinary runs so metering and Activity come free,
-  scoring as a capability or a judge agent, results keyed on
-  `agent_version_id`. Each of those is a decision for its own plan.
+  qualities), scoring as a capability or a judge agent, results keyed on
+  `agent_version_id`. Each of those is a decision for its own plan; replay
+  (Decision 9) will have built the run-and-compare mechanics they reuse.
 
 ## Decision 7 — three surfaces, one review grammar
 
@@ -251,6 +273,80 @@ Skills proposals stay on the Skills page where they already render.
 Per the walkthrough rule, the new strip and the Improve action owe `tour.ts`
 stops (gated on `agents:edit`, `optional: true` — the strip renders only when
 proposals exist) in the same change.
+
+## Decision 8 — two directions, one grammar: the assistant also verifies
+
+Improvement flows both ways. Beside *assistant proposes → person decides*
+(Decisions 2 and 7), a person who edited the draft by hand can ask the
+assistant to **verify** their changes: the same improver agent, handed the
+diff between the current draft and the last published version plus the same
+evidence, answers with a critique — what the edit improves, what it risks,
+and what it silently removed ("you dropped the language-matching line; two
+👎 were about answering Polish customers in English").
+
+The verdict is a report, and anything actionable in it is an ordinary
+proposal hunk — same table, same review grammar, same accept path. No second
+mechanism: verification is the improver run with a different injected
+resource (the human's diff instead of a blank slate), so budgets, Activity
+and the org switch (Decision 10) cover it for free.
+
+*Rejected: a blocking "AI gate" on publish — a verdict that could refuse a
+publish makes the assistant an authority over people, which inverts the
+platform's model. The critique informs; `validate_spec` and a person decide.*
+
+## Decision 9 — replay: test a draft against the prompts users already sent
+
+After editing (either direction), a person can run the candidate spec against
+**real past prompts of this agent** and compare answers side by side: the
+opening user messages of recent conversations (rated-down ones first), the
+old answer from history, the new answer from the candidate, a human verdict
+per pair with an optional judge suggestion. This is evaluation grounded in
+data the org already owns — no synthetic dataset, no ground-truth question.
+
+The three hard edges, decided here:
+
+- **A replay must never re-fire a side effect.** The original run may have
+  sent a message or written a file; replaying it must not do it twice. Tool
+  calls are answered **from the recording**: `tool_calls` rows and the run
+  manifest hold the original arguments and results, so a replay toolset
+  serves the recorded result when the candidate calls the same tool, and
+  when the candidate diverges — calls a tool the original never called — the
+  call is *not executed*: the pair is marked **divergent** and the reviewer
+  sees which tool the new prompt reached for. Divergence is a finding, not a
+  failure; read-only capability calls (knowledge search) may be allowed live
+  behind a config, side-effecting ones never.
+- **A replay runs the candidate, which is a draft.** Two ways to get there:
+  teach `prepare` to accept an explicit spec (a `spec=` escape hatch beside
+  `get_runnable_spec`, used only by replay and gated accordingly), or
+  publish the candidate into a shadow environment nothing user-facing points
+  at and replay via the existing `environment_id` path. The first keeps
+  version history clean; the second reuses more. Left open for review
+  (question 6) with a lean toward the explicit spec — versions are the
+  product's audit trail and test noise does not belong in it.
+- **Replay runs are runs.** Metered against the agent's and the org's caps
+  (a replay of twenty prompts is a visible, bounded spend, shown before the
+  button fires), recorded through `finish`, and stamped with a new
+  `RunSurface.REPLAY` — the member has a writer now, so it earns its place
+  under the enum's own rule, and for the same reason `EMBED` exists: a
+  replay stamped `WEB` lies to anyone asking how the product is used.
+
+Comparison results live on the replay session (a small table: candidate
+hunks/spec reference, prompt-pair verdicts, spend), keyed to the agent and
+readable under `runs:view`. The demo shows the comparison view.
+
+## Decision 10 — an organization switch, off means off
+
+Whether AI assists authoring at all is the organization's decision, not the
+platform's default-on. A single org-level setting (in organization settings,
+gated on `org:settings` like the rest of them) turns the assistant off: the
+backend refuses Improve, Verify and Replay runs when it is off — the
+frontend hiding the strip is a courtesy, the service refusal is the
+boundary, in exactly the "not rendered is not enough" sense the permission
+rules already state. The seeded improver agent stays (it is data), it just
+cannot be started through the authoring surface.
+
+One switch in v1. Granularity (proposals yes / replay no, or per-surface)
+is question 7 — cheap to add later, expensive to guess now.
 
 ## Work breakdown (phase 1, in review order)
 
@@ -274,22 +370,39 @@ proposals exist) in the same change.
    Activity, degrades honestly when the org has no model profile.
 5. **Mode 1** — `propose_agent` → draft creation on the promote path. Test:
    draft only, owned by the caller, publish untouched.
-6. **Frontend** — assistant strip + diff review (reuse `diff.ts` and the
+6. **Verify direction** — the diff-in resource and the critique output
+   (Decision 8); actionable findings land as ordinary proposal hunks. Test:
+   a verify run with the switch off is refused; a critique proposes, never
+   writes.
+7. **Replay** — the replay toolset answering from `tool_calls`/manifest
+   recordings, divergence marking, the candidate-spec path chosen in review,
+   `RunSurface.REPLAY`, the session + pair-verdict rows, spend preview.
+   Tests: a side-effecting tool is never executed on replay; a divergent
+   call is recorded and not fired; replay spend meters against both caps;
+   cross-tenant prompt sourcing refused.
+8. **The organization switch** — org settings field + service refusal on all
+   three entry points + frontend gating. Test: off means the endpoint
+   refuses, not just the UI hiding.
+9. **Frontend** — assistant strip + diff review (reuse `diff.ts` and the
    `SpecDiff` idiom), Toolbox proposed-description rows, accept/edit/dismiss
-   wiring, i18n keys, tour stops.
-7. **Docs owed by the implementation, per the trigger map** —
-   `docs/skills.md` and `docs/concepts.md` (named by the issue),
-   `docs/reference/capabilities.md` (new capability),
-   `docs/governance.md` (what an improver run meters). This plan lives in
-   `docs/design/` and is excluded from the published site.
+   wiring, verify report, replay comparison view, i18n keys, tour stops.
+10. **Docs owed by the implementation, per the trigger map** —
+    `docs/skills.md` and `docs/concepts.md` (named by the issue),
+    `docs/reference/capabilities.md` (new capability),
+    `docs/governance.md` (what improver and replay runs meter, the org
+    switch). This plan lives in `docs/design/` and is excluded from the
+    published site.
 
 Each slice is a committable piece with its own tests; 1–2 are useful alone
-(they finish the ratings story), 3–5 are the assistant, 6 is the surface.
+(they finish the ratings story), 3–6 are the assistant, 7 is replay, 8–9 are
+the governance switch and the surface.
 
 ## Out of scope, deliberately
 
-- The evaluation harness (Decision 6 — phase 2, own milestone and schema).
+- The synthetic-dataset harness (Decision 6 — phase 2, own milestone and
+  schema); replay covers the "did it get better" question with real prompts.
 - Auto-accept, auto-publish, or any write outside the draft/proposal path.
+- A verdict that can block a publish (Decision 8's rejected alternative).
 - Trace ingestion or a Logfire dependency of any kind.
 - MCP tool descriptions — they come from the connected server, not the spec;
   improving them means writing to somebody else's catalog.
@@ -311,6 +424,14 @@ Each slice is a committable piece with its own tests; 1–2 are useful alone
    its org cap on self-improvement?
 5. **Proposal retention** — decided proposals kept forever (the audit-trail
    argument) or swept after N days (the clutter argument)?
+6. **How replay runs a draft** — the explicit-spec escape hatch in `prepare`
+   (this plan's lean: version history stays clean) or a shadow environment
+   publish (reuses more, pollutes versions). Decision 9 has both halves.
+7. **Switch granularity** — one org-level toggle (this plan) or per-surface
+   (proposals / verify / replay separately)?
+8. **Who judges a replay pair** — human-only verdicts in v1 with the judge
+   suggestion off by default, or the judge on from the start? Judge calls
+   cost money and add a second model opinion to govern.
 
 ## Resolved in review — @DEENUU1
 

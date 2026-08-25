@@ -293,6 +293,53 @@ tr.removed.settled .text { color:var(--muted-foreground); }
 .tool-row .diff-wrap { background:var(--card); }
 .tool-row-foot { display:flex; gap:6px; align-items:center; }
 
+/* ============ verify report ============ */
+.finding { display:flex; gap:10px; align-items:flex-start; border:1px solid var(--border); border-radius:10px; padding:12px 14px; font-size:13px; }
+.finding svg { width:15px; height:15px; margin-top:2px; }
+.finding.good svg { color:var(--success); }
+.finding.warn { border-color:color-mix(in oklab, var(--warning) 30%, transparent); background:color-mix(in oklab, var(--warning) 6%, transparent); }
+.finding.warn svg { color:var(--warning); }
+.finding .f-body { flex:1; min-width:0; }
+.finding .f-actions { display:flex; gap:6px; margin-top:8px; }
+.finding.resolved { opacity:.55; }
+.finding .pop-chips { margin:6px 0 0; }
+
+/* ============ replay dialog ============ */
+.dialog-overlay {
+  position:fixed; inset:0; z-index:70; background:rgba(0,0,0,.8);
+  display:grid; place-items:center; padding:24px;
+}
+.dialog {
+  background:var(--background); border:1px solid var(--border); border-radius:16px;
+  box-shadow:var(--shadow-float); width:100%; max-width:72rem; max-height:90vh;
+  display:flex; flex-direction:column; gap:14px; padding:24px; position:relative;
+}
+.dialog-title { font-size:18px; font-weight:600; letter-spacing:-.01em; }
+.dialog-desc { font-size:14px; color:var(--muted-foreground); }
+.dialog-close { position:absolute; top:16px; right:16px; color:var(--muted-foreground); }
+.dialog-close:hover { color:var(--foreground); }
+.dialog-close svg { width:16px; height:16px; }
+.replay-summary { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.sum-chip { display:inline-flex; align-items:center; gap:5px; border-radius:999px; padding:2px 10px; font-size:12px; font-weight:500; border:1px solid var(--border); }
+.sum-chip.better { color:var(--success); border-color:color-mix(in oklab, var(--success) 35%, transparent); background:color-mix(in oklab, var(--success) 10%, transparent); }
+.sum-chip.worse { color:var(--destructive); border-color:color-mix(in oklab, var(--destructive) 35%, transparent); background:color-mix(in oklab, var(--destructive) 10%, transparent); }
+.replay-wrap { overflow:auto; border:1px solid var(--border); border-radius:8px; min-height:0; }
+table.replay { width:100%; border-collapse:collapse; font-size:12.5px; min-width:56rem; }
+.replay th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted-foreground); font-weight:500; padding:10px 12px; border-bottom:1px solid var(--border); background:var(--card); position:sticky; top:0; }
+.replay td { padding:10px 12px; vertical-align:top; border-bottom:1px solid var(--border); }
+.replay tr:last-child td { border-bottom:none; }
+.replay .r-prompt { font-weight:500; min-width:12rem; }
+.replay .r-old { color:var(--muted-foreground); }
+.replay .r-old, .replay .r-new { min-width:16rem; max-width:22rem; }
+.replay .r-new .mono-block { font-family:var(--font-mono); font-size:11px; background:var(--muted); border-radius:6px; padding:6px 8px; margin-top:4px; white-space:pre-wrap; }
+.diverge { display:inline-flex; align-items:center; gap:5px; border-radius:999px; border:1px solid var(--brand-line); background:var(--brand-subtle); color:var(--brand); padding:1px 8px; font-size:11px; font-family:var(--font-mono); margin-top:6px; }
+.verdict-seg { display:inline-flex; gap:2px; border:1px solid var(--input); border-radius:8px; padding:2px; }
+.verdict-seg button { border-radius:6px; padding:3px 8px; font-size:11px; color:var(--muted-foreground); }
+.verdict-seg button.on[data-v="better"] { background:color-mix(in oklab, var(--success) 18%, transparent); color:var(--success); }
+.verdict-seg button.on[data-v="same"] { background:var(--muted); color:var(--foreground); }
+.verdict-seg button.on[data-v="worse"] { background:color-mix(in oklab, var(--destructive) 15%, transparent); color:var(--destructive); }
+.judge-note { display:block; font-size:10.5px; color:var(--muted-foreground); margin-top:4px; }
+
 /* ============ misc ============ */
 .placeholder { border:1px dashed var(--border); border-radius:16px; padding:48px; text-align:center; color:var(--muted-foreground); font-size:13px; }
 .toast {
@@ -378,7 +425,44 @@ tr.removed.settled .text { color:var(--muted-foreground); }
         </div>
         <div class="strip-actions">
           <button class="btn btn-sm btn-ghost" onclick="dismissAll()">Dismiss all</button>
+          <button class="btn btn-sm btn-outline" onclick="showVerify()">Verify my edits</button>
           <button class="btn btn-sm btn-outline" onclick="toast('Demo — starts a new improver run. An ordinary run: budgeted, metered, visible in Activity.')">Run again</button>
+        </div>
+      </div>
+
+      <!-- ============ verify: the assistant reviews the human's manual edits ============ -->
+      <div class="card" id="verify-card" hidden>
+        <div class="card-header">
+          <div class="editor-head">
+            <div>
+              <div class="card-title">Verification — your edits vs v7</div>
+              <p class="card-desc" style="margin-top:6px">You edited the draft by hand. The assistant checked the changes against 22 runs and 6 rated answers.</p>
+            </div>
+            <span class="badge badge-secondary mono">improver run #a1d7 · $0.03</span>
+          </div>
+        </div>
+        <div class="card-content" style="gap:10px">
+          <div class="finding good">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <div class="f-body">Capping answers at three paragraphs is supported by the data — rated-down answers average <b>612 output tokens</b> against 214 on rated-up ones.</div>
+          </div>
+          <div class="finding good">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <div class="f-body">Citing the refund-policy clause answers what the 👎 comments asked for.
+              <div class="pop-chips"><span class="chip down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/></svg>2 of 6</span><span class="chip run">run #b127</span></div>
+            </div>
+          </div>
+          <div class="finding warn" id="finding-lang">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            <div class="f-body">Regression risk: your edit removed <span class="mono">"Match the customer's language."</span> 2 of 6 👎 were about answering Polish customers in English — dropping the line will bring those back.
+              <div class="pop-chips"><span class="chip down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/></svg>2 of 6</span><span class="chip run">run #77b0</span><span class="chip run">run #91e2</span></div>
+              <div class="f-actions">
+                <button class="btn btn-sm btn-primary" onclick="resolveFinding(this, 'Restored in the draft — review and publish when ready.')">Restore the line</button>
+                <button class="btn btn-sm btn-ghost" onclick="resolveFinding(this, 'Ignored — recorded with the verification report.')">Ignore</button>
+              </div>
+            </div>
+          </div>
+          <p style="font-size:12px; color:var(--muted-foreground)">The verdict informs — it cannot block a publish. Anything actionable lands as an ordinary suggestion in the diff above.</p>
         </div>
       </div>
 
@@ -498,6 +582,7 @@ tr.removed.settled .text { color:var(--muted-foreground); }
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
             <span id="draft-bar-text"></span>
             <span class="spacer"></span>
+            <button class="btn btn-sm btn-outline" onclick="openReplay()">Test against past prompts</button>
             <button class="btn btn-sm btn-outline" onclick="toast('Demo — in the product this opens the publish dialog: validate_spec runs, a person decides, v8 is minted.')">Review draft &amp; publish v8</button>
           </div>
 
@@ -589,6 +674,63 @@ tr.removed.settled .text { color:var(--muted-foreground); }
     <section class="tab-panel" id="panel-availability" hidden><div class="placeholder">Not part of this demo.</div></section>
     <section class="tab-panel" id="panel-history" hidden><div class="placeholder">Not part of this demo — accepting suggestions edits the draft; publishing mints v8 here.</div></section>
   </main>
+</div>
+
+<!-- ============ replay dialog ============ -->
+<div class="dialog-overlay" id="replay-overlay" hidden>
+  <div class="dialog" role="dialog" aria-labelledby="replay-title">
+    <button class="dialog-close" aria-label="Close" onclick="closeReplay()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+    <div>
+      <div class="dialog-title" id="replay-title">Replay — draft vs v7</div>
+      <p class="dialog-desc">The same prompts users already sent to this agent, answered again by the draft. Tool calls are served from the recordings — nothing side-effecting runs twice.</p>
+    </div>
+    <div class="replay-summary" id="replay-summary"></div>
+    <div class="replay-wrap">
+      <table class="replay">
+        <thead>
+          <tr><th>Prompt (from history)</th><th>v7 answered</th><th>Draft answers</th><th>Verdict</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="r-prompt">"Where's my order #4512?"</td>
+            <td class="r-old">"Thank you so much for reaching out! I completely understand how concerning it can be to wait for a package…" — four paragraphs before the tracking number.</td>
+            <td class="r-new">"Order #4512 shipped Aug 21 via DHL and arrives tomorrow. Tracking: DH-88213."</td>
+            <td data-row="r1"></td>
+          </tr>
+          <tr>
+            <td class="r-prompt">"Can I still return shoes I bought 3 weeks ago?"</td>
+            <td class="r-old">"Our return window is 14 days, so unfortunately the order no longer qualifies…" — the answer a 👎 comment corrected.</td>
+            <td class="r-new">"Yes — refund-policy §2 gives you 30 days from delivery. Here's how to start the return."</td>
+            <td data-row="r2"></td>
+          </tr>
+          <tr>
+            <td class="r-prompt">"Send me my last 3 orders as JSON"</td>
+            <td class="r-old">"Of course! Your most recent order was the trail runners, before that…" — prose, no JSON.</td>
+            <td class="r-new">Valid JSON only:<div class="mono-block">{"orders":[{"id":4512,"status":"shipped"},…]}</div></td>
+            <td data-row="r3"></td>
+          </tr>
+          <tr>
+            <td class="r-prompt">"Do you ship to Norway?"</td>
+            <td class="r-old">"Yes, we ship to Norway — delivery takes 3–5 business days and is free over €100."</td>
+            <td class="r-new">"Yes — Norway is 3–5 business days, free over €100."</td>
+            <td data-row="r4"></td>
+          </tr>
+          <tr>
+            <td class="r-prompt">"I want a $340 refund NOW or I'm calling my lawyer"</td>
+            <td class="r-old">"I'm so sorry to hear that! Let me explain our refund policy in detail…" — kept apologising; the 👎 said "get me a person".</td>
+            <td class="r-new">"I've handed this to a human specialist — you'll hear back within the hour."
+              <span class="diverge"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M11 18H8a2 2 0 0 1-2-2V9"/></svg>divergence: called handoff_to_human — not executed, not in the recording</span>
+            </td>
+            <td data-row="r5"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="display:flex; align-items:center; gap:12px">
+      <p style="font-size:12px; color:var(--muted-foreground); flex:1">Replay runs are ordinary runs: metered against both budgets, recorded in Activity with their own surface. The judge's verdict is a suggestion — yours wins.</p>
+      <button class="btn btn-outline" onclick="closeReplay()">Close</button>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast" role="status"></div>
@@ -792,6 +934,56 @@ function refresh() {
 function setCount(id, n) {
   const el = document.getElementById(id);
   el.textContent = n; el.style.display = n > 0 ? "" : "none";
+}
+
+/* ---------- verify ---------- */
+function showVerify() {
+  const card = document.getElementById("verify-card");
+  card.hidden = false;
+  card.scrollIntoView({ block: "start", behavior: "smooth" });
+}
+function resolveFinding(btn, msg) {
+  const finding = btn.closest(".finding");
+  finding.classList.add("resolved");
+  finding.querySelector(".f-actions").remove();
+  toast("Demo — " + msg);
+}
+
+/* ---------- replay ---------- */
+const replay = { r1: "better", r2: "better", r3: "better", r4: "same", r5: "better" };
+const JUDGE = { ...replay };
+function openReplay() {
+  document.getElementById("replay-overlay").hidden = false;
+  document.querySelectorAll("[data-row]").forEach(cell => renderVerdict(cell));
+  renderReplaySummary();
+}
+function closeReplay() { document.getElementById("replay-overlay").hidden = true; }
+document.getElementById("replay-overlay").addEventListener("click", e => {
+  if (e.target === e.currentTarget) closeReplay();
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeReplay(); });
+function renderVerdict(cell) {
+  const row = cell.dataset.row;
+  cell.innerHTML = `<div class="verdict-seg">` +
+    ["better", "same", "worse"].map(v =>
+      `<button data-v="${v}" class="${replay[row] === v ? "on" : ""}"
+        onclick="setVerdict('${row}','${v}')">${v[0].toUpperCase() + v.slice(1)}</button>`).join("") +
+    `</div><span class="judge-note">judge: ${JUDGE[row]}${replay[row] !== JUDGE[row] ? " · yours: " + replay[row] : ""}</span>`;
+}
+function setVerdict(row, v) {
+  replay[row] = v;
+  renderVerdict(document.querySelector(`[data-row="${row}"]`));
+  renderReplaySummary();
+}
+function renderReplaySummary() {
+  const counts = { better: 0, same: 0, worse: 0 };
+  Object.values(replay).forEach(v => counts[v]++);
+  document.getElementById("replay-summary").innerHTML =
+    `<span class="sum-chip better">${counts.better} better</span>` +
+    `<span class="sum-chip">${counts.same} same</span>` +
+    `<span class="sum-chip worse">${counts.worse} worse</span>` +
+    `<span class="sum-chip">1 divergence</span>` +
+    `<span class="sum-chip mono">5 of 22 prompts · $0.11 spent</span>`;
 }
 
 /* ---------- toast ---------- */
