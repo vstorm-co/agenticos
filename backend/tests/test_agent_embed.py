@@ -237,6 +237,21 @@ class TestTokenMode:
 
         assert _service()._verify_token(embed, token) == "user-42"
 
+    @pytest.mark.parametrize("claim", ["exp", "iat"])
+    @pytest.mark.parametrize("value", [None, [], {}])
+    def test_a_signed_token_with_a_malformed_time_claim_is_refused_not_500ed(self, claim, value):
+        """`exp`/`iat` as null, [] or {} makes PyJWT's own validation run `int()`
+        on it - a raw `TypeError`, not a `PyJWTError` - so a malformed-but-signed
+        token escaped the handler and became a 500 rather than a clean refusal
+        (#1107)."""
+        secret = "s" * 32
+        token = jwt.encode({"sub": "user-42", claim: value}, secret, algorithm="HS256")
+        with (
+            patch(f"{MODULE}.unseal", return_value=secret),
+            pytest.raises(EmbedDenied),
+        ):
+            _service()._verify_token(self._jwt_embed(), token)
+
     @pytest.mark.anyio
     async def test_a_token_signed_with_the_wrong_secret_is_refused(self):
         token = jwt.encode({"sub": "user-42"}, "attacker-secret", algorithm="HS256")
