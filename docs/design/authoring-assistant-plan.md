@@ -330,9 +330,42 @@ The three hard edges, decided here:
   under the enum's own rule, and for the same reason `EMBED` exists: a
   replay stamped `WEB` lies to anyone asking how the product is used.
 
+**Skills replay the same way, with a cheaper mechanism.** A skill is read,
+not executed, so "test the new skill body" means replaying runs that *loaded*
+it — and those are queryable today: `tool_calls` rows with
+`tool_name = 'load_skill'` and the skill's name in `args`, joined to their
+runs. Each pair replays under **its own recorded agent version** (a skill is
+bound to many agents; the honest comparison holds the agent constant per
+pair) with the candidate body injected as a **resource override** — skills
+reach a run through `resources["skills"]`, so no spec change and no publish
+question arises at all. The one wrinkle: the recorded `load_skill` *result*
+is the old body, so the replay toolset must serve the candidate body for the
+edited skill while serving everything else from the recording.
+
+**The replay set is picked for relevance to the edit, capped small.** Five
+pairs by default, because the point is "does the edited fragment now work",
+not coverage — and the edited hunks say what to look for. Selection ranks
+the candidate pool (this agent's past opening prompts; for a skill, the
+prompts of runs that loaded it) by semantic similarity to the hunks'
+`old_text`/`new_text`, embedded **on demand** through the org's existing RAG
+embedding credential (`services/rag/embeddings.py`) — nearest-neighbour
+ranking gives the wanted fallback for free: editing the border-collie
+paragraph of a dog-expert agent surfaces border-collie conversations first
+and other-breed conversations next, because that is what cosine distance
+means. No standing index and no schema change: a few hundred candidates
+embed in one batch per replay setup. Where the org has no embedding
+credential, selection degrades honestly to lexical match (Postgres
+trigram/full-text) and then to rated-down-first, most-recent — and the
+picker always *says* how each pair was chosen, so an off-topic set is
+visible rather than silently unrepresentative. Deliberately **not** the RAG
+pipeline itself: conversations are never ingested into a knowledge
+collection — that would leak chat into retrieval; only the embedding client
+is shared.
+
 Comparison results live on the replay session (a small table: candidate
-hunks/spec reference, prompt-pair verdicts, spend), keyed to the agent and
-readable under `runs:view`. The demo shows the comparison view.
+hunks/spec/skill reference, prompt-pair verdicts, how each pair was picked,
+spend), keyed to the agent and readable under `runs:view`. The demo shows
+the comparison view.
 
 ## Decision 10 — an organization switch, off means off
 
@@ -376,10 +409,15 @@ is question 7 — cheap to add later, expensive to guess now.
    writes.
 7. **Replay** — the replay toolset answering from `tool_calls`/manifest
    recordings, divergence marking, the candidate-spec path chosen in review,
-   `RunSurface.REPLAY`, the session + pair-verdict rows, spend preview.
-   Tests: a side-effecting tool is never executed on replay; a divergent
-   call is recorded and not fired; replay spend meters against both caps;
-   cross-tenant prompt sourcing refused.
+   the skill-body resource override, relevance selection (on-demand
+   embeddings with the lexical and rated-down fallbacks, the picked-because
+   label), `RunSurface.REPLAY`, the session + pair-verdict rows, spend
+   preview. Tests: a side-effecting tool is never executed on replay; a
+   divergent call is recorded and not fired; the edited skill's recorded
+   `load_skill` result is replaced by the candidate body while every other
+   recording is served verbatim; selection falls back in the declared order
+   and labels each pair; replay spend meters against both caps; cross-tenant
+   prompt sourcing refused.
 8. **The organization switch** — org settings field + service refusal on all
    three entry points + frontend gating. Test: off means the endpoint
    refuses, not just the UI hiding.
@@ -432,6 +470,11 @@ the governance switch and the surface.
 8. **Who judges a replay pair** — human-only verdicts in v1 with the judge
    suggestion off by default, or the judge on from the start? Judge calls
    cost money and add a second model opinion to govern.
+9. **A standing embedding index over opening prompts** — on-demand embedding
+   (this plan) re-embeds the candidate pool on every replay setup; a stored
+   pgvector column would make selection instant but adds a schema change, an
+   ingestion cost on every conversation and a backfill. Defer until replay
+   usage shows the on-demand batch actually hurts?
 
 ## Resolved in review — @DEENUU1
 

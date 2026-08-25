@@ -339,6 +339,7 @@ table.replay { width:100%; border-collapse:collapse; font-size:12.5px; min-width
 .verdict-seg button.on[data-v="same"] { background:var(--muted); color:var(--foreground); }
 .verdict-seg button.on[data-v="worse"] { background:color-mix(in oklab, var(--destructive) 15%, transparent); color:var(--destructive); }
 .judge-note { display:block; font-size:10.5px; color:var(--muted-foreground); margin-top:4px; }
+.picked { display:block; font-size:10.5px; font-weight:400; color:var(--muted-foreground); margin-top:5px; font-family:var(--font-mono); }
 
 /* ============ misc ============ */
 .placeholder { border:1px dashed var(--border); border-radius:16px; padding:48px; text-align:center; color:var(--muted-foreground); font-size:13px; }
@@ -682,7 +683,7 @@ table.replay { width:100%; border-collapse:collapse; font-size:12.5px; min-width
     <button class="dialog-close" aria-label="Close" onclick="closeReplay()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
     <div>
       <div class="dialog-title" id="replay-title">Replay — draft vs v7</div>
-      <p class="dialog-desc">The same prompts users already sent to this agent, answered again by the draft. Tool calls are served from the recordings — nothing side-effecting runs twice.</p>
+      <p class="dialog-desc">The same prompts users already sent to this agent, answered again by the draft — picked for similarity to the lines you edited, so the set actually exercises the change. Tool calls are served from the recordings; nothing side-effecting runs twice. A skill edit replays the same way, over the runs that loaded it.</p>
     </div>
     <div class="replay-summary" id="replay-summary"></div>
     <div class="replay-wrap">
@@ -692,31 +693,31 @@ table.replay { width:100%; border-collapse:collapse; font-size:12.5px; min-width
         </thead>
         <tbody>
           <tr>
-            <td class="r-prompt">"Where's my order #4512?"</td>
+            <td class="r-prompt">"Where's my order #4512?"<span class="picked">picked: matches "three short paragraphs"</span></td>
             <td class="r-old">"Thank you so much for reaching out! I completely understand how concerning it can be to wait for a package…" — four paragraphs before the tracking number.</td>
             <td class="r-new">"Order #4512 shipped Aug 21 via DHL and arrives tomorrow. Tracking: DH-88213."</td>
             <td data-row="r1"></td>
           </tr>
           <tr>
-            <td class="r-prompt">"Can I still return shoes I bought 3 weeks ago?"</td>
+            <td class="r-prompt">"Can I still return shoes I bought 3 weeks ago?"<span class="picked">picked: matches "refund-policy skill" · closest to the edit</span></td>
             <td class="r-old">"Our return window is 14 days, so unfortunately the order no longer qualifies…" — the answer a 👎 comment corrected.</td>
             <td class="r-new">"Yes — refund-policy §2 gives you 30 days from delivery. Here's how to start the return."</td>
             <td data-row="r2"></td>
           </tr>
           <tr>
-            <td class="r-prompt">"Send me my last 3 orders as JSON"</td>
+            <td class="r-prompt">"Send me my last 3 orders as JSON"<span class="picked">picked: matches "return valid JSON only"</span></td>
             <td class="r-old">"Of course! Your most recent order was the trail runners, before that…" — prose, no JSON.</td>
             <td class="r-new">Valid JSON only:<div class="mono-block">{"orders":[{"id":4512,"status":"shipped"},…]}</div></td>
             <td data-row="r3"></td>
           </tr>
           <tr>
-            <td class="r-prompt">"Do you ship to Norway?"</td>
+            <td class="r-prompt">"Do you ship to Norway?"<span class="picked">picked: nearest neighbour — nothing closer to the edit left</span></td>
             <td class="r-old">"Yes, we ship to Norway — delivery takes 3–5 business days and is free over €100."</td>
             <td class="r-new">"Yes — Norway is 3–5 business days, free over €100."</td>
             <td data-row="r4"></td>
           </tr>
           <tr>
-            <td class="r-prompt">"I want a $340 refund NOW or I'm calling my lawyer"</td>
+            <td class="r-prompt">"I want a $340 refund NOW or I'm calling my lawyer"<span class="picked">picked: matches "hand off to a human" · rated 👎</span></td>
             <td class="r-old">"I'm so sorry to hear that! Let me explain our refund policy in detail…" — kept apologising; the 👎 said "get me a person".</td>
             <td class="r-new">"I've handed this to a human specialist — you'll hear back within the hour."
               <span class="diverge"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M11 18H8a2 2 0 0 1-2-2V9"/></svg>divergence: called handoff_to_human — not executed, not in the recording</span>
@@ -983,7 +984,7 @@ function renderReplaySummary() {
     `<span class="sum-chip">${counts.same} same</span>` +
     `<span class="sum-chip worse">${counts.worse} worse</span>` +
     `<span class="sum-chip">1 divergence</span>` +
-    `<span class="sum-chip mono">5 of 22 prompts · $0.11 spent</span>`;
+    `<span class="sum-chip mono">top 5 of 22 · matched to the edit · $0.11 spent</span>`;
 }
 
 /* ---------- toast ---------- */
