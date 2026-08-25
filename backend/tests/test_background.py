@@ -259,3 +259,40 @@ class TestDrainingOnShutdown:
         assert "never-ends" not in caplog.text
         assert "did not finish" in caplog.text
         assert task.cancelling() or task.cancelled()
+
+    async def test_work_spawned_while_draining_is_also_awaited(self) -> None:
+        """A draining task can hand off more work - a channel run finishing a turn
+        spawns each of its notifications - and a one-shot wait would return with
+        the freshly-spawned task still in flight (#1095)."""
+        finished: list[str] = []
+
+        async def child() -> None:
+            await asyncio.sleep(0)
+            finished.append("child")
+
+        async def parent() -> None:
+            finished.append("parent")
+            background.spawn(child(), name="child")
+
+        background.spawn(parent(), name="parent")
+        await background.drain(timeout=5.0)
+
+        assert finished == ["parent", "child"]
+
+    async def test_a_cancelled_task_settles_before_drain_returns(self) -> None:
+        """The lifespan disposes Redis and the database the moment drain returns,
+        and a cancelled task unwinds through its own finally on those same
+        resources; drain must not hand back until it has (#1095)."""
+        cleaned = asyncio.Event()
+
+        async def work() -> None:
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cleaned.set()
+
+        task = background.spawn(work(), name="holds-redis")
+        await background.drain(timeout=0.01)
+
+        assert task.done()
+        assert cleaned.is_set()

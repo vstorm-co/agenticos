@@ -157,17 +157,36 @@ async def drain(timeout: float = 30.0) -> None:
     Called from the application lifespan. Without it, shutting down mid-flight
     cancels ingestion and sync work that was nearly done, which shows up later
     as a document stuck in `processing` forever.
+
+    Waits until `_running` is quiescent, not for a single snapshot: a draining
+    task can hand off more work - a channel run finishing an agent turn spawns
+    each of its notifications - and a one-shot `asyncio.wait` would return with
+    that freshly-spawned task still in flight. The whole wait shares one
+    deadline, so work that keeps spawning work cannot postpone shutdown forever.
+
+    Whatever is still running at the deadline is cancelled *and then awaited to a
+    terminal state* before returning. A caller disposes shared resources once
+    this returns - the Redis client, the database engine - and a cancelled task
+    unwinds through its own `finally` on those same resources; returning before
+    it has settled races the two (#1095).
     """
     if not _running:
         return
-    pending = set(_running)
-    logger.info("Waiting for %d background task(s) to finish", len(pending))
-    done, still_running = await asyncio.wait(pending, timeout=timeout)
-    if still_running:
+    logger.info("Waiting for %d background task(s) to finish", len(_running))
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while True:
+        pending = {task for task in _running if not task.done()}
+        if not pending or loop.time() >= deadline:
+            break
+        await asyncio.wait(pending, timeout=deadline - loop.time())
+    overran = {task for task in _running if not task.done()}
+    if overran:
         logger.warning(
             "%d background task(s) did not finish in %.0fs; cancelling",
-            len(still_running),
+            len(overran),
             timeout,
         )
-        for task in still_running:
+        for task in overran:
             task.cancel()
+        await asyncio.gather(*overran, return_exceptions=True)
