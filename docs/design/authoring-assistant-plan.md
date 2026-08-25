@@ -8,9 +8,11 @@ demo of the review UI is beside it: `docs/design/authoring-assistant-demo.html`.
 
 The one-sentence design: **the assistant reads the org's own run record and
 ratings, proposes changes as evidence-backed diffs — or verifies changes a
-person made by hand — and everything lands in a draft a person reviews,
-replays against real past prompts, and publishes; it writes nothing on its
-own, and an organization can switch it off entirely.**
+person made by hand — and nothing changes an agent without a person's
+decision: spec changes wait in the draft a person publishes, a skill change
+waits in a proposal a person applies (and applying it is live — skills have
+no draft stage); the assistant writes nothing on its own, and an organization
+can switch it off entirely.**
 
 ## 0. What already exists — corrected
 
@@ -67,13 +69,16 @@ Mode 2 works from data every deployment has:
 | What happened | `messages` + `tool_calls` | retries, tool misuse, the shape of bad answers |
 | Did a change help | `rating_counts_by_version` | v*N* vs v*N+1*, already queryable |
 
-Logfire traces are **optional enrichment**, never a prerequisite.
-`AgentSpec.observability` can point traces at a client's own Logfire project,
-and `LOGFIRE_TOKEN` is `str | None` — so the assistant states plainly when
-traces are unreachable ("no traces for this agent — working from ratings and
-run outcomes") and proceeds. It never refuses for want of a trace, and a trace
-read failing degrades to the table above, silently to the model and visibly in
-the assistant's own output.
+Logfire traces are **optional enrichment**, never a prerequisite — and in v1
+they are not even that, because **no read path exists**: `LOGFIRE_TOKEN` and
+`ObservabilitySpec.token_secret_id` are both *write* credentials (they let a
+run send traces), and the org/project slugs only build a link for a person
+already signed into Logfire. So v1 ships trace enrichment as exactly what the
+product already has — the link on the run — and the assistant states plainly
+that it worked from ratings and run outcomes. Reading traces would need a
+separate read credential and integration; that is future work behind this
+degradation seam, not a configuration away. The assistant never refuses for
+want of a trace.
 
 *Rejected: trace-first (the issue's own text kills it — the traces are often
 not ours to read). Also rejected: building a trace-ingestion pipeline to make
@@ -97,13 +102,34 @@ where the *why* lives: each row carries a rationale and evidence references
 
 Mechanism, per surface:
 
-- **Skills** — reuse `skill_proposals` unchanged. Nothing new to build; the
-  assistant writes skill files in its workspace and the existing
-  `_propose_skill_changes` seam in `AgentRunnerService.finish` records them.
+- **Skills** — reuse the `skill_proposals` mechanism and recording seam
+  (`_propose_skill_changes` in `AgentRunnerService.finish`), **extended
+  additively**: nullable `rationale`, `evidence` JSONB and a base `skill
+  version` column, so a skill proposal can carry the same evidence popover
+  and Edit action the other two surfaces get — the existing table stores
+  only the replacement body, which cannot feed the unified grammar Decision
+  7 promises. And one truth stated rather than papered over: **applying a
+  skill proposal is a live change.** Skills have no draft/publish stage —
+  Apply bumps `skills.version` and every bound agent reads the new body on
+  its next run. The draft-first guarantee above is a *spec* guarantee; for
+  skills the proposal itself is the review stage, the Apply control says it
+  goes live everywhere, and replay-before-apply (Decision 9) is the test
+  stage a draft would otherwise provide. A skill draft path was considered
+  and rejected: "no deploy, no pull request" is the product's own model for
+  skills, and a second lifecycle would contradict it.
 - **Instructions and tool descriptions** — a sibling table, `spec_proposals`,
   modelled on `skill_proposals` (org id, target `agent_id`, authoring
-  `run_id`/`conversation_id`, status pending/accepted/dismissed, terminal
-  decisions, one pending proposal per target — a later run supersedes it).
+  `run_id`/`conversation_id`, one open proposal per target — a later run
+  supersedes it). **Decision state lives on the hunk, not the row**: each
+  hunk carries its own `status` (pending/accepted/dismissed) and decision
+  metadata (`decided_by`, `decided_at`), because one review can accept one
+  hunk and dismiss its neighbour, which a row-level status cannot represent.
+  The row keeps lifecycle only: *open* while any hunk is pending,
+  *superseded* when a newer run replaces it, *closed* when the draft
+  publishes. A hunk decision is revisable (Undo) while the proposal is open
+  — undoing an accept also reverses the draft write — and becomes terminal
+  when the proposal closes; `skill_proposals`' decided-once rule applies to
+  the closed proposal, not to a hunk mid-review.
   Two target kinds:
   - `instructions`: **a base snapshot plus a list of anchored hunks**, each
     `{old_text, new_text, rationale, evidence}`, decided independently.
@@ -119,7 +145,13 @@ Mechanism, per surface:
     `description` (and rarely `name`) — the same two fields
     `ToolOverride` carries, so acceptance is a two-field write into
     `capabilities[i].tool_overrides[tool_id]` that must survive
-    `_tool_override_problems` at publish.
+    `_tool_override_problems` at publish. **Staleness applies here too**,
+    not only to instruction hunks: the proposal stores the base values it
+    was computed against (the binding's then-current name/description, or
+    their absence), and acceptance applies only while the base still
+    matches — a removed capability, a removed override or a newer manual
+    edit renders the proposal *stale*; it never re-adds a removed binding
+    and never overwrites the newer edit.
 - Each hunk carries `rationale` (one paragraph, the assistant's argument)
   and `evidence` (JSONB: rating ids, run ids, the numbers behind "3 of 5 👎") —
   rendered in the review UI as the hover popover the demo shows, resolved
@@ -127,9 +159,14 @@ Mechanism, per surface:
   as a leak.
 - **Accepting must not race the Builder's autosave.** The Builder holds the
   draft client-side and autosaves the whole spec, so a server-side accept
-  while the page is open would be clobbered by the next autosave. Accept
-  therefore happens *in* the Builder: the client applies the hunk to its own
-  state and the server write and query invalidation travel together.
+  while the page is open would be clobbered by the next autosave — and
+  "accept happens in the Builder" alone does not close the race, because a
+  whole-spec PUT can already be in flight when Accept fires, and the stale
+  request landing second would silently drop the accepted hunk while the
+  proposal records *accepted*. Draft writes therefore take **optimistic
+  concurrency**: `agents.draft_spec` gains a revision the client echoes
+  back; a write carrying a stale revision is refused and re-merged, and
+  Accept and autosave serialize through the same check.
 
 Propose-only is also the security boundary, not just the review ergonomics.
 The assistant reads rating comments and transcripts — text written by
@@ -260,9 +297,12 @@ shown in the demo: a diff in the product's existing diff idiom (the
 `SpecDiff` visual language from the History tab), each change carrying an
 inline marker whose hover shows the assistant's rationale and the evidence
 behind it (rating comments, run references), and three actions — **Accept**
-(into the draft / the skill-proposal apply), **Edit** (open pre-filled in the
-ordinary editor), **Dismiss** (terminal, recorded). A chip summarises the
-batch: "4 suggestions · from 6 👎 across 22 runs".
+(into the draft; for a skill, the proposal's Apply, labelled as the live
+change it is), **Edit** (open pre-filled in the ordinary editor), **Dismiss**
+(recorded). A chip summarises the batch: "4 suggestions · from 6 👎 across
+22 runs". For skills this grammar is what Decision 2's additive columns and
+an Edit action on the Skills review card exist for — the current
+Review/Apply/Discard surface carries no evidence and no pre-filled edit.
 
 Where it lives in the Builder: an assistant strip on the **Build** tab above
 the instructions card (diff renders in place of the editor while reviewing),
@@ -308,13 +348,17 @@ The three hard edges, decided here:
 - **A replay must never re-fire a side effect.** The original run may have
   sent a message or written a file; replaying it must not do it twice. Tool
   calls are answered **from the recording**: `tool_calls` rows and the run
-  manifest hold the original arguments and results, so a replay toolset
-  serves the recorded result when the candidate calls the same tool, and
-  when the candidate diverges — calls a tool the original never called — the
-  call is *not executed*: the pair is marked **divergent** and the reviewer
-  sees which tool the new prompt reached for. Divergence is a finding, not a
-  failure; read-only capability calls (knowledge search) may be allowed live
-  behind a config, side-effecting ones never.
+  manifest hold the original arguments and results, and a replayed call is
+  matched by **tool id, normalized arguments and occurrence order** — a
+  same-tool call with different arguments is a mismatch, because serving it
+  an unrelated recording (`get_order(999)` answered with `get_order(4512)`'s
+  result) would fabricate the very improvement or regression the comparison
+  exists to measure. Any mismatch — different arguments or a tool the
+  original never called — leaves the call *not executed* and marks the pair
+  **divergent**; the reviewer sees what the new prompt reached for.
+  Divergence is a finding, not a failure; read-only capability calls
+  (knowledge search) may be allowed live behind a config, side-effecting
+  ones never.
 - **A replay runs the candidate, which is a draft.** Two ways to get there:
   teach `prepare` to accept an explicit spec (a `spec=` escape hatch beside
   `get_runnable_spec`, used only by replay and gated accordingly), or
@@ -347,20 +391,27 @@ pairs by default, because the point is "does the edited fragment now work",
 not coverage — and the edited hunks say what to look for. Selection ranks
 the candidate pool (this agent's past opening prompts; for a skill, the
 prompts of runs that loaded it) by semantic similarity to the hunks'
-`old_text`/`new_text`, embedded **on demand** through the org's existing RAG
-embedding credential (`services/rag/embeddings.py`) — nearest-neighbour
-ranking gives the wanted fallback for free: editing the border-collie
-paragraph of a dog-expert agent surfaces border-collie conversations first
-and other-breed conversations next, because that is what cosine distance
-means. No standing index and no schema change: a few hundred candidates
-embed in one batch per replay setup. Where the org has no embedding
-credential, selection degrades honestly to lexical match (Postgres
-trigram/full-text) and then to rated-down-first, most-recent — and the
-picker always *says* how each pair was chosen, so an off-topic set is
-visible rather than silently unrepresentative. Deliberately **not** the RAG
-pipeline itself: conversations are never ingested into a knowledge
-collection — that would leak chat into retrieval; only the embedding client
-is shared.
+`old_text`/`new_text`, embedded **on demand** through the shared embedding
+client (`services/rag/embeddings.py`) — nearest-neighbour ranking gives the
+wanted fallback for free: editing the border-collie paragraph of a
+dog-expert agent surfaces border-collie conversations first and other-breed
+conversations next, because that is what cosine distance means. **Which
+credential embeds is an explicit org setting**, not a borrowed one: there
+is no single org-wide RAG credential to reuse — embedding resolution is per
+*collection*, and a replay candidate belongs to none — so an
+authoring-embedding choice sits in organization settings beside Decision
+10's switch, and while it is unset selection degrades honestly to lexical
+match (Postgres trigram/full-text) and then to rated-down-first,
+most-recent. The picker always *says* how each pair was chosen, so an
+off-topic set is visible rather than silently unrepresentative. No standing
+index and no schema change: a few hundred candidates embed in one batch per
+replay setup — and because that batch already costs money, **consent comes
+before selection, not after it**: the button opens the preview first
+(estimated selection cost and estimated run cost together), and confirming
+creates the replay session, into which the selection embedding is metered.
+Deliberately **not** the RAG pipeline itself: conversations are never
+ingested into a knowledge collection — that would leak chat into retrieval;
+only the embedding client is shared.
 
 Comparison results live on the replay session (a small table: candidate
 hunks/spec/skill reference, prompt-pair verdicts, how each pair was picked,
@@ -372,11 +423,12 @@ the comparison view.
 Whether AI assists authoring at all is the organization's decision, not the
 platform's default-on. A single org-level setting (in organization settings,
 gated on `org:settings` like the rest of them) turns the assistant off: the
-backend refuses Improve, Verify and Replay runs when it is off — the
-frontend hiding the strip is a courtesy, the service refusal is the
-boundary, in exactly the "not rendered is not enough" sense the permission
-rules already state. The seeded improver agent stays (it is data), it just
-cannot be started through the authoring surface.
+backend refuses **all four** entry points when it is off — Improve, Verify,
+Replay, *and* mode 1's describe→draft run, which is AI-assisted authoring as
+much as the other three — the frontend hiding the strip is a courtesy, the
+service refusal is the boundary, in exactly the "not rendered is not enough"
+sense the permission rules already state. The seeded improver agent stays
+(it is data), it just cannot be started through the authoring surface.
 
 One switch in v1. Granularity (proposals yes / replay no, or per-surface)
 is question 7 — cheap to add later, expensive to guess now.
@@ -387,11 +439,16 @@ is question 7 — cheap to add later, expensive to guess now.
    `messages`→`conversations`, the `get_rating_summary_scoped` shape), runs,
    manifests, transcripts. Repo functions take `organization_id`; the
    executable audit holds them to it.
-2. **`spec_proposals`** — model (modelled on `skill_proposals`, plus
-   `rationale`, `evidence` JSONB, target kind), migration, service
-   (list/accept/dismiss; accept writes the draft via the registry service),
-   routes. Tests: terminal decisions, one-pending-per-target, cross-tenant 404,
-   accept lands in draft and never publishes.
+2. **`spec_proposals`** — model (per-hunk status + decision metadata,
+   `rationale`, `evidence` JSONB, base snapshots for hunks *and* tool
+   overrides, target kind), the draft-revision column and its optimistic
+   concurrency check, the additive `skill_proposals` columns, migration,
+   service (list/accept/dismiss/undo; accept writes the draft via the
+   registry service), routes. Tests: mixed per-hunk decisions on one
+   proposal; undo open / terminal closed; a stale anchor and a stale
+   tool-override base refuse to apply; a stale-revision draft write is
+   refused; one-open-per-target; cross-tenant 404; accept lands in draft
+   and never publishes.
 3. **Capability `authoring`** — registry entry (`selectable=False`), read tools
    over injected resources, `propose_*` staging; runner assembly for the
    authoring surface + recording in `finish`. Tests: capability builds `None`
@@ -413,14 +470,18 @@ is question 7 — cheap to add later, expensive to guess now.
    embeddings with the lexical and rated-down fallbacks, the picked-because
    label), `RunSurface.REPLAY`, the session + pair-verdict rows, spend
    preview. Tests: a side-effecting tool is never executed on replay; a
-   divergent call is recorded and not fired; the edited skill's recorded
+   recorded result is served only on a tool-id + normalized-args +
+   occurrence-order match, and an args mismatch marks the pair divergent;
+   a divergent call is recorded and not fired; the edited skill's recorded
    `load_skill` result is replaced by the candidate body while every other
    recording is served verbatim; selection falls back in the declared order
-   and labels each pair; replay spend meters against both caps; cross-tenant
-   prompt sourcing refused.
-8. **The organization switch** — org settings field + service refusal on all
-   three entry points + frontend gating. Test: off means the endpoint
-   refuses, not just the UI hiding.
+   and labels each pair; no embedding call before the session-creating
+   consent; replay spend meters against both caps; cross-tenant prompt
+   sourcing refused.
+8. **The organization switch** — org settings fields (the toggle and the
+   authoring-embedding choice) + service refusal on all four entry points
+   (Improve, Verify, Replay, describe→draft) + frontend gating. Test: off
+   means every one of the four endpoints refuses, not just the UI hiding.
 9. **Frontend** — assistant strip + diff review (reuse `diff.ts` and the
    `SpecDiff` idiom), Toolbox proposed-description rows, accept/edit/dismiss
    wiring, verify report, replay comparison view, i18n keys, tour stops.
@@ -505,7 +566,7 @@ the implementation does not quietly lose it.
 1. **Entry conditions.** Verify and replay exist only while the draft
    differs from the published version; the strip renders only under
    `agents:edit`, evidence reads require `runs:view`, and the org switch
-   (Decision 10) removes all three entry points server-side.
+   (Decision 10) removes all four entry points server-side.
 2. **View semantics.** "Current v*N*" is the published version, always.
    "Review" diffs the current draft plus pending hunks; an accepted hunk
    joins the base and stops being highlighted. "Proposed" is a preview of
@@ -534,9 +595,10 @@ the implementation does not quietly lose it.
 8. **A divergent pair is a stopped run**, shown as the attempted call, its
    arguments, and the not-executed notice — never a fabricated result, and
    never a silent stub. It remains judgeable.
-9. **Spend preview before replay fires.** The demo opens the dialog with
+9. **Spend preview before anything spends.** The demo opens the dialog with
    results; the real flow inserts "top 5 of 22 · estimated $X — run?"
-   between the button and the runs, per Decision 9's bounded-spend rule.
+   between the button and *any* cost — the selection embedding included,
+   which is why confirming is what creates the replay session (Decision 9).
 10. **Run references link.** Every `run #xxxx` chip in evidence, every
     replay pair and both improver-run badges resolve to the run detail in
     Activity, org-scoped; a foreign or deleted id renders as absent.
