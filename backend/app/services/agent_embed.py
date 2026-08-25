@@ -612,10 +612,18 @@ class AgentEmbedService:
             raise EmbedDenied("token rejected") from exc
 
         issued_at = claims.get("iat")
-        if isinstance(issued_at, int | float):
-            age = datetime.now(UTC).timestamp() - float(issued_at)
-            if age > _MAX_TOKEN_AGE_SECONDS:
-                raise EmbedDenied("token too old")
+        if not isinstance(issued_at, int | float) or (
+            datetime.now(UTC).timestamp() - float(issued_at) > _MAX_TOKEN_AGE_SECONDS
+        ):
+            # A within-window `iat` is required, not checked opportunistically:
+            # PyJWT enforces neither `iat` nor a 12h ceiling, so a token with no
+            # `iat` - or a stale one hidden behind a far-future `exp` - would be
+            # fresh until it expired, if ever, and one scraped from a browser tab
+            # would answer on the organization's bill that whole time. `exp` is
+            # not an alternative: it lets a customer *shorten* the window (PyJWT
+            # rejects an expired token at decode), never extend it past the 12h
+            # platform ceiling (#23).
+            raise EmbedDenied("token too old")
 
         subject = claims.get("sub")
         if not subject:

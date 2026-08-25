@@ -295,6 +295,68 @@ class TestTokenMode:
             await _service().admit("key-123", origin="https://acme.test", token=token)
 
     @pytest.mark.anyio
+    async def test_a_token_with_no_issued_at_is_refused_rather_than_treated_as_fresh(self):
+        """`{"sub": ...}` alone is correctly signed and carries no freshness claim,
+        which the old opportunistic `if isinstance(iat, ...)` check skipped - so
+        PyJWT accepted it forever and one scraped token answered on the bill
+        indefinitely (#23)."""
+        secret = "s" * 32
+        token = jwt.encode({"sub": "user-42"}, secret, algorithm="HS256")
+        with (
+            patch(
+                f"{MODULE}.agent_embed_repo.get_by_key",
+                new=AsyncMock(return_value=self._jwt_embed()),
+            ),
+            patch(f"{MODULE}.unseal", return_value=secret),
+            pytest.raises(EmbedDenied),
+        ):
+            await _service().admit("key-123", origin="https://acme.test", token=token)
+
+    @pytest.mark.anyio
+    async def test_a_stale_iat_is_refused_even_behind_a_future_exp(self):
+        """`exp` must not let a stale `iat` through: a far-future `exp` is common in
+        a customer's own tokens, and treating it as freshness would let a copied
+        token replay past the 12h ceiling until it expired. `exp` may only shorten
+        the window, never extend it (#23)."""
+        secret = "s" * 32
+        old = int(time.time()) - 60 * 60 * 24 * 30
+        token = jwt.encode(
+            {"sub": "user-42", "iat": old, "exp": int(time.time()) + 60 * 60 * 24 * 365},
+            secret,
+            algorithm="HS256",
+        )
+        with (
+            patch(
+                f"{MODULE}.agent_embed_repo.get_by_key",
+                new=AsyncMock(return_value=self._jwt_embed()),
+            ),
+            patch(f"{MODULE}.unseal", return_value=secret),
+            pytest.raises(EmbedDenied),
+        ):
+            await _service().admit("key-123", origin="https://acme.test", token=token)
+
+    @pytest.mark.anyio
+    async def test_a_recent_iat_alongside_a_future_exp_is_admitted(self):
+        """The ordinary case a customer mints: a fresh `iat` and an `exp` for the
+        session. It passes on the `iat`; PyJWT validates the `exp` too."""
+        secret = "s" * 32
+        token = jwt.encode(
+            {"sub": "user-42", "iat": int(time.time()), "exp": int(time.time()) + 3600},
+            secret,
+            algorithm="HS256",
+        )
+        with (
+            patch(
+                f"{MODULE}.agent_embed_repo.get_by_key",
+                new=AsyncMock(return_value=self._jwt_embed()),
+            ),
+            patch(f"{MODULE}.unseal", return_value=secret),
+        ):
+            admission = await _service().admit("key-123", origin="https://acme.test", token=token)
+
+        assert admission.visitor == "user-42"
+
+    @pytest.mark.anyio
     async def test_the_origin_is_checked_before_the_token(self):
         """A probe from an unlisted site must learn nothing about tokens - the
         unseal is what would tell it, so it must never happen."""
