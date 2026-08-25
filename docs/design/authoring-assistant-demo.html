@@ -405,7 +405,7 @@ table.replay { width:100%; border-collapse:collapse; font-size:12.5px; min-width
     </header>
 
     <nav class="tabs" role="tablist">
-      <button class="tab active" data-tab="build" role="tab">Build <span class="count" id="count-build">3</span></button>
+      <button class="tab active" data-tab="build" role="tab">Build <span class="count" id="count-build">4</span></button>
       <button class="tab" data-tab="toolbox" role="tab">Toolbox <span class="count" id="count-toolbox">1</span></button>
       <button class="tab" data-tab="mcp" role="tab">MCP servers</button>
       <button class="tab" data-tab="limits" role="tab">Limits</button>
@@ -441,7 +441,7 @@ table.replay { width:100%; border-collapse:collapse; font-size:12.5px; min-width
           <div class="editor-head">
             <div>
               <div class="card-title">Verification — your edits vs v7</div>
-              <p class="card-desc" style="margin-top:6px">You edited the draft by hand. The assistant checked the changes against 22 runs and 6 rated answers.</p>
+              <p class="card-desc" style="margin-top:6px">You edited the draft by hand. The assistant checked the changes against 22 runs and 6 rated-down answers.</p>
             </div>
             <span class="badge badge-secondary mono" id="verify-run-badge">improver run #a1d7 · $0.03</span>
           </div>
@@ -549,7 +549,7 @@ table.replay { width:100%; border-collapse:collapse; font-size:12.5px; min-width
                     <button class="sugg-icon" aria-label="Suggestion: pin the output format" onclick="pin(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg></button>
                     <div class="popover" role="tooltip">
                       <div class="pop-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg>Pin the output format</div>
-                      <p class="pop-why">The instructions never say what shape an answer should take, so API callers asking for JSON get prose. 3 of 5 👎 comments say the agent ignored the requested format; both cited runs retried twice.</p>
+                      <p class="pop-why">The instructions never say what shape an answer should take, so API callers asking for JSON get prose. 3 of 6 👎 say the agent ignored the requested format; both cited runs retried twice.</p>
                       <div class="pop-evidence">👎 with comment: <q>ignored my JSON — had to re-ask twice</q></div>
                       <div class="pop-chips"><span class="chip down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/></svg>3 of 6</span><span class="chip run">run #a3f4</span><span class="chip run">run #b127</span><span class="chip">surface: api</span></div>
                       <div class="pop-actions" data-role="actions">
@@ -728,8 +728,9 @@ table.replay { width:100%; border-collapse:collapse; font-size:12.5px; min-width
           <tr>
             <td class="r-prompt">"I want a $340 refund NOW or I'm calling my lawyer"<span class="picked">picked: matches "hand off to a human" · rated 👎</span></td>
             <td class="r-old">"I'm so sorry to hear that! Let me explain our refund policy in detail…" — kept apologising; the 👎 said "get me a person".</td>
-            <td class="r-new">"I've handed this to a human specialist — you'll hear back within the hour."
-              <span class="diverge"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M11 18H8a2 2 0 0 1-2-2V9"/></svg>divergence: called handoff_to_human — not executed, not in the recording</span>
+            <td class="r-new">Stopped at a divergent call — the draft reached for a tool the recorded run never used:
+              <div class="mono-block">handoff_to_human({reason: "legal threat", order: 4512})</div>
+              <span class="diverge"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M11 18H8a2 2 0 0 1-2-2V9"/></svg>not executed — side effects never replay</span>
             </td>
             <td data-row="r5"></td>
           </tr>
@@ -916,6 +917,7 @@ function cancelEdit(id) {
 
 function dismissAll() {
   INSTRUCTION_SUGGS.forEach(id => decide(id, "dismissed"));
+  if (state.t1 === "pending") decide("t1", "dismissed");
 }
 
 function refresh() {

@@ -476,6 +476,97 @@ the governance switch and the surface.
    ingestion cost on every conversation and a backfill. Defer until replay
    usage shows the on-demand batch actually hurts?
 
+## The demo, audited — the contract the implementation must keep
+
+A full functional pass over `authoring-assistant-demo.html` (2026-08-25),
+checking every number, state and flow against itself, against this plan and
+against the real product's mechanics. Four inconsistencies were found and
+fixed in the demo in the same change; everything else below is recorded so
+the implementation does not quietly lose it.
+
+### Fixed in the demo during the audit
+
+- **"3 of 5" vs "3 of 6"** — one popover counted comments where its chip
+  counted ratings. Unified on ratings ("3 of 6 👎"); the rule for the real
+  UI: an evidence chip counts *ratings*, and prose that means comments says
+  "comments".
+- **Dismiss all missed the Toolbox suggestion** — the chip counts pending
+  suggestions across both tabs, so the button now clears both. Rule: the
+  strip's numbers and its bulk actions share one scope.
+- **The divergent replay pair showed a finished answer** — impossible, since
+  the divergent call is never executed; a run stops there. The pair now
+  shows the attempted call and "not executed — side effects never replay",
+  and stays judgeable (choosing to escalate *is* the improvement).
+- Static tab-count fallback disagreed with the computed one; "6 rated
+  answers" now says "rated-down".
+
+### Contract — behaviour the demo shows and the implementation owes
+
+1. **Entry conditions.** Verify and replay exist only while the draft
+   differs from the published version; the strip renders only under
+   `agents:edit`, evidence reads require `runs:view`, and the org switch
+   (Decision 10) removes all three entry points server-side.
+2. **View semantics.** "Current v*N*" is the published version, always.
+   "Review" diffs the current draft plus pending hunks; an accepted hunk
+   joins the base and stops being highlighted. "Proposed" is a preview of
+   the draft with every pending hunk applied — a projection, never a stored
+   state.
+3. **Verify lifecycle is run status.** The button's three states map to the
+   improver run's status (`running` → spinner, terminal → "See results" +
+   a fresh "Verify my edits"); the frontend subscribes the way Activity
+   does and needs no state machine of its own. Old results stay reachable
+   during a re-run; a finished re-run replaces the report under the new
+   run's id.
+4. **A re-run analyzes the current draft.** The demo restores a static
+   findings template on re-run; the real report is regenerated, so a
+   finding the person already fixed (e.g. via "Restore the line") must not
+   reappear.
+5. **"Restore the line" edits the draft** — so the Review diff changes with
+   it. The demo does not redraw the diff; the implementation must.
+6. **Undo of an accepted hunk returns the assistant's original proposal**
+   to pending. The demo keeps the user's edited text after undo; the real
+   rule is that Edit-then-accept is one decision and undo reverses the
+   whole of it.
+7. **Replay selection queries the accepted diff** (draft vs published,
+   manual edits included), never pending hunks — an unaccepted suggestion
+   must not steer which prompts are picked. Each pair carries its
+   picked-because label, including the fallback tier it came from.
+8. **A divergent pair is a stopped run**, shown as the attempted call, its
+   arguments, and the not-executed notice — never a fabricated result, and
+   never a silent stub. It remains judgeable.
+9. **Spend preview before replay fires.** The demo opens the dialog with
+   results; the real flow inserts "top 5 of 22 · estimated $X — run?"
+   between the button and the runs, per Decision 9's bounded-spend rule.
+10. **Run references link.** Every `run #xxxx` chip in evidence, every
+    replay pair and both improver-run badges resolve to the run detail in
+    Activity, org-scoped; a foreign or deleted id renders as absent.
+11. **Rating arithmetic must reconcile.** Per-suggestion evidence counts
+    (3+2+1+2 "of 6") may overlap — one 👎 can evidence two hunks — but each
+    must be a subset of the summary's total, and the strip, the verify
+    card and the replay picker read the same numbers from the same rows.
+12. **The strip's honesty line is real.** "No Logfire traces — worked
+    without them" is Decision 1's degradation made visible; it renders
+    whenever the trace read failed or was not attempted, and never blocks
+    anything.
+13. **"Run again" supersedes.** A fresh improver run replaces the pending
+    proposal set for its target (one-pending-per-target); decided hunks
+    keep their terminal state and are not re-proposed.
+14. **Every string is a catalog key**, counts are ICU plurals (the chip is
+    one message with two plurals), and the diff/marker glyphs (`+`, `−`
+    U+2212) follow `SpecDiff`'s conventions.
+15. **Costs shown are the runs' recorded costs** (`cost_usd`, with the `≥`
+    partial-pricing mark where it applies) — the demo's flat `$0.03`/`$0.11`
+    are placeholders, not a format.
+
+### Deliberate demo fakes — do not copy into the implementation
+
+The 2-second verify timer · results appearing without a spend-preview step ·
+the static findings template on re-run (contract items 4–5) · edited text
+surviving undo (item 6) · the judge always on (open question 8 decides the
+default) · no stale-hunk example (Decision 2 defines the rendering) · no
+"needs a model first" refusal state on the improver buttons (the seeded
+improver may be an unpublished draft — feasibility note) · placeholder tabs.
+
 ## Resolved in review — @DEENUU1
 
 *(to be filled in during review; this section records the outcomes so the doc
