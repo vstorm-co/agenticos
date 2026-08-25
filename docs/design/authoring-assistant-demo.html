@@ -111,6 +111,9 @@ h1 { font-size:24px; font-weight:600; letter-spacing:-.01em; }
 .btn-outline:hover { background:var(--accent); }
 .btn-ghost:hover { background:var(--accent); }
 .btn-icon { width:36px; padding:0; }
+.btn:disabled { opacity:.65; cursor:default; }
+.spin { animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
 .badge {
   display:inline-flex; align-items:center; gap:6px; border-radius:999px; border:1px solid transparent;
   padding:2px 10px; font-size:12px; font-weight:500;
@@ -146,10 +149,11 @@ h1 { font-size:24px; font-weight:600; letter-spacing:-.01em; }
 /* ============ assistant strip ============ */
 .assistant-strip {
   border:1px solid var(--brand-line); background:var(--brand-subtle); border-radius:16px;
-  padding:16px 20px; display:flex; gap:14px; align-items:flex-start;
+  padding:16px 20px; display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap;
 }
 .assistant-strip > svg { width:18px; height:18px; color:var(--brand); margin-top:2px; }
-.strip-body { flex:1; min-width:0; }
+.strip-body { flex:1; min-width:18rem; }
+.strip-actions { flex-wrap:wrap; }
 .strip-title { font-weight:600; font-size:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .strip-note { font-size:12px; color:var(--muted-foreground); margin-top:4px; }
 .strip-actions { display:flex; gap:8px; align-items:center; }
@@ -426,7 +430,7 @@ table.replay { width:100%; border-collapse:collapse; font-size:12.5px; min-width
         </div>
         <div class="strip-actions">
           <button class="btn btn-sm btn-ghost" onclick="dismissAll()">Dismiss all</button>
-          <button class="btn btn-sm btn-outline" onclick="showVerify()">Verify my edits</button>
+          <span id="verify-controls" style="display:contents"></span>
           <button class="btn btn-sm btn-outline" onclick="toast('Demo — starts a new improver run. An ordinary run: budgeted, metered, visible in Activity.')">Run again</button>
         </div>
       </div>
@@ -439,10 +443,11 @@ table.replay { width:100%; border-collapse:collapse; font-size:12.5px; min-width
               <div class="card-title">Verification — your edits vs v7</div>
               <p class="card-desc" style="margin-top:6px">You edited the draft by hand. The assistant checked the changes against 22 runs and 6 rated answers.</p>
             </div>
-            <span class="badge badge-secondary mono">improver run #a1d7 · $0.03</span>
+            <span class="badge badge-secondary mono" id="verify-run-badge">improver run #a1d7 · $0.03</span>
           </div>
         </div>
         <div class="card-content" style="gap:10px">
+          <div id="verify-findings" style="display:contents">
           <div class="finding good">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
             <div class="f-body">Capping answers at three paragraphs is supported by the data — rated-down answers average <b>612 output tokens</b> against 214 on rated-up ones.</div>
@@ -462,6 +467,7 @@ table.replay { width:100%; border-collapse:collapse; font-size:12.5px; min-width
                 <button class="btn btn-sm btn-ghost" onclick="resolveFinding(this, 'Ignored — recorded with the verification report.')">Ignore</button>
               </div>
             </div>
+          </div>
           </div>
           <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap">
             <p style="font-size:12px; color:var(--muted-foreground); flex:1; min-width:16rem">The verdict informs — it cannot block a publish. Anything actionable lands as an ordinary suggestion in the diff above.</p>
@@ -940,7 +946,44 @@ function setCount(id, n) {
   el.textContent = n; el.style.display = n > 0 ? "" : "none";
 }
 
-/* ---------- verify ---------- */
+/* ---------- verify: idle → running → results, re-runnable ---------- */
+let verifying = false;
+let hasVerifyResults = false;
+let verifySeq = 7;
+const FINDINGS_TEMPLATE = document.getElementById("verify-findings").innerHTML;
+
+function renderVerifyControls() {
+  const el = document.getElementById("verify-controls");
+  const seeResults = hasVerifyResults
+    ? `<button class="btn btn-sm btn-primary" onclick="showVerify()">See results</button>` : "";
+  const verifyBtn = verifying
+    ? `<button class="btn btn-sm btn-outline" disabled>
+         <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+         Verifying…</button>`
+    : `<button class="btn btn-sm btn-outline" onclick="startVerify()">Verify my edits</button>`;
+  el.innerHTML = seeResults + verifyBtn;
+}
+
+function startVerify() {
+  if (verifying) return;
+  verifying = true;
+  renderVerifyControls();
+  setTimeout(finishVerify, 2000);
+}
+
+function finishVerify() {
+  verifying = false;
+  if (hasVerifyResults) {
+    verifySeq++;
+    document.getElementById("verify-findings").innerHTML = FINDINGS_TEMPLATE;
+  }
+  hasVerifyResults = true;
+  document.getElementById("verify-run-badge").textContent =
+    `improver run #a1d${verifySeq.toString(16)} · $0.03`;
+  renderVerifyControls();
+  toast("Verification finished — 2 findings support your edits, 1 regression risk.");
+}
+
 function showVerify() {
   const card = document.getElementById("verify-card");
   card.hidden = false;
@@ -1000,6 +1043,7 @@ function toast(msg) {
 }
 
 refresh();
+renderVerifyControls();
 </script>
 </body>
 </html>
