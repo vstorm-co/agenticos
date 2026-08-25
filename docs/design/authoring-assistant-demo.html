@@ -463,7 +463,10 @@ table.replay { width:100%; border-collapse:collapse; font-size:12.5px; min-width
               </div>
             </div>
           </div>
-          <p style="font-size:12px; color:var(--muted-foreground)">The verdict informs — it cannot block a publish. Anything actionable lands as an ordinary suggestion in the diff above.</p>
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap">
+            <p style="font-size:12px; color:var(--muted-foreground); flex:1; min-width:16rem">The verdict informs — it cannot block a publish. Anything actionable lands as an ordinary suggestion in the diff above.</p>
+            <button class="btn btn-sm btn-outline" onclick="openReplay()">Test against past prompts</button>
+          </div>
         </div>
       </div>
 
