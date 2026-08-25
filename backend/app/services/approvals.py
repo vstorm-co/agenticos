@@ -149,7 +149,7 @@ class ApprovalService:
                 make the audit trail ambiguous about who authorised the action.
         """
         approval = await agent_run_repo.get_approval(
-            self.db, approval_id, organization_id=ctx.organization_id
+            self.db, approval_id, organization_id=ctx.organization_id, for_update=True
         )
         if approval is None:
             raise NotFoundError(
