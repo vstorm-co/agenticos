@@ -117,10 +117,28 @@ Mechanism, per surface:
   stage a draft would otherwise provide. A skill draft path was considered
   and rejected: "no deploy, no pull request" is the product's own model for
   skills, and a second lifecycle would contradict it.
+  Two recording consequences the reuse does not get for free:
+  - **Evidence needs its own inlet.** `_propose_skill_changes` receives
+    filesystem `SkillChange` objects — there is no rating or run reference
+    in a workspace write. The improver therefore stages skill changes
+    through an explicit `propose_skill` tool (rationale + evidence
+    attached, like its spec siblings), recorded through the extended
+    columns; the workspace-write route stays for ordinary agents and
+    records, honestly, evidence-less proposals.
+  - **Supersession is scoped to the proposer.** The existing recorder
+    dedups pending rows by organization + skill alone, so an improver
+    proposal would replace another agent's pending edit in place and
+    corrupt its attribution. Pending skill proposals key on
+    (organization, skill, proposing agent); one agent's newer proposal
+    supersedes only its own.
 - **Instructions and tool descriptions** — a sibling table, `spec_proposals`,
   modelled on `skill_proposals` (org id, target `agent_id`, authoring
-  `run_id`/`conversation_id`, one open proposal per target — a later run
-  supersedes it). **Decision state lives on the hunk, not the row**: each
+  `run_id`/`conversation_id`). Cardinality: **one open batch per agent** —
+  the batch holds the instruction hunks *and* a collection of tool-override
+  entries keyed by `(capability_id, tool_id)`, so one improver run
+  suggesting two tool descriptions records both and the reviewer sees the
+  whole batch; a later run supersedes the batch, not one entry at a time.
+  **Decision state lives on the hunk, not the row**: each
   hunk carries its own `status` (pending/accepted/dismissed) and decision
   metadata (`decided_by`, `decided_at`), because one review can accept one
   hunk and dismiss its neighbour, which a row-level status cannot represent.
@@ -136,11 +154,17 @@ Mechanism, per surface:
     This deliberately diverges from `skill_proposals`' whole-body shape,
     because the decision differs: a skill proposal is accepted or discarded
     whole, where a prompt review is per-change — the demo's Accept / Edit /
-    Dismiss on each suggestion is the product. Staleness is handled openly
-    rather than avoided: a hunk applies only while its `old_text` still
-    matches the current draft; a hunk whose anchor is gone renders as
-    *stale* with a side-by-side view, never applies silently. The UI
-    computes the visible diff with the existing `frontend/src/lib/diff.ts`.
+    Dismiss on each suggestion is the product. **The anchor is a position,
+    not the text alone**: each hunk stores its base-snapshot range and the
+    surrounding context lines, because bare `old_text` is ambiguous when
+    the same line appears twice and a pure insertion (empty `old_text`)
+    would match everywhere. Staleness is handled openly rather than
+    avoided: a hunk applies only while that specific anchor still resolves
+    in the current draft — text moved but unambiguous still applies; an
+    anchor that is gone, changed or ambiguous renders the hunk *stale*
+    with a side-by-side view, never applies silently and never applies in
+    the wrong place. The UI computes the visible diff with the existing
+    `frontend/src/lib/diff.ts`.
   - `tool_override`: `capability_id` + stable `tool_id` + the proposed
     `description` (and rarely `name`) — the same two fields
     `ToolOverride` carries, so acceptance is a two-field write into
@@ -202,8 +226,9 @@ itself improvable, by itself.
 | `read_runs` | run metadata: status, error, tokens, cost, latency |
 | `read_manifest` | what the model was handed on a given run |
 | `read_transcript` | one run's messages + tool calls |
-| `propose_instructions` | stages a whole-body instructions proposal |
-| `propose_tool_description` | stages a tool-override proposal |
+| `propose_instructions` | stages instruction hunks with rationale + evidence |
+| `propose_tool_description` | stages a tool-override entry |
+| `propose_skill` | stages a skill-body proposal with rationale + evidence |
 | `propose_agent` | mode 1: stages a new draft agent definition |
 
 Two invariants carried over from the existing registry:
@@ -248,17 +273,20 @@ No new permission. The composition of existing gates already names each action:
 
 | Action | Gate |
 |---|---|
-| Start an improve run on agent X | `runs:view` (the evidence) **and** `agents:edit` on X via `resolve_access` (the proposals aim at its draft) |
+| Start an improve/verify/replay run on agent X | `runs:view` (the evidence), `agents:edit` on X via `resolve_access` (the proposals aim at its draft), **and `agents:run` on the seeded improver** via `resolve_access` — grants are independent, so edit access to X does not imply use of the improver, and starting it spends the org's money |
+| Start an improve/verify/replay run on skill S | `runs:view` **and `skills:edit` on S via `resolve_access`** — skills have their own ownership, visibility and grants, so access to some agent that binds S proves nothing about S |
 | Accept/dismiss an instructions or tool-description proposal | `agents:edit` on the target |
-| Apply/discard a skill proposal | `skills:edit` (existing) |
+| Apply/discard a skill proposal | `skills:edit` on the skill (existing) |
 | Publish the resulting draft | `agents:publish` (existing) |
-| Mode 1: create the draft agent | `agents:edit` (the promote precedent) |
+| Mode 1: create the draft agent | `agents:edit` (the promote precedent), plus `agents:run` on the improver as above |
 
 A new `authoring:*` permission would be a second name for authority these
 already express. Owed tests: the cross-tenant refusal (an improver run in org A
 cannot read org B's ratings/runs/manifests, in the
-`test_org_scope_regression.py` style), and ownership-alone-is-not-access on
-proposal decisions.
+`test_org_scope_regression.py` style), ownership-alone-is-not-access on
+proposal decisions, an editor of agent X without use of the improver refused
+at start, and a caller without `skills:edit` on S refused skill authoring
+however many agents bind S.
 
 ## Decision 5 — mode 1 produces a draft, never a version
 
@@ -376,9 +404,13 @@ The three hard edges, decided here:
 
 **Skills replay the same way, with a cheaper mechanism.** A skill is read,
 not executed, so "test the new skill body" means replaying runs that *loaded*
-it — and those are queryable today: `tool_calls` rows with
-`tool_name = 'load_skill'` and the skill's name in `args`, joined to their
-runs. Each pair replays under **its own recorded agent version** (a skill is
+it — queryable from `tool_calls`, with one care: `tool_name` records the
+**effective, per-binding name**, which an override may have renamed, so the
+lookup resolves each run's frozen agent version for its stable-id →
+effective-name mapping and matches `load_skill` through that, then inspects
+the skill argument — never a literal `tool_name = 'load_skill'` sweep, which
+silently misses every renamed binding. Each pair replays under **its own
+recorded agent version** (a skill is
 bound to many agents; the honest comparison holds the agent constant per
 pair) with the candidate body injected as a **resource override** — skills
 reach a run through `resources["skills"]`, so no spec change and no publish
@@ -388,9 +420,14 @@ edited skill while serving everything else from the recording.
 
 **The replay set is picked for relevance to the edit, capped small.** Five
 pairs by default, because the point is "does the edited fragment now work",
-not coverage — and the edited hunks say what to look for. Selection ranks
-the candidate pool (this agent's past opening prompts; for a skill, the
-prompts of runs that loaded it) by semantic similarity to the hunks'
+not coverage — and the edited hunks say what to look for. The candidate pool
+is this agent's past opening prompts (for a skill, the prompts of runs that
+loaded it), **excluding prompts that carried attachments**: the recorded
+answer was produced from routed file contents the replay cannot faithfully
+re-supply, so replaying the text alone would manufacture regressions — the
+picker says how many candidates that excluded, and reconstructing recorded
+attachments is future work, not a silent approximation. Selection ranks the
+pool by semantic similarity to the hunks'
 `old_text`/`new_text`, embedded **on demand** through the shared embedding
 client (`services/rag/embeddings.py`) — nearest-neighbour ranking gives the
 wanted fallback for free: editing the border-collie paragraph of a
@@ -439,16 +476,21 @@ is question 7 — cheap to add later, expensive to guess now.
    `messages`→`conversations`, the `get_rating_summary_scoped` shape), runs,
    manifests, transcripts. Repo functions take `organization_id`; the
    executable audit holds them to it.
-2. **`spec_proposals`** — model (per-hunk status + decision metadata,
-   `rationale`, `evidence` JSONB, base snapshots for hunks *and* tool
-   overrides, target kind), the draft-revision column and its optimistic
-   concurrency check, the additive `skill_proposals` columns, migration,
-   service (list/accept/dismiss/undo; accept writes the draft via the
-   registry service), routes. Tests: mixed per-hunk decisions on one
-   proposal; undo open / terminal closed; a stale anchor and a stale
-   tool-override base refuse to apply; a stale-revision draft write is
-   refused; one-open-per-target; cross-tenant 404; accept lands in draft
-   and never publishes.
+2. **`spec_proposals`** — model (one open batch per agent; per-hunk status +
+   decision metadata; positional anchors with context; `rationale`,
+   `evidence` JSONB; base snapshots for hunks *and* tool-override entries
+   keyed by `(capability_id, tool_id)`), the draft-revision column and its
+   optimistic concurrency check, the additive `skill_proposals` columns and
+   the per-proposer supersession key, migration, service
+   (list/accept/dismiss/undo; accept writes the draft via the registry
+   service), routes. Tests: mixed per-hunk decisions on one batch; two
+   tool-override entries survive in one batch; undo open / terminal closed;
+   a duplicate-text anchor and an empty-`old_text` insertion resolve by
+   position or go stale, never apply at the wrong place; a stale
+   tool-override base refuses to apply; a stale-revision draft write is
+   refused; an improver skill proposal does not replace another agent's
+   pending one; cross-tenant 404; accept lands in draft and never
+   publishes.
 3. **Capability `authoring`** — registry entry (`selectable=False`), read tools
    over injected resources, `propose_*` staging; runner assembly for the
    authoring surface + recording in `finish`. Tests: capability builds `None`
@@ -474,10 +516,12 @@ is question 7 — cheap to add later, expensive to guess now.
    occurrence-order match, and an args mismatch marks the pair divergent;
    a divergent call is recorded and not fired; the edited skill's recorded
    `load_skill` result is replaced by the candidate body while every other
-   recording is served verbatim; selection falls back in the declared order
-   and labels each pair; no embedding call before the session-creating
-   consent; replay spend meters against both caps; cross-tenant prompt
-   sourcing refused.
+   recording is served verbatim; a renamed `load_skill` binding is still
+   found through the version's stable-id mapping; an attachment-bearing
+   prompt never enters the pool and its exclusion is reported; selection
+   falls back in the declared order and labels each pair; no embedding call
+   before the session-creating consent; replay spend meters against both
+   caps; cross-tenant prompt sourcing refused.
 8. **The organization switch** — org settings fields (the toggle and the
    authoring-embedding choice) + service refusal on all four entry points
    (Improve, Verify, Replay, describe→draft) + frontend gating. Test: off
