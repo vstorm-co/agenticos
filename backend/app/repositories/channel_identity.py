@@ -86,21 +86,22 @@ async def get_or_create(
     locks.
 
     The insert runs only on a miss, so an existing identity - every message after
-    the first - is a plain read that takes no lock and writes nothing. That
-    matters here because the whole inbound message runs in one transaction, right
-    through the agent's model call, and the identity is keyed per platform user
-    rather than per chat: an unconditional upsert would row-lock the identity on
-    every message and hold it across the LLM call, serialising a user active in
-    two chats at once. The old get-then-create read without locking on a hit; this
-    keeps that.
+    the first - is a plain read that writes nothing and holds no lock. That matters
+    because the whole inbound message runs in one transaction, right through the
+    agent's model call, and the identity is keyed per platform user rather than per
+    chat: anything that wrote or locked the row here would hold it across the LLM
+    call and serialise a user active in two chats at once.
 
-    On the miss the insert closes the creation race with `ON CONFLICT DO UPDATE`,
-    not `DO NOTHING`: a `DO NOTHING` that loses to a concurrent *uncommitted*
-    insert writes nothing and returns nothing, and a re-`SELECT` in this
-    transaction would not see the other's uncommitted row. `DO UPDATE` waits on
-    that row's lock instead, so the following `SELECT` reads a committed row. The
-    update is a no-op - it sets the key to itself - so a linked `user_id`, a
-    username or a display name on the existing row is left as it was.
+    On the miss the insert closes the creation race with `ON CONFLICT DO NOTHING`
+    and a re-`SELECT`. `DO NOTHING` waits on a concurrent *uncommitted* insert of
+    the same key - it cannot decide whether to insert until that transaction ends -
+    so by the time it returns the other row is committed, and the re-`SELECT`, a
+    fresh statement under `READ COMMITTED`, reads it. The loser writes nothing and
+    takes no row lock, so it does not hold one through its own run; `DO UPDATE`
+    would, which is the difference on a first-message burst. The row is always
+    present by the `SELECT` - inserted here, or committed by the winner this one
+    lost to - so `scalar_one` cannot come up empty, and an existing `user_id`,
+    username or display name is left untouched.
     """
     existing = await get_by_platform_user(db, platform, platform_user_id)
     if existing is not None:
@@ -114,10 +115,7 @@ async def get_or_create(
         user_id=user_id,
     )
     await db.execute(
-        insert_stmt.on_conflict_do_update(
-            index_elements=["platform", "platform_user_id"],
-            set_={"platform_user_id": insert_stmt.excluded.platform_user_id},
-        )
+        insert_stmt.on_conflict_do_nothing(index_elements=["platform", "platform_user_id"])
     )
     result = await db.execute(
         select(ChannelIdentity).where(
