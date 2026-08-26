@@ -17,6 +17,36 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.261] - 2026-08-26
+
+An audit write that cannot be recorded now takes the action down with it.
+
+### Fixed
+
+- **`record_audit` swallowed every exception, which is fail-open on the audit
+  trail** - the trail `docs/governance.md` makes load-bearing for the app-admin
+  bypass story. The swallow did not even buy silence: `flush()` inside the `try`
+  left the session needing a rollback, so the request's `scope="function"` commit
+  raised `PendingRollbackError` and 500'd anyway, with an opaque error naming the
+  session rather than the audit. The write shares the caller's transaction now, so a
+  failure propagates and rolls the recorded action back rather than letting a
+  privileged mutation land unaudited. `db` is typed `AsyncSession`, which it never
+  was, and `app/core/audit.py` is in both the coverage `include` and the ty
+  overrides - every service that records an action was already gated; the trail they
+  write to was not. (#20)
+- **Three unit-test fixtures the swallow was hiding.** `sync_source`,
+  `sandbox_connection` and `skill_proposal` built a bare `MagicMock()` db, where
+  `await db.flush()` raised `TypeError` inside `record_audit` - so the audit write
+  was a silent no-op a green suite never noticed. They build the db the way every
+  other audit-calling test already does. (#20)
+
+### Changed
+
+- A failure specific to the audit row - a bad `details`, an FK on
+  `organization_id` - now rolls the *action* back rather than being dropped. That is
+  the atomicity `governance.md` describes, and the recorded `details` were reviewed
+  and are all serialisable. (#20)
+
 ## [0.0.260] - 2026-08-26
 
 ### Fixed
