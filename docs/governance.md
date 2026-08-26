@@ -599,6 +599,19 @@ it. They were local state until #768, so the p95 figure was the only number on
 the dashboard that could reach the runs behind it and three cards carried no link
 at all — there was nothing honest to point them at.
 
+**Including which tab is open.** `?tab=approvals` and `?tab=spend` open the queue
+and the cost screen; the run history is the default and is never written. That is
+the address a link to a *decision* needs, and the reason the parameter exists: the
+approvals card's "See all" and the alert that says a run is parked both had to
+point at the run history, where nothing can be decided (#934). A tab named by a
+link is resolved against what the reader may open — `approvals` is gated on
+`approvals:decide`, so a link carrying it that reaches somebody without the
+permission opens the run history rather than a strip whose selected tab has no
+content. Switching tabs closes an open run detail and takes `?run=` with it: a
+panel that outlives the tab that opened it sits beside a queue it has nothing to
+do with, and below `lg` it replaces the list, so the strip stayed live while every
+tab's content was hidden.
+
 **Duration is computed in SQL, over the whole narrowed set.** That is what gets
 from *"p95 is 14.8s"* on the dashboard to **those runs** — sorting one page of
 twenty-five sorts the wrong set, because the slowest run of a month is not in

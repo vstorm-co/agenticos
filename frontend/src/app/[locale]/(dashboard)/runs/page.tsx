@@ -14,7 +14,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { useApprovals, usePermissions, useRuns, useSpend, useUrlState } from "@/hooks";
 import { periodEnd, periodStart } from "@/lib/dashboard/period";
 import { formatPeriodParam, parsePeriodParam, type Period } from "@/lib/dashboard/period";
-import { parseRunFilters, writeRunFilters, type RunFilters } from "@/lib/runs/filter-params";
+import {
+  parseRunFilters,
+  parseRunsTab,
+  writeRunFilters,
+  type RunFilters,
+} from "@/lib/runs/filter-params";
 import { cn, setUrlParam } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
@@ -88,6 +93,13 @@ export default function RunsPage() {
     setFilters(next);
     writeRunFilters(next);
   };
+  // Which tab is open, mirrored into `?tab=` like everything else the page
+  // narrows itself with. Addressable at all for the first time here: the alert
+  // that says a run is parked has to send somebody to the decision, and until
+  // the queue had a URL the only honest link was the agent's Builder page
+  // (#935). Resolved against the permission below rather than trusted, so a
+  // link naming a tab the reader may not open lands on one they may.
+  const [tabParam, changeTab] = useUrlState("tab");
   const { can, isLoading: permissionsLoading } = usePermissions();
   // Run history and spend take `runs:view` - `GET /runs` and `GET /spend` both
   // carry it - so a caller without it is not asked for: the figures and the
@@ -136,22 +148,28 @@ export default function RunsPage() {
         <PeriodControl period={period} onChange={changePeriod} />
       </div>
 
-      {/* Not until the permission set has answered. `Tabs` is uncontrolled, so
-          Radix captures `defaultValue` on first mount and never reads it again -
-          mounted while `can()` still answers `false` for everything, the strip
-          opens on Runs and stays there even once the Approvals tab appears
-          beside it. The strip's *shape* depends on this permission, so drawing
-          it before the answer arrives is guessing at it. The badges wait with
-          it: mounted early they would count against a `can()` that simply has
-          not answered yet. */}
+      {/* Not until the permission set has answered. The strip's *shape* depends
+          on this permission - whether there is an Approvals tab at all - so
+          drawing it before the answer arrives is guessing at it, and a link
+          carrying `?tab=approvals` would resolve against a `can()` that has
+          simply not answered yet and open the run history instead. The badges
+          wait with it, for the second half of that reason. */}
       {permissionsLoading ? (
         <LoadingState variant="skeleton-table" columns={6} rows={6} />
       ) : (
         <>
           <Tabs
-            defaultValue="runs"
+            value={parseRunsTab(tabParam, canDecide)}
             className="flex min-h-0 flex-1 flex-col"
-            onValueChange={() => focusRun(null)}
+            onValueChange={(next) => {
+              changeTab(next);
+              // A focused run belongs to the tab that opened it. Left alone it
+              // sat beside a queue it has nothing to do with, and below `lg`
+              // it *replaced* the list - so the strip was live while every
+              // tab's content stayed hidden and switching appeared to do
+              // nothing at all (#934).
+              focusRun(null);
+            }}
           >
             <TabsList className="shrink-0" data-tour="activity-overview">
               {/* Runs first: the page's main question is what ran. The queue

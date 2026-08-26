@@ -17,6 +17,7 @@
  */
 
 import { ROUTES } from "@/lib/constants";
+import { runsHref } from "@/lib/runs/filter-params";
 import { Perm, type Permission } from "@/types/permissions";
 
 export type WidgetId =
@@ -401,7 +402,11 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s7",
     defaultRows: "r3",
     category: "attention",
-    seeAll: ROUTES.RUNS,
+    // The queue, not the run history. "See all" on a card counting what is
+    // waiting used to open Activity on Runs, where nothing can be decided -
+    // the same wrong destination the approval alert had, for the same reason:
+    // there was no URL for the tab until #934.
+    seeAll: runsHref({ tab: "approvals" }),
   },
   "recent-failures": {
     id: "recent-failures",
