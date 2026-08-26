@@ -608,7 +608,11 @@ class AgentEmbedService:
         )
         try:
             claims = jwt.decode(token, secret, algorithms=["HS256"])
-        except jwt.PyJWTError as exc:
+        except (jwt.PyJWTError, TypeError) as exc:
+            # `exp`/`iat` as null, [] or {} makes PyJWT's own validation run
+            # `int()` on it - a raw `TypeError`, not a `PyJWTError` - so without
+            # this a malformed-but-signed token escaped as a 500 rather than a
+            # clean refusal (#1107).
             raise EmbedDenied("token rejected") from exc
 
         issued_at = claims.get("iat")
