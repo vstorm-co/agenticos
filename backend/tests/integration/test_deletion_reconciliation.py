@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import uuid
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import select, text
@@ -220,6 +220,27 @@ class TestDeletingAUser:
         assert await db.get(User, admin.id) is not None  # the deployment admin stays
         for member in members:
             assert await db.get(User, member.id) is None  # each non-admin and its org went
+
+    async def test_a_user_promoted_after_the_list_is_not_deleted(self, db):
+        """A `create-app-admin` between the list and the per-user delete must not
+        remove the freshly-promoted admin; the flag is rechecked under the lock
+        (#1139). The list is stubbed to return the account it no longer would,
+        standing in for the promotion having landed after it ran."""
+        user = _user()
+        db.add(user)
+        await db.flush()
+        await _org(db, user, is_personal=True)
+        service = UserService(db)
+
+        with patch(
+            "app.services.user.user_repo.list_non_admins", new=AsyncMock(return_value=[user])
+        ):
+            user.is_app_admin = True
+            await db.flush()
+            removed = await service.delete_non_admins()
+
+        assert removed == 0
+        assert await db.get(User, user.id) is not None  # the promoted admin survives
 
     async def test_deleting_a_non_creator_owner_beside_a_co_owner_succeeds(self, db):
         """With another owner present the org keeps one when this membership

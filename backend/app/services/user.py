@@ -84,11 +84,20 @@ class UserService:
         row (#1124). Each goes through `delete`, which runs `_release_owned_rows`
         - purging the personal org, promoting private secrets, handing off or
         refusing owned orgs - the same reconciliation `DELETE /users/{id}` uses.
+
+        `is_app_admin` is rechecked under the row lock, not just filtered by the
+        list: a `create-app-admin` that promotes a listed account before this loop
+        reaches it would otherwise have it deleted despite the command's promise
+        to keep admins, since `delete` does not re-read the flag (#1139).
         """
-        users = await user_repo.list_non_admins(self.db)
-        for user in users:
-            await self.delete(user.id)
-        return len(users)
+        removed = 0
+        for candidate in await user_repo.list_non_admins(self.db):
+            locked = await user_repo.get_by_id_for_update(self.db, candidate.id)
+            if locked is None or locked.is_app_admin:
+                continue
+            await self.delete(candidate.id)
+            removed += 1
+        return removed
 
     async def has_any(self) -> bool:
         return await user_repo.has_any(self.db)
