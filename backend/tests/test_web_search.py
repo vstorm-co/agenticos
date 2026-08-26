@@ -8,6 +8,7 @@ answer around, confidently, without saying so.
 """
 
 import json
+import logging
 import sys
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -138,9 +139,31 @@ class TestFailures:
         """An error shaped like a result is one the model reads as "no hits"."""
         with (
             patch.dict(sys.modules, {"tavily": _tavily_module(RuntimeError("429 rate limited"))}),
-            pytest.raises(SearchUnavailable, match="rate limited"),
+            pytest.raises(SearchUnavailable, match="Tavily search is unavailable"),
         ):
             await search("q", provider="tavily", api_key="k", max_results=5)
+
+    @pytest.mark.anyio
+    async def test_a_providers_own_message_stays_in_the_log(self, caplog):
+        """The vendor's text names the failing endpoint, and an SDK puts the key in
+        its query string. On the model's last attempt `steer` returns this message
+        rather than raising it, and a returned string is stored and streamed whole -
+        so only the exception's class travels and the rest goes to the log.
+        """
+        vendor_text = "401 for url 'https://api.tavily.com/search?k=sk-9f2c'"
+        module = _tavily_module(RuntimeError(vendor_text))
+        with (
+            caplog.at_level(logging.ERROR, logger="app.agents.capabilities.web_research._search"),
+            patch.dict(sys.modules, {"tavily": module}),
+            pytest.raises(SearchUnavailable) as raised,
+        ):
+            await search("q", provider="tavily", api_key="k", max_results=5)
+
+        assert str(raised.value) == (
+            "Tavily search is unavailable (RuntimeError). The server log has the full error."
+        )
+        assert vendor_text not in str(raised.value)
+        assert vendor_text in caplog.text
 
     @pytest.mark.anyio
     async def test_the_tool_asks_the_model_to_retry_instead_of_answering_from_memory(self):

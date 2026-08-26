@@ -25,6 +25,7 @@ difference between the two.
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError
@@ -43,6 +44,8 @@ from app.agents.capabilities._failures import steer
 from app.agents.capabilities.budget import record_ambient_usage
 from app.agents.deps import AgentDeps
 from app.services.generated_media import generated_image_url, save_generated_image
+
+logger = logging.getLogger(__name__)
 
 WORKSPACE_OUTPUT_DIR = "output"
 """Where a generated image lands in the run's workspace, when there is one.
@@ -162,8 +165,16 @@ def build_image_toolset(
         except (UserError, UnexpectedModelBehavior) as exc:
             # The image model refused or misbehaved - a bad prompt, an
             # unsupported setting. Hand it back for the model to rephrase rather
-            # than ending the turn on an error string.
-            return steer(ctx, f"Image generation failed: {exc}")
+            # than ending the turn on an error string. Its own text does not
+            # travel: on the last attempt `steer` returns this rather than
+            # raising it, and a returned string is stored and streamed verbatim
+            # where a retry prompt is replaced with a notice (#681, #695).
+            logger.exception("Image generation failed")
+            return steer(
+                ctx,
+                f"Image generation failed ({type(exc).__name__}). "
+                "Rephrase the prompt, or answer without an image.",
+            )
 
         image = result.output
         # Booked to the run's ledger, which the runner is holding open. The model
