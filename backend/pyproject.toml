@@ -468,6 +468,9 @@ include = [
     "app/core/secret_kinds.py",
     "app/core/vault.py",
     "app/core/background.py",
+    # The dedicated bounded pool for blocking file work, kept off the executor
+    # bcrypt and DNS share; its write is cancellation-safe (#1108).
+    "app/core/blocking.py",
     # The client that dials the address it validated, for a URL the party being
     # validated chose. A miss here is an SSRF the operator cannot see.
     "app/core/pinned_http.py",
@@ -688,6 +691,9 @@ include = [
     "app/core/secret_kinds.py",
     "app/core/vault.py",
     "app/core/background.py",
+    # The dedicated bounded pool for blocking file work, kept off the executor
+    # bcrypt and DNS share; its write is cancellation-safe (#1108).
+    "app/core/blocking.py",
     # The client that dials the address it validated, for a URL the party being
     # validated chose. A miss here is an SSRF the operator cannot see.
     "app/core/pinned_http.py",

@@ -60,6 +60,15 @@ class Settings(BaseSettings):
     EMBED_MAX_UPLOAD_SIZE_MB: int = 5
     STORAGE_SOFT_LIMIT_BYTES: int = 5 * 1024 * 1024 * 1024
 
+    # Size of the dedicated thread pool that runs blocking file work - parsing an
+    # upload (pymupdf/openpyxl/docx) and reading or writing its bytes. Kept off
+    # `asyncio`'s shared default executor, which the same loop also uses for
+    # `bcrypt` password hashing and pinned-host DNS: a burst of uploads must not
+    # occupy every worker there and leave sign-in and outbound requests queued
+    # behind them (#1108). Tunable per deployment; the bound is what contains the
+    # blast radius of a parse storm to this pool.
+    FILE_IO_MAX_WORKERS: int = 8
+
     # The monthly spend ceiling a brand-new organization starts with, in USD. A
     # new org one runaway agent away from a surprise bill is the posture this
     # avoids: a budget is only enforced if it exists, so a sensible default is
