@@ -17,6 +17,38 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.275] - 2026-08-26
+
+### Fixed
+
+- **The ingestion existence check read the whole collection, once per document.**
+  `IngestionService.existing_document` answered "does this collection already hold
+  this file" by reading every row of the runtime `rag_<collection>` table through
+  `get_documents` and grouping in Python - a full read into worker memory for each
+  ingested document, which on a 200k-chunk collection dominates a nightly sync. The
+  lookup belongs to the store now as `find_existing_document`, which `PgVectorStore`
+  answers with one indexed statement per key in the same precedence - `source_path`,
+  then an unaddressed `filename`, then `content_hash` - stopping at the first hit.
+  `_ensure_collection` builds an expression index on each of the three metadata keys
+  alongside the table, so an established collection gains them on its next ingest
+  through the write path's existing call. (#1102, #27)
+- The invariants are preserved rather than re-derived: the #548 single-document rule
+  and the #990 unaddressed-filename rule move into a reference implementation on
+  `BaseVectorStore` that scans, so a store with no index still answers correctly and
+  `PgVectorStore` overrides it with the indexed path. Index suffixes are kept no
+  longer than the HNSW one, so `MAX_COLLECTION_NAME_LENGTH` stays 45 and no
+  identifier truncates, and `existing_document`'s signature is unchanged so
+  `rag_tasks` and the `rag-*` commands are untouched. The document *listing* is
+  still a full scan - that is the display path, not the ingest check. (#1102)
+
+- Two things this branch broke on `main`, fixed with it and each invisible to the
+  branch that caused it - both were green before the other merged. The
+  `_first_document` annotation referenced `AsyncSession` after #12 removed that
+  import, so `ruff` failed the whole `lint` job; and the index backfill claimed
+  `0055_sandbox_operations` as its parent while the conversation plan already had,
+  leaving the migration chain with **two heads** - `alembic upgrade head` cannot
+  choose between them, so a deployment could not migrate at all. The backfill is
+  re-parented onto the current head as `0058`. (#1102, #12)
 ## [0.0.274] - 2026-08-26
 
 ### Fixed
