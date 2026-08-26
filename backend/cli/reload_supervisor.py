@@ -40,10 +40,12 @@ while every request times out (#336).
 
 So the worker also says, from its own event loop, that the loop is turning.
 uvicorn already has the hook: `Config.callback_notify` is awaited by
-`Server.on_tick` every `timeout_notify` seconds, which is the integration point
-systemd's watchdog uses. The callback stamps `time.monotonic()` into a shared
-cell; the supervisor reads the cell on the same quiet poll as everything else,
-and replaces a worker whose loop has not turned for `WEDGED_AFTER` seconds.
+`Server.on_tick` once `time.time()` has advanced past `timeout_notify` since the
+last beat, which is the integration point systemd's watchdog uses. The callback
+stamps `time.time()` into a shared cell - the same wall clock the cadence is
+gated on, so the verdict cannot diverge from it (#1080); the supervisor reads
+the cell on the same quiet poll as everything else, and replaces a worker whose
+loop has not turned for `WEDGED_AFTER` seconds.
 
 Four properties of that choice are the reason for it:
 
@@ -69,11 +71,14 @@ Four properties of that choice are the reason for it:
   hung. `shutdown` needs the same escalation for the same reason, or Ctrl+C on a
   wedged worker blocks until Docker's grace period runs out.
 - **A frozen host is not a wedged worker.** `docker pause`, a frozen cgroup and
-  a Docker Desktop VM resuming after the host slept all advance the monotonic
-  clock while *nothing* runs, worker and supervisor alike, so the first poll
-  after one reads a stale beat that says nothing about the worker. Two
-  consecutive silent polls are therefore needed rather than one: by the second,
-  a healthy worker has beaten again and the verdict clears.
+  a Docker Desktop VM resuming after the host slept all step the wall clock
+  forward while *nothing* runs, worker and supervisor alike, so the first poll
+  after one reads a beat stamped before the jump and finds a gap that says
+  nothing about the worker. Two consecutive silent polls are therefore needed
+  rather than one: by the second, a healthy worker has beaten again and the
+  verdict clears. The beat and the verdict read the same wall clock uvicorn
+  gates the cadence on, so a stalled clock never reads as a wedge on its own
+  (#1080).
 
 ## The other two stacks, which do not run this module
 
@@ -153,25 +158,27 @@ BEAT_INTERVAL: Final = 1
 # laptop, and replacing a healthy one early drops in-flight requests. Fifteen
 # seconds of an event loop not turning is not load - a loaded loop still runs a
 # timer callback in milliseconds - it is blocked, stopped or deadlocked. It also
-# leaves room for the beat's own jitter: `on_tick` schedules on `time.time()`
-# while the verdict is monotonic, so a backwards clock step delays a beat by the
-# size of the step. Fifteen seconds absorbs that; two would not. The
-# supervisor notices within `WEDGED_AFTER` plus the two polls
-# `POLLS_BEFORE_WEDGED` costs, so about twenty-five seconds, against the ninety a
-# container health check takes to reach a verdict nothing acts on.
+# leaves room for the beat's own jitter: the beat and the verdict both read
+# `time.time()`, the clock uvicorn gates the cadence on (#1080), so a wall-clock
+# step moves the beat and the reading together rather than only one of them - but
+# a forward step still stretches the gap by its size until the next beat lands,
+# and fifteen seconds absorbs that where two would not. The supervisor notices
+# within `WEDGED_AFTER` plus the two polls `POLLS_BEFORE_WEDGED` costs, so about
+# twenty-five seconds, against the ninety a container health check takes to reach
+# a verdict nothing acts on.
 WEDGED_AFTER: Final = 15.0
 
 # Consecutive silent polls before the worker is replaced. Two, not one, because
 # `docker pause`, a frozen cgroup and a Docker Desktop VM resuming after the host
-# slept all advance the monotonic clock while *nothing* runs - supervisor
-# included - and the first poll after one of those reads a stale beat that says
-# nothing about the worker. By the next poll a healthy worker has beaten again,
-# about a second having passed, and the verdict clears; a wedged one fails both.
-# The reprieve costs one poll of detection, and it is deliberately not measured
-# as a gap in the supervisor's own polling: watchfiles ticks every five seconds
-# or so, so any threshold below that would have compared a poll gap against a
-# smaller number, judged every poll a freeze, and switched the check off in
-# silence.
+# slept all step the wall clock forward while *nothing* runs - supervisor
+# included - so the first poll after one of those reads a beat stamped before the
+# jump and finds a gap that says nothing about the worker. By the next poll a
+# healthy worker has beaten again, about a second having passed, and the verdict
+# clears; a wedged one fails both. The reprieve costs one poll of detection, and
+# it is deliberately not measured as a gap in the supervisor's own polling:
+# watchfiles ticks every five seconds or so, so any threshold below that would
+# have compared a poll gap against a smaller number, judged every poll a freeze,
+# and switched the check off in silence.
 POLLS_BEFORE_WEDGED: Final = 2
 
 # Seconds without a beat before a worker is replaced, `0` or below to switch the
@@ -214,6 +221,17 @@ class EventLoopHeartbeat:
     because the pickling happens while the child is being spawned, which is the
     one time `multiprocessing` permits a shared value to cross.
 
+    **The stamp is `time.time()`, not `time.monotonic()`, and that is the whole
+    of #1080.** uvicorn does not call this on a fixed cadence: `Server.on_tick`
+    beats only when `time.time() - last_notified > timeout_notify`, so *when* a
+    beat happens is governed by the wall clock. The verdict has to read the same
+    clock the cadence runs on, or the two diverge: on Docker Desktop's VM the
+    wall clock can stall for tens of seconds relative to the monotonic clock
+    while the loop keeps serving, and a monotonic verdict then read that stalled
+    beat as a wedge and killed a healthy worker. Wall on both sides cannot
+    diverge from itself - a stalled wall clock stalls the cadence and the verdict
+    together, so the reading stays near zero.
+
     `RawValue` and not `Value`, on two counts. `Value`'s lock is a `SemLock` from
     the *default* context, which on Linux is `fork` - and uvicorn spawns, so
     handing the worker one raises `A SemLock created in a fork context is being
@@ -230,7 +248,7 @@ class EventLoopHeartbeat:
         self._beat = beat
 
     async def __call__(self) -> None:
-        self._beat.value = time.monotonic()
+        self._beat.value = time.time()
 
 
 class SupervisedReload(ChangeReload):
@@ -421,7 +439,10 @@ class SupervisedReload(ChangeReload):
         if beat == NOT_YET_BEATEN:
             return None
 
-        silent_for = time.monotonic() - beat
+        # `time.time()`, matching the clock the beat is stamped with and the one
+        # uvicorn gates the beat's cadence on (#1080). A monotonic verdict here
+        # read a wall-clock stall - the loop still serving - as a wedge.
+        silent_for = time.time() - beat
         return silent_for if silent_for >= self._wedged_after else None
 
     def _replace_a_wedged_worker(self) -> None:

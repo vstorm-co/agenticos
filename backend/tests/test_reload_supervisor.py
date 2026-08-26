@@ -392,7 +392,7 @@ def test_a_worker_whose_event_loop_stopped_turning_is_replaced(
     supervisor: RecordingReload, beat: ctypes.c_double
 ) -> None:
     """The whole of #336: this worker is alive, so nothing else would ever act on it."""
-    beat.value = time.monotonic() - A_SHORT_WEDGE - 1
+    beat.value = time.time() - A_SHORT_WEDGE - 1
     wedged = FakeWorker(None)
     supervisor.process = wedged
 
@@ -408,19 +408,41 @@ def test_one_silent_poll_is_not_a_verdict(
 ) -> None:
     """`docker pause`, a frozen cgroup, a Docker Desktop VM after the host slept.
 
-    All of them advance the monotonic clock while the supervisor is not running
-    either, so the first poll afterwards reads a stale beat that says nothing
-    about the worker. A healthy one has beaten again by the next poll.
+    All of them step the wall clock forward while the supervisor is not running
+    either, so the first poll afterwards reads a beat stamped before the jump and
+    finds a gap that says nothing about the worker. A healthy one has beaten again
+    by the next poll.
     """
-    beat.value = time.monotonic() - A_SHORT_WEDGE - 1
+    beat.value = time.time() - A_SHORT_WEDGE - 1
     supervisor.process = FakeWorker(None)
 
     assert supervisor.should_restart() is None
     assert supervisor.replacements == 0
 
-    beat.value = time.monotonic()
+    beat.value = time.time()
 
     assert supervisor.should_restart() is None
+    assert supervisor.replacements == 0
+
+
+def test_a_wall_clock_stall_while_monotonic_runs_on_is_not_a_wedge(
+    supervisor: RecordingReload, beat: ctypes.c_double, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#1080. The loop is serving, but the wall clock - which gates uvicorn's
+    beat cadence - has stalled while the monotonic clock has run on, as it does
+    on Docker Desktop's VM. A monotonic verdict read that stalled beat as a
+    wedge and killed a healthy worker; the verdict now reads the same wall clock
+    the beat is stamped with, so the reading stays near zero and the worker
+    lives. Both clocks are pinned so the divergence is the whole of the test
+    rather than a race.
+    """
+    monkeypatch.setattr(reload_supervisor.time, "monotonic", lambda: 10_000.0)
+    monkeypatch.setattr(reload_supervisor.time, "time", lambda: 1_000.0)
+    beat.value = 1_000.0  # stamped at the wall clock, which has since stalled here
+    supervisor.process = FakeWorker(None)
+
+    assert supervisor.should_restart() is None
+    assert supervisor.should_restart() is None  # and still, past POLLS_BEFORE_WEDGED
     assert supervisor.replacements == 0
 
 
@@ -431,9 +453,9 @@ def test_the_silent_polls_have_to_be_consecutive(
     supervisor.process = FakeWorker(None)
 
     for _ in range(POLLS_BEFORE_WEDGED * 3):
-        beat.value = time.monotonic() - A_SHORT_WEDGE - 1
+        beat.value = time.time() - A_SHORT_WEDGE - 1
         supervisor.should_restart()
-        beat.value = time.monotonic()
+        beat.value = time.time()
         supervisor.should_restart()
 
     assert supervisor.replacements == 0
@@ -443,7 +465,7 @@ def test_a_worker_still_beating_is_left_alone(
     supervisor: RecordingReload, beat: ctypes.c_double
 ) -> None:
     """A slow server is not a wedged one, and replacing it drops requests it was serving."""
-    beat.value = time.monotonic()
+    beat.value = time.time()
     supervisor.process = FakeWorker(None)
 
     assert supervisor.should_restart() is None
@@ -471,7 +493,7 @@ def test_a_worker_that_exited_on_its_own_is_not_killed_for_its_stale_beat(
     Without the guard, the wedge check would undo the one decision
     `_replace_a_dead_worker` makes deliberately.
     """
-    beat.value = time.monotonic() - A_SHORT_WEDGE - 1
+    beat.value = time.time() - A_SHORT_WEDGE - 1
     supervisor.process = FakeWorker(1)
 
     for _ in range(POLLS_BEFORE_WEDGED):
@@ -484,7 +506,7 @@ def test_a_replacement_is_not_judged_on_the_beat_of_the_worker_it_replaced(
     supervisor: RecordingReload, beat: ctypes.c_double
 ) -> None:
     """Otherwise the first replacement inherits a stale cell and is killed on the next poll."""
-    beat.value = time.monotonic() - A_SHORT_WEDGE - 1
+    beat.value = time.time() - A_SHORT_WEDGE - 1
     supervisor.process = FakeWorker(None)
 
     for _ in range(POLLS_BEFORE_WEDGED * 2):
@@ -499,7 +521,7 @@ def test_a_worker_wedging_during_shutdown_is_not_replaced(
 ) -> None:
     """A worker stops beating as it shuts down, and its replacement would be an orphan."""
     supervisor.should_exit.set()
-    beat.value = time.monotonic() - A_SHORT_WEDGE - 1
+    beat.value = time.time() - A_SHORT_WEDGE - 1
     supervisor.process = FakeWorker(None)
 
     for _ in range(POLLS_BEFORE_WEDGED):
@@ -520,7 +542,7 @@ def test_a_last_gasp_beat_from_a_dying_worker_does_not_reach_its_replacement(
     """
 
     def _beat_on_the_way_out(self: RecordingReload) -> None:
-        beat.value = time.monotonic()
+        beat.value = time.time()
         _record_the_replacement(self)
 
     monkeypatch.setattr(BaseReload, "restart", _beat_on_the_way_out)
@@ -543,7 +565,7 @@ def test_shutting_down_kills_a_wedged_worker_rather_than_waiting_for_it(
     """
     wedged = FakeWorker(None, ignores_sigterm=True)
     supervisor.process = wedged
-    beat.value = time.monotonic() - A_SHORT_WEDGE - 1
+    beat.value = time.time() - A_SHORT_WEDGE - 1
 
     supervisor.shutdown()
 
@@ -557,7 +579,7 @@ def test_shutting_down_leaves_a_healthy_worker_to_drain(
     """`SIGTERM` is how in-flight requests finish; escalating always would drop them."""
     healthy = FakeWorker(None)
     supervisor.process = healthy
-    beat.value = time.monotonic()
+    beat.value = time.time()
 
     supervisor.shutdown()
 
@@ -572,7 +594,7 @@ def test_shutting_down_stops_waiting_on_a_worker_that_never_drains(
     """The bound is not a timeout that hides a hang - it says what it killed."""
     stuck = FakeWorker(None, ignores_sigterm=True)
     supervisor.process = stuck
-    beat.value = time.monotonic()
+    beat.value = time.time()
 
     supervisor.shutdown()
 
@@ -616,7 +638,7 @@ def test_shutting_down_closes_the_socket_it_bound(
     listening = socket()
     supervisor.sockets = [listening]
     supervisor.process = FakeWorker(None)
-    beat.value = time.monotonic()
+    beat.value = time.time()
 
     supervisor.shutdown()
 
@@ -631,7 +653,7 @@ def test_the_wedge_check_can_be_switched_off(
     monkeypatch.setattr(BaseReload, "restart", _record_the_replacement)
     off = RecordingReload(Config(APP, reload=True, ws=WS_PROTOCOL), beat, wedged_after=0)
     off.process = FakeWorker(None)
-    beat.value = time.monotonic() - A_SHORT_WEDGE - 1
+    beat.value = time.time() - A_SHORT_WEDGE - 1
 
     for _ in range(POLLS_BEFORE_WEDGED):
         assert off.should_restart() is None
@@ -644,7 +666,7 @@ async def test_the_heartbeat_stamps_the_cell_the_supervisor_reads(
 ) -> None:
     await EventLoopHeartbeat(beat)()
 
-    assert beat.value == pytest.approx(time.monotonic(), abs=1)
+    assert beat.value == pytest.approx(time.time(), abs=1)
 
 
 async def test_uvicorn_awaits_the_heartbeat_on_its_own_tick(beat: ctypes.c_double) -> None:
@@ -664,7 +686,7 @@ async def test_uvicorn_awaits_the_heartbeat_on_its_own_tick(beat: ctypes.c_doubl
 
     await Server(config).on_tick(counter=0)
 
-    assert beat.value == pytest.approx(time.monotonic(), abs=1)
+    assert beat.value == pytest.approx(time.time(), abs=1)
 
 
 def test_the_worker_reports_its_event_loop_through_uvicorns_notify_hook(
