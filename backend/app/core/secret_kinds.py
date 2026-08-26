@@ -305,7 +305,9 @@ STORABLE_KINDS: frozenset[SecretKind] = frozenset(SecretKind) - {SecretKind.NONE
 _STORABLE_ADAPTER: TypeAdapter[StorableSecret] = TypeAdapter(StorableSecret)
 
 
-def seal_secret(value: StorableSecret, *, scope: VaultScope, key_version: int = 1) -> SealedSecret:
+def seal_secret(
+    value: StorableSecret, *, scope: VaultScope, key_version: int | None = None
+) -> SealedSecret:
     """Seal a typed secret into one envelope.
 
     The whole payload is sealed as a single JSON document rather than field by

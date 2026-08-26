@@ -1343,6 +1343,20 @@ def _spend_already_booked(run: AgentRun) -> SpendEntry:
     )
 
 
+@dataclass(frozen=True)
+class _RecordedState:
+    """What an earlier turn of a conversation left for the next one to seed from.
+
+    Three fields off one row, named rather than positional: they were a tuple of
+    two, and a third would have made every call site count commas to find out
+    which value it was reading.
+    """
+
+    overhead: int | None
+    reminder_state: dict[str, Any] | None
+    plan: list[dict[str, Any]] | None
+
+
 def _observability_of(stored: dict[str, Any]) -> ObservabilitySpec | None:
     """The observability block of a stored spec, without validating the rest of it.
 
@@ -1431,30 +1445,33 @@ class AgentRunnerService:
             names.append(collection.collection_name)
         return names
 
-    async def _recorded_conversation_state(
-        self, conversation_id: UUID | None
-    ) -> tuple[int | None, dict[str, Any] | None]:
+    async def _recorded_conversation_state(self, conversation_id: UUID | None) -> _RecordedState:
         """What an earlier turn of this thread recorded, in one read.
 
-        Two things the build seeds from the conversation - the request overhead
-        (instructions and tool schemas) and how far the system-reminders cadence
-        has advanced. Both are properties of the agent rather than of the
-        conversation, strictly, but the conversation is where a run finds them
-        without asking every surface to carry them, and an agent answering one
-        thread answers with the instructions and tools it has now.
+        Three things the build seeds from the conversation - the request overhead
+        (instructions and tool schemas), how far the system-reminders cadence has
+        advanced, and the plan the agent is working to. All three are properties of
+        the agent rather than of the conversation, strictly, but the conversation is
+        where a run finds them without asking every surface to carry them, and an
+        agent answering one thread answers with the instructions and tools it has
+        now.
 
         Read together because they are seeded together: without the overhead a
         one-request turn cannot tell a window with no room for a summary from one
-        that works (#49), and without the cadence a reminder set to fire every N
-        requests never reaches N in a chat of one-request turns. One row, so one
-        SELECT rather than one each.
+        that works (#49); without the cadence a reminder set to fire every N
+        requests never reaches N in a chat of one-request turns; and without the
+        plan an agent denies a checklist it wrote in the previous message, because
+        a plan store is one run's and a chat message is a run (#1077). One row, so
+        one SELECT rather than one each.
         """
         if conversation_id is None:
-            return None, None
+            return _RecordedState(None, None, None)
         conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
         if conversation is None:
-            return None, None
-        return conversation.overhead_tokens, conversation.reminder_state
+            return _RecordedState(None, None, None)
+        return _RecordedState(
+            conversation.overhead_tokens, conversation.reminder_state, conversation.plan_items
+        )
 
     async def prepare(
         self,
@@ -1611,12 +1628,20 @@ class AgentRunnerService:
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
         }
+        # What an earlier turn of this thread wrote down. Read here rather than
+        # beside the build below, because one of the three is a resource.
+        recorded = await self._recorded_conversation_state(conversation_id)
         # Always present, like the two above and unlike the conditional resources
         # below: the planning capability reads it only when bound, but the runner
         # owns the store either way so `finish` can snapshot the checklist into the
-        # parked state. Seeded from `PausedRunState.plan` on a resume and empty on a
-        # fresh run - which is what carries a plan across an approval park.
-        plan_store = await open_plan_store(plan_items)
+        # parked state.
+        #
+        # Seeded from `PausedRunState.plan` on a resume and from the *conversation*
+        # on a fresh run. The park's copy wins because it is the newer one - it was
+        # itself seeded from the conversation when that run began, and then worked
+        # on. Without the conversation's copy the store is empty every turn, which
+        # is an agent denying the plan it wrote in the previous message (#1077).
+        plan_store = await open_plan_store(plan_items if plan_items is not None else recorded.plan)
         resources[PLANNING_STORE_RESOURCE] = plan_store
         # Only on a channel run, and bound to the channel the message arrived in
         # before it got here. Absent everywhere else, and `channel_tools` then
@@ -1773,9 +1798,6 @@ class AgentRunnerService:
         if runtime is not None:
             resources[SUBAGENT_RUNTIME_RESOURCE] = runtime
 
-        recorded_overhead, recorded_reminder_state = await self._recorded_conversation_state(
-            conversation_id
-        )
         built = build_agent(
             spec,
             model_spec,
@@ -1802,8 +1824,8 @@ class AgentRunnerService:
             # a one-request turn cannot tell a window with no room for a summary
             # from one that works (#49), and how far the reminder cadence has
             # advanced, so it counts across turns rather than resetting each one.
-            recorded_overhead=recorded_overhead,
-            recorded_reminder_state=recorded_reminder_state,
+            recorded_overhead=recorded.overhead,
+            recorded_reminder_state=recorded.reminder_state,
         )
 
         # Both only assignable now, and both before the run starts. The guard and
@@ -3474,6 +3496,14 @@ class AgentRunnerService:
                     await conversations.keep_reminder_state(
                         prepared.run.conversation_id, prepared.built.reminder_state.snapshot()
                     )
+                # The checklist the turn ended on, so the next turn starts from it
+                # rather than from nothing. Unconditional: `keep_plan` treats an
+                # empty list as no plan, so an agent that binds no planning
+                # capability writes nothing, and a run that emptied a stored plan
+                # records that it did.
+                await conversations.keep_plan(
+                    prepared.run.conversation_id, await dump_plan(prepared.plan_store)
+                )
             # Committed here rather than left to the session context: that exit
             # rolls back on any exception, and cancellation never reaches it at
             # all, since `CancelledError` is not an `Exception`. A run that

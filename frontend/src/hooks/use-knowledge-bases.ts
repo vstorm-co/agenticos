@@ -22,6 +22,7 @@ import { overrideSize } from "@/lib/ingestion-config";
 import { useTenantGuard, useTenantId } from "@/hooks/use-organizations";
 import type {
   CreateKnowledgeBaseInput,
+  EmbeddingProviderInput,
   IngestionConfig,
   IngestionOverride,
   KBDocument,
@@ -333,6 +334,33 @@ export function useKBDetail(id: string | null) {
     [id, activeOrgId, stillSameTenant, queryClient, t],
   );
 
+  /**
+   * Move this collection's embeddings to another provider, or another key.
+   *
+   * The model is not here and cannot be: the vector column was created at its
+   * width and every stored vector is in its space. The provider is, because the
+   * same model served from elsewhere is the same model - which is what makes
+   * rotating a credential something other than re-ingesting the collection.
+   *
+   * The refusal is rethrown, like `updateIngestion`: the dialog owns both
+   * fields, and a provider that cannot serve this model belongs under the
+   * select that named it.
+   */
+  const updateEmbeddings = useCallback(
+    async (input: EmbeddingProviderInput): Promise<KnowledgeBase> => {
+      // i18n-exempt: a narrowing guard on a hook only mounted with an id, not copy.
+      if (!id) throw new Error("No knowledge base is open");
+      const startedIn = activeOrgId;
+      const updated = await apiClient.patch<KnowledgeBase>(`/kb/${id}`, input);
+      if (stillSameTenant(startedIn)) {
+        queryClient.setQueryData(qk.kb.detail(id), updated);
+        toast.success(t("embeddingsSaved"));
+      }
+      return updated;
+    },
+    [id, activeOrgId, stillSameTenant, queryClient, t],
+  );
+
   const uploadDocument = useCallback(
     async (file: File, override?: IngestionOverride) => {
       if (!id) return;
@@ -592,6 +620,7 @@ export function useKBDetail(id: string | null) {
     refresh,
     loadMoreDocuments,
     updateIngestion,
+    updateEmbeddings,
     uploadDocument,
     deleteDocument,
     deleteCollection,

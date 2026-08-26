@@ -235,7 +235,7 @@ class PgVectorStore(BaseVectorStore):
         # outside the KB table still gets the deployment defaults, but that is
         # now the resolver answering None rather than nobody asking.
         self._resolver = resolver
-        self._services: dict[tuple[str, str, str], EmbeddingService] = {}
+        self._services: dict[tuple[str, str, str, str], EmbeddingService] = {}
         self.async_session = async_sessionmaker(engine, expire_on_commit=False)
 
     def _table(self, name: str) -> str:
@@ -281,7 +281,7 @@ class PgVectorStore(BaseVectorStore):
         resolved = await self._resolver(name)
         if resolved is None:
             return self.embedder, self.dim
-        cache_key = (name, resolved.model, resolved.api_key)
+        cache_key = (name, resolved.model, resolved.api_key, resolved.base_url)
         service = self._services.get(cache_key)
         if service is None:
             service = EmbeddingService(
@@ -292,6 +292,10 @@ class PgVectorStore(BaseVectorStore):
                 # tried, for which collection, instead of advising an operator
                 # to set a variable they may already have set.
                 key_origin=resolved.describe(name),
+                # The collection's provider. In the cache key beside the model and
+                # the key, because moving a collection to another provider must
+                # not be answered by a client already built for the old one.
+                base_url=resolved.base_url,
             )
             self._services[cache_key] = service
         return service, resolved.dim

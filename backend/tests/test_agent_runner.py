@@ -27,6 +27,7 @@ from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendLed
 from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
 from app.agents.capabilities.compaction import ContextGauge
 from app.agents.capabilities.guardrails import GuardrailBlocked
+from app.agents.capabilities.planning import PLANNING_STORE_RESOURCE
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, ObservabilitySpec
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
 from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
@@ -565,9 +566,112 @@ class TestSpendReporting:
         ingested.assert_not_called()
 
 
+class TestAPlanThatOutlivesTheTurn:
+    """A plan store is one pydantic-ai run's, and here a run is one turn - so the
+    checklist an agent wrote in one message was gone by the next, and the agent
+    answered that no plan existed and it had never created one (#1077)."""
+
+    @pytest.mark.anyio
+    async def test_a_fresh_turn_seeds_the_plan_its_conversation_left(self):
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Support", model_profile_id=uuid.uuid4())
+        conversation = MagicMock(
+            overhead_tokens=None,
+            reminder_state=None,
+            plan_items=[{"id": "aa11", "content": "Write the fix", "status": "in_progress"}],
+        )
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.conversation_repo.get_conversation_by_id",
+                new=AsyncMock(return_value=conversation),
+            ),
+            patch("app.services.agent_runner.build_agent"),
+        ):
+            prepared = await service.prepare(ctx, agent.id, conversation_id=uuid.uuid4())
+
+        items = await prepared.plan_store.get_items()
+        assert [(item.content, item.status.value) for item in items] == [
+            ("Write the fix", "in_progress")
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_resume_starts_from_the_plan_the_run_parked_with(self):
+        """Both copies exist on a resume, and the park's is the newer one: it was
+        seeded from the conversation when that run began and then worked on."""
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        run = _parked_run(
+            conversation_id=uuid.uuid4(),
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "plan": [{"id": "bb22", "content": "Ship the fix", "status": "in_progress"}],
+            },
+        )
+        agent = MagicMock(id=run.agent_id, current_version_id=run.agent_version_id)
+        spec = AgentSpec(name="Support")
+        stale = MagicMock(
+            overhead_tokens=None,
+            reminder_state=None,
+            plan_items=[{"id": "aa11", "content": "Write the fix", "status": "pending"}],
+        )
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("app.services.agent_runner.agent_run_repo.mark_running", new=AsyncMock()),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service, "_parked_spec", new=AsyncMock(return_value=(agent, spec))),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.conversation_repo.get_conversation_by_id",
+                new=AsyncMock(return_value=stale),
+            ),
+            patch.object(service.transcript, "record", new=AsyncMock()),
+            patch("app.services.agent_runner.ConversationService") as conversations,
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            conversations.return_value.keep_summary = AsyncMock()
+            conversations.return_value.keep_overhead = AsyncMock()
+            conversations.return_value.keep_reminder_state = AsyncMock()
+            conversations.return_value.keep_plan = AsyncMock()
+            build.return_value.agent.run = AsyncMock(return_value=MagicMock(output="done"))
+            build.return_value.ledger = SpendLedger()
+            await service.resume(ctx, run.id)
+
+        store = build.call_args.kwargs["resources"][PLANNING_STORE_RESOURCE]
+        assert [item.content for item in await store.get_items()] == ["Ship the fix"]
+
+
 class TestRecordedConversationState:
-    """The overhead and the reminder cadence a build seeds from - both off one
-    read of the conversation, so a thread with neither still costs one SELECT."""
+    """The overhead, the reminder cadence and the plan a build seeds from - all
+    off one read of the conversation, so a thread with none still costs one
+    SELECT."""
 
     @pytest.mark.anyio
     async def test_no_conversation_id_reads_nothing(self):
@@ -578,7 +682,7 @@ class TestRecordedConversationState:
         ) as fetch:
             result = await AgentRunnerService(_db())._recorded_conversation_state(None)
 
-        assert result == (None, None)
+        assert (result.overhead, result.reminder_state, result.plan) == (None, None, None)
         fetch.assert_not_called()
 
     @pytest.mark.anyio
@@ -590,22 +694,25 @@ class TestRecordedConversationState:
         ):
             result = await AgentRunnerService(_db())._recorded_conversation_state(uuid.uuid4())
 
-        assert result == (None, None)
+        assert (result.overhead, result.reminder_state, result.plan) == (None, None, None)
 
     @pytest.mark.anyio
-    async def test_both_recorded_values_come_from_one_read(self):
-        """Overhead and cadence are returned together from a single fetch."""
-        conversation = MagicMock(overhead_tokens=3_865, reminder_state={"request_count": 4})
+    async def test_every_recorded_value_comes_from_one_read(self):
+        """Overhead, cadence and the plan are returned together from a single fetch."""
+        conversation = MagicMock(
+            overhead_tokens=3_865,
+            reminder_state={"request_count": 4},
+            plan_items=[{"id": "aa11", "content": "Write the fix", "status": "in_progress"}],
+        )
         with patch(
             "app.services.agent_runner.conversation_repo.get_conversation_by_id",
             new=AsyncMock(return_value=conversation),
         ) as fetch:
-            overhead, reminder_state = await AgentRunnerService(_db())._recorded_conversation_state(
-                uuid.uuid4()
-            )
+            recorded = await AgentRunnerService(_db())._recorded_conversation_state(uuid.uuid4())
 
-        assert overhead == 3_865
-        assert reminder_state == {"request_count": 4}
+        assert recorded.overhead == 3_865
+        assert recorded.reminder_state == {"request_count": 4}
+        assert [item["content"] for item in recorded.plan or []] == ["Write the fix"]
         assert fetch.await_count == 1
 
 
@@ -1553,6 +1660,34 @@ class TestParking:
 
         stored = finish.call_args.kwargs["paused_state"]["plan"]
         assert [item["content"] for item in stored] == ["Write the fix"]
+
+    @pytest.mark.anyio
+    async def test_the_plan_the_turn_ended_on_is_written_to_its_conversation(self):
+        """A plan store is one run's and a chat message is a run, so the checklist
+        an agent wrote was gone by the next message and the agent said it had never
+        made one (#1077). The turn writes it to the conversation on the way out."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        await prepared.plan_store.set_items([PlanItem(content="Write the fix")])
+        result = MagicMock(output="done")
+        result.all_messages = MagicMock(return_value=[])
+        result.new_messages = MagicMock(return_value=[])
+        prepared.built.agent.run = AsyncMock(return_value=result)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.transcript, "record", new=AsyncMock()),
+            patch("app.services.agent_runner.ConversationService") as conversations,
+        ):
+            conversations.return_value.keep_overhead = AsyncMock()
+            conversations.return_value.keep_reminder_state = AsyncMock()
+            conversations.return_value.keep_plan = AsyncMock()
+            await service.execute(_ctx(), uuid.uuid4(), "fix the bug")
+
+        kept = conversations.return_value.keep_plan
+        assert kept.await_args.args[0] == prepared.run.conversation_id
+        assert [item["content"] for item in kept.await_args.args[1]] == ["Write the fix"]
 
     @pytest.mark.anyio
     async def test_a_parked_runs_transcript_marks_the_call_that_is_waiting(self):

@@ -246,13 +246,41 @@ describe("a tool call in the transcript", () => {
     expect(row()).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("gives a step with nothing to open no toggle at all", () => {
-    // `list_skills` answers with a prompt fragment the model reads and a person does
-    // not, so the row is a statement rather than a control.
-    card({ name: "list_skills", result: JSON.stringify([{ name: "refunds" }]) });
+  it("opens the skills the agent found, which is what somebody asks that step", async () => {
+    // It used to open nothing, on the grounds that the result is a prompt fragment.
+    // The question the step answers - "does it actually have my skill" - is answered
+    // by the list and by nothing else.
+    card({ name: "list_skills", result: JSON.stringify({ refunds: "How refunds work." }) });
 
-    expect(screen.queryAllByRole("button")).toHaveLength(0);
     expect(screen.getByText("Available Skills")).toBeInTheDocument();
+    await open();
+    expect(screen.getByText("refunds")).toBeInTheDocument();
+    expect(screen.getByText("How refunds work.")).toBeInTheDocument();
+  });
+
+  it("opens the context files the agent may read", async () => {
+    card({ name: "list_context", result: "- glossary: What the acronyms mean.\n- policy" });
+
+    await open();
+    expect(screen.getByText("glossary")).toBeInTheDocument();
+    expect(screen.getByText("What the acronyms mean.")).toBeInTheDocument();
+    expect(screen.getByText("policy")).toBeInTheDocument();
+  });
+
+  it("draws a planning call as its checklist rather than as its arguments", async () => {
+    // `write_plan` is called with the whole ordered list every time, so the generic
+    // renderer opened forty lines of pretty-printed JSON above a rendered copy of
+    // the same three steps.
+    card({
+      name: "write_plan",
+      args: { items: [{ content: "Ship it", status: "pending" }] },
+      result: "Plan updated: 2 step(s).\n\n1. [x] Read the diff\n2. [~] Ship it\n(1/2 completed)",
+    });
+
+    await open();
+    expect(screen.getByText("Read the diff")).toBeInTheDocument();
+    expect(screen.getByText("Ship it")).toBeInTheDocument();
+    expect(screen.queryByText("Arguments")).toBeNull();
   });
 
   it("opens the newest turn's last call, which is the result somebody came back for", () => {
