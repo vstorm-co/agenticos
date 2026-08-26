@@ -9,6 +9,7 @@ from sqlalchemy.pool import NullPool
 
 from app.core.background import discard_deferred, start_deferred
 from app.core.config import settings
+from app.core.exceptions import AppException
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +67,12 @@ async def _managed_session(
         try:
             yield session
             await session.commit()
-        except Exception:
-            logger.exception("DB session error, rolling back")
+        except Exception as exc:
+            # A domain refusal (a 4xx AppException) is an ordinary outcome, not an
+            # application error, so it rolls back without a traceback - the ERROR
+            # line, and its stack, is kept for the unexpected and for 5xx faults (#19).
+            if not isinstance(exc, AppException) or exc.status_code >= 500:
+                logger.exception("DB session error, rolling back")
             try:
                 await session.rollback()
             except Exception:
