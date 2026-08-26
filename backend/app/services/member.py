@@ -8,7 +8,7 @@ from app.core.audit import record_audit
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import Perm, assignable_roles, role_has
 from app.db.models.organization import OrganizationMember, OrgRole
-from app.repositories import member_repo, user_repo
+from app.repositories import member_repo, organization_repo, user_repo
 from app.services.organization import OrganizationService
 
 logger = logging.getLogger(__name__)
@@ -238,6 +238,22 @@ class MemberService:
 
         if new_owner_user_id == requester_id:
             raise BadRequestError(message="Cannot transfer ownership to yourself")
+
+        # A personal organization is 1:1 with its creator; handing it to another
+        # member leaves it owned by someone who is not the creator, which
+        # `UserService._release_owned_rows` excludes from its ownerless-org guard -
+        # so deleting that member would orphan it (#1136).
+        org = await organization_repo.get_by_id(self.db, organization_id)
+        if org is not None and org.is_personal:
+            raise BadRequestError(message="A personal organization cannot change owner")
+
+        # Serialize with account deletion: deleting a user takes FOR UPDATE on
+        # their row (#1115). Promoting them here without conflicting with that lock
+        # could hand ownership to a membership the deletion cascade is about to
+        # remove, leaving the org with no owner (#1136). Locking the incoming
+        # owner's row makes a transfer that races their deletion wait, then find
+        # them gone at the membership check below.
+        await user_repo.get_by_id_for_update(self.db, new_owner_user_id)
 
         new_owner = await member_repo.get(
             self.db, organization_id=organization_id, user_id=new_owner_user_id

@@ -26,7 +26,8 @@ from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.user import User
-from app.repositories import member_repo
+from app.repositories import member_repo, user_repo
+from app.services.member import MemberService
 from app.services.organization import OrganizationService
 from app.services.rag.vectorstore import PgVectorStore
 from app.services.user import UserService
@@ -428,3 +429,57 @@ class TestConcurrentInsertsDuringDeletion:
             for secret in secrets:
                 assert secret.owner_user_id is None
                 assert secret.visibility == "org"
+
+    async def test_a_transfer_racing_a_delete_does_not_promote_a_deleted_user(
+        self, engine: AsyncEngine
+    ) -> None:
+        """`transfer_ownership` promoting a user the delete is removing would leave
+        the org ownerless. The transfer now locks the incoming owner's user row,
+        which the delete already holds FOR UPDATE (#1115), so it waits and then
+        finds the user gone rather than promoting a membership about to cascade
+        away (#1136)."""
+        from app.core.exceptions import NotFoundError
+
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as setup:
+            owner = _user()
+            member = _user()
+            setup.add_all([owner, member])
+            await setup.flush()
+            org = await _org(setup, owner)
+            await _member(setup, org.id, member.id, "member")
+            await setup.commit()
+            org_id, owner_id, member_id = org.id, owner.id, member.id
+
+        session_a = factory()  # the deleting transaction, holding the member's row
+        transfer_task: asyncio.Task[None] | None = None
+        try:
+            await user_repo.get_by_id_for_update(session_a, member_id)
+
+            async def transfer() -> None:
+                async with factory() as session_b:
+                    await MemberService(session_b).transfer_ownership(org_id, member_id, owner_id)
+                    await session_b.commit()
+
+            transfer_task = asyncio.create_task(transfer())
+            await asyncio.sleep(0.4)
+            assert not transfer_task.done()  # blocked on the delete's FOR UPDATE
+
+            await UserService(session_a).delete(member_id)
+            await session_a.commit()
+
+            with pytest.raises(NotFoundError):
+                await transfer_task  # the promoted user is gone, so the transfer refuses
+            transfer_task = None
+        finally:
+            if transfer_task is not None:
+                transfer_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await transfer_task
+            await session_a.close()
+
+        async with factory() as s:
+            # The org keeps its original owner rather than being left ownerless.
+            owner_membership = await member_repo.get(s, organization_id=org_id, user_id=owner_id)
+            assert owner_membership is not None
+            assert owner_membership.role == "owner"
