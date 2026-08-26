@@ -1293,7 +1293,7 @@ class _AcceptingStore:
     def __init__(self) -> None:
         self.created: list[str] = []
 
-    async def create_collection(self, name: str) -> None:
+    async def create_collection(self, name: str, *, organization_id: object = None) -> None:
         self.created.append(name)
 
 

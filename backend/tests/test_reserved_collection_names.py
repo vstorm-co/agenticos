@@ -126,7 +126,7 @@ async def test_creating_a_collection_named_after_a_model_table_is_refused() -> N
     store, executed = _store()
 
     with pytest.raises(BadRequestError) as refused:
-        await store.create_collection("documents")
+        await store.create_collection("documents", organization_id=None)
 
     assert refused.value.details == {"collection": "documents", "table": "rag_documents"}
     assert executed == []

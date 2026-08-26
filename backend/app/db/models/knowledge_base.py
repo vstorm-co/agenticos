@@ -70,6 +70,19 @@ class KnowledgeBase(TimestampMixin, Base):
         ForeignKey("organization_secrets.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Reranking is on for this collection only when both are set. The model is
+    # the reranker's name (e.g. 'rerank-v3.5'); the secret is the org vault key
+    # that pays for it. NULL on either means no reranking - retrieval behaves
+    # exactly as it did before the feature. SET NULL on delete for the same
+    # reason as the embedding key: losing the key drops reranking, it does not
+    # take search down. There is no deployment fallback, because a reranker with
+    # no key is simply off.
+    rerank_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    rerank_secret_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("organization_secrets.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     # How widely the collection is exposed inside its org; combines with the
     # member's role scope and any explicit grant (app.services.access).
     visibility: Mapped[str] = mapped_column(

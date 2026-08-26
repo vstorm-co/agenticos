@@ -19,6 +19,7 @@ import pytest
 
 from app.core.exceptions import AuthorizationError, ValidationError
 from app.core.permissions import AuthContext, OrgRoleName
+from app.db.models.ingestion_spend import SpendSource
 from app.services.stats import StatsService, resolve_window
 
 pytestmark = pytest.mark.anyio
@@ -52,9 +53,20 @@ def repos(monkeypatch: pytest.MonkeyPatch) -> dict[str, AsyncMock]:
         mock = AsyncMock(return_value=value)
         monkeypatch.setattr(f"app.services.stats.agent_run_repo.{name}", mock)
         mocks[name] = mock
+    # One repo function serves both non-run sources, told apart by `source`, so
+    # the stub dispatches to a mock per source - each still called twice (this
+    # window, then the previous) and settable on its own.
     ingestion = AsyncMock(return_value=Decimal(0))
-    monkeypatch.setattr("app.services.stats.ingestion_spend_repo.sum_cost_window", ingestion)
+    retrieval = AsyncMock(return_value=Decimal(0))
+
+    async def _sum_by_source(*args: object, source: object = None, **kwargs: object) -> Decimal:
+        if source == SpendSource.RETRIEVAL:
+            return await retrieval(*args, source=source, **kwargs)
+        return await ingestion(*args, source=source, **kwargs)
+
+    monkeypatch.setattr("app.services.stats.ingestion_spend_repo.sum_cost_window", _sum_by_source)
     mocks["ingestion_sum_cost_window"] = ingestion
+    mocks["retrieval_sum_cost_window"] = retrieval
     member_count = AsyncMock(return_value=0)
     monkeypatch.setattr("app.services.stats.member_repo.count_for_org", member_count)
     mocks["count_for_org"] = member_count
@@ -201,6 +213,24 @@ class TestTheComposedAnswer:
         # bill against half of one.
         assert result.cost.previous_period_usd == Decimal("1.25")
 
+    async def test_retrieval_is_split_out_from_indexing_and_both_reach_the_total(
+        self, repos
+    ) -> None:
+        # A metered search shares the ingestion table but is reported apart, so
+        # it lands in retrieval_usd rather than inflating the indexing subtotal -
+        # while still counting toward the period total.
+        repos["sum_cost_window"].side_effect = [Decimal("2.00"), Decimal("1.00")]
+        repos["ingestion_sum_cost_window"].side_effect = [Decimal("0.50"), Decimal("0.25")]
+        repos["retrieval_sum_cost_window"].side_effect = [Decimal("0.10"), Decimal("0.05")]
+
+        result = await StatsService(MagicMock()).usage(_ctx())
+
+        assert result.cost is not None
+        assert result.cost.ingestion_usd == Decimal("0.50")
+        assert result.cost.retrieval_usd == Decimal("0.10")
+        assert result.cost.period_usd == Decimal("2.60")
+        assert result.cost.previous_period_usd == Decimal("1.30")
+
     async def test_own_scope_is_not_billed_for_the_organizations_indexing(self, repos) -> None:
         # `ingestion_spend` records no user - a document is indexed by a worker -
         # so charging a member's own window for a collection somebody else
@@ -211,8 +241,10 @@ class TestTheComposedAnswer:
 
         assert result.cost is not None
         assert result.cost.ingestion_usd == Decimal(0)
+        assert result.cost.retrieval_usd == Decimal(0)
         assert result.cost.period_usd == Decimal("2.00")
         repos["ingestion_sum_cost_window"].assert_not_called()
+        repos["retrieval_sum_cost_window"].assert_not_called()
 
     async def test_the_previous_total_is_asked_of_the_previous_window(self, repos) -> None:
         repos["count_runs"].side_effect = [40, 31]

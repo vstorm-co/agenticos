@@ -4,6 +4,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
+from uuid import UUID
 
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.failures import IngestionStage, failure_summary
@@ -44,10 +45,15 @@ class IngestionService:
         processor: DocumentProcessor,
         vector_store: BaseVectorStore,
         on_event: Callable[..., Awaitable[None]] | None = None,
+        *,
+        organization_id: UUID | None,
     ):
         self.processor = processor
         self.store = vector_store
         self._on_event = on_event
+        # The organization this ingest embeds for, so the store resolves this
+        # tenant's key and not another's on a shared collection name (#913).
+        self._organization_id = organization_id
 
     async def _emit(self, event: str, data: dict[str, object]) -> None:
         if self._on_event:
@@ -128,6 +134,7 @@ class IngestionService:
             await self.store.insert_document(
                 collection_name=collection_name,
                 document=document,
+                organization_id=self._organization_id,
             )
 
             if existing_id:

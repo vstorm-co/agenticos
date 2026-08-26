@@ -61,14 +61,17 @@ export interface ProviderCost {
 export interface CostBlock {
   /**
    * Serialised Decimals. `period_usd` is the whole bill - models plus
-   * ingestion - and the two halves below sum to it; the calendar
-   * month-to-date figure still lives on GET /spend.
+   * ingestion plus retrieval - and the three parts below sum to it; the
+   * calendar month-to-date figure still lives on GET /spend.
    */
   period_usd: string;
   previous_period_usd: string;
   model_usd: string;
   /** Zero at scope=own: a document is indexed by a worker, for nobody. */
   ingestion_usd: string;
+  /** What a metered /rag/search spent on embeddings and reranking, kept apart
+   * from indexing so a search is not reported as it. Zero at scope=own. */
+  retrieval_usd: string;
   by_provider: ProviderCost[];
 }
 

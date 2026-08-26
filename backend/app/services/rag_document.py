@@ -255,7 +255,7 @@ class RAGDocumentService:
         )
         doc_id = rag_doc.id
 
-        await vector_store.create_collection(collection_name)
+        await vector_store.create_collection(collection_name, organization_id=organization_id)
 
         await self._queue_parse(
             doc_id,

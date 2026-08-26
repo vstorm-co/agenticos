@@ -352,18 +352,25 @@ which is `subagents-pydantic-ai` 0.2.20 and the reason the floor is there.
 
 **The dashboard's windowed figure carries it too.** `GET /stats/usage` answers a
 `cost` block for whatever period the filter chose, and that block is runs *plus*
-ingestion — the same arithmetic the monthly cap is measured with — with
-`model_usd` and `ingestion_usd` beside it so a reader can see where the money
-went without subtracting. It reported the model half alone until 0.0.152, which
-put two different definitions of cost on one card: the headline moved with the
-period filter and counted runs, while the month-to-date line under it counted
-the whole bill, and nothing said they were answering different questions. On a
-deployment that indexes documents they simply disagreed.
+ingestion *plus* retrieval — the same arithmetic the monthly cap is measured with
+— with `model_usd`, `ingestion_usd` and `retrieval_usd` beside it so a reader can
+see where the money went without subtracting. It reported the model half alone
+until 0.0.152, which put two different definitions of cost on one card: the
+headline moved with the period filter and counted runs, while the month-to-date
+line under it counted the whole bill, and nothing said they were answering
+different questions. On a deployment that indexes documents they simply
+disagreed.
 
-At `scope=own` the ingestion half is zero rather than a share: a document is
-indexed by a worker and `ingestion_spend` records no user, so charging one
-person's window for a collection somebody else synced would be inventing their
-spend.
+`retrieval_usd` is what a metered `POST /rag/search` spent on embeddings and
+reranking. It shares the `ingestion_spend` table with indexing — both are RAG
+spend on no agent run — but a `source` column keeps them apart, so a search is
+reported as search rather than inflating the indexing subtotal. Both count
+toward the monthly cap all the same.
+
+At `scope=own` the ingestion and retrieval halves are zero rather than a share: a
+document is indexed by a worker and a colleague's search records no user of this
+window, so charging one person's window for a collection somebody else synced or
+searched would be inventing their spend.
 
 **Every query has to say which of the two it is answering**, and the first column
 is the default. The month-to-date figure and the per-agent breakdown behind it

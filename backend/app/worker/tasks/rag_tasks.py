@@ -98,8 +98,14 @@ def _announcing_resolver() -> EmbeddingResolver:
     """
     announced: set[str] = set()
 
-    async def resolve(collection_name: str) -> ResolvedEmbeddings | None:
-        resolved = await embeddings_for_collection(collection_name)
+    async def resolve(
+        collection_name: str,
+        organization_id: UUID | None,
+        knowledge_base_id: UUID | None = None,
+    ) -> ResolvedEmbeddings | None:
+        resolved = await embeddings_for_collection(
+            collection_name, organization_id, knowledge_base_id
+        )
         if (
             resolved is not None
             and resolved.key_source.is_degraded
@@ -113,7 +119,9 @@ def _announcing_resolver() -> EmbeddingResolver:
 
 
 @asynccontextmanager
-async def _ingestion_service(*, processor: DocumentProcessor) -> AsyncIterator[IngestionService]:
+async def _ingestion_service(
+    *, processor: DocumentProcessor, organization_id: UUID | None
+) -> AsyncIterator[IngestionService]:
     """An ingester that reads documents the way the collection asked to be read.
 
     Both halves come off the collection. The parser, the chunker and the image
@@ -152,6 +160,7 @@ async def _ingestion_service(*, processor: DocumentProcessor) -> AsyncIterator[I
                 resolver=_announcing_resolver(),
                 engine=engine,
             ),
+            organization_id=organization_id,
         )
     finally:
         await engine.dispose()
@@ -210,11 +219,7 @@ async def _knowledge_base_for(
     """
     if collection_name is None:
         return None
-    candidates = await knowledge_base_repo.list_by_collection_name(db, collection_name)
-    for kb in candidates:
-        if organization_id is None or kb.organization_id == organization_id:
-            return kb
-    return next((kb for kb in candidates if kb.organization_id is None), None)
+    return await knowledge_base_repo.get_for_collection(db, collection_name, organization_id)
 
 
 async def _config_for_collection(
@@ -332,7 +337,7 @@ async def _run_ingestion(
 
     ledger = SpendLedger(organization_id=organization_id)
     file_path = Path(filepath)
-    async with _ingestion_service(processor=processor) as ingester:
+    async with _ingestion_service(processor=processor, organization_id=organization_id) as ingester:
         try:
             with metered_by(ledger):
                 result = await ingester.ingest_file(
@@ -424,7 +429,7 @@ async def _run_sync(
 
     # Entered after the validations above, so an early "path not found" return
     # builds no engine, and every return inside the loop still disposes one (#948).
-    async with _ingestion_service(processor=processor) as ingester:
+    async with _ingestion_service(processor=processor, organization_id=None) as ingester:
         for filepath in files:
             async with get_worker_db_context() as db:
                 sync_log_check = await RAGSyncService(db).get_sync_log(sync_log_id)
@@ -776,7 +781,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
     total = 0
     ledger = SpendLedger(organization_id=organization_id)
 
-    async with _ingestion_service(processor=processor) as ingester:
+    async with _ingestion_service(processor=processor, organization_id=organization_id) as ingester:
         try:
             files = await connector.list_files(config, credential)
             total = len(files)

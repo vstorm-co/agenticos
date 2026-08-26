@@ -44,7 +44,14 @@ def build_knowledge_toolset(*, default_top_k: int) -> FunctionToolset[AgentDeps]
                 # Resolved server-side from the agent's bound collections. The
                 # model chooses *what* to search, never *where*.
                 kb_collection_names=ctx.deps.kb_collection_names,
+                # The bound knowledge base ids, aligned with the names, so a
+                # shared collection name resolves the bound row's config and key
+                # rather than another same-named row's (#913).
+                kb_collection_ids=ctx.deps.kb_collection_ids,
                 top_k=top_k or default_top_k,
+                # The run's own organization, so a collection name shared with
+                # another tenant resolves this agent's config, not theirs (#913).
+                organization_id=ctx.deps.organization_id,
             )
         except Exception:
             # A retry rather than a returned message: an error in the shape of a

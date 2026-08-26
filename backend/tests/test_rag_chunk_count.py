@@ -58,7 +58,7 @@ def _document(*, chunks: int) -> Document:
 def _service(processor: MagicMock) -> IngestionService:
     store = MagicMock(insert_document=AsyncMock(), delete_document=AsyncMock())
     store.find_existing_document = BaseVectorStore.find_existing_document.__get__(store)
-    return IngestionService(processor=processor, vector_store=store)
+    return IngestionService(processor=processor, vector_store=store, organization_id=None)
 
 
 class TestWhatThePipelineReports:

@@ -919,6 +919,8 @@ from app.core.config import settings
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.documents import DocumentProcessor
+from app.services.knowledge_search import KnowledgeSearchService
+from app.services.rag.reranker import build_reranker
 from app.services.rag.retrieval import RetrievalService
 from app.services.rag.vectorstore import BaseVectorStore, process_vector_store
 
@@ -966,11 +968,29 @@ OrganizationTeardownSvc = Annotated[OrganizationService, Depends(get_organizatio
 
 
 def get_retrieval_service(vector_store: VectorStoreSvc) -> RetrievalService:
-    """Create RetrievalService instance."""
-    return RetrievalService(vector_store=vector_store, settings=settings.rag)
+    """Create RetrievalService instance.
+
+    The reranker resolver is `build_reranker`, the one composition point shared
+    with the agent-run knowledge tool, so both paths rerank the same way.
+    """
+    return RetrievalService(
+        vector_store=vector_store,
+        settings=settings.rag,
+        reranker_resolver=build_reranker,
+    )
 
 
 RetrievalSvc = Annotated[RetrievalService, Depends(get_retrieval_service)]
+
+
+def get_knowledge_search_service(
+    db: DBSession, retrieval: RetrievalSvc, access: CollectionAccessSvc
+) -> KnowledgeSearchService:
+    """Create KnowledgeSearchService instance."""
+    return KnowledgeSearchService(db, retrieval, access)
+
+
+KnowledgeSearchSvc = Annotated[KnowledgeSearchService, Depends(get_knowledge_search_service)]
 
 
 def get_document_processor() -> DocumentProcessor:
@@ -984,9 +1004,14 @@ DocumentProcessorSvc = Annotated[DocumentProcessor, Depends(get_document_process
 def get_ingestion_service(
     processor: DocumentProcessorSvc,
     vector_store: VectorStoreSvc,
+    org: ActiveOrg,
 ) -> IngestionService:
-    """Create IngestionService instance."""
-    return IngestionService(processor=processor, vector_store=vector_store)
+    """Create IngestionService instance, scoped to the active organization.
+
+    The organization is what lets the store resolve this tenant's embedding key
+    on a collection name another tenant may share, rather than another's (#913).
+    """
+    return IngestionService(processor=processor, vector_store=vector_store, organization_id=org.id)
 
 
 IngestionSvc = Annotated[IngestionService, Depends(get_ingestion_service)]

@@ -34,7 +34,9 @@ COLLECTION = "handbook"
 TABLE = f"rag_{COLLECTION}"
 
 
-async def _no_resolution(_name: str) -> None:
+async def _no_resolution(
+    _name: str, _organization_id: object = None, _kb_id: object = None
+) -> None:
     """A resolver that defers to the store's default embedder and width.
 
     `_ensure_collection` reads only the width to build the table; the embedder
@@ -89,7 +91,7 @@ async def _clean_runtime_table(engine: AsyncEngine) -> AsyncGenerator[None, None
 
 async def test_ensure_collection_builds_an_index_per_lookup_key(engine: AsyncEngine) -> None:
     store = _store(engine)
-    await store._ensure_collection(COLLECTION)
+    await store._ensure_collection(COLLECTION, None)
 
     async with store.async_session() as session:
         result = await session.execute(
@@ -118,7 +120,7 @@ async def test_source_path_wins_and_returns_that_documents_own_hash(engine: Asyn
     still win and hand back `live`'s own hash, not `decoy`'s.
     """
     store = _store(engine)
-    await store._ensure_collection(COLLECTION)
+    await store._ensure_collection(COLLECTION, None)
     await _insert(
         store,
         doc_id="decoy",
@@ -147,7 +149,7 @@ async def test_the_filename_fallback_keeps_the_unaddressed_rule(engine: AsyncEng
     """#990: a source_path miss matches a same-name document only where that
     document has not addressed itself under a different path."""
     store = _store(engine)
-    await store._ensure_collection(COLLECTION)
+    await store._ensure_collection(COLLECTION, None)
     await _insert(
         store,
         doc_id="addressed",
@@ -173,7 +175,7 @@ async def test_the_filename_fallback_keeps_the_unaddressed_rule(engine: AsyncEng
 
 async def test_content_hash_is_the_last_resort(engine: AsyncEngine) -> None:
     store = _store(engine)
-    await store._ensure_collection(COLLECTION)
+    await store._ensure_collection(COLLECTION, None)
     await _insert(
         store, doc_id="moved", source_path="/old/name.pdf", filename="name.pdf", content_hash="same"
     )
@@ -191,7 +193,7 @@ async def test_the_fallback_tiebreak_is_deterministic(engine: AsyncEngine) -> No
     chosen is fixed by `ORDER BY parent_doc_id, id`, not by heap order. Two
     unaddressed documents share a filename; the lower `parent_doc_id` wins."""
     store = _store(engine)
-    await store._ensure_collection(COLLECTION)
+    await store._ensure_collection(COLLECTION, None)
     await _insert(
         store, doc_id="bbb", source_path="dup.pdf", filename="dup.pdf", content_hash="v-b"
     )
@@ -212,7 +214,7 @@ async def test_a_source_path_too_long_for_a_btree_index_still_ingests(engine: As
     long path would fail every ingest into the collection. The hash index has no
     such ceiling - this row inserts and is found."""
     store = _store(engine)
-    await store._ensure_collection(COLLECTION)
+    await store._ensure_collection(COLLECTION, None)
     long_path = "s3://bucket/" + "a" * 3000
     await _insert(store, doc_id="big", source_path=long_path, filename="big.pdf", content_hash="h")
 
@@ -224,7 +226,7 @@ async def test_a_source_path_too_long_for_a_btree_index_still_ingests(engine: As
 
 async def test_no_key_matches_answers_none(engine: AsyncEngine) -> None:
     store = _store(engine)
-    await store._ensure_collection(COLLECTION)
+    await store._ensure_collection(COLLECTION, None)
     await _insert(
         store, doc_id="only", source_path="/srv/other.pdf", filename="other.pdf", content_hash="h"
     )

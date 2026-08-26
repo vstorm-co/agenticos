@@ -30,7 +30,9 @@ _A_TRACKED_DOCUMENT = text(
 )
 
 
-async def _no_collection_of_its_own(name: str) -> None:
+async def _no_collection_of_its_own(
+    name: str, organization_id: object = None, knowledge_base_id: object = None
+) -> None:
     """A resolver that answers "nothing recorded for this one".
 
     Not `None` in place of the resolver: `resolver` is a required argument since
@@ -90,7 +92,7 @@ async def test_a_collection_beside_it_is_created_and_dropped_for_real(
     """
     store = _store_on(engine)
 
-    await store.create_collection("documents_archive")
+    await store.create_collection("documents_archive", organization_id=None)
 
     async with engine.connect() as connection:
         created = await connection.execute(

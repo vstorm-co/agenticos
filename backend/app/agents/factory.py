@@ -235,6 +235,7 @@ def build_agent(
         # Read from `resources` rather than a parameter of its own: two sources
         # for one list is how they drift apart.
         kb_collection_names=list((resources or {}).get("kb_collection_names") or []),
+        kb_collection_ids=list((resources or {}).get("kb_collection_ids") or []),
         request_approval=request_approval,
     )
 

@@ -1004,6 +1004,7 @@ class TestASpecialistTheModelInvents:
         )
         assert built["resources"] == {
             "kb_collection_names": [],
+            "kb_collection_ids": [],
             "skills": [],
             "context_files": [],
         }

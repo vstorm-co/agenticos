@@ -111,6 +111,10 @@ _PATTERN_ALLOWED: dict[str, str] = {
         "the same again: which vault key a collection embeds on - the id of a "
         "reference the organization can revoke, never the key itself"
     ),
+    "rerank_secret_id": (
+        "and once more for reranking: which vault key a collection reranks on - "
+        "an id naming a revocable reference, never the Cohere key itself"
+    ),
     "token_secret_id": (
         "the same, named for what it points at: an agent's Logfire write token "
         "lives in the vault and the spec carries only its id, because a spec is "

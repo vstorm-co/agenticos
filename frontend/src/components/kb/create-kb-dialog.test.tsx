@@ -60,6 +60,21 @@ describe("CreateKBDialog", () => {
       // there is a `TypeError` in `usePermissions`, not "no permissions".
       if (path === "/me/permissions")
         return { organization_id: "org-1", role: "member", is_app_admin: false, permissions: [] };
+      // One key that can pay for reranking, so the picker has something to
+      // choose beyond Off. Its purpose is what makes it a rerank key.
+      if (path === "/secrets")
+        return {
+          items: [
+            {
+              id: "cohere-1",
+              name: "Cohere key",
+              hint: "4242",
+              purpose: "cohere",
+              kind: "api_key",
+            },
+          ],
+          total: 1,
+        };
       return { items: [], total: 0 };
     });
     vi.mocked(apiClient.post).mockResolvedValue({ id: "kb-1", name: "Handbook" });
@@ -152,6 +167,31 @@ describe("CreateKBDialog", () => {
         "Input should be less than or equal to 8192",
       ),
     );
+  });
+
+  it("sends no reranking fields for a collection nobody turned it on for", async () => {
+    // Both-or-neither: the backend reads reranking as on only when the model and
+    // the key arrive together, so leaving it Off means sending neither.
+    await userEvent.type(screen.getByLabelText("Name"), "Handbook");
+    await userEvent.click(create());
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    expect(posted()).not.toHaveProperty("rerank_secret_id");
+    expect(posted()).not.toHaveProperty("rerank_model");
+  });
+
+  it("sends the key and the one model once a reranking key is chosen", async () => {
+    // The model is a constant, not a choice: there is one reranker and no
+    // endpoint listing them, so choosing the key is choosing to rerank.
+    await userEvent.type(screen.getByLabelText("Name"), "Handbook");
+    await userEvent.click(screen.getByText("Reranking"));
+    await userEvent.click(screen.getByLabelText("Reranking key"));
+    await userEvent.click(await screen.findByRole("option", { name: /Cohere key/ }));
+    await userEvent.click(create());
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    expect(posted().rerank_secret_id).toBe("cohere-1");
+    expect(posted().rerank_model).toBe("rerank-v3.5");
   });
 
   it("keeps the name and its own settings when the server refuses", async () => {

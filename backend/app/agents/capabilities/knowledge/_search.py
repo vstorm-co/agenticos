@@ -3,10 +3,12 @@
 import contextvars
 import logging
 from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 from app.core.config import settings
 from app.core.exceptions import AppException, ExternalServiceError
 from app.services.rag.embeddings import EmbeddingService
+from app.services.rag.reranker import build_reranker
 from app.services.rag.retrieval import RetrievalService
 from app.services.rag.vectorstore import process_vector_store
 
@@ -31,8 +33,14 @@ def get_retrieval_service() -> "BaseRetrievalService":
 
     rag_settings = settings.rag
     embedding_service = EmbeddingService(rag_settings)
+    # The reranker resolver is wired here too, not only on the /rag/search
+    # route: an agent's knowledge search reranks when its collection is
+    # configured, and the run's open ledger books the cost - which is the
+    # agent-run half of "spend recorded on both paths".
     _retrieval_service = RetrievalService(
-        process_vector_store(rag_settings, embedding_service), rag_settings
+        process_vector_store(rag_settings, embedding_service),
+        rag_settings,
+        reranker_resolver=build_reranker,
     )
     return _retrieval_service
 
@@ -87,6 +95,9 @@ async def search_knowledge_base(
     query: str,
     kb_collection_names: list[str] | None = None,
     top_k: int = 5,
+    *,
+    organization_id: UUID | None,
+    kb_collection_ids: list[UUID] | None = None,
 ) -> str:
     """Search the knowledge base and return formatted results.
 
@@ -96,19 +107,40 @@ async def search_knowledge_base(
             agent's spec. Never supplied by the LLM directly - injected via
             PydanticAI Deps or the _active_kb_collections ContextVar.
         top_k: Number of top results to retrieve (default: 5).
+        organization_id: The organization the run acts for, so a collection name
+            shared across tenants resolves this one's embedding and rerank config
+            rather than another's (#913).
+        kb_collection_ids: The bound knowledge base id for each name, aligned by
+            index, so a name shared by another row in the same organization
+            resolves the bound row rather than whichever the name selects first
+            (#913). Absent - the ContextVar fallback, which carries no ids - each
+            collection falls back to the organization-scoped lookup.
     """
     resolved = kb_collection_names if kb_collection_names else (_active_kb_collections.get() or [])
     if not resolved:
         return "No active knowledge bases selected for this conversation."
 
+    ids = kb_collection_ids or []
+    aligned_ids = ids if len(ids) == len(resolved) else None
+
     service: Any = get_retrieval_service()
     one_collection = len(resolved) == 1
     try:
         if one_collection:
-            results = await service.retrieve(query=query, collection_name=resolved[0], limit=top_k)
+            results = await service.retrieve(
+                query=query,
+                collection_name=resolved[0],
+                limit=top_k,
+                organization_id=organization_id,
+                knowledge_base_id=aligned_ids[0] if aligned_ids else None,
+            )
         else:
             results = await service.retrieve_multi(
-                query=query, collection_names=resolved, limit=top_k
+                query=query,
+                collection_names=resolved,
+                limit=top_k,
+                organization_id=organization_id,
+                knowledge_base_ids=aligned_ids,
             )
     except AppException:
         # Already an account of what is wrong and what to do about it - an

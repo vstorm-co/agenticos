@@ -98,7 +98,7 @@ class TestHowManyStatementsOneDocumentCosts:
         monkeypatch.setattr(vectorstore_module, "_CHUNK_INSERT_BATCH", 100)
         session = RecordingSession()
 
-        await _store(session).insert_document("docs", _document(chunks=250))
+        await _store(session).insert_document("docs", _document(chunks=250), organization_id=None)
 
         assert len(session.calls) == 3
         assert [len(batch) for batch in session.calls] == [100, 100, 50]  # ty: ignore[invalid-argument-type]
@@ -109,7 +109,7 @@ class TestHowManyStatementsOneDocumentCosts:
         monkeypatch.setattr(vectorstore_module, "_CHUNK_INSERT_BATCH", 200)
         session = RecordingSession()
 
-        await _store(session).insert_document("docs", _document(chunks=7))
+        await _store(session).insert_document("docs", _document(chunks=7), organization_id=None)
 
         assert len(session.calls) == 1
         assert len(session.calls[0]) == 7  # ty: ignore[invalid-argument-type]
@@ -120,8 +120,8 @@ class TestHowManyStatementsOneDocumentCosts:
         monkeypatch.setattr(vectorstore_module, "_CHUNK_INSERT_BATCH", 500)
         small, large = RecordingSession(), RecordingSession()
 
-        await _store(small).insert_document("docs", _document(chunks=40))
-        await _store(large).insert_document("docs", _document(chunks=400))
+        await _store(small).insert_document("docs", _document(chunks=40), organization_id=None)
+        await _store(large).insert_document("docs", _document(chunks=400), organization_id=None)
 
         assert len(small.calls) == len(large.calls) == 1
 
@@ -131,7 +131,7 @@ class TestHowManyStatementsOneDocumentCosts:
         session = RecordingSession()
         document = _document(chunks=10)
 
-        await _store(session).insert_document("docs", document)
+        await _store(session).insert_document("docs", document, organization_id=None)
 
         written = [row["id"] for batch in session.calls for row in batch]  # ty: ignore[invalid-argument-type]
         assert written == [chunk.chunk_id for chunk in document.chunked_pages]
@@ -145,7 +145,7 @@ class TestHowManyStatementsOneDocumentCosts:
         for index, chunk in enumerate(document.chunked_pages):
             chunk.page_num = index + 1
 
-        await _store(session).insert_document("docs", document)
+        await _store(session).insert_document("docs", document, organization_id=None)
 
         rows = session.calls[0]
         assert [json.loads(row["metadata"])["page_num"] for row in rows] == [1, 2, 3, 4]  # ty: ignore[invalid-argument-type]
@@ -178,7 +178,7 @@ class TestHowManyStatementsOneDocumentCosts:
         seen: list[int] = []
         session.on_execute = lambda: seen.append(built)
 
-        await store.insert_document("docs", _document(chunks=30))
+        await store.insert_document("docs", _document(chunks=30), organization_id=None)
 
         assert seen == [10, 20, 30]
 
@@ -188,6 +188,6 @@ class TestHowManyStatementsOneDocumentCosts:
         session = RecordingSession()
 
         with pytest.raises(ValueError, match="no chunked pages"):
-            await _store(session).insert_document("docs", _document(chunks=0))
+            await _store(session).insert_document("docs", _document(chunks=0), organization_id=None)
 
         assert session.calls == []

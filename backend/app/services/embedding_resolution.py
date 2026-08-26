@@ -35,6 +35,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from enum import StrEnum
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -151,13 +152,24 @@ class ResolvedEmbeddings:
         )
 
 
-async def embeddings_for_collection(collection_name: str) -> ResolvedEmbeddings | None:
+async def embeddings_for_collection(
+    collection_name: str, organization_id: UUID | None, knowledge_base_id: UUID | None = None
+) -> ResolvedEmbeddings | None:
     """Resolve one collection's embedding model, provider and credential.
 
     Returns None for a collection no knowledge base claims - the store then
     uses its deployment defaults, which is what such collections have always
     gotten. Opens its own session because the store embeds from places with no
     request in sight: a worker mid-ingestion, a capability mid-run.
+
+    `knowledge_base_id`, when given, is the knowledge base the caller was already
+    authorized against, and resolution reads *that* row. `collection_name` is not
+    unique, so a name+organization lookup can return a different row than the
+    access check authorized - a restricted `org` collection sharing an `app`
+    collection's name - and then unseal and bill a key the caller was never
+    granted (#913). The search path passes the authorized id; ingestion and the
+    CLI, which choose the row themselves, pass none and fall back to the
+    `organization_id`-scoped lookup.
 
     A provider the catalog no longer names - an entry removed from the file
     under a collection that was using it - resolves to the deployment's, with a
@@ -166,7 +178,11 @@ async def embeddings_for_collection(collection_name: str) -> ResolvedEmbeddings 
     address this build is certain of.
     """
     async with get_db_context() as db:
-        kb = await knowledge_base_repo.get_by_collection_name(db, collection_name)
+        kb = (
+            await knowledge_base_repo.get_by_id(db, knowledge_base_id)
+            if knowledge_base_id is not None
+            else await knowledge_base_repo.get_for_collection(db, collection_name, organization_id)
+        )
         if kb is None:
             return None
         provider = embedding_providers.get(kb.embedding_provider)

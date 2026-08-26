@@ -342,6 +342,15 @@ function kbDialogSteps(page: string, requires?: string): FlowStep[] {
       requires,
     },
     {
+      id: "flow-kb-field-rerank",
+      page,
+      target: "kb-dialog-rerank",
+      permission: Perm.collectionsEdit,
+      inOverlay: true,
+      blockSubmit: "kb-dialog-create",
+      requires,
+    },
+    {
       id: "flow-kb-field-create",
       page,
       target: "kb-dialog-create",

@@ -45,7 +45,7 @@ const BUILDER_STEPS = [
 
 // Every collection-detail stop, in the order the "?" walks them. The launch
 // pass takes one of these (kb-documents).
-const KB_STEPS = ["kb-header", "kb-documents", "kb-ingestion", "kb-sync"];
+const KB_STEPS = ["kb-header", "kb-documents", "kb-ingestion", "kb-rerank", "kb-sync"];
 
 // The organization detail walk: the members page (profile, then the list), then
 // across into the roles matrix. None are inTour — orgs is a "?"-only section.

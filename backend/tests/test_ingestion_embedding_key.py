@@ -106,7 +106,7 @@ async def _store() -> PgVectorStore:
         "app.worker.tasks.rag_tasks.create_async_engine",
         return_value=MagicMock(dispose=AsyncMock()),
     ):
-        async with _ingestion_service(processor=MagicMock()) as service:
+        async with _ingestion_service(processor=MagicMock(), organization_id=None) as service:
             store = service.store
     assert isinstance(store, PgVectorStore)
     return store
@@ -163,12 +163,12 @@ async def _the_flows_embedder(
 
         db_ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
         db_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
-        bases.get_by_collection_name = AsyncMock(return_value=_knowledge_base(secret_id=secret_id))
+        bases.get_for_collection = AsyncMock(return_value=_knowledge_base(secret_id=secret_id))
         secrets.get = AsyncMock(return_value=vault_row)
         resolution_env.OPENROUTER_API_KEY = deployment_key
         embedding_env.OPENROUTER_API_KEY = deployment_key
 
-        embedder, dim = await (await _store())._for_collection("handbook")
+        embedder, dim = await (await _store())._for_collection("handbook", None)
         yield embedder, dim, openai
 
 
@@ -239,11 +239,13 @@ class TestTheCollectionsKeyPays:
             "handbook": _resolved(EmbeddingKeySource.SECRET_MISSING),
             "policies": _resolved(EmbeddingKeySource.DEPLOYMENT),
         }
-        store._resolver = AsyncMock(side_effect=lambda name: resolutions[name])
+        store._resolver = AsyncMock(
+            side_effect=lambda name, organization_id=None, knowledge_base_id=None: resolutions[name]
+        )
 
         origins = []
         for collection in resolutions:
-            embedder, _ = await store._for_collection(collection)
+            embedder, _ = await store._for_collection(collection, None)
             with pytest.raises(ConfigurationError) as refusal:
                 embedder.embed_query("anything")
             origins.append(refusal.value.details["key_origin"])
@@ -332,7 +334,7 @@ class TestWhatTheFlowLogSays:
             ),
             patch("app.worker.tasks.rag_tasks._say_in_flow_log") as said,
         ):
-            answer = await _announcing_resolver()("handbook")
+            answer = await _announcing_resolver()("handbook", None)
         return answer, said
 
     async def test_a_degraded_credential_is_announced_with_the_reason(self):
@@ -361,7 +363,7 @@ class TestWhatTheFlowLogSays:
             ),
             patch("app.worker.tasks.rag_tasks._say_in_flow_log") as said,
         ):
-            assert await _announcing_resolver()("unclaimed") is None
+            assert await _announcing_resolver()("unclaimed", None) is None
 
         said.assert_not_called()
 
@@ -376,13 +378,17 @@ class TestWhatTheFlowLogSays:
         with (
             patch(
                 "app.worker.tasks.rag_tasks.embeddings_for_collection",
-                new=AsyncMock(side_effect=lambda name: resolutions[name]),
+                new=AsyncMock(
+                    side_effect=lambda name, organization_id=None, knowledge_base_id=None: (
+                        resolutions[name]
+                    )
+                ),
             ),
             patch("app.worker.tasks.rag_tasks._say_in_flow_log") as said,
         ):
             resolve = _announcing_resolver()
             for name in ("handbook", "handbook", "policies", "handbook"):
-                await resolve(name)
+                await resolve(name, None)
 
         assert [call.args[0].split("'")[1] for call in said.call_args_list] == [
             "handbook",
@@ -401,8 +407,8 @@ class TestWhatTheFlowLogSays:
             ),
             patch("app.worker.tasks.rag_tasks._say_in_flow_log") as said,
         ):
-            await _announcing_resolver()("handbook")
-            await _announcing_resolver()("handbook")
+            await _announcing_resolver()("handbook", None)
+            await _announcing_resolver()("handbook", None)
 
         assert said.call_count == 2
 

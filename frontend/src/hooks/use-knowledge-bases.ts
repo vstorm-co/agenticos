@@ -29,6 +29,7 @@ import type {
   KBDocumentList,
   KnowledgeBase,
   KnowledgeBaseList,
+  UpdateRerankInput,
 } from "@/types";
 
 export function useKnowledgeBases() {
@@ -335,6 +336,30 @@ export function useKBDetail(id: string | null) {
   );
 
   /**
+   * Turn reranking on, change its key, or turn it off - from now on.
+   *
+   * The pair is sent together, which is how the backend tells "change reranking"
+   * from "leave it alone": an update carrying both fields sets them, one
+   * carrying neither does not. `null`/`null` is the off signal. Nothing already
+   * retrieved changes; this governs the next search. The refusal is rethrown so
+   * the dialog can put "that key is for something else" beside the picker.
+   */
+  const updateRerank = useCallback(
+    async (input: UpdateRerankInput): Promise<KnowledgeBase> => {
+      // i18n-exempt: a narrowing guard on a hook only mounted with an id, not copy.
+      if (!id) throw new Error("No knowledge base is open");
+      const startedIn = activeOrgId;
+      const updated = await apiClient.patch<KnowledgeBase>(`/kb/${id}`, input);
+      if (stillSameTenant(startedIn)) {
+        queryClient.setQueryData(qk.kb.detail(id), updated);
+        toast.success(t("rerankSaved"));
+      }
+      return updated;
+    },
+    [id, activeOrgId, stillSameTenant, queryClient, t],
+  );
+
+  /**
    * Move this collection's embeddings to another provider, or another key.
    *
    * The model is not here and cannot be: the vector column was created at its
@@ -620,6 +645,7 @@ export function useKBDetail(id: string | null) {
     refresh,
     loadMoreDocuments,
     updateIngestion,
+    updateRerank,
     updateEmbeddings,
     uploadDocument,
     deleteDocument,

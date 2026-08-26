@@ -75,7 +75,9 @@ class ResolvedSubagent:
     agent_id: UUID | None = None
     agent_version_id: UUID | None = None
     collection_names: tuple[str, ...] = ()
-    """The knowledge collections *this* delegate may search.
+    collection_ids: tuple[UUID, ...] = ()
+    """The knowledge collections *this* delegate may search, and the id of the
+    knowledge base each name was authorized as, aligned by index.
 
     Carried as data beside the agent, rather than left on the deps the build
     produced, because the library decides what deps a delegation runs with: it

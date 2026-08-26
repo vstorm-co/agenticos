@@ -80,7 +80,7 @@ class SecretPurposeList(BaseSchema):
 class SecretUsage(BaseSchema):
     """One place a stored key is bound. Named so the answer is readable."""
 
-    kind: Literal["agent"]
+    kind: Literal["agent", "knowledge_base"]
     id: UUID
     name: str
 

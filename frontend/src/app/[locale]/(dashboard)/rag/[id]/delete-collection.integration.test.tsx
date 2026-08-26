@@ -64,6 +64,8 @@ const COLLECTION: KnowledgeBase = {
   embedding_provider: "openrouter",
   embedding_secret_id: null,
   embedding_dim: 1536,
+  rerank_model: null,
+  rerank_secret_id: null,
   created_at: "2026-01-01T00:00:00Z",
   updated_at: null,
   // Zero, as the single-row read really answers: the three counts are derived
