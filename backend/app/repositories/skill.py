@@ -6,7 +6,7 @@ predicate pieces the access layer resolved rather than re-deriving them here.
 """
 
 from collections.abc import Sequence
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from sqlalchemy import and_, false, func, or_, select
@@ -177,7 +177,7 @@ async def create(
     return skill
 
 
-async def update(db: AsyncSession, *, skill: Skill, update_data: dict) -> Skill:
+async def update(db: AsyncSession, *, skill: Skill, update_data: dict[str, Any]) -> Skill:
     for field, value in update_data.items():
         setattr(skill, field, value)
     db.add(skill)
@@ -233,7 +233,7 @@ async def create_resource(
 
 
 async def update_resource(
-    db: AsyncSession, *, resource: SkillResource, update_data: dict
+    db: AsyncSession, *, resource: SkillResource, update_data: dict[str, Any]
 ) -> SkillResource:
     for field, value in update_data.items():
         setattr(resource, field, value)
