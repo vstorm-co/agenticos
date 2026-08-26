@@ -17,6 +17,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.267] - 2026-08-26
+
+### Changed
+
+- **`app/core/sanitize.py` is on the coverage gate and the type-checker overrides.**
+  It is the SSRF allow and deny every outbound URL a tenant chooses is checked
+  against - a webhook target, an MCP server address - and it was in neither list,
+  which is what #28 asks to extend to the modules implementing the refusals
+  CLAUDE.md names as must-cover. It sat at 95%: the two DNS-failure exits in
+  `resolve_pinned_url`, a lookup that raises `gaierror` and one that resolves to no
+  address, had no test. Both are covered now with a mocked `getaddrinfo`, and the
+  module is added to both lists verbatim and in the same position, beside
+  `pinned_http.py` - the validator paired with the client that dials what it
+  validated. (#28)
+- The rest of #28's tail stays open and is named on the issue: `agent_embed.py` at
+  85% needs substantial tests first, and the four channel modules hold open bugs
+  and need a real database to measure. The five-routes layering landed in #232, and
+  `audit.py` is gated by #20. (#28)
+
 ## [0.0.266] - 2026-08-26
 
 ### Fixed
