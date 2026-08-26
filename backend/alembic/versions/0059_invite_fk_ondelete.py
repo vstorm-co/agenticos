@@ -25,8 +25,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0056_invite_fk_ondelete"
-down_revision: str | Sequence[str] | None = "0055_sandbox_operations"
+revision: str = "0059_invite_fk_ondelete"
+down_revision: str | Sequence[str] | None = "0058_backfill_rag_lookup_indexes"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
