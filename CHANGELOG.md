@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.255] - 2026-08-26
+
+### Fixed
+
+- **The only pages an unauthenticated visitor loads shipped all 89 brand marks.**
+  The sign-in and register pages drew three - Google, GitHub, Microsoft - through
+  `BrandIcon`, which reads the `BRAND_GLYPHS` table by dynamic key, and a dynamic
+  record access cannot be tree-shaken. So about 104 KB of source, 25 to 30 KB
+  gzipped, sat on the critical path and grew with every connector nobody signs in
+  with. The generator emits a second module, `auth-glyphs.generated.ts`, holding
+  just the three identity-provider marks and derived from the same fetched data so
+  the generator stays the single source of glyph data; `oauth-buttons` draws
+  `AUTH_GLYPHS` through `GlyphIcon` directly. A test guards the regression: the
+  auth component must not import `BrandIcon` or `brand-glyphs.generated`, and
+  `AUTH_GLYPHS` must hold exactly the three. (#955)
+
 ## [0.0.254] - 2026-08-26
 
 ### Changed
