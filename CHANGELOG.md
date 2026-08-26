@@ -17,6 +17,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.260] - 2026-08-26
+
+### Fixed
+
+- **`SecurityHeadersMiddleware` was fully written and never registered**, so no API
+  response carried a Content-Security-Policy, `X-Content-Type-Options`,
+  `X-Frame-Options`, `Referrer-Policy` or `Permissions-Policy`. The bundled nginx
+  sets a weaker subset and no CSP, so a self-hosted deployment not fronted by that
+  exact nginx got nothing at all. The sharpest sign it was an oversight: `files.py`
+  already opts its framed endpoint down to `SAMEORIGIN`, against a default that was
+  not there. Registered in `create_app` with `setdefault`, so the file download's
+  per-response `X-Frame-Options: SAMEORIGIN` still wins. (#18)
+- Two things the registration made live for the first time, fixed with it:
+  `X-XSS-Protection: 0` rather than the deprecated `1; mode=block`, per OWASP - the
+  CSP is the real defence - and the doc pages excluded by their *real* mounted
+  paths, since the schema is under the API prefix rather than at `/openapi.json`,
+  so the exclusion is not a dead entry and the CSP cannot break Swagger or ReDoc.
+  `docs/deploy.md` records the app-level headers for an operator running their own
+  proxy. (#18)
+
 ## [0.0.259] - 2026-08-26
 
 ### Fixed
