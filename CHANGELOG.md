@@ -17,6 +17,38 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.282] - 2026-08-27
+
+### Fixed
+
+- **The BFF proxy-path guard did not see a composite segment.**
+  `unencodedSegments` matched a `${...}` only immediately after a `/`, so
+  `/api/v1/resources/prefix-${id}` slipped through - and an `id` such as
+  `x/../../admin/users` interpolated bare there normalises into another backend
+  path exactly as a segment-leading one does. So the invariant the sweep exists to
+  hold, that every interpolated path segment is encoded, was not enforced for
+  prefixed segments. No current route has that shape; this is hardening against the
+  next one. A small `pathInterpolations` parser replaces the inner regex: it scans
+  the path from `/api/v1`, skipping the host prefix, brace-matches each
+  interpolation so a query ternary's own inner `${...}` is consumed with it rather
+  than read as a bare segment, and stops at the query - the first literal `?`, or an
+  interpolation that attaches one. A query signal skips that interpolation and keeps
+  scanning rather than stopping, and optional chaining is excluded from the ternary
+  check, so a real segment after a query-looking or optional-chained one is still
+  checked. (#1118, #13, #30)
+- Four further holes in the same sweep, found by the reviewer on the branch and
+  closed before merge - each one a way for a security guard to report clean on a
+  route it had never actually read. **An apostrophe in a comment blinded it to a
+  whole file**: every `'` was treated as a string opener, so the scan ran from
+  the apostrophe in prose to the next one and swallowed what lay between, which
+  is why `admin/conversations/route.ts` - "drawer's", line 11 - had its template
+  skipped entirely. A **partly encoded** expression passed, so
+  `encodeURIComponent(id) + rawSuffix` and a look-alike
+  `encodeURIComponentAlias(rawId)` were both accepted. **Any `.search` access
+  ended the path**, so `/api/v1/x/${params.search}/${rawId}` reported neither
+  interpolation. And a template whose prefix carried no literal following slash -
+  `/api/v1${rawPath}` - was never read at all. (#1133)
+
 ## [0.0.281] - 2026-08-27
 
 ### Fixed
