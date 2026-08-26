@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -161,6 +161,19 @@ describe("the open tab in the URL", () => {
     );
   });
 
+  it("leaves no `tab=runs` behind when a reader switches back", async () => {
+    // An unset narrowing writes nothing on this page - that is what makes a
+    // pasted link carry only what it actually narrows.
+    serve(["runs:view", "approvals:decide"]);
+    arriveAt("tab=approvals");
+
+    render(<RunsPage />, { wrapper });
+    await userEvent.click(await screen.findByRole("tab", { name: /^Runs/ }));
+
+    expect(url().searchParams.get("tab")).toBeNull();
+    expect(tab(/^Runs/)).toHaveAttribute("aria-selected", "true");
+  });
+
   it("writes the tab a reader switches to, so a reload comes back to it", async () => {
     serve(["runs:view", "approvals:decide"]);
 
@@ -188,6 +201,36 @@ describe("a focused run and a tab switch", () => {
 
     expect(screen.queryByRole("complementary", { name: "Run detail" })).toBeNull();
     expect(listColumn(container)).not.toHaveClass("hidden");
+    expect(tab(/^Approvals/)).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("closes with a link that changes the tab and does not name the run", async () => {
+    // Radix does not call `onValueChange` for a prop-driven change, so this
+    // could look like the panel outliving the switch again. It does not: the
+    // navigation replaces the whole query string, and `useUrlState` resets a
+    // value whose parameter changed under it. There is nothing to clear.
+    serve(["runs:view", "approvals:decide"]);
+    arriveAt("run=run-1");
+
+    const { rerender } = render(<RunsPage />, { wrapper });
+    expect(await screen.findByRole("complementary", { name: "Run detail" })).toBeVisible();
+
+    arriveAt("tab=approvals");
+    rerender(<RunsPage />);
+
+    await waitFor(() =>
+      expect(screen.queryByRole("complementary", { name: "Run detail" })).toBeNull(),
+    );
+    expect(tab(/^Approvals/)).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("honours a link that names both, because that link is asking for both", async () => {
+    serve(["runs:view", "approvals:decide"]);
+    arriveAt("tab=approvals&run=run-1");
+
+    render(<RunsPage />, { wrapper });
+
+    expect(await screen.findByRole("complementary", { name: "Run detail" })).toBeVisible();
     expect(tab(/^Approvals/)).toHaveAttribute("aria-selected", "true");
   });
 

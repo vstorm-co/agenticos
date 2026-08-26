@@ -162,7 +162,11 @@ export default function RunsPage() {
             value={parseRunsTab(tabParam, canDecide)}
             className="flex min-h-0 flex-1 flex-col"
             onValueChange={(next) => {
-              changeTab(next);
+              // `null` for the default, so switching back to Runs leaves no
+              // `?tab=runs` behind: an unset narrowing writes nothing on this
+              // page, which is what makes a pasted link carry only what it
+              // actually narrows.
+              changeTab(next === "runs" ? null : next);
               // A focused run belongs to the tab that opened it. Left alone it
               // sat beside a queue it has nothing to do with, and below `lg`
               // it *replaced* the list - so the strip was live while every
