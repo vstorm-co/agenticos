@@ -17,6 +17,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.263] - 2026-08-26
+
+### Fixed
+
+- **`drain()` waited on one snapshot of `_running`**, so a task that handed off
+  more work while draining - a channel run finishing an agent turn spawns each of
+  its notifications - could leave the freshly spawned task in flight when `drain()`
+  returned. It waits until `_running` is quiescent under one overall deadline now,
+  re-snapshotting each pass, so work spawned mid-drain is awaited while a task that
+  keeps spawning work cannot postpone shutdown for ever. (#1095)
+- **After the timeout it called `task.cancel()` and returned immediately**, so a
+  caller that disposes shared resources next - the Redis client, the database
+  engine - raced a cancelled task still unwinding through its own `finally` on those
+  very resources. Whatever overran is cancelled and `gather`ed to a terminal state
+  before `drain()` returns. (#1095)
+- One edge is deliberately left: the post-deadline cancel and gather snapshots the
+  overrunning set once, so a cancelled task whose `finally` spawned fresh work while
+  unwinding would not be awaited. No `finally` in the codebase spawns background
+  work, and looping that phase would reintroduce the unbounded wait the single shot
+  avoids. (#1095)
+- The third gap in the issue - a bot created just before shutdown whose deferred
+  `open_inbound_stream` reopens intake during teardown - is a shutdown *ordering*
+  concern rather than a `drain()` one, and is #1119. (#1095, #1119)
+
 ## [0.0.262] - 2026-08-26
 
 ### Changed
