@@ -742,11 +742,14 @@ while they were computed by separate lookups with different rules they could
 disagree, so a sync compared a live file's hash against a different document's
 and either re-embedded an unchanged file every night or skipped a changed one as
 current ([#548](https://github.com/vstorm-co/agenticos/issues/548)). `PgVectorStore`
-serves each lookup from an expression index on that metadata key — built with the
-runtime table, so an established collection gains the indexes on its next ingest —
-which makes the check a handful of indexed statements rather than the read of the
-whole `rag_<collection>` table into worker memory it used to be, once per ingested
-document on a collection that could hold hundreds of thousands of chunks
+serves each lookup from a **hash** index on that metadata key — hash, not btree,
+because the lookups are equality-only and a `source_path` is unbounded, so a
+btree would fail its row-size limit and take ingestion down with it. The indexes
+are built with the runtime table and backfilled onto older collections by
+migration `0056`, which makes the check a handful of indexed statements rather
+than the read of the whole `rag_<collection>` table into worker memory it used to
+be, once per ingested document on a collection that could hold hundreds of
+thousands of chunks
 ([#1102](https://github.com/vstorm-co/agenticos/issues/1102), the ingest half of
 [#27](https://github.com/vstorm-co/agenticos/issues/27); its other half paginated
 the tracked-documents listing). A base-class fallback still answers by reading the

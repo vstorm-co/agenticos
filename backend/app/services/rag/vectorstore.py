@@ -417,7 +417,15 @@ class PgVectorStore(BaseVectorStore):
             )
             # The keys `find_existing_document` looks a document up by; without
             # them that check is a full read of the runtime table (#1102).
-            # `IF NOT EXISTS` backfills an established collection's next ingest.
+            #
+            # `hash`, not btree: the lookups are equality only, and a btree entry
+            # is capped near 2700 bytes - so a btree on `source_path` fails the
+            # index-row-size limit the moment a document carries a path longer
+            # than that (they are unbounded - `s3://`, `gdrive://`, a deep key -
+            # and `RAGDocument.source_path` is a hash index for the same reason),
+            # which would fail every ingest into the collection. Hashing the
+            # value has no such ceiling. `IF NOT EXISTS` so this is idempotent;
+            # `migrations/0056` backfills the collections that predate it.
             for suffix, key in (
                 (VECTOR_SOURCE_PATH_INDEX_SUFFIX, "source_path"),
                 (VECTOR_FILENAME_INDEX_SUFFIX, "filename"),
@@ -426,7 +434,7 @@ class PgVectorStore(BaseVectorStore):
                 await session.execute(
                     text(
                         f"CREATE INDEX IF NOT EXISTS {table}{suffix} "
-                        f"ON {table} ((metadata->>'{key}'))"
+                        f"ON {table} USING hash ((metadata->>'{key}'))"
                     )
                 )
             await session.commit()

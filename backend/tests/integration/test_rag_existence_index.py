@@ -93,13 +93,20 @@ async def test_ensure_collection_builds_an_index_per_lookup_key(engine: AsyncEng
 
     async with store.async_session() as session:
         result = await session.execute(
-            text("SELECT indexname FROM pg_indexes WHERE tablename = :t"), {"t": TABLE}
+            text("SELECT indexname, indexdef FROM pg_indexes WHERE tablename = :t"), {"t": TABLE}
         )
-        names = {row[0] for row in result.all()}
+        defs = {row[0]: row[1] for row in result.all()}
 
-    assert f"{TABLE}{VECTOR_SOURCE_PATH_INDEX_SUFFIX}" in names
-    assert f"{TABLE}{VECTOR_FILENAME_INDEX_SUFFIX}" in names
-    assert f"{TABLE}{VECTOR_CONTENT_HASH_INDEX_SUFFIX}" in names
+    # Hash, not btree: a btree on an unbounded `source_path` fails the index-row
+    # -size limit and takes ingestion down with it (#1102 review).
+    for suffix in (
+        VECTOR_SOURCE_PATH_INDEX_SUFFIX,
+        VECTOR_FILENAME_INDEX_SUFFIX,
+        VECTOR_CONTENT_HASH_INDEX_SUFFIX,
+    ):
+        name = f"{TABLE}{suffix}"
+        assert name in defs
+        assert "USING hash" in defs[name]
 
 
 async def test_source_path_wins_and_returns_that_documents_own_hash(engine: AsyncEngine) -> None:
@@ -198,6 +205,21 @@ async def test_the_fallback_tiebreak_is_deterministic(engine: AsyncEngine) -> No
 
     assert hit is not None
     assert hit.document_id == "aaa"
+
+
+async def test_a_source_path_too_long_for_a_btree_index_still_ingests(engine: AsyncEngine) -> None:
+    """#1102 review: a btree metadata index caps entries near 2700 bytes, so a
+    long path would fail every ingest into the collection. The hash index has no
+    such ceiling - this row inserts and is found."""
+    store = _store(engine)
+    await store._ensure_collection(COLLECTION)
+    long_path = "s3://bucket/" + "a" * 3000
+    await _insert(store, doc_id="big", source_path=long_path, filename="big.pdf", content_hash="h")
+
+    hit = await store.find_existing_document(COLLECTION, source_path=long_path, content_hash="")
+
+    assert hit is not None
+    assert hit.document_id == "big"
 
 
 async def test_no_key_matches_answers_none(engine: AsyncEngine) -> None:
