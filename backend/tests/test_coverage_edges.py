@@ -44,7 +44,7 @@ class TestSearchProvidersThatCannotAnswer:
         module.DDGS = MagicMock(side_effect=RuntimeError("ratelimited"))
         with (
             patch.dict(sys.modules, {"ddgs": module}),
-            pytest.raises(SearchUnavailable, match="ratelimited"),
+            pytest.raises(SearchUnavailable, match="DuckDuckGo search is unavailable"),
         ):
             await search("q", provider="duckduckgo", api_key=None, max_results=3)
 

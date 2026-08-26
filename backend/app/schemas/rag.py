@@ -217,6 +217,28 @@ class EmbeddingModelEntry(BaseSchema):
     dim: int
 
 
-class EmbeddingModelsResponse(BaseSchema):
-    default: str
+class EmbeddingProviderEntry(BaseSchema):
+    """One provider a collection can embed through, and what it serves."""
+
+    provider: str
+    name: str
     models: list[EmbeddingModelEntry]
+    # Whether this deployment's own key pays here. A collection on any other
+    # provider needs a key of its own, and the form says so rather than letting
+    # somebody create a collection that cannot index its first document.
+    deployment_key: bool
+
+
+class EmbeddingModelsResponse(BaseSchema):
+    """What a collection may be created with, and what an existing one may move to.
+
+    Grouped by provider, because "which models exist" was never the question a
+    form needed answered: the list used to be every model this build knew a
+    *width* for, which included three sentence-transformer weights and two
+    vendors nothing here can call - so the picker offered models whose first
+    document would fail to index.
+    """
+
+    default: str
+    default_provider: str
+    providers: list[EmbeddingProviderEntry]

@@ -542,6 +542,29 @@ class TestRecordingTheRun:
         assert (turn.output, turn.model_label) == ("42 days", "gpt-4.1")
         assert runner.finish.call_args.kwargs["status"] is RunStatus.COMPLETED
 
+    async def test_the_run_row_is_committed_before_the_stream_starts(self):
+        """The transaction ends before the model is asked anything (#12).
+
+        The row is then visible from another session for the life of the run,
+        and the pooled connection is returned instead of being held `idle in
+        transaction` for however long somebody watches the answer arrive.
+        """
+        db = _db()
+        order: list[str] = []
+
+        async def note_commit() -> None:
+            order.append("commit")
+
+        async def note_stream(_agent_run: MagicMock) -> None:
+            order.append("stream")
+
+        db.commit = AsyncMock(side_effect=note_commit)
+
+        with _runner(_prepared()):
+            await _run(db, stream=AsyncMock(side_effect=note_stream))
+
+        assert order[:2] == ["commit", "stream"]
+
     async def test_a_failed_run_still_records_what_it_spent(self):
         """The tokens were spent before it broke; a budget that ignores that is not one."""
         db = _db()
@@ -551,7 +574,9 @@ class TestRecordingTheRun:
 
         finished = runner.finish.call_args.kwargs
         assert finished["status"] is RunStatus.FAILED
-        db.commit.assert_awaited_once()
+        # Two commits: the one that opened the run row to other sessions before
+        # the stream started, and the one that lands the terminal write.
+        assert db.commit.await_count == 2
 
     async def test_a_failed_chat_run_records_the_refusal_and_not_the_provider(self, caplog):
         """The same rule the chat frame took in #659, on the row rather than the
@@ -590,7 +615,7 @@ class TestRecordingTheRun:
         finished = runner.finish.call_args.kwargs
         assert finished["status"] is RunStatus.CANCELLED
         assert finished["error"] is None
-        db.commit.assert_awaited_once()
+        assert db.commit.await_count == 2
 
     async def test_a_budget_stop_is_recorded_as_a_budget_stop_not_a_failure(self):
         """An operator filtering run history for problems should not wade through it."""

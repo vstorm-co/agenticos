@@ -17,6 +17,326 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.257] - 2026-08-26
+
+### Fixed
+
+- **Twelve specs mocked `next-intl` as a translator missing part of `t`** - eleven
+  as a bare `(key) => key`, and `kb-detail-sections` as a hand-rolled cache that
+  had grown `t.rich` but still lacked `t.markup` and `t.has`. `t` carries all three,
+  and a component reading a message with a tag calls `t.rich`. They were green only
+  because none of their components reads a rich message *yet*: the #395 guard steers
+  copy toward `t.rich`, so they will, and then one throws `t.rich is not a function`
+  inside a component several files from the assertion - which is exactly how #610
+  was found. A shared `keyTranslations(format)` in `src/test-utils/intl.ts` is now
+  the one definition of a key-returning translator, complete with `rich`, `markup`
+  and `has`, and each local mock uses it while keeping its own key shape and, for
+  kb-detail, its per-namespace cache, so no assertion moved. The mock factory is
+  `async` and imports the helper inside itself, because `vi.mock` is hoisted above
+  the static imports. `intl.test.ts` asserts the helper carries all three, so the
+  next mock added by copy-paste cannot lose them silently. (#612, #610)
+
+## [0.0.256] - 2026-08-26
+
+### Changed
+
+- Backend dependencies: `uvicorn` 0.52.4, `pydantic-ai-harness` 0.24.0,
+  `llama-cloud` 2.14.1, `google-api-python-client` 2.199.0, `boto3` 1.43.78,
+  `subagents-pydantic-ai` 0.2.21, `ruff` 0.16.4 and `ty` 0.0.74. Applied on a
+  branch off current `main` and re-locked rather than merged from Dependabot's,
+  whose branch predated the agent-frameworks group and would have reverted it.
+  (#1153)
+
+## [0.0.255] - 2026-08-26
+
+### Fixed
+
+- **The only pages an unauthenticated visitor loads shipped all 89 brand marks.**
+  The sign-in and register pages drew three - Google, GitHub, Microsoft - through
+  `BrandIcon`, which reads the `BRAND_GLYPHS` table by dynamic key, and a dynamic
+  record access cannot be tree-shaken. So about 104 KB of source, 25 to 30 KB
+  gzipped, sat on the critical path and grew with every connector nobody signs in
+  with. The generator emits a second module, `auth-glyphs.generated.ts`, holding
+  just the three identity-provider marks and derived from the same fetched data so
+  the generator stays the single source of glyph data; `oauth-buttons` draws
+  `AUTH_GLYPHS` through `GlyphIcon` directly. A test guards the regression: the
+  auth component must not import `BrandIcon` or `brand-glyphs.generated`, and
+  `AUTH_GLYPHS` must hold exactly the three. (#955)
+
+## [0.0.254] - 2026-08-26
+
+### Changed
+
+- Agent-framework dependencies: `logfire` 4.41.0, `pydantic-ai-slim` 2.33.0
+  (including its `mcp` extra), `genai-prices` 0.1.4 and `pydantic-ai-skills` 1.4.0.
+
+## [0.0.253] - 2026-08-26
+
+Nothing holds a pooled connection across a model call, so the sixteenth request is
+answered rather than queued.
+
+### Fixed
+
+- **Three paths held a pooled Postgres connection across work measured in seconds
+  to minutes**, so fifteen concurrent anything exhausted the pool
+  (`DB_POOL_SIZE=5` plus `DB_MAX_OVERFLOW=10`) and the sixteenth request of any
+  kind blocked for `DB_POOL_TIMEOUT` and then raised. (#12)
+- **The run's transaction spanned the model call.** `_run` and
+  `ChatAgentRunner.run` commit once *before* the model is asked anything, with the
+  terminal commit from #231 left in place. The run row is visible from every other
+  session mid-run, the connection goes back to the pool for the duration of the
+  call, and a resumed run's `mark_running` is durable before the approved call is
+  replayed - so a crash mid-replay can no longer hand the same approval out twice.
+  The budget capability's baseline read moved onto a session of its own; read on
+  the run's shared session it silently re-opened the idle transaction. (#3, #12)
+- **`PgVectorStore` built a private pool per instance.** The store borrows an
+  injected engine and `aclose()` is gone. The API, CLI and the knowledge capability
+  share the process engine through one `process_vector_store()` factory - the
+  #306-shaped four-site repetition collapsed into it - and the worker builds one
+  engine per flow in `_ingestion_service`, disposed on every path out. The embed
+  widget needed no change: `EmbedSession` already takes a session factory and opens
+  one per turn (#39). (#12)
+- **The agent-triggers scheduler reasoned from "an executing run's row is
+  invisible".** `claim_due`'s conversation guard blocks on `awaiting_approval`
+  alone, because a crash-orphaned `running` row would otherwise wedge the schedule
+  forever, and the fire-recovery branch corroborates a `running` tail against a
+  fresh session before settling it as its own orphan - a concurrent fire's live run
+  is left alone. (#537, #12)
+- **The crash-orphan remainder.** An hourly stale-run sweep ends anything still
+  `running` past `STALE_RUN_REAPED_AFTER_HOURS` (6h default, 0 disables) as
+  `failed`, with the sweep's own sentence on the row: one conditional UPDATE whose
+  status guard re-evaluates under the row lock, and a live run flipped anyway is
+  flipped back by its own terminal write. No spend is invented, nobody is mailed,
+  and `awaiting_approval` is never touched. (#1078)
+
+### Changed
+
+- The opening commit sits in `_run` and `ChatAgentRunner.run` rather than
+  centralized in `PreparedRun.execute`/`iterate`, because `PreparedRun` does not
+  carry the session; both sites are tested and documented. The per-flow worker
+  engine keeps SQLAlchemy's default pool knobs, as the in-store engine did - tying
+  it to `DB_POOL_SIZE` would couple worker sizing to API tuning silently. And
+  API-process vector work now shares the request pool: with connections no longer
+  held across model calls 15 is comfortable at the measured load, but a heavy-RAG
+  deployment may want a bigger `DB_POOL_SIZE`. (#12)
+
+## [0.0.252] - 2026-08-26
+
+A client-supplied path segment can no longer walk out of the route it was given to.
+
+### Fixed
+
+- **About a dozen route handlers under `src/app/api` interpolated a
+  client-supplied path segment straight into the backend URL with no
+  `encodeURIComponent`.** Next decodes `%2F` into the param and `fetch`
+  normalises `..`, so a segment escapes its intended route: an organization id of
+  `x%2F..%2F..%2Fadmin%2Fusers` reached the backend as `/api/v1/admin/users`. This
+  is defence in depth rather than live escalation - the backend re-gates admin on
+  `CurrentAppAdmin`, so nothing currently reachable would not be anyway - but the
+  BFF's own fence was decorative, and any future backend route assuming "only
+  reachable through a handler that checks X" would be exposed the day it lands.
+  (#13, #30)
+- **Every interpolated segment is `encodeURIComponent`-wrapped**, matching the
+  sibling routes that already did it, and a new sweep in `platform-proxy.test.ts`
+  fails any route interpolating a bare `${param}` into a `/api/v1` template - the
+  same reasoning the file already gives for its organization-header sweep, so the
+  next hand-rolled route cannot repeat the omission. The host prefix and query
+  interpolations are not path segments and are left alone; a `platformProxy` route
+  forwards its path verbatim and has nothing to encode. (#13, #30)
+
+## [0.0.251] - 2026-08-26
+
+The vault's master key is explicit everywhere, and rotating it no longer destroys
+every secret it protects.
+
+### Fixed
+
+- **The master key was validated only in production.** The config refused the
+  default `SECRET_KEY` only when `ENVIRONMENT == "production"`, while staging is
+  first-class here - so a staging vault booted with every credential sealed under a
+  string published in `config.py`. A model validator refuses an unset
+  `VAULT_MASTER_KEY` outside `local` and `development`, and the
+  `getattr(settings, "VAULT_MASTER_KEY", "")` typing escape is gone. (#8)
+- **Rotation destroyed every secret.** `_wrapping_key` derived every version from
+  the single current setting, so `key_version` recorded nothing and setting a new
+  master key made every envelope unreadable - `rewrap` included, because it derived
+  the *from*-key from the same new value. (#8)
+- **`McpConnectionService.update` and `update_for_org` sealed a replacement token
+  at the current version without re-sealing the row's OAuth envelopes** - the same
+  latent defect #552 fixed on channel bots, and destructive the moment versions
+  mean distinct keys. Both seal at the row's recorded version now. (#8, #552)
+
+### Added
+
+- **`VAULT_MASTER_KEYS: dict[int, str]`**, chosen over a
+  `VAULT_MASTER_KEY_PREVIOUS` because it generalizes the `key_version` column
+  rather than hardcoding a two-key window. The single `VAULT_MASTER_KEY` stays as
+  shorthand for version 1, and both set at once is refused as ambiguous. The
+  highest version seals new secrets; an envelope naming a version with no
+  configured key raises `ConfigurationError` naming the missing entry instead of a
+  generic decrypt error. (#8)
+- **HKDF-SHA256 replaces the bare `sha256(master|scope|v)`** - one hash over a
+  possibly passphrase-derived value is not a KDF. The switch is versioned by the
+  envelope format (`ENVELOPE_VERSION` 1 to 2): version-1 envelopes keep opening
+  under the old derivation, everything new is HKDF, and `rewrap` upgrades the
+  format in place. Without that, the KDF change alone would have been the rotation
+  defect under another name. (#8)
+- **`agenticos cmd vault-rotate [--dry-run]`** walks every table holding envelopes
+  - `organization_secrets`, `channel_bots` four times, `mcp_connections` three
+  times with per-row scope so a personal connection re-wraps under its member, plus
+  `agent_embeds` and `agent_triggers`. A row's ciphertexts move together with the
+  version column or not at all; failures are named, do not stop the sweep, and exit
+  non-zero so a script cannot drop the old key on a partial rotation. `--dry-run`
+  performs the full unwrap and rewrap without writing. (#8)
+
+### Changed
+
+- `seal`, `seal_fields` and `seal_secret` default to the current key version, so a
+  row created with no envelope records the current version instead of a hardcoded
+  1. `doctor`'s vault check accepts either configuration form. `secrets.md` carries
+  the rotation procedure now that it is real, and `configuration.md`,
+  `commands.md` and `backend/.env.example` carry the new setting. (#8)
+- **No key-length validation on a configured master, deliberately.** Refusing a
+  short existing key at boot would lock a deployment out of the very rotation it
+  needs to escape it, because the old key has to stay configured to rotate away
+  from it. HKDF also weakens the cost of a low-entropy master, and the docs steer
+  to `openssl rand -hex 32`. (#8)
+
+## [0.0.250] - 2026-08-26
+
+Every tool says what it returns, and one place decides whose mistake a failure was.
+
+### Added
+
+- **A `Returns:` on every tool.** Seven docstrings had none, so the model could not
+  know that `search_channels` answers `- name (id) - purpose`, that a history read
+  is capped at 200 messages with each cut to 500 characters, that `list_context` is
+  an index rather than bodies, or what `run_python` does with a final expression's
+  value. A tool whose answer can be a slice has to say so, or the model reasons
+  from the slice as though it were the whole set. `list_context` also answered an
+  empty string when nothing was attached, which reads to a model as a broken tool;
+  it says so in a sentence now. (#1075)
+- **One failure taxonomy, written down** in
+  `.claude/skills/agent-capability/references/tool-text-and-failures.md` and a new
+  section of `docs/reference/capabilities.md`, so the next capability is not a coin
+  flip.
+
+### Changed
+
+- **`steer` in `app/agents/capabilities/_failures.py` is the one place that
+  decides**, and it exists rather than a bare `raise ModelRetry` for a reason worth
+  stating: a retry raised past a tool's budget - one attempt by default, and
+  nothing raises it - does not fail the call, it ends the whole run with
+  `UnexpectedModelBehavior`. A model that sent the same malformed chart twice took
+  the conversation down with it. On the last attempt `steer` returns the message
+  instead, so the worst case is the string the tool would have returned anyway.
+  `charts`, `context`, `knowledge`, `image_generation` and `web_research` raised
+  unconditionally and now steer.
+- **`run_python` was on the wrong side of the taxonomy.** A `NameError` or a syntax
+  error in code the model itself wrote came back as `Execution failed: ...`, a
+  sentence indistinguishable from a result, when `code` is precisely the argument
+  it composed. It answers with a `RunOutcome` naming whose problem it is -
+  `MontySyntaxError`, `MontyRuntimeError`, `MontyTypingError` and
+  `MontyConversionError` are the program's, and the resource limits report as
+  `TimeoutError` and `MemoryError`, fixable the same way by writing something
+  cheaper - while a sandbox that died is not. A model error is no longer logged as
+  an exception: an error log full of `NameError`s hides the ones that are this
+  deployment's fault.
+- **What deliberately stays a returned string**: a command that exited non-zero, a
+  search with no hits, a channel the bot cannot see, and any refusal - a retry
+  prompt on a refusal invites the model to look for a way around it. The second row
+  of the taxonomy is the one that looks wrong and is not: a *transient* failure of
+  what is behind the tool is also a retry, because an error in the shape of a
+  result reads as "nothing found" and the model then answers from memory,
+  confidently, without saying it had to.
+- Consumes `pydantic-ai-backend` 0.2.28. The sandbox catalog shows
+  `TOOL_TEXT[id].summary` where the Builder used to render 2501 characters of
+  `execute` beside an approval checkbox, and `profile="agent"` drops the guidance
+  written for an agent working in a repository - about 240 tokens on every request,
+  for advice a scratch workspace deleted with its conversation cannot use.
+
+### Fixed
+
+- **A provider's own error text no longer reaches a tool return.** `web_search`
+  built its message with `str(exc)` from whatever the search SDK raised and
+  `generate_image` interpolated the provider exception. On the last attempt `steer`
+  *returns* that message rather than raising it, and a returned string is stored by
+  `app/services/transcript.py` and streamed verbatim - deliberately, because a
+  return is the tool's own answer, where a retry prompt is replaced with a notice
+  (#681, #695). So an httpx or SDK message naming the failing endpoint, and for
+  some providers a key in its query string, reached run history for every member
+  who could read the run. The message is now built from the provider name and the
+  exception's *class* - which still says whether the upstream timed out or refused
+  the credential - and the exception's own text goes to a `logger.exception` beside
+  the raise. Same rule, and the same reasoning, as `app/services/rag/failures.py`.
+
+## [0.0.249] - 2026-08-26
+
+A week of full account access no longer sits in an access log.
+
+### Fixed
+
+- **The Google OAuth callback put the access and refresh tokens in a query
+  string.** That URL reaches the address bar and session history, the frontend
+  server's access log and any reverse proxy in front of it, and the `Referer` of
+  the next same-origin request the callback page makes - `Referrer-Policy:
+  strict-origin-when-cross-origin` sends the full URL same-origin. The refresh
+  token is valid for a week, so anybody who could read an access log had a week of
+  full account access. (#14)
+- **The callback now hands out a single-use, one-minute code** and keeps the token
+  pair in Redis. `POST /api/v1/oauth/exchange` redeems it with `GETDEL`, so a
+  replayed, an expired and a forged code all redeem to nothing and answer 401. The
+  frontend BFF swaps the code for the pair, verifies the access token against
+  `/auth/me`, and moves both into HttpOnly cookies - the tokens never touch a URL.
+  That also closes the session-fixation shape, because the BFF no longer accepts a
+  client-supplied token pair. (#14)
+
+### Changed
+
+- `docs/configuration.md` records the token-delivery decision under its OAuth
+  section. (#14)
+
+## [0.0.248] - 2026-08-26
+
+The routines onboarding path no longer freezes the page it is teaching.
+
+### Fixed
+
+- **Accepting the routine creation offer could freeze `/routines` outright.** The
+  offer was gated on the scope-blind, role-level `agents:run`, while the flow's
+  first target — the page's create buttons — mounts only on the per-agent `can_run`
+  answer, and the coach waits on a flow target with no timeout. An Owner in an
+  organization with no agents accepted the offer into a page that never came back.
+  Both layers now read the one answer the buttons themselves gate on
+  (`qk.agents.anyRunnable()`): `CreationOffer` suppresses the offer from that
+  cache, and every `create-routine` step carries an `OrgState.hasRunnableAgent`
+  include fed by the same query, so any residual path yields an inert flow rather
+  than a frozen one. (#594)
+- **That offer rendered `offer.create-routine.title` literally.** The copy was
+  never written, and a key read through a template literal is invisible to the
+  static catalog checks that would otherwise have failed the build. Added in en and
+  pl. (#594)
+
+### Added
+
+- **The routines widget says what it is sorted by.** The card ordered by next fire
+  and never told anybody; the sub-line now carries `next <instant>` for a live
+  schedule — and deliberately not for an overdue `next_fire_at`, which is a fire
+  the heartbeat has yet to claim and is loudest exactly when the worker is down.
+  Polish copy for the whole card, which had been falling back to English. (#594)
+- **`.claude/rules/frontend.md` now holds the widget mechanics** CLAUDE.md's "ships
+  its seams" rule had been pointing at: the five edits a new dashboard card is,
+  each with the failure it prevents. `docs/concepts.md` names Routines and the
+  widget, delegating the detail to `docs/triggers.md`, and `docs/first-agent.md`
+  walks a reader through the routine flow's Run now ending and the dashboard
+  customize stop. (#594)
+
+### Changed
+
+- `routines.tsx` is inside the frontend coverage gate. The widget directory is
+  gated file-by-file, so the card was invisible to the 100% gate however green its
+  tests ran — which then found the error state's retry unexercised. (#594)
+
 ## [0.0.247] - 2026-08-22
 
 An agent runs itself, with nobody at the keyboard.

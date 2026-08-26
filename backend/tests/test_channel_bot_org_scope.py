@@ -491,3 +491,48 @@ class TestAStreamThatOpensWithoutARestart:
 
         deferred.call_args.args[1].close()
         assert deferred.call_args.kwargs["name"] == f"close_channel_stream:{bot.id}"
+
+
+class TestGetForOrgLocking:
+    """The read a credential update seals against.
+
+    Sealing at the row's recorded key version is only safe while the row is
+    held from the read, or a master-key rotation committing in between tags
+    the new envelope with a version it was not sealed under.
+    """
+
+    class _RecordingSession:
+        def __init__(self):
+            self.statements = []
+
+        async def execute(self, statement):
+            self.statements.append(statement)
+            result = MagicMock()
+            result.scalar_one_or_none.return_value = None
+            return result
+
+    def _sql(self, session) -> str:
+        from sqlalchemy.dialects import postgresql
+
+        return str(session.statements[-1].compile(dialect=postgresql.dialect()))
+
+    @pytest.mark.anyio
+    async def test_for_update_locks_the_row_and_re_reads_its_columns(self):
+        from app.repositories import channel_bot_repo
+
+        session = self._RecordingSession()
+        await channel_bot_repo.get_for_org(
+            session, uuid.uuid4(), organization_id=uuid.uuid4(), for_update=True
+        )
+
+        assert "FOR UPDATE" in self._sql(session)
+        assert session.statements[-1].get_execution_options()["populate_existing"] is True
+
+    @pytest.mark.anyio
+    async def test_the_plain_read_does_not_lock(self):
+        from app.repositories import channel_bot_repo
+
+        session = self._RecordingSession()
+        await channel_bot_repo.get_for_org(session, uuid.uuid4(), organization_id=uuid.uuid4())
+
+        assert "FOR UPDATE" not in self._sql(session)

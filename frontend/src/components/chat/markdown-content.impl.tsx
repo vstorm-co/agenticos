@@ -1,10 +1,13 @@
 "use client";
 
+import { Children, isValidElement } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import { ExternalLink } from "lucide-react";
 import { useTranslations } from "next-intl";
+
+import { cn } from "@/lib/utils";
 
 import { CollapsibleBlock } from "./collapsible-block";
 import type { MarkdownContentProps } from "./markdown-content";
@@ -14,6 +17,25 @@ function languageLabel(className: string | undefined): string | null {
   if (!className) return null;
   const match = /(?:^|\s)language-([a-z0-9+\-]+)/i.exec(className);
   return match && match[1] ? match[1].toLowerCase() : null;
+}
+
+/**
+ * How far an ordered list is indented, from the widest number it will draw.
+ *
+ * A `list-outside` marker is painted to the *left* of the content box, so the
+ * indent has to be padding rather than margin - and it has to be wide enough for
+ * the last item's number, because a turn is wrapped in `overflow-hidden`
+ * (`message-item.tsx`) and anything leaving the box is clipped rather than
+ * overflowing. A 120-item list on 20px of margin lost the leading digit of every
+ * item past nine.
+ */
+function orderedIndent(children: React.ReactNode, start: unknown): string {
+  const items = Children.toArray(children).filter(isValidElement).length;
+  const last = (typeof start === "number" ? start : 1) + Math.max(items - 1, 0);
+  if (last >= 1000) return "pl-12";
+  if (last >= 100) return "pl-10";
+  if (last >= 10) return "pl-8";
+  return "pl-6";
 }
 
 /**
@@ -160,10 +182,11 @@ export function MarkdownContent({ content, onCiteClick, bareCode }: MarkdownCont
             </p>
           );
         },
+        // Padding, not margin - see `orderedIndent`.
         ul({ children, ...props }) {
           return (
             <ul
-              className="marker:text-foreground/40 mb-3 ml-5 list-disc space-y-1 last:mb-0"
+              className="marker:text-foreground/40 mb-3 list-disc space-y-1 pl-5 last:mb-0"
               {...props}
             >
               {children}
@@ -173,7 +196,10 @@ export function MarkdownContent({ content, onCiteClick, bareCode }: MarkdownCont
         ol({ children, ...props }) {
           return (
             <ol
-              className="marker:text-foreground/40 mb-3 ml-5 list-decimal space-y-1 last:mb-0"
+              className={cn(
+                "marker:text-foreground/40 mb-3 list-decimal space-y-1 last:mb-0",
+                orderedIndent(children, props.start),
+              )}
               {...props}
             >
               {children}
