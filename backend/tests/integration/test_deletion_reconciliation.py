@@ -26,6 +26,7 @@ from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.user import User
+from app.repositories import member_repo
 from app.services.organization import OrganizationService
 from app.services.rag.vectorstore import PgVectorStore
 from app.services.user import UserService
@@ -169,6 +170,49 @@ class TestDeletingAUser:
         await db.refresh(org)
         assert org.created_by_user_id == heir.id
         assert await db.get(User, creator.id) is None
+
+    async def test_deleting_the_sole_owner_of_an_org_they_did_not_create_is_refused(self, db):
+        """Ownership moves without the creator FK, so a user can be the only Owner
+        of an org they did not create. Deleting them would cascade that last owner
+        membership away and orphan the org - refused, not silently orphaned, the
+        way the created-org path already refuses a lone owner (#1117)."""
+        from app.core.exceptions import BadRequestError
+
+        creator = _user()
+        db.add(creator)
+        await db.flush()
+        org = await _org(db, creator)  # creator is owner and creator
+        owner = _user()
+        db.add(owner)
+        await db.flush()
+        await _member(db, org.id, owner.id, "owner")
+        # Demote the creator, leaving `owner` the sole Owner but not the creator.
+        creator_membership = await member_repo.get(db, organization_id=org.id, user_id=creator.id)
+        assert creator_membership is not None
+        await member_repo.update_role(db, creator_membership, role="member")
+
+        with pytest.raises(BadRequestError):
+            await UserService(db).delete(owner.id)
+
+        assert await db.get(User, owner.id) is not None
+
+    async def test_deleting_a_non_creator_owner_beside_a_co_owner_succeeds(self, db):
+        """With another owner present the org keeps one when this membership
+        cascades, so a non-creator co-owner deletes cleanly rather than being
+        refused (#1117)."""
+        creator = _user()
+        db.add(creator)
+        await db.flush()
+        org = await _org(db, creator)  # creator: owner and creator
+        owner = _user()
+        db.add(owner)
+        await db.flush()
+        await _member(db, org.id, owner.id, "owner")  # a second owner
+
+        await UserService(db).delete(owner.id)
+
+        assert await db.get(User, owner.id) is None
+        assert await db.get(Organization, org.id) is not None
 
 
 class TestDeletingAnOrg:

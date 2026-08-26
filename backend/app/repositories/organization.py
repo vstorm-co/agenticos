@@ -93,6 +93,26 @@ async def list_for_user(db: AsyncSession, user_id: UUID) -> list[Organization]:
     return list(result.scalars().all())
 
 
+async def list_owned_by(db: AsyncSession, user_id: UUID) -> list[Organization]:
+    """Non-personal organizations where the user holds an Owner membership.
+
+    Distinct from `list_created_by`: ownership moves without the creator FK
+    moving, so a user can be the sole Owner of an org they did not create - one
+    `list_created_by` never returns, whose only owner would otherwise cascade
+    away on the user's deletion and leave it ownerless (#1117).
+    """
+    result = await db.execute(
+        select(Organization)
+        .join(OrganizationMember, OrganizationMember.organization_id == Organization.id)
+        .where(
+            OrganizationMember.user_id == user_id,
+            OrganizationMember.role == OrgRoleName.OWNER.value,
+            Organization.is_personal.is_(False),
+        )
+    )
+    return list(result.scalars().all())
+
+
 async def slug_exists(db: AsyncSession, slug: str) -> bool:
     result = await db.execute(select(func.count(Organization.id)).where(Organization.slug == slug))
     return (result.scalar() or 0) > 0
