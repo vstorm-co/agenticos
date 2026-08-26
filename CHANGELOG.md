@@ -17,6 +17,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.276] - 2026-08-26
+
+### Fixed
+
+- **A user who had ever invited anybody could not be deleted.** Three foreign keys
+  into `users.id` - `OrganizationMember.invited_by_user_id`,
+  `Invitation.invited_by_user_id` and `Invitation.accepted_by_user_id` - carried no
+  `ondelete`, so PostgreSQL's NO ACTION made each an absolute bar on deleting the
+  referenced user: `DELETE /users/{id}` failed with a foreign-key violation
+  surfaced as a 500, which is common in any real deployment. All three are
+  `ON DELETE SET NULL` now - who invited a member and who accepted an invitation
+  are audit context that should outlive the user, the way the secret and collection
+  attribution FKs already null. `Invitation.invited_by_user_id` was NOT NULL, so
+  the migration makes it nullable in the same step: set on every create, null only
+  once the inviter is gone. (#1110, #9)
+- `seed --clear`'s bulk `delete_non_admins` still 500s on
+  `organizations.created_by_user_id` RESTRICT for a user who owns a personal
+  organization - that path bypasses the reconciliation and hits a different FK, so
+  it was filed rather than folded in. (#1124)
+
 ## [0.0.275] - 2026-08-26
 
 ### Fixed
