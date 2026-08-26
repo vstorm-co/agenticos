@@ -352,14 +352,12 @@ class TestTheKnowledgeCapabilitysStore:
             patch.object(search_module, "PgVectorStore", return_value=store),
             patch.object(search_module, "RetrievalService"),
         ):
-            search_module._retrieval_service = None
-            search_module._vector_store = None
+            search_module._cache = None
             try:
                 search_module.get_retrieval_service()
                 await search_module.aclose_retrieval_service()
             finally:
-                search_module._retrieval_service = None
-                search_module._vector_store = None
+                search_module._cache = None
 
         store.aclose.assert_awaited_once()
 
@@ -369,8 +367,7 @@ class TestTheKnowledgeCapabilitysStore:
         import app.agents.capabilities.knowledge._search as search_module
 
         with patch.object(search_module, "PgVectorStore") as store_cls:
-            search_module._retrieval_service = None
-            search_module._vector_store = None
+            search_module._cache = None
             await search_module.aclose_retrieval_service()
 
         store_cls.assert_not_called()
@@ -386,14 +383,12 @@ class TestTheKnowledgeCapabilitysStore:
             patch.object(search_module, "PgVectorStore", side_effect=[first, second]),
             patch.object(search_module, "RetrievalService"),
         ):
-            search_module._retrieval_service = None
-            search_module._vector_store = None
+            search_module._cache = None
             try:
                 search_module.get_retrieval_service()
                 await search_module.aclose_retrieval_service()
                 search_module.get_retrieval_service()
 
-                assert search_module._vector_store is second
+                assert search_module._cache[1] is second
             finally:
-                search_module._retrieval_service = None
-                search_module._vector_store = None
+                search_module._cache = None

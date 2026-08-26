@@ -555,21 +555,19 @@ class TestLastMileBranches:
         import app.agents.capabilities.knowledge._search as search_module
 
         sentinel = object()
-        original = (search_module._retrieval_service, search_module._loop)
-        search_module._retrieval_service = sentinel  # type: ignore[assignment]
-        search_module._loop = asyncio.get_running_loop()
+        original = search_module._cache
+        search_module._cache = (sentinel, MagicMock(), asyncio.get_running_loop())  # type: ignore[assignment]
         try:
             assert search_module.get_retrieval_service() is sentinel
         finally:
-            search_module._retrieval_service, search_module._loop = original
+            search_module._cache = original
 
     @pytest.mark.anyio
     async def test_the_retrieval_service_is_built_on_first_use(self):
         import app.agents.capabilities.knowledge._search as search_module
 
-        original = (search_module._retrieval_service, search_module._loop)
-        search_module._retrieval_service = None
-        search_module._loop = None
+        original = search_module._cache
+        search_module._cache = None
         try:
             with (
                 patch.object(search_module, "EmbeddingService"),
@@ -578,7 +576,7 @@ class TestLastMileBranches:
             ):
                 assert search_module.get_retrieval_service() is service_cls.return_value
         finally:
-            search_module._retrieval_service, search_module._loop = original
+            search_module._cache = original
 
     def test_a_store_built_on_one_loop_is_not_reused_on_another(self):
         """#1079. A pooled asyncpg connection is bound to the loop that opened
@@ -599,14 +597,8 @@ class TestLastMileBranches:
             finally:
                 loop.close()
 
-        original = (
-            search_module._retrieval_service,
-            search_module._vector_store,
-            search_module._loop,
-        )
-        search_module._retrieval_service = None
-        search_module._vector_store = None
-        search_module._loop = None
+        original = search_module._cache
+        search_module._cache = None
         try:
             with (
                 patch.object(search_module, "EmbeddingService"),
@@ -617,11 +609,7 @@ class TestLastMileBranches:
                 second = _on_a_fresh_loop()
             assert first is not second
         finally:
-            (
-                search_module._retrieval_service,
-                search_module._vector_store,
-                search_module._loop,
-            ) = original
+            search_module._cache = original
 
 
 class TestServerCatalog:

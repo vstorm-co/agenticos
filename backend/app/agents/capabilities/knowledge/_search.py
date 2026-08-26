@@ -17,9 +17,15 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from app.services.rag.retrieval import BaseRetrievalService
 
-_retrieval_service: "BaseRetrievalService | None" = None
-_vector_store: PgVectorStore | None = None
-_loop: asyncio.AbstractEventLoop | None = None
+    _Cache = tuple[BaseRetrievalService, PgVectorStore, asyncio.AbstractEventLoop]
+
+# The service, its store, and the loop they belong to - held as one value so it
+# is published and read in a single reference assignment. Three separate globals
+# could interleave under two threads-with-loops: A stores its service, B replaces
+# all three for loop B, A then overwrites only the loop tag with loop A, and a
+# later call on loop A reads B's loop-bound store back (#1079 review). One tuple
+# cannot half-update.
+_cache: "_Cache | None" = None
 
 
 def get_retrieval_service() -> "BaseRetrievalService":
@@ -43,25 +49,19 @@ def get_retrieval_service() -> "BaseRetrievalService":
     connection. `get_worker_db_context` in `app/db/session.py` states the same
     cross-loop rule for the pool it hands out.
     """
-    global _retrieval_service, _vector_store, _loop
+    global _cache
     loop = asyncio.get_running_loop()
-    if _retrieval_service is not None and _loop is loop:
-        return _retrieval_service
+    cached = _cache
+    if cached is not None and cached[2] is loop:
+        return cached[0]
 
     rag_settings = settings.rag
     embedding_service = EmbeddingService(rag_settings)
-    # Built into locals and returned from them, not read back off the globals:
-    # a caller must receive the store it built on its own loop even if another
-    # thread with another loop overwrites the globals between here and the
-    # return. The globals are the cache for the next call; the return is this
-    # call's own.
     vector_store = PgVectorStore(
         rag_settings, embedding_service, resolver=embeddings_for_collection
     )
     service = RetrievalService(vector_store, rag_settings)
-    _vector_store = vector_store
-    _retrieval_service = service
-    _loop = loop
+    _cache = (service, vector_store, loop)
     return service
 
 
@@ -75,16 +75,14 @@ async def aclose_retrieval_service() -> None:
     outlived the shutdown that disposed that one (#948).
 
     Called from the lifespan on the API's own loop, so it disposes the store
-    that loop built. Resetting the globals makes the next search build a fresh
+    that loop built. Clearing the cache makes the next search build a fresh
     store, so a shutdown that is followed by more work - a test, a reload - does
     not search through a disposed one.
     """
-    global _retrieval_service, _vector_store, _loop
-    store, _vector_store = _vector_store, None
-    _retrieval_service = None
-    _loop = None
-    if store is not None:
-        await store.aclose()
+    global _cache
+    cached, _cache = _cache, None
+    if cached is not None:
+        await cached[1].aclose()
 
 
 def _format_results(results: list[Any]) -> str:
