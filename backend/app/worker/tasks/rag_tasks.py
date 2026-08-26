@@ -817,23 +817,6 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                         # that may have changed is the answer that cannot be
                         # corrected later.
                         if existing.content_hash and (
-                            hashlib.sha256(local_path.read_bytes()).hexdigest()
-                            == existing.content_hash
-                        ):
-                            skipped += 1
-                            continue
-
-                        local_path = await connector.download_file(
-                            remote_file, Path(tmp_dir), config=config, credential=credential
-                        )
-
-                        # After it, because a hash needs the bytes and no remote
-                        # system on this list offers one. A stored document with no
-                        # hash is re-ingested rather than assumed current: the
-                        # embedding is the cost worth avoiding, and skipping a file
-                        # that may have changed is the answer that cannot be
-                        # corrected later.
-                        if existing.content_hash and (
                             await asyncio.to_thread(_hash_file, local_path) == existing.content_hash
                         ):
                             skipped += 1
