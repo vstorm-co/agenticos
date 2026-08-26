@@ -179,42 +179,38 @@ class TestDeletingAnOrg:
             settings=app_settings.rag,
             embedding_service=MagicMock(),
             resolver=MagicMock(),
+            engine=engine,
         )
         factory = async_sessionmaker(engine, expire_on_commit=False)
         collection = f"kbnine{uuid.uuid4().hex[:12]}"
         table = store._table(collection)
-        try:
-            async with factory() as s:
-                user = _user()
-                s.add(user)
-                await s.flush()
-                org = await _org(s, user)
-                s.add(_org_collection(org.id, collection))
-                await s.execute(text(f"CREATE TABLE {table} (id int)"))
-                await s.commit()
-                org_id = org.id
+        async with factory() as s:
+            user = _user()
+            s.add(user)
+            await s.flush()
+            org = await _org(s, user)
+            s.add(_org_collection(org.id, collection))
+            await s.execute(text(f"CREATE TABLE {table} (id int)"))
+            await s.commit()
+            org_id = org.id
 
-            async with factory() as s:
-                assert (
-                    await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
-                ).scalar() is not None
+        async with factory() as s:
+            assert (
+                await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
+            ).scalar() is not None
 
-            async with factory() as s:
-                org = await s.get(Organization, org_id)
-                await OrganizationService(s, vector_store=store).purge(org)
-                await s.commit()
+        async with factory() as s:
+            org = await s.get(Organization, org_id)
+            await OrganizationService(s, vector_store=store).purge(org)
+            await s.commit()
 
-            async with factory() as s:
-                remaining = await s.execute(
-                    select(KnowledgeBase).where(KnowledgeBase.organization_id == org_id)
-                )
-                assert remaining.scalars().all() == []
-                assert (
-                    await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
-                ).scalar() is None
-                assert await s.get(Organization, org_id) is None
-        finally:
-            await store.aclose()
+        async with factory() as s:
+            remaining = await s.execute(
+                select(KnowledgeBase).where(KnowledgeBase.organization_id == org_id)
+            )
+            assert remaining.scalars().all() == []
+            assert (await s.execute(text("SELECT to_regclass(:t)"), {"t": table})).scalar() is None
+            assert await s.get(Organization, org_id) is None
 
     async def test_a_personal_collection_survives_its_orgs_deletion(
         self, engine: AsyncEngine
@@ -225,37 +221,35 @@ class TestDeletingAnOrg:
             settings=app_settings.rag,
             embedding_service=MagicMock(),
             resolver=MagicMock(),
+            engine=engine,
         )
         factory = async_sessionmaker(engine, expire_on_commit=False)
-        try:
-            async with factory() as s:
-                user = _user()
-                s.add(user)
-                await s.flush()
-                org = await _org(s, user)
-                personal = KnowledgeBase(
-                    id=uuid.uuid4(),
-                    name="My notes",
-                    scope=KBScope.PERSONAL.value,
-                    collection_name=f"kbnine{uuid.uuid4().hex[:12]}",
-                    embedding_model="text-embedding-3-small",
-                    embedding_dim=1536,
-                    organization_id=org.id,
-                    owner_user_id=user.id,
-                    visibility="private",
-                )
-                s.add(personal)
-                await s.commit()
-                org_id, kb_id = org.id, personal.id
+        async with factory() as s:
+            user = _user()
+            s.add(user)
+            await s.flush()
+            org = await _org(s, user)
+            personal = KnowledgeBase(
+                id=uuid.uuid4(),
+                name="My notes",
+                scope=KBScope.PERSONAL.value,
+                collection_name=f"kbnine{uuid.uuid4().hex[:12]}",
+                embedding_model="text-embedding-3-small",
+                embedding_dim=1536,
+                organization_id=org.id,
+                owner_user_id=user.id,
+                visibility="private",
+            )
+            s.add(personal)
+            await s.commit()
+            org_id, kb_id = org.id, personal.id
 
-            async with factory() as s:
-                org = await s.get(Organization, org_id)
-                await OrganizationService(s, vector_store=store).purge(org)
-                await s.commit()
+        async with factory() as s:
+            org = await s.get(Organization, org_id)
+            await OrganizationService(s, vector_store=store).purge(org)
+            await s.commit()
 
-            async with factory() as s:
-                surviving = await s.get(KnowledgeBase, kb_id)
-                assert surviving is not None
-                assert surviving.organization_id is None
-        finally:
-            await store.aclose()
+        async with factory() as s:
+            surviving = await s.get(KnowledgeBase, kb_id)
+            assert surviving is not None
+            assert surviving.organization_id is None
