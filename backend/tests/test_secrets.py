@@ -335,8 +335,8 @@ class TestStoringASecret:
                 new=AsyncMock(return_value={}),
             ),
             patch(
-                "app.services.organization_secret.organization_secret_repo.agents_using",
-                new=AsyncMock(return_value=[]),
+                "app.services.organization_secret.organization_secret_repo.agents_using_for_secrets",
+                new=AsyncMock(return_value={}),
             ),
         ):
             rows = await OrganizationSecretService(_db()).list_secrets(ctx)
