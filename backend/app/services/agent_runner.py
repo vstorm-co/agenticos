@@ -1317,7 +1317,12 @@ def _dynamic_builder(
             ),
             model=profiles[model],
             agent_id=delegation.agent_id,
-            resources={"kb_collection_names": [], "skills": [], CONTEXT_FILES_RESOURCE: []},
+            resources={
+                "kb_collection_names": [],
+                "kb_collection_ids": [],
+                "skills": [],
+                CONTEXT_FILES_RESOURCE: [],
+            },
             secrets={},
             extra_toolsets=[],
         )()
@@ -1409,13 +1414,16 @@ class AgentRunnerService:
         self.proposals = SkillProposalService(db)
         self.transcript = TranscriptService(db)
 
-    async def _collection_names(self, spec: AgentSpec, ctx: AuthContext) -> list[str]:
-        """Vector-store collection names for the agent's bound collections.
+    async def _bound_collections(self, spec: AgentSpec, ctx: AuthContext) -> list[tuple[str, UUID]]:
+        """The agent's bound collections as (collection_name, knowledge_base_id).
 
         Resolved server-side and passed through deps: the model asks *what* to
-        search, never *where*.
+        search, never *where*. The id travels beside the name because
+        `collection_name` is not unique - search resolves each collection by the
+        bound id rather than re-selecting by name, so a name shared with another
+        knowledge base cannot resolve that row's config or key (#913).
         """
-        names: list[str] = []
+        bound: list[tuple[str, UUID]] = []
         for collection_id in spec.collection_ids:
             collection = await knowledge_base_repo.get_by_id(self.db, collection_id)
             if collection is None or collection.organization_id != ctx.organization_id:
@@ -1427,8 +1435,8 @@ class AgentRunnerService:
                     ctx.organization_id,
                 )
                 continue
-            names.append(collection.collection_name)
-        return names
+            bound.append((collection.collection_name, collection.id))
+        return bound
 
     async def _recorded_conversation_state(
         self, conversation_id: UUID | None
@@ -1605,8 +1613,10 @@ class AgentRunnerService:
 
         # Everything a capability needs but must not fetch itself. Resolved once,
         # server-side, so the model cannot influence what an agent reaches.
+        bound_collections = await self._bound_collections(spec, ctx)
         resources: dict[str, Any] = {
-            "kb_collection_names": await self._collection_names(spec, ctx),
+            "kb_collection_names": [name for name, _ in bound_collections],
+            "kb_collection_ids": [cid for _, cid in bound_collections],
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
         }
@@ -2097,6 +2107,7 @@ class AgentRunnerService:
             max_steps=specialist.max_steps,
             preferred_mode=specialist.preferred_mode,
             collection_names=tuple(own_resources["kb_collection_names"]),
+            collection_ids=tuple(own_resources["kb_collection_ids"]),
         )
 
     async def _resolve_delegate(
@@ -2276,6 +2287,7 @@ class AgentRunnerService:
             # replaces those deps with a clone of the parent's - see
             # `ResolvedSubagent.collection_names`.
             collection_names=tuple(delegate_resources["kb_collection_names"]),
+            collection_ids=tuple(delegate_resources["kb_collection_ids"]),
         )
 
     async def _delegate_resources(
@@ -2311,8 +2323,10 @@ class AgentRunnerService:
         workspace is opened per delegate: only the run has one. Sharing is how a
         delegate reaches a durable workspace at all.
         """
+        bound_collections = await self._bound_collections(spec, ctx)
         resources: dict[str, Any] = {
-            "kb_collection_names": await self._collection_names(spec, ctx),
+            "kb_collection_names": [name for name, _ in bound_collections],
+            "kb_collection_ids": [cid for _, cid in bound_collections],
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
         }

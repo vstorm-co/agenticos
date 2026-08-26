@@ -103,6 +103,7 @@ async def search_knowledge_base(
     top_k: int = 5,
     *,
     organization_id: UUID | None,
+    kb_collection_ids: list[UUID] | None = None,
 ) -> str:
     """Search the knowledge base and return formatted results.
 
@@ -115,10 +116,18 @@ async def search_knowledge_base(
         organization_id: The organization the run acts for, so a collection name
             shared across tenants resolves this one's embedding and rerank config
             rather than another's (#913).
+        kb_collection_ids: The bound knowledge base id for each name, aligned by
+            index, so a name shared by another row in the same organization
+            resolves the bound row rather than whichever the name selects first
+            (#913). Absent - the ContextVar fallback, which carries no ids - each
+            collection falls back to the organization-scoped lookup.
     """
     resolved = kb_collection_names if kb_collection_names else (_active_kb_collections.get() or [])
     if not resolved:
         return "No active knowledge bases selected for this conversation."
+
+    ids = kb_collection_ids or []
+    aligned_ids = ids if len(ids) == len(resolved) else None
 
     service: Any = get_retrieval_service()
     one_collection = len(resolved) == 1
@@ -129,6 +138,7 @@ async def search_knowledge_base(
                 collection_name=resolved[0],
                 limit=top_k,
                 organization_id=organization_id,
+                knowledge_base_id=aligned_ids[0] if aligned_ids else None,
             )
         else:
             results = await service.retrieve_multi(
@@ -136,6 +146,7 @@ async def search_knowledge_base(
                 collection_names=resolved,
                 limit=top_k,
                 organization_id=organization_id,
+                knowledge_base_ids=aligned_ids,
             )
     except AppException:
         # Already an account of what is wrong and what to do about it - an

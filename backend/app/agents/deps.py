@@ -56,8 +56,13 @@ class AgentDeps:
     agent_id: UUID | None = None
     run_id: UUID | None = None
 
-    # Collection names this agent may search, resolved from its bindings.
+    # Collection names this agent may search, resolved from its bindings, and
+    # the id of the knowledge base each name was authorized as, aligned by
+    # index. `collection_name` is not unique, so search resolves each collection
+    # by its bound id rather than re-selecting by name (#913); the id is what
+    # keeps a shared name from resolving another row's config and key.
     kb_collection_names: list[str] = field(default_factory=list)
+    kb_collection_ids: list[UUID] = field(default_factory=list)
 
     # Set when the surface can ask the user something mid-run (WebSocket chat);
     # None on surfaces that cannot, so tools must handle its absence.
@@ -109,10 +114,11 @@ class AgentDeps:
         `subagent_events` - so a specialist's own delegation still narrates,
         one `depth` further in.
 
-        What it does **not** inherit: `kb_collection_names`. Those come from the
-        delegate's own spec, and inheriting the parent's would hand a specialist a
-        collection nobody granted it. The delegate's own are put back by the
-        delegation capability, from `ResolvedSubagent.collection_names` - because
+        What it does **not** inherit: `kb_collection_names` and their
+        `kb_collection_ids`. Those come from the delegate's own spec, and
+        inheriting the parent's would hand a specialist a collection nobody
+        granted it. The delegate's own are put back by the delegation
+        capability, from `ResolvedSubagent.collection_names`/`collection_ids` - because
         the deps our factory built for the child are *this* object's replacement,
         so the collections resolved for it would otherwise be resolved and never
         read.

@@ -457,15 +457,18 @@ candidates to the caller's own row, falling back to a deployment-wide
 (`app`-scoped) collection and, only for a CLI ingest with no tenant, to the name
 alone.
 
-Even own-org narrowing is not enough on the search path, though: an `app`
-collection everyone may read and a restricted `org` collection of the same name
-are both the caller's to resolve, but access may have authorized only the first.
-So the search path passes the **authorized** knowledge base's id down to the
-resolvers, which read that exact row rather than looking one up by name — the id
-comes from the same `readable_all` that granted access, so resolution can never
-land on a row access did not (#913). Ingestion and the CLI, which choose the row
-themselves and have no distinct authorized identity, pass none and keep the
-`organization_id`-scoped `get_for_collection` lookup.
+Even own-org narrowing is not enough, though: an `app` collection everyone may
+read and a restricted `org` collection of the same name are both the caller's to
+resolve, but the caller may have been authorized for only the first. So the two
+paths that search on a caller's behalf pass the **authorized** knowledge base's
+id down to the resolvers, which read that exact row rather than looking one up by
+name. On `POST /rag/search` the id comes from the same `readable_all` that
+granted access; on an agent run it is the collection the agent's spec bound,
+carried through `AgentDeps` beside its name. Either way resolution reads the row
+the caller was actually granted, never a same-named one it selects first (#913).
+Ingestion and the CLI, which choose the row themselves and have no distinct
+authorized identity, pass none and keep the `organization_id`-scoped
+`get_for_collection` lookup.
 
 ### Reranking — a second pass, off unless configured
 

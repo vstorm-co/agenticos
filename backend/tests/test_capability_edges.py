@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
 from pydantic_ai import ModelRetry
@@ -184,6 +185,63 @@ class TestKnowledgeSearchGuards:
             )
 
         assert refusal.value.details == {"setting": "OPENROUTER_API_KEY"}
+
+
+class TestBoundKnowledgeBaseIds:
+    """The agent path carries the bound KB id, so a shared collection name
+    resolves the bound row's config and key, not another same-named row's (#913)."""
+
+    @pytest.mark.anyio
+    async def test_a_single_search_pins_the_bound_kb_id(self):
+        service = MagicMock()
+        service.retrieve = AsyncMock(return_value=[])
+        kb = uuid4()
+        with patch(
+            "app.agents.capabilities.knowledge._search.get_retrieval_service",
+            return_value=service,
+        ):
+            await search_knowledge_base(
+                query="x",
+                kb_collection_names=["kb_a"],
+                kb_collection_ids=[kb],
+                organization_id=None,
+            )
+        assert service.retrieve.await_args.kwargs["knowledge_base_id"] == kb
+
+    @pytest.mark.anyio
+    async def test_a_multi_search_pins_each_collections_bound_kb_id(self):
+        service = MagicMock()
+        service.retrieve_multi = AsyncMock(return_value=[])
+        a, b = uuid4(), uuid4()
+        with patch(
+            "app.agents.capabilities.knowledge._search.get_retrieval_service",
+            return_value=service,
+        ):
+            await search_knowledge_base(
+                query="x",
+                kb_collection_names=["kb_a", "kb_b"],
+                kb_collection_ids=[a, b],
+                organization_id=None,
+            )
+        assert service.retrieve_multi.await_args.kwargs["knowledge_base_ids"] == [a, b]
+
+    @pytest.mark.anyio
+    async def test_ids_that_do_not_align_with_the_names_are_dropped(self):
+        """A length mismatch (the nameless ContextVar fallback, or a bug) resolves
+        by organization rather than pinning the wrong id to a collection."""
+        service = MagicMock()
+        service.retrieve = AsyncMock(return_value=[])
+        with patch(
+            "app.agents.capabilities.knowledge._search.get_retrieval_service",
+            return_value=service,
+        ):
+            await search_knowledge_base(
+                query="x",
+                kb_collection_names=["kb_a"],
+                kb_collection_ids=[uuid4(), uuid4()],
+                organization_id=None,
+            )
+        assert service.retrieve.await_args.kwargs["knowledge_base_id"] is None
 
 
 class TestEmbeddingCredential:
