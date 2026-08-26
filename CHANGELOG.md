@@ -17,6 +17,56 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.253] - 2026-08-26
+
+Nothing holds a pooled connection across a model call, so the sixteenth request is
+answered rather than queued.
+
+### Fixed
+
+- **Three paths held a pooled Postgres connection across work measured in seconds
+  to minutes**, so fifteen concurrent anything exhausted the pool
+  (`DB_POOL_SIZE=5` plus `DB_MAX_OVERFLOW=10`) and the sixteenth request of any
+  kind blocked for `DB_POOL_TIMEOUT` and then raised. (#12)
+- **The run's transaction spanned the model call.** `_run` and
+  `ChatAgentRunner.run` commit once *before* the model is asked anything, with the
+  terminal commit from #231 left in place. The run row is visible from every other
+  session mid-run, the connection goes back to the pool for the duration of the
+  call, and a resumed run's `mark_running` is durable before the approved call is
+  replayed - so a crash mid-replay can no longer hand the same approval out twice.
+  The budget capability's baseline read moved onto a session of its own; read on
+  the run's shared session it silently re-opened the idle transaction. (#3, #12)
+- **`PgVectorStore` built a private pool per instance.** The store borrows an
+  injected engine and `aclose()` is gone. The API, CLI and the knowledge capability
+  share the process engine through one `process_vector_store()` factory - the
+  #306-shaped four-site repetition collapsed into it - and the worker builds one
+  engine per flow in `_ingestion_service`, disposed on every path out. The embed
+  widget needed no change: `EmbedSession` already takes a session factory and opens
+  one per turn (#39). (#12)
+- **The agent-triggers scheduler reasoned from "an executing run's row is
+  invisible".** `claim_due`'s conversation guard blocks on `awaiting_approval`
+  alone, because a crash-orphaned `running` row would otherwise wedge the schedule
+  forever, and the fire-recovery branch corroborates a `running` tail against a
+  fresh session before settling it as its own orphan - a concurrent fire's live run
+  is left alone. (#537, #12)
+- **The crash-orphan remainder.** An hourly stale-run sweep ends anything still
+  `running` past `STALE_RUN_REAPED_AFTER_HOURS` (6h default, 0 disables) as
+  `failed`, with the sweep's own sentence on the row: one conditional UPDATE whose
+  status guard re-evaluates under the row lock, and a live run flipped anyway is
+  flipped back by its own terminal write. No spend is invented, nobody is mailed,
+  and `awaiting_approval` is never touched. (#1078)
+
+### Changed
+
+- The opening commit sits in `_run` and `ChatAgentRunner.run` rather than
+  centralized in `PreparedRun.execute`/`iterate`, because `PreparedRun` does not
+  carry the session; both sites are tested and documented. The per-flow worker
+  engine keeps SQLAlchemy's default pool knobs, as the in-store engine did - tying
+  it to `DB_POOL_SIZE` would couple worker sizing to API tuning silently. And
+  API-process vector work now shares the request pool: with connections no longer
+  held across model calls 15 is comfortable at the measured load, but a heavy-RAG
+  deployment may want a bigger `DB_POOL_SIZE`. (#12)
+
 ## [0.0.252] - 2026-08-26
 
 A client-supplied path segment can no longer walk out of the route it was given to.
