@@ -17,6 +17,39 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.271] - 2026-08-26
+
+### Fixed
+
+- **Four check-then-act races**, each closed with the row-lock and atomic-write
+  pattern `claim_parked_run` already uses. (#17)
+- **An approval could be decided twice.** `decide` read pending, guarded, and wrote
+  with no lock, so a concurrent reject and approve both passed the guard and both
+  wrote - two contradictory audit entries for one decision. `get_approval` grows a
+  `for_update` variant, so the second decide blocks, re-reads a decided row and is
+  refused. (#17)
+- **One person messaging two chats at once got no reply to the second.**
+  `_resolve_identity` was a get-then-create on
+  `uq_channel_identity_platform_user`, so the second webhook 500'd on the unique
+  violation. `get_or_create` reads first - no lock and no write on the common path,
+  because the whole message runs in one transaction through the LLM call and an
+  unconditional upsert would serialise a user active in two chats - and only on a
+  miss inserts with `ON CONFLICT DO UPDATE` and reads back. (#17)
+- **Two accepts of a one-use invitation both created a member.** The read of
+  `used_count`, the guard against `max_uses` and the increment were unlocked.
+  `get_by_token` grows a `for_update` variant, so the second accept blocks,
+  re-reads the exhausted link and is refused. (#17)
+- **The budget cap bounds committed spend, not simultaneous runs** - a run's cost
+  lands on its row only when it finishes, so concurrent runs read the same baseline
+  and can overshoot. That is an aggregate with no single row to lock, so it is
+  documented in `docs/governance.md` rather than papered over. (#17)
+- The regression tests hold one transaction open with the row locked, or the insert
+  uncommitted, while the second runs - because racing through `asyncio.gather`
+  alone reproduces none of the four: the pair serialises and the first commits
+  before the second reads. (#17)
+- `ChannelLinkService.confirm` still get-then-creates on the same identity key, a
+  sibling of the race closed here, and was filed rather than folded in. (#1113)
+
 ## [0.0.270] - 2026-08-26
 
 Three deletes that could only 500, because a cascade drove exactly the write a
