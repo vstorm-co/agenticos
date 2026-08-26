@@ -29,10 +29,36 @@ from typing import Literal
 
 from pydantic_ai.capabilities import ToolSearch, ToolSearchStrategy
 
+from app.agents.capabilities._tool_text import ToolText
+
 # "auto" is the library's own `None`: native tool search where the provider
 # offers it, local keyword matching everywhere else. Kept as an explicit value
 # rather than an absent one so the Builder's picker always has something to show.
 Strategy = Literal["auto", "keywords", "bm25", "regex"]
+
+SEARCH_TEXT = ToolText(
+    summary=(
+        "Search for a deferred tool when the tools you already have, and the "
+        "capability catalog, do not name the operation you need."
+    ),
+    usage=(
+        "A capability id used as an ordinary word is not a request for that "
+        "capability, and this cannot find a tool a capability owns - load the "
+        "capability by id instead."
+    ),
+    returns=(
+        "The matching tools with their descriptions, which become callable once "
+        "found. An empty answer means no such tool is deferred here, not that "
+        "the query was wrong, so do not search again for the same thing."
+    ),
+)
+"""What the model reads about `search_tools`.
+
+The library's own text is prose with no return shape - and this is the tool a
+model reaches for when it is already lost, which is the worst moment to leave it
+guessing what an empty answer means. `parameter_description` is left to the
+library: its default already says what a query is and that queries are unioned.
+"""
 
 
 def build_tool_search(strategy: Strategy, max_results: int) -> ToolSearch[object]:
@@ -47,4 +73,6 @@ def build_tool_search(strategy: Strategy, max_results: int) -> ToolSearch[object
     capability cannot see it at publish.
     """
     named: ToolSearchStrategy[object] | None = None if strategy == "auto" else strategy
-    return ToolSearch(strategy=named, max_results=max_results)
+    return ToolSearch(
+        strategy=named, max_results=max_results, tool_description=SEARCH_TEXT.render()
+    )

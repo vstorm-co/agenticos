@@ -12,9 +12,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from pydantic_ai import ModelRetry
-from pydantic_ai.tools import AgentDepsT
+from pydantic_ai.tools import AgentDepsT, RunContext
 from pydantic_ai.toolsets import FunctionToolset
+
+from app.agents.capabilities._failures import steer
 
 
 @dataclass(frozen=True)
@@ -42,7 +43,7 @@ class ContextToolset(FunctionToolset[AgentDepsT]):
         super().__init__()
         self._items = {item.name: item for item in items}
         self.add_function(self.list_context, name="list_context", takes_ctx=False)
-        self.add_function(self.read_context, name="read_context", takes_ctx=False)
+        self.add_function(self.read_context, name="read_context")
 
     def list_context(self) -> str:
         """List the reference files available to read, by name and description.
@@ -51,14 +52,21 @@ class ContextToolset(FunctionToolset[AgentDepsT]):
         answering - a glossary, a policy, a runbook - then call `read_context`
         for any that look relevant. The bodies are not returned here; this is the
         index, not the content.
+
+        Returns:
+            One line per file, `- name: description`, or the name alone where
+            the operator wrote no description. Nothing attached says so rather
+            than answering with an empty list.
         """
+        if not self._items:
+            return "No reference files are attached to this agent."
         lines = [
             f"- {item.name}: {item.description}" if item.description else f"- {item.name}"
             for item in self._items.values()
         ]
         return "\n".join(lines)
 
-    def read_context(self, name: str) -> str:
+    def read_context(self, ctx: RunContext[AgentDepsT], name: str) -> str:
         """Read one reference file's body by its name.
 
         Use this after `list_context` names a file that looks relevant to the
@@ -67,12 +75,17 @@ class ContextToolset(FunctionToolset[AgentDepsT]):
 
         Args:
             name: The file's name, exactly as `list_context` reported it.
+
+        Returns:
+            The file's body, verbatim. A name that matches nothing comes back as
+            a retry naming the files that do exist.
         """
         item = self._items.get(name)
         if item is None:
             available = ", ".join(sorted(self._items)) or "none"
-            raise ModelRetry(
+            return steer(
+                ctx,
                 f"No context file named {name!r}. Available files: {available}. "
-                "Call `list_context` to see them."
+                "Call `list_context` to see them.",
             )
         return item.content

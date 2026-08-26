@@ -412,16 +412,26 @@ fields it is about.) The 400 named its fields under `details.errors` until
 error format, which nothing on the frontend read: the sentence reached a toast
 and no input was ever highlighted.
 
-### Embeddings — the model, and whose key pays
+### Embeddings — the model, whose endpoint answers, and whose key pays
 
-Embeddings go out through OpenRouter to an OpenAI embedding model. Both halves
-of that call are decided **per collection**, not per deployment, by
-`app/services/embedding_resolution.py`:
+All three are decided **per collection**, not per deployment, by
+`app/services/embedding_resolution.py` over the catalog in
+`app/core/catalog/embedding_providers.json`:
 
 | | |
 |---|---|
 | **Model and width** | Recorded on the knowledge base at creation (`embedding_model`, `embedding_dim`) and never changed afterwards — `PgVectorStore` writes `embedding vector(N)` once, so a second model either cannot be written or is silently compared against vectors from another space. `EMBEDDING_MODEL` decides only what a *new* collection is built with. |
-| **Credential** | The vault key chosen on the collection (`embedding_secret_id`), which is what the organization is billed for. A collection that chose none embeds on the deployment's `OPENROUTER_API_KEY`. |
+| **Provider** | Which OpenAI-compatible endpoint serves that model (`embedding_provider`). **Changeable**, unlike the model: the same model at the same width produces vectors in the same space wherever it is served from, so `PATCH /kb/{id}` moves a collection between providers and leaves everything already indexed valid. |
+| **Credential** | The vault key chosen on the collection (`embedding_secret_id`), which is what the organization is billed for, and which must be a key **for that provider**. A collection on the provider the deployment's own key belongs to may instead embed on `OPENROUTER_API_KEY`. |
+
+The provider used to be hardcoded: every request went to `openrouter.ai`,
+so an organization holding an OpenAI key could not use it, a
+key moved to another account meant recreating the collection and re-ingesting
+every document into it, and nothing stopped a collection sending one vendor's
+credential to another vendor's address. The catalog is also what
+`GET /rag/embedding-models` answers with, so the create form offers the models a
+provider can actually serve — it used to offer every model this build knew a
+*width* for, three of them sentence-transformer weights nothing here can call.
 
 The key is validated at creation — a key another organization holds, one of the
 wrong purpose, or one the chooser cannot themselves see is refused there, where
@@ -438,6 +448,12 @@ else's private secrets.
 At embed time nothing is refused: a chosen key that has since been deleted,
 cannot be unsealed, or does not hold an API key falls back to the deployment's,
 because *whose key pays* must never decide *whether documents can be found*.
+
+**That fallback stops at the provider the deployment's key belongs to.** A
+collection embedding through anyone else resolves to *no* key rather than to
+somebody else's — the request would be refused at the far end anyway, having
+already carried the credential there — and the refusal then says which collection
+and which provider, rather than naming a variable that would not have helped.
 
 That fallback is announced rather than assumed. The resolution carries which of
 the five sources it landed on, ingestion writes the degraded ones into the

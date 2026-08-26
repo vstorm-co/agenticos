@@ -48,6 +48,8 @@ function kb(id: string, name: string, collection: string, isDefault = false): Kn
     is_default: isDefault,
     ingestion_config: DEFAULT_INGESTION_CONFIG,
     embedding_model: "text-embedding-3-large",
+    embedding_provider: "openrouter",
+    embedding_secret_id: null,
     embedding_dim: 3072,
     created_at: "2026-07-01T00:00:00Z",
     updated_at: null,
@@ -72,12 +74,21 @@ function mockApi(kbList: KnowledgeBase[] | Error) {
         ? Promise.reject(kbList)
         : Promise.resolve({ items: kbList, total: kbList.length });
     }
-    // The create dialog picks an embedding model, and renders straight from the
-    // answer - an `{ items: [] }` shaped reply has no `models` to map over.
+    // The create dialog picks a provider and then a model, and renders straight
+    // from the answer - an `{ items: [] }` shaped reply has no `providers` to
+    // read a model list out of.
     if (endpoint === "/rag/embedding-models") {
       return Promise.resolve({
         default: "text-embedding-3-large",
-        models: [{ model: "text-embedding-3-large", dimensions: 3072 }],
+        default_provider: "openrouter",
+        providers: [
+          {
+            provider: "openrouter",
+            name: "OpenRouter",
+            deployment_key: true,
+            models: [{ model: "text-embedding-3-large", dim: 3072 }],
+          },
+        ],
       });
     }
     return Promise.resolve({ items: [], total: 0 });

@@ -99,7 +99,7 @@ dependencies = [
     # has no business in the image. The service runs beside us as `sandboxd`.
     # Floors at 0.2.26 for `FileInfo.modified_at`, which the listings carry to
     # the file viewer (#500).
-    "pydantic-ai-backend[console,remote]>=0.2.27",
+    "pydantic-ai-backend[console,remote]>=0.2.29",
     # Delegation. Floors at 0.2.16 for three fixes this integration depends on:
     # a suspended child no longer reported to the parent as completed (#64),
     # `event_stream_handler_factory` on the toolset so a fan-out's events can be
