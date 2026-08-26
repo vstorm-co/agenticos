@@ -5,11 +5,14 @@ import uuid
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import OrgRoleName
-from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.agent import Agent
+from app.db.models.organization import Organization, OrganizationMember, OrgRole
+from app.db.models.user import User
+from app.repositories._search import contains_ci
 
 
 def _slugify(text: str) -> str:
@@ -230,3 +233,122 @@ async def count_members(db: AsyncSession, org_id: UUID) -> int:
         )
     )
     return result.scalar() or 0
+
+
+type AdminOrganizationRow = tuple[Organization, int, int, UUID | None, str | None, str | None]
+
+
+async def admin_list_with_counts(
+    db: AsyncSession,
+    *,
+    skip: int = 0,
+    limit: int = 50,
+    search: str | None = None,
+    sort_by: str = "created_at",
+    sort_dir: str = "desc",
+    kind: str = "all",
+) -> tuple[list[AdminOrganizationRow], int]:
+    """Every organization on the deployment, with its size and who answers for it.
+
+    Deliberately cross-tenant, and only ever reached behind the `is_app_admin`
+    gate: this is the one surface that answers "what tenants exist" at all.
+
+    Narrowing, ordering and paging all happen here rather than in the page,
+    which is the whole point - a client sort over one server page claims a
+    whole-collection order that fifty rows cannot deliver, so the admin's list
+    had no sort at all until this (#921).
+
+    The owner is the earliest of them, because an organization can hold several
+    and the founder is the one a deployment admin means; `DISTINCT ON` picks it
+    in the same pass rather than in a query per row. Every owner field is
+    nullable: an organization whose last owner left has none, which is a state
+    the deployment admin is the one person able to fix.
+    """
+    member_counts = (
+        select(
+            OrganizationMember.organization_id,
+            func.count(OrganizationMember.user_id).label("member_count"),
+        )
+        .group_by(OrganizationMember.organization_id)
+        .subquery()
+    )
+    agent_counts = (
+        select(Agent.organization_id, func.count(Agent.id).label("agent_count"))
+        .group_by(Agent.organization_id)
+        .subquery()
+    )
+    owners = (
+        select(
+            OrganizationMember.organization_id,
+            User.id.label("owner_user_id"),
+            User.email.label("owner_email"),
+            User.full_name.label("owner_name"),
+        )
+        .join(User, User.id == OrganizationMember.user_id)
+        .where(OrganizationMember.role == OrgRole.OWNER.value)
+        .distinct(OrganizationMember.organization_id)
+        .order_by(OrganizationMember.organization_id, OrganizationMember.joined_at)
+        .subquery()
+    )
+    member_count = func.coalesce(member_counts.c.member_count, 0).label("member_count")
+    agent_count = func.coalesce(agent_counts.c.agent_count, 0).label("agent_count")
+
+    def joined[T: tuple](stmt: Select[T]) -> Select[T]:
+        # The count query carries the same joins as the page query because the
+        # search reaches the owner's address through one of them. None of the
+        # three can multiply a row: each yields at most one per organization.
+        return (
+            stmt.outerjoin(member_counts, member_counts.c.organization_id == Organization.id)
+            .outerjoin(agent_counts, agent_counts.c.organization_id == Organization.id)
+            .outerjoin(owners, owners.c.organization_id == Organization.id)
+        )
+
+    query = joined(
+        select(
+            Organization,
+            member_count,
+            agent_count,
+            owners.c.owner_user_id,
+            owners.c.owner_email,
+            owners.c.owner_name,
+        )
+    )
+    count_query = joined(select(func.count()).select_from(Organization))
+
+    conditions: list[ColumnElement[bool]] = []
+    if search:
+        # The three things a deployment admin has to go on: what the tenant is
+        # called, what it is called in a URL, and who to ask about it.
+        conditions.append(
+            contains_ci(Organization.name, search)
+            | contains_ci(Organization.slug, search)
+            | contains_ci(owners.c.owner_email, search)
+        )
+    if kind == "personal":
+        conditions.append(Organization.is_personal.is_(True))
+    elif kind == "team":
+        conditions.append(Organization.is_personal.is_(False))
+    for condition in conditions:
+        query = query.where(condition)
+        count_query = count_query.where(condition)
+
+    sort_columns = {
+        "name": Organization.name,
+        "slug": Organization.slug,
+        "members": member_count,
+        "agents": agent_count,
+        "created_at": Organization.created_at,
+    }
+    column = sort_columns.get(sort_by, Organization.created_at)
+    ordered = column.desc() if sort_dir == "desc" else column.asc()
+    # The id breaks the tie, so paging is stable: two organizations sharing a
+    # name or a member count would otherwise be ordered by whatever the planner
+    # returned, and a row could appear on two pages or on neither.
+    query = query.order_by(ordered, Organization.id).offset(skip).limit(limit)
+
+    total = await db.scalar(count_query) or 0
+    rows = (await db.execute(query)).all()
+    return [
+        (organization, int(members), int(agents), owner_id, owner_email, owner_name)
+        for organization, members, agents, owner_id, owner_email, owner_name in rows
+    ], total

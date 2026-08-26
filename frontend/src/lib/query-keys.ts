@@ -433,7 +433,11 @@ export const qk = {
     // the key, so picking another period refetches rather than re-rendering the
     // last one's chart.
     ratings: (params: { from?: string; to?: string }) => ["admin", "ratings", params] as const,
-    organizations: () => ["admin", "organizations"] as const,
+    // The params are part of the key because they are part of the request. The
+    // top-organizations card asks for five and the admin list for fifty of
+    // whatever it is narrowed to; under a bare key whichever mounted first
+    // filled the cache and the other rendered its answer.
+    organizations: (params: Record<string, string>) => ["admin", "organizations", params] as const,
     // This deployment's own identity and access policy, as its administrator
     // edits it. Distinct from `branding.notice()` below, which is the same row
     // read by everybody: invalidating one must not refetch the other, since the
