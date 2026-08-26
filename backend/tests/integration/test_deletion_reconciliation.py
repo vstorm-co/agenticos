@@ -25,7 +25,10 @@ from app.core.config import settings as app_settings
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.rag_document import RAGDocument
 from app.db.models.user import User
+from app.repositories import rag_document_repo
+from app.services.file_storage import get_file_storage
 from app.services.organization import OrganizationService
 from app.services.rag.vectorstore import PgVectorStore
 from app.services.user import UserService
@@ -259,6 +262,103 @@ class TestDeletingAnOrg:
                 surviving = await s.get(KnowledgeBase, kb_id)
                 assert surviving is not None
                 assert surviving.organization_id is None
+        finally:
+            await store.aclose()
+
+    async def test_it_purges_the_collections_documents_and_their_files(
+        self, engine: AsyncEngine
+    ) -> None:
+        """`rag_documents` authorize on collection_name, so a row left behind is
+        readable by a later collection permitted the same name. The org delete
+        removes the KB's document rows and stored uploads before its identifiers
+        go (#1116)."""
+        store = PgVectorStore(
+            settings=app_settings.rag, embedding_service=MagicMock(), resolver=MagicMock()
+        )
+        storage = get_file_storage()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbnine{uuid.uuid4().hex[:12]}"
+        try:
+            async with factory() as s:
+                user = _user()
+                s.add(user)
+                await s.flush()
+                org = await _org(s, user)
+                kb = _org_collection(org.id, collection)
+                s.add(kb)
+                await s.flush()
+                path = await storage.save("rag-test", "secret.txt", b"tenant contents")
+                doc = await rag_document_repo.create(
+                    s,
+                    collection_name=collection,
+                    filename="secret.txt",
+                    filesize=15,
+                    filetype="txt",
+                    storage_path=path,
+                    organization_id=org.id,
+                    knowledge_base_id=kb.id,
+                )
+                await s.commit()
+                org_id, doc_id = org.id, doc.id
+
+            stored = storage.get_full_path(path)
+            assert stored is not None and stored.exists()
+
+            async with factory() as s:
+                org = await s.get(Organization, org_id)
+                await OrganizationService(s, vector_store=store).purge(org)
+                await s.commit()
+
+            async with factory() as s:
+                assert await s.get(RAGDocument, doc_id) is None  # the row is gone
+                by_name = await s.execute(
+                    select(RAGDocument).where(RAGDocument.collection_name == collection)
+                )
+                assert by_name.scalars().all() == []  # not reachable by the name any more
+
+            full = storage.get_full_path(path)
+            assert full is None or not full.exists()  # the stored upload is gone too
+        finally:
+            await store.aclose()
+
+    async def test_a_shared_collection_table_survives_for_a_co_tenant(
+        self, engine: AsyncEngine
+    ) -> None:
+        """collection_name is not tenant-unique (#913), so two orgs can back onto
+        one physical table. Deleting one must not drop the table out from under the
+        other (#1116)."""
+        store = PgVectorStore(
+            settings=app_settings.rag, embedding_service=MagicMock(), resolver=MagicMock()
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbnine{uuid.uuid4().hex[:12]}"  # the same name in both orgs
+        table = store._table(collection)
+        try:
+            async with factory() as s:
+                user_a = _user()
+                user_b = _user()
+                s.add_all([user_a, user_b])
+                await s.flush()
+                org_a = await _org(s, user_a)
+                org_b = await _org(s, user_b)
+                s.add(_org_collection(org_a.id, collection))
+                kb_b = _org_collection(org_b.id, collection)
+                s.add(kb_b)
+                await s.execute(text(f"CREATE TABLE {table} (id int)"))
+                await s.commit()
+                org_a_id, kb_b_id = org_a.id, kb_b.id
+
+            async with factory() as s:
+                org_a = await s.get(Organization, org_a_id)
+                await OrganizationService(s, vector_store=store).purge(org_a)
+                await s.commit()
+
+            async with factory() as s:
+                # org B still references the collection, so its table must survive
+                assert (
+                    await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
+                ).scalar() is not None
+                assert await s.get(KnowledgeBase, kb_b_id) is not None
         finally:
             await store.aclose()
 

@@ -253,3 +253,22 @@ async def delete_by_collection(db: AsyncSession, collection_name: str) -> int:
     )
     await db.flush()
     return result.rowcount  # ty: ignore[unresolved-attribute]
+
+
+async def delete_by_knowledge_base(db: AsyncSession, kb_id: UUID) -> list[str]:
+    """Delete a knowledge base's document rows, returning the stored file paths.
+
+    Keyed on `knowledge_base_id`, not `collection_name`: when two tenants back
+    onto one physical collection (collection_name is not tenant-unique, #913),
+    this removes only the rows belonging to the KB being torn down and leaves the
+    other tenant's alone. The returned `storage_path`s are the uploads the caller
+    still has to delete from storage - a `NULL` one (nothing was stored) is
+    dropped from the list (#1116).
+    """
+    result = await db.execute(
+        sql_delete(RAGDocument)
+        .where(RAGDocument.knowledge_base_id == kb_id)
+        .returning(RAGDocument.storage_path)
+    )
+    await db.flush()
+    return [path for path in result.scalars().all() if path]
