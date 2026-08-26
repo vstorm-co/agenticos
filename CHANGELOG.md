@@ -41,6 +41,14 @@ Two things are versioned separately from this file and worth knowing about:
   `rag_tasks` and the `rag-*` commands are untouched. The document *listing* is
   still a full scan - that is the display path, not the ingest check. (#1102)
 
+- Two things this branch broke on `main`, fixed with it and each invisible to the
+  branch that caused it - both were green before the other merged. The
+  `_first_document` annotation referenced `AsyncSession` after #12 removed that
+  import, so `ruff` failed the whole `lint` job; and the index backfill claimed
+  `0055_sandbox_operations` as its parent while the conversation plan already had,
+  leaving the migration chain with **two heads** - `alembic upgrade head` cannot
+  choose between them, so a deployment could not migrate at all. The backfill is
+  re-parented onto the current head as `0058`. (#1102, #12)
 ## [0.0.274] - 2026-08-26
 
 ### Fixed
