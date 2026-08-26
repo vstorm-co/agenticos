@@ -40,8 +40,10 @@ from pydantic import BaseModel, Field, field_validator
 from pydantic_ai.capabilities import WrapperCapability
 from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.tools import AgentDepsT, RunContext, ToolDefinition
+from pydantic_ai.toolsets import AgentToolset
 from pydantic_ai_backends import StateBackend
 from pydantic_ai_harness.tool_output_limits import (
+    READ_TOOL_NAME,
     Action,
     Band,
     Spill,
@@ -51,6 +53,7 @@ from pydantic_ai_harness.tool_output_limits import (
     TruncationStrategy,
 )
 
+from app.agents.capabilities._tool_text import ToolText
 from app.agents.capabilities.budget import record_ambient_usage, usage_counts, usage_delta
 from app.agents.capabilities.tool_output_limits._store import BackendOverflowStore
 
@@ -233,6 +236,22 @@ def build_limits(
     )
 
 
+READ_TOOL_RESULT_TEXT = ToolText(
+    summary="Read part of a tool result that was too large to return whole.",
+    usage=(
+        "The handle comes from a tool return that said it had been spilled. Read "
+        "the part you need rather than the whole payload: narrow with `pattern` "
+        "first, then page with `offset` and `limit`."
+    ),
+    returns=(
+        "The matching lines, under a header saying which slice of how many they "
+        "are, so a further call can pick up where this one stopped. A handle this "
+        "run never spilled says so - that result is gone, not elsewhere, and no "
+        "other handle will find it."
+    ),
+)
+
+
 @dataclass
 class MeteredToolOutputLimits(WrapperCapability[AgentDepsT]):
     """Books what a `summarize` reduction spent against the run that spent it.
@@ -256,6 +275,39 @@ class MeteredToolOutputLimits(WrapperCapability[AgentDepsT]):
     later. What this cannot do is *stop* the spend - `BudgetGuard` refuses on the
     request after it, the same as for compaction.
     """
+
+    def get_toolset(self) -> AgentToolset[AgentDepsT] | None:
+        """The library's toolset, with `read_tool_result` described properly.
+
+        The library's own text is one sentence and says nothing about what comes
+        back - and this is the tool a model reaches for holding a handle to a
+        result it could not be given whole, which is the worst moment to leave it
+        guessing whether an empty answer means "no matches" or "gone". Rewritten
+        here rather than upstream because `pydantic-ai-harness` is Pydantic's
+        package, not this organization's: its default is a pull request to them,
+        and the text a deployment shows is its own either way.
+
+        Re-described in place rather than wrapped in `prepared`: a prepared
+        toolset resolves its tools per request, so it has no tool list for
+        `app/services/capability_contracts.py` to read, and the Builder would
+        show the catalog's one-liner for the one tool somebody had just taken
+        the trouble to describe. `Tool.description` is what each request's
+        `ToolDefinition` is built from, so this reaches both readers.
+        """
+        toolset = super().get_toolset()
+        if toolset is None:  # pragma: no cover - the library always builds one
+            return None
+        tool = getattr(toolset, "tools", {}).get(READ_TOOL_NAME)
+        if tool is None:
+            # The same refusal `ToolOverrides` makes, for the same reason: left
+            # alone, the model would read the library's sentence while the
+            # Builder shows this one, with nothing reporting the difference.
+            raise TypeError(
+                "Tool output limits no longer offers `read_tool_result` as a "
+                "readable tool, so it cannot be described here"
+            )
+        tool.description = READ_TOOL_RESULT_TEXT.render()
+        return toolset
 
     async def after_tool_execute(
         self,

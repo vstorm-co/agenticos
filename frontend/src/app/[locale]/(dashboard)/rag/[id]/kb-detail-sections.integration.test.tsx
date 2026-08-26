@@ -23,22 +23,26 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 // runs `useEffect(() => refresh(), [refresh])`, so a translator rebuilt per call made
 // that effect re-fire forever and every test here timed out (#446).
 //
-// `rich` hangs off the same function, because a component under this tree reads a
-// message with a tag in it. A mock modelling only half of `t` fails as
-// `t.rich is not a function` inside a render, several files from the assertion.
-const translators = new Map<string, (key: string) => string>();
-vi.mock("next-intl", () => ({
-  useLocale: () => "en",
-  useTranslations: (ns: string) => {
-    const cached = translators.get(ns);
-    if (cached !== undefined) return cached;
-    const translate = Object.assign((key: string): string => `${ns}.${key}`, {
-      rich: (key: string): string => `${ns}.${key}`,
-    });
-    translators.set(ns, translate);
-    return translate;
-  },
-}));
+// `rich`/`markup`/`has` hang off the same function, because a component under this
+// tree reads a message with a tag in it; a mock modelling only part of `t` fails
+// as `t.rich is not a function` inside a render, several files from the assertion
+// (#612). The shared `keyTranslations` carries all three; the cache keeps the same
+// `t` reference per namespace, which is what stops the effect above re-firing.
+vi.mock("next-intl", async () => {
+  const build = (await import("@/test-utils/intl")).keyTranslations((ns, key) => `${ns}.${key}`);
+  const cache = new Map<string, ReturnType<typeof build>>();
+  return {
+    useLocale: () => "en",
+    useTranslations: (ns: string) => {
+      let translate = cache.get(ns);
+      if (translate === undefined) {
+        translate = build(ns);
+        cache.set(ns, translate);
+      }
+      return translate;
+    },
+  };
+});
 
 const perms = new Set<string>(["collections:view"]);
 vi.mock("@/hooks/use-permissions", () => ({
@@ -59,6 +63,8 @@ const KB: KnowledgeBase = {
   is_default: false,
   ingestion_config: DEFAULT_INGESTION_CONFIG,
   embedding_model: "text-embedding-3-large",
+  embedding_provider: "openrouter",
+  embedding_secret_id: null,
   embedding_dim: 3072,
   created_at: "2026-07-01T00:00:00Z",
   updated_at: null,

@@ -72,18 +72,22 @@ class RAGDocumentService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def list_documents(self, *, collections: list[str]) -> RAGTrackedDocumentList:
-        """List tracked RAG documents belonging to the named collections.
+    async def list_documents(
+        self, *, collections: list[str], skip: int = 0, limit: int = 50
+    ) -> RAGTrackedDocumentList:
+        """List a page of tracked RAG documents belonging to the named collections.
 
-        The argument is required and takes no default on purpose: the caller
-        decides which collections it is entitled to see, and there is no way to
-        ask for "all of them" by forgetting to say. An empty list is an empty
-        answer.
+        The `collections` argument is required and takes no default on purpose:
+        the caller decides which collections it is entitled to see, and there is
+        no way to ask for "all of them" by forgetting to say. An empty list is an
+        empty answer.
         """
-        docs = await rag_document_repo.get_all(self.db, collections=collections)
+        rows, total = await rag_document_repo.get_all(
+            self.db, collections=collections, skip=skip, limit=limit
+        )
         return RAGTrackedDocumentList(
-            items=[_tracked_item(d) for d in docs],
-            total=len(docs),
+            items=[_tracked_item(d) for d in rows],
+            total=total,
         )
 
     async def list_for_kb(

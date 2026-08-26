@@ -870,6 +870,9 @@ class TestMcpConnectionService:
     def repo(self, monkeypatch):
         mock_repo = MagicMock()
         mock_repo.get_by_id = AsyncMock()
+        # `update` reads through the locked variant; one mock serves both so a
+        # test can stage the row once, whichever path the service takes.
+        mock_repo.get_by_id_for_update = mock_repo.get_by_id
         mock_repo.get_by_name = AsyncMock(return_value=None)
         mock_repo.list_for_user = AsyncMock(return_value=([], 0))
         mock_repo.create = AsyncMock()
@@ -1048,15 +1051,19 @@ class TestMcpConnectionService:
         assert repo.delete.call_args.kwargs["db_connection"] is conn
 
     @pytest.mark.anyio
-    async def test_update_reseals_a_replacement_token_for_its_owner(self, service, repo):
-        """A rotation has to record which master key sealed the new envelope.
-
-        One version governs every secret in the row, so writing a new token
-        without it would leave the row claiming a version its ciphertext was not
-        sealed under.
+    async def test_update_reseals_a_replacement_token_at_the_rows_version(
+        self, service, repo, monkeypatch
+    ):
+        """One version governs every secret in the row, so a replacement token is
+        sealed at the version the row already records - never at whatever is
+        current, which would leave the OAuth envelopes two lines over sealed
+        under a version the column no longer names (#552).
         """
+        monkeypatch.setattr(
+            settings, "VAULT_MASTER_KEYS", {1: "k1" * 20, 2: "k2" * 20, 3: "k3" * 20}
+        )
         user_id = uuid4()
-        conn = _connection(user_id=user_id)
+        conn = _connection(user_id=user_id, secret_key_version=2)
         conn.auth_token = _seal_into(conn, "old")
         repo.get_by_id.return_value = conn
 
@@ -1067,8 +1074,29 @@ class TestMcpConnectionService:
         )
 
         update_data = repo.update.call_args.kwargs["update_data"]
-        assert update_data["secret_key_version"] == 1
-        assert unseal(update_data["auth_token"], scope=VaultScope.user(user_id)) == "new-token"
+        assert "secret_key_version" not in update_data
+        assert (
+            unseal(update_data["auth_token"], scope=VaultScope.user(user_id), key_version=2)
+            == "new-token"
+        )
+
+    @pytest.mark.anyio
+    async def test_update_reads_the_row_locked_before_resealing(self, service, repo):
+        """Sealing at the row's recorded version is only safe while the row is
+        held from the read - an unlocked read lets a rotation commit in between,
+        and the new envelope lands tagged with a version it was not sealed
+        under. If update read through the unlocked getter, the None staged on
+        it here would make it refuse."""
+        user_id = uuid4()
+        conn = _connection(user_id=user_id)
+        repo.get_by_id_for_update = AsyncMock(return_value=conn)
+        repo.get_by_id = AsyncMock(return_value=None)
+
+        await service.update(
+            user_id=user_id, connection_id=conn.id, data=McpConnectionUpdate(is_enabled=False)
+        )
+
+        assert repo.get_by_id_for_update.await_count == 1
 
     @pytest.mark.anyio
     async def test_update_empty_token_clears_it(self, service, repo):
@@ -1877,6 +1905,8 @@ class TestOrganizationConnections:
     async def test_a_replacement_credential_is_resealed_for_this_organization(
         self, service, ctx, repo, monkeypatch
     ):
+        """Sealed at the row's recorded version, and the version column is left
+        alone - one version governs every envelope in the row (#552)."""
         _allow_any_url(monkeypatch)
         conn = self._org_connection(ctx)
         repo.get_org_scoped_by_id.return_value = conn
@@ -1887,11 +1917,15 @@ class TestOrganizationConnections:
 
         update_data = repo.update.call_args.kwargs["update_data"]
         assert "ghp-rotated-4321" not in update_data["auth_token"]
+        assert "secret_key_version" not in update_data
+        # Sealing at the row's version is only safe while the row is held from
+        # the read - the same race the channel-bot update locks against.
+        assert repo.get_org_scoped_by_id.await_args.kwargs["for_update"] is True
         assert (
             unseal(
                 update_data["auth_token"],
                 scope=VaultScope.organization(ctx.organization_id),
-                key_version=update_data["secret_key_version"],
+                key_version=conn.secret_key_version,
             )
             == "ghp-rotated-4321"
         )
@@ -2149,10 +2183,9 @@ class TestOrganizationConnections:
         with pytest.raises(NotFoundError):
             await call(service, ctx, connection_id)
 
-        assert repo.get_org_scoped_by_id.call_args.kwargs == {
-            "connection_id": connection_id,
-            "organization_id": ctx.organization_id,
-        }
+        kwargs = repo.get_org_scoped_by_id.call_args.kwargs
+        assert kwargs["connection_id"] == connection_id
+        assert kwargs["organization_id"] == ctx.organization_id
 
     @pytest.mark.anyio
     async def test_get_org_connection_returns_the_row_it_finds(self, service, ctx, repo):

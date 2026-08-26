@@ -57,6 +57,26 @@ length, so a rename in one place without the other silently re-opens the
 truncation below.
 """
 
+VECTOR_SOURCE_PATH_INDEX_SUFFIX = "_srcpath_idx"
+VECTOR_FILENAME_INDEX_SUFFIX = "_fname_idx"
+VECTOR_CONTENT_HASH_INDEX_SUFFIX = "_chash_idx"
+"""The expression indexes the store builds on the metadata keys the existence
+check looks a document up by (`source_path`, `filename`, `content_hash`).
+
+Kept no longer than :data:`VECTOR_INDEX_SUFFIX`, so the HNSW index stays the
+binding constraint on :data:`MAX_COLLECTION_NAME_LENGTH` and every one of these
+survives the same names the embedding index does - the derivation below takes
+the longest of them all, so a suffix that outgrew it would tighten the bound
+rather than silently truncate into the collision below.
+"""
+
+_INDEX_SUFFIXES = (
+    VECTOR_INDEX_SUFFIX,
+    VECTOR_SOURCE_PATH_INDEX_SUFFIX,
+    VECTOR_FILENAME_INDEX_SUFFIX,
+    VECTOR_CONTENT_HASH_INDEX_SUFFIX,
+)
+
 _MAX_IDENTIFIER_LENGTH = 63
 """What Postgres keeps of an identifier - `NAMEDATALEN - 1`, in bytes.
 
@@ -65,7 +85,7 @@ a name that got this far the two are the same number.
 """
 
 MAX_COLLECTION_NAME_LENGTH = (
-    _MAX_IDENTIFIER_LENGTH - len(VECTOR_TABLE_PREFIX) - len(VECTOR_INDEX_SUFFIX)
+    _MAX_IDENTIFIER_LENGTH - len(VECTOR_TABLE_PREFIX) - max(len(s) for s in _INDEX_SUFFIXES)
 )
 """The longest collection name every identifier built from it survives.
 

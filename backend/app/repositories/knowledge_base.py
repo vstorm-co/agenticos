@@ -88,6 +88,7 @@ async def create(
     ingestion_config: dict[str, object],
     embedding_model: str,
     embedding_dim: int,
+    embedding_provider: str,
     description: str | None = None,
     owner_user_id: UUID | None = None,
     organization_id: UUID | None = None,
@@ -97,11 +98,13 @@ async def create(
 ) -> KnowledgeBase:
     """Create a knowledge base.
 
-    `embedding_model` and `embedding_dim` take no default on purpose. They
-    are what the collection's vector column was created at, there is no
-    interpretable value for "unknown", and a caller that forgets to record them
-    would produce a row nobody can later decide whether it is safe to index
-    into.
+    `embedding_model`, `embedding_dim` and `embedding_provider` take no default
+    on purpose. The first two are what the collection's vector column was
+    created at, there is no interpretable value for "unknown", and a caller that
+    forgets to record them would produce a row nobody can later decide whether
+    it is safe to index into. The third is where those vectors were produced,
+    and a row defaulting to whichever provider this module happened to name
+    would be a claim about somebody else's data.
     """
     kb = KnowledgeBase(
         name=name,
@@ -114,6 +117,7 @@ async def create(
         ingestion_config=ingestion_config,
         embedding_model=embedding_model,
         embedding_dim=embedding_dim,
+        embedding_provider=embedding_provider,
         embedding_secret_id=embedding_secret_id,
         **({"visibility": visibility} if visibility is not None else {}),
     )
@@ -130,13 +134,28 @@ async def update(
     name: str | None = None,
     description: str | None = None,
     ingestion_config: dict[str, object] | None = None,
+    embedding_provider: str | None = None,
+    embedding_secret_id: UUID | None = None,
+    clear_embedding_secret: bool = False,
 ) -> KnowledgeBase:
+    """Apply what an update named, leaving what it did not alone.
+
+    `clear_embedding_secret` is separate from a null `embedding_secret_id`
+    because both have to be sayable: on a partial update null means "leave the
+    key alone", so going back to the deployment's key needs a word of its own.
+    """
     if name is not None:
         db_kb.name = name
     if description is not None:
         db_kb.description = description
     if ingestion_config is not None:
         db_kb.ingestion_config = ingestion_config
+    if embedding_provider is not None:
+        db_kb.embedding_provider = embedding_provider
+    if clear_embedding_secret:
+        db_kb.embedding_secret_id = None
+    elif embedding_secret_id is not None:
+        db_kb.embedding_secret_id = embedding_secret_id
     await db.flush()
     await db.refresh(db_kb)
     return db_kb

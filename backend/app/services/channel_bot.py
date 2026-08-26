@@ -275,13 +275,15 @@ class ChannelBotService:
                 details={"platform": platform},
             )
 
-    async def get(self, bot_id: UUID) -> ChannelBot:
+    async def get(self, bot_id: UUID, *, for_update: bool = False) -> ChannelBot:
         """Get one of this organization's bots; raises NotFoundError if not found.
 
         A bot belonging to another organization is reported as missing rather
         than forbidden, so the endpoint cannot be used to probe for bot ids.
         """
-        bot = await channel_bot_repo.get_for_org(self.db, bot_id, organization_id=self._org_id)
+        bot = await channel_bot_repo.get_for_org(
+            self.db, bot_id, organization_id=self._org_id, for_update=for_update
+        )
         if not bot:
             raise NotFoundError(
                 message="Channel bot not found",
@@ -339,7 +341,11 @@ class ChannelBotService:
     async def update(self, bot_id: UUID, data: ChannelBotUpdate) -> ChannelBot:
         """Update a channel bot. Only the fields the caller sent are applied;
         an explicit null clears a Slack credential, an omission leaves it."""
-        bot = await self.get(bot_id)
+        # Locked from the read: every credential below is sealed at the row's
+        # recorded key version, and a rotation committing between an unlocked
+        # read and this write would tag the new envelopes with a version they
+        # were not sealed under.
+        bot = await self.get(bot_id, for_update=True)
         update_data = writable(data, over=ChannelBot)
         if "api_base_url" in update_data:
             self._check_server_url(bot.platform, update_data["api_base_url"])

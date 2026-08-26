@@ -423,55 +423,58 @@ describe("signing in without a password", () => {
 });
 
 describe("finishing an OAuth sign-in", () => {
-  it("stores the tokens the provider flow handed back", async () => {
-    // The tokens arrive in the body from the callback page; this route is what
-    // moves them into HttpOnly cookies, which is the whole point of it.
-    vi.mocked(backendFetch).mockResolvedValue({ id: "u-1" });
+  it("swaps the single-use code for the token pair, and stores it", async () => {
+    // The redirect carries a code, not the tokens (#14): a token in a redirect
+    // URL reaches the address bar, the access log and the next Referer.
+    vi.mocked(backendFetch)
+      .mockResolvedValueOnce({ access_token: "at", refresh_token: "rt" })
+      .mockResolvedValueOnce({ id: "u-1" });
 
-    const response = await oauthCallback(request({}, { access_token: "at", refresh_token: "rt" }));
+    const response = await oauthCallback(request({}, { code: "one-time" }));
 
-    expect(backendFetch).toHaveBeenCalledWith("/api/v1/auth/me", {
+    expect(backendFetch).toHaveBeenNthCalledWith(1, "/api/v1/oauth/exchange", {
+      method: "POST",
+      body: JSON.stringify({ code: "one-time" }),
+    });
+    expect(backendFetch).toHaveBeenNthCalledWith(2, "/api/v1/auth/me", {
       headers: { Authorization: "Bearer at" },
     });
     expect(cookie(response, "access_token")).toMatchObject({ value: "at" });
     expect(cookie(response, "refresh_token")).toMatchObject({ value: "rt" });
   });
 
-  it("refuses a callback that is missing either token", async () => {
-    // Which is what a truncated or tampered redirect looks like; setting one
-    // cookie and not the other produces a session that half-works.
-    for (const body of [{ access_token: "at" }, { refresh_token: "rt" }, {}]) {
-      const response = await oauthCallback(request({}, body));
+  it("refuses a callback carrying no code", async () => {
+    const response = await oauthCallback(request({}, {}));
 
-      expect(response.status).toBe(400);
-      expect(cookie(response, "access_token")).toBeUndefined();
-    }
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ code: "MISSING_AUTHORIZATION_CODE" });
+    expect(cookie(response, "access_token")).toBeUndefined();
     expect(backendFetch).not.toHaveBeenCalled();
   });
 
-  it("passes the backend's refusal of the token through", async () => {
+  it("passes the backend's refusal of the code through", async () => {
     vi.mocked(backendFetch).mockRejectedValue(
-      new BackendApiError(401, "Unauthorized", { detail: "Token is not valid" }),
+      new BackendApiError(401, "Unauthorized", { detail: "Invalid or expired exchange code" }),
     );
 
-    const response = await oauthCallback(request({}, { access_token: "x", refresh_token: "y" }));
+    const response = await oauthCallback(request({}, { code: "stale" }));
 
     expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toEqual({ detail: "Token is not valid" });
+    await expect(response.json()).resolves.toEqual({ detail: "Invalid or expired exchange code" });
   });
 
   it("says sign-in failed when the refusal named no reason", async () => {
     vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(401, "Unauthorized", null));
 
-    const response = await oauthCallback(request({}, { access_token: "x", refresh_token: "y" }));
+    const response = await oauthCallback(request({}, { code: "stale" }));
 
     await expect(response.json()).resolves.toEqual({ code: "LOGIN_FAILED" });
   });
 
-  it("answers 500 when the check could not be made", async () => {
+  it("answers 500 when the exchange could not be made", async () => {
     vi.mocked(backendFetch).mockRejectedValue(new Error("ECONNREFUSED"));
 
-    const response = await oauthCallback(request({}, { access_token: "x", refresh_token: "y" }));
+    const response = await oauthCallback(request({}, { code: "x" }));
 
     expect(response.status).toBe(500);
   });

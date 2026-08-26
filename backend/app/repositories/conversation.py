@@ -688,6 +688,11 @@ async def get_messages_after(
     of the history the summary does not account for. Bounded like
     `get_recent_messages` is, and for the same reason: a thread nobody compacts
     again must not grow into an unbounded prompt.
+
+    Without the attachments its sibling loads: this answers what the *model*
+    reads, and a row's files reach that as text the prompt already carries. A
+    caller that needs them touches `Message.files` and gets a `MissingGreenlet`
+    saying so, which beats a join on every turn for nobody.
     """
     total = await db.scalar(
         select(func.count(Message.id)).where(
@@ -697,7 +702,6 @@ async def get_messages_after(
     query = (
         select(Message)
         .where(Message.conversation_id == conversation_id, Message.ordinal > ordinal)
-        .options(selectinload(Message.files))
         .order_by(Message.ordinal.asc())
         .offset(max(0, (total or 0) - limit))
         .limit(limit)
@@ -741,6 +745,16 @@ async def set_reminder_state(
 ) -> Conversation:
     """Record how far this conversation's system-reminders cadence has advanced."""
     db_conversation.reminder_state = state
+    await db.flush()
+    await db.refresh(db_conversation)
+    return db_conversation
+
+
+async def set_plan(
+    db: AsyncSession, *, db_conversation: Conversation, items: list[dict[str, Any]]
+) -> Conversation:
+    """Record the checklist this conversation's agent is working to."""
+    db_conversation.plan_items = items
     await db.flush()
     await db.refresh(db_conversation)
     return db_conversation

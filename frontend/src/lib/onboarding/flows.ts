@@ -94,8 +94,10 @@ export type FlowSignal =
  * key was deleted is not either; a knowledge base, a skill or an MCP connection is
  * simply one the organization holds. `hasPublishedAgent` is the one the chat needs
  * — only a published agent has a version to run, so a draft does not count — which
- * is why the chat run asks to build one when there is none. A flow grows this as it
- * grows the branches that read it.
+ * is why the chat run asks to build one when there is none. `hasRunnableAgent` is
+ * the routine flow's floor: the per-agent `can_run` answer the Routines page gates
+ * its create buttons on, which the role-level permission cannot mirror in either
+ * direction. A flow grows this as it grows the branches that read it.
  */
 export interface OrgState {
   hasRunnableModel: boolean;
@@ -103,6 +105,7 @@ export interface OrgState {
   hasSkill: boolean;
   hasOrgMcp: boolean;
   hasPublishedAgent: boolean;
+  hasRunnableAgent: boolean;
 }
 
 /**
@@ -717,17 +720,22 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
   // whichever door it came through.
   "create-routine": {
     id: "create-routine",
-    // The floor a trigger is actually created at, per resource: a Viewer holding
-    // one explicit run grant may create one, where a role-level `agents:run` reads
-    // false. The page hides the buttons on the same test, so a reader who cannot
-    // create one is offered no flow rather than a flow that waits for a control
-    // that never mounts.
+    // The floor a trigger is actually created at is per resource, and the
+    // role-level `agents:run` here misreads it in both directions: a Viewer
+    // holding one explicit run grant may create one where the role reads false,
+    // and the role reads true for a caller none of whose reachable agents is
+    // actually runnable. The page hides its create buttons on the per-agent
+    // answer, and the coach waits on a flow target with no timeout - so every
+    // step carries `hasRunnableAgent`, the same answer, and the mismatch yields
+    // an inert flow rather than a wait on a control that never mounts. The offer
+    // reads the same cache in `CreationOffer`, so it is not made at all.
     permission: Perm.agentsRun,
     steps: [
       {
         id: "flow-routine-create",
         page: ROUTES.ROUTINES,
         target: "routines-create",
+        include: (state) => state.hasRunnableAgent,
         signal: { kind: "created", resource: "routine" },
       },
       // A schedule created at 09:00 and next due at midnight taught nothing: the
@@ -736,7 +744,12 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       // the same run log - so the walk ends on a routine that has actually run.
       // No signal: the fire is a mutation on a row rather than something
       // appearing, and it is fine to end the walk having pointed at it.
-      { id: "flow-routine-run-now", page: ROUTES.ROUTINES, target: "routine-run-now" },
+      {
+        id: "flow-routine-run-now",
+        page: ROUTES.ROUTINES,
+        target: "routine-run-now",
+        include: (state) => state.hasRunnableAgent,
+      },
     ],
   },
   "create-org": {

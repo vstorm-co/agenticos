@@ -5,7 +5,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 
-from pydantic import computed_field, field_validator, ValidationInfo
+from pydantic import Field, computed_field, field_validator, model_validator, ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -59,6 +59,17 @@ class Settings(BaseSettings):
     # the chat path's own ceiling, never a way past either.
     EMBED_MAX_UPLOAD_SIZE_MB: int = 5
     STORAGE_SOFT_LIMIT_BYTES: int = 5 * 1024 * 1024 * 1024
+
+    # Size of the dedicated thread pool that runs blocking file work - parsing an
+    # upload (pymupdf/openpyxl/docx) and reading or writing its bytes. Kept off
+    # `asyncio`'s shared default executor, which the same loop also uses for
+    # `bcrypt` password hashing and pinned-host DNS: a burst of uploads must not
+    # occupy every worker there and leave sign-in and outbound requests queued
+    # behind them (#1108). Tunable per deployment; the bound is what contains the
+    # blast radius of a parse storm to this pool. `gt=0` so a misconfigured `0`
+    # or negative is refused at startup rather than raising `ValueError` from
+    # `ThreadPoolExecutor` on the first file operation.
+    FILE_IO_MAX_WORKERS: int = Field(default=8, gt=0)
 
     # The monthly spend ceiling a brand-new organization starts with, in USD. A
     # new org one runaway agent away from a surprise bill is the posture this
@@ -155,6 +166,15 @@ class Settings(BaseSettings):
     # wrong hour. Long enough that a decision is never taken away from someone
     # who was going to make it; short enough that the queue has a ceiling.
     APPROVAL_EXPIRY_HOURS: int = 72
+    # How long a run may sit `running` before the sweep decides its process
+    # died. The row is committed before the model is called (#12), so a worker
+    # killed mid-run leaves it `running` with nothing left to finish it - in
+    # Activity for ever, and blocking any trigger whose resume it was. Six
+    # hours is far past anything this platform executes in one run, and the
+    # ceiling does not have to be exact: a live run the sweep flips anyway is
+    # flipped back by its own terminal write, which lands later and wins.
+    # Zero or below switches the sweep off.
+    STALE_RUN_REAPED_AFTER_HOURS: float = 6.0
     ALGORITHM: str = "HS256"
     FRONTEND_URL: str = "http://localhost:3000"
     PUBLIC_BASE_URL: str = "http://localhost:8000"
@@ -164,6 +184,41 @@ class Settings(BaseSettings):
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/oauth/google/callback"
 
     VAULT_MASTER_KEY: str = ""
+    # Every master key the vault may unwrap with, by version - the staged form
+    # for rotation: `{"1": "<old>", "2": "<new>"}` makes 2 the current version
+    # while rows sealed under 1 stay readable until `agenticos cmd vault-rotate`
+    # has re-wrapped them. When set it is the whole truth; the single
+    # `VAULT_MASTER_KEY` above is shorthand for version 1.
+    VAULT_MASTER_KEYS: dict[int, str] = {}
+
+    @model_validator(mode="after")
+    def validate_vault_master_keys(self) -> "Settings":
+        """A deployment holding real credentials must say which key seals them.
+
+        An unset master key falls back to `SECRET_KEY`, whose default is a
+        string published in this repository - acceptable on a laptop, and a
+        vault sealed under a public key everywhere else. Staging is a
+        first-class deployment here, so the refusal covers it too, not only
+        production (#8).
+        """
+        if self.VAULT_MASTER_KEY and self.VAULT_MASTER_KEYS:
+            raise ValueError(
+                "Set either VAULT_MASTER_KEY or VAULT_MASTER_KEYS, not both - two sources "
+                "for the current master key make it ambiguous which one seals new secrets"
+            )
+        for version, key in self.VAULT_MASTER_KEYS.items():
+            if version < 1:
+                raise ValueError("VAULT_MASTER_KEYS versions must be positive integers")
+            if not key:
+                raise ValueError(f"VAULT_MASTER_KEYS[{version}] must not be empty")
+        if self.ENVIRONMENT not in ("local", "development") and not (
+            self.VAULT_MASTER_KEY or self.VAULT_MASTER_KEYS
+        ):
+            raise ValueError(
+                "VAULT_MASTER_KEY must be set outside local/development - without it the "
+                "vault falls back to SECRET_KEY. Generate one with: openssl rand -hex 32"
+            )
+        return self
 
     API_KEY: str = "change-me-in-production"
     API_KEY_HEADER: str = "X-API-Key"

@@ -167,6 +167,15 @@ describe("choosing what draws", () => {
     expect(screen.getByLabelText("Model")).toHaveTextContent("Nano Banana Pro");
   });
 
+  it("keeps a model's sentence in the list rather than in the closed field", () => {
+    // Radix mirrors an item's `ItemText` into the trigger, and this item's is two
+    // lines: the sentence saying when to reach for the model arrived inside a
+    // 36px-high field, laid out as a block in the middle of it.
+    mount({ provider: "google", model: "gemini-3-pro-image" });
+
+    expect(screen.getByLabelText("Model")).not.toHaveTextContent("The most capable.");
+  });
+
   it("still draws the rest of the capability's own fields", () => {
     // Subtracted rather than replaced: a field added to the config appears here
     // without anybody touching this component.
