@@ -524,6 +524,17 @@ describe("a .ts file", () => {
     ]);
   });
 
+  it("reports a sentence that merely contains a unit word (#741)", () => {
+    // A unit word inside a sentence does not make it a measurement label - `isFormatter`
+    // exempts a phrase only when every word is a unit, and this is prose either way.
+    expect(saidTs('const x = "Use rem instead of pixels for spacing";\n')).toEqual([
+      "string 'Use rem instead of pixels for spacing'",
+    ]);
+    expect(saidTs('const x = "Change the deg value before saving";\n')).toEqual([
+      "string 'Change the deg value before saving'",
+    ]);
+  });
+
   it("refuses a label on an export const, which the keyword skip used to hide", () => {
     expect(saidTs('export const LABEL = "Provider default";\n')).toEqual([
       "string 'Provider default'",
