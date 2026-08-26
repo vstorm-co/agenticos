@@ -135,21 +135,18 @@ class ChannelLinkService:
         if request is None:
             return None
 
-        identity = await channel_identity_repo.get_by_platform_user(
+        # get_or_create, not get-then-create: a concurrent inbound message could
+        # otherwise collide on the identity's unique key and 500 the confirm (#1113).
+        # The upsert leaves an existing user_id alone, so the link is the update below.
+        identity = await channel_identity_repo.get_or_create(
             self.db,
             platform=request.platform,
             platform_user_id=request.platform_user_id,
+            platform_username=request.platform_username,
+            platform_display_name=request.platform_display_name,
+            user_id=user_id,
         )
-        if identity is None:
-            await channel_identity_repo.create(
-                self.db,
-                platform=request.platform,
-                platform_user_id=request.platform_user_id,
-                platform_username=request.platform_username,
-                platform_display_name=request.platform_display_name,
-                user_id=user_id,
-            )
-        else:
+        if identity.user_id != user_id:
             await channel_identity_repo.update(
                 self.db, db_identity=identity, update_data={"user_id": user_id}
             )

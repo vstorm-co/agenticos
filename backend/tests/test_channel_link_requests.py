@@ -194,19 +194,16 @@ class TestRequesting:
 
 
 class TestConfirming:
-    async def _confirm(self, found: MagicMock | None, identity: MagicMock | None) -> object:
+    async def _confirm(self, found: MagicMock | None, resolved: MagicMock | None) -> object:
         with (
             patch(
                 "app.services.channel_link.channel_link_request_repo.get_valid",
                 new=AsyncMock(return_value=found),
             ),
             patch(
-                "app.services.channel_link.channel_identity_repo.get_by_platform_user",
-                new=AsyncMock(return_value=identity),
-            ),
-            patch(
-                "app.services.channel_link.channel_identity_repo.create", new=AsyncMock()
-            ) as created,
+                "app.services.channel_link.channel_identity_repo.get_or_create",
+                new=AsyncMock(return_value=resolved),
+            ) as resolved_call,
             patch(
                 "app.services.channel_link.channel_identity_repo.update", new=AsyncMock()
             ) as updated,
@@ -216,31 +213,41 @@ class TestConfirming:
             ) as spent,
         ):
             result = await ChannelLinkService(MagicMock()).confirm("tok", self.user_id)
-        self.created, self.updated, self.spent = created, updated, spent
+        self.resolved, self.updated, self.spent = resolved_call, updated, spent
         return result
 
     def setup_method(self) -> None:
         self.user_id = uuid.uuid4()
 
-    async def test_the_chat_account_already_seen_gains_its_person(self):
-        """The common path: they messaged the bot, were refused, and are now
-        clicking the link that refusal carried - so the row is already there."""
-        assert await self._confirm(_request(), MagicMock()) is not None
+    async def test_confirm_resolves_through_the_upsert_not_get_then_create(self):
+        """The whole of #1113: the identity is resolved with the same SELECT-first
+        `get_or_create` the router uses, so a confirm racing an inbound message
+        cannot collide on the identity's unique key and 500."""
+        await self._confirm(_request(), MagicMock(user_id=None))
+        self.resolved.assert_awaited_once()
+
+    async def test_a_chat_account_linked_to_no_one_gains_its_person(self):
+        """The row the upsert returns carries no user_id - a fresh insert the
+        router won, or a never-linked one - so linking it is an explicit update."""
+        assert await self._confirm(_request(), MagicMock(user_id=None)) is not None
         assert self.updated.call_args.kwargs["update_data"] == {"user_id": self.user_id}
 
-    async def test_an_unseen_chat_account_is_created_already_linked(self):
-        assert await self._confirm(_request(), None) is not None
-        assert self.created.call_args.kwargs["user_id"] == self.user_id
+    async def test_the_row_the_confirm_itself_inserted_is_not_rewritten(self):
+        """On the miss, `get_or_create` inserts already carrying this user_id, so
+        there is nothing left to update."""
+        assert await self._confirm(_request(), MagicMock(user_id=self.user_id)) is not None
+        assert self.resolved.call_args.kwargs["user_id"] == self.user_id
+        assert self.updated.call_count == 0
 
     async def test_a_link_is_spent_once(self):
-        await self._confirm(_request(), MagicMock())
+        await self._confirm(_request(), MagicMock(user_id=None))
         assert self.spent.call_count == 1
 
     async def test_a_token_that_does_not_resolve_links_nothing(self):
         """Unknown and expired answer the same way: the difference is not
         something the person clicking can act on differently."""
         assert await self._confirm(None, MagicMock()) is None
-        assert self.created.call_count == 0
+        assert self.resolved.call_count == 0
         assert self.updated.call_count == 0
         assert self.spent.call_count == 0
 
