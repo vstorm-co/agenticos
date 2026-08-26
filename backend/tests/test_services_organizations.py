@@ -338,6 +338,10 @@ class TestOrganizationService:
                 service, "get_for_user", new=AsyncMock(return_value=(mock_org, mock_membership))
             ),
             patch(
+                "app.services.organization.organization_repo.get_by_id_for_update",
+                new=AsyncMock(),
+            ),
+            patch(
                 "app.services.organization.knowledge_base_repo.list_org_scoped",
                 new=AsyncMock(return_value=[]),
             ),

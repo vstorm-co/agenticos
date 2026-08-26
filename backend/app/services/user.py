@@ -308,7 +308,13 @@ class UserService:
         return str(full_path) if full_path is not None else None
 
     async def delete(self, user_id: UUID) -> User:
-        user = await user_repo.get_by_id(self.db, user_id)
+        # FOR UPDATE before the reconcile: releasing the rows that would block the
+        # delete and then deleting is check-then-act, so a private secret or
+        # personal org inserted concurrently (both take FOR KEY SHARE on this row)
+        # would land a fresh CHECK/RESTRICT blocker between the reconcile and the
+        # DELETE and 500 it. The lock makes that insert wait, so the reconcile
+        # sees every child there is - a fresh read under READ COMMITTED (#1115).
+        user = await user_repo.get_by_id_for_update(self.db, user_id)
         if not user:
             raise NotFoundError(
                 message="User not found",

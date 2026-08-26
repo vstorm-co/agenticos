@@ -318,7 +318,15 @@ class OrganizationService:
         `ON DELETE SET NULL`, and nulling an org-scoped row violates
         `ck_knowledge_bases_org_scope_has_org` (#9). Personal collections that
         merely carry this org's id are left to the `SET NULL`.
+
+        FOR UPDATE first: listing the collections and then deleting the org is
+        check-then-act, so an org-scoped collection inserted concurrently (it
+        takes FOR KEY SHARE on this row) would slip in between the list and the
+        DELETE, be nulled by the `SET NULL`, and violate the same CHECK. The lock
+        makes that insert wait, so the list sees every collection there is - a
+        fresh read under READ COMMITTED (#1115).
         """
+        await organization_repo.get_by_id_for_update(self.db, org.id)
         for kb in await knowledge_base_repo.list_org_scoped(self.db, org.id):
             if self._vector_store is not None:
                 # Best-effort, and only against the database: a zero-document
