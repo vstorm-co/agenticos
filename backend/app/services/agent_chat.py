@@ -52,6 +52,7 @@ from app.services.agent_runner import (
     ParkedApproval,
     PausedRunState,
     PreparedRun,
+    _classify_output,
     _outcome,
 )
 from app.services.attachments import AttachmentRouter
@@ -400,17 +401,7 @@ class ChatAgentRunner:
                 summarized = ModelMessagesTypeAdapter.dump_python(
                     result.all_messages(), mode="json"
                 )
-            if isinstance(result.output, DeferredToolRequests):
-                paused = PausedRunState(
-                    messages=ModelMessagesTypeAdapter.dump_python(
-                        result.all_messages(), mode="json"
-                    ),
-                    tool_call_ids=prepared.approvals.parked,
-                )
-                status = RunStatus.AWAITING_APPROVAL
-            else:
-                output = result.output
-                status = RunStatus.COMPLETED
+            status, output, paused = _classify_output(result, parked=prepared.approvals.parked)
         except asyncio.CancelledError:
             # The user pressed stop, or the socket went away mid-run. Cancelled
             # is not failed, and the tokens spent up to here were still spent.
