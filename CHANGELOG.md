@@ -17,6 +17,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.254] - 2026-08-26
+
+### Changed
+
+- Agent-framework dependencies: `logfire` 4.41.0, `pydantic-ai-slim` 2.33.0
+  (including its `mcp` extra), `genai-prices` 0.1.4 and `pydantic-ai-skills` 1.4.0.
+
 ## [0.0.253] - 2026-08-26
 
 Nothing holds a pooled connection across a model call, so the sixteenth request is
