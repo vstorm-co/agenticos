@@ -48,7 +48,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 `relative` rather than `contain: paint`, which fixes it equally
                 and would also make this the containing block for every `fixed`
                 descendant - the chat's sources panel and two drop overlays are
-                `fixed` and rendered inline, so containment would move them. */}
+                `fixed` and rendered inline, so containment would move them.
+
+                `pb-20 lg:pb-16` is the **only** declaration of how much room is
+                under a page, and it is painted - measured at 80px and 64px in
+                Chromium 151, WebKit 26.5 and Firefox 153 against this app's own
+                stylesheet. Four surfaces used to re-add it inside their content
+                at three different values, on top of this one, which is what
+                made "how far does a page clear the bottom" three answers
+                (#933). `pb-20` is the larger because the mobile tab bar
+                (`min-h-[56px]` plus the safe-area inset) sits over the content
+                below `lg`. */}
             <main
               id="main"
               tabIndex={-1}

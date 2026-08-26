@@ -51,4 +51,20 @@ describe("the dashboard's scroll container", () => {
 
     expect((main?.props as { className: string }).className).toContain("overflow-auto");
   });
+
+  it("declares the room under a page here, and nowhere else", () => {
+    // Four surfaces used to re-add this inside their own content, at three
+    // different values, on top of the declaration that was already working -
+    // so "how far does a page clear the bottom" had three answers (#933). The
+    // larger value is for the mobile tab bar, which sits over the content
+    // below `lg`.
+    const className = (
+      find(DashboardLayout({ children: null }), "main")?.props as {
+        className: string;
+      }
+    ).className;
+
+    expect(className).toContain("pb-20");
+    expect(className).toContain("lg:pb-16");
+  });
 });
