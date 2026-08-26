@@ -107,16 +107,21 @@ describe("platformProxy", () => {
     expect(await response.json()).toEqual({ detail: "You cannot edit this agent" });
   });
 
-  it("passes a body through on writes", async () => {
+  it("streams a body through on writes rather than buffering it", async () => {
     const backend = backendReplies("{}");
 
     await platformProxy().POST(
       request("/api/agents", { method: "POST", body: JSON.stringify({ spec: { name: "S" } }) }),
     );
 
-    // Bytes, so an upload survives the hop; decoded here only to read it.
-    const body = backend.forwarded().init.body as ArrayBuffer;
-    expect(new TextDecoder().decode(body)).toBe('{"spec":{"name":"S"}}');
+    const init = backend.forwarded().init as RequestInit & { duplex?: string };
+    // The request's own stream is forwarded, not `await request.arrayBuffer()`,
+    // so a 50 MB upload is never held whole in this process. Read here only to
+    // prove the bytes survive the hop; `duplex: "half"` is what undici needs to
+    // send a streamed body.
+    expect(init.duplex).toBe("half");
+    const body = init.body as ReadableStream<Uint8Array>;
+    expect(await new Response(body).text()).toBe('{"spec":{"name":"S"}}');
   });
 
   it("does not read a body on a GET", async () => {

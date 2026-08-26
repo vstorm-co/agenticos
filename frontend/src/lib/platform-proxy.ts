@@ -120,19 +120,26 @@ export function platformProxy(): ProxyHandlers {
         ...(contentType ? { "Content-Type": contentType } : {}),
         ...(organizationId ? { [ORG_HEADER]: organizationId } : {}),
       },
-      // Bytes, not text: an uploaded PDF is not UTF-8, and decoding it to a
-      // string and back is a silent corruption of every file that goes through.
-      body: WITH_BODY.has(request.method) ? await request.arrayBuffer() : undefined,
+      // The request's own stream, not `await request.arrayBuffer()`: a 50 MB
+      // upload buffered whole in this process before one byte reaches FastAPI is
+      // memory the container's limit decides the fate of, and streaming keeps
+      // the bytes bytes without holding them. `duplex: "half"` is undici's
+      // requirement for a streamed request body and is not yet in the DOM
+      // `RequestInit` type, hence the cast.
+      body: WITH_BODY.has(request.method) ? request.body : undefined,
+      duplex: "half",
       // A proxy must never serve a cached answer: the reply depends on the
       // caller's role and on rows that change under them.
       cache: "no-store",
-    });
+    } as RequestInit & { duplex: "half" });
 
-    // Passed through as received rather than re-serialized, so a 204 stays
-    // empty and an error body reaches the client exactly as the backend wrote
-    // it. Re-parsing here is how `detail` goes missing from a refusal.
-    const body = await response.arrayBuffer();
-    return new NextResponse(body.byteLength ? body : null, {
+    // The backend's own body stream, passed through rather than buffered: a 204
+    // carries a null body and stays empty, an error body reaches the client
+    // exactly as the backend wrote it, and a large download reaches the browser
+    // as it arrives rather than only once the last byte is here. Re-reading it
+    // is how `detail` goes missing from a refusal and time-to-first-byte becomes
+    // the whole transfer.
+    return new NextResponse(response.body, {
       status: response.status,
       headers: describingHeaders(response.headers),
     });
