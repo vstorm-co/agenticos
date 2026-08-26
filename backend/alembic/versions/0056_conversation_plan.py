@@ -30,7 +30,12 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0056_conversation_plan"
-down_revision: str | None = "0055_sandbox_operations"
+# Re-parented onto 0056_backfill_rag_lookup_indexes rather than sharing
+# 0055_sandbox_operations with it: both were cut from 0055 in parallel, which left
+# two heads and failed every `alembic upgrade head`. The two are independent
+# (collection indexes vs conversations.plan), so chaining them linearises the
+# graph without a merge revision, which is what test_migration_chain.py wants.
+down_revision: str | None = "0056_backfill_rag_lookup_indexes"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
