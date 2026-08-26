@@ -77,7 +77,18 @@ class UserService:
         return await user_repo.get_multi(self.db, skip=skip, limit=limit)
 
     async def delete_non_admins(self) -> int:
-        return await user_repo.delete_non_admins(self.db)
+        """Delete every non-admin user, reconciling each as single deletion does.
+
+        Not a bulk `DELETE users`: every account has a personal org whose
+        `created_by_user_id` FK is RESTRICT, so a bulk delete 500s on the first
+        row (#1124). Each goes through `delete`, which runs `_release_owned_rows`
+        - purging the personal org, promoting private secrets, handing off or
+        refusing owned orgs - the same reconciliation `DELETE /users/{id}` uses.
+        """
+        users = await user_repo.list_non_admins(self.db)
+        for user in users:
+            await self.delete(user.id)
+        return len(users)
 
     async def has_any(self) -> bool:
         return await user_repo.has_any(self.db)

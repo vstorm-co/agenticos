@@ -66,18 +66,19 @@ class TestUserRepository:
         assert not hasattr(user, "role")
 
     @pytest.mark.anyio
-    async def test_clearing_seeded_users_keeps_the_deployment_admins(self, mock_session):
-        """`--clear` filters on `is_app_admin`, not on the dropped `role` column.
+    async def test_listing_non_admins_filters_on_is_app_admin(self, mock_session):
+        """`--clear` selects the non-admins to delete by `is_app_admin`, not the
+        dropped `role` column, and deletes each through the reconciling single
+        delete rather than a bulk statement that 500s on the personal-org FK
+        (#1124)."""
+        rows = [MagicMock(), MagicMock(), MagicMock()]
+        mock_session.execute.return_value = MagicMock(
+            scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=rows)))
+        )
 
-        Reading `User.role` raised before deleting anything, which made
-        `agenticos cmd seed --clear` fail rather than clear.
-        """
-        mock_session.flush = AsyncMock()
-        mock_session.execute.return_value = MagicMock(rowcount=3)
+        found = await user_repo.list_non_admins(mock_session)
 
-        removed = await user_repo.delete_non_admins(mock_session)
-
-        assert removed == 3
+        assert found == rows
         statement = str(mock_session.execute.call_args.args[0])
         assert "is_app_admin" in statement
 

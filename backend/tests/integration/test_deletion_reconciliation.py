@@ -197,6 +197,30 @@ class TestDeletingAUser:
 
         assert await db.get(User, owner.id) is not None
 
+    async def test_seed_clear_deletes_non_admins_each_with_a_personal_org(self, db):
+        """`seed --clear` bulk-deleted, which 500s on the personal-org
+        `created_by_user_id` RESTRICT FK every account has; `delete_non_admins`
+        now removes each through the reconciling single delete instead (#1124)."""
+        admin = _user()
+        admin.is_app_admin = True
+        db.add(admin)
+        await db.flush()
+        await _org(db, admin, is_personal=True)
+        members = []
+        for _ in range(3):
+            member = _user()
+            db.add(member)
+            await db.flush()
+            await _org(db, member, is_personal=True)
+            members.append(member)
+
+        removed = await UserService(db).delete_non_admins()
+
+        assert removed == 3
+        assert await db.get(User, admin.id) is not None  # the deployment admin stays
+        for member in members:
+            assert await db.get(User, member.id) is None  # each non-admin and its org went
+
     async def test_deleting_a_non_creator_owner_beside_a_co_owner_succeeds(self, db):
         """With another owner present the org keeps one when this membership
         cascades, so a non-creator co-owner deletes cleanly rather than being
