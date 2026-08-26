@@ -124,6 +124,13 @@ API, which then sends the browser on to `FRONTEND_URL`. Registering the
 frontend URL instead is the mistake worth naming: the consent screen works, and
 the callback 404s.
 
+The browser is sent on with a single-use, one-minute code, never the session
+tokens themselves: a token in a redirect URL reaches the address bar, the
+frontend server's access log, and the `Referer` of the next same-origin request,
+and the refresh token is good for a week. The frontend swaps the code for the
+token pair server to server at `POST /api/v1/oauth/exchange`, which redeems it
+exactly once.
+
 
 ## Database (PostgreSQL)
 
