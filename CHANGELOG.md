@@ -17,6 +17,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.279] - 2026-08-27
+
+### Fixed
+
+- **A terminal write could mask the cancellation that ended the run.** Both run
+  surfaces end in a `finally` that records the run and commits it, and any of those
+  raising - a serialization failure, a constraint the delegation savepoints did not
+  catch, a connection dropped mid-turn - replaces the exception that ended the run.
+  When that exception is the `CancelledError` from a stop, the turn was recorded and
+  surfaced as FAILED and the cancellation never reached the task that asked for it.
+  The whole terminal-persistence sequence runs under one guard now: the in-flight
+  exception is captured before it, and a write or commit that raises while the run
+  is already unwinding is logged while the original exception propagates. A clean
+  run still surfaces a persistence failure, and the guard catches `Exception` rather
+  than `BaseException`, so a second cancellation raised by the commit itself still
+  propagates. (#235)
+- The issue names the commit, but `finish` and the record hit the same connection
+  first, so guarding only the commit left the same masking one line earlier - which
+  is why `finish` already wraps its notify call for exactly this reason. The guard
+  covers all of it. (#235)
+
 ## [0.0.278] - 2026-08-26
 
 ### Fixed
