@@ -613,3 +613,49 @@ class TestTheLocalDirectorySync:
             await rag_tasks._run_sync(str(uuid.uuid4()), "local", "docs", "full", str(tmp_path))
 
         assert documents.create_document.await_args.kwargs["ingestion_config"] is not None
+
+
+class TestBlockingWorkRunsOffTheLoop:
+    """The worker's file walk, hash and stat go through `asyncio.to_thread`, so a
+    large tree or file does not stall its event loop (#1100)."""
+
+    async def test_the_file_hash_is_computed_off_the_worker_loop(self):
+        """The skip path hashes the downloaded file; the probe records which
+        thread ran the hash. On the loop thread it would fail - which is what a
+        direct `_hash_file(...)` call, before the offload, did."""
+        import threading
+
+        loop_thread = threading.get_ident()
+        seen: dict[str, int] = {}
+        real = rag_tasks._hash_file
+
+        def _probe(path: Path) -> str:
+            seen["thread"] = threading.get_ident()
+            return real(path)
+
+        with patch.object(rag_tasks, "_hash_file", _probe):
+            answer, ingest, _ = await _sync(
+                mode="new_only",
+                listing=[_stored(content_hash=BODY_HASH)],
+                connector=_connector(),
+            )
+
+        assert answer["skipped"] == 1  # the hash path ran
+        ingest.assert_not_awaited()
+        assert seen["thread"] != loop_thread
+
+    def test_hash_file_is_the_files_sha256(self, tmp_path: Path):
+        path = tmp_path / "handbook.md"
+        path.write_bytes(BODY)
+        assert rag_tasks._hash_file(path) == BODY_HASH
+
+    def test_walk_files_lists_non_hidden_files_recursively(self, tmp_path: Path):
+        (tmp_path / "a.md").write_text("x")
+        (tmp_path / ".hidden.md").write_text("x")
+        nested = tmp_path / "sub"
+        nested.mkdir()
+        (nested / "b.md").write_text("x")
+
+        names = sorted(f.name for f in rag_tasks._walk_files(tmp_path))
+
+        assert names == ["a.md", "b.md"]  # recursive, no hidden files, no directories

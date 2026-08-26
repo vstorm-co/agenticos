@@ -50,6 +50,18 @@ from app.services.sync_source import SyncSourceService
 logger = logging.getLogger(__name__)
 
 
+def _hash_file(path: Path) -> str:
+    """SHA-256 of a file's bytes. Blocking - reach it through `asyncio.to_thread`
+    so a large file does not stall the worker's event loop (#1100)."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _walk_files(root: Path) -> list[Path]:
+    """Every non-hidden file under a tree. Blocking - `rglob` plus a `stat` per
+    entry - so it runs through `asyncio.to_thread`, not on the loop (#1100)."""
+    return [f for f in root.rglob("*") if f.is_file() and not f.name.startswith(".")]
+
+
 def _say_in_flow_log(message: str) -> None:
     """Put one line where the operator of a failing ingestion is looking.
 
@@ -391,7 +403,7 @@ async def _run_sync(
     if target_path.is_file():
         files = [target_path]
     else:
-        files = [f for f in target_path.rglob("*") if f.is_file() and not f.name.startswith(".")]
+        files = await asyncio.to_thread(_walk_files, target_path)
 
     allowed = {ext.value for ext in DocumentExtensions}
     files = [f for f in files if f.suffix.lower() in allowed]
@@ -429,7 +441,7 @@ async def _run_sync(
                         "failed": failed,
                     }
 
-            source_path = str(filepath.resolve())
+            source_path = str(await asyncio.to_thread(filepath.resolve))
             if mode in ("new_only", "update_only"):
                 # One scan for both answers. They are facts about the same
                 # document, and asking for them separately is what let a live
@@ -438,7 +450,7 @@ async def _run_sync(
 
                 if mode == "new_only":
                     if existing.document_id:
-                        file_hash = hashlib.sha256(filepath.read_bytes()).hexdigest()
+                        file_hash = await asyncio.to_thread(_hash_file, filepath)
                         if existing.content_hash and file_hash == existing.content_hash:
                             skipped += 1
                             continue
@@ -447,11 +459,12 @@ async def _run_sync(
                     if not existing.document_id:
                         skipped += 1
                         continue
-                    file_hash = hashlib.sha256(filepath.read_bytes()).hexdigest()
+                    file_hash = await asyncio.to_thread(_hash_file, filepath)
                     if existing.content_hash and file_hash == existing.content_hash:
                         skipped += 1
                         continue
             try:
+                stat_result = await asyncio.to_thread(filepath.stat)
                 # Opened before the ingest, as the upload and the connector sync
                 # do (#992). Written afterwards it could fail afterwards - a
                 # database blip, a name longer than the column - leaving the
@@ -460,7 +473,7 @@ async def _run_sync(
                 # reaching the write, for good (#997).
                 row_id = await _open_document_row(
                     filename=filepath.name,
-                    filesize=filepath.stat().st_size,
+                    filesize=stat_result.st_size,
                     collection_name=collection_name,
                     # The same address it hands `existing_document` above, so the
                     # row and the lookup name one file (#996).
@@ -804,12 +817,12 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                         # that may have changed is the answer that cannot be
                         # corrected later.
                         if existing.content_hash and (
-                            hashlib.sha256(local_path.read_bytes()).hexdigest()
-                            == existing.content_hash
+                            await asyncio.to_thread(_hash_file, local_path) == existing.content_hash
                         ):
                             skipped += 1
                             continue
 
+                        stat_result = await asyncio.to_thread(local_path.stat)
                         # Opened before the ingest, which is the order the upload
                         # path uses and the only one that cannot leave the state this
                         # removes: a row written afterwards and failing - a database
@@ -819,7 +832,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                         # before reaching the write, for good.
                         row_id = await _open_document_row(
                             filename=remote_file.name,
-                            filesize=local_path.stat().st_size,
+                            filesize=stat_result.st_size,
                             collection_name=collection_name,
                             source_path=remote_file.source_path,
                             organization_id=organization_id,
