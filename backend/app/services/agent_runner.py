@@ -54,6 +54,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sys
 from collections import Counter
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
@@ -3387,62 +3388,75 @@ class AgentRunnerService:
             logger.exception("Agent run %s failed", prepared.run.id)
             raise
         finally:
-            await self.finish(
-                prepared,
-                status=status,
-                error=error,
-                paused_state=paused,
-                budget_scope=budget_scope,
-            )
-            # In the `finally`, so a run that failed, parked or was stopped still
-            # says what was asked and what it managed to do. Those are the runs
-            # somebody opens.
-            await self.transcript.record(
-                prepared.run,
-                prompt=said,
-                answer=output,
-                attachments=attachments,
-                tool_calls=called,
-                settled=settled,
-                # So the step the run stopped on reads "awaiting approval" when
-                # the conversation is read back, not as a call that ran (#601).
-                parked=frozenset(paused.tool_call_ids.values()) if paused else frozenset(),
-                model_label=prepared.built.model_label,
-                # The last request's own size, for the anchor a replayed history
-                # is measured against - see `build_message_history`.
-                context_used_tokens=prepared.built.context.latest,
-            )
-            # After the rows, because what is stored beside a summary is how far
-            # it reaches: recorded before them it would stop short of this turn
-            # and replay it twice. A channel thread is long-lived and never rolls
-            # over, so without this every message past the window buys its own
-            # summary of a history one turn longer (#49).
-            if prepared.run.conversation_id is not None:
-                conversations = ConversationService(self.db)
-                if summarized is not None:
-                    await conversations.keep_summary(prepared.run.conversation_id, summarized)
-                # On every turn, not only a summarising one: it is what the *next*
-                # turn needs before it has a response of its own to measure.
-                if prepared.built.context.overhead is not None:
-                    await conversations.keep_overhead(
-                        prepared.run.conversation_id, prepared.built.context.overhead
-                    )
-                # How far the reminder cadence advanced this turn, so the next one
-                # resumes it. Only when the counter has moved off zero, which it
-                # does exactly when a reminders capability ran this turn or a
-                # previous one recorded it - so an agent that has none never writes
-                # an empty blob, and `keep_reminder_state` skips a value unchanged
-                # since it was seeded.
-                if prepared.built.reminder_state.request_count:
-                    await conversations.keep_reminder_state(
-                        prepared.run.conversation_id, prepared.built.reminder_state.snapshot()
-                    )
-            # Committed here rather than left to the session context: that exit
-            # rolls back on any exception, and cancellation never reaches it at
-            # all, since `CancelledError` is not an `Exception`. A run that
-            # failed, was stopped or ran out of budget still spent money, and a
-            # run missing from history is a run nobody is accountable for.
-            await self.db.commit()
+            # None of this terminal-persistence sequence may replace the
+            # exception that ended the run. A `stop` cancels the turn, and any of
+            # these writes raising - a serialization failure, a constraint the
+            # delegation savepoints did not catch, a connection dropped mid-turn -
+            # would otherwise surface as a failed turn instead of a cancelled one
+            # (#235); the commit is only the last of them, and `finish`/`record`
+            # hit the same connection first. If the run ended cleanly there is
+            # nothing else wrong, so a persistence failure does surface. Committed
+            # here rather than left to the session context: that exit rolls back
+            # on any exception and is skipped entirely by a cancellation, so a run
+            # that failed, was stopped or ran out of budget would otherwise vanish
+            # from the history somebody opens.
+            ending = sys.exc_info()[0]
+            try:
+                await self.finish(
+                    prepared,
+                    status=status,
+                    error=error,
+                    paused_state=paused,
+                    budget_scope=budget_scope,
+                )
+                # So a run that failed, parked or was stopped still says what was
+                # asked and what it managed to do.
+                await self.transcript.record(
+                    prepared.run,
+                    prompt=said,
+                    answer=output,
+                    attachments=attachments,
+                    tool_calls=called,
+                    settled=settled,
+                    # So the step the run stopped on reads "awaiting approval" when
+                    # the conversation is read back, not as a call that ran (#601).
+                    parked=frozenset(paused.tool_call_ids.values()) if paused else frozenset(),
+                    model_label=prepared.built.model_label,
+                    # The last request's own size, for the anchor a replayed history
+                    # is measured against - see `build_message_history`.
+                    context_used_tokens=prepared.built.context.latest,
+                )
+                # After the rows, because what is stored beside a summary is how
+                # far it reaches: recorded before them it would stop short of this
+                # turn and replay it twice. A channel thread is long-lived and
+                # never rolls over, so without this every message past the window
+                # buys its own summary of a history one turn longer (#49).
+                if prepared.run.conversation_id is not None:
+                    conversations = ConversationService(self.db)
+                    if summarized is not None:
+                        await conversations.keep_summary(prepared.run.conversation_id, summarized)
+                    # On every turn, not only a summarising one: it is what the
+                    # *next* turn needs before it has a response of its own.
+                    if prepared.built.context.overhead is not None:
+                        await conversations.keep_overhead(
+                            prepared.run.conversation_id, prepared.built.context.overhead
+                        )
+                    # How far the reminder cadence advanced this turn, so the next
+                    # one resumes it. Only when the counter has moved off zero,
+                    # which it does exactly when a reminders capability ran this
+                    # turn or a previous one recorded it - so an agent that has
+                    # none never writes an empty blob, and `keep_reminder_state`
+                    # skips a value unchanged since it was seeded.
+                    if prepared.built.reminder_state.request_count:
+                        await conversations.keep_reminder_state(
+                            prepared.run.conversation_id,
+                            prepared.built.reminder_state.snapshot(),
+                        )
+                await self.db.commit()
+            except Exception:
+                if ending is None:
+                    raise
+                logger.exception("Could not persist the terminal state of run %s", prepared.run.id)
 
         return RunSegment(output=output, run=prepared.run, tool_calls=called, settled=settled)
 

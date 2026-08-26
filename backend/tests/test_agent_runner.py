@@ -2802,3 +2802,62 @@ class TestTranscriptRatings:
         assert result[message_id]["user_rating"] is None
         assert result[message_id]["rating_count"] == {"likes": 1, "dislikes": 0}
         user_ratings.assert_not_awaited()
+
+
+class TestACommitThatCannotLandRunner:
+    """The terminal commit must not replace the exception that ended the run (#235)."""
+
+    @pytest.mark.anyio
+    async def test_a_failing_commit_does_not_mask_the_cancellation(self):
+        """A stop cancels the run; a commit that then cannot land must not turn
+        that into a failed run by replacing the `CancelledError`."""
+        db = _db()
+        db.commit = AsyncMock(side_effect=RuntimeError("could not serialize access"))
+        service = AgentRunnerService(db)
+        prepared = _prepared()
+        prepared.built.agent.run = AsyncMock(side_effect=asyncio.CancelledError)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "hello")
+
+        db.commit.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_a_failing_commit_on_a_clean_run_still_surfaces(self):
+        """When nothing else ended the run, a commit that cannot land is the one
+        thing wrong and does surface."""
+        db = _db()
+        db.commit = AsyncMock(side_effect=RuntimeError("could not commit"))
+        service = AgentRunnerService(db)
+        prepared = _prepared()
+        prepared.built.agent.run = AsyncMock(return_value=MagicMock(output="the answer"))
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            pytest.raises(RuntimeError, match="could not commit"),
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "hello")
+
+    @pytest.mark.anyio
+    async def test_a_failing_finish_does_not_mask_the_cancellation(self):
+        """The masking window is the whole terminal write, not only the commit:
+        `finish` and `transcript.record` hit the same connection first and must
+        not replace the `CancelledError` either (#235)."""
+        db = _db()
+        service = AgentRunnerService(db)
+        prepared = _prepared()
+        prepared.built.agent.run = AsyncMock(side_effect=asyncio.CancelledError)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch.object(service, "finish", new=AsyncMock(side_effect=RuntimeError("dropped"))),
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "hello")
+
+        db.commit.assert_not_awaited()

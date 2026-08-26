@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sys
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
@@ -437,19 +438,30 @@ class ChatAgentRunner:
             logger.exception("Chat run %s failed", prepared.run.id)
             raise
         finally:
-            await self.runner.finish(
-                prepared,
-                status=status,
-                error=error,
-                paused_state=paused,
-                budget_scope=budget_scope,
-            )
-            # Committed here rather than left to the session context: that exit
-            # rolls back on any exception, and cancellation never reaches it at
-            # all, since `CancelledError` is not an `Exception`. A run that
-            # failed, was stopped or ran out of budget still spent money, and a
-            # run missing from history is a run nobody is accountable for.
-            await self.db.commit()
+            # Neither the terminal write nor its commit may replace the exception
+            # that ended the run. A `stop` cancels the turn, and `finish` or the
+            # commit raising here - a serialization failure, a constraint the
+            # delegation savepoints did not catch, a connection dropped mid-turn -
+            # would otherwise surface as a failed turn instead of a cancelled one
+            # (#235). If the run ended cleanly there is nothing else wrong, so a
+            # persistence failure does surface. Committed here rather than left to
+            # the session context: that exit rolls back on any exception and is
+            # skipped entirely by a cancellation, so a run that failed, was stopped
+            # or ran out of budget would otherwise vanish from history.
+            ending = sys.exc_info()[0]
+            try:
+                await self.runner.finish(
+                    prepared,
+                    status=status,
+                    error=error,
+                    paused_state=paused,
+                    budget_scope=budget_scope,
+                )
+                await self.db.commit()
+            except Exception:
+                if ending is None:
+                    raise
+                logger.exception("Could not persist the terminal state of run %s", prepared.run.id)
 
         return ChatTurn(
             output=output,
