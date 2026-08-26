@@ -17,6 +17,37 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.270] - 2026-08-26
+
+Three deletes that could only 500, because a cascade drove exactly the write a
+CHECK forbids.
+
+### Fixed
+
+- **A leaver's private secret.** `organization_secrets.owner_user_id` is
+  `ON DELETE SET NULL` under `ck_secret_private_needs_owner`, so the cascade wrote
+  the one row the constraint refuses and the delete raised inside Postgres.
+  `UserService.delete` promotes the leaver's private secrets to organization
+  visibility first, so the null is legal and the key stays reachable by the
+  organization. (#9)
+- **A creator's organizations.** `organizations.created_by_user_id` is RESTRICT and
+  every signup creates a personal organization, so a bare `DELETE users` never
+  worked for a real account. The personal organization is removed with its owner, a
+  shared one is handed to another owner, and the delete is refused - cleanly, as a
+  `BadRequestError` rather than a 500 - when there is no other owner. (#9)
+- **An organization-scoped collection.** `knowledge_bases.organization_id` is
+  SET NULL under `ck_knowledge_bases_org_scope_has_org`.
+  `OrganizationService.delete` removes organization-scoped collections explicitly,
+  vector table and all, before the organization row goes; a personal collection
+  merely carrying the organization's id is left to the SET NULL. Dropping the
+  vector table needs the request-scoped store, so the delete route wires it in
+  through a dedicated dependency and every other organization route builds none.
+  (#9)
+- Each pair is reconciled in the service, inside the request's own transaction,
+  before the row goes. Three `ondelete`-less FKs to `users.id` are deliberately out
+  of scope - they are NO ACTION, so deleting a user who invited somebody still
+  500s, and that needs a migration. (#9, #1110)
+
 ## [0.0.269] - 2026-08-26
 
 ### Fixed
