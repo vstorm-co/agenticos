@@ -17,6 +17,32 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.249] - 2026-08-26
+
+A week of full account access no longer sits in an access log.
+
+### Fixed
+
+- **The Google OAuth callback put the access and refresh tokens in a query
+  string.** That URL reaches the address bar and session history, the frontend
+  server's access log and any reverse proxy in front of it, and the `Referer` of
+  the next same-origin request the callback page makes - `Referrer-Policy:
+  strict-origin-when-cross-origin` sends the full URL same-origin. The refresh
+  token is valid for a week, so anybody who could read an access log had a week of
+  full account access. (#14)
+- **The callback now hands out a single-use, one-minute code** and keeps the token
+  pair in Redis. `POST /api/v1/oauth/exchange` redeems it with `GETDEL`, so a
+  replayed, an expired and a forged code all redeem to nothing and answer 401. The
+  frontend BFF swaps the code for the pair, verifies the access token against
+  `/auth/me`, and moves both into HttpOnly cookies - the tokens never touch a URL.
+  That also closes the session-fixation shape, because the BFF no longer accepts a
+  client-supplied token pair. (#14)
+
+### Changed
+
+- `docs/configuration.md` records the token-delivery decision under its OAuth
+  section. (#14)
+
 ## [0.0.248] - 2026-08-26
 
 The routines onboarding path no longer freezes the page it is teaching.
