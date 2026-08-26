@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.268] - 2026-08-26
+
+### Fixed
+
+- **A non-ASCII credential was a 500 with a traceback rather than a refusal.**
+  `secrets.compare_digest` raises `TypeError` on a non-ASCII `str` instead of
+  answering `False`, and three checks compared `str` with the left operand taken
+  from the caller: `deps.verify_api_key` on the API-key header, the Mattermost
+  webhook bearer check, and the Slack signature check. So `{"token": "é"}` to the
+  *unauthenticated* Mattermost webhook, or a non-ASCII `X-Slack-Signature`, was a
+  logged 500 - a free log-flooding primitive. Not an auth bypass, since the
+  comparison never matched anyway. All three compare encoded bytes now: still
+  constant-time, and non-ASCII refuses cleanly. (#33)
+
 ## [0.0.267] - 2026-08-26
 
 ### Changed
