@@ -3,6 +3,7 @@
 Covers validate_webhook_url() and _is_ip_blocked() from app.core.sanitize.
 """
 
+import socket
 from unittest.mock import patch
 
 import pytest
@@ -139,6 +140,27 @@ class TestDnsResolution:
         with patch("app.core.sanitize.socket.getaddrinfo", self._mock_getaddrinfo_public):
             result = validate_webhook_url("https://example.com/webhook")
             assert result == "https://example.com/webhook"
+
+    def test_a_hostname_that_fails_to_resolve_is_blocked(self):
+        """A lookup that raises is refused here, not left to fail later against an
+        address the pinning never vetted."""
+
+        def _raise(*_args: object, **_kwargs: object) -> list[object]:
+            raise socket.gaierror("Name or service not known")
+
+        with (
+            patch("app.core.sanitize.socket.getaddrinfo", _raise),
+            pytest.raises(SSRFBlockedError, match="unable to resolve"),
+        ):
+            validate_webhook_url("https://nonexistent.invalid/hook")
+
+    def test_a_hostname_resolving_to_no_address_is_blocked(self):
+        """`getaddrinfo` returning nothing is treated as a block, not an allow."""
+        with (
+            patch("app.core.sanitize.socket.getaddrinfo", lambda *_a, **_k: []),
+            pytest.raises(SSRFBlockedError, match="did not resolve"),
+        ):
+            validate_webhook_url("https://empty.example.com/hook")
 
 
 # validate_webhook_url - edge cases

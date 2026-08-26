@@ -145,6 +145,7 @@ from app.db.models.agent_run import AgentRun, ApprovalStatus, RunOrder, RunStatu
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Message
 from app.db.models.run_manifest import RunManifest
+from app.db.session import get_worker_db_context
 from app.repositories import (
     agent_environment_repo,
     agent_exposure_repo,
@@ -1342,6 +1343,20 @@ def _spend_already_booked(run: AgentRun) -> SpendEntry:
     )
 
 
+@dataclass(frozen=True)
+class _RecordedState:
+    """What an earlier turn of a conversation left for the next one to seed from.
+
+    Three fields off one row, named rather than positional: they were a tuple of
+    two, and a third would have made every call site count commas to find out
+    which value it was reading.
+    """
+
+    overhead: int | None
+    reminder_state: dict[str, Any] | None
+    plan: list[dict[str, Any]] | None
+
+
 def _observability_of(stored: dict[str, Any]) -> ObservabilitySpec | None:
     """The observability block of a stored spec, without validating the rest of it.
 
@@ -1430,30 +1445,33 @@ class AgentRunnerService:
             names.append(collection.collection_name)
         return names
 
-    async def _recorded_conversation_state(
-        self, conversation_id: UUID | None
-    ) -> tuple[int | None, dict[str, Any] | None]:
+    async def _recorded_conversation_state(self, conversation_id: UUID | None) -> _RecordedState:
         """What an earlier turn of this thread recorded, in one read.
 
-        Two things the build seeds from the conversation - the request overhead
-        (instructions and tool schemas) and how far the system-reminders cadence
-        has advanced. Both are properties of the agent rather than of the
-        conversation, strictly, but the conversation is where a run finds them
-        without asking every surface to carry them, and an agent answering one
-        thread answers with the instructions and tools it has now.
+        Three things the build seeds from the conversation - the request overhead
+        (instructions and tool schemas), how far the system-reminders cadence has
+        advanced, and the plan the agent is working to. All three are properties of
+        the agent rather than of the conversation, strictly, but the conversation is
+        where a run finds them without asking every surface to carry them, and an
+        agent answering one thread answers with the instructions and tools it has
+        now.
 
         Read together because they are seeded together: without the overhead a
         one-request turn cannot tell a window with no room for a summary from one
-        that works (#49), and without the cadence a reminder set to fire every N
-        requests never reaches N in a chat of one-request turns. One row, so one
-        SELECT rather than one each.
+        that works (#49); without the cadence a reminder set to fire every N
+        requests never reaches N in a chat of one-request turns; and without the
+        plan an agent denies a checklist it wrote in the previous message, because
+        a plan store is one run's and a chat message is a run (#1077). One row, so
+        one SELECT rather than one each.
         """
         if conversation_id is None:
-            return None, None
+            return _RecordedState(None, None, None)
         conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
         if conversation is None:
-            return None, None
-        return conversation.overhead_tokens, conversation.reminder_state
+            return _RecordedState(None, None, None)
+        return _RecordedState(
+            conversation.overhead_tokens, conversation.reminder_state, conversation.plan_items
+        )
 
     async def prepare(
         self,
@@ -1610,12 +1628,20 @@ class AgentRunnerService:
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
         }
+        # What an earlier turn of this thread wrote down. Read here rather than
+        # beside the build below, because one of the three is a resource.
+        recorded = await self._recorded_conversation_state(conversation_id)
         # Always present, like the two above and unlike the conditional resources
         # below: the planning capability reads it only when bound, but the runner
         # owns the store either way so `finish` can snapshot the checklist into the
-        # parked state. Seeded from `PausedRunState.plan` on a resume and empty on a
-        # fresh run - which is what carries a plan across an approval park.
-        plan_store = await open_plan_store(plan_items)
+        # parked state.
+        #
+        # Seeded from `PausedRunState.plan` on a resume and from the *conversation*
+        # on a fresh run. The park's copy wins because it is the newer one - it was
+        # itself seeded from the conversation when that run began, and then worked
+        # on. Without the conversation's copy the store is empty every turn, which
+        # is an agent denying the plan it wrote in the previous message (#1077).
+        plan_store = await open_plan_store(plan_items if plan_items is not None else recorded.plan)
         resources[PLANNING_STORE_RESOURCE] = plan_store
         # Only on a channel run, and bound to the channel the message arrived in
         # before it got here. Absent everywhere else, and `channel_tools` then
@@ -1663,11 +1689,30 @@ class AgentRunnerService:
         # made `AgentSpec.budget.monthly_usd` a second organization cap wearing
         # an agent's name: an agent with a $10 limit was refused once its
         # *neighbours* had spent $10, and nothing ever isolated its own spend.
+        # Each on a session of its own, never the run's. The budget capability
+        # reads its baseline once, immediately before the run's first model
+        # request - a read on the shared session there would open a transaction
+        # that then sits `idle in transaction` for the rest of the run, holding
+        # the very connection the opening commit in `_run` exists to hand back:
+        # measured under 18 concurrent runs, the three past the pool waited 26
+        # seconds at this read (#12). The worker context and not the pooled one,
+        # because a trigger fires runs inside Prefect flows: a pooled connection
+        # made on one flow's event loop breaks whoever checks it out on the
+        # next, and this read happens on whatever loop the run is on. One
+        # connect per run, next to a model call.
         async def agent_period_spend() -> Decimal:
-            return await self.monthly_spend(ctx, agent_id=agent.id)
+            async with get_worker_db_context() as db:
+                return await agent_run_repo.sum_cost_since(
+                    db,
+                    organization_id=ctx.organization_id,
+                    since=month_start(),
+                    agent_id=agent.id,
+                    include_delegations=True,
+                )
 
         async def org_period_spend() -> Decimal:
-            return await self.monthly_spend(ctx)
+            async with get_worker_db_context() as db:
+                return await organization_monthly_spend(db, ctx.organization_id)
 
         # Opened after the run row, because a run-scoped workspace keys on it,
         # and before the agent, because the capability reads the backend out of
@@ -1753,9 +1798,6 @@ class AgentRunnerService:
         if runtime is not None:
             resources[SUBAGENT_RUNTIME_RESOURCE] = runtime
 
-        recorded_overhead, recorded_reminder_state = await self._recorded_conversation_state(
-            conversation_id
-        )
         built = build_agent(
             spec,
             model_spec,
@@ -1782,8 +1824,8 @@ class AgentRunnerService:
             # a one-request turn cannot tell a window with no room for a summary
             # from one that works (#49), and how far the reminder cadence has
             # advanced, so it counts across turns rather than resetting each one.
-            recorded_overhead=recorded_overhead,
-            recorded_reminder_state=recorded_reminder_state,
+            recorded_overhead=recorded.overhead,
+            recorded_reminder_state=recorded.reminder_state,
         )
 
         # Both only assignable now, and both before the run starts. The guard and
@@ -3092,11 +3134,12 @@ class AgentRunnerService:
         # end:
         #
         # A resume arriving *while this one is still building* waits at
-        # `claim_parked_run` - the row lock is held for the whole transaction -
-        # and then reads the status written here, so building first widens no
-        # window. A resume arriving *after this transaction commits* has no lock
-        # to wait on, and what refuses it is finding the run no longer parked; so
-        # the status has to change before the tool call is replayed, not after.
+        # `claim_parked_run` - the row lock is held until `_run` commits, which
+        # it does before anything is replayed - and then reads the status
+        # written here, so building first widens no window. A resume arriving
+        # *after that commit* has no lock to wait on, and what refuses it is
+        # finding the run no longer parked; so the status has to change before
+        # the tool call is replayed, not after.
         #
         # It is written last because a build refuses for reasons that have
         # nothing to do with this run: a secret a binding names deleted since the
@@ -3315,6 +3358,18 @@ class AgentRunnerService:
         :meth:`finish` queues with it, which is how a delegate that spent real
         money came to be recorded nowhere. Committing here is what makes the row
         survive; re-raising is what lets whoever cancelled see it happen.
+
+        **And the transaction ends before the model is asked anything.** Each
+        half of the opening commit is load-bearing: the run row becomes visible
+        to every other session while the run executes, and the pooled connection
+        goes back to the pool for the seconds-to-minutes the model takes,
+        instead of sitting `idle in transaction` holding a row lock - fifteen
+        concurrent runs used to be the entire pool (#12). On a resume it is also
+        what makes `mark_running` durable: a crash mid-replay leaves the run
+        `running` rather than parked with its approval still marked approved,
+        which a second resume would replay - re-sending whatever the approved
+        call already sent (#3). `ChatAgentRunner.run`, the one surface not
+        routed through here, sets the same boundary.
         """
         status = RunStatus.FAILED
         error: str | None = None
@@ -3331,6 +3386,10 @@ class AgentRunnerService:
         # of this run (#235). `sys.exc_info()` cannot answer that: it also reports
         # a caller's handled exception when `execute` is awaited from inside one.
         finished_cleanly = False
+        # The opening commit: the row is visible mid-run and no connection is
+        # held across the model call - the docstring carries the whole of it
+        # (#12, #3).
+        await self.db.commit()
         try:
             result = await self._answer(
                 prepared,
@@ -3460,6 +3519,14 @@ class AgentRunnerService:
                             prepared.run.conversation_id,
                             prepared.built.reminder_state.snapshot(),
                         )
+                    # The checklist the turn ended on, so the next turn starts
+                    # from it rather than from nothing. Unconditional: `keep_plan`
+                    # treats an empty list as no plan, so an agent that binds no
+                    # planning capability writes nothing, and a run that emptied a
+                    # stored plan records that it did.
+                    await conversations.keep_plan(
+                        prepared.run.conversation_id, await dump_plan(prepared.plan_store)
+                    )
                 await self.db.commit()
             except Exception:
                 if finished_cleanly:

@@ -1,15 +1,18 @@
 """OAuth2 authentication routes."""
 
 import logging
+from typing import Any
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
-from app.api.deps import UserSvc
+from app.api.deps import OAuthExchangeSvc, UserSvc
 from app.core.config import settings
+from app.core.exceptions import AuthenticationError
 from app.core.oauth import oauth
 from app.core.security import create_access_token, create_refresh_token
+from app.schemas.token import OAuthExchangeRequest, Token
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +47,9 @@ async def google_login(request: Request, invitation: str | None = None):
 
 
 @router.get("/google/callback", response_model=None)
-async def google_callback(request: Request, user_service: UserSvc):
+async def google_callback(
+    request: Request, user_service: UserSvc, exchange_service: OAuthExchangeSvc
+):
     """Handle Google OAuth2 callback."""
     frontend = settings.FRONTEND_URL.rstrip("/")
     try:
@@ -69,15 +74,24 @@ async def google_callback(request: Request, user_service: UserSvc):
         access_token = create_access_token(subject=str(user.id))
         refresh_token = create_refresh_token(subject=str(user.id))
 
-        params = urlencode(
-            {
-                "access_token": access_token,
-                "refresh_token": refresh_token,
-            }
-        )
+        # A single-use code, not the tokens: a token in the redirect URL reaches
+        # the address bar, the server access log, and the `Referer` of the next
+        # same-origin request, and the refresh token is good for a week (#14).
+        code = await exchange_service.issue(access_token=access_token, refresh_token=refresh_token)
+        params = urlencode({"code": code})
         return RedirectResponse(url=f"{frontend}/auth/callback?{params}")
 
     except Exception:
         logger.exception("google_oauth_callback_failed")
         params = urlencode({"error": "Sign-in failed. Please try again."})
         return RedirectResponse(url=f"{frontend}/login?{params}")
+
+
+@router.post("/exchange", response_model=Token)
+async def exchange_code(body: OAuthExchangeRequest, exchange_service: OAuthExchangeSvc) -> Any:
+    """Swap a single-use OAuth code for its token pair, server to server."""
+    tokens = await exchange_service.redeem(body.code)
+    if tokens is None:
+        raise AuthenticationError(message="Invalid or expired exchange code")
+    access_token, refresh_token = tokens
+    return Token(access_token=access_token, refresh_token=refresh_token)

@@ -337,6 +337,10 @@ class TestOrganizationService:
             patch.object(
                 service, "get_for_user", new=AsyncMock(return_value=(mock_org, mock_membership))
             ),
+            patch(
+                "app.services.organization.knowledge_base_repo.list_org_scoped",
+                new=AsyncMock(return_value=[]),
+            ),
             patch("app.services.organization.organization_repo.delete", new=AsyncMock()),
         ):
             await service.delete(uuid.uuid4(), uuid.uuid4())
@@ -669,3 +673,26 @@ class TestUserServiceRegistrationWithOrg:
             await svc.register(UserCreate(email="new@example.com", password="password123"))
 
         mock_create_org.assert_called_once()
+
+
+class TestTeardownWiring:
+    """The delete route is the only place a vector store reaches org deletion."""
+
+    @pytest.mark.anyio
+    async def test_the_delete_route_wires_the_store_so_vector_tables_are_dropped(self):
+        """A revert to the plain service would delete the org rows and orphan every
+        `rag_<collection>` table with no test noticing - this is that test (#9)."""
+        from app.api.deps import get_organization_teardown_service
+        from app.api.routes.v1 import organizations as org_routes
+
+        store = MagicMock()
+        service = get_organization_teardown_service(db=MagicMock(), vector_store=store)
+        assert service._vector_store is store
+
+        annotation = org_routes.delete_organization.__annotations__["service"]
+        wired = [
+            meta.dependency
+            for meta in getattr(annotation, "__metadata__", ())
+            if hasattr(meta, "dependency")
+        ]
+        assert get_organization_teardown_service in wired

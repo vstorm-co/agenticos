@@ -29,8 +29,9 @@ openssl rand -hex 32   # VAULT_MASTER_KEY — unwraps every credential stored at
 
 `SECRET_KEY` ships as a published string, and an empty `VAULT_MASTER_KEY` falls
 back to it so a fresh checkout runs at all. Both are fine on a laptop and are the
-whole security of a deployment anywhere else — and setting `VAULT_MASTER_KEY`
-explicitly is also what lets stored secrets survive a `SECRET_KEY` rotation.
+whole security of a deployment anywhere else — which is why the config refuses an
+unset `VAULT_MASTER_KEY` outside `local`/`development`. Setting it explicitly is
+also what lets stored secrets survive a `SECRET_KEY` rotation.
 
 ## Project Settings
 
@@ -46,6 +47,7 @@ explicitly is also what lets stored secrets survive a `SECRET_KEY` rotation.
 | `MAX_UPLOAD_SIZE_MB` | `50` | Knowledge-base document cap, and the number the whole-request ceiling below is derived from. A document at this size is chunked and embedded, not held in one piece |
 | `CHAT_MAX_UPLOAD_SIZE_MB` | `10` | What may be attached in chat. Its own setting rather than the one above, because an attachment to an agent with no workspace is pasted whole into the prompt — so the two surfaces fail differently at the same size. Was a hardcoded 10 MiB no operator could raise ([#498](https://github.com/vstorm-co/agenticos/issues/498)); set the frontend's `NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB` to match, or the composer refuses a file the server would take |
 | `EMBED_MAX_UPLOAD_SIZE_MB` | `5` | What a **stranger** may upload to a hosted page. A ceiling on top of `CHAT_MAX_UPLOAD_SIZE_MB`, never a way past it |
+| `FILE_IO_MAX_WORKERS` | `8` | Size of the dedicated thread pool that runs blocking file work — parsing an upload and reading or writing its bytes. Kept off `asyncio`'s shared default executor, which also runs `bcrypt` and pinned-host DNS, so a burst of uploads cannot leave sign-in and outbound requests queued behind them ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Raise it on a host that parses many uploads at once. Must be a positive integer — a `0` or negative value is refused at startup |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | The monthly spend ceiling a **new** organization starts with, in USD, so it is not one runaway agent away from a surprise bill. Applies at creation only; existing organizations are untouched and any organization can be cleared back to no cap afterwards. Must be positive; leave **empty** to start organizations uncapped (the older opt-in posture) |
 
 ### The size of a request, as opposed to the size of a file
@@ -93,7 +95,8 @@ ciphertext is therefore useless outside the tenant it was sealed for.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VAULT_MASTER_KEY` | (empty, falls back to `SECRET_KEY`) | Master key for the secret vault. Set it explicitly in production so stored secrets survive a `SECRET_KEY` rotation. Generate with: `openssl rand -hex 32` |
+| `VAULT_MASTER_KEY` | (empty, falls back to `SECRET_KEY`) | Master key for the secret vault — shorthand for version 1 of `VAULT_MASTER_KEYS`. Required outside `local`/`development` (unless the map below is set), so a staging vault cannot boot sealed under the published `SECRET_KEY` default. Generate with: `openssl rand -hex 32` |
+| `VAULT_MASTER_KEYS` | `{}` | Every master key still in use, by version, as JSON — `{"1": "<old>", "2": "<new>"}`. The highest version seals new secrets; older ones keep existing rows readable until `agenticos cmd vault-rotate` re-wraps them. When set it is the whole truth: `VAULT_MASTER_KEY` must then be empty. See [Secrets](secrets.md#operations) |
 
 ### API Key
 
@@ -123,6 +126,13 @@ The authorized redirect URI is the **backend's** callback, not the frontend's -
 API, which then sends the browser on to `FRONTEND_URL`. Registering the
 frontend URL instead is the mistake worth naming: the consent screen works, and
 the callback 404s.
+
+The browser is sent on with a single-use, one-minute code, never the session
+tokens themselves: a token in a redirect URL reaches the address bar, the
+frontend server's access log, and the `Referer` of the next same-origin request,
+and the refresh token is good for a week. The frontend swaps the code for the
+token pair server to server at `POST /api/v1/oauth/exchange`, which redeems it
+exactly once.
 
 
 ## Database (PostgreSQL)
@@ -195,6 +205,18 @@ during the working day and a stale ask is worse than a slow one; lengthen it whe
 approvals are a weekly ritual. Expiring a call also **ends its run** — see
 [Governance](governance.md#a-decision-nobody-makes) for what that settles and what
 it deliberately leaves alone.
+
+### Stale-run reaping
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `STALE_RUN_REAPED_AFTER_HOURS` | `6` | How long a run may sit `running` before the hourly sweep decides its process died and ends it as `failed`. Zero or below switches the sweep off |
+
+A run's row is committed before its model is called, so a worker killed mid-run
+leaves it `running` with nothing left to finish it. The ceiling does not have to
+be exact — a live run the sweep flips anyway is flipped back by its own terminal
+write — so set it well past your longest legitimate run and no closer. See
+[Governance](governance.md#a-run-whose-process-died).
 
 ## AI Models — configured in the app, not here
 
@@ -783,9 +805,11 @@ stale and production's pipe ping goes unanswered.
 Before deploying to production, ensure these variables are properly set:
 1. `SECRET_KEY` -- Generate a unique 64-character hex key: `openssl rand -hex 32`
 2. `API_KEY` -- Generate a unique key: `openssl rand -hex 32`
-3. `ENVIRONMENT` -- Set to `production`
-4. `DEBUG` -- Set to `false`
-5. `POSTGRES_PASSWORD` -- Use a strong, unique password
-6. `CORS_ORIGINS` -- List only your actual frontend domain(s)
-7. `REDIS_PASSWORD` -- Set a strong password
-8. `OPENROUTER_API_KEY` -- Your production API key
+3. `VAULT_MASTER_KEY` -- Generate a unique key: `openssl rand -hex 32`. The config
+   refuses an empty one outside `local`/`development`
+4. `ENVIRONMENT` -- Set to `production`
+5. `DEBUG` -- Set to `false`
+6. `POSTGRES_PASSWORD` -- Use a strong, unique password
+7. `CORS_ORIGINS` -- List only your actual frontend domain(s)
+8. `REDIS_PASSWORD` -- Set a strong password
+9. `OPENROUTER_API_KEY` -- Your production API key

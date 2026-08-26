@@ -6,6 +6,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.blocking import run_blocking
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.db.models.chat_file import ChatFile
@@ -96,15 +97,22 @@ class FileUploadService:
         """Parse file content based on file type.
 
         Returns extracted text content or None if parsing fails.
+
+        Every branch is blocking CPU work - pymupdf over every page, openpyxl over
+        every cell, a decode of up to `MAX_UPLOAD_SIZE` bytes - with no suspension
+        point, so it runs on the dedicated file pool rather than the request loop,
+        where one large upload would otherwise freeze every other request and agent
+        stream on this worker. The pool is bounded and its own, so a burst of
+        parses cannot exhaust the executor `bcrypt` and DNS share (#1108).
         """
         if file_type == "text":
-            return self._parse_text_content(data, mime_type)
+            return await run_blocking(self._parse_text_content, data, mime_type)
         if file_type == "pdf":
-            return self._parse_pdf_content(data)
+            return await run_blocking(self._parse_pdf_content, data)
         if file_type == "docx":
-            return self._parse_docx_content(data)
+            return await run_blocking(self._parse_docx_content, data)
         if file_type == "spreadsheet":
-            return self._parse_spreadsheet_content(data)
+            return await run_blocking(self._parse_spreadsheet_content, data)
         return None
 
     @staticmethod

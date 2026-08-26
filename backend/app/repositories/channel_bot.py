@@ -38,14 +38,22 @@ async def get_for_org(
     bot_id: UUID,
     *,
     organization_id: UUID,
+    for_update: bool = False,
 ) -> ChannelBot | None:
-    """Get a bot by ID within one organization."""
-    result = await db.execute(
-        select(ChannelBot).where(
-            ChannelBot.id == bot_id,
-            ChannelBot.organization_id == organization_id,
-        )
+    """Get a bot by ID within one organization.
+
+    `for_update` locks the row and re-reads its columns. A writer about to seal
+    a credential at the row's recorded key version must hold the row from the
+    read, or a rotation committing in between leaves its envelope tagged with a
+    version it was not sealed under.
+    """
+    stmt = select(ChannelBot).where(
+        ChannelBot.id == bot_id,
+        ChannelBot.organization_id == organization_id,
     )
+    if for_update:
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
+    result = await db.execute(stmt)
     return result.scalar_one_or_none()
 
 

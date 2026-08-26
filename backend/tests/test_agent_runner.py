@@ -27,6 +27,7 @@ from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendLed
 from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
 from app.agents.capabilities.compaction import ContextGauge
 from app.agents.capabilities.guardrails import GuardrailBlocked
+from app.agents.capabilities.planning import PLANNING_STORE_RESOURCE
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, ObservabilitySpec
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
 from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
@@ -565,9 +566,112 @@ class TestSpendReporting:
         ingested.assert_not_called()
 
 
+class TestAPlanThatOutlivesTheTurn:
+    """A plan store is one pydantic-ai run's, and here a run is one turn - so the
+    checklist an agent wrote in one message was gone by the next, and the agent
+    answered that no plan existed and it had never created one (#1077)."""
+
+    @pytest.mark.anyio
+    async def test_a_fresh_turn_seeds_the_plan_its_conversation_left(self):
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Support", model_profile_id=uuid.uuid4())
+        conversation = MagicMock(
+            overhead_tokens=None,
+            reminder_state=None,
+            plan_items=[{"id": "aa11", "content": "Write the fix", "status": "in_progress"}],
+        )
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.conversation_repo.get_conversation_by_id",
+                new=AsyncMock(return_value=conversation),
+            ),
+            patch("app.services.agent_runner.build_agent"),
+        ):
+            prepared = await service.prepare(ctx, agent.id, conversation_id=uuid.uuid4())
+
+        items = await prepared.plan_store.get_items()
+        assert [(item.content, item.status.value) for item in items] == [
+            ("Write the fix", "in_progress")
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_resume_starts_from_the_plan_the_run_parked_with(self):
+        """Both copies exist on a resume, and the park's is the newer one: it was
+        seeded from the conversation when that run began and then worked on."""
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        run = _parked_run(
+            conversation_id=uuid.uuid4(),
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "plan": [{"id": "bb22", "content": "Ship the fix", "status": "in_progress"}],
+            },
+        )
+        agent = MagicMock(id=run.agent_id, current_version_id=run.agent_version_id)
+        spec = AgentSpec(name="Support")
+        stale = MagicMock(
+            overhead_tokens=None,
+            reminder_state=None,
+            plan_items=[{"id": "aa11", "content": "Write the fix", "status": "pending"}],
+        )
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("app.services.agent_runner.agent_run_repo.mark_running", new=AsyncMock()),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service, "_parked_spec", new=AsyncMock(return_value=(agent, spec))),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.conversation_repo.get_conversation_by_id",
+                new=AsyncMock(return_value=stale),
+            ),
+            patch.object(service.transcript, "record", new=AsyncMock()),
+            patch("app.services.agent_runner.ConversationService") as conversations,
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            conversations.return_value.keep_summary = AsyncMock()
+            conversations.return_value.keep_overhead = AsyncMock()
+            conversations.return_value.keep_reminder_state = AsyncMock()
+            conversations.return_value.keep_plan = AsyncMock()
+            build.return_value.agent.run = AsyncMock(return_value=MagicMock(output="done"))
+            build.return_value.ledger = SpendLedger()
+            await service.resume(ctx, run.id)
+
+        store = build.call_args.kwargs["resources"][PLANNING_STORE_RESOURCE]
+        assert [item.content for item in await store.get_items()] == ["Ship the fix"]
+
+
 class TestRecordedConversationState:
-    """The overhead and the reminder cadence a build seeds from - both off one
-    read of the conversation, so a thread with neither still costs one SELECT."""
+    """The overhead, the reminder cadence and the plan a build seeds from - all
+    off one read of the conversation, so a thread with none still costs one
+    SELECT."""
 
     @pytest.mark.anyio
     async def test_no_conversation_id_reads_nothing(self):
@@ -578,7 +682,7 @@ class TestRecordedConversationState:
         ) as fetch:
             result = await AgentRunnerService(_db())._recorded_conversation_state(None)
 
-        assert result == (None, None)
+        assert (result.overhead, result.reminder_state, result.plan) == (None, None, None)
         fetch.assert_not_called()
 
     @pytest.mark.anyio
@@ -590,22 +694,25 @@ class TestRecordedConversationState:
         ):
             result = await AgentRunnerService(_db())._recorded_conversation_state(uuid.uuid4())
 
-        assert result == (None, None)
+        assert (result.overhead, result.reminder_state, result.plan) == (None, None, None)
 
     @pytest.mark.anyio
-    async def test_both_recorded_values_come_from_one_read(self):
-        """Overhead and cadence are returned together from a single fetch."""
-        conversation = MagicMock(overhead_tokens=3_865, reminder_state={"request_count": 4})
+    async def test_every_recorded_value_comes_from_one_read(self):
+        """Overhead, cadence and the plan are returned together from a single fetch."""
+        conversation = MagicMock(
+            overhead_tokens=3_865,
+            reminder_state={"request_count": 4},
+            plan_items=[{"id": "aa11", "content": "Write the fix", "status": "in_progress"}],
+        )
         with patch(
             "app.services.agent_runner.conversation_repo.get_conversation_by_id",
             new=AsyncMock(return_value=conversation),
         ) as fetch:
-            overhead, reminder_state = await AgentRunnerService(_db())._recorded_conversation_state(
-                uuid.uuid4()
-            )
+            recorded = await AgentRunnerService(_db())._recorded_conversation_state(uuid.uuid4())
 
-        assert overhead == 3_865
-        assert reminder_state == {"request_count": 4}
+        assert recorded.overhead == 3_865
+        assert recorded.reminder_state == {"request_count": 4}
+        assert [item["content"] for item in recorded.plan or []] == ["Write the fix"]
         assert fetch.await_count == 1
 
 
@@ -1287,9 +1394,11 @@ class TestStoppingANonStreamingRun:
         assert recorded["error"] is None
         assert recorded["cost_usd"] == Decimal("2.00")
         # And it survives. `get_db_session` commits on a clean exit, which a
-        # propagating `BaseException` is not, so without this the row above was
-        # written and then rolled straight back.
-        db.commit.assert_awaited_once()
+        # propagating `BaseException` is not, so without the terminal commit the
+        # row above was written and then rolled straight back. Two commits: the
+        # one that made the run row visible before the model was called, and the
+        # one that lands the terminal write.
+        assert db.commit.await_count == 2
 
     @pytest.mark.anyio
     async def test_a_cancelled_run_keeps_the_delegation_rows_underneath_it(self):
@@ -1349,11 +1458,68 @@ class TestStoppingANonStreamingRun:
         ):
             await service.execute(_ctx(), uuid.uuid4(), "hello")
 
-        assert order == ["parent", "delegation", "commit"]
+        # The first commit is the one that opened the run to other sessions
+        # before the model was called; the terminal one comes after both writes,
+        # because the delegation rows carry `parent_run_id`.
+        assert order == ["commit", "parent", "delegation", "commit"]
         written = write.await_args.kwargs
         assert written["run_id"] == delegation.id
         assert written["status"] == RunStatus.CANCELLED.value
         assert written["cost_usd"] == Decimal("2.00")
+
+
+class TestMarkRunning:
+    @pytest.mark.anyio
+    async def test_leaving_the_queue_clears_the_parks_end_time(self):
+        """The park's `finish_run` wrote `ended_at`, and the replay's opening
+        commit publishes the row mid-run (#12) - left in place, a running run
+        would read as finished to every duration query, wearing the
+        pre-approval segment's span."""
+        from app.repositories import agent_run as agent_run_module
+
+        db = _db()
+        run = MagicMock(status=RunStatus.AWAITING_APPROVAL.value, ended_at=datetime.now(UTC))
+
+        await agent_run_module.mark_running(db, run=run)
+
+        assert run.status == RunStatus.RUNNING.value
+        assert run.ended_at is None
+
+
+class TestTheTransactionEndsBeforeTheModelCall:
+    """The run row is committed before the model is asked anything (#12).
+
+    Two things hang on the order rather than on the commit merely happening:
+    the row is visible from another session for the whole life of the run, and
+    the pooled connection is returned instead of sitting `idle in transaction`
+    for the minutes a model call can take - fifteen concurrent runs used to be
+    the whole pool.
+    """
+
+    @pytest.mark.anyio
+    async def test_the_run_row_is_committed_before_the_model_is_called(self):
+        db = _db()
+        service = AgentRunnerService(db)
+        prepared = _prepared()
+        order: list[str] = []
+
+        async def commit() -> None:
+            order.append("commit")
+
+        async def model(*_args: Any, **_kwargs: Any) -> MagicMock:
+            order.append("model")
+            return MagicMock(output="hi")
+
+        db.commit = AsyncMock(side_effect=commit)
+        prepared.built.agent.run = AsyncMock(side_effect=model)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "hello")
+
+        assert order[:2] == ["commit", "model"]
 
 
 class TestApprovals:
@@ -1494,6 +1660,34 @@ class TestParking:
 
         stored = finish.call_args.kwargs["paused_state"]["plan"]
         assert [item["content"] for item in stored] == ["Write the fix"]
+
+    @pytest.mark.anyio
+    async def test_the_plan_the_turn_ended_on_is_written_to_its_conversation(self):
+        """A plan store is one run's and a chat message is a run, so the checklist
+        an agent wrote was gone by the next message and the agent said it had never
+        made one (#1077). The turn writes it to the conversation on the way out."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        await prepared.plan_store.set_items([PlanItem(content="Write the fix")])
+        result = MagicMock(output="done")
+        result.all_messages = MagicMock(return_value=[])
+        result.new_messages = MagicMock(return_value=[])
+        prepared.built.agent.run = AsyncMock(return_value=result)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.transcript, "record", new=AsyncMock()),
+            patch("app.services.agent_runner.ConversationService") as conversations,
+        ):
+            conversations.return_value.keep_overhead = AsyncMock()
+            conversations.return_value.keep_reminder_state = AsyncMock()
+            conversations.return_value.keep_plan = AsyncMock()
+            await service.execute(_ctx(), uuid.uuid4(), "fix the bug")
+
+        kept = conversations.return_value.keep_plan
+        assert kept.await_args.args[0] == prepared.run.conversation_id
+        assert [item["content"] for item in kept.await_args.args[1]] == ["Write the fix"]
 
     @pytest.mark.anyio
     async def test_a_parked_runs_transcript_marks_the_call_that_is_waiting(self):
@@ -1667,6 +1861,69 @@ class TestResume:
         assert channel.decided["call-1"] == ApprovalGranted(
             tool_args={"to": "customer@example.com"}
         )
+
+    @pytest.mark.anyio
+    async def test_leaving_the_queue_is_committed_before_the_call_is_replayed(self):
+        """A crash mid-replay must find the run `running`, not parked.
+
+        `mark_running` only flushed, so a process that died between replaying an
+        approved call and the terminal write rolled the status back to
+        `awaiting_approval` with the approval still marked approved - and the
+        next resume replayed the call, re-sending whatever it had already sent
+        (#3). The commit in `_run` sits between the two, so the state transition
+        `claim_parked_run` guards is durable before anything side-effecting runs.
+        """
+        db = _db()
+        service = AgentRunnerService(db)
+        approval = self._approval(status=ApprovalStatus.APPROVED.value, tool_args={})
+        run = _parked_run(
+            paused_state={"messages": [], "tool_call_ids": {str(approval.id): "call-1"}}
+        )
+        built = self._built()
+        order: list[str] = []
+
+        async def note_commit() -> None:
+            order.append("commit")
+
+        async def note_mark(*_args: Any, **_kwargs: Any) -> MagicMock:
+            order.append("mark_running")
+            return run
+
+        async def note_model(*_args: Any, **_kwargs: Any) -> MagicMock:
+            order.append("model")
+            return MagicMock(output="sent")
+
+        db.commit = AsyncMock(side_effect=note_commit)
+        built.agent.run = AsyncMock(side_effect=note_model)
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                new=AsyncMock(return_value=[approval]),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.mark_running",
+                new=AsyncMock(side_effect=note_mark),
+            ),
+            patch(
+                "app.services.agent_runner.agent_repo.get_version",
+                new=AsyncMock(return_value=self._version()),
+            ),
+            patch("app.services.agent_runner.build_agent", return_value=built),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+        ):
+            await service.resume(_ctx(), run.id)
+
+        assert order[:3] == ["mark_running", "commit", "model"]
 
     @pytest.mark.anyio
     async def test_a_resumed_run_records_its_continuation_and_invents_no_question(self):
