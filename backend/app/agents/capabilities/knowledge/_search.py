@@ -7,11 +7,10 @@ from uuid import UUID
 
 from app.core.config import settings
 from app.core.exceptions import AppException, ExternalServiceError
-from app.services.embedding_resolution import embeddings_for_collection
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.reranker import build_reranker
 from app.services.rag.retrieval import RetrievalService
-from app.services.rag.vectorstore import PgVectorStore
+from app.services.rag.vectorstore import process_vector_store
 
 logger = logging.getLogger(__name__)
 
@@ -19,50 +18,45 @@ if TYPE_CHECKING:
     from app.services.rag.retrieval import BaseRetrievalService
 
 _retrieval_service: "BaseRetrievalService | None" = None
-_vector_store: PgVectorStore | None = None
 
 
 def get_retrieval_service() -> "BaseRetrievalService":
-    """Get or create retrieval service singleton."""
-    global _retrieval_service, _vector_store
+    """Get or create retrieval service singleton.
+
+    The store rides the process's own engine rather than building a pool of its
+    own - it used to, which put a second `DB_POOL_SIZE + DB_MAX_OVERFLOW` pool
+    beside the application's in every process that ever searched (#948, #12).
+    """
+    global _retrieval_service
     if _retrieval_service is not None:
         return _retrieval_service
 
     rag_settings = settings.rag
     embedding_service = EmbeddingService(rag_settings)
-    vector_store = PgVectorStore(
-        rag_settings, embedding_service, resolver=embeddings_for_collection
-    )
-    _vector_store = vector_store
     # The reranker resolver is wired here too, not only on the /rag/search
     # route: an agent's knowledge search reranks when its collection is
     # configured, and the run's open ledger books the cost - which is the
     # agent-run half of "spend recorded on both paths".
     _retrieval_service = RetrievalService(
-        vector_store, rag_settings, reranker_resolver=build_reranker
+        process_vector_store(rag_settings, embedding_service),
+        rag_settings,
+        reranker_resolver=build_reranker,
     )
     return _retrieval_service
 
 
-async def aclose_retrieval_service() -> None:
-    """Release the pool this module's store opened, at shutdown.
+def reset_retrieval_service() -> None:
+    """Forget the cached store, at shutdown.
 
     The store is built on the first knowledge search and then held for the life
-    of the process, which is right - rebuilding it per search would open a
-    connection pool per turn. What was missing is the other end: nothing
-    released it, so a second pool sat beside the one the lifespan built and
-    outlived the shutdown that disposed that one (#948).
-
-    Called from the lifespan rather than from a `finally` here, because the
-    singleton is deliberately process-wide. Resetting both globals makes the
-    next search build a fresh store, so a shutdown that is followed by more work
-    - a test, a reload - does not search through a disposed one.
+    of the process, which is right - rebuilding it per search would rebuild its
+    embedding client per turn. It owns no pool of its own any more; what a
+    shutdown owes is only that the next search builds afresh, so a shutdown
+    followed by more work - a test, a reload - does not search through a store
+    whose engine `close_db` has disposed.
     """
-    global _retrieval_service, _vector_store
-    store, _vector_store = _vector_store, None
+    global _retrieval_service
     _retrieval_service = None
-    if store is not None:
-        await store.aclose()
 
 
 def _format_results(results: list[Any]) -> str:

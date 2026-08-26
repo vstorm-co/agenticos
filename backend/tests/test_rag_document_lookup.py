@@ -35,14 +35,29 @@ from app.services.rag.models import (
     DocumentPageChunk,
     IngestionStatus,
 )
-from app.services.rag.vectorstore import PgVectorStore
+from app.services.rag.vectorstore import BaseVectorStore, PgVectorStore
 
 pytestmark = pytest.mark.anyio
 
 
+def _store(docs: list[DocumentInfo], **overrides: object) -> MagicMock:
+    """A mock store whose precedence is the real one.
+
+    `find_existing_document` is bound from `BaseVectorStore`, so it runs the
+    reference precedence over `get_documents` rather than a mock returning a
+    truthy stand-in - the same code `PgVectorStore` overrides for the indexed
+    path, and the thing every assertion below is actually about.
+    """
+    store = MagicMock()
+    store.get_documents = AsyncMock(return_value=docs)
+    store.find_existing_document = BaseVectorStore.find_existing_document.__get__(store)
+    for name, value in overrides.items():
+        setattr(store, name, value)
+    return store
+
+
 def _service(docs: list[DocumentInfo]) -> IngestionService:
-    store = MagicMock(get_documents=AsyncMock(return_value=docs))
-    return IngestionService(processor=MagicMock(), vector_store=store, organization_id=None)
+    return IngestionService(processor=MagicMock(), vector_store=_store(docs), organization_id=None)
 
 
 def _doc(
@@ -130,7 +145,7 @@ class TestOnePrecedenceForBothAnswers:
     async def test_a_store_failure_answers_no_match(self):
         """A listing that cannot be read is not evidence the document is absent -
         but treating it as a match would delete one on a failed query."""
-        store = MagicMock(get_documents=AsyncMock(side_effect=RuntimeError("connection refused")))
+        store = _store([], get_documents=AsyncMock(side_effect=RuntimeError("connection refused")))
         service = IngestionService(processor=MagicMock(), vector_store=store, organization_id=None)
 
         assert await service.existing_document("kb", "/srv/sync/handbook.pdf") == StoredDocument()
@@ -207,17 +222,15 @@ class TestHowManyTimesTheCollectionIsRead:
     """#566. Three lookups over one listing, and a sync asked for two of them."""
 
     async def test_both_answers_cost_one_read(self):
-        store = MagicMock(
-            get_documents=AsyncMock(
-                return_value=[
-                    _doc(
-                        "doc-a",
-                        filename="handbook.pdf",
-                        source_path="/srv/sync/handbook.pdf",
-                        content_hash="hash-a",
-                    )
-                ]
-            )
+        store = _store(
+            [
+                _doc(
+                    "doc-a",
+                    filename="handbook.pdf",
+                    source_path="/srv/sync/handbook.pdf",
+                    content_hash="hash-a",
+                )
+            ]
         )
         service = IngestionService(processor=MagicMock(), vector_store=store, organization_id=None)
 
@@ -232,11 +245,7 @@ class TestHowManyTimesTheCollectionIsRead:
         Both are decided in one pass now, so the count is one whether the path
         matched or the hash did.
         """
-        store = MagicMock(
-            get_documents=AsyncMock(return_value=[]),
-            insert_document=AsyncMock(),
-            delete_document=AsyncMock(),
-        )
+        store = _store([], insert_document=AsyncMock(), delete_document=AsyncMock())
         document = Document(
             pages=[DocumentPage(page_num=1, content="body")],
             metadata=DocumentMetadata(filename="handbook.pdf", filesize=4, filetype="pdf"),
@@ -271,17 +280,15 @@ class TestReplacingADocument:
 
     @staticmethod
     def _replacing(insert: AsyncMock) -> tuple[MagicMock, IngestionService]:
-        store = MagicMock(
-            get_documents=AsyncMock(
-                return_value=[
-                    _doc(
-                        "doc-old",
-                        filename="handbook.pdf",
-                        source_path="/srv/sync/handbook.pdf",
-                        content_hash="hash-old",
-                    )
-                ]
-            ),
+        store = _store(
+            [
+                _doc(
+                    "doc-old",
+                    filename="handbook.pdf",
+                    source_path="/srv/sync/handbook.pdf",
+                    content_hash="hash-old",
+                )
+            ],
             insert_document=insert,
             delete_document=AsyncMock(),
         )
@@ -324,6 +331,87 @@ class TestReplacingADocument:
         assert result.status is IngestionStatus.DONE
         assert result.replaced_document_id == "doc-old"
         store.delete_document.assert_awaited_once_with("kb", "doc-old")
+
+
+class TestTheIndexedLookupIssuesOneStatementPerKey:
+    """`PgVectorStore` answers the existence check by index, not by a scan (#1102).
+
+    The real SQL and the indexes it leans on are exercised against a populated
+    Postgres in `tests/integration/test_rag_existence_index.py`; here the
+    statements are asserted on a mock session, which is where the *precedence*
+    and the "one statement, then stop" shape are cheap to pin - a heap that
+    happened to be ordered would pass a behavioural check falsely.
+    """
+
+    @staticmethod
+    def _store_over(execute: AsyncMock) -> PgVectorStore:
+        session = MagicMock(execute=execute)
+        session_ctx = MagicMock()
+        session_ctx.__aenter__ = AsyncMock(return_value=session)
+        session_ctx.__aexit__ = AsyncMock(return_value=False)
+        store = PgVectorStore.__new__(PgVectorStore)
+        store.async_session = MagicMock(return_value=session_ctx)
+        store._collection_exists = AsyncMock(return_value=True)  # type: ignore[method-assign]
+        store._table = MagicMock(return_value="rag_kb")  # type: ignore[method-assign]
+        return store
+
+    @staticmethod
+    def _result(row: tuple[str, dict[str, str]] | None) -> MagicMock:
+        return MagicMock(fetchone=MagicMock(return_value=row))
+
+    async def test_a_source_path_hit_is_one_indexed_statement(self):
+        """The common case: the file's `source_path` is already stored. One
+        `WHERE metadata->>'source_path'` statement answers it, and the filename
+        and content_hash statements never run."""
+        execute = AsyncMock(
+            return_value=self._result(
+                ("doc-a", {"source_path": "/p/handbook.pdf", "content_hash": "h"})
+            )
+        )
+        store = self._store_over(execute)
+
+        hit = await store.find_existing_document(
+            "kb", source_path="/p/handbook.pdf", content_hash="h"
+        )
+
+        assert hit is not None and hit.document_id == "doc-a"
+        assert execute.await_count == 1
+        statement = str(execute.await_args.args[0])
+        assert "metadata->>'source_path' = :v" in statement
+        assert "ORDER BY parent_doc_id, id" in statement
+        assert "LIMIT 1" in statement
+
+    async def test_the_keys_are_tried_in_precedence_and_stop_at_the_first_hit(self):
+        """source_path misses, filename misses, content_hash answers - three
+        statements in that order, and the hash one's row is returned."""
+        execute = AsyncMock(
+            side_effect=[
+                self._result(None),
+                self._result(None),
+                self._result(("doc-c", {"content_hash": "h"})),
+            ]
+        )
+        store = self._store_over(execute)
+
+        hit = await store.find_existing_document(
+            "kb", source_path="/p/handbook.pdf", content_hash="h"
+        )
+
+        assert hit is not None and hit.document_id == "doc-c"
+        keys = [str(call.args[0]) for call in execute.await_args_list]
+        assert "metadata->>'source_path'" in keys[0]
+        assert "metadata->>'filename'" in keys[1]
+        assert "metadata->>'content_hash'" in keys[2]
+
+    async def test_an_absent_collection_issues_no_statement(self):
+        execute = AsyncMock()
+        store = self._store_over(execute)
+        store._collection_exists = AsyncMock(return_value=False)  # type: ignore[method-assign]
+
+        assert (
+            await store.find_existing_document("kb", source_path="/p/x.pdf", content_hash="h")
+        ) is None
+        execute.assert_not_awaited()
 
 
 class TestGetDocumentsIsDeterministic:

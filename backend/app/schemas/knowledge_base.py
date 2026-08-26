@@ -31,11 +31,23 @@ class KnowledgeBaseCreate(BaseSchema):
             "so it cannot be changed later. Omit for the deployment default."
         ),
     )
+    embedding_provider: str | None = Field(
+        default=None,
+        max_length=32,
+        description=(
+            "Whose endpoint serves that model, from "
+            "`GET /rag/embedding-models`. Unlike the model this one can be "
+            "changed later. Omit for the provider the deployment's own key "
+            "belongs to."
+        ),
+    )
     embedding_secret_id: UUID | None = Field(
         default=None,
         description=(
             "The organization vault key that pays for this collection's "
-            "embeddings. Omit to use the deployment's key."
+            "embeddings. Must be a key for the chosen provider. Omit to use "
+            "the deployment's key, which only the deployment's own provider "
+            "can be paid with."
         ),
     )
     rerank_model: str | None = Field(
@@ -66,7 +78,15 @@ class KnowledgeBaseCreate(BaseSchema):
 
 
 class KnowledgeBaseUpdate(BaseSchema):
-    """Schema for updating a Knowledge Base."""
+    """Schema for updating a Knowledge Base.
+
+    The embedding *model* is deliberately absent: the vector column was created
+    at its width and every stored vector is in its space. The provider and the
+    key that pays are here, because the same model served from somewhere else is
+    still the same model - which is what makes rotating a credential or moving
+    to an organization's own account something other than re-ingesting
+    everything.
+    """
 
     name: str | None = Field(default=None, min_length=1, max_length=128)
     description: str | None = Field(default=None, max_length=500)
@@ -82,6 +102,31 @@ class KnowledgeBaseUpdate(BaseSchema):
     # the fields they actually sent, so an update that omits both leaves it be.
     rerank_model: str | None = Field(default=None, max_length=128)
     rerank_secret_id: UUID | None = Field(default=None)
+    embedding_provider: str | None = Field(
+        default=None,
+        max_length=32,
+        description=(
+            "Move this collection's embeddings to another provider of the same "
+            "model. Refused if that provider does not serve the collection's "
+            "model at its recorded width."
+        ),
+    )
+    embedding_secret_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The organization vault key that pays from now on. Must be a key "
+            "for the provider the collection ends up on. Send "
+            "`clear_embedding_secret` to go back to the deployment's key."
+        ),
+    )
+    clear_embedding_secret: bool = Field(
+        default=False,
+        description=(
+            "Stop using a vault key and fall back to the deployment's. Needed "
+            "because a null `embedding_secret_id` means 'leave it alone' on a "
+            "partial update, and both must be sayable."
+        ),
+    )
 
 
 class KnowledgeBaseRead(BaseSchema, TimestampSchema):
@@ -101,6 +146,8 @@ class KnowledgeBaseRead(BaseSchema, TimestampSchema):
     # width, so the choice is frozen with the collection.
     embedding_model: str
     embedding_dim: int
+    # Editable, unlike the two above - see `KnowledgeBaseUpdate`.
+    embedding_provider: str
     embedding_secret_id: UUID | None = None
     # Both null unless reranking is configured; the secret id is safe to expose,
     # it names a vault row rather than carrying its value.

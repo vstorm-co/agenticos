@@ -11,7 +11,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
   const { id, sourceId } = await params;
   try {
-    await backendFetch<null>(`/api/v1/org/integrations/${sourceId}`, {
+    await backendFetch<null>(`/api/v1/org/integrations/${encodeURIComponent(sourceId)}`, {
       method: "DELETE",
       headers: {
         Authorization: `Bearer ${accessToken}`,

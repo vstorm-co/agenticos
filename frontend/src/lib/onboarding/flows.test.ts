@@ -20,6 +20,7 @@ const EMPTY: OrgState = {
   hasSkill: false,
   hasOrgMcp: false,
   hasPublishedAgent: false,
+  hasRunnableAgent: false,
 };
 const HAS_MODEL: OrgState = {
   hasRunnableModel: true,
@@ -27,6 +28,7 @@ const HAS_MODEL: OrgState = {
   hasSkill: false,
   hasOrgMcp: false,
   hasPublishedAgent: false,
+  hasRunnableAgent: false,
 };
 const STOCKED: OrgState = {
   hasRunnableModel: true,
@@ -34,6 +36,7 @@ const STOCKED: OrgState = {
   hasSkill: true,
   hasOrgMcp: true,
   hasPublishedAgent: true,
+  hasRunnableAgent: true,
 };
 const NO_CHOICES: Record<string, "yes" | "skip"> = {};
 
@@ -209,6 +212,18 @@ describe("flowForPage", () => {
 
   it("offers nothing on a page with no create", () => {
     expect(flowForPage(ROUTES.DASHBOARD)).toBeNull();
+  });
+});
+
+describe("create-routine", () => {
+  it("drops the whole flow for a caller who can run no agent", () => {
+    // The flow's `can` gate is scope-blind, so it passes for a role that says run
+    // while no agent in reach is actually runnable - and the first target mounts
+    // only on that per-agent answer, which the coach would wait on with no
+    // timeout. Zero steps means an inert flow instead of a frozen page.
+    expect(stepsForFlow(FLOWS["create-routine"], STOCKED, allow, NO_CHOICES)).toHaveLength(2);
+    const noRunnable = { ...STOCKED, hasRunnableAgent: false };
+    expect(stepsForFlow(FLOWS["create-routine"], noRunnable, allow, NO_CHOICES)).toHaveLength(0);
   });
 });
 

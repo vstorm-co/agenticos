@@ -9,7 +9,9 @@ vi.mock("next/navigation", () => ({
   usePathname: () => currentPath(),
   useRouter: () => ({ push: vi.fn() }),
 }));
-vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+vi.mock("next-intl", async () => ({
+  useTranslations: (await import("@/test-utils/intl")).keyTranslations(),
+}));
 
 /**
  * The tab bar had the same bug the desktop sidebar had, in a worse form: it

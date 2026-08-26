@@ -169,6 +169,7 @@ describe("stepsForPage", () => {
       "chat-start",
       "chat-agent-picker",
       "chat-composer",
+      "chat-plan",
       "chat-model-picker",
     ]);
   });

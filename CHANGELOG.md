@@ -17,6 +17,716 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.274] - 2026-08-26
+
+### Fixed
+
+- **The Prefect RAG sync flows did their filesystem work on the worker's event
+  loop** - the defect #25 fixed on the request path and left as a lower-severity
+  follow-up. A large tree or file has no suspension point: `rglob` over a
+  directory, `sha256(read_bytes())` per file, `stat()` and a per-file `resolve()`
+  each stall the loop. Every per-file blocking call goes through
+  `asyncio.to_thread` now: the tree walk is one hop over `_walk_files` rather than
+  a hop per file, the per-file hash is `_hash_file` shared by the local and
+  connector paths, and `stat` and `resolve` are offloaded per file. Values are
+  unchanged - identical walks, hashes, sizes and resolved paths - only the thread
+  moves. The one-off resolve of the sync *target* path is O(1) per flow and stays
+  on the loop. (#1100, #25)
+
+## [0.0.273] - 2026-08-26
+
+### Fixed
+
+- **The document listings had no stable order across pages.** `get_all` and
+  `get_for_kb` ordered by `created_at DESC` with no unique secondary key, and a
+  bulk import lands many `rag_documents` in one microsecond - so over tied
+  timestamps that is not a total order, and a client paging with `offset` and
+  `limit` could see a row twice or skip one across a page boundary, because each
+  page is a separate query whose sort of the tied rows is undefined. Both order by
+  `created_at DESC, id DESC` now, which is what the sibling
+  `vectorstore.get_documents` already did for this reason (#548). The change is
+  additive: a tiebreaker is consulted only when `created_at` ties, so rows with
+  distinct timestamps keep their exact prior order. (#1103)
+- **`main` was red between 0.0.270 and here**, and neither branch could have seen
+  it: #1112's integration tests built a `PgVectorStore` with no `engine` and closed
+  it with `aclose()`, while #12 had already made the engine a required keyword and
+  deleted the method when the store stopped owning a pool. Both were green on their
+  own - #1112's run predated #12's merge - so the break appeared only once both
+  were on `main`. The tests take the engine from the fixture that owns it now.
+  (#9, #12)
+
+## [0.0.272] - 2026-08-26
+
+### Fixed
+
+- **A malformed embed-token claim was a 500 rather than a refusal.**
+  `_verify_token` decoded a visitor token inside a `try/except jwt.PyJWTError`, but
+  a signed token whose `exp` or `iat` is `null`, `[]` or `{}` makes PyJWT's own
+  validation run `int()` on it - which raises a bare `TypeError`, not a
+  `PyJWTError`, so it escaped the handler and became an uncaught 500 with a logged
+  traceback. Not attacker-exploitable: claim validation runs after signature
+  verification, so minting such a token needs the customer's own signing secret,
+  and it fails closed. The catch covers `TypeError` now and raises `EmbedDenied`.
+  `ValueError` is left out deliberately - on the pinned PyJWT only these coercions
+  raise a bare `TypeError`, and every malformed-segment, base64, JSON or
+  non-numeric case is already a `PyJWTError` subclass, so catching it would be an
+  unreachable branch. (#1107)
+
+## [0.0.271] - 2026-08-26
+
+### Fixed
+
+- **Four check-then-act races**, each closed with the row-lock and atomic-write
+  pattern `claim_parked_run` already uses. (#17)
+- **An approval could be decided twice.** `decide` read pending, guarded, and wrote
+  with no lock, so a concurrent reject and approve both passed the guard and both
+  wrote - two contradictory audit entries for one decision. `get_approval` grows a
+  `for_update` variant, so the second decide blocks, re-reads a decided row and is
+  refused. (#17)
+- **One person messaging two chats at once got no reply to the second.**
+  `_resolve_identity` was a get-then-create on
+  `uq_channel_identity_platform_user`, so the second webhook 500'd on the unique
+  violation. `get_or_create` reads first - no lock and no write on the common path,
+  because the whole message runs in one transaction through the LLM call and an
+  unconditional upsert would serialise a user active in two chats - and only on a
+  miss inserts with `ON CONFLICT DO UPDATE` and reads back. (#17)
+- **Two accepts of a one-use invitation both created a member.** The read of
+  `used_count`, the guard against `max_uses` and the increment were unlocked.
+  `get_by_token` grows a `for_update` variant, so the second accept blocks,
+  re-reads the exhausted link and is refused. (#17)
+- **The budget cap bounds committed spend, not simultaneous runs** - a run's cost
+  lands on its row only when it finishes, so concurrent runs read the same baseline
+  and can overshoot. That is an aggregate with no single row to lock, so it is
+  documented in `docs/governance.md` rather than papered over. (#17)
+- The regression tests hold one transaction open with the row locked, or the insert
+  uncommitted, while the second runs - because racing through `asyncio.gather`
+  alone reproduces none of the four: the pair serialises and the first commits
+  before the second reads. (#17)
+- `ChannelLinkService.confirm` still get-then-creates on the same identity key, a
+  sibling of the race closed here, and was filed rather than folded in. (#1113)
+
+## [0.0.270] - 2026-08-26
+
+Three deletes that could only 500, because a cascade drove exactly the write a
+CHECK forbids.
+
+### Fixed
+
+- **A leaver's private secret.** `organization_secrets.owner_user_id` is
+  `ON DELETE SET NULL` under `ck_secret_private_needs_owner`, so the cascade wrote
+  the one row the constraint refuses and the delete raised inside Postgres.
+  `UserService.delete` promotes the leaver's private secrets to organization
+  visibility first, so the null is legal and the key stays reachable by the
+  organization. (#9)
+- **A creator's organizations.** `organizations.created_by_user_id` is RESTRICT and
+  every signup creates a personal organization, so a bare `DELETE users` never
+  worked for a real account. The personal organization is removed with its owner, a
+  shared one is handed to another owner, and the delete is refused - cleanly, as a
+  `BadRequestError` rather than a 500 - when there is no other owner. (#9)
+- **An organization-scoped collection.** `knowledge_bases.organization_id` is
+  SET NULL under `ck_knowledge_bases_org_scope_has_org`.
+  `OrganizationService.delete` removes organization-scoped collections explicitly,
+  vector table and all, before the organization row goes; a personal collection
+  merely carrying the organization's id is left to the SET NULL. Dropping the
+  vector table needs the request-scoped store, so the delete route wires it in
+  through a dedicated dependency and every other organization route builds none.
+  (#9)
+- Each pair is reconciled in the service, inside the request's own transaction,
+  before the row goes. Three `ondelete`-less FKs to `users.id` are deliberately out
+  of scope - they are NO ACTION, so deleting a user who invited somebody still
+  500s, and that needs a migration. (#9, #1110)
+
+## [0.0.269] - 2026-08-26
+
+### Fixed
+
+- **An embed token with no `iat` was accepted for ever.**
+  `AgentEmbedService._verify_token` checked max-age only
+  `if isinstance(iat, int | float)` - opportunistically - and PyJWT requires
+  neither `iat` nor `exp`, so a correctly signed `{"sub": "user-42"}` carried no
+  freshness claim at all. One token scraped from a browser's network tab kept the
+  widget answering on the organization's bill indefinitely, which is the exact
+  failure the surrounding code twice names as the dangerous one. A within-window
+  `iat` is required unconditionally now: no `iat`, or one older than the 12h
+  ceiling, is refused. (#23)
+- **`exp` is deliberately not an alternative freshness claim.** Treating it as one
+  would let a customer's ordinary far-future `exp` override the ceiling, so a copied
+  token could replay until it expired - a milder version of the same leak. `exp`,
+  when present, is still validated by PyJWT, so it can only shorten the window,
+  never extend it past 12h. Behaviour is unchanged for every token that carries an
+  `iat`. (#23)
+- A pre-existing robustness gap left out of scope and filed: a malformed `null` or
+  `[]` `exp`/`iat` raises a raw `TypeError` inside `jwt.decode` and 500s. Not
+  exploitable - it fails closed. (#1107)
+
+## [0.0.268] - 2026-08-26
+
+### Fixed
+
+- **A non-ASCII credential was a 500 with a traceback rather than a refusal.**
+  `secrets.compare_digest` raises `TypeError` on a non-ASCII `str` instead of
+  answering `False`, and three checks compared `str` with the left operand taken
+  from the caller: `deps.verify_api_key` on the API-key header, the Mattermost
+  webhook bearer check, and the Slack signature check. So `{"token": "é"}` to the
+  *unauthenticated* Mattermost webhook, or a non-ASCII `X-Slack-Signature`, was a
+  logged 500 - a free log-flooding primitive. Not an auth bypass, since the
+  comparison never matched anyway. All three compare encoded bytes now: still
+  constant-time, and non-ASCII refuses cleanly. (#33)
+
+## [0.0.267] - 2026-08-26
+
+### Changed
+
+- **`app/core/sanitize.py` is on the coverage gate and the type-checker overrides.**
+  It is the SSRF allow and deny every outbound URL a tenant chooses is checked
+  against - a webhook target, an MCP server address - and it was in neither list,
+  which is what #28 asks to extend to the modules implementing the refusals
+  CLAUDE.md names as must-cover. It sat at 95%: the two DNS-failure exits in
+  `resolve_pinned_url`, a lookup that raises `gaierror` and one that resolves to no
+  address, had no test. Both are covered now with a mocked `getaddrinfo`, and the
+  module is added to both lists verbatim and in the same position, beside
+  `pinned_http.py` - the validator paired with the client that dials what it
+  validated. (#28)
+- The rest of #28's tail stays open and is named on the issue: `agent_embed.py` at
+  85% needs substantial tests first, and the four channel modules hold open bugs
+  and need a real database to measure. The five-routes layering landed in #232, and
+  `audit.py` is gated by #20. (#28)
+
+## [0.0.266] - 2026-08-26
+
+### Fixed
+
+- **`GET /api/v1/rag/documents` returned every document a caller could read.** It
+  selected every `rag_documents` row across the caller's readable collections and
+  serialized the whole set in one response - unbounded, so a tenant with 50k
+  documents got a multi-second query and tens of MB held entirely in memory. The
+  sibling `get_for_kb` already paged; this path simply did not use the pattern.
+  `get_all` takes `skip` and `limit` and a `COUNT` for the total, returning
+  `(rows, total)` like its sibling; the service reports the repository's total
+  rather than the page length; and the route carries `skip` and `limit` per
+  `.claude/rules/api-conventions.md`. No frontend caller changes - the console pages
+  the already-paginated `get_for_kb`. (#27)
+- The issue's second half - making ingestion's `existing_document` O(1) instead of a
+  full `rag_<collection>` scan - rewrites a hot path with a documented
+  precedence history (#548, #566) and needs a JSONB predicate plus a supporting
+  expression index on the runtime-created vector tables, verified against a real
+  database. A `source_path` fast path alone is still a sequential scan without the
+  index, and two passes on the common miss, so it was split to #1102 rather than
+  shipped blind. (#27, #1102)
+
+## [0.0.265] - 2026-08-26
+
+### Fixed
+
+- **Upload parsing and local file storage were `async def` over pure blocking work,
+  with no suspension point at all.** `FileUploadService.parse_content` ran pymupdf
+  over every page and openpyxl over every cell, and `LocalFileStorage.save`/`load`
+  decoded and wrote or read up to `MAX_UPLOAD_SIZE` - so one user uploading a large
+  PDF, or an agent turn loading three attached images, froze every other request and
+  every in-flight agent WebSocket stream on that uvicorn worker until the work
+  landed. Every branch of the parse and both byte operations are offloaded with
+  `asyncio.to_thread`. The codebase already knew the pattern: `agents/mcp.py` routes
+  DNS through a thread, and `rag_document.py` switched a write to anyio for exactly
+  this reason - while writing the identical bytes twice, only one of which had been
+  fixed. (#25)
+- The now-dead `ASYNC230` per-file ruff ignore on `file_upload.py` is gone: the only
+  blocking open left is `pymupdf.open` inside a sync helper, so the rule no longer
+  fires. Three thread-identity regression tests assert the parse and the two byte
+  operations each run off the event loop's thread, and each fails if its
+  `to_thread` is reverted. (#25)
+- Scope is the two request-path functions. The worker-side blocking IO the issue
+  also lists is the worker rather than the request path, and is tracked separately.
+  (#25)
+
+## [0.0.264] - 2026-08-26
+
+### Fixed
+
+- **A malformed sealed payload put the decrypted credential in the log.**
+  `unseal_secret` promised `BadRequestError` for an envelope holding something that
+  is not a secret payload, but `_STORABLE_ADAPTER.validate_json(...)` raises
+  `pydantic_core.ValidationError`, which is not an `AppException` - so it reached
+  `unhandled_exception_handler` and `logger.exception`. A pydantic `ValidationError`
+  embeds the offending input in its message, and here that input is the decrypted
+  credential, so the plaintext landed in the log line and, under
+  `logfire.instrument_fastapi`, on the exception span - breaking the guarantee
+  `docs/secrets.md` states. It is caught and re-raised as
+  `BadRequestError(message="Stored secret is not a usable payload")` naming only the
+  recorded kind. (#21)
+- Two parts, both load-bearing. The **type change** is the primary guard: a 4xx
+  `AppException` is logged at warning with no `exc_info`, so no traceback is
+  formatted on the HTTP path and it never reaches the `logger.exception` handler.
+  And **`from None`** covers the non-HTTP readers whose traceback *is* rendered - a
+  Prefect task failure, `doctor.py`'s own formatting - by setting
+  `__suppress_context__` and keeping the chained `ValidationError`, which still
+  holds the plaintext in `__context__`, out of the formatted traceback. The
+  regression test pins `__suppress_context__` rather than `__cause__`, because
+  `__cause__` is `None` with or without `from None` and asserting on it would let a
+  future edit reintroduce the leak silently. (#21)
+- Reachable from `resolve_for_bindings`, `ModelProfileService` and the provider
+  listing key whenever a stored payload no longer validates: a hand-edited row, a
+  rollback to a build whose `SecretKind` enum lacks a kind a newer build wrote, or a
+  future field tightening. (#21)
+
+## [0.0.263] - 2026-08-26
+
+### Fixed
+
+- **`drain()` waited on one snapshot of `_running`**, so a task that handed off
+  more work while draining - a channel run finishing an agent turn spawns each of
+  its notifications - could leave the freshly spawned task in flight when `drain()`
+  returned. It waits until `_running` is quiescent under one overall deadline now,
+  re-snapshotting each pass, so work spawned mid-drain is awaited while a task that
+  keeps spawning work cannot postpone shutdown for ever. (#1095)
+- **After the timeout it called `task.cancel()` and returned immediately**, so a
+  caller that disposes shared resources next - the Redis client, the database
+  engine - raced a cancelled task still unwinding through its own `finally` on those
+  very resources. Whatever overran is cancelled and `gather`ed to a terminal state
+  before `drain()` returns. (#1095)
+- One edge is deliberately left: the post-deadline cancel and gather snapshots the
+  overrunning set once, so a cancelled task whose `finally` spawned fresh work while
+  unwinding would not be awaited. No `finally` in the codebase spawns background
+  work, and looping that phase would reintroduce the unbounded wait the single shot
+  avoids. (#1095)
+- The third gap in the issue - a bot created just before shutdown whose deferred
+  `open_inbound_stream` reopens intake during teardown - is a shutdown *ordering*
+  concern rather than a `drain()` one, and is #1119. (#1095, #1119)
+
+## [0.0.262] - 2026-08-26
+
+### Changed
+
+- **The RAG sync-source wizard kept a second schema-form renderer.**
+  `ConfigureStep` sat next to `SchemaForm`, the generator the agent Builder and the
+  vault secret forms already share, so field types, help text and secret masking
+  were maintained twice - and had already drifted: `SchemaForm` had no textarea,
+  `ConfigureStep` had no enum. The config step renders through `SchemaForm` now,
+  with a connector's `config_schema` adapted to the JSON Schema subset it reads;
+  `ConfigureStep` keeps only its wizard chrome and the wizard's props are unchanged.
+  The "no enum" half of the divergence closes for free, because the config step *is*
+  `SchemaForm`. (#568)
+- **`connectorConfigToJsonSchema()` in `frontend/src/lib/connector-schema.ts`** is
+  the single place the two field-type vocabularies meet, and its `switch` over
+  `ConnectorFieldType` is exhaustive - so a fifth connector field type is a compile
+  error until a JSON Schema mapping is chosen, rather than the silent fall-through
+  to a text box the typed `Literal` originally replaced. (#568)
+- A plain-textarea kind on `SchemaForm` (`x-textarea`), distinct from
+  `x-multiline`'s Markdown editor, which is for prose. No capability emits it, so
+  the secret and agent forms are untouched and the branch is inert without the
+  keyword. (#568)
+- Two visible changes on the wizard, both `SchemaForm`'s existing behaviour rather
+  than anything new: a field's default shows as its value rather than as grey
+  placeholder text, and a boolean whose default is on draws on. Neither changes what
+  the wizard sends - nothing is stored until a field is edited, so the sent `config`
+  is identical. (#568)
+- Scope is deliberately the renderer, not the backend wire shapes. Converging the
+  two so connectors emit JSON Schema natively, and the adapter and
+  `ConnectorConfigField` disappear, is the higher-risk half and is #1093. (#568,
+  #1093)
+
+## [0.0.261] - 2026-08-26
+
+An audit write that cannot be recorded now takes the action down with it.
+
+### Fixed
+
+- **`record_audit` swallowed every exception, which is fail-open on the audit
+  trail** - the trail `docs/governance.md` makes load-bearing for the app-admin
+  bypass story. The swallow did not even buy silence: `flush()` inside the `try`
+  left the session needing a rollback, so the request's `scope="function"` commit
+  raised `PendingRollbackError` and 500'd anyway, with an opaque error naming the
+  session rather than the audit. The write shares the caller's transaction now, so a
+  failure propagates and rolls the recorded action back rather than letting a
+  privileged mutation land unaudited. `db` is typed `AsyncSession`, which it never
+  was, and `app/core/audit.py` is in both the coverage `include` and the ty
+  overrides - every service that records an action was already gated; the trail they
+  write to was not. (#20)
+- **Three unit-test fixtures the swallow was hiding.** `sync_source`,
+  `sandbox_connection` and `skill_proposal` built a bare `MagicMock()` db, where
+  `await db.flush()` raised `TypeError` inside `record_audit` - so the audit write
+  was a silent no-op a green suite never noticed. They build the db the way every
+  other audit-calling test already does. (#20)
+
+### Changed
+
+- A failure specific to the audit row - a bad `details`, an FK on
+  `organization_id` - now rolls the *action* back rather than being dropped. That is
+  the atomicity `governance.md` describes, and the recorded `details` were reviewed
+  and are all serialisable. (#20)
+
+## [0.0.260] - 2026-08-26
+
+### Fixed
+
+- **`SecurityHeadersMiddleware` was fully written and never registered**, so no API
+  response carried a Content-Security-Policy, `X-Content-Type-Options`,
+  `X-Frame-Options`, `Referrer-Policy` or `Permissions-Policy`. The bundled nginx
+  sets a weaker subset and no CSP, so a self-hosted deployment not fronted by that
+  exact nginx got nothing at all. The sharpest sign it was an oversight: `files.py`
+  already opts its framed endpoint down to `SAMEORIGIN`, against a default that was
+  not there. Registered in `create_app` with `setdefault`, so the file download's
+  per-response `X-Frame-Options: SAMEORIGIN` still wins. (#18)
+- Two things the registration made live for the first time, fixed with it:
+  `X-XSS-Protection: 0` rather than the deprecated `1; mode=block`, per OWASP - the
+  CSP is the real defence - and the doc pages excluded by their *real* mounted
+  paths, since the schema is under the API prefix rather than at `/openapi.json`,
+  so the exclusion is not a dead entry and the CSP cannot break Swagger or ReDoc.
+  `docs/deploy.md` records the app-level headers for an operator running their own
+  proxy. (#18)
+
+## [0.0.259] - 2026-08-26
+
+### Fixed
+
+- **Every domain refusal was logged as an application error.** `_managed_session`
+  caught everything with `logger.exception(...)`, so a `NotFoundError` (404), an
+  `AuthorizationError` (403) and an `AlreadyExistsError` (409) each wrote a full
+  stack trace at ERROR - and on a platform whose value is mostly in what it
+  refuses, the refusals were the loudest lines in the log and a real 500 was buried
+  among them. A domain refusal rolls back and re-raises without a traceback now.
+  The ERROR line is kept for the unexpected and, deliberately, for a **5xx**
+  `AppException` such as `DatabaseError` or `ExternalServiceError`: that is a
+  server fault whose traceback the exception handler does not log, so suppressing
+  it here would lose it end to end. The gate is
+  `not isinstance(exc, AppException) or exc.status_code >= 500`, in a single branch
+  so the rollback stays wrapped on every path. The conftest mocks
+  `get_db_session`, which is why this lifecycle was off the tested path and the
+  noise went unseen. (#19)
+
+## [0.0.258] - 2026-08-26
+
+### Fixed
+
+- **Nothing called `background.drain()`, though its docstring said the lifespan
+  did.** So shutting down mid-flight cancelled an ingestion or a sync that
+  `background.spawn` had handed off, and left a document stuck in `processing`
+  forever. The lifespan now awaits the drain after intake stops and before the
+  vector store, Redis and the session are disposed - the draining task reads all
+  three, so it has to finish or be cancelled first. `tests/test_lifespan_drain.py`
+  drives the real `main.lifespan` with startup's heavy collaborators stubbed,
+  spawns a task inside the serving window and asserts it runs to completion on
+  shutdown. (#11)
+
+## [0.0.257] - 2026-08-26
+
+### Fixed
+
+- **Twelve specs mocked `next-intl` as a translator missing part of `t`** - eleven
+  as a bare `(key) => key`, and `kb-detail-sections` as a hand-rolled cache that
+  had grown `t.rich` but still lacked `t.markup` and `t.has`. `t` carries all three,
+  and a component reading a message with a tag calls `t.rich`. They were green only
+  because none of their components reads a rich message *yet*: the #395 guard steers
+  copy toward `t.rich`, so they will, and then one throws `t.rich is not a function`
+  inside a component several files from the assertion - which is exactly how #610
+  was found. A shared `keyTranslations(format)` in `src/test-utils/intl.ts` is now
+  the one definition of a key-returning translator, complete with `rich`, `markup`
+  and `has`, and each local mock uses it while keeping its own key shape and, for
+  kb-detail, its per-namespace cache, so no assertion moved. The mock factory is
+  `async` and imports the helper inside itself, because `vi.mock` is hoisted above
+  the static imports. `intl.test.ts` asserts the helper carries all three, so the
+  next mock added by copy-paste cannot lose them silently. (#612, #610)
+
+## [0.0.256] - 2026-08-26
+
+### Changed
+
+- Backend dependencies: `uvicorn` 0.52.4, `pydantic-ai-harness` 0.24.0,
+  `llama-cloud` 2.14.1, `google-api-python-client` 2.199.0, `boto3` 1.43.78,
+  `subagents-pydantic-ai` 0.2.21, `ruff` 0.16.4 and `ty` 0.0.74. Applied on a
+  branch off current `main` and re-locked rather than merged from Dependabot's,
+  whose branch predated the agent-frameworks group and would have reverted it.
+  (#1153)
+
+## [0.0.255] - 2026-08-26
+
+### Fixed
+
+- **The only pages an unauthenticated visitor loads shipped all 89 brand marks.**
+  The sign-in and register pages drew three - Google, GitHub, Microsoft - through
+  `BrandIcon`, which reads the `BRAND_GLYPHS` table by dynamic key, and a dynamic
+  record access cannot be tree-shaken. So about 104 KB of source, 25 to 30 KB
+  gzipped, sat on the critical path and grew with every connector nobody signs in
+  with. The generator emits a second module, `auth-glyphs.generated.ts`, holding
+  just the three identity-provider marks and derived from the same fetched data so
+  the generator stays the single source of glyph data; `oauth-buttons` draws
+  `AUTH_GLYPHS` through `GlyphIcon` directly. A test guards the regression: the
+  auth component must not import `BrandIcon` or `brand-glyphs.generated`, and
+  `AUTH_GLYPHS` must hold exactly the three. (#955)
+
+## [0.0.254] - 2026-08-26
+
+### Changed
+
+- Agent-framework dependencies: `logfire` 4.41.0, `pydantic-ai-slim` 2.33.0
+  (including its `mcp` extra), `genai-prices` 0.1.4 and `pydantic-ai-skills` 1.4.0.
+
+## [0.0.253] - 2026-08-26
+
+Nothing holds a pooled connection across a model call, so the sixteenth request is
+answered rather than queued.
+
+### Fixed
+
+- **Three paths held a pooled Postgres connection across work measured in seconds
+  to minutes**, so fifteen concurrent anything exhausted the pool
+  (`DB_POOL_SIZE=5` plus `DB_MAX_OVERFLOW=10`) and the sixteenth request of any
+  kind blocked for `DB_POOL_TIMEOUT` and then raised. (#12)
+- **The run's transaction spanned the model call.** `_run` and
+  `ChatAgentRunner.run` commit once *before* the model is asked anything, with the
+  terminal commit from #231 left in place. The run row is visible from every other
+  session mid-run, the connection goes back to the pool for the duration of the
+  call, and a resumed run's `mark_running` is durable before the approved call is
+  replayed - so a crash mid-replay can no longer hand the same approval out twice.
+  The budget capability's baseline read moved onto a session of its own; read on
+  the run's shared session it silently re-opened the idle transaction. (#3, #12)
+- **`PgVectorStore` built a private pool per instance.** The store borrows an
+  injected engine and `aclose()` is gone. The API, CLI and the knowledge capability
+  share the process engine through one `process_vector_store()` factory - the
+  #306-shaped four-site repetition collapsed into it - and the worker builds one
+  engine per flow in `_ingestion_service`, disposed on every path out. The embed
+  widget needed no change: `EmbedSession` already takes a session factory and opens
+  one per turn (#39). (#12)
+- **The agent-triggers scheduler reasoned from "an executing run's row is
+  invisible".** `claim_due`'s conversation guard blocks on `awaiting_approval`
+  alone, because a crash-orphaned `running` row would otherwise wedge the schedule
+  forever, and the fire-recovery branch corroborates a `running` tail against a
+  fresh session before settling it as its own orphan - a concurrent fire's live run
+  is left alone. (#537, #12)
+- **The crash-orphan remainder.** An hourly stale-run sweep ends anything still
+  `running` past `STALE_RUN_REAPED_AFTER_HOURS` (6h default, 0 disables) as
+  `failed`, with the sweep's own sentence on the row: one conditional UPDATE whose
+  status guard re-evaluates under the row lock, and a live run flipped anyway is
+  flipped back by its own terminal write. No spend is invented, nobody is mailed,
+  and `awaiting_approval` is never touched. (#1078)
+
+### Changed
+
+- The opening commit sits in `_run` and `ChatAgentRunner.run` rather than
+  centralized in `PreparedRun.execute`/`iterate`, because `PreparedRun` does not
+  carry the session; both sites are tested and documented. The per-flow worker
+  engine keeps SQLAlchemy's default pool knobs, as the in-store engine did - tying
+  it to `DB_POOL_SIZE` would couple worker sizing to API tuning silently. And
+  API-process vector work now shares the request pool: with connections no longer
+  held across model calls 15 is comfortable at the measured load, but a heavy-RAG
+  deployment may want a bigger `DB_POOL_SIZE`. (#12)
+
+## [0.0.252] - 2026-08-26
+
+A client-supplied path segment can no longer walk out of the route it was given to.
+
+### Fixed
+
+- **About a dozen route handlers under `src/app/api` interpolated a
+  client-supplied path segment straight into the backend URL with no
+  `encodeURIComponent`.** Next decodes `%2F` into the param and `fetch`
+  normalises `..`, so a segment escapes its intended route: an organization id of
+  `x%2F..%2F..%2Fadmin%2Fusers` reached the backend as `/api/v1/admin/users`. This
+  is defence in depth rather than live escalation - the backend re-gates admin on
+  `CurrentAppAdmin`, so nothing currently reachable would not be anyway - but the
+  BFF's own fence was decorative, and any future backend route assuming "only
+  reachable through a handler that checks X" would be exposed the day it lands.
+  (#13, #30)
+- **Every interpolated segment is `encodeURIComponent`-wrapped**, matching the
+  sibling routes that already did it, and a new sweep in `platform-proxy.test.ts`
+  fails any route interpolating a bare `${param}` into a `/api/v1` template - the
+  same reasoning the file already gives for its organization-header sweep, so the
+  next hand-rolled route cannot repeat the omission. The host prefix and query
+  interpolations are not path segments and are left alone; a `platformProxy` route
+  forwards its path verbatim and has nothing to encode. (#13, #30)
+
+## [0.0.251] - 2026-08-26
+
+The vault's master key is explicit everywhere, and rotating it no longer destroys
+every secret it protects.
+
+### Fixed
+
+- **The master key was validated only in production.** The config refused the
+  default `SECRET_KEY` only when `ENVIRONMENT == "production"`, while staging is
+  first-class here - so a staging vault booted with every credential sealed under a
+  string published in `config.py`. A model validator refuses an unset
+  `VAULT_MASTER_KEY` outside `local` and `development`, and the
+  `getattr(settings, "VAULT_MASTER_KEY", "")` typing escape is gone. (#8)
+- **Rotation destroyed every secret.** `_wrapping_key` derived every version from
+  the single current setting, so `key_version` recorded nothing and setting a new
+  master key made every envelope unreadable - `rewrap` included, because it derived
+  the *from*-key from the same new value. (#8)
+- **`McpConnectionService.update` and `update_for_org` sealed a replacement token
+  at the current version without re-sealing the row's OAuth envelopes** - the same
+  latent defect #552 fixed on channel bots, and destructive the moment versions
+  mean distinct keys. Both seal at the row's recorded version now. (#8, #552)
+
+### Added
+
+- **`VAULT_MASTER_KEYS: dict[int, str]`**, chosen over a
+  `VAULT_MASTER_KEY_PREVIOUS` because it generalizes the `key_version` column
+  rather than hardcoding a two-key window. The single `VAULT_MASTER_KEY` stays as
+  shorthand for version 1, and both set at once is refused as ambiguous. The
+  highest version seals new secrets; an envelope naming a version with no
+  configured key raises `ConfigurationError` naming the missing entry instead of a
+  generic decrypt error. (#8)
+- **HKDF-SHA256 replaces the bare `sha256(master|scope|v)`** - one hash over a
+  possibly passphrase-derived value is not a KDF. The switch is versioned by the
+  envelope format (`ENVELOPE_VERSION` 1 to 2): version-1 envelopes keep opening
+  under the old derivation, everything new is HKDF, and `rewrap` upgrades the
+  format in place. Without that, the KDF change alone would have been the rotation
+  defect under another name. (#8)
+- **`agenticos cmd vault-rotate [--dry-run]`** walks every table holding envelopes
+  - `organization_secrets`, `channel_bots` four times, `mcp_connections` three
+  times with per-row scope so a personal connection re-wraps under its member, plus
+  `agent_embeds` and `agent_triggers`. A row's ciphertexts move together with the
+  version column or not at all; failures are named, do not stop the sweep, and exit
+  non-zero so a script cannot drop the old key on a partial rotation. `--dry-run`
+  performs the full unwrap and rewrap without writing. (#8)
+
+### Changed
+
+- `seal`, `seal_fields` and `seal_secret` default to the current key version, so a
+  row created with no envelope records the current version instead of a hardcoded
+  1. `doctor`'s vault check accepts either configuration form. `secrets.md` carries
+  the rotation procedure now that it is real, and `configuration.md`,
+  `commands.md` and `backend/.env.example` carry the new setting. (#8)
+- **No key-length validation on a configured master, deliberately.** Refusing a
+  short existing key at boot would lock a deployment out of the very rotation it
+  needs to escape it, because the old key has to stay configured to rotate away
+  from it. HKDF also weakens the cost of a low-entropy master, and the docs steer
+  to `openssl rand -hex 32`. (#8)
+
+## [0.0.250] - 2026-08-26
+
+Every tool says what it returns, and one place decides whose mistake a failure was.
+
+### Added
+
+- **A `Returns:` on every tool.** Seven docstrings had none, so the model could not
+  know that `search_channels` answers `- name (id) - purpose`, that a history read
+  is capped at 200 messages with each cut to 500 characters, that `list_context` is
+  an index rather than bodies, or what `run_python` does with a final expression's
+  value. A tool whose answer can be a slice has to say so, or the model reasons
+  from the slice as though it were the whole set. `list_context` also answered an
+  empty string when nothing was attached, which reads to a model as a broken tool;
+  it says so in a sentence now. (#1075)
+- **One failure taxonomy, written down** in
+  `.claude/skills/agent-capability/references/tool-text-and-failures.md` and a new
+  section of `docs/reference/capabilities.md`, so the next capability is not a coin
+  flip.
+
+### Changed
+
+- **`steer` in `app/agents/capabilities/_failures.py` is the one place that
+  decides**, and it exists rather than a bare `raise ModelRetry` for a reason worth
+  stating: a retry raised past a tool's budget - one attempt by default, and
+  nothing raises it - does not fail the call, it ends the whole run with
+  `UnexpectedModelBehavior`. A model that sent the same malformed chart twice took
+  the conversation down with it. On the last attempt `steer` returns the message
+  instead, so the worst case is the string the tool would have returned anyway.
+  `charts`, `context`, `knowledge`, `image_generation` and `web_research` raised
+  unconditionally and now steer.
+- **`run_python` was on the wrong side of the taxonomy.** A `NameError` or a syntax
+  error in code the model itself wrote came back as `Execution failed: ...`, a
+  sentence indistinguishable from a result, when `code` is precisely the argument
+  it composed. It answers with a `RunOutcome` naming whose problem it is -
+  `MontySyntaxError`, `MontyRuntimeError`, `MontyTypingError` and
+  `MontyConversionError` are the program's, and the resource limits report as
+  `TimeoutError` and `MemoryError`, fixable the same way by writing something
+  cheaper - while a sandbox that died is not. A model error is no longer logged as
+  an exception: an error log full of `NameError`s hides the ones that are this
+  deployment's fault.
+- **What deliberately stays a returned string**: a command that exited non-zero, a
+  search with no hits, a channel the bot cannot see, and any refusal - a retry
+  prompt on a refusal invites the model to look for a way around it. The second row
+  of the taxonomy is the one that looks wrong and is not: a *transient* failure of
+  what is behind the tool is also a retry, because an error in the shape of a
+  result reads as "nothing found" and the model then answers from memory,
+  confidently, without saying it had to.
+- Consumes `pydantic-ai-backend` 0.2.28. The sandbox catalog shows
+  `TOOL_TEXT[id].summary` where the Builder used to render 2501 characters of
+  `execute` beside an approval checkbox, and `profile="agent"` drops the guidance
+  written for an agent working in a repository - about 240 tokens on every request,
+  for advice a scratch workspace deleted with its conversation cannot use.
+
+### Fixed
+
+- **A provider's own error text no longer reaches a tool return.** `web_search`
+  built its message with `str(exc)` from whatever the search SDK raised and
+  `generate_image` interpolated the provider exception. On the last attempt `steer`
+  *returns* that message rather than raising it, and a returned string is stored by
+  `app/services/transcript.py` and streamed verbatim - deliberately, because a
+  return is the tool's own answer, where a retry prompt is replaced with a notice
+  (#681, #695). So an httpx or SDK message naming the failing endpoint, and for
+  some providers a key in its query string, reached run history for every member
+  who could read the run. The message is now built from the provider name and the
+  exception's *class* - which still says whether the upstream timed out or refused
+  the credential - and the exception's own text goes to a `logger.exception` beside
+  the raise. Same rule, and the same reasoning, as `app/services/rag/failures.py`.
+
+## [0.0.249] - 2026-08-26
+
+A week of full account access no longer sits in an access log.
+
+### Fixed
+
+- **The Google OAuth callback put the access and refresh tokens in a query
+  string.** That URL reaches the address bar and session history, the frontend
+  server's access log and any reverse proxy in front of it, and the `Referer` of
+  the next same-origin request the callback page makes - `Referrer-Policy:
+  strict-origin-when-cross-origin` sends the full URL same-origin. The refresh
+  token is valid for a week, so anybody who could read an access log had a week of
+  full account access. (#14)
+- **The callback now hands out a single-use, one-minute code** and keeps the token
+  pair in Redis. `POST /api/v1/oauth/exchange` redeems it with `GETDEL`, so a
+  replayed, an expired and a forged code all redeem to nothing and answer 401. The
+  frontend BFF swaps the code for the pair, verifies the access token against
+  `/auth/me`, and moves both into HttpOnly cookies - the tokens never touch a URL.
+  That also closes the session-fixation shape, because the BFF no longer accepts a
+  client-supplied token pair. (#14)
+
+### Changed
+
+- `docs/configuration.md` records the token-delivery decision under its OAuth
+  section. (#14)
+
+## [0.0.248] - 2026-08-26
+
+The routines onboarding path no longer freezes the page it is teaching.
+
+### Fixed
+
+- **Accepting the routine creation offer could freeze `/routines` outright.** The
+  offer was gated on the scope-blind, role-level `agents:run`, while the flow's
+  first target — the page's create buttons — mounts only on the per-agent `can_run`
+  answer, and the coach waits on a flow target with no timeout. An Owner in an
+  organization with no agents accepted the offer into a page that never came back.
+  Both layers now read the one answer the buttons themselves gate on
+  (`qk.agents.anyRunnable()`): `CreationOffer` suppresses the offer from that
+  cache, and every `create-routine` step carries an `OrgState.hasRunnableAgent`
+  include fed by the same query, so any residual path yields an inert flow rather
+  than a frozen one. (#594)
+- **That offer rendered `offer.create-routine.title` literally.** The copy was
+  never written, and a key read through a template literal is invisible to the
+  static catalog checks that would otherwise have failed the build. Added in en and
+  pl. (#594)
+
+### Added
+
+- **The routines widget says what it is sorted by.** The card ordered by next fire
+  and never told anybody; the sub-line now carries `next <instant>` for a live
+  schedule — and deliberately not for an overdue `next_fire_at`, which is a fire
+  the heartbeat has yet to claim and is loudest exactly when the worker is down.
+  Polish copy for the whole card, which had been falling back to English. (#594)
+- **`.claude/rules/frontend.md` now holds the widget mechanics** CLAUDE.md's "ships
+  its seams" rule had been pointing at: the five edits a new dashboard card is,
+  each with the failure it prevents. `docs/concepts.md` names Routines and the
+  widget, delegating the detail to `docs/triggers.md`, and `docs/first-agent.md`
+  walks a reader through the routine flow's Run now ending and the dashboard
+  customize stop. (#594)
+
+### Changed
+
+- `routines.tsx` is inside the frontend coverage gate. The widget directory is
+  gated file-by-file, so the card was invisible to the 100% gate however green its
+  tests ran — which then found the error state's retry unexercised. (#594)
+
 ## [0.0.247] - 2026-08-22
 
 An agent runs itself, with nobody at the keyboard.

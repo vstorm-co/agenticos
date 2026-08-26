@@ -15,12 +15,19 @@ picks a vault key at creation. A *missing or unopenable* chosen key also falls
 back - with a log line - because "the org deleted a secret" must degrade to
 the deployment's key, not take document search down.
 
-What the fallback must not do is stay quiet about itself. Three of the five
-:class:`EmbeddingKeySource` values are a collection asking for its
-organization's key and not getting it, and a `logger.warning` in this module
-reaches neither the flow log a worker's operator reads nor the error the
-upload leaves on the document row. So the source travels *with* the
-resolution, and both surfaces name it.
+**The fallback stops at the provider the deployment's key belongs to.** A
+collection embedding through OpenAI cannot be paid for with the deployment's
+OpenRouter key: that request is refused by the provider, and on the way to
+being refused it puts one vendor's credential in another vendor's logs. So a
+collection on another provider with no usable key of its own resolves to *no*
+key, which the embedding client turns into a refusal naming what it tried -
+the same shape as a deployment that never configured one.
+
+What the fallback must not do is stay quiet about itself. Four of the six
+:class:`EmbeddingKeySource` values are a collection asking for a key and not
+getting it, and a `logger.warning` in this module reaches neither the flow log
+a worker's operator reads nor the error the upload leaves on the document row.
+So the source travels *with* the resolution, and both surfaces name it.
 """
 
 from __future__ import annotations
@@ -38,21 +45,20 @@ from app.core.vault import VaultScope
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.session import get_db_context
 from app.repositories import knowledge_base_repo, organization_secret_repo
+from app.services.rag import embedding_providers
 
 logger = logging.getLogger(__name__)
-
-# Secret purposes that can pay for embeddings. OpenRouter is the embeddings
-# route today; the tuple exists so a second provider is one entry, not a hunt.
-EMBEDDING_KEY_PURPOSES = ("openrouter",)
 
 
 class EmbeddingKeySource(StrEnum):
     """Which credential a collection's embeddings actually went out on.
 
-    Four of these five mean the deployment key paid, and only one of those
-    four is the collection never having chosen otherwise. Telling them apart
-    is the difference between "configure a key" and "the key you configured is
-    gone", which is the whole of what an operator needs from the message.
+    Two mean a key was found - the collection's own, or the deployment's, which
+    the collection is entitled to only while it embeds through the provider that
+    key belongs to. The other four mean no key was, and telling them apart is
+    the difference between "configure a key", "the key you configured is gone"
+    and "the key this deployment has is for somebody else's endpoint", which is
+    the whole of what an operator needs from the message.
     """
 
     ORGANIZATION = "organization"
@@ -60,6 +66,7 @@ class EmbeddingKeySource(StrEnum):
     SECRET_MISSING = "secret_missing"
     SECRET_UNUSABLE = "secret_unusable"
     SECRET_WRONG_KIND = "secret_wrong_kind"
+    FOREIGN_PROVIDER = "foreign_provider"
 
     @property
     def explanation(self) -> str:
@@ -83,16 +90,18 @@ _EXPLANATIONS = {
         "the deployment's OPENROUTER_API_KEY, because the collection chose no key of its own"
     ),
     EmbeddingKeySource.SECRET_MISSING: (
-        "the deployment's OPENROUTER_API_KEY, because the vault key the collection chose "
-        "is no longer in this organization's vault"
+        "no key at all, because the vault key the collection chose is no longer in this "
+        "organization's vault"
     ),
     EmbeddingKeySource.SECRET_UNUSABLE: (
-        "the deployment's OPENROUTER_API_KEY, because the vault key the collection chose "
-        "could not be unsealed"
+        "no key at all, because the vault key the collection chose could not be unsealed"
     ),
     EmbeddingKeySource.SECRET_WRONG_KIND: (
-        "the deployment's OPENROUTER_API_KEY, because the vault entry the collection chose "
-        "does not hold an API key"
+        "no key at all, because the vault entry the collection chose does not hold an API key"
+    ),
+    EmbeddingKeySource.FOREIGN_PROVIDER: (
+        "no key at all, because the deployment's key belongs to another provider and sending "
+        "it here would hand one vendor's credential to another"
     ),
 }
 
@@ -101,6 +110,7 @@ _DEGRADED = frozenset(
         EmbeddingKeySource.SECRET_MISSING,
         EmbeddingKeySource.SECRET_UNUSABLE,
         EmbeddingKeySource.SECRET_WRONG_KIND,
+        EmbeddingKeySource.FOREIGN_PROVIDER,
     }
 )
 
@@ -117,11 +127,17 @@ class ResolvedEmbeddings:
     dim: int
     api_key: str
     key_source: EmbeddingKeySource
+    # Where the request goes, from the collection's provider. Carried with the
+    # key rather than read from a constant, because the two have to agree: an
+    # address without its credential is how a key reaches the wrong vendor.
+    base_url: str
+    provider: str
 
     def __repr__(self) -> str:
         return (
             f"ResolvedEmbeddings(model={self.model!r}, dim={self.dim}, "
-            f"api_key='***', key_source={self.key_source.value!r})"
+            f"api_key='***', key_source={self.key_source.value!r}, "
+            f"provider={self.provider!r})"
         )
 
     def describe(self, collection_name: str) -> str:
@@ -130,13 +146,16 @@ class ResolvedEmbeddings:
         Written once here rather than at each surface so the flow log and the
         failure on the document row cannot drift apart.
         """
-        return f"collection {collection_name!r}, which embeds on {self.key_source.explanation}"
+        return (
+            f"collection {collection_name!r}, which embeds through {self.provider} "
+            f"on {self.key_source.explanation}"
+        )
 
 
 async def embeddings_for_collection(
     collection_name: str, organization_id: UUID | None, knowledge_base_id: UUID | None = None
 ) -> ResolvedEmbeddings | None:
-    """Resolve one collection's embedding model and credential, for one organization.
+    """Resolve one collection's embedding model, provider and credential.
 
     Returns None for a collection no knowledge base claims - the store then
     uses its deployment defaults, which is what such collections have always
@@ -151,6 +170,12 @@ async def embeddings_for_collection(
     granted (#913). The search path passes the authorized id; ingestion and the
     CLI, which choose the row themselves, pass none and fall back to the
     `organization_id`-scoped lookup.
+
+    A provider the catalog no longer names - an entry removed from the file
+    under a collection that was using it - resolves to the deployment's, with a
+    log line. The alternative is a collection nobody can search because a
+    catalog edit took its address away, and the deployment's provider is the one
+    address this build is certain of.
     """
     async with get_db_context() as db:
         kb = (
@@ -160,7 +185,14 @@ async def embeddings_for_collection(
         )
         if kb is None:
             return None
-        api_key, key_source = await _api_key_for(db, kb)
+        provider = embedding_providers.get(kb.embedding_provider)
+        if provider is None:
+            logger.warning(
+                "embedding_provider_unknown",
+                extra={"collection": collection_name, "provider": kb.embedding_provider},
+            )
+            provider = embedding_providers.deployment_provider()
+        api_key, key_source = await _api_key_for(db, kb, provider)
         return ResolvedEmbeddings(
             model=kb.embedding_model,
             # The recorded width, not a fresh lookup: the table was created at
@@ -168,26 +200,42 @@ async def embeddings_for_collection(
             dim=kb.embedding_dim,
             api_key=api_key,
             key_source=key_source,
+            base_url=provider.base_url,
+            provider=provider.provider,
         )
 
 
-async def _api_key_for(db: AsyncSession, kb: KnowledgeBase) -> tuple[str, EmbeddingKeySource]:
-    """The organization's chosen key, or the deployment's, and which of the two.
+async def _api_key_for(
+    db: AsyncSession,
+    kb: KnowledgeBase,
+    provider: embedding_providers.EmbeddingProviderEntry,
+) -> tuple[str, EmbeddingKeySource]:
+    """The organization's chosen key, the deployment's, or none - and which.
 
-    Every failure path lands on the deployment key with a log line rather than
-    an exception: the choice of *whose key pays* must never decide *whether
-    documents can be found*. The second element is what stops that policy from
-    being invisible - it is carried out to the flow log and the error message.
+    A failure to open the collection's own key degrades rather than raising: the
+    choice of *whose key pays* must never decide *whether documents can be
+    found*. What it degrades to depends on the provider, because the deployment
+    has exactly one key and it belongs to exactly one endpoint - so a collection
+    on another provider degrades to no key rather than to somebody else's.
+
+    The second element is what stops either policy from being invisible: it is
+    carried out to the flow log and to the error on the document row.
     """
+    deployment_key = settings.OPENROUTER_API_KEY if provider.deployment_key else ""
+    fallback = (
+        EmbeddingKeySource.DEPLOYMENT
+        if provider.deployment_key
+        else EmbeddingKeySource.FOREIGN_PROVIDER
+    )
     if kb.embedding_secret_id is None or kb.organization_id is None:
-        return settings.OPENROUTER_API_KEY, EmbeddingKeySource.DEPLOYMENT
+        return deployment_key, fallback
 
     row = await organization_secret_repo.get(
         db, kb.embedding_secret_id, organization_id=kb.organization_id
     )
     if row is None:
         logger.warning("embedding_secret_missing", extra={"collection": kb.collection_name})
-        return settings.OPENROUTER_API_KEY, EmbeddingKeySource.SECRET_MISSING
+        return deployment_key, _degraded(EmbeddingKeySource.SECRET_MISSING, fallback)
     try:
         secret = unseal_secret(
             row.sealed_secret,
@@ -197,8 +245,18 @@ async def _api_key_for(db: AsyncSession, kb: KnowledgeBase) -> tuple[str, Embedd
         )
     except Exception:
         logger.warning("embedding_secret_unusable", extra={"collection": kb.collection_name})
-        return settings.OPENROUTER_API_KEY, EmbeddingKeySource.SECRET_UNUSABLE
+        return deployment_key, _degraded(EmbeddingKeySource.SECRET_UNUSABLE, fallback)
     if not isinstance(secret, ApiKeySecret):
         logger.warning("embedding_secret_wrong_kind", extra={"collection": kb.collection_name})
-        return settings.OPENROUTER_API_KEY, EmbeddingKeySource.SECRET_WRONG_KIND
+        return deployment_key, _degraded(EmbeddingKeySource.SECRET_WRONG_KIND, fallback)
     return secret.api_key.get_secret_value(), EmbeddingKeySource.ORGANIZATION
+
+
+def _degraded(reason: EmbeddingKeySource, fallback: EmbeddingKeySource) -> EmbeddingKeySource:
+    """Why the collection's own key was not used, or that there is nothing to use.
+
+    `FOREIGN_PROVIDER` wins over the three reasons a chosen key failed: with no
+    key to fall back to, "the vault entry is gone" is the second thing an
+    operator needs to know and "there is no key for this provider" is the first.
+    """
+    return reason if fallback is EmbeddingKeySource.DEPLOYMENT else fallback

@@ -5,6 +5,8 @@ import hashlib
 import json
 import logging
 import tempfile
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -12,7 +14,7 @@ from uuid import UUID
 
 from prefect import flow, get_run_logger
 from prefect.exceptions import MissingContextError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.agents.capabilities.budget import BudgetExceeded, SpendLedger, metered_by
 from app.core.config import settings
@@ -35,6 +37,7 @@ from app.services.ingestion_config import (
 )
 from app.services.rag.config import DocumentExtensions
 from app.services.rag.connectors import CONNECTOR_REGISTRY
+from app.services.rag.documents import DocumentProcessor
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.failures import IngestionStage, failure_summary
 from app.services.rag.ingestion import IngestionService, StoredDocument
@@ -45,6 +48,18 @@ from app.services.spend import assert_organization_within_budget
 from app.services.sync_source import SyncSourceService
 
 logger = logging.getLogger(__name__)
+
+
+def _hash_file(path: Path) -> str:
+    """SHA-256 of a file's bytes. Blocking - reach it through `asyncio.to_thread`
+    so a large file does not stall the worker's event loop (#1100)."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _walk_files(root: Path) -> list[Path]:
+    """Every non-hidden file under a tree. Blocking - `rglob` plus a `stat` per
+    entry - so it runs through `asyncio.to_thread`, not on the loop (#1100)."""
+    return [f for f in root.rglob("*") if f.is_file() and not f.name.startswith(".")]
 
 
 def _say_in_flow_log(message: str) -> None:
@@ -103,16 +118,17 @@ def _announcing_resolver() -> EmbeddingResolver:
     return resolve
 
 
-async def _ingestion_service_for(
-    db: AsyncSession,
-    *,
-    config: IngestionConfig,
-    organization_id: UUID | None,
-) -> IngestionService:
+@asynccontextmanager
+async def _ingestion_service(
+    *, processor: DocumentProcessor, organization_id: UUID | None
+) -> AsyncIterator[IngestionService]:
     """An ingester that reads documents the way the collection asked to be read.
 
     Both halves come off the collection. The parser, the chunker and the image
-    model come from its `IngestionConfig`; the embedding model, its recorded
+    model come through the `processor` the caller built from its
+    `IngestionConfig` - built by the caller, on the session it already holds,
+    because it is the part that can fail for reasons of configuration and a
+    failed build must leave nothing open. The embedding model, its recorded
     vector width and the vault key that pays for it come from the resolver,
     which the store consults per collection.
 
@@ -123,28 +139,31 @@ async def _ingestion_service_for(
     were billed to the deployment while the product said the organization's
     key paid (#306).
 
-    An earlier version of this docstring said the model was fixed per
-    deployment and that "the check that the two still agree happens before an
-    upload is accepted". No such check exists, and none should: since
-    per-collection resolution landed, a collection keeps embedding with the
-    model it was built with whatever the deployment default became, which is
-    the point of recording it. What *is* checked before an upload is accepted
-    is `IngestionConfigService.check_embedding_model` - that this build knows a
-    width for the collection's model at all, because vectors it cannot produce
-    would fail in a worker with nothing on screen.
+    A context manager because the store rides an engine built for this one
+    piece of work, and the exit is what disposes it on every path out - the
+    parse that fails, the sync cancelled from inside its file loop. A flow that
+    built a store and disposed none left its pool open for the life of the
+    worker, and two hundred uploads reached Postgres `max_connections` (#948).
+    The engine cannot be the process's own: each flow runs in an event loop of
+    its own, and a pooled connection made on one loop breaks whoever checks it
+    out on the next - the reason `get_worker_db_context` builds per-call
+    engines too.
     """
     rag_settings = settings.rag
-    # The processor first: it is the part that can fail, and a store built before
-    # it would be a pool nobody holds a reference to (#948).
-    processor = await IngestionConfigService(db).build_processor(organization_id, config)
-    vector_store = VectorStore(
-        settings=rag_settings,
-        embedding_service=EmbeddingService(settings=rag_settings),
-        resolver=_announcing_resolver(),
-    )
-    return IngestionService(
-        processor=processor, vector_store=vector_store, organization_id=organization_id
-    )
+    engine = create_async_engine(settings.DATABASE_URL)
+    try:
+        yield IngestionService(
+            processor=processor,
+            vector_store=VectorStore(
+                settings=rag_settings,
+                embedding_service=EmbeddingService(settings=rag_settings),
+                resolver=_announcing_resolver(),
+                engine=engine,
+            ),
+            organization_id=organization_id,
+        )
+    finally:
+        await engine.dispose()
 
 
 async def _record_embedding_spend(
@@ -314,39 +333,34 @@ async def _run_ingestion(
         if organization_id is not None:
             await assert_organization_within_budget(db, organization_id)
         config = IngestionConfig.model_validate(record.ingestion_config)
-        ingestion_service = await _ingestion_service_for(
-            db, config=config, organization_id=organization_id
-        )
+        processor = await IngestionConfigService(db).build_processor(organization_id, config)
 
     ledger = SpendLedger(organization_id=organization_id)
     file_path = Path(filepath)
-    try:
-        with metered_by(ledger):
-            result = await ingestion_service.ingest_file(
-                filepath=file_path,
-                collection_name=collection_name,
-                replace=replace,
-                source_path=source_path,
+    async with _ingestion_service(processor=processor, organization_id=organization_id) as ingester:
+        try:
+            with metered_by(ledger):
+                result = await ingester.ingest_file(
+                    filepath=file_path,
+                    collection_name=collection_name,
+                    replace=replace,
+                    source_path=source_path,
+                )
+        except Exception as exc:
+            # `ingest_file` reports a failed parse or a failed index by returning
+            # one, so what reaches here escaped the metering window instead - the
+            # budget, or the pipeline itself. Which stage it was is not knowable
+            # from here, and the stage below says so.
+            logger.exception("Ingestion failed for %s", source_path)
+            await _fail_document(
+                rag_document_id,
+                error_message=failure_summary(exc, stage=IngestionStage.INGEST),
             )
-    except Exception as exc:
-        # `ingest_file` reports a failed parse or a failed index by returning
-        # one, so what reaches here escaped the metering window instead - the
-        # budget, or the pipeline itself. Which stage it was is not knowable
-        # from here, and the stage below says so.
-        logger.exception("Ingestion failed for %s", source_path)
-        await _fail_document(
-            rag_document_id,
-            error_message=failure_summary(exc, stage=IngestionStage.INGEST),
-        )
-        raise
-    finally:
-        # The store owns a pooled engine, and one flow runs per uploaded
-        # document, so a store left behind leaves its pool open for the life of
-        # the worker process (#948).
-        await ingestion_service.store.aclose()
-        await _record_embedding_spend(
-            ledger, organization_id=organization_id, rag_document_id=UUID(rag_document_id)
-        )
+            raise
+        finally:
+            await _record_embedding_spend(
+                ledger, organization_id=organization_id, rag_document_id=UUID(rag_document_id)
+            )
 
     # Checked outside the `try` because `ingest_file` *returns* a failure rather
     # than raising one - which is why this used to fall straight through to
@@ -394,7 +408,7 @@ async def _run_sync(
     if target_path.is_file():
         files = [target_path]
     else:
-        files = [f for f in target_path.rglob("*") if f.is_file() and not f.name.startswith(".")]
+        files = await asyncio.to_thread(_walk_files, target_path)
 
     allowed = {ext.value for ext in DocumentExtensions}
     files = [f for f in files if f.suffix.lower() in allowed]
@@ -406,19 +420,16 @@ async def _run_sync(
     # is worse than one holding rows nobody claims.
     ledger = SpendLedger()
 
-    # Built after the validations above, and disposed in the `finally` below: the
-    # store owns a pooled engine, so one built before an early return is a pool
-    # nothing ever closes (#948).
     async with get_worker_db_context() as db:
         # Kept, not just passed through: every row this sync writes records which
         # parser read the document, and the rows used to carry no configuration at
         # all - so `parser` read `null` for every locally-synced file (#997).
         ingestion_config = await _config_for_collection(db, collection_name, None)
-        ingestion_service = await _ingestion_service_for(
-            db, config=ingestion_config, organization_id=None
-        )
+        processor = await IngestionConfigService(db).build_processor(None, ingestion_config)
 
-    try:
+    # Entered after the validations above, so an early "path not found" return
+    # builds no engine, and every return inside the loop still disposes one (#948).
+    async with _ingestion_service(processor=processor, organization_id=None) as ingester:
         for filepath in files:
             async with get_worker_db_context() as db:
                 sync_log_check = await RAGSyncService(db).get_sync_log(sync_log_id)
@@ -435,16 +446,16 @@ async def _run_sync(
                         "failed": failed,
                     }
 
-            source_path = str(filepath.resolve())
+            source_path = str(await asyncio.to_thread(filepath.resolve))
             if mode in ("new_only", "update_only"):
                 # One scan for both answers. They are facts about the same
                 # document, and asking for them separately is what let a live
                 # file's hash be compared against a different document's (#548).
-                existing = await ingestion_service.existing_document(collection_name, source_path)
+                existing = await ingester.existing_document(collection_name, source_path)
 
                 if mode == "new_only":
                     if existing.document_id:
-                        file_hash = hashlib.sha256(filepath.read_bytes()).hexdigest()
+                        file_hash = await asyncio.to_thread(_hash_file, filepath)
                         if existing.content_hash and file_hash == existing.content_hash:
                             skipped += 1
                             continue
@@ -453,11 +464,12 @@ async def _run_sync(
                     if not existing.document_id:
                         skipped += 1
                         continue
-                    file_hash = hashlib.sha256(filepath.read_bytes()).hexdigest()
+                    file_hash = await asyncio.to_thread(_hash_file, filepath)
                     if existing.content_hash and file_hash == existing.content_hash:
                         skipped += 1
                         continue
             try:
+                stat_result = await asyncio.to_thread(filepath.stat)
                 # Opened before the ingest, as the upload and the connector sync
                 # do (#992). Written afterwards it could fail afterwards - a
                 # database blip, a name longer than the column - leaving the
@@ -466,7 +478,7 @@ async def _run_sync(
                 # reaching the write, for good (#997).
                 row_id = await _open_document_row(
                     filename=filepath.name,
-                    filesize=filepath.stat().st_size,
+                    filesize=stat_result.st_size,
                     collection_name=collection_name,
                     # The same address it hands `existing_document` above, so the
                     # row and the lookup name one file (#996).
@@ -482,7 +494,7 @@ async def _run_sync(
                 )
 
                 with metered_by(ledger):
-                    result = await ingestion_service.ingest_file(
+                    result = await ingester.ingest_file(
                         filepath=filepath,
                         collection_name=collection_name,
                         replace=True,
@@ -531,8 +543,6 @@ async def _run_sync(
             "skipped": skipped,
             "failed": failed,
         }
-    finally:
-        await ingestion_service.store.aclose()
 
 
 async def _fail_document(rag_document_id: str, *, error_message: str | None) -> None:
@@ -761,8 +771,8 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
         image_description_model = await IngestionConfigService(db).resolved_image_model(
             organization_id, ingestion_config
         )
-        ingestion_svc = await _ingestion_service_for(
-            db, config=ingestion_config, organization_id=organization_id
+        processor = await IngestionConfigService(db).build_processor(
+            organization_id, ingestion_config
         )
 
     connector = connector_cls()
@@ -771,100 +781,98 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
     total = 0
     ledger = SpendLedger(organization_id=organization_id)
 
-    try:
-        files = await connector.list_files(config, credential)
-        total = len(files)
+    async with _ingestion_service(processor=processor, organization_id=organization_id) as ingester:
+        try:
+            files = await connector.list_files(config, credential)
+            total = len(files)
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            for remote_file in files:
-                try:
-                    # `sync_mode` used to reach one argument here and nothing
-                    # else, so a scheduled source re-embedded every file every
-                    # night - and on the default `new_only` it passed
-                    # `replace=False`, which skips the lookup, leaves the old
-                    # document in place and inserts a second copy. A week of
-                    # nightly syncs was seven copies of every chunk, ranked
-                    # against each other in every search (#990). The modes are
-                    # `sync_local_flow`'s, deliberately: one column feeds both
-                    # flows and they must mean the same thing.
-                    existing = StoredDocument()
-                    if sync_mode in ("new_only", "update_only"):
-                        existing = await ingestion_svc.existing_document(
-                            collection_name, remote_file.source_path
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                for remote_file in files:
+                    try:
+                        # `sync_mode` used to reach one argument here and nothing
+                        # else, so a scheduled source re-embedded every file every
+                        # night - and on the default `new_only` it passed
+                        # `replace=False`, which skips the lookup, leaves the old
+                        # document in place and inserts a second copy. A week of
+                        # nightly syncs was seven copies of every chunk, ranked
+                        # against each other in every search (#990). The modes are
+                        # `sync_local_flow`'s, deliberately: one column feeds both
+                        # flows and they must mean the same thing.
+                        existing = StoredDocument()
+                        if sync_mode in ("new_only", "update_only"):
+                            existing = await ingester.existing_document(
+                                collection_name, remote_file.source_path
+                            )
+                            # Before the transfer, where the answer allows it:
+                            # `update_only` has nothing to do with a file it has
+                            # never seen, and downloading one to find that out is a
+                            # transfer per new file, every run.
+                            if sync_mode == "update_only" and not existing.document_id:
+                                skipped += 1
+                                continue
+
+                        local_path = await connector.download_file(
+                            remote_file, Path(tmp_dir), config=config, credential=credential
                         )
-                        # Before the transfer, where the answer allows it:
-                        # `update_only` has nothing to do with a file it has
-                        # never seen, and downloading one to find that out is a
-                        # transfer per new file, every run.
-                        if sync_mode == "update_only" and not existing.document_id:
+
+                        # After it, because a hash needs the bytes and no remote
+                        # system on this list offers one. A stored document with no
+                        # hash is re-ingested rather than assumed current: the
+                        # embedding is the cost worth avoiding, and skipping a file
+                        # that may have changed is the answer that cannot be
+                        # corrected later.
+                        if existing.content_hash and (
+                            await asyncio.to_thread(_hash_file, local_path) == existing.content_hash
+                        ):
                             skipped += 1
                             continue
 
-                    local_path = await connector.download_file(
-                        remote_file, Path(tmp_dir), config=config, credential=credential
-                    )
-
-                    # After it, because a hash needs the bytes and no remote
-                    # system on this list offers one. A stored document with no
-                    # hash is re-ingested rather than assumed current: the
-                    # embedding is the cost worth avoiding, and skipping a file
-                    # that may have changed is the answer that cannot be
-                    # corrected later.
-                    if existing.content_hash and (
-                        hashlib.sha256(local_path.read_bytes()).hexdigest() == existing.content_hash
-                    ):
-                        skipped += 1
-                        continue
-
-                    # Opened before the ingest, which is the order the upload
-                    # path uses and the only one that cannot leave the state this
-                    # removes: a row written afterwards and failing - a database
-                    # blip, a remote name longer than the column - left the
-                    # vector document stored and untracked, and the next
-                    # `new_only` run then matched its hash and skipped the file
-                    # before reaching the write, for good.
-                    row_id = await _open_document_row(
-                        filename=remote_file.name,
-                        filesize=local_path.stat().st_size,
-                        collection_name=collection_name,
-                        source_path=remote_file.source_path,
-                        organization_id=organization_id,
-                        knowledge_base_id=knowledge_base_id,
-                        ingestion_config=ingestion_config,
-                        image_description_model=image_description_model,
-                        embedding_model=embedding_model,
-                    )
-
-                    with metered_by(ledger):
-                        result = await ingestion_svc.ingest_file(
-                            filepath=local_path,
+                        stat_result = await asyncio.to_thread(local_path.stat)
+                        # Opened before the ingest, which is the order the upload
+                        # path uses and the only one that cannot leave the state this
+                        # removes: a row written afterwards and failing - a database
+                        # blip, a remote name longer than the column - left the
+                        # vector document stored and untracked, and the next
+                        # `new_only` run then matched its hash and skipped the file
+                        # before reaching the write, for good.
+                        row_id = await _open_document_row(
+                            filename=remote_file.name,
+                            filesize=stat_result.st_size,
                             collection_name=collection_name,
-                            # Unconditional, as in `sync_local_flow`: once this
-                            # has decided to ingest, whatever it matched has to
-                            # go, or the collection grows a copy.
-                            replace=True,
                             source_path=remote_file.source_path,
+                            organization_id=organization_id,
+                            knowledge_base_id=knowledge_base_id,
+                            ingestion_config=ingestion_config,
+                            image_description_model=image_description_model,
+                            embedding_model=embedding_model,
                         )
 
-                    await _settle_document_row(row_id, result)
+                        with metered_by(ledger):
+                            result = await ingester.ingest_file(
+                                filepath=local_path,
+                                collection_name=collection_name,
+                                # Unconditional, as in `sync_local_flow`: once this
+                                # has decided to ingest, whatever it matched has to
+                                # go, or the collection grows a copy.
+                                replace=True,
+                                source_path=remote_file.source_path,
+                            )
 
-                    # On `replaced_document_id`, not on the result's sentence:
-                    # `sync_local_flow` reads its own message for the word
-                    # "replaced", which is a string it has to keep agreeing with.
-                    if result.replaced_document_id:
-                        updated += 1
-                    else:
-                        ingested += 1
-                except Exception as e:
-                    logger.warning("Failed to sync %s: %s", remote_file.name, e)
-                    failed += 1
-    except Exception as e:
-        logger.error("Source sync failed for %s: %s", source_id, e)
-        failed = max(failed, 1)
-    finally:
-        # The store owns a pooled engine, and this flow runs once per scheduled
-        # source, so a store left behind is a pool nothing closes (#948).
-        await ingestion_svc.store.aclose()
+                        await _settle_document_row(row_id, result)
+
+                        # On `replaced_document_id`, not on the result's sentence:
+                        # `sync_local_flow` reads its own message for the word
+                        # "replaced", which is a string it has to keep agreeing with.
+                        if result.replaced_document_id:
+                            updated += 1
+                        else:
+                            ingested += 1
+                    except Exception as e:
+                        logger.warning("Failed to sync %s: %s", remote_file.name, e)
+                        failed += 1
+        except Exception as e:
+            logger.error("Source sync failed for %s: %s", source_id, e)
+            failed = max(failed, 1)
 
     await _record_embedding_spend(ledger, organization_id=organization_id, rag_document_id=None)
 

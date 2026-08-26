@@ -129,6 +129,15 @@ accepted it. And every schedule and event in an organization is
 listed together across its agents, each filtered to the ones the caller may run -
 the same per-resource `agents:run` that gates creating one.
 
+Together the two families are the product's **Routines** - the one umbrella name
+the nav, the chat sidebar, the onboarding and the Polish copy (*Rutyny*) all use,
+so a person meets one word wherever the feature surfaces. The org-wide list is
+the `/routines` page, and the dashboard carries a **Routines widget**: an addable
+card showing each routine's cadence, next fire, and the last run's outcome, cost
+and rating, so the unattended half of an organization is visible at the same
+glance as the attended one. [Triggers & schedules](triggers.md) is the whole
+story.
+
 ## Run
 
 **One execution.** It has a subject, a version, a surface, a status, token counts

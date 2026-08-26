@@ -151,8 +151,11 @@ token = jwt.encode(
 - `sub` is required. It identifies the visitor for rate limiting, and a token
   without one is refused — otherwise a single leaked token becomes the whole
   widget's budget.
-- `iat` is checked: a token older than 12 hours is refused, so one that leaks
-  out of a browser does not work forever.
+- **`iat` is required and must be within the last 12 hours** — it is not checked
+  only when present. A token with no `iat`, or a stale one, is refused, so one
+  that leaks out of a browser cannot work forever. An `exp` you set is honoured
+  too, but only to **shorten** that window (an expired token is rejected); it
+  cannot extend a token past the 12-hour ceiling.
 - Mint it per page load, server-side. Never ship the signing secret to a browser.
 
 ---

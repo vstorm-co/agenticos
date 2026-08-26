@@ -37,27 +37,6 @@ def _stored(doc: DocumentInfo) -> StoredDocument:
     )
 
 
-def _unaddressed(doc: DocumentInfo) -> bool:
-    """Whether this document may be matched by its *name* alone.
-
-    Only one that does not already claim an address of its own. A file uploaded
-    through the browser stores its filename as its `source_path`, so the two
-    agree and it stays reachable by name - which is what the fallback is for: a
-    document uploaded once and later synced from the folder it came from should
-    be replaced rather than duplicated.
-
-    A document that names a *different* address is a different document, and
-    matching it by basename loses one of them. An S3 bucket holding
-    `a/readme.md` and `b/readme.md` is the case: the second key found the
-    first's document by name, so equal contents skipped it and unequal contents
-    replaced the first - either way a first sync could not keep both, silently
-    (#990). The same collision existed for two local files of the same name in
-    different directories.
-    """
-    stored_path = str((doc.additional_info or {}).get("source_path") or "")
-    return not stored_path or stored_path == doc.filename
-
-
 class IngestionService:
     """File → Parse/Chunk → Deduplicate → Embed/Store → Query-Ready."""
 
@@ -86,52 +65,27 @@ class IngestionService:
     async def existing_document(
         self, collection_name: str, source_path: str, *, content_hash: str = ""
     ) -> StoredDocument:
-        """The stored document this file refers to, found in one pass.
+        """The stored document this file refers to, id and hash together.
 
-        **One scan, one precedence, both answers.** A `source_path` match
-        anywhere in the collection beats a `filename` match anywhere in it, and
-        a `content_hash` match is the last resort - the order the ingest already
-        applied by calling two helpers in sequence, each walking the whole
-        collection with a predicate of its own.
+        The precedence and the single-document invariant belong to the store's
+        `find_existing_document`: a `source_path` match beats a `filename` one
+        beats a `content_hash` one (#548, #990), and the id and hash it returns
+        are one document's because they come from one. `PgVectorStore` answers
+        it with an indexed lookup per key rather than a full-collection read
+        (#1102).
 
-        There were three lookups over one listing before this, and they cost two
-        things. The obvious one is the scans: the sync modes asked for an id and
-        then for a hash, and `ingest_file` then asked twice more, so ingesting
-        one changed file read the entire collection four times (#566, and #27
-        for why reading it once is still not cheap).
-
-        The other is the reason those two answers are returned together rather
-        than by two methods. They are answers about *one document*, and when
-        they were computed separately they disagreed: the id lookup checked every
-        document for a `source_path` match before falling back to `filename`
-        while the hash lookup interleaved the two, so a caller compared a live
-        file's hash against a different document's `content_hash` than the one it
-        was about to replace - an unchanged file re-embedded on every sync, or a
-        changed one skipped as current (#548). A caller that cannot ask for one
-        without the other cannot reintroduce that.
-
-        A store that refuses answers "no match", as it did before: a listing this
-        cannot read is not evidence that the document is absent, but treating it
-        as a match would delete a document on the strength of a failed query.
+        A store that refuses the lookup answers "no match": a listing this cannot
+        read is not evidence the document is absent, but treating it as a match
+        would delete a document on the strength of a failed query.
         """
         try:
-            docs = await self.store.get_documents(collection_name)
+            doc = await self.store.find_existing_document(
+                collection_name, source_path=source_path, content_hash=content_hash
+            )
         except Exception as exc:
             logger.warning("Could not check for existing document: %s", exc, exc_info=True)
             return StoredDocument()
-        filename = Path(source_path).name if source_path else ""
-        by_filename: DocumentInfo | None = None
-        by_hash: DocumentInfo | None = None
-        for doc in docs:
-            meta = doc.additional_info or {}
-            if source_path and meta.get("source_path") == source_path:
-                return _stored(doc)
-            if by_filename is None and filename and doc.filename == filename and _unaddressed(doc):
-                by_filename = doc
-            if by_hash is None and content_hash and meta.get("content_hash") == content_hash:
-                by_hash = doc
-        matched = by_filename or by_hash
-        return _stored(matched) if matched is not None else StoredDocument()
+        return _stored(doc) if doc is not None else StoredDocument()
 
     async def ingest_file(
         self,

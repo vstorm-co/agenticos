@@ -69,11 +69,13 @@ def _fakes(monkeypatch: pytest.MonkeyPatch, tmp_path):
     _FakeAgent.raise_exc = None
 
 
-def _ctx(organization_id: Any) -> RunContext[AgentDeps]:
+def _ctx(organization_id: Any, *, retry: int = 0, max_retries: int = 1) -> RunContext[AgentDeps]:
     return RunContext(
         deps=AgentDeps(organization_id=organization_id),
         model=TestModel(),
         usage=RunUsage(),
+        retry=retry,
+        max_retries=max_retries,
     )
 
 
@@ -175,6 +177,18 @@ async def test_a_failing_image_model_asks_the_model_to_retry():
     )
     with pytest.raises(ModelRetry, match="Image generation failed"):
         await _generate(toolset, _ctx(uuid4()))
+
+
+async def test_the_last_attempt_answers_rather_than_ending_the_run():
+    """A `ModelRetry` past the tool's budget ends the conversation."""
+    _FakeAgent.raise_exc = UserError("that prompt was rejected")
+    toolset = build_image_toolset(
+        model_id="openai-responses:gpt-5.4", api_key="k", tool_settings={}, workspace_backend=None
+    )
+
+    answered = await _generate(toolset, _ctx(uuid4(), retry=1))
+
+    assert "Image generation failed" in answered
 
 
 def test_the_capability_builds_its_toolset_once_and_offers_generate_image():

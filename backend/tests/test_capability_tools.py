@@ -13,6 +13,9 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic_ai import ModelRetry, RunContext
+from pydantic_ai.models.test import TestModel
+from pydantic_ai.usage import RunUsage
 from pydantic_ai_backends import StateBackend
 from pydantic_ai_backends.permissions import PermissionChecker
 
@@ -20,13 +23,25 @@ from app.agents.capabilities.charts import ChartsToolset
 from app.agents.capabilities.charts._spec import ChartSeries, parse_chart_spec
 from app.agents.capabilities.charts._toolset import ChartSeriesInput
 from app.agents.capabilities.code_execution import CodeExecution
-from app.agents.capabilities.code_execution._sandbox import _clip, _format_result, run_python
+from app.agents.capabilities.code_execution._sandbox import (
+    RunOutcome,
+    _clip,
+    _format_result,
+    run_python,
+)
 from app.agents.capabilities.knowledge._search import _format_results
 from app.agents.capabilities.knowledge._toolset import build_knowledge_toolset
 from app.agents.capabilities.sandbox._capability import build_workspace
 from app.agents.capabilities.sandbox._permissions import workspace_ruleset
 from app.agents.capabilities.web_research._search import parse_web_search
 from app.agents.deps import AgentDeps
+
+
+def _tool_ctx(deps: Any = None, *, retry: int = 0, max_retries: int = 1) -> RunContext[Any]:
+    """A context with a retry left, which is what a real call starts with."""
+    return RunContext(
+        deps=deps, model=TestModel(), usage=RunUsage(), retry=retry, max_retries=max_retries
+    )
 
 
 def _ctx(deps: AgentDeps) -> MagicMock:
@@ -81,9 +96,7 @@ class TestKnowledgeTool:
 
     @pytest.mark.anyio
     async def test_a_backend_failure_asks_the_model_to_retry(self):
-        """A transient vector-store error should not end the conversation."""
-        from pydantic_ai import ModelRetry
-
+        """Returned as text it reads as "nothing found", and the model invents."""
         toolset = build_knowledge_toolset(default_top_k=5)
         search = toolset.tools["search_documents"].function
 
@@ -94,7 +107,21 @@ class TestKnowledgeTool:
             ),
             pytest.raises(ModelRetry),
         ):
-            await search(_ctx(AgentDeps()), query="x")
+            await search(_tool_ctx(AgentDeps()), query="x")
+
+    @pytest.mark.anyio
+    async def test_the_last_attempt_says_so_rather_than_ending_the_run(self):
+        """A `ModelRetry` past the budget takes the conversation with it."""
+        toolset = build_knowledge_toolset(default_top_k=5)
+        search = toolset.tools["search_documents"].function
+
+        with patch(
+            "app.agents.capabilities.knowledge._toolset.search_knowledge_base",
+            new=AsyncMock(side_effect=RuntimeError("vector store down")),
+        ):
+            answered = await search(_tool_ctx(AgentDeps(), retry=1), query="x")
+
+        assert "unavailable" in answered
 
 
 class TestKnowledgeFormatting:
@@ -125,9 +152,49 @@ class TestCodeExecutionTool:
 
         with patch(
             "app.agents.capabilities.code_execution._toolset.run_python",
-            new=AsyncMock(return_value="42"),
+            new=AsyncMock(return_value=RunOutcome("42")),
         ):
-            assert await run("print(6*7)") == "42"
+            assert await run(_tool_ctx(), code="print(6*7)") == "42"
+
+    @pytest.mark.anyio
+    async def test_a_program_that_raises_asks_the_model_to_fix_it(self):
+        """The `code` argument is what the model wrote, so this is a bad call."""
+        toolset = CodeExecution().get_toolset()
+        run = toolset.tools["run_python"].function
+
+        with (
+            patch(
+                "app.agents.capabilities.code_execution._toolset.run_python",
+                new=AsyncMock(return_value=RunOutcome("Execution failed: NameError", fixable=True)),
+            ),
+            pytest.raises(ModelRetry, match="NameError"),
+        ):
+            await run(_tool_ctx(), code="nope")
+
+    @pytest.mark.anyio
+    async def test_a_sandbox_that_died_is_reported_rather_than_retried(self):
+        """No rewrite of the program fixes the sandbox failing to start."""
+        toolset = CodeExecution().get_toolset()
+        run = toolset.tools["run_python"].function
+
+        with patch(
+            "app.agents.capabilities.code_execution._toolset.run_python",
+            new=AsyncMock(return_value=RunOutcome("Execution failed: sandbox unavailable")),
+        ):
+            assert "sandbox unavailable" in await run(_tool_ctx(), code="6*7")
+
+    @pytest.mark.anyio
+    async def test_the_last_attempt_answers_rather_than_ending_the_run(self):
+        toolset = CodeExecution().get_toolset()
+        run = toolset.tools["run_python"].function
+
+        with patch(
+            "app.agents.capabilities.code_execution._toolset.run_python",
+            new=AsyncMock(return_value=RunOutcome("Execution failed: NameError", fixable=True)),
+        ):
+            answered = await run(_tool_ctx(retry=1), code="nope")
+
+        assert "NameError" in answered
 
     @pytest.mark.anyio
     async def test_the_bindings_limits_reach_the_sandbox(self):
@@ -135,10 +202,10 @@ class TestCodeExecutionTool:
         raised in the Builder that never reaches Monty bounds nothing."""
         toolset = CodeExecution(timeout_secs=30.0, max_memory_mb=512).get_toolset()
         run = toolset.tools["run_python"].function
-        sandbox = AsyncMock(return_value="ok")
+        sandbox = AsyncMock(return_value=RunOutcome("ok"))
 
         with patch("app.agents.capabilities.code_execution._toolset.run_python", new=sandbox):
-            await run("6*7")
+            await run(_tool_ctx(), code="6*7")
 
         assert sandbox.call_args.kwargs == {"timeout_secs": 30.0, "max_memory_mb": 512}
 
@@ -161,20 +228,37 @@ class TestCodeExecutionTool:
         assert formatted.strip() != ""
 
     @pytest.mark.anyio
-    async def test_a_sandbox_error_is_returned_not_raised(self):
-        """The model can fix its own syntax error if it is told what went wrong."""
+    async def test_the_sandbox_failing_to_start_is_not_the_programs_fault(self):
+        """A retry prompt here would ask the model to rewrite working code."""
         with patch(
             "app.agents.capabilities.code_execution._sandbox.AsyncMonty",
             side_effect=RuntimeError("sandbox unavailable"),
         ):
-            result = await run_python("this is not python")
-        assert "Execution failed" in result
-        assert "sandbox unavailable" in result
+            outcome = await run_python("this is not python")
+
+        assert "sandbox unavailable" in outcome.text
+        assert outcome.fixable is False
+
+    @pytest.mark.anyio
+    async def test_an_error_in_the_program_is_the_models_to_fix(self):
+        outcome = await run_python("undefined_name")
+
+        assert "NameError" in outcome.text
+        assert outcome.fixable is True
+
+    @pytest.mark.anyio
+    async def test_a_program_that_runs_out_of_time_is_also_the_models_to_fix(self):
+        """The limit reports as `TimeoutError`; cheaper code is the fix."""
+        outcome = await run_python("while True: pass", timeout_secs=0.5)
+
+        assert "TimeoutError" in outcome.text
+        assert outcome.fixable is True
 
 
 class TestChartTool:
     def test_creates_a_parsable_specification(self):
         spec = ChartsToolset().create_chart(
+            _tool_ctx(),
             chart_type="bar",
             title="Revenue",
             x_values=["Jan", "Feb"],
@@ -187,6 +271,7 @@ class TestChartTool:
         """The axis is its own argument, so it cannot be mistaken for a series."""
         spec = parse_chart_spec(
             ChartsToolset().create_chart(
+                _tool_ctx(),
                 chart_type="line",
                 title="Revenue",
                 x_values=["Jan"],
@@ -199,6 +284,7 @@ class TestChartTool:
     def test_a_label_survives_onto_the_emitted_series(self):
         spec = parse_chart_spec(
             ChartsToolset().create_chart(
+                _tool_ctx(),
                 chart_type="line",
                 title="Revenue",
                 x_values=["Jan"],

@@ -18,10 +18,13 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const accessToken = request.cookies.get("access_token")?.value;
     if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
     const { id, invitationId } = await params;
-    await backendFetch(`/api/v1/orgs/${id}/invitations/${invitationId}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    await backendFetch(
+      `/api/v1/orgs/${encodeURIComponent(id)}/invitations/${encodeURIComponent(invitationId)}`,
+      {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     if (error instanceof BackendApiError)

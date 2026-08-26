@@ -181,7 +181,11 @@ There is no `(marketing)` route group.
   199 MB installed to draw 89 marks that are the same artwork either way.
   The generator refuses a source SVG it cannot draw with paths alone, or one
   carrying a literal fill: a mark that silently loses a layer still renders, and
-  is still the wrong logo.
+  is still the wrong logo. It also emits `src/lib/auth-glyphs.generated.ts` —
+  just the identity-provider marks — because `BrandIcon` reads the 89-mark table
+  by dynamic key, which no bundler can tree-shake, so importing it put every mark
+  on the critical path of the sign-in page; the auth pages import `AUTH_GLYPHS`
+  and draw it through `GlyphIcon` instead (#955).
 - Do not hand-edit `src/lib/mcp-logos.generated.ts` — run `bun run gen:mcp-logos`.
 - **A dependency nothing imports fails `make lint`.** `bun run lint:deps` is knip
   narrowed to that one question, and it runs in `lint-frontend`. A false positive
@@ -256,6 +260,36 @@ flow, which needs the list reachable.
 
 The full picture, including what CLAUDE.md requires, is in `CLAUDE.md` under
 "A new surface owes the walkthrough a stop".
+
+## A feature with glanceable state owes the dashboard a widget
+
+The arrangeable dashboard is a registry with the same failure mode as the tour: a
+feature added anywhere else is simply absent from the catalog, nothing fails, and
+the product reads as parallel features rather than one — #594 stitched exactly
+these seams after W3 shipped four features on branches that could not see each
+other. If a feature produces activity or state a person would want at a glance
+(runs, schedules, sync health, spend), it ships its card in the same change. Five
+edits, each demonstrated by every existing widget:
+
+- the id in `WidgetId` and its def in `WIDGETS` (`src/lib/dashboard/registry.ts`) —
+  gate on the permission the card's **primary** read demands, and fetch a more
+  privileged half conditionally rather than raising the gate to it (the routines
+  card gates `agents:view`, which `GET /triggers` asks, and reads the run outcomes
+  only for a caller holding `runs:view` — a card that 403s on a permission its
+  primary data never needed is a card its audience cannot add);
+- the component under `components/dashboard/widgets/`, registered in
+  `WIDGET_COMPONENTS` (`widgets/index.ts`) — built on `WidgetFrame` and the
+  `widget-states` trio, reusing an existing hook rather than adding a card-only
+  endpoint;
+- a placement in `DEFAULT_SECTIONS` (`src/lib/dashboard/layouts.ts`) when the card
+  belongs on the default arrangement, not merely in the add-a-widget catalog;
+- the id mirrored in `WIDGET_IDS` in `backend/app/schemas/dashboard_layout.py` —
+  `backend/tests/test_dashboard_registry.py` fails the build when the two drift,
+  and `registry.test.ts`'s gate table plus its widget count both name the new id;
+- `dashboard.widgets.<id>.*` copy (title, description, states) in en **and** pl,
+  and the file itself in `vitest.config.ts`'s coverage include — the widget
+  directory is gated file-by-file, so a new card is otherwise invisible to the
+  100% gate however green its tests run.
 
 ## Permissions
 

@@ -13,10 +13,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { accessToken } = adminCheck;
 
     const { userId } = await params;
-    const data = await backendFetch(`/api/v1/admin/users/${userId}/impersonate`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const data = await backendFetch(
+      `/api/v1/admin/users/${encodeURIComponent(userId)}/impersonate`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
     return bffJson(data);
   } catch (error) {
     if (error instanceof BackendApiError) {

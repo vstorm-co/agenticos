@@ -81,6 +81,18 @@ one expensive call every time.
     to the session context - which rolls back on any exception and is never
     reached at all on cancellation.
 
+The guard is a hard stop for a run that *sees* the spend, and a run's own cost
+only lands on its row when it finishes. So the baseline a run reads is the sum of
+runs that have already finished, and concurrent runs are invisible to one
+another: fifty runs starting together against an organization one call short of
+its cap each read the same under-cap baseline and each proceed, overshooting by
+up to their combined cost. This is a property of an aggregate with no single row
+to lock - unlike the per-run and per-loop overshoot above, which the
+before-the-request check does bound - and it is why the cap is a ceiling on
+committed spend rather than a gate that serialises simultaneous runs. A
+deployment that needs a strict cap runs its agents through one queue rather than
+in parallel.
+
 ### A run costs more than its model requests
 
 A knowledge search embeds the question before it can search it, and that embedding
@@ -862,6 +874,32 @@ This is the only read in the codebase that crosses every organization, for the
 reason a schedule has no tenant to be scoped to. Every write it makes is still in
 the row's own organization.
 
+### A run whose process died
+
+The other state nothing in-process will ever resolve. A run's row is committed
+`running` before its model is called ([#12][12-issue]), so a worker killed
+mid-run — OOM, a deploy that does not drain — leaves a durable row with nothing
+left to finish it: in Activity for ever, and blocking any schedule whose
+trigger it was the linked run of. An hourly sweep ends anything still `running`
+past `STALE_RUN_REAPED_AFTER_HOURS` (six hours by default; zero switches it
+off), as `failed` — nobody stopped this run, the infrastructure did, and an
+operator filtering run history for problems is exactly who should see it. The
+error on the row is the sweep's own sentence; the process that knew more died.
+
+A run's age here is its **last transition**, not its first start: a resume
+keeps the original `started_at` — the run spans both segments — so a run
+approved days after it parked ages from the moment its replay began, not from
+a start that would have it reaped mid-replay. The ceiling does not have to be
+exact either way, because a live run the sweep flips anyway flips itself back:
+its own terminal write lands later and wins. What a
+reaped run cannot recover is its spend — the ledger died with the process — so
+the row keeps the zeros it was opened with rather than being given a number
+somebody would reconcile against a bill. And nobody is mailed: the failure
+notification rides `finish`, which has the agent and its spec in hand; a sweep
+has neither.
+
+[12-issue]: https://github.com/vstorm-co/agenticos/issues/12
+
 ### An approval inside a delegation
 
 A delegate's tools are gated by the delegate's own spec, and it reaches the same
@@ -990,6 +1028,10 @@ A privileged bulk read is recorded too: each CSV
 export writes a `runs.export`, `approvals.export` or `spend.export` entry naming
 the window and the row count, because who took the whole table off the screen is a
 question that is cheap to answer now and impossible to reconstruct later.
+
+The write shares the acting request's transaction, so it fails closed: an entry
+that cannot be recorded rolls back the action it describes rather than letting a
+privileged mutation land unaudited.
 
 `audit:read` gates reading it. An app admin's bypass is exactly what the trail
 exists to hold to account.

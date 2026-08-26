@@ -1,18 +1,22 @@
-"""Every vector store the ingestion worker builds is disposed with its work.
+"""Every engine the ingestion worker builds is disposed with its work.
 
-#948. `PgVectorStore.__init__` creates a pooled SQLAlchemy engine, and the three
-flows in `app/worker/tasks/rag_tasks.py` each built one and disposed none. One
-flow runs per uploaded document, so two hundred uploads meant two hundred pooled
-engines abandoned in one worker process, each holding its checked-in connections
-until the process exited. Somewhere short of a hundred documents the worker
-reached `max_connections` and every query after that raised - including the ones
-that would have marked a document failed, so the symptom was an upload stuck at
-`processing` with a connection error in a log nobody was reading.
+#948, then #12. `PgVectorStore.__init__` used to create a pooled SQLAlchemy
+engine, and the three flows in `app/worker/tasks/rag_tasks.py` each built one
+and disposed none. One flow runs per uploaded document, so two hundred uploads
+meant two hundred pooled engines abandoned in one worker process, each holding
+its checked-in connections until the process exited - somewhere short of a
+hundred documents the worker reached `max_connections` and every query after
+that raised, including the ones that would have marked a document failed.
 
-These count constructions against disposals rather than asserting a call, so
-they fail for a store built on any path that does not close it - which is how the
-early return in `_run_sync` was found: it built a store and then answered "path
-not found".
+The store no longer owns an engine at all: `_ingestion_service` builds one per
+piece of work and its exit disposes it. These tests count constructions against
+disposals rather than asserting a call, so they fail for an engine built on any
+path that does not close it - which is how the early return in `_run_sync` was
+found: it built a store and then answered "path not found".
+
+The API process is the other half of the same design: its stores ride the
+application's own engine and own nothing to dispose, where each used to open a
+private pool beside it.
 """
 
 from __future__ import annotations
@@ -32,22 +36,22 @@ from app.worker.tasks import rag_tasks
 pytestmark = pytest.mark.anyio
 
 
-class StoreLedger:
-    """Counts the stores a flow builds and the ones it closes."""
+class EngineLedger:
+    """Counts the engines a flow builds and the ones it disposes."""
 
     def __init__(self) -> None:
         self.built: list[MagicMock] = []
-        self.closed: list[MagicMock] = []
+        self.disposed: list[MagicMock] = []
 
     def __call__(self, *args: Any, **kwargs: Any) -> MagicMock:
-        store = MagicMock()
-        store.aclose = AsyncMock(side_effect=lambda: self.closed.append(store))
-        self.built.append(store)
-        return store
+        engine = MagicMock()
+        engine.dispose = AsyncMock(side_effect=lambda: self.disposed.append(engine))
+        self.built.append(engine)
+        return engine
 
     @property
     def leaked(self) -> int:
-        return len(self.built) - len(self.closed)
+        return len(self.built) - len(self.disposed)
 
 
 @asynccontextmanager
@@ -67,14 +71,16 @@ def _ingest_result(status: IngestionStatus = IngestionStatus.DONE) -> MagicMock:
 
 
 @asynccontextmanager
-async def _worker(ledger: StoreLedger, *, ingest: AsyncMock | None = None) -> Any:
-    """The worker module with its store constructor and its database replaced.
+async def _worker(ledger: EngineLedger, *, ingest: AsyncMock | None = None) -> Any:
+    """The worker module with its engine factory and its database replaced.
 
-    `IngestionService` is left real: it is what holds the store the flow has to
-    close, so a stand-in service would be a test of the stand-in.
+    `IngestionService` and `_ingestion_service` are left real: they are what
+    build the engine the flow has to dispose, so a stand-in would be a test of
+    the stand-in.
     """
     with (
-        patch.object(rag_tasks, "VectorStore", new=ledger),
+        patch.object(rag_tasks, "create_async_engine", new=ledger),
+        patch.object(rag_tasks, "VectorStore", new=MagicMock()),
         patch.object(rag_tasks, "EmbeddingService", new=MagicMock()),
         patch.object(rag_tasks, "get_worker_db_context", new=_worker_db),
         patch.object(rag_tasks, "_record_embedding_spend", new=AsyncMock()),
@@ -89,10 +95,10 @@ async def _worker(ledger: StoreLedger, *, ingest: AsyncMock | None = None) -> An
         yield config_service
 
 
-class TestAnUploadsStore:
-    async def test_ingesting_many_documents_leaves_no_store_open(self):
-        """The count of live stores must not grow with the number of documents."""
-        ledger = StoreLedger()
+class TestAnUploadsEngine:
+    async def test_ingesting_many_documents_leaves_no_engine_open(self):
+        """The count of live engines must not grow with the number of documents."""
+        ledger = EngineLedger()
         documents = MagicMock(
             get_document=AsyncMock(
                 return_value=MagicMock(organization_id=uuid.uuid4(), ingestion_config={})
@@ -110,10 +116,10 @@ class TestAnUploadsStore:
         assert len(ledger.built) == 5
         assert ledger.leaked == 0
 
-    async def test_a_failed_ingest_still_disposes_its_store(self):
+    async def test_a_failed_ingest_still_disposes_its_engine(self):
         """The failure path is the one that mattered: a worker out of connections
         cannot record the failure that put it there."""
-        ledger = StoreLedger()
+        ledger = EngineLedger()
         documents = MagicMock(
             get_document=AsyncMock(
                 return_value=MagicMock(organization_id=None, ingestion_config={})
@@ -130,10 +136,10 @@ class TestAnUploadsStore:
 
         assert ledger.leaked == 0
 
-    async def test_an_ingest_that_returns_a_failure_disposes_its_store(self):
+    async def test_an_ingest_that_returns_a_failure_disposes_its_engine(self):
         """`ingest_file` reports a bad index by returning one, and that path
-        raises after the store has been handed back."""
-        ledger = StoreLedger()
+        raises after the engine has been handed back."""
+        ledger = EngineLedger()
         documents = MagicMock(
             get_document=AsyncMock(
                 return_value=MagicMock(organization_id=None, ingestion_config={})
@@ -154,11 +160,11 @@ class TestAnUploadsStore:
 
         assert ledger.leaked == 0
 
-    async def test_a_processor_that_cannot_be_built_builds_no_store(self):
+    async def test_a_processor_that_cannot_be_built_builds_no_engine(self):
         """The order inside the helper is load-bearing: the store used to be
         constructed first, so a parser the collection asks for and this build
         cannot provide left a pool nobody held a reference to."""
-        ledger = StoreLedger()
+        ledger = EngineLedger()
         documents = MagicMock(
             get_document=AsyncMock(
                 return_value=MagicMock(organization_id=None, ingestion_config={})
@@ -180,9 +186,9 @@ class TestAnUploadsStore:
         assert ledger.built == []
 
 
-class TestASyncsStore:
-    async def test_a_directory_sync_disposes_the_store_it_built(self, tmp_path: Path):
-        ledger = StoreLedger()
+class TestASyncsEngine:
+    async def test_a_directory_sync_disposes_the_engine_it_built(self, tmp_path: Path):
+        ledger = EngineLedger()
         (tmp_path / "handbook.md").write_text("body")
         sync = MagicMock(
             get_sync_log=AsyncMock(return_value=MagicMock(status="running")),
@@ -204,10 +210,10 @@ class TestASyncsStore:
         assert len(ledger.built) == 1
         assert ledger.leaked == 0
 
-    async def test_a_sync_of_a_path_that_does_not_exist_builds_no_store(self, tmp_path: Path):
+    async def test_a_sync_of_a_path_that_does_not_exist_builds_no_engine(self, tmp_path: Path):
         """It used to build one first and then answer "path not found", so the
         cheapest possible refusal leaked a connection pool."""
-        ledger = StoreLedger()
+        ledger = EngineLedger()
 
         async with _worker(ledger):
             with patch.object(rag_tasks, "_update_sync_log", new=AsyncMock()):
@@ -218,10 +224,10 @@ class TestASyncsStore:
         assert answer["status"] == "error"
         assert ledger.built == []
 
-    async def test_a_cancelled_sync_disposes_the_store_it_built(self, tmp_path: Path):
+    async def test_a_cancelled_sync_disposes_the_engine_it_built(self, tmp_path: Path):
         """Cancellation returns from inside the file loop, past every dispose a
         caller might have written after it."""
-        ledger = StoreLedger()
+        ledger = EngineLedger()
         (tmp_path / "handbook.md").write_text("body")
         sync = MagicMock(get_sync_log=AsyncMock(return_value=MagicMock(status="cancelled")))
 
@@ -238,9 +244,9 @@ class TestASyncsStore:
         assert ledger.leaked == 0
 
 
-class TestAConnectorSyncsStore:
-    async def test_a_source_sync_disposes_the_store_it_built(self):
-        ledger = StoreLedger()
+class TestAConnectorSyncsEngine:
+    async def test_a_source_sync_disposes_the_engine_it_built(self):
+        ledger = EngineLedger()
         source = MagicMock(
             connector_type="gdrive",
             config={"folder_id": "abc"},
@@ -272,8 +278,8 @@ class TestAConnectorSyncsStore:
         assert len(ledger.built) == 1
         assert ledger.leaked == 0
 
-    async def test_a_source_whose_connector_fails_disposes_the_store(self):
-        ledger = StoreLedger()
+    async def test_a_source_whose_connector_fails_disposes_the_engine(self):
+        ledger = EngineLedger()
         source = MagicMock(
             connector_type="gdrive",
             config={"folder_id": "abc"},
@@ -306,94 +312,88 @@ class TestAConnectorSyncsStore:
         assert ledger.leaked == 0
 
 
-class TestARequestsStore:
-    """The API's fallback, which only runs on a deployment already in trouble."""
+class TestTheProcessEngineStore:
+    """The API's stores ride the application engine and own nothing to dispose."""
 
-    async def test_a_request_that_builds_its_own_store_closes_it(self):
-        """The lifespan catches a failed pgvector connection and carries on
-        serving, so `request.state.vector_store` is absent and every request
-        builds one - a degraded deployment spending its remaining connections."""
+    def test_the_factory_binds_the_vector_engine_and_the_platform_resolver(self):
+        """The two invariants every process-store site used to spell by hand -
+        the engine and the resolver one of five sites once forgot (#306) - live
+        in the factory and nowhere else. The engine is the process's *vector*
+        pool, deliberately not the request pool: a handler already holds a
+        request connection while the store asks for a second, so one shared
+        pool turns saturation into a circular wait."""
+        from app.db.session import engine, vector_engine
+        from app.services.embedding_resolution import embeddings_for_collection
+        from app.services.rag import vectorstore
+
+        with patch.object(vectorstore, "PgVectorStore") as store_cls:
+            store = vectorstore.process_vector_store(MagicMock(), MagicMock())
+
+        assert store is store_cls.return_value
+        assert store_cls.call_args.kwargs["engine"] is vector_engine
+        assert store_cls.call_args.kwargs["engine"] is not engine
+        assert store_cls.call_args.kwargs["resolver"] is embeddings_for_collection
+
+    async def test_a_request_without_a_lifespan_store_builds_a_process_store(self):
+        """The lifespan's store is absent when the embedding warmup failed, and
+        the per-request fallback used to open a pooled engine of its own - a
+        degraded deployment spending its remaining connections (#948)."""
         from app.api import deps
 
-        store = MagicMock(aclose=AsyncMock())
         request = MagicMock(state=SimpleNamespace())
-        with patch.object(deps, "PgVectorStore", return_value=store):
-            generator = deps.get_vectorstore(request, MagicMock())
-            assert await anext(generator) is store
-            with pytest.raises(StopAsyncIteration):
-                await anext(generator)
+        with patch.object(deps, "process_vector_store") as factory:
+            store = deps.get_vectorstore(request, MagicMock())
 
-        store.aclose.assert_awaited_once()
+        assert store is factory.return_value
 
-    async def test_the_lifespans_store_is_not_closed_by_a_request(self):
-        """It belongs to the process, and shutdown disposes it. Closing it here
-        would leave every later request holding a store with no pool."""
+    async def test_the_lifespans_store_is_handed_through_untouched(self):
+        """It belongs to the process; a request neither rebuilds nor closes it."""
         from app.api import deps
 
-        shared = MagicMock(aclose=AsyncMock())
+        shared = MagicMock()
         request = MagicMock(state=SimpleNamespace(vector_store=shared))
-        generator = deps.get_vectorstore(request, MagicMock())
-        assert await anext(generator) is shared
-        with pytest.raises(StopAsyncIteration):
-            await anext(generator)
+        with patch.object(deps, "process_vector_store") as factory:
+            assert deps.get_vectorstore(request, MagicMock()) is shared
 
-        shared.aclose.assert_not_awaited()
+        factory.assert_not_called()
 
 
 class TestTheKnowledgeCapabilitysStore:
-    async def test_shutdown_disposes_the_store_the_first_search_built(self):
-        """One pool per API process, reachable from no request, so the lifespan's
-        own `aclose` never saw it."""
+    def test_the_first_search_builds_a_process_store(self):
+        """The capability's cached store used to open the second private pool an
+        API process ran; it rides the application's engine now."""
         import app.agents.capabilities.knowledge._search as search_module
 
-        store = MagicMock(aclose=AsyncMock())
         with (
             patch.object(search_module, "EmbeddingService"),
-            patch.object(search_module, "PgVectorStore", return_value=store),
-            patch.object(search_module, "RetrievalService"),
+            patch.object(search_module, "process_vector_store") as factory,
+            patch.object(search_module, "RetrievalService") as retrieval_cls,
         ):
             search_module._retrieval_service = None
-            search_module._vector_store = None
             try:
                 search_module.get_retrieval_service()
-                await search_module.aclose_retrieval_service()
             finally:
                 search_module._retrieval_service = None
-                search_module._vector_store = None
 
-        store.aclose.assert_awaited_once()
+        assert retrieval_cls.call_args.args[0] is factory.return_value
 
-    async def test_shutting_down_without_a_search_closes_nothing(self):
-        """A deployment where no agent ever searched has no pool to release, and
-        shutdown must not build one to close it."""
+    def test_the_next_search_after_a_reset_builds_a_fresh_store(self):
+        """Shutdown disposes the process engine, so a shutdown followed by more
+        work - a test, a reload - must not search through the stale store."""
         import app.agents.capabilities.knowledge._search as search_module
 
-        with patch.object(search_module, "PgVectorStore") as store_cls:
-            search_module._retrieval_service = None
-            search_module._vector_store = None
-            await search_module.aclose_retrieval_service()
-
-        store_cls.assert_not_called()
-
-    async def test_the_next_search_after_a_shutdown_builds_a_fresh_store(self):
-        """Both globals are reset, so nothing searches through a disposed pool."""
-        import app.agents.capabilities.knowledge._search as search_module
-
-        first = MagicMock(aclose=AsyncMock())
-        second = MagicMock(aclose=AsyncMock())
         with (
             patch.object(search_module, "EmbeddingService"),
-            patch.object(search_module, "PgVectorStore", side_effect=[first, second]),
-            patch.object(search_module, "RetrievalService"),
+            patch.object(search_module, "process_vector_store") as factory,
+            patch.object(search_module, "RetrievalService", side_effect=lambda *a, **k: object()),
         ):
             search_module._retrieval_service = None
-            search_module._vector_store = None
             try:
-                search_module.get_retrieval_service()
-                await search_module.aclose_retrieval_service()
-                search_module.get_retrieval_service()
-
-                assert search_module._vector_store is second
+                first = search_module.get_retrieval_service()
+                search_module.reset_retrieval_service()
+                second = search_module.get_retrieval_service()
             finally:
                 search_module._retrieval_service = None
-                search_module._vector_store = None
+
+        assert first is not second
+        assert factory.call_count == 2

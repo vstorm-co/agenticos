@@ -18,6 +18,8 @@ function collection(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
     is_default: false,
     ingestion_config: DEFAULT_INGESTION_CONFIG,
     embedding_model: "text-embedding-3-large",
+    embedding_provider: "openrouter",
+    embedding_secret_id: null,
     embedding_dim: 3072,
     rerank_model: null,
     rerank_secret_id: null,

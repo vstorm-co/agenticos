@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
-from pydantic_ai import ModelRetry, RunContext
+import logging
+
+from pydantic_ai import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 
+from app.agents.capabilities._failures import steer
 from app.agents.capabilities.knowledge._search import search_knowledge_base
 from app.agents.deps import AgentDeps
+
+logger = logging.getLogger(__name__)
 
 
 def build_knowledge_toolset(*, default_top_k: int) -> FunctionToolset[AgentDeps]:
@@ -48,8 +53,12 @@ def build_knowledge_toolset(*, default_top_k: int) -> FunctionToolset[AgentDeps]
                 # another tenant resolves this agent's config, not theirs (#913).
                 organization_id=ctx.deps.organization_id,
             )
-        except Exception as exc:
-            raise ModelRetry("Knowledge base temporarily unavailable, please try again.") from exc
+        except Exception:
+            # A retry rather than a returned message: an error in the shape of a
+            # result reads as "nothing found", and the model then answers from
+            # memory - confidently, and without saying it had to.
+            logger.exception("knowledge_search_failed")
+            return steer(ctx, "Knowledge base temporarily unavailable, please try again.")
 
     toolset: FunctionToolset[AgentDeps] = FunctionToolset()
     toolset.add_function(search_documents, takes_ctx=True)

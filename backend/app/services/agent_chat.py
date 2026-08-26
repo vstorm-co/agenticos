@@ -382,6 +382,9 @@ class ChatAgentRunner:
         budget_scope: BudgetScope | None = None
         output = ""
         summarized: list[dict[str, Any]] | None = None
+        # The transaction ends before the model is asked anything - the same
+        # boundary `AgentRunnerService._run` sets, and for its reasons (#12).
+        await self.db.commit()
         try:
             async with prepared.iterate(
                 user_input,

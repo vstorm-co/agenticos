@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from decimal import Decimal
 from pathlib import Path
@@ -230,16 +231,15 @@ class TestWhatTheWorkerWritesToTheRow:
         documents.return_value.fail_ingestion = AsyncMock()
         pipeline = MagicMock()
         pipeline.ingest_file = AsyncMock(side_effect=_vendor_failure())
-        # Disposed in the flow's `finally`, whether the ingest raised or not (#948).
-        pipeline.store = MagicMock(aclose=AsyncMock())
+
+        @asynccontextmanager
+        async def _pipeline(**_kwargs: object) -> AsyncIterator[MagicMock]:
+            yield pipeline
 
         with (
             patch("app.worker.tasks.rag_tasks.get_worker_db_context", self._db),
             patch("app.services.rag_document.RAGDocumentService", documents),
-            patch(
-                "app.worker.tasks.rag_tasks._ingestion_service_for",
-                new=AsyncMock(return_value=pipeline),
-            ),
+            patch("app.worker.tasks.rag_tasks._ingestion_service", new=_pipeline),
             patch("app.worker.tasks.rag_tasks._record_embedding_spend", new=AsyncMock()),
             pytest.raises(AuthenticationError),
         ):

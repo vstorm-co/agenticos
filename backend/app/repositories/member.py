@@ -266,6 +266,23 @@ async def first_owner_id(db: AsyncSession, *, organization_id: UUID) -> UUID | N
     )
 
 
+async def other_owner_id(
+    db: AsyncSession, *, organization_id: UUID, exclude_user_id: UUID
+) -> UUID | None:
+    """The earliest-joined owner who is not this user - who a shared org is handed
+    to when its creator's account is deleted (#9)."""
+    return await db.scalar(
+        select(OrganizationMember.user_id)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.role == OrgRole.OWNER.value,
+            OrganizationMember.user_id != exclude_user_id,
+        )
+        .order_by(OrganizationMember.joined_at.asc())
+        .limit(1)
+    )
+
+
 async def create(
     db: AsyncSession,
     *,

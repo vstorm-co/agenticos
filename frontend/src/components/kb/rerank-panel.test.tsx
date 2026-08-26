@@ -38,6 +38,8 @@ function kb(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
     ingestion_config: DEFAULT_INGESTION_CONFIG,
     embedding_model: "text-embedding-3-large",
     embedding_dim: 3072,
+    embedding_provider: "openai",
+    embedding_secret_id: null,
     rerank_model: null,
     rerank_secret_id: null,
     created_at: "2026-07-01T00:00:00Z",

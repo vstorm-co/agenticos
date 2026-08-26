@@ -14,8 +14,8 @@ losing the key drops reranking, it does not take document search down. Unlike
 the embedding key there is no deployment fallback - a reranker with no key is
 simply off.
 
-Revision ID: 0056_knowledge_base_rerank
-Revises: 0055_sandbox_operations
+Revision ID: 0059_knowledge_base_rerank
+Revises: 0058_backfill_rag_lookup_indexes
 Create Date: 2026-08-18
 
 """
@@ -26,8 +26,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0056_knowledge_base_rerank"
-down_revision: str | None = "0055_sandbox_operations"
+revision: str = "0059_knowledge_base_rerank"
+down_revision: str | None = "0058_backfill_rag_lookup_indexes"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
