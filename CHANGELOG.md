@@ -17,6 +17,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.283] - 2026-08-27
+
+### Fixed
+
+- **A concurrent insert reopened the exact 500 the delete reconciliation closed.**
+  Reconcile-then-delete is check-then-act, and with no row lock an org-scoped
+  collection inserted between the purge's collection list and its
+  `DELETE organizations` is SET NULL-ed into a
+  `ck_knowledge_bases_org_scope_has_org` violation - and a private secret or
+  personal organization inserted between a user delete's reconcile and its
+  `DELETE users` lands the same CHECK or RESTRICT blocker.
+  `OrganizationService.purge` and `UserService.delete` take
+  `SELECT ... FOR UPDATE` on the row they are about before enumerating: a
+  concurrent child insert takes `FOR KEY SHARE` on that parent through its FK,
+  which `FOR UPDATE` conflicts with, so the insert waits and the reconcile sees
+  every child on a fresh read under READ COMMITTED. (#1115, #9)
+- A rare deadlock when two users who co-own each other's shared organizations
+  self-delete simultaneously was found while reviewing this and filed rather than
+  folded in - Postgres aborts one with a 500. (#1134)
+
 ## [0.0.282] - 2026-08-27
 
 ### Fixed
