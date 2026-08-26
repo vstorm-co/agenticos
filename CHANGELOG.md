@@ -17,6 +17,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.280] - 2026-08-27
+
+### Fixed
+
+- **Two list endpoints ran a query per row** where the code beside them already
+  batched. The vault listing resolved emails and grant counts in one grouped query
+  each, then asked which agents bind each secret one secret at a time - a
+  thirty-secret vault loaded in thirty-one queries. `agents_using_for_secrets`
+  answers a whole page in one: it unnests each agent's draft-spec capabilities and
+  matches the bound `secret_id` against the requested set, grouped back per secret,
+  with a `CASE` guarding `jsonb_array_elements` off a spec whose `capabilities` is
+  not an array - the rows the old containment skipped - and keeping the tenant scope
+  and name ordering. (#953)
+- The organization listing ran two queries per organization: one to re-read the
+  caller's membership for its role, one to count members. The role rides the
+  membership join the listing already makes, and `member_counts_for` counts a whole
+  page in one grouped read. The per-row membership read was redundant anyway - the
+  organization came from that very join. `count_members` stays for the single
+  organization read. (#953)
+
 ## [0.0.279] - 2026-08-27
 
 ### Fixed
