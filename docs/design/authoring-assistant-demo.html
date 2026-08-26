@@ -945,14 +945,13 @@ function refresh() {
   setCount("count-toolbox", pendingTool);
   const bar = document.getElementById("draft-bar");
   const acceptedBuild = INSTRUCTION_SUGGS.filter(id => state[id] === "accepted").length;
+  document.getElementById("draft-badge").hidden = accepted === 0;
   if (acceptedBuild > 0) {
     bar.classList.add("show");
     document.getElementById("draft-bar-text").textContent =
       `${acceptedBuild} of 4 accepted — written into the draft. Nothing is live yet.`;
-    document.getElementById("draft-badge").hidden = false;
   } else {
     bar.classList.remove("show");
-    if (accepted === 0) document.getElementById("draft-badge").hidden = true;
   }
 }
 function setCount(id, n) {
@@ -1011,8 +1010,8 @@ function resolveFinding(btn, msg) {
 }
 
 /* ---------- replay ---------- */
-const replay = { r1: "better", r2: "better", r3: "better", r4: "same", r5: "better" };
-const JUDGE = { ...replay };
+const JUDGE = { r1: "better", r2: "better", r3: "better", r4: "same", r5: "better" };
+const replay = { r1: null, r2: null, r3: null, r4: null, r5: null };
 function openReplay() {
   document.getElementById("replay-overlay").hidden = false;
   document.querySelectorAll("[data-row]").forEach(cell => renderVerdict(cell));
@@ -1029,7 +1028,7 @@ function renderVerdict(cell) {
     ["better", "same", "worse"].map(v =>
       `<button data-v="${v}" class="${replay[row] === v ? "on" : ""}"
         onclick="setVerdict('${row}','${v}')">${v[0].toUpperCase() + v.slice(1)}</button>`).join("") +
-    `</div><span class="judge-note">judge: ${JUDGE[row]}${replay[row] !== JUDGE[row] ? " · yours: " + replay[row] : ""}</span>`;
+    `</div><span class="judge-note">judge suggests: ${JUDGE[row]} · yours: ${replay[row] ?? "—"}</span>`;
 }
 function setVerdict(row, v) {
   replay[row] = v;
@@ -1038,11 +1037,13 @@ function setVerdict(row, v) {
 }
 function renderReplaySummary() {
   const counts = { better: 0, same: 0, worse: 0 };
-  Object.values(replay).forEach(v => counts[v]++);
+  let undecided = 0;
+  Object.values(replay).forEach(v => (v ? counts[v]++ : undecided++));
   document.getElementById("replay-summary").innerHTML =
     `<span class="sum-chip better">${counts.better} better</span>` +
     `<span class="sum-chip">${counts.same} same</span>` +
     `<span class="sum-chip worse">${counts.worse} worse</span>` +
+    `<span class="sum-chip">${undecided} undecided</span>` +
     `<span class="sum-chip">1 divergence</span>` +
     `<span class="sum-chip mono">top 5 of 22 · matched to the edit · $0.11 spent</span>`;
 }

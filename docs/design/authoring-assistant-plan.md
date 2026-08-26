@@ -37,7 +37,12 @@ mention it.** One row per run, recorded from the wire by `RecordingModel`
 names + descriptions + schemas the model was actually handed, and per-request
 stats. For authoring purposes this beats a Logfire trace — it answers "what did
 the model see" rather than "what did the model do", and it exists on every
-deployment unconditionally.
+deployment unconditionally. With the recorder's own limits, which the read
+path must honour: no manifest is written when a run never reached a model
+request, a persistence failure is deliberately swallowed rather than failing
+the run, and `fit` may truncate instructions and tool schemas — so a manifest
+is *best-available* evidence, and an absent or truncated one is skipped or
+surfaced as incomplete while the ratings and transcript evidence continues.
 
 **"Propose, don't write" is already implemented — for skills.** `skill_proposals`
 (`db/models/skill_proposal.py`): an agent's write to a skill file lands as a
@@ -108,7 +113,10 @@ Mechanism, per surface:
   version` column, so a skill proposal can carry the same evidence popover
   and Edit action the other two surfaces get — the existing table stores
   only the replacement body, which cannot feed the unified grammar Decision
-  7 promises. And one truth stated rather than papered over: **applying a
+  7 promises. The base version is **enforced at Apply**, not merely stored:
+  a proposal reviewed against v3 refuses to overwrite a skill somebody has
+  meanwhile advanced to v4 — it renders stale with a side-by-side, exactly
+  the hunk rule — where today's Apply updates unconditionally. And one truth stated rather than papered over: **applying a
   skill proposal is a live change.** Skills have no draft/publish stage —
   Apply bumps `skills.version` and every bound agent reads the new body on
   its next run. The draft-first guarantee above is a *spec* guarantee; for
@@ -137,17 +145,33 @@ Mechanism, per surface:
   the batch holds the instruction hunks *and* a collection of tool-override
   entries keyed by `(capability_id, tool_id)`, so one improver run
   suggesting two tool descriptions records both and the reviewer sees the
-  whole batch; a later run supersedes the batch, not one entry at a time.
+  whole batch; a later run supersedes the batch, not one entry at a time —
+  where "later" is decided by the **source run's start time**, not by which
+  `finish` committed first: proposals are recorded from `finish`, so two
+  overlapping improver runs can complete out of order, and an older run
+  must never replace a newer batch merely because it finished last.
   **Decision state lives on the hunk, not the row**: each
   hunk carries its own `status` (pending/accepted/dismissed) and decision
   metadata (`decided_by`, `decided_at`), because one review can accept one
   hunk and dismiss its neighbour, which a row-level status cannot represent.
-  The row keeps lifecycle only: *open* while any hunk is pending,
-  *superseded* when a newer run replaces it, *closed* when the draft
-  publishes. A hunk decision is revisable (Undo) while the proposal is open
-  — undoing an accept also reverses the draft write — and becomes terminal
-  when the proposal closes; `skill_proposals`' decided-once rule applies to
-  the closed proposal, not to a hunk mid-review.
+  The row keeps lifecycle only: **open until the draft publishes or a newer
+  run supersedes it** — deciding the last pending hunk does not close the
+  batch, or Undo would die with the final decision. A hunk decision is
+  revisable (Undo) while the batch is open and becomes terminal when it
+  closes; `skill_proposals`' decided-once rule applies to the closed batch,
+  not to a hunk mid-review. Two mechanics that keep decisions honest:
+  - **Undo is anchored like Accept.** It reverses the draft write only
+    while the accepted text still stands in the draft; if the reviewer has
+    meanwhile edited that text by hand, Undo goes *stale* and refuses —
+    optimistic concurrency alone cannot catch this, because the manual
+    edit legitimately advanced the revision.
+  - **A hunk decision and its draft mutation are one conditional
+    transaction.** Two reviewers concurrently accepting and dismissing the
+    same pending hunk must resolve to exactly one outcome — a
+    compare-and-set on the hunk's status commits together with any draft
+    write, so a dismissed hunk can never linger applied in the draft. The
+    draft-revision check does not cover this on its own: Dismiss writes no
+    draft.
   Two target kinds:
   - `instructions`: **a base snapshot plus a list of anchored hunks**, each
     `{old_text, new_text, rationale, evidence}`, decided independently.
@@ -180,7 +204,13 @@ Mechanism, per surface:
   and `evidence` (JSONB: rating ids, run ids, the numbers behind "3 of 5 👎") —
   rendered in the review UI as the hover popover the demo shows, resolved
   through org-scoped reads so a stale or foreign id renders as absent, never
-  as a leak.
+  as a leak. **And bound to the target, not merely the tenant**: the
+  recorder accepts a run or rating reference only when it belongs to the
+  target agent (for a skill proposal, only a run that loaded that skill) —
+  tenant membership alone would let a fabricated or prompt-injected id
+  dress an unrelated record up as support for the hunk. A reference that
+  fails the target relationship is dropped at staging, not rendered
+  hopefully.
 - **Accepting must not race the Builder's autosave.** The Builder holds the
   draft client-side and autosaves the whole spec, so a server-side accept
   while the page is open would be clobbered by the next autosave — and
@@ -221,7 +251,7 @@ itself improvable, by itself.
 
 | Tool | Reads/It stages |
 |---|---|
-| `read_agent_spec` | the target's draft + current published spec |
+| `read_agent_spec` | the target's draft + published spec, **with the resolved capability catalog** — per binding, every tool's stable id, effective name and effective description via `effective_tools`, because neither the spec (overrides only) nor a manifest (provider-facing names only) carries the `(capability_id, tool_id)` identity `propose_tool_description` must name for a not-yet-overridden tool |
 | `read_feedback` | ratings with comments for the target, org-scoped |
 | `read_runs` | run metadata: status, error, tokens, cost, latency |
 | `read_manifest` | what the model was handed on a given run |
@@ -249,6 +279,13 @@ The `propose_*` tools **stage** into run state; the runner records the staged
 proposals in `finish`, beside `_propose_skill_changes` — same seam, same
 dedup-across-turns behaviour, and the capability stays DB-free.
 
+The capability builds in **two modes**, because mode 1 has no target by
+definition: with an injected target it exposes the full toolset above; on a
+mode-1 authoring session it builds narrowed to `propose_agent` (no target
+reads to expose); with neither injected it builds `None`. One capability,
+one registration — the runner decides the mode from what it injects, the
+`channel_tools` way.
+
 **No new `RunSurface` member.** The enum's own rule is that every member needs
 a writer and answers "how is the product used"; an improver run started from
 the dashboard is `WEB`, and "was it the improver" is already answerable by
@@ -273,8 +310,11 @@ No new permission. The composition of existing gates already names each action:
 
 | Action | Gate |
 |---|---|
-| Start an improve/verify/replay run on agent X | `runs:view` (the evidence), `agents:edit` on X via `resolve_access` (the proposals aim at its draft), **and `agents:run` on the seeded improver** via `resolve_access` — grants are independent, so edit access to X does not imply use of the improver, and starting it spends the org's money |
-| Start an improve/verify/replay run on skill S | `runs:view` **and `skills:edit` on S via `resolve_access`** — skills have their own ownership, visibility and grants, so access to some agent that binds S proves nothing about S |
+| Start an improve/verify run on agent X | `runs:view` (the evidence), `agents:edit` on X via `resolve_access` (the proposals aim at its draft), **and `agents:run` on the seeded improver** via `resolve_access` — grants are independent, so edit access to X does not imply use of the improver, and starting it spends the org's money |
+| Start an improve run on skill S | `runs:view`, **`skills:edit` on S via `resolve_access`** — skills have their own ownership, visibility and grants, so access to some agent that binds S proves nothing about S — and `agents:run` on the improver, same as above |
+| Verify for a skill | The same gates, and **only against a pending skill proposal** (candidate vs current body): skills have no draft and keep no previous content, so a live manual edit has no base to verify against — Verify(skill) is review of a proposal, never an after-the-fact audit of an edit already live |
+| Start a replay | The gates above for its target, **plus `agents:run` on every agent the replay executes**: the target agent for a spec replay, and each selected source agent for a skill replay — replay runs the candidate under those agents and charges their budgets. A source agent the caller may not run is excluded from the pool and the exclusion reported |
+| Record or change a replay pair's verdict | The session's creator, or `agents:edit` / `skills:edit` on the session's target — `runs:view` reads sessions, it never rewrites another reviewer's evaluation |
 | Accept/dismiss an instructions or tool-description proposal | `agents:edit` on the target |
 | Apply/discard a skill proposal | `skills:edit` on the skill (existing) |
 | Publish the resulting draft | `agents:publish` (existing) |
@@ -285,8 +325,10 @@ already express. Owed tests: the cross-tenant refusal (an improver run in org A
 cannot read org B's ratings/runs/manifests, in the
 `test_org_scope_regression.py` style), ownership-alone-is-not-access on
 proposal decisions, an editor of agent X without use of the improver refused
-at start, and a caller without `skills:edit` on S refused skill authoring
-however many agents bind S.
+at start, a caller without `skills:edit` on S refused skill authoring however
+many agents bind S, a replay refused without `agents:run` on its target and a
+skill-replay source silently excluded without it, and a `runs:view`-only
+member refused a verdict write.
 
 ## Decision 5 — mode 1 produces a draft, never a version
 
@@ -295,6 +337,13 @@ assistant's `propose_agent` output becomes an ordinary draft — name,
 instructions, capability bindings, collection/skill references — owned by the
 person who asked, subject to `agents:edit`, validated only when that person
 publishes. It stops there, for the reasons `docs/concepts.md` already gives.
+
+One identity rule the promote precedent does not need but mode 1 does:
+`propose_agent` on a *later turn* of the same authoring conversation
+**updates the draft the first turn created**, never mints a sibling — the
+conversation persists the created draft's id, so "make it friendlier" refines
+one agent instead of leaving three near-duplicates behind. The cross-turn
+test covers this path explicitly.
 
 Trigger templates were considered as the non-AI alternative (a curated,
 code-defined catalog pre-filling the create form) and kept as complementary:
@@ -308,11 +357,14 @@ and a ground-truth question this issue should not carry — scoped out exactly a
 the issue suggests. What *is* in scope is the evaluation the org's own history
 already funds — Decision 9's replay — plus two things worth stating here:
 
-- **The cheap loop already exists.** `rating_counts_by_version` answers "did
-  the accepted change help" without any harness: after a proposal is accepted
-  and published as v*N+1*, the assistant's next run can cite the v*N* → v*N+1*
-  rating shift as evidence — the improvement loop closes on data we already
-  keep.
+- **The cheap loop already exists — read as rates, not counts.**
+  `rating_counts_by_version` reports likes and ratings submitted, with no
+  exposure: ten 👎 across a thousand v7 answers against two across ten v8
+  answers is a *worsening rate* wearing an improving count. So the v*N* →
+  v*N+1* shift the assistant cites is computed against answers served per
+  version, carries a minimum-sample caveat, and below that sample is offered
+  as qualitative evidence ("two of the ten v8 answers were rated down"),
+  never as the verdict.
 - **Phase 2 sketch, deliberately undesigned:** dataset rows (input, expected
   qualities), scoring as a capability or a judge agent, results keyed on
   `agent_version_id`. Each of those is a decision for its own plan; replay
@@ -353,10 +405,15 @@ and what it silently removed ("you dropped the language-matching line; two
 👎 were about answering Polish customers in English").
 
 The verdict is a report, and anything actionable in it is an ordinary
-proposal hunk — same table, same review grammar, same accept path. No second
-mechanism: verification is the improver run with a different injected
-resource (the human's diff instead of a blank slate), so budgets, Activity
-and the org switch (Decision 10) cover it for free.
+proposal hunk — same table, same review grammar, same accept path, with one
+supersession carve-out: verification findings **merge into the open batch**
+rather than superseding it, because Verify is offered while Improve
+suggestions may still be pending, and "a later run supersedes" would let a
+critique silently discard suggestions the person has not reviewed. Only a
+full improver run replaces the batch. No second mechanism otherwise:
+verification is the improver run with a different injected resource (the
+human's diff instead of a blank slate), so budgets, Activity and the org
+switch (Decision 10) cover it for free.
 
 *Rejected: a blocking "AI gate" on publish — a verdict that could refuse a
 publish makes the assistant an authority over people, which inverts the
@@ -377,11 +434,17 @@ The three hard edges, decided here:
   sent a message or written a file; replaying it must not do it twice. Tool
   calls are answered **from the recording**: `tool_calls` rows and the run
   manifest hold the original arguments and results, and a replayed call is
-  matched by **tool id, normalized arguments and occurrence order** — a
-  same-tool call with different arguments is a mismatch, because serving it
-  an unrelated recording (`get_order(999)` answered with `get_order(4512)`'s
-  result) would fabricate the very improvement or regression the comparison
-  exists to measure. Any mismatch — different arguments or a tool the
+  matched by **stable tool id, normalized arguments and occurrence order** —
+  where the stable id is *resolved*, not read: `tool_calls` and the manifest
+  record only the effective, possibly overridden name, so matching maps each
+  side through its version's stable-id → effective-name table (the recorded
+  side through the frozen version, the candidate side through the candidate
+  spec), and a candidate that merely renames a tool still matches its own
+  recorded calls. A same-tool call with different arguments is a mismatch,
+  because serving it an unrelated recording (`get_order(999)` answered with
+  `get_order(4512)`'s result) would fabricate the very improvement or
+  regression the comparison exists to measure. Any mismatch — different
+  arguments, a repeated call past the recorded occurrences, or a tool the
   original never called — leaves the call *not executed* and marks the pair
   **divergent**; the reviewer sees what the new prompt reached for.
   Divergence is a finding, not a failure; read-only capability calls
@@ -390,11 +453,42 @@ The three hard edges, decided here:
 - **A replay runs the candidate, which is a draft.** Two ways to get there:
   teach `prepare` to accept an explicit spec (a `spec=` escape hatch beside
   `get_runnable_spec`, used only by replay and gated accordingly), or
-  publish the candidate into a shadow environment nothing user-facing points
-  at and replay via the existing `environment_id` path. The first keeps
-  version history clean; the second reuses more. Left open for review
-  (question 6) with a lean toward the explicit spec — versions are the
-  product's audit trail and test noise does not belong in it.
+  publish the candidate into a shadow environment and replay via the
+  existing `environment_id` path. The lean is firmly the explicit spec —
+  versions are the product's audit trail and test noise does not belong in
+  it, and the shadow path is unsafe as currently built: `publish` calls
+  `_move_environments_that_follow`, so every tracks-latest environment
+  (a dev bot, any following surface) would move onto the unreviewed
+  candidate; that alternative is viable only with a promotion-free
+  version-mint that does not exist today. Question 6 stands with that
+  weight on it. The explicit-spec path carries three obligations of its
+  own:
+  - **validation first**: a draft skipped `validate_spec` on save, and the
+    resolvers downstream of `prepare` deliberately trust that a published
+    binding was already authorized — so replay runs the candidate through
+    the full caller-scoped reference-and-permission validation before
+    assembly, or an editor could exercise a collection, skill or secret
+    through replay that they could never publish;
+  - **honest attribution**: `_assemble` falls back to
+    `agent.current_version_id`, which would book every candidate run to a
+    published version it did not execute — replay runs carry **no**
+    `agent_version_id` and link the session's candidate snapshot instead,
+    so Activity and `usage_by_version` never absorb candidate answers;
+  - **a frozen candidate**: confirming the preview captures an immutable
+    snapshot of the candidate (the spec, or the skill body + resources,
+    with its revision), and every pair runs that snapshot — a Builder
+    autosave or a replaced skill proposal mid-session must not make pair
+    four answer for different content than pair one under a single
+    aggregate verdict.
+- **A pair holds everything constant except the edited variable.** The
+  historical answer may have run on a per-turn model override, and skills
+  or context files may have changed since the source run — so the candidate
+  side of a pair runs the **recorded model** (a pair whose recorded model
+  no longer resolves is excluded and reported, or explicitly marked) and
+  rebuilds its non-edited resources from the source run's manifest and
+  recordings, replacing only the field under evaluation. Otherwise the
+  comparison attributes a model swap or a context edit to the instruction
+  change it is supposed to measure.
 - **Replay runs are runs.** Metered against the agent's and the org's caps
   (a replay of twenty prompts is a visible, bounded spend, shown before the
   button fires), recorded through `finish`, and stamped with a new
@@ -412,26 +506,43 @@ the skill argument — never a literal `tool_name = 'load_skill'` sweep, which
 silently misses every renamed binding. Each pair replays under **its own
 recorded agent version** (a skill is
 bound to many agents; the honest comparison holds the agent constant per
-pair) with the candidate body injected as a **resource override** — skills
-reach a run through `resources["skills"]`, so no spec change and no publish
-question arises at all. The one wrinkle: the recorded `load_skill` *result*
-is the old body, so the replay toolset must serve the candidate body for the
-edited skill while serving everything else from the recording.
+pair) with the candidate injected as a **resource override** — skills reach
+a run through `resources["skills"]`, so no spec change and no publish
+question arises at all. Two wrinkles, both about serving the candidate
+whole: the replay toolset answers `list_skills`, `load_skill` **and**
+`read_skill_resource` for the edited skill from the **complete candidate
+snapshot** — body *and* resources, since a proposal can replace both, and a
+newly added resource is candidate content, not a divergence — while serving
+everything else from the recording. And a skill is often loaded
+mid-conversation, where the source answer depended on earlier turns: such a
+pair replays with the **recorded conversation prefix** up to the source
+turn — an immutable copy fed as history; the original conversation is never
+touched — so the candidate answers the same situation, not the same
+sentence out of context.
 
-**The replay set is picked for relevance to the edit, capped small.** Five
-pairs by default, because the point is "does the edited fragment now work",
-not coverage — and the edited hunks say what to look for. The candidate pool
-is this agent's past opening prompts (for a skill, the prompts of runs that
-loaded it), **excluding prompts that carried attachments**: the recorded
-answer was produced from routed file contents the replay cannot faithfully
-re-supply, so replaying the text alone would manufacture regressions — the
-picker says how many candidates that excluded, and reconstructing recorded
-attachments is future work, not a silent approximation. Selection ranks the
-pool by semantic similarity to the hunks'
-`old_text`/`new_text`, embedded **on demand** through the shared embedding
-client (`services/rag/embeddings.py`) — nearest-neighbour ranking gives the
-wanted fallback for free: editing the border-collie paragraph of a
-dog-expert agent surfaces border-collie conversations first and other-breed
+**The replay set is picked for relevance to the edit, capped small — and the
+pool is capped before anything embeds.** Five pairs by default, because the
+point is "does the edited fragment now work", not coverage. The candidate
+pool is this agent's past opening prompts (for a skill, the prompts of runs
+that loaded it), bounded **deterministically before embedding** — a recency
+window and a hard count (rated-down candidates admitted first), because a
+long-lived agent can hold hundreds of thousands of conversations and "a few
+hundred candidates" must be a rule, not a hope; the picker reports how many
+older candidates the cap excluded. Three further exclusions, each reported
+the same way: **prompts that carried attachments** (the recorded answer was
+produced from routed file contents the replay cannot faithfully re-supply),
+**prompts with no persisted assistant answer** (a failed, budget-blocked or
+cancelled source run keeps the question and nothing to compare against),
+and prompts without a usable recording. Reconstructing recorded attachments
+is future work, not a silent approximation. Selection ranks the pool by
+semantic similarity to **the edit as its surface expresses it** — the
+instruction hunks' `old_text`/`new_text`; for a tool-description proposal,
+the base and candidate descriptions, preferring prompts of runs that
+actually called that stable tool; for a skill proposal, the body diff —
+embedded **on demand** through the shared embedding client
+(`services/rag/embeddings.py`). Nearest-neighbour ranking gives the wanted
+fallback for free: editing the border-collie paragraph of a dog-expert
+agent surfaces border-collie conversations first and other-breed
 conversations next, because that is what cosine distance means. **Which
 credential embeds is an explicit org setting**, not a borrowed one: there
 is no single org-wide RAG credential to reuse — embedding resolution is per
@@ -450,10 +561,16 @@ Deliberately **not** the RAG pipeline itself: conversations are never
 ingested into a knowledge collection — that would leak chat into retrieval;
 only the embedding client is shared.
 
-Comparison results live on the replay session (a small table: candidate
-hunks/spec/skill reference, prompt-pair verdicts, how each pair was picked,
-spend), keyed to the agent and readable under `runs:view`. The demo shows
-the comparison view.
+Comparison results live on the replay session — keyed to its **target
+(kind + id: agent or skill)**, not to one agent, because a skill session's
+pairs deliberately span the agents that loaded it; each pair persists its
+source agent, source run and the picked-because label, and the session
+holds the frozen candidate snapshot, the verdicts and the spend. Readable
+under `runs:view`; verdict writes take the session creator or the target's
+edit permission (Decision 4). Human verdicts **start unset** — the judge's
+suggestion is displayed beside them, never written into them, and the
+aggregate counts only what a person actually decided. The demo shows the
+comparison view.
 
 ## Decision 10 — an organization switch, off means off
 
@@ -484,44 +601,63 @@ is question 7 — cheap to add later, expensive to guess now.
    the per-proposer supersession key, migration, service
    (list/accept/dismiss/undo; accept writes the draft via the registry
    service), routes. Tests: mixed per-hunk decisions on one batch; two
-   tool-override entries survive in one batch; undo open / terminal closed;
-   a duplicate-text anchor and an empty-`old_text` insertion resolve by
-   position or go stale, never apply at the wrong place; a stale
-   tool-override base refuses to apply; a stale-revision draft write is
-   refused; an improver skill proposal does not replace another agent's
-   pending one; cross-tenant 404; accept lands in draft and never
-   publishes.
+   tool-override entries survive in one batch; concurrent Accept and
+   Dismiss of one hunk resolve to exactly one outcome; undo while open,
+   terminal at close, and undo goes stale when the accepted text was
+   manually edited; a duplicate-text anchor and an empty-`old_text`
+   insertion resolve by position or go stale, never apply at the wrong
+   place; a stale tool-override base refuses to apply; a stale-revision
+   draft write is refused; an older run's batch never supersedes a newer
+   one; a stale skill proposal (base version advanced) refuses to apply;
+   an evidence reference outside the target is dropped at staging; an
+   improver skill proposal does not replace another agent's pending one;
+   cross-tenant 404; accept lands in draft and never publishes.
 3. **Capability `authoring`** — registry entry (`selectable=False`), read tools
    over injected resources, `propose_*` staging; runner assembly for the
-   authoring surface + recording in `finish`. Tests: capability builds `None`
-   without injected target; staged proposals recorded once across turns;
-   publish refuses a spec carrying the capability.
+   authoring surface + recording in `finish`. Tests: capability builds
+   `None` with neither a target nor a mode-1 session injected; a mode-1
+   build narrows to `propose_agent`; staged proposals recorded once across
+   turns; publish refuses a spec carrying the capability.
 4. **Seeded improver agent** — created at org creation, topped up like the
    skill library; the Builder "Improve" endpoint starting its run with the
    target injected (gates per Decision 4). Tests: budget metered, run lands in
    Activity, degrades honestly when the org has no model profile.
-5. **Mode 1** — `propose_agent` → draft creation on the promote path. Test:
-   draft only, owned by the caller, publish untouched.
+5. **Mode 1** — `propose_agent` → draft creation on the promote path, with
+   the conversation-scoped draft identity. Tests: draft only, owned by the
+   caller, publish untouched; a later turn updates the same draft instead
+   of creating a sibling.
 6. **Verify direction** — the diff-in resource and the critique output
    (Decision 8); actionable findings land as ordinary proposal hunks. Test:
    a verify run with the switch off is refused; a critique proposes, never
    writes.
 7. **Replay** — the replay toolset answering from `tool_calls`/manifest
-   recordings, divergence marking, the candidate-spec path chosen in review,
-   the skill-body resource override, relevance selection (on-demand
-   embeddings with the lexical and rated-down fallbacks, the picked-because
-   label), `RunSurface.REPLAY`, the session + pair-verdict rows, spend
-   preview. Tests: a side-effecting tool is never executed on replay; a
-   recorded result is served only on a tool-id + normalized-args +
-   occurrence-order match, and an args mismatch marks the pair divergent;
-   a divergent call is recorded and not fired; the edited skill's recorded
-   `load_skill` result is replaced by the candidate body while every other
-   recording is served verbatim; a renamed `load_skill` binding is still
-   found through the version's stable-id mapping; an attachment-bearing
-   prompt never enters the pool and its exclusion is reported; selection
-   falls back in the declared order and labels each pair; no embedding call
-   before the session-creating consent; replay spend meters against both
-   caps; cross-tenant prompt sourcing refused.
+   recordings, divergence marking, the candidate-spec path chosen in review
+   (validated caller-scoped before assembly, no `agent_version_id`
+   attribution, frozen candidate snapshot per session), the recorded-model
+   and recorded-resources constancy per pair, the skill candidate served
+   whole (body + resources across `list_skills`/`load_skill`/
+   `read_skill_resource`), the conversation-prefix replay for later-turn
+   skill pairs, relevance selection (pre-embedding pool caps, per-surface
+   ranking text, on-demand embeddings with the lexical and rated-down
+   fallbacks, the picked-because label, every exclusion reported),
+   `RunSurface.REPLAY`, the session + pair-verdict rows keyed to the target
+   kind, spend preview. Tests: a side-effecting tool is never executed on
+   replay; a recorded result is served only on a stable-id +
+   normalized-args + occurrence-order match, an args mismatch and an
+   extra occurrence mark the pair divergent, and a candidate-renamed tool
+   still matches through the id mapping; a divergent call is recorded and
+   not fired; the edited skill's candidate body *and resources* are served
+   while every other recording is served verbatim; a later-turn pair
+   replays with its recorded prefix and mutates nothing; a renamed
+   `load_skill` binding is still found; an unvalidated draft reference is
+   refused before assembly; a replay run carries no version attribution;
+   a mid-session autosave does not change later pairs; an
+   attachment-bearing prompt, an unanswered prompt and an over-cap
+   candidate never enter the pool and each exclusion is reported;
+   selection falls back in the declared order and labels each pair; no
+   embedding call before the session-creating consent; replay spend meters
+   against both caps; a pair's verdict write is refused for `runs:view`
+   alone; cross-tenant prompt sourcing refused.
 8. **The organization switch** — org settings fields (the toggle and the
    authoring-embedding choice) + service refusal on all four entry points
    (Improve, Verify, Replay, describe→draft) + frontend gating. Test: off
@@ -629,9 +765,10 @@ the implementation does not quietly lose it.
 5. **"Restore the line" edits the draft** — so the Review diff changes with
    it. The demo does not redraw the diff; the implementation must.
 6. **Undo of an accepted hunk returns the assistant's original proposal**
-   to pending. The demo keeps the user's edited text after undo; the real
-   rule is that Edit-then-accept is one decision and undo reverses the
-   whole of it.
+   to pending — while the accepted text still stands in the draft; a manual
+   edit of that text makes Undo stale (Decision 2). The demo keeps the
+   user's edited text after undo; the real rule is that Edit-then-accept is
+   one decision and undo reverses the whole of it.
 7. **Replay selection queries the accepted diff** (draft vs published,
    manual edits included), never pending hunks — an unaccepted suggestion
    must not steer which prompts are picked. Each pair carries its
@@ -654,15 +791,20 @@ the implementation does not quietly lose it.
     without them" is Decision 1's degradation made visible; it renders
     whenever the trace read failed or was not attempted, and never blocks
     anything.
-13. **"Run again" supersedes.** A fresh improver run replaces the pending
-    proposal set for its target (one-pending-per-target); decided hunks
-    keep their terminal state and are not re-proposed.
+13. **"Run again" supersedes — by run start time.** A fresh improver run
+    replaces the pending batch for its target; an older run finishing late
+    never replaces a newer batch; decided hunks keep their state and are
+    not re-proposed; verification findings merge, never supersede
+    (Decision 8).
 14. **Every string is a catalog key**, counts are ICU plurals (the chip is
     one message with two plurals), and the diff/marker glyphs (`+`, `−`
     U+2212) follow `SpecDiff`'s conventions.
 15. **Costs shown are the runs' recorded costs** (`cost_usd`, with the `≥`
     partial-pricing mark where it applies) — the demo's flat `$0.03`/`$0.11`
     are placeholders, not a format.
+16. **Human replay verdicts start unset.** The judge's suggestion is shown
+    beside the control, never written into it; the aggregate counts only
+    pairs a person decided, and undecided pairs are counted as undecided.
 
 ### Deliberate demo fakes — do not copy into the implementation
 
