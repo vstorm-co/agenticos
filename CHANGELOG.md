@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.281] - 2026-08-27
+
+### Fixed
+
+- **`/link` confirm could 500 on a message arriving at the same moment.**
+  `ChannelLinkService.confirm` did an unguarded get-then-create on
+  `(platform, platform_user_id)` - the same check-then-act #17 closed in the
+  router's identity resolution - so a user who sends a message while clicking a
+  confirm could make the confirm's INSERT collide on
+  `uq_channel_identity_platform_user`. It resolves through
+  `channel_identity_repo.get_or_create` now: SELECT first,
+  `INSERT ... ON CONFLICT DO NOTHING`, re-SELECT. The upsert deliberately leaves an
+  existing row's `user_id` untouched, so linking it to the confirming user is an
+  explicit update after it, skipped on the miss path where the inserted row already
+  carries that user. (#1113, #17)
+
 ## [0.0.280] - 2026-08-27
 
 ### Fixed
