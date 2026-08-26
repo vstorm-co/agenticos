@@ -297,6 +297,165 @@ describe("SchemaForm", () => {
     expect(onChange).toHaveBeenLastCalledWith({ summary_prompt: "Summarise!" });
   });
 
+  it("draws a connector's plain multi-line field as a raw textarea, not the editor", () => {
+    // `x-textarea` is a connector's plain config box: a textarea like the prompt
+    // editor, but without the editor's Markdown toolbar - a raw config value is
+    // not prose, so dressing it as Markdown would only mislead.
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: {
+            manifest: { type: "string", "x-textarea": true, title: "Manifest" },
+          },
+        }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="x"
+      />,
+    );
+
+    expect(screen.getByLabelText(/Manifest/).tagName).toBe("TEXTAREA");
+    expect(screen.queryByRole("button", { name: /Preview/i })).toBeNull();
+  });
+
+  it("prefers the Markdown editor when a field is marked both prose and textarea", () => {
+    // The two are exclusive, and prose wins: nothing emits both, but the guard
+    // that keeps a prompt in its editor rather than a bare textarea is worth
+    // stating.
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: {
+            summary_prompt: { type: "string", "x-multiline": true, "x-textarea": true },
+          },
+        }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="x"
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /Preview/i })).toBeVisible();
+  });
+
+  it("shows a textarea's default as its value and leaves one with none empty", () => {
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: {
+            region_note: {
+              type: "string",
+              "x-textarea": true,
+              default: "us-east-1",
+              title: "Note",
+            },
+            manifest: { type: "string", "x-textarea": true, title: "Manifest" },
+          },
+        }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="x"
+      />,
+    );
+
+    expect(screen.getByLabelText(/Note/)).toHaveValue("us-east-1");
+    expect(screen.getByLabelText(/Manifest/)).toHaveValue("");
+  });
+
+  it("clears a textarea back to unset and edits it like any other field", async () => {
+    const onChange = vi.fn();
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: { manifest: { type: "string", "x-textarea": true, title: "Manifest" } },
+        }}
+        value={{ manifest: "a" }}
+        onChange={onChange}
+        idPrefix="x"
+      />,
+    );
+
+    await userEvent.type(screen.getByLabelText(/Manifest/), "b");
+    expect(onChange).toHaveBeenLastCalledWith({ manifest: "ab" });
+
+    await userEvent.clear(screen.getByLabelText(/Manifest/));
+    expect(onChange).toHaveBeenLastCalledWith({ manifest: undefined });
+  });
+
+  it("points a refused textarea at the sentence explaining it", () => {
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: { manifest: { type: "string", "x-textarea": true, title: "Manifest" } },
+        }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="x"
+        errors={{ manifest: "That manifest is not valid JSON" }}
+      />,
+    );
+
+    const field = screen.getByLabelText(/Manifest/);
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAccessibleDescription(/not valid JSON/);
+  });
+
+  it("shows an x-placeholder as a hint and never as the field's value", () => {
+    // A connector default is a placeholder, not a value (its effective value is
+    // resolved server-side), so it arrives on `x-placeholder` and the field
+    // stays empty until somebody types.
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: {
+            region: { type: "string", title: "Region", "x-placeholder": "us-east-1" },
+            port: { type: "integer", title: "Port", "x-placeholder": "443" },
+            manifest: {
+              type: "string",
+              "x-textarea": true,
+              title: "Manifest",
+              "x-placeholder": "one path per line",
+            },
+          },
+        }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="x"
+      />,
+    );
+
+    const region = screen.getByLabelText(/Region/);
+    expect(region).toHaveValue("");
+    expect(region).toHaveAttribute("placeholder", "us-east-1");
+    expect(screen.getByLabelText(/Port/)).toHaveAttribute("placeholder", "443");
+    expect(screen.getByLabelText(/Manifest/)).toHaveAttribute("placeholder", "one path per line");
+  });
+
+  it("marks a refused boolean's switch, not only the sentence under it", () => {
+    // A field-level refusal has to reach the control it is about: the sentence
+    // renders for every kind, but assistive technology finds it through the
+    // switch's own aria-invalid and aria-describedby.
+    render(
+      <SchemaForm
+        schema={{ type: "object", properties: { verbose: { type: "boolean", title: "Verbose" } } }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="x"
+        errors={{ verbose: "Pick one" }}
+      />,
+    );
+
+    const toggle = screen.getByRole("switch", { name: /Verbose/ });
+    expect(toggle).toHaveAttribute("aria-invalid", "true");
+    expect(toggle).toHaveAccessibleDescription(/Pick one/);
+  });
+
   it("keeps the other fields when one changes", async () => {
     const onChange = vi.fn();
     render(
