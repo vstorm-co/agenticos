@@ -17,6 +17,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.252] - 2026-08-26
+
+A client-supplied path segment can no longer walk out of the route it was given to.
+
+### Fixed
+
+- **About a dozen route handlers under `src/app/api` interpolated a
+  client-supplied path segment straight into the backend URL with no
+  `encodeURIComponent`.** Next decodes `%2F` into the param and `fetch`
+  normalises `..`, so a segment escapes its intended route: an organization id of
+  `x%2F..%2F..%2Fadmin%2Fusers` reached the backend as `/api/v1/admin/users`. This
+  is defence in depth rather than live escalation - the backend re-gates admin on
+  `CurrentAppAdmin`, so nothing currently reachable would not be anyway - but the
+  BFF's own fence was decorative, and any future backend route assuming "only
+  reachable through a handler that checks X" would be exposed the day it lands.
+  (#13, #30)
+- **Every interpolated segment is `encodeURIComponent`-wrapped**, matching the
+  sibling routes that already did it, and a new sweep in `platform-proxy.test.ts`
+  fails any route interpolating a bare `${param}` into a `/api/v1` template - the
+  same reasoning the file already gives for its organization-header sweep, so the
+  next hand-rolled route cannot repeat the omission. The host prefix and query
+  interpolations are not path segments and are left alone; a `platformProxy` route
+  forwards its path verbatim and has nothing to encode. (#13, #30)
+
 ## [0.0.251] - 2026-08-26
 
 The vault's master key is explicit everywhere, and rotating it no longer destroys
