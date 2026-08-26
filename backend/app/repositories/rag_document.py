@@ -58,7 +58,17 @@ async def get_all(
     base = select(RAGDocument).where(RAGDocument.collection_name.in_(collections))
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
     rows = (
-        (await db.execute(base.order_by(RAGDocument.created_at.desc()).offset(skip).limit(limit)))
+        (
+            await db.execute(
+                # `id` breaks ties: a bulk import lands many rows in one
+                # microsecond, and without a unique secondary key their
+                # `created_at DESC` order is not stable across the pages the
+                # caller reads them in (#1103).
+                base.order_by(RAGDocument.created_at.desc(), RAGDocument.id.desc())
+                .offset(skip)
+                .limit(limit)
+            )
+        )
         .scalars()
         .all()
     )
@@ -76,7 +86,15 @@ async def get_for_kb(
     base = select(RAGDocument).where(RAGDocument.knowledge_base_id == kb_id)
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
     rows = (
-        (await db.execute(base.order_by(RAGDocument.created_at.desc()).offset(skip).limit(limit)))
+        (
+            await db.execute(
+                # `id` breaks ties so a page boundary through rows sharing a
+                # `created_at` neither repeats nor skips one (#1103).
+                base.order_by(RAGDocument.created_at.desc(), RAGDocument.id.desc())
+                .offset(skip)
+                .limit(limit)
+            )
+        )
         .scalars()
         .all()
     )
