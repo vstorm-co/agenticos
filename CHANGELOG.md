@@ -17,6 +17,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.256] - 2026-08-26
+
+### Changed
+
+- Backend dependencies: `uvicorn` 0.52.4, `pydantic-ai-harness` 0.24.0,
+  `llama-cloud` 2.14.1, `google-api-python-client` 2.199.0, `boto3` 1.43.78,
+  `subagents-pydantic-ai` 0.2.21, `ruff` 0.16.4 and `ty` 0.0.74. Applied on a
+  branch off current `main` and re-locked rather than merged from Dependabot's,
+  whose branch predated the agent-frameworks group and would have reverted it.
+  (#1153)
+
 ## [0.0.255] - 2026-08-26
 
 ### Fixed
