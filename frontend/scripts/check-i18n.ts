@@ -156,8 +156,15 @@ const ENTITY = /&(?:[a-zA-Z]+|#\d+);/g;
  * the character class cannot see - `` `Bearer ${token}` `` holds no punctuation at all,
  * so it reads as a word, a space and an interpolation, which is exactly the prose shape
  * `isTemplateCopy` looks for.
+ *
+ * Unit words (`px`, `rem`, `deg`, `vh`, `vw`) are deliberately *not* here, and #741 is
+ * why: a `\b(?:px|rem|…)\b` alternative exempted any template that merely contained the
+ * word - `` `Use ${x} rem instead of pixels for spacing` `` - the same defect the
+ * string-literal path carried. A phrase genuinely made of units is answered by
+ * `isFormatter` below, which asks that *every* word be a unit or an acronym; a sentence
+ * with one unit word in it is prose and is reported.
  */
-const MACHINE_READ = /[/&=<>#]|\b(?:px|rem|deg|vh|vw|attachment|Bearer|Basic)\b/;
+const MACHINE_READ = /[/&=<>#]|\b(?:attachment|Bearer|Basic)\b/;
 /**
  * A unit, and the answer to the fourteen number-and-unit formatters #395 left open -
  * `` `${Math.round(bytes / 1024)} KiB` ``,

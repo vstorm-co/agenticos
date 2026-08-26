@@ -535,6 +535,14 @@ describe("a .ts file", () => {
     ]);
   });
 
+  it("reports the same unit-word sentence in a template literal (#741)", () => {
+    // The template path carried the same defect: `MACHINE_READ` exempted any body
+    // holding a standalone unit word, so a sentence with `rem` in it was read as a
+    // machine value. A phrase made only of units is still exempt, via `isFormatter`.
+    expect(isTemplateCopy(`Use ${HOLE} rem instead of pixels for spacing`)).toBe(true);
+    expect(isTemplateCopy(`${HOLE} rem`)).toBe(false);
+  });
+
   it("refuses a label on an export const, which the keyword skip used to hide", () => {
     expect(saidTs('export const LABEL = "Provider default";\n')).toEqual([
       "string 'Provider default'",
