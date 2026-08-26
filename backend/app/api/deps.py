@@ -274,7 +274,7 @@ from app.core.exceptions import (
 )
 from app.services import rate_limit
 from app.core.audit import set_impersonator
-from app.core.security import verify_token
+from app.core.security import encode_untrusted, verify_token
 from app.db.models.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
@@ -905,7 +905,7 @@ async def verify_api_key(
     """
     if api_key is None:
         raise AuthenticationError(message="API Key header missing")
-    if not secrets.compare_digest(api_key, settings.API_KEY):
+    if not secrets.compare_digest(encode_untrusted(api_key), settings.API_KEY.encode()):
         raise AuthorizationError(message="Invalid API Key")
     return api_key
 
