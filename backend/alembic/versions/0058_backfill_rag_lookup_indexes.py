@@ -23,8 +23,8 @@ from sqlalchemy.engine import Connection
 
 from alembic import op
 
-revision: str = "0056_backfill_rag_lookup_indexes"
-down_revision: str | Sequence[str] | None = "0055_sandbox_operations"
+revision: str = "0058_backfill_rag_lookup_indexes"
+down_revision: str | Sequence[str] | None = "0057_kb_embedding_provider"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

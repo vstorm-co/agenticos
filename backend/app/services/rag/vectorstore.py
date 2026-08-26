@@ -224,7 +224,7 @@ from collections.abc import Awaitable, Callable
 from itertools import batched
 
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.db.session import vector_engine
 from app.services.embedding_resolution import ResolvedEmbeddings, embeddings_for_collection
