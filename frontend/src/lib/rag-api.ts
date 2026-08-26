@@ -128,10 +128,10 @@ export async function listSyncSources(collectionName?: string): Promise<SyncSour
 /**
  * What the wizard draws for a field, and the whole vocabulary it can draw.
  *
- * Mirrors `ConnectorFieldType` in `app/schemas/sync_source.py`, where a
- * connector's declaration is typed rather than a bare mapping: the fall-through
- * below is a text input, so a connector inventing a fifth type got a field the
- * form collects wrongly and nothing reported it.
+ * Mirrors `ConnectorFieldType` in `app/schemas/sync_source.py`. The wizard no
+ * longer renders these directly: `connectorConfigToJsonSchema` maps each one to
+ * the JSON Schema `SchemaForm` reads, so a fifth type is a case there (a compile
+ * error until it is chosen) rather than a silent fall-through to a text box.
  */
 export type ConnectorFieldType = "string" | "boolean" | "integer" | "textarea";
 

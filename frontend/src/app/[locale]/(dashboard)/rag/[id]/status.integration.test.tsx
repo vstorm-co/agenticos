@@ -47,6 +47,8 @@ const COLLECTION: KnowledgeBase = {
   is_default: false,
   ingestion_config: DEFAULT_INGESTION_CONFIG,
   embedding_model: "text-embedding-3-small",
+  embedding_provider: "openrouter",
+  embedding_secret_id: null,
   embedding_dim: 1536,
   created_at: "2026-01-01T00:00:00Z",
   updated_at: null,

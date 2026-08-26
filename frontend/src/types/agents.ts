@@ -572,6 +572,26 @@ export interface JsonSchemaProperty {
    */
   "x-multiline"?: boolean;
   /**
+   * Whether this string is a plain multi-line value - a raw textarea, not the
+   * Markdown editor `x-multiline` gets.
+   *
+   * The one field kind a capability's own JSON Schema never emits: it is how a
+   * connector's `textarea` config field crosses into this shape through
+   * `connectorConfigToJsonSchema`, so a connector's plain config box is not
+   * mistaken for prose and dressed with a Markdown toolbar. Exclusive with
+   * `x-multiline`.
+   */
+  "x-textarea"?: boolean;
+  /**
+   * A grey hint shown while a string or number field is empty, never stored.
+   *
+   * Also connector-only: a connector's config default is a placeholder rather
+   * than an authoritative value - its effective default is resolved server-side
+   * (an S3 region falls back to the credential's) - so it arrives here instead
+   * of on `default`, which `SchemaForm` would otherwise render as the value.
+   */
+  "x-placeholder"?: string;
+  /**
    * What a `list[...]` holds. Only `{"type": "string"}` is rendered; anything
    * else is the richer editor the generated form deliberately does not grow.
    */

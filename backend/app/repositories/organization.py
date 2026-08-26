@@ -60,6 +60,29 @@ async def get_personal_for_user(db: AsyncSession, user_id: UUID) -> Organization
     return result.scalar_one_or_none()
 
 
+async def list_created_by(db: AsyncSession, user_id: UUID) -> list[Organization]:
+    """Every organization this user created - the rows that block their deletion.
+
+    `organizations.created_by_user_id` is `ON DELETE RESTRICT`, so each of these
+    has to be handed on or removed before the user row can go (#9).
+    """
+    result = await db.execute(
+        select(Organization)
+        .where(Organization.created_by_user_id == user_id)
+        .order_by(Organization.is_personal.desc(), Organization.created_at.asc())
+    )
+    return list(result.scalars().all())
+
+
+async def reassign_creator(
+    db: AsyncSession, *, org: Organization, new_creator_id: UUID
+) -> Organization:
+    org.created_by_user_id = new_creator_id
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
 async def list_for_user(db: AsyncSession, user_id: UUID) -> list[Organization]:
     result = await db.execute(
         select(Organization)

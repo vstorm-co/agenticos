@@ -8,6 +8,7 @@ look like an ordinary call (see tests/test_org_scope_regression.py).
 from uuid import UUID
 
 from sqlalchemy import bindparam, false, or_, select, text
+from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -171,6 +172,31 @@ async def delete(db: AsyncSession, secret_id: UUID, *, organization_id: UUID) ->
     await db.delete(secret)
     await db.flush()
     return True
+
+
+async def promote_owned_private_to_org(db: AsyncSession, *, owner_user_id: UUID) -> int:
+    """Make every private secret this user owns org-visible, across all their orgs.
+
+    Deliberately not org-scoped, unlike the rest of this module: it runs when the
+    owner's account is deleted, and `owner_user_id` is about to be nulled by the
+    `SET NULL` cascade. `ck_secret_private_needs_owner` forbids a private secret
+    with no owner, so without this the delete violates the check and 500s (#9).
+    Promoting to org visibility is the outcome the column comment names - a
+    personal key whose owner leaves "becomes the organization's problem to clean
+    up" - and it leaves the row reachable rather than stranded.
+
+    Returns the number of rows promoted.
+    """
+    result = await db.execute(
+        sql_update(OrganizationSecret)
+        .where(
+            OrganizationSecret.owner_user_id == owner_user_id,
+            OrganizationSecret.visibility == Visibility.PRIVATE.value,
+        )
+        .values(visibility=Visibility.ORG.value)
+    )
+    await db.flush()
+    return result.rowcount  # ty: ignore[unresolved-attribute]
 
 
 async def agents_using(

@@ -11,6 +11,8 @@ import { RAGSearchResults } from "./tool-results/rag";
 import { WebSearchResults, parseWebSearch } from "./tool-results/web-search";
 import { GeneratedImageResult, parseGeneratedImage } from "./tool-results/generated-image";
 import { LoadSkillResult } from "./tool-results/skills";
+import { ContextListResult, SkillListResult } from "./tool-results/catalogs";
+import { PlanToolResult } from "./tool-results/plan";
 import { GenericToolResult, RawToolView } from "./tool-results/generic";
 import { RunPythonResult } from "./tool-results/run-python";
 import { WorkspaceToolResult } from "./tool-results/workspace";
@@ -157,11 +159,6 @@ export function ToolCallCard({
     }
   }
 
-  // `render: "none"` is a call with nothing worth opening - `list_skills` says the
-  // agent looked, and the list it got back is a prompt fragment rather than something
-  // a person reads.
-  const openable = renderer !== "none";
-
   return (
     <AgentStep
       label={step.label}
@@ -169,35 +166,30 @@ export function ToolCallCard({
       kind={step.kind}
       logoDomain={step.logoDomain}
       state={isParked ? "parked" : isRunning ? "running" : isError ? "error" : "done"}
-      expanded={expanded && openable}
-      onToggle={
-        openable
-          ? () =>
-              setExpanded((prev) => {
-                const next = !prev;
-                if (!next) setShowRaw(false);
-                return next;
-              })
-          : undefined
+      expanded={expanded}
+      onToggle={() =>
+        setExpanded((prev) => {
+          const next = !prev;
+          if (!next) setShowRaw(false);
+          return next;
+        })
       }
       actions={
-        openable ? (
-          <button
-            type="button"
-            onClick={(event: MouseEvent) => {
-              event.stopPropagation();
-              setShowRaw((raw) => !raw);
-            }}
-            title={showRaw ? t("showFormatted") : t("showRaw")}
-            aria-label={showRaw ? t("showFormatted") : t("showRaw")}
-            className={cn(
-              "text-muted-foreground/60 hover:text-foreground shrink-0 rounded-md p-1",
-              showRaw && "text-foreground",
-            )}
-          >
-            <Code2 className="h-3 w-3" />
-          </button>
-        ) : undefined
+        <button
+          type="button"
+          onClick={(event: MouseEvent) => {
+            event.stopPropagation();
+            setShowRaw((raw) => !raw);
+          }}
+          title={showRaw ? t("showFormatted") : t("showRaw")}
+          aria-label={showRaw ? t("showFormatted") : t("showRaw")}
+          className={cn(
+            "text-muted-foreground/60 hover:text-foreground shrink-0 rounded-md p-1",
+            showRaw && "text-foreground",
+          )}
+        >
+          <Code2 className="h-3 w-3" />
+        </button>
       }
     >
       {showRaw ? (
@@ -214,6 +206,12 @@ export function ToolCallCard({
         <RunPythonResult toolCall={toolCall} resultText={resultText} />
       ) : renderer === "load-skill" ? (
         <LoadSkillResult resultText={resultText} status={toolCall.status} />
+      ) : renderer === "skill-list" ? (
+        <SkillListResult result={toolCall.result} />
+      ) : renderer === "context-list" ? (
+        <ContextListResult resultText={resultText} />
+      ) : renderer === "plan" ? (
+        <PlanToolResult toolCall={toolCall} resultText={resultText} />
       ) : renderer === "workspace" ? (
         <WorkspaceToolResult
           toolCall={toolCall}

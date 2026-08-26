@@ -110,9 +110,13 @@ class OrganizationMember(Base):
         index=True,
     )
     role: Mapped[str] = mapped_column(String(20), nullable=False, default=OrgRole.MEMBER.value)
+    # SET NULL, not the default NO ACTION: who invited a member is audit context
+    # that should outlive the inviter, and a NO-ACTION reference blocked deleting
+    # anyone who had ever invited another member (#1110). Matches how the
+    # secret/KB attribution FKs already null on the referenced user's deletion.
     invited_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("users.id"),
+        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
     joined_at: Mapped[datetime] = mapped_column(
@@ -166,10 +170,14 @@ class Invitation(Base):
     # posted in a channel is a link that can be forwarded, and "anyone with the
     # URL" is a different risk from "anyone at our company".
     email_domain: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    invited_by_user_id: Mapped[uuid.UUID] = mapped_column(
+    # Nullable and SET NULL: the inviter is audit context that outlives them, and
+    # a NOT NULL / NO-ACTION reference made an invitation authored by a user an
+    # absolute bar on deleting that user (#1110). Set on every create, null only
+    # once the inviter is gone.
+    invited_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("users.id"),
-        nullable=False,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
     )
     token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     status: Mapped[str] = mapped_column(
@@ -185,7 +193,7 @@ class Invitation(Base):
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     accepted_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("users.id"),
+        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
 
