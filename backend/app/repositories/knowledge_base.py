@@ -177,6 +177,24 @@ async def get_by_collection_name(db: AsyncSession, collection_name: str) -> Know
     return result.scalars().first()
 
 
+async def list_org_scoped(db: AsyncSession, organization_id: UUID) -> list[KnowledgeBase]:
+    """The org-scoped collections a tenant owns - the ones a deletion must remove.
+
+    `knowledge_bases.organization_id` is `ON DELETE SET NULL`, but
+    `ck_knowledge_bases_org_scope_has_org` forbids an org-scoped row with no org,
+    so nulling one on organization delete violates the check (#9). These rows are
+    deleted explicitly before the org row goes. Personal collections that merely
+    carry this org's id are left to the `SET NULL`, which their scope permits.
+    """
+    result = await db.execute(
+        select(KnowledgeBase).where(
+            KnowledgeBase.organization_id == organization_id,
+            KnowledgeBase.scope == KBScope.ORG.value,
+        )
+    )
+    return list(result.scalars().all())
+
+
 async def list_by_collection_name(db: AsyncSession, collection_name: str) -> list[KnowledgeBase]:
     """Every knowledge base claiming this collection name, oldest first.
 
