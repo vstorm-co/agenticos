@@ -58,6 +58,7 @@ from pydantic import (
     PlainSerializer,
     SecretStr,
     TypeAdapter,
+    ValidationError,
     field_validator,
     model_validator,
 )
@@ -332,9 +333,19 @@ def unseal_secret(
             is not a secret payload, or holds a different kind than the column
             says - which would mean a row was edited underneath the schema.
     """
-    value = _STORABLE_ADAPTER.validate_json(
-        unseal(ciphertext, scope=scope, key_version=key_version)
-    )
+    try:
+        value = _STORABLE_ADAPTER.validate_json(
+            unseal(ciphertext, scope=scope, key_version=key_version)
+        )
+    except ValidationError:
+        # A `ValidationError` message embeds the offending input - here the
+        # decrypted credential - so it must reach neither a log line nor a span.
+        # `from None`, not `from exc`: chaining would keep the plaintext in the
+        # traceback (#21).
+        raise BadRequestError(
+            message="Stored secret is not a usable payload",
+            details={"recorded": kind.value},
+        ) from None
     if value.kind is not kind:
         raise BadRequestError(
             message="Stored secret does not match its recorded kind",
