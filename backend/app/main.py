@@ -27,7 +27,7 @@ from app.core.body_limit import BodySizeLimitMiddleware
 from app.core import background
 from app.core import maintenance
 from app.core.maintenance import MaintenanceModeMiddleware
-from app.core.middleware import RequestIDMiddleware
+from app.core.middleware import RequestIDMiddleware, SecurityHeadersMiddleware
 from app.core.watchdog import EventLoopWatchdog
 from app.clients.redis import RedisClient
 from app.services.rag.embeddings import EmbeddingService
@@ -311,6 +311,21 @@ OS for your agents.
     )
 
     app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
+
+    # Added last, so it is the outermost middleware and wraps CORS: a preflight
+    # OPTIONS is answered by CORSMiddleware without calling inward, so a security
+    # layer beneath it would never see that response and the preflight would go
+    # out bare. The set uses `setdefault`, so a per-response override still wins -
+    # `files.py` opts its one framed endpoint down to SAMEORIGIN this way. The doc
+    # pages are excluded by their real mounted paths (the schema lives under the
+    # API prefix, not at `/openapi.json`), so the CSP cannot break Swagger/ReDoc
+    # loading their CDN assets. A genuinely unhandled exception is the one 500
+    # this cannot reach - ServerErrorMiddleware sits outside every app middleware
+    # - so its handler stamps the headers itself (#18).
+    app.add_middleware(
+        SecurityHeadersMiddleware,
+        exclude_paths={path for path in (docs_url, redoc_url, openapi_url) if path},
+    )
 
     app.include_router(api_router, prefix=settings.API_V1_STR)
 
