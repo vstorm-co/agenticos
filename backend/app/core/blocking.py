@@ -18,7 +18,7 @@ import asyncio
 import contextlib
 import weakref
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +58,41 @@ def _limiter() -> asyncio.Semaphore:
     return limiter
 
 
+async def _submit[T](fn: Callable[..., T], *args: object) -> Future[T]:
+    """Take an admission slot and submit, holding the slot until the *thread* ends.
+
+    Releasing on the caller's frame - `async with _limiter()` - looks equivalent
+    and is not, because an executor cannot interrupt a running job. A cancelled
+    caller would leave its worker occupied while handing its slot to the next
+    submission, so a wave of cancellations admits arbitrarily many jobs into a
+    pending queue that has no bound of its own: exactly the memory growth the
+    gate exists to prevent (#1108). The release therefore rides the
+    `concurrent.futures.Future`'s completion, which fires when the work actually
+    stops, cancelled caller or not.
+    """
+    limiter = _limiter()
+    await limiter.acquire()
+    loop = asyncio.get_running_loop()
+    try:
+        future = _pool().submit(fn, *args)
+    except BaseException:
+        limiter.release()
+        raise
+    future.add_done_callback(lambda _f: _release(loop, limiter))
+    return future
+
+
+def _release(loop: asyncio.AbstractEventLoop, limiter: asyncio.Semaphore) -> None:
+    """Give the slot back on the loop that owns the semaphore.
+
+    The callback runs on a pool thread, so the release is hopped across rather
+    than called here. A loop already closed raises, and there is nothing to hand
+    back: its gate is keyed weakly and goes with it.
+    """
+    with contextlib.suppress(RuntimeError):
+        loop.call_soon_threadsafe(limiter.release)
+
+
 async def run_blocking[T](fn: Callable[..., T], *args: object) -> T:
     """Run a blocking, positional-args callable on the dedicated file pool.
 
@@ -65,9 +100,7 @@ async def run_blocking[T](fn: Callable[..., T], *args: object) -> T:
     it carries cannot starve the loop's own `bcrypt`/DNS threads, and the
     admission gate keeps a burst from queueing its buffers ahead of everything.
     """
-    loop = asyncio.get_running_loop()
-    async with _limiter():
-        return await loop.run_in_executor(_pool(), fn, *args)
+    return await asyncio.wrap_future(await _submit(fn, *args))
 
 
 async def write_bytes_cancel_safe(path: Path, data: bytes) -> None:
@@ -81,14 +114,23 @@ async def write_bytes_cancel_safe(path: Path, data: bytes) -> None:
     the cancellation propagates. A write that finishes uncancelled is left in
     place, which is the whole purpose of the call.
     """
-    loop = asyncio.get_running_loop()
-    async with _limiter():
-        future = loop.run_in_executor(_pool(), path.write_bytes, data)
-        try:
-            await asyncio.shield(future)
-        except asyncio.CancelledError:
-            await asyncio.shield(_discard(future, path))
-            raise
+    future = asyncio.wrap_future(await _submit(path.write_bytes, data))
+    try:
+        await asyncio.shield(future)
+    except asyncio.CancelledError:
+        # Awaiting a shielded coroutine once is not enough: a second
+        # cancellation - a cancelled request whose loop then begins shutting
+        # down - raises straight out of this frame and detaches the cleanup,
+        # which is then cancelled with everything else and leaves the orphan
+        # this function exists to prevent. So the cleanup is a task, and further
+        # cancellations arriving while it runs are absorbed rather than
+        # propagated until it has finished. It terminates: it awaits a write the
+        # executor will complete, then one unlink.
+        cleanup = asyncio.ensure_future(_discard(future, path))
+        while not cleanup.done():
+            with contextlib.suppress(asyncio.CancelledError):
+                await asyncio.shield(cleanup)
+        raise
 
 
 async def _discard(future: asyncio.Future[Any], path: Path) -> None:
@@ -99,6 +141,5 @@ async def _discard(future: asyncio.Future[Any], path: Path) -> None:
     """
     with contextlib.suppress(Exception):
         await future
-    loop = asyncio.get_running_loop()
     with contextlib.suppress(FileNotFoundError, OSError):
-        await loop.run_in_executor(_pool(), path.unlink)
+        await run_blocking(path.unlink)
