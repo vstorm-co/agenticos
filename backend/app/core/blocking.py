@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import weakref
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -24,6 +25,18 @@ from typing import Any
 from app.core.config import settings
 
 _executor: ThreadPoolExecutor | None = None
+
+# One admission gate per event loop. `max_workers` bounds how many file jobs run
+# at once, but `ThreadPoolExecutor`'s pending queue is unbounded - so a burst of
+# uploads beyond the pool size would still pile their `bytes` buffers in that
+# queue until the process runs out of memory (#1108). Acquiring this before a
+# submission holds the surplus callers in their own frames instead, as
+# backpressure. Per loop because an `asyncio.Semaphore` binds to the loop that
+# created it (the rule `get_worker_db_context` states for the pool), and keyed
+# weakly so a finished worker loop's gate is collected with it.
+_limiters: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore] = (
+    weakref.WeakKeyDictionary()
+)
 
 
 def _pool() -> ThreadPoolExecutor:
@@ -36,14 +49,25 @@ def _pool() -> ThreadPoolExecutor:
     return _executor
 
 
+def _limiter() -> asyncio.Semaphore:
+    loop = asyncio.get_running_loop()
+    limiter = _limiters.get(loop)
+    if limiter is None:
+        limiter = asyncio.Semaphore(settings.FILE_IO_MAX_WORKERS)
+        _limiters[loop] = limiter
+    return limiter
+
+
 async def run_blocking[T](fn: Callable[..., T], *args: object) -> T:
     """Run a blocking, positional-args callable on the dedicated file pool.
 
     The bound is the point: this never reaches the default executor, so the work
-    it carries cannot starve the loop's own `bcrypt`/DNS threads.
+    it carries cannot starve the loop's own `bcrypt`/DNS threads, and the
+    admission gate keeps a burst from queueing its buffers ahead of everything.
     """
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(_pool(), fn, *args)
+    async with _limiter():
+        return await loop.run_in_executor(_pool(), fn, *args)
 
 
 async def write_bytes_cancel_safe(path: Path, data: bytes) -> None:
@@ -58,12 +82,13 @@ async def write_bytes_cancel_safe(path: Path, data: bytes) -> None:
     place, which is the whole purpose of the call.
     """
     loop = asyncio.get_running_loop()
-    future = loop.run_in_executor(_pool(), path.write_bytes, data)
-    try:
-        await asyncio.shield(future)
-    except asyncio.CancelledError:
-        await asyncio.shield(_discard(future, path))
-        raise
+    async with _limiter():
+        future = loop.run_in_executor(_pool(), path.write_bytes, data)
+        try:
+            await asyncio.shield(future)
+        except asyncio.CancelledError:
+            await asyncio.shield(_discard(future, path))
+            raise
 
 
 async def _discard(future: asyncio.Future[Any], path: Path) -> None:

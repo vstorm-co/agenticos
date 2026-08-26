@@ -82,3 +82,54 @@ async def test_parse_content_still_extracts_text_through_the_pool() -> None:
     """The parse wiring moved to `run_blocking`; the extraction is unchanged."""
     service = FileUploadService(db=None)  # type: ignore[arg-type]  # parse touches no db
     assert await service.parse_content(b"hello\nworld", "text") == "hello\nworld"
+
+
+def test_a_non_positive_pool_size_is_refused_at_startup() -> None:
+    """`ThreadPoolExecutor` raises on `max_workers <= 0`, but on the first file
+    op rather than at boot; the setting is constrained so the config is refused
+    instead (#1108)."""
+    import pydantic
+
+    from app.core.config import Settings
+
+    with pytest.raises(pydantic.ValidationError):
+        Settings(FILE_IO_MAX_WORKERS=0)
+
+
+@pytest.mark.anyio
+async def test_a_burst_does_not_queue_its_buffers_in_the_executor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The admission gate is the backpressure (#1108). The pool already bounds
+    how many jobs *run*, but its pending queue is unbounded - so the gate's job
+    is to keep the surplus out of that queue (where each waiting callable pins
+    its buffer). With the gate sized to 1, two extra jobs wait in their own
+    frames and the executor's work queue stays empty; without it they would sit
+    in that queue. Asserted on the executor's own queue, which is where the
+    unbounded memory growth would show."""
+    import weakref as _weakref
+
+    from app.core import blocking
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "FILE_IO_MAX_WORKERS", 1)
+    monkeypatch.setattr(blocking, "_executor", None)
+    monkeypatch.setattr(blocking, "_limiters", _weakref.WeakKeyDictionary())
+
+    release = threading.Event()
+
+    def _job() -> None:
+        release.wait(5)
+
+    tasks = [asyncio.create_task(run_blocking(_job)) for _ in range(3)]
+    await asyncio.sleep(0.3)
+    queued = blocking._pool()._work_queue.qsize()
+    release.set()
+    await asyncio.gather(*tasks)
+
+    # One job holds the single pool thread; the other two are parked on the gate,
+    # not sitting in the executor queue with their work items.
+    assert queued == 0
+
+    # And the gate is one shared instance per loop (the cached path).
+    assert blocking._limiter() is blocking._limiter()
