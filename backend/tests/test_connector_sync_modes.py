@@ -32,6 +32,7 @@ import pytest
 
 from app.services.rag.connectors import RemoteFile
 from app.services.rag.models import IngestionStatus
+from app.services.rag.vectorstore import BaseVectorStore
 from app.worker.tasks import rag_tasks
 
 pytestmark = pytest.mark.anyio
@@ -107,6 +108,7 @@ async def _syncing(
     """
     store = MagicMock()
     store.get_documents = AsyncMock(return_value=listing)
+    store.find_existing_document = BaseVectorStore.find_existing_document.__get__(store)
 
     source = MagicMock(
         connector_type="gdrive",
@@ -481,6 +483,9 @@ class TestAListingTheStoreCannotAnswer:
         stale with nothing said."""
         store_error = MagicMock()
         store_error.get_documents = AsyncMock(side_effect=RuntimeError("no such table"))
+        store_error.find_existing_document = BaseVectorStore.find_existing_document.__get__(
+            store_error
+        )
 
         connector = _connector()
         source = MagicMock(

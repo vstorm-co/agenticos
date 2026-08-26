@@ -1,6 +1,7 @@
 import logging
 import re
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any
 
 # Registers every model table on `Base.metadata`, which `list_collections` judges a
@@ -12,7 +13,10 @@ from typing import Any
 import app.db.models  # noqa: F401
 from app.db.base import Base
 from app.db.vector_tables import (
+    VECTOR_CONTENT_HASH_INDEX_SUFFIX,
+    VECTOR_FILENAME_INDEX_SUFFIX,
     VECTOR_INDEX_SUFFIX,
+    VECTOR_SOURCE_PATH_INDEX_SUFFIX,
     VECTOR_TABLE_PREFIX,
     is_runtime_vector_table,
     validate_collection_name,
@@ -28,6 +32,27 @@ from app.services.rag.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _document_is_unaddressed(doc: DocumentInfo) -> bool:
+    """Whether this document may be matched by its *name* alone.
+
+    Only one that does not already claim an address of its own. A file uploaded
+    through the browser stores its filename as its `source_path`, so the two
+    agree and it stays reachable by name - which is what the filename fallback is
+    for: a document uploaded once and later synced from the folder it came from
+    should be replaced rather than duplicated.
+
+    A document that names a *different* address is a different document, and
+    matching it by basename loses one of them. An S3 bucket holding
+    `a/readme.md` and `b/readme.md` is the case: the second key found the first's
+    document by name, so equal contents skipped it and unequal contents replaced
+    the first - either way a first sync could not keep both, silently (#990). The
+    same collision existed for two local files of the same name in different
+    directories.
+    """
+    stored_path = str((doc.additional_info or {}).get("source_path") or "")
+    return not stored_path or stored_path == doc.filename
 
 
 class BaseVectorStore(ABC):
@@ -88,6 +113,48 @@ class BaseVectorStore(ABC):
             ],
             total=len(docs),
         )
+
+    async def find_existing_document(
+        self, collection_name: str, *, source_path: str, content_hash: str
+    ) -> DocumentInfo | None:
+        """The stored document this file refers to, found by one precedence.
+
+        **One precedence, both answers about one document.** A `source_path`
+        match anywhere in the collection beats a `filename` match anywhere in it,
+        and a `content_hash` match is the last resort - the order the ingest
+        applies to decide whether a file is already held.
+
+        The id and the hash returned are the *same* document's, which is the
+        invariant this exists to keep. Computed by two lookups with different
+        rules they disagreed: one checked every document for a `source_path`
+        match before falling back to `filename` while the other interleaved the
+        two, so a caller compared a live file's hash against a different
+        document's `content_hash` than the one it was about to replace - an
+        unchanged file re-embedded on every sync, or a changed one skipped as
+        current (#548). Returning one document forecloses that.
+
+        This reference implementation reads the whole collection; `PgVectorStore`
+        overrides it with an indexed lookup per key (#1102). Both answer `None`
+        for no match - never an empty document, a stored hash of `""` included.
+        """
+        docs = await self.get_documents(collection_name)
+        filename = Path(source_path).name if source_path else ""
+        by_filename: DocumentInfo | None = None
+        by_hash: DocumentInfo | None = None
+        for doc in docs:
+            meta = doc.additional_info or {}
+            if source_path and meta.get("source_path") == source_path:
+                return doc
+            if (
+                by_filename is None
+                and filename
+                and doc.filename == filename
+                and _document_is_unaddressed(doc)
+            ):
+                by_filename = doc
+            if by_hash is None and content_hash and meta.get("content_hash") == content_hash:
+                by_hash = doc
+        return by_filename or by_hash
 
     async def create_collection(self, name: str) -> None:
         """Make the collection's backing objects, refusing a name that cannot have any.
@@ -340,6 +407,28 @@ class PgVectorStore(BaseVectorStore):
                 ON {table} USING hnsw ({self._distance_expr(dim)} {operator_class})
             """)
             )
+            # The keys `find_existing_document` looks a document up by; without
+            # them that check is a full read of the runtime table (#1102).
+            #
+            # `hash`, not btree: the lookups are equality only, and a btree entry
+            # is capped near 2700 bytes - so a btree on `source_path` fails the
+            # index-row-size limit the moment a document carries a path longer
+            # than that (they are unbounded - `s3://`, `gdrive://`, a deep key -
+            # and `RAGDocument.source_path` is a hash index for the same reason),
+            # which would fail every ingest into the collection. Hashing the
+            # value has no such ceiling. `IF NOT EXISTS` so this is idempotent;
+            # `migrations/0056` backfills the collections that predate it.
+            for suffix, key in (
+                (VECTOR_SOURCE_PATH_INDEX_SUFFIX, "source_path"),
+                (VECTOR_FILENAME_INDEX_SUFFIX, "filename"),
+                (VECTOR_CONTENT_HASH_INDEX_SUFFIX, "content_hash"),
+            ):
+                await session.execute(
+                    text(
+                        f"CREATE INDEX IF NOT EXISTS {table}{suffix} "
+                        f"ON {table} USING hash ((metadata->>'{key}'))"
+                    )
+                )
             await session.commit()
 
     async def _collection_exists(self, name: str) -> bool:
@@ -520,6 +609,81 @@ class PgVectorStore(BaseVectorStore):
             for row in rows
         ]
         return self._group_documents(results)
+
+    async def find_existing_document(
+        self, collection_name: str, *, source_path: str, content_hash: str
+    ) -> DocumentInfo | None:
+        """Look the document up by its indexed metadata keys, not a full scan (#1102).
+
+        One indexed statement per key, in the precedence the base class
+        documents - `source_path`, then a `filename` the stored document has not
+        addressed under another path, then `content_hash` - stopping at the
+        first hit. Each statement returns one document, so the id and hash a
+        caller reads name one document, which is the #548 invariant.
+
+        The expression indexes these lean on are built by `_ensure_collection`;
+        a collection predating them still answers correctly, at a scan, until
+        its next ingest rebuilds them through that same path.
+        """
+        if not await self._collection_exists(collection_name):
+            return None
+        table = self._table(collection_name)
+        filename = Path(source_path).name if source_path else ""
+        async with self.async_session() as session:
+            if source_path:
+                hit = await self._first_document(
+                    session, table, "metadata->>'source_path' = :v", {"v": source_path}
+                )
+                if hit is not None:
+                    return hit
+            if filename:
+                hit = await self._first_document(
+                    session,
+                    table,
+                    "metadata->>'filename' = :v AND ("
+                    "coalesce(metadata->>'source_path', '') = '' "
+                    "OR metadata->>'source_path' = :v)",
+                    {"v": filename},
+                )
+                if hit is not None:
+                    return hit
+            if content_hash:
+                hit = await self._first_document(
+                    session, table, "metadata->>'content_hash' = :v", {"v": content_hash}
+                )
+                if hit is not None:
+                    return hit
+        return None
+
+    async def _first_document(
+        self, session: AsyncSession, table: str, where: str, params: dict[str, Any]
+    ) -> DocumentInfo | None:
+        """The first document by `(parent_doc_id, id)` matching `where`, or None.
+
+        The order makes a fallback that matches several rows pick the one the
+        reference scan would, rather than whichever the heap returns (#548).
+        `where` is built from literals here and every value it reads is bound,
+        so the only interpolation is the already-validated `table`.
+        """
+        result = await session.execute(
+            text(
+                f"SELECT parent_doc_id, metadata FROM {table} "
+                f"WHERE {where} ORDER BY parent_doc_id, id LIMIT 1"
+            ),
+            params,
+        )
+        row = result.fetchone()
+        if row is None:
+            return None
+        grouped = self._group_documents(
+            [
+                {
+                    "parent_doc_id": row[0],
+                    "metadata": row[1] if isinstance(row[1], dict) else json.loads(row[1]),
+                }
+            ]
+        )
+        return grouped[0] if grouped else None
 
     async def get_document_chunks(
         self, collection_name: str, document_id: str

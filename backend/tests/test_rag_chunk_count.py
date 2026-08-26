@@ -31,6 +31,7 @@ from app.services.rag.models import (
     DocumentPageChunk,
     IngestionStatus,
 )
+from app.services.rag.vectorstore import BaseVectorStore
 from app.services.rag_document import RAGDocumentService
 from app.worker.tasks.rag_tasks import _run_ingestion
 
@@ -55,10 +56,9 @@ def _document(*, chunks: int) -> Document:
 
 
 def _service(processor: MagicMock) -> IngestionService:
-    return IngestionService(
-        processor=processor,
-        vector_store=MagicMock(insert_document=AsyncMock(), delete_document=AsyncMock()),
-    )
+    store = MagicMock(insert_document=AsyncMock(), delete_document=AsyncMock())
+    store.find_existing_document = BaseVectorStore.find_existing_document.__get__(store)
+    return IngestionService(processor=processor, vector_store=store)
 
 
 class TestWhatThePipelineReports:
