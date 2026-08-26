@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -29,7 +29,7 @@ function renderOffer(
   if (seed.agents !== undefined) {
     client.setQueryData(qk.agents.list(), { items: [], total: seed.agents });
   }
-  return render(<QueryClientProvider client={client}>{node}</QueryClientProvider>);
+  return { client, ...render(<QueryClientProvider client={client}>{node}</QueryClientProvider>) };
 }
 
 beforeEach(() => {
@@ -124,5 +124,18 @@ describe("CreationOffer", () => {
     useOnboardingStore.setState({ offer: "create-routine" });
     renderOffer(<CreationOffer />, { anyRunnable: true });
     expect(screen.getByText("Set up your first routine?")).toBeInTheDocument();
+  });
+
+  it("holds the routine offer until the runnable-agent answer lands, then shows it", async () => {
+    // A walk can finish before the page's runnable-agent sweep resolves. The
+    // offer is subscribed to that query, not snapshotting it: unanswered means
+    // no dialog yet, and the store still holds the offer - so when the answer
+    // lands as yes, the dialog appears rather than having been lost.
+    useOnboardingStore.setState({ offer: "create-routine" });
+    const { client } = renderOffer(<CreationOffer />);
+    expect(screen.queryByText("Set up your first routine?")).toBeNull();
+
+    act(() => client.setQueryData(qk.agents.anyRunnable(), true));
+    expect(await screen.findByText("Set up your first routine?")).toBeInTheDocument();
   });
 });

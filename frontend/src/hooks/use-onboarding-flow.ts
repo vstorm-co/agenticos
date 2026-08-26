@@ -118,6 +118,9 @@ function useOrgSnapshot(): {
   const routines = useOrgTriggers();
   // The same query the Routines page gates its create buttons on
   // (`qk.agents.anyRunnable()`), so the flow and the buttons can never disagree.
+  // `isFetching` too, not only `isLoading`: a cached answer being refetched is a
+  // stale one, and freezing it can strand the flow either way - a revoked grant
+  // waits on buttons the refresh hides, a fresh grant reads as inert.
   const anyRunnable = useCanCreateTriggerQuery();
   const stateSettled =
     !agents.isLoading &&
@@ -126,7 +129,8 @@ function useOrgSnapshot(): {
     !skills.isLoading &&
     !mcp.isLoading &&
     !personalMcp.isLoading &&
-    !anyRunnable.isLoading;
+    !anyRunnable.isLoading &&
+    !anyRunnable.isFetching;
   return {
     counts: {
       agent: settled(agents.isLoading, agents.isFetching, agents.total),

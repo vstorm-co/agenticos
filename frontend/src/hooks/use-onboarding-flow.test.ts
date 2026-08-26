@@ -31,6 +31,7 @@ const rig = vi.hoisted(() => ({
   routines: 0,
   anyRunnable: true,
   anyRunnableLoading: false,
+  anyRunnableFetching: false,
   can: (_permission: Permission): boolean => true,
 }));
 
@@ -85,6 +86,7 @@ vi.mock("@/hooks/use-can-create-trigger", () => ({
   useCanCreateTriggerQuery: () => ({
     canCreate: rig.anyRunnable,
     isLoading: rig.anyRunnableLoading,
+    isFetching: rig.anyRunnableLoading || rig.anyRunnableFetching,
   }),
 }));
 vi.mock("@/hooks/use-permissions", () => ({
@@ -130,6 +132,7 @@ beforeEach(() => {
   rig.routines = 0;
   rig.anyRunnable = true;
   rig.anyRunnableLoading = false;
+  rig.anyRunnableFetching = false;
   rig.can = () => true;
   nav.pathname = "/dashboard";
   useAgentSelectionStore.setState({ selectedAgentId: null });
@@ -206,6 +209,21 @@ describe("useOnboardingFlow", () => {
       "flow-routine-create",
       "flow-routine-run-now",
     ]);
+  });
+
+  it("does not freeze a runnable-agent answer a refetch is about to replace", () => {
+    // Cached-but-stale: React Query reports isLoading false the moment it holds
+    // any answer, while the refetch that may overturn it is still in flight.
+    // Freezing that stale answer strands the flow either way - a revoked grant
+    // waits on buttons the refresh hides, a fresh one reads as inert.
+    rig.anyRunnableFetching = true;
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-routine"));
+    expect(result.current.isActive).toBe(false);
+
+    rig.anyRunnableFetching = false;
+    rerender();
+    expect(result.current.isActive).toBe(true);
   });
 
   it("goes inert, not frozen, for a caller who can run no agent", () => {

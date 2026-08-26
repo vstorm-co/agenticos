@@ -24,8 +24,12 @@ const PAGE_SIZE = 100;
  * so the sweep pages through `/agents` until it finds one or runs out, stopping
  * at the first hit (for most callers, the first page).
  */
-export function useCanCreateTriggerQuery(): { canCreate: boolean; isLoading: boolean } {
-  const { data, isLoading } = useQuery({
+export function useCanCreateTriggerQuery(): {
+  canCreate: boolean;
+  isLoading: boolean;
+  isFetching: boolean;
+} {
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: qk.agents.anyRunnable(),
     queryFn: async () => {
       for (let skip = 0; ; skip += PAGE_SIZE) {
@@ -39,7 +43,7 @@ export function useCanCreateTriggerQuery(): { canCreate: boolean; isLoading: boo
       }
     },
   });
-  return { canCreate: data ?? false, isLoading };
+  return { canCreate: data ?? false, isLoading, isFetching };
 }
 
 /**
