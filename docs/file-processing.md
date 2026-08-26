@@ -280,19 +280,23 @@ by id, find nothing, and stop, leaving the upload it had already acknowledged in
 The same applies to a sync: the `SyncLog` row exists before its flow does. See
 [Dispatching background work from a request](architecture.md#dispatching-background-work-from-a-request).
 
-**Each flow builds its own vector store, and closes it.** The store owns a
-pooled SQLAlchemy engine, so one built per uploaded document and left behind
-keeps its connections until the worker process exits: two hundred uploads used to
-mean two hundred abandoned pools, and somewhere short of a hundred documents the
-worker reached the database's `max_connections` and every query after that failed
-— including the one that would have marked the document failed, so the upload sat
-at `processing` with the reason only in a log
-([#948](https://github.com/vstorm-co/agenticos/issues/948)). Pooling *within* one
-flow is worth having, because a document's chunks are written over that
-connection; across flows it is not shared, for the same cross-event-loop reason
-`get_worker_db_context` creates a `NullPool` engine per call. **If ingestion
-starts failing part-way through a large batch with a connection error, this is
-the shape to look for.**
+**Each flow builds its own engine for the vector store, and disposes it with
+the flow's work.** The store itself owns no engine — it borrows whatever it is
+handed, which in the API process is the application's own
+([#12](https://github.com/vstorm-co/agenticos/issues/12)). The worker cannot
+borrow that one: each flow runs in an event loop of its own, the same
+cross-event-loop reason `get_worker_db_context` creates a `NullPool` engine per
+call. So `_ingestion_service` in `rag_tasks.py` builds an engine per flow and
+its exit disposes it on every path out. A pooled engine abandoned there keeps
+its connections until the worker process exits: two hundred uploads used to
+mean two hundred abandoned pools, and somewhere short of a hundred documents
+the worker reached the database's `max_connections` and every query after that
+failed — including the one that would have marked the document failed, so the
+upload sat at `processing` with the reason only in a log
+([#948](https://github.com/vstorm-co/agenticos/issues/948)). Pooling *within*
+one flow is worth having, because a document's chunks are written over that
+connection. **If ingestion starts failing part-way through a large batch with a
+connection error, this is the shape to look for.**
 
 ### Supported Formats
 
@@ -412,16 +416,26 @@ fields it is about.) The 400 named its fields under `details.errors` until
 error format, which nothing on the frontend read: the sentence reached a toast
 and no input was ever highlighted.
 
-### Embeddings — the model, and whose key pays
+### Embeddings — the model, whose endpoint answers, and whose key pays
 
-Embeddings go out through OpenRouter to an OpenAI embedding model. Both halves
-of that call are decided **per collection**, not per deployment, by
-`app/services/embedding_resolution.py`:
+All three are decided **per collection**, not per deployment, by
+`app/services/embedding_resolution.py` over the catalog in
+`app/core/catalog/embedding_providers.json`:
 
 | | |
 |---|---|
 | **Model and width** | Recorded on the knowledge base at creation (`embedding_model`, `embedding_dim`) and never changed afterwards — `PgVectorStore` writes `embedding vector(N)` once, so a second model either cannot be written or is silently compared against vectors from another space. `EMBEDDING_MODEL` decides only what a *new* collection is built with. |
-| **Credential** | The vault key chosen on the collection (`embedding_secret_id`), which is what the organization is billed for. A collection that chose none embeds on the deployment's `OPENROUTER_API_KEY`. |
+| **Provider** | Which OpenAI-compatible endpoint serves that model (`embedding_provider`). **Changeable**, unlike the model: the same model at the same width produces vectors in the same space wherever it is served from, so `PATCH /kb/{id}` moves a collection between providers and leaves everything already indexed valid. |
+| **Credential** | The vault key chosen on the collection (`embedding_secret_id`), which is what the organization is billed for, and which must be a key **for that provider**. A collection on the provider the deployment's own key belongs to may instead embed on `OPENROUTER_API_KEY`. |
+
+The provider used to be hardcoded: every request went to `openrouter.ai`,
+so an organization holding an OpenAI key could not use it, a
+key moved to another account meant recreating the collection and re-ingesting
+every document into it, and nothing stopped a collection sending one vendor's
+credential to another vendor's address. The catalog is also what
+`GET /rag/embedding-models` answers with, so the create form offers the models a
+provider can actually serve — it used to offer every model this build knew a
+*width* for, three of them sentence-transformer weights nothing here can call.
 
 The key is validated at creation — a key another organization holds, one of the
 wrong purpose, or one the chooser cannot themselves see is refused there, where
@@ -438,6 +452,12 @@ else's private secrets.
 At embed time nothing is refused: a chosen key that has since been deleted,
 cannot be unsealed, or does not hold an API key falls back to the deployment's,
 because *whose key pays* must never decide *whether documents can be found*.
+
+**That fallback stops at the provider the deployment's key belongs to.** A
+collection embedding through anyone else resolves to *no* key rather than to
+somebody else's — the request would be refused at the far end anyway, having
+already carried the credential there — and the refusal then says which collection
+and which provider, rather than naming a variable that would not have helped.
 
 That fallback is announced rather than assumed. The resolution carries which of
 the five sources it landed on, ingestion writes the degraded ones into the
@@ -731,21 +751,29 @@ Sync operations are tracked via the `SyncLog` model, recording source, mode,
 total files, ingested/updated/skipped/failed counts, and timing. View sync
 history via `GET /rag/sync/logs`.
 
-**Which stored document a file corresponds to is one question, asked once.**
-`IngestionService.existing_document` reads the collection's document listing a
-single time and answers with both the document's id and its stored
-`content_hash`, in one precedence: a `source_path` match beats a `filename`
-match, and a `content_hash` match is the last resort. The two answers come back
-together on purpose — they are facts about *one* document, and while they were
-computed by separate lookups they could disagree, so a sync compared a live
-file's hash against a different document's and either re-embedded an unchanged
-file every night or skipped a changed one as current
-([#548](https://github.com/vstorm-co/agenticos/issues/548)). That also made
-ingesting one changed file read the whole collection up to four times; it is now
-once for the decision and once inside the ingest
-([#566](https://github.com/vstorm-co/agenticos/issues/566)). Reading it at all is
-still a full scan — [#27](https://github.com/vstorm-co/agenticos/issues/27) is the
-pagination that would fix that.
+**Which stored document a file corresponds to is one question, and an indexed
+one.** `IngestionService.existing_document` hands it to the store's
+`find_existing_document`, which looks the document up one metadata key at a
+time — `source_path`, then a `filename` the document has not addressed under a
+different path, then `content_hash` — in that precedence, stopping at the first
+hit. It answers with both the document's id and its stored `content_hash`, and
+the two come back together on purpose: they are facts about *one* document, and
+while they were computed by separate lookups with different rules they could
+disagree, so a sync compared a live file's hash against a different document's
+and either re-embedded an unchanged file every night or skipped a changed one as
+current ([#548](https://github.com/vstorm-co/agenticos/issues/548)). `PgVectorStore`
+serves each lookup from a **hash** index on that metadata key — hash, not btree,
+because the lookups are equality-only and a `source_path` is unbounded, so a
+btree would fail its row-size limit and take ingestion down with it. The indexes
+are built with the runtime table and backfilled onto older collections by
+migration `0056`, which makes the check a handful of indexed statements rather
+than the read of the whole `rag_<collection>` table into worker memory it used to
+be, once per ingested document on a collection that could hold hundreds of
+thousands of chunks
+([#1102](https://github.com/vstorm-co/agenticos/issues/1102), the ingest half of
+[#27](https://github.com/vstorm-co/agenticos/issues/27); its other half paginated
+the tracked-documents listing). A base-class fallback still answers by reading the
+listing, for a store that has no index to lean on.
 
 `new_only` skips a file whose stored hash matches, `update_only` skips one that
 is unchanged and ignores one that is new, and `full` replaces whatever it

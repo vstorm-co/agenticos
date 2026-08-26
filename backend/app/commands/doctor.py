@@ -85,7 +85,7 @@ async def _redis_reachable() -> tuple[str, str]:
 
 def _vault_configured() -> tuple[str, str]:
     """A vault with no key cannot unseal a provider credential, so no agent runs."""
-    if not settings.VAULT_MASTER_KEY:
+    if not settings.VAULT_MASTER_KEY and not settings.VAULT_MASTER_KEYS:
         return "unhealthy", "VAULT_MASTER_KEY is unset - no stored credential can be unsealed"
     return "healthy", "a key is configured"
 

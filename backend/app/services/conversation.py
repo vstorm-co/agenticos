@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from pydantic import ValidationError
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -105,17 +106,31 @@ class ConversationService:
         conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
         summary = None if conversation is None else conversation.summary_messages
         if conversation is None or summary is None or conversation.summary_ordinal is None:
-            rows = await conversation_repo.get_recent_messages(
-                self.db, conversation_id, limit=limit
+            return await self._from_transcript(conversation_id, limit, exclude_message_id)
+        try:
+            replayed = ModelMessagesTypeAdapter.validate_python(summary)
+        except ValidationError:
+            # A shape `pydantic-ai` no longer reads. The blob is written by the
+            # library and read back turns later, so a version this deployment
+            # upgraded through is exactly where the two disagree - and raising
+            # here would make the thread unanswerable for ever rather than for
+            # one turn, on every message anybody sent it. The transcript is
+            # still whole; the cost is one summary, bought again.
+            logger.exception(
+                "conversation_summary_unreadable", extra={"conversation_id": str(conversation_id)}
             )
-            return build_message_history(_as_history(rows, exclude_message_id))
+            return await self._from_transcript(conversation_id, limit, exclude_message_id)
         since = await conversation_repo.get_messages_after(
             self.db, conversation_id, ordinal=conversation.summary_ordinal, limit=limit
         )
-        return [
-            *ModelMessagesTypeAdapter.validate_python(summary),
-            *build_message_history(_as_history(since, exclude_message_id)),
-        ]
+        return [*replayed, *build_message_history(_as_history(since, exclude_message_id))]
+
+    async def _from_transcript(
+        self, conversation_id: UUID, limit: int, exclude_message_id: UUID | None
+    ) -> list[ModelMessage]:
+        """The recent window, which is what every surface read before #49."""
+        rows = await conversation_repo.get_recent_messages(self.db, conversation_id, limit=limit)
+        return build_message_history(_as_history(rows, exclude_message_id))
 
     async def keep_overhead(self, conversation_id: UUID, tokens: int) -> None:
         """Record what a turn measured its instructions and tool schemas at.
@@ -148,6 +163,24 @@ class ConversationService:
         await conversation_repo.set_reminder_state(
             self.db, db_conversation=conversation, state=state
         )
+
+    async def keep_plan(self, conversation_id: UUID, items: list[dict[str, Any]]) -> None:
+        """Record the checklist the run left this conversation with.
+
+        Written only when it moved, for the reason :meth:`keep_overhead` is - and
+        an empty list is treated as no plan, which is what makes this safe to call
+        for every run: an agent that binds no planning capability dumps `[]` every
+        turn, and `[]` against a column that is null is not a change.
+
+        The next run seeds its store from this, so a plan written in one turn is
+        still there in the next. It used to be a run's alone, and a chat message
+        is a run: the agent denied a plan it had written two messages earlier
+        (#1077).
+        """
+        conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
+        if conversation is None or (conversation.plan_items or []) == items:
+            return
+        await conversation_repo.set_plan(self.db, db_conversation=conversation, items=items)
 
     async def keep_summary(self, conversation_id: UUID, messages: list[dict[str, Any]]) -> None:
         """Write down the history a summary reduced this conversation to.

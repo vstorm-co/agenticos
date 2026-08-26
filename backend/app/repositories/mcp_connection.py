@@ -45,7 +45,7 @@ async def get_by_id_for_update(db: AsyncSession, connection_id: UUID) -> McpConn
 
 
 async def get_org_scoped_by_id(
-    db: AsyncSession, *, connection_id: UUID, organization_id: UUID
+    db: AsyncSession, *, connection_id: UUID, organization_id: UUID, for_update: bool = False
 ) -> McpConnection | None:
     """One organization-scoped connection, looked up inside one organization.
 
@@ -53,15 +53,26 @@ async def get_org_scoped_by_id(
     another tenant reaching this row, and `scope` stops a member's personal
     connection being bound to a published agent even though it belongs to the
     same organization - a shared agent must not run on somebody's private token.
+
+    `for_update` locks the row, with the same options
+    :func:`get_by_id_for_update` needs. A writer about to seal a credential at
+    the row's recorded key version must hold the row from the read, or a
+    rotation committing in between leaves its envelope tagged with a version it
+    was not sealed under.
     """
-    result = await db.execute(
-        select(McpConnection).where(
-            McpConnection.purpose == "mcp",
-            McpConnection.id == connection_id,
-            McpConnection.organization_id == organization_id,
-            McpConnection.scope == "org",
-        )
+    stmt = select(McpConnection).where(
+        McpConnection.purpose == "mcp",
+        McpConnection.id == connection_id,
+        McpConnection.organization_id == organization_id,
+        McpConnection.scope == "org",
     )
+    if for_update:
+        stmt = (
+            stmt.options(lazyload(McpConnection.user))
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    result = await db.execute(stmt)
     return result.scalar_one_or_none()
 
 

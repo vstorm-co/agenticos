@@ -37,6 +37,19 @@ logger = logging.getLogger(__name__)
 # names are never shown and never searched; only the tools' own shape is read.
 _DOCUMENTATION_STUB: dict[str, Any] = {
     "kb_collection_names": ["documentation-probe"],
+    # A `link`-mode file, because that is the arrangement that offers tools at
+    # all: `context` contributes nothing without files, so without this the
+    # Builder falls back to the catalog's one-liner for `list_context` and
+    # `read_context` - the two tools whose text somebody wrote and nobody sees.
+    "context_files": [
+        SimpleNamespace(
+            name="documentation_probe",
+            description="Stands in for a context file so the context toolset builds.",
+            content="",
+            mode="link",
+            format="markdown",
+        )
+    ],
     "skills": [
         SimpleNamespace(
             name="documentation_probe",

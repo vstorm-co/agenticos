@@ -13,8 +13,21 @@ from app.db.models.organization import Invitation, InvitationStatus, OrgRole
 _INVITE_TTL_DAYS = 7
 
 
-async def get_by_token(db: AsyncSession, token: str) -> Invitation | None:
-    result = await db.execute(select(Invitation).where(Invitation.token == token))
+async def get_by_token(
+    db: AsyncSession, token: str, *, for_update: bool = False
+) -> Invitation | None:
+    """Read an invitation by its token; with `for_update`, lock the row.
+
+    `accept` reads `used_count`, checks it against `max_uses` in Python, and then
+    increments it - a check-then-act that, unlocked, admits two people through a
+    one-use link posted in a channel and clicked at once. Locking the row in
+    `accept` serializes the second caller behind the first, which then re-reads
+    the bumped count and is refused.
+    """
+    query = select(Invitation).where(Invitation.token == token)
+    if for_update:
+        query = query.with_for_update()
+    result = await db.execute(query)
     return result.scalar_one_or_none()
 
 

@@ -6,7 +6,9 @@ import { toast } from "sonner";
 import { RatingButtons } from "./rating-buttons";
 import { RatingValue, type UserRating } from "@/types";
 
-vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+vi.mock("next-intl", async () => ({
+  useTranslations: (await import("@/test-utils/intl")).keyTranslations(),
+}));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 let fetchMock: ReturnType<typeof vi.fn>;

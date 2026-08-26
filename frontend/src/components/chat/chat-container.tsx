@@ -17,6 +17,7 @@ import { MessageList } from "./message-list";
 import { DelegationPanels } from "./delegation-panel";
 import { CompactionNotice } from "./compaction-notice";
 import { PendingMessages } from "./pending-messages";
+import { PlanStrip } from "./plan-strip";
 import { ToolApprovalDialog } from "./tool-approval-dialog";
 import { QuestionPrompt } from "@/components/ui";
 import { RestartTourButton } from "@/components/onboarding/restart-tour-button";
@@ -32,6 +33,7 @@ import type {
 } from "@/types";
 import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
 import { latestUsage } from "@/lib/message-usage";
+import { planProgress } from "@/lib/plan-state";
 import {
   useAgentSelectionStore,
   useChatStore,
@@ -425,6 +427,10 @@ function ChatUI({
   // banners and a growing textarea all change it - so it is measured.
   // A callback ref rather than `useRef`, because the portal has to re-render once
   // the node exists: a ref object mutating tells React nothing.
+  // The agent's own checklist, folded out of the planning calls the transcript
+  // already carries - nothing streams a plan frame. Memoized because the fold walks
+  // every message and this component re-renders on every streaming delta.
+  const plan = useMemo(() => planProgress(messages), [messages]);
   const [attachmentSlot, setAttachmentSlot] = useState<HTMLDivElement | null>(null);
   const dockRef = useRef<HTMLDivElement | null>(null);
   const [dockHeight, setDockHeight] = useState(0);
@@ -498,6 +504,11 @@ function ChatUI({
             {queuedMessages && queuedMessages.length > 0 && onCancelQueued && (
               <PendingMessages messages={queuedMessages} onCancel={onCancelQueued} />
             )}
+            {/* The checklist the agent is working to. Here rather than in the
+                transcript because a plan is written in one turn and worked through
+                over the next several: as a step it scrolls away under the work it
+                describes, and what somebody wants is where the agent is now. */}
+            <PlanStrip plan={plan} />
             {/* What is attached, above the composer rather than inside it. The
                 slot is here because the box below is drawn here; `ChatInput`
                 portals its row into it and keeps the upload state. */}
