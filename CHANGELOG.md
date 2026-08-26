@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.274] - 2026-08-26
+
+### Fixed
+
+- **The Prefect RAG sync flows did their filesystem work on the worker's event
+  loop** - the defect #25 fixed on the request path and left as a lower-severity
+  follow-up. A large tree or file has no suspension point: `rglob` over a
+  directory, `sha256(read_bytes())` per file, `stat()` and a per-file `resolve()`
+  each stall the loop. Every per-file blocking call goes through
+  `asyncio.to_thread` now: the tree walk is one hop over `_walk_files` rather than
+  a hop per file, the per-file hash is `_hash_file` shared by the local and
+  connector paths, and `stat` and `resolve` are offloaded per file. Values are
+  unchanged - identical walks, hashes, sizes and resolved paths - only the thread
+  moves. The one-off resolve of the sync *target* path is O(1) per flow and stays
+  on the loop. (#1100, #25)
+
 ## [0.0.273] - 2026-08-26
 
 ### Fixed
