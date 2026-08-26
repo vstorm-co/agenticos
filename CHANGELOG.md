@@ -17,6 +17,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.266] - 2026-08-26
+
+### Fixed
+
+- **`GET /api/v1/rag/documents` returned every document a caller could read.** It
+  selected every `rag_documents` row across the caller's readable collections and
+  serialized the whole set in one response - unbounded, so a tenant with 50k
+  documents got a multi-second query and tens of MB held entirely in memory. The
+  sibling `get_for_kb` already paged; this path simply did not use the pattern.
+  `get_all` takes `skip` and `limit` and a `COUNT` for the total, returning
+  `(rows, total)` like its sibling; the service reports the repository's total
+  rather than the page length; and the route carries `skip` and `limit` per
+  `.claude/rules/api-conventions.md`. No frontend caller changes - the console pages
+  the already-paginated `get_for_kb`. (#27)
+- The issue's second half - making ingestion's `existing_document` O(1) instead of a
+  full `rag_<collection>` scan - rewrites a hot path with a documented
+  precedence history (#548, #566) and needs a JSONB predicate plus a supporting
+  expression index on the runtime-created vector tables, verified against a real
+  database. A `source_path` fast path alone is still a sequential scan without the
+  index, and two passes on the common miss, so it was split to #1102 rather than
+  shipped blind. (#27, #1102)
+
 ## [0.0.265] - 2026-08-26
 
 ### Fixed
