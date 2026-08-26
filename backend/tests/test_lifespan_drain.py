@@ -72,7 +72,7 @@ def _stub_startup(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(main, "RedisClient", lambda *a, **k: _FakeRedis())
     monkeypatch.setattr(main, "_start_channel_polling", AsyncMock())
     monkeypatch.setattr(main, "close_db", AsyncMock())
-    monkeypatch.setattr(main, "aclose_retrieval_service", AsyncMock())
+    monkeypatch.setattr(main, "reset_retrieval_service", MagicMock())
     monkeypatch.setattr(main, "EventLoopWatchdog", lambda *a, **k: MagicMock())
     # Warmup raises, so the embedder is None and no PgVectorStore is built - the
     # lifespan swallows it, which is the "RAG unavailable" path and needs no DB.
