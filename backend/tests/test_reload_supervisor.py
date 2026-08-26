@@ -595,7 +595,7 @@ def test_shutting_down_stops_waiting_on_a_worker_that_never_drains(
 
     assert stuck.killed
     assert stuck.waited_for == [STOP_GRACE, None]
-    assert "did not finish draining in 8s" in caplog.text
+    assert f"did not finish draining in {STOP_GRACE:.0f}s" in caplog.text
 
 
 def test_shutting_down_kills_a_worker_that_never_ran_its_event_loop(
