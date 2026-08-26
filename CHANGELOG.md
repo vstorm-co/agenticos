@@ -17,6 +17,64 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.251] - 2026-08-26
+
+The vault's master key is explicit everywhere, and rotating it no longer destroys
+every secret it protects.
+
+### Fixed
+
+- **The master key was validated only in production.** The config refused the
+  default `SECRET_KEY` only when `ENVIRONMENT == "production"`, while staging is
+  first-class here - so a staging vault booted with every credential sealed under a
+  string published in `config.py`. A model validator refuses an unset
+  `VAULT_MASTER_KEY` outside `local` and `development`, and the
+  `getattr(settings, "VAULT_MASTER_KEY", "")` typing escape is gone. (#8)
+- **Rotation destroyed every secret.** `_wrapping_key` derived every version from
+  the single current setting, so `key_version` recorded nothing and setting a new
+  master key made every envelope unreadable - `rewrap` included, because it derived
+  the *from*-key from the same new value. (#8)
+- **`McpConnectionService.update` and `update_for_org` sealed a replacement token
+  at the current version without re-sealing the row's OAuth envelopes** - the same
+  latent defect #552 fixed on channel bots, and destructive the moment versions
+  mean distinct keys. Both seal at the row's recorded version now. (#8, #552)
+
+### Added
+
+- **`VAULT_MASTER_KEYS: dict[int, str]`**, chosen over a
+  `VAULT_MASTER_KEY_PREVIOUS` because it generalizes the `key_version` column
+  rather than hardcoding a two-key window. The single `VAULT_MASTER_KEY` stays as
+  shorthand for version 1, and both set at once is refused as ambiguous. The
+  highest version seals new secrets; an envelope naming a version with no
+  configured key raises `ConfigurationError` naming the missing entry instead of a
+  generic decrypt error. (#8)
+- **HKDF-SHA256 replaces the bare `sha256(master|scope|v)`** - one hash over a
+  possibly passphrase-derived value is not a KDF. The switch is versioned by the
+  envelope format (`ENVELOPE_VERSION` 1 to 2): version-1 envelopes keep opening
+  under the old derivation, everything new is HKDF, and `rewrap` upgrades the
+  format in place. Without that, the KDF change alone would have been the rotation
+  defect under another name. (#8)
+- **`agenticos cmd vault-rotate [--dry-run]`** walks every table holding envelopes
+  - `organization_secrets`, `channel_bots` four times, `mcp_connections` three
+  times with per-row scope so a personal connection re-wraps under its member, plus
+  `agent_embeds` and `agent_triggers`. A row's ciphertexts move together with the
+  version column or not at all; failures are named, do not stop the sweep, and exit
+  non-zero so a script cannot drop the old key on a partial rotation. `--dry-run`
+  performs the full unwrap and rewrap without writing. (#8)
+
+### Changed
+
+- `seal`, `seal_fields` and `seal_secret` default to the current key version, so a
+  row created with no envelope records the current version instead of a hardcoded
+  1. `doctor`'s vault check accepts either configuration form. `secrets.md` carries
+  the rotation procedure now that it is real, and `configuration.md`,
+  `commands.md` and `backend/.env.example` carry the new setting. (#8)
+- **No key-length validation on a configured master, deliberately.** Refusing a
+  short existing key at boot would lock a deployment out of the very rotation it
+  needs to escape it, because the old key has to stay configured to rotate away
+  from it. HKDF also weakens the cost of a low-entropy master, and the docs steer
+  to `openssl rand -hex 32`. (#8)
+
 ## [0.0.250] - 2026-08-26
 
 Every tool says what it returns, and one place decides whose mistake a failure was.
