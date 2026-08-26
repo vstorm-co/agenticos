@@ -17,6 +17,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.273] - 2026-08-26
+
+### Fixed
+
+- **The document listings had no stable order across pages.** `get_all` and
+  `get_for_kb` ordered by `created_at DESC` with no unique secondary key, and a
+  bulk import lands many `rag_documents` in one microsecond - so over tied
+  timestamps that is not a total order, and a client paging with `offset` and
+  `limit` could see a row twice or skip one across a page boundary, because each
+  page is a separate query whose sort of the tied rows is undefined. Both order by
+  `created_at DESC, id DESC` now, which is what the sibling
+  `vectorstore.get_documents` already did for this reason (#548). The change is
+  additive: a tiebreaker is consulted only when `created_at` ties, so rows with
+  distinct timestamps keep their exact prior order. (#1103)
+- **`main` was red between 0.0.270 and here**, and neither branch could have seen
+  it: #1112's integration tests built a `PgVectorStore` with no `engine` and closed
+  it with `aclose()`, while #12 had already made the engine a required keyword and
+  deleted the method when the store stopped owning a pool. Both were green on their
+  own - #1112's run predated #12's merge - so the break appeared only once both
+  were on `main`. The tests take the engine from the fixture that owns it now.
+  (#9, #12)
+
 ## [0.0.272] - 2026-08-26
 
 ### Fixed
