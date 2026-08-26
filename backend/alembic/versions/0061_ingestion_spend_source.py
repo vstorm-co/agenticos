@@ -9,8 +9,8 @@ monthly budget, only the reporting split reads the column.
 Every row that predates the column is indexing, so `server_default` backfills
 them to `'ingestion'` without a data migration.
 
-Revision ID: 0060_ingestion_spend_source
-Revises: 0059_knowledge_base_rerank
+Revision ID: 0061_ingestion_spend_source
+Revises: 0060_knowledge_base_rerank
 Create Date: 2026-08-20
 
 """
@@ -21,8 +21,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0060_ingestion_spend_source"
-down_revision: str | None = "0059_knowledge_base_rerank"
+revision: str = "0061_ingestion_spend_source"
+down_revision: str | None = "0060_knowledge_base_rerank"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
