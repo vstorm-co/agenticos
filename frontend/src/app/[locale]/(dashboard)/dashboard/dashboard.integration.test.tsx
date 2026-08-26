@@ -28,10 +28,11 @@ vi.mock("@/lib/api-client", async () => {
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 // Full-key echo, so "dashboard.errors.title" is assertable and unambiguous.
-vi.mock("next-intl", () => ({
+vi.mock("next-intl", async () => ({
   useLocale: () => "en",
-  useTranslations: (namespace?: string) => (key: string) =>
+  useTranslations: (await import("@/test-utils/intl")).keyTranslations((namespace, key) =>
     namespace ? `${namespace}.${key}` : key,
+  ),
 }));
 
 const auth = {

@@ -278,6 +278,52 @@ describe("every org-scoped request carries the organization", () => {
   });
 });
 
+// -- is every interpolated path segment encoded? ------------------------------
+
+/**
+ * Path segments a hand-rolled proxy interpolates into a `/api/v1` template
+ * without encoding.
+ *
+ * `${x}` immediately after a `/` inside a versioned-API template literal is a
+ * path segment, and `%2f`/`%2e%2e` in the raw value decode and normalise there:
+ * `x%2F..%2F..%2Fopenapi.json` reaches the backend as a different path (#13,
+ * #30). The host prefix (`${BACKEND_URL}`, before `/api/v1`) and the query
+ * (`${...search}`, `${qs}` - never after a `/`) are not segments and not
+ * matched. A route built on the shared platformProxy forwards `nextUrl.pathname`
+ * verbatim, so it interpolates nothing here and is left alone.
+ */
+function unencodedSegments(source: string): string[] {
+  const offenders: string[] = [];
+  for (const template of source.match(/`[^`]*\/api\/v1\/[^`]*`/g) ?? []) {
+    for (const match of template.matchAll(/\/\$\{([^{}]+)\}/g)) {
+      const expr = (match[1] ?? "").trim();
+      if (!expr.startsWith("encodeURIComponent")) offenders.push(expr);
+    }
+  }
+  return offenders;
+}
+
+describe("every hand-rolled proxy encodes its path segments", () => {
+  const routeFiles = sourceFiles(APP_ROOT, (name) => name.endsWith("route.ts"));
+
+  it("recognises a bare segment, an encoded one, and a query", () => {
+    expect(unencodedSegments("fetch(`/api/v1/orgs/${id}`)")).toEqual(["id"]);
+    expect(unencodedSegments("fetch(`/api/v1/orgs/${encodeURIComponent(id)}`)")).toEqual([]);
+    expect(unencodedSegments("fetch(`${BACKEND_URL}/api/v1/x${request.nextUrl.search}`)")).toEqual(
+      [],
+    );
+  });
+
+  it("has no hand-rolled proxy interpolating a bare segment", () => {
+    const offenders = routeFiles
+      .filter((path) => unencodedSegments(readFileSync(path, "utf8")).length > 0)
+      .map((path) => path.slice(APP_ROOT.length + 1))
+      .sort();
+
+    expect(offenders).toEqual([]);
+  });
+});
+
 // -- is there a route behind every path the client calls? ---------------------
 
 /**

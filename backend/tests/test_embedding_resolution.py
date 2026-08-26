@@ -1,10 +1,12 @@
 """Tests for per-collection embedding resolution.
 
-Two properties carry the weight. The recorded model and width win - a
+Three properties carry the weight. The recorded model and width win - a
 collection keeps embedding with what its table was created for, whatever the
-deployment default became. And every credential failure degrades to the
-deployment key rather than raising: whose key *pays* must never decide whether
-documents can be *found*.
+deployment default became. A credential failure degrades rather than raising:
+whose key *pays* must never decide whether documents can be *found*. And what
+it degrades *to* stops at the provider the deployment's key belongs to - a
+collection embedding through OpenAI paid for with the deployment's OpenRouter
+key is a request refused by the provider after the key has already reached it.
 """
 
 from __future__ import annotations
@@ -29,14 +31,27 @@ _MODULE = "app.services.embedding_resolution"
 _ORG = uuid.uuid4()
 
 
-def _kb(*, secret_id: uuid.UUID | None = None, organization_id: uuid.UUID | None = _ORG):
+def _kb(
+    *,
+    secret_id: uuid.UUID | None = None,
+    organization_id: uuid.UUID | None = _ORG,
+    provider: str = "openrouter",
+):
     return MagicMock(
         collection_name="handbook",
         embedding_model="text-embedding-3-small",
         embedding_dim=1536,
         embedding_secret_id=secret_id,
         organization_id=organization_id,
+        embedding_provider=provider,
     )
+
+
+def _openai_key_row(plaintext: str, *, organization_id: uuid.UUID = _ORG):
+    """A vault row holding an OpenAI key, for a collection embedding through one."""
+    row = _sealed_key_row(plaintext, organization_id=organization_id)
+    row.purpose = "openai"
+    return row
 
 
 def _sealed_key_row(plaintext: str, *, organization_id: uuid.UUID = _ORG):
@@ -87,6 +102,8 @@ class TestResolution:
             dim=1536,
             api_key="sk-deployment",
             key_source=EmbeddingKeySource.DEPLOYMENT,
+            base_url="https://openrouter.ai/api/v1",
+            provider="openrouter",
         )
 
     async def test_the_organizations_own_key_is_unsealed_and_used(self):
@@ -100,7 +117,12 @@ class TestResolution:
     async def test_a_repr_never_carries_the_key(self):
         """A dataclass repr in a log line is the way a key usually escapes."""
         resolved = ResolvedEmbeddings(
-            model="m", dim=8, api_key="sk-secret", key_source=EmbeddingKeySource.ORGANIZATION
+            model="m",
+            dim=8,
+            api_key="sk-secret",
+            key_source=EmbeddingKeySource.ORGANIZATION,
+            base_url="https://api.openai.com/v1",
+            provider="openai",
         )
 
         assert "sk-secret" not in repr(resolved)
@@ -177,14 +199,19 @@ class TestSayingWhichKeyPaid:
     """
 
     @pytest.mark.parametrize("source", list(EmbeddingKeySource))
-    def test_every_source_says_which_key_paid_and_why(self, source: EmbeddingKeySource):
+    def test_every_source_says_which_key_paid_or_that_none_did(
+        self, source: EmbeddingKeySource
+    ) -> None:
         explanation = source.explanation
 
         assert explanation
-        if source is EmbeddingKeySource.ORGANIZATION:
-            assert "OPENROUTER_API_KEY" not in explanation
-        else:
+        if source is EmbeddingKeySource.DEPLOYMENT:
             assert "OPENROUTER_API_KEY" in explanation
+        else:
+            # Naming the deployment's variable is advice for the operator of a
+            # deployment the reader may not be running, and it is wrong outright
+            # where that key is for another provider's endpoint.
+            assert "OPENROUTER_API_KEY" not in explanation
 
     def test_only_a_key_that_was_asked_for_and_not_given_counts_as_degraded(self):
         """A collection that chose no key embedding on the deployment's is the
@@ -195,17 +222,73 @@ class TestSayingWhichKeyPaid:
             EmbeddingKeySource.SECRET_MISSING,
             EmbeddingKeySource.SECRET_UNUSABLE,
             EmbeddingKeySource.SECRET_WRONG_KIND,
+            EmbeddingKeySource.FOREIGN_PROVIDER,
         }
 
-    def test_the_description_names_the_collection_and_the_key(self):
+    def test_the_description_names_the_collection_the_provider_and_the_key(self):
         resolved = ResolvedEmbeddings(
             model="text-embedding-3-small",
             dim=1536,
             api_key="",
             key_source=EmbeddingKeySource.SECRET_MISSING,
+            base_url="https://openrouter.ai/api/v1",
+            provider="openrouter",
         )
 
         described = resolved.describe("handbook")
 
         assert "'handbook'" in described
+        assert "openrouter" in described
         assert "no longer in this organization's vault" in described
+
+
+class TestWhereTheRequestGoes:
+    """The address is the collection's own now, and it travels with the key.
+
+    Every embedding request used to go to openrouter.ai whatever key the
+    collection had chosen, so an organization's OpenAI key was sent to
+    OpenRouter and refused there.
+    """
+
+    async def test_the_collections_provider_decides_the_endpoint(self):
+        resolved, _ = await _resolve(
+            _kb(secret_id=uuid.uuid4(), provider="openai"), _openai_key_row("sk-org-openai")
+        )
+
+        assert resolved is not None
+        assert resolved.base_url == "https://api.openai.com/v1"
+        assert resolved.provider == "openai"
+        assert resolved.api_key == "sk-org-openai"
+
+    async def test_another_providers_collection_gets_no_deployment_key(self):
+        """The deployment has one key and it belongs to one endpoint. Sending it
+        to another provider is a refusal with a credential attached."""
+        with patch(f"{_MODULE}.settings") as env:
+            env.OPENROUTER_API_KEY = "sk-deployment"
+            resolved, _ = await _resolve(_kb(provider="openai"))
+
+        assert resolved is not None
+        assert resolved.api_key == ""
+        assert resolved.key_source is EmbeddingKeySource.FOREIGN_PROVIDER
+
+    async def test_a_broken_key_on_another_provider_says_there_is_none_to_use(self):
+        """Which of the two facts leads matters: with nothing to fall back to,
+        "no key for this provider" is what the operator acts on."""
+        with patch(f"{_MODULE}.settings") as env:
+            env.OPENROUTER_API_KEY = "sk-deployment"
+            resolved, _ = await _resolve(_kb(secret_id=uuid.uuid4(), provider="openai"), None)
+
+        assert resolved is not None
+        assert resolved.api_key == ""
+        assert resolved.key_source is EmbeddingKeySource.FOREIGN_PROVIDER
+
+    async def test_a_provider_the_catalog_no_longer_names_falls_back_to_the_deployments(self):
+        """An entry removed from the file under a collection using it. The
+        alternative is a collection nobody can search because of a catalog edit."""
+        with patch(f"{_MODULE}.settings") as env:
+            env.OPENROUTER_API_KEY = "sk-deployment"
+            resolved, _ = await _resolve(_kb(provider="a-provider-that-left"))
+
+        assert resolved is not None
+        assert resolved.provider == "openrouter"
+        assert resolved.key_source is EmbeddingKeySource.DEPLOYMENT

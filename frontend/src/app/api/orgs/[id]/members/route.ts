@@ -10,7 +10,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const accessToken = request.cookies.get("access_token")?.value;
     if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
     const { id } = await params;
-    const data = await backendFetch(`/api/v1/orgs/${id}/members`, {
+    const data = await backendFetch(`/api/v1/orgs/${encodeURIComponent(id)}/members`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     return bffJson(data);

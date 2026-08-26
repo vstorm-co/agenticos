@@ -12,7 +12,7 @@ from app.agents.capabilities._registry import (
     register,
 )
 from app.agents.capabilities.web_fetch._capability import (
-    FETCH_DESCRIPTION,
+    FETCH_TEXT,
     PROVIDER_EXECUTED_METHODS,
     FetchMethod,
     a_label,
@@ -128,7 +128,10 @@ class WebFetchConfig(BaseModel):
     tools=(
         CapabilityToolInfo(
             id="web_fetch",
-            description=FETCH_DESCRIPTION,
+            # The summary, not the whole text: this is what the Builder shows,
+            # and the model reads the same sentence with the usage and the
+            # return shape after it.
+            description=FETCH_TEXT.summary,
         ),
     ),
     config_schema=WebFetchConfig,

@@ -318,3 +318,95 @@ class TestTheOrderTheQueueDrainsIn:
         # the one the tiebreaker fixes.
         assert paged == expected
         assert len(set(paged)) == 5
+
+
+class TestDecidingTwiceIsRefused:
+    """Two approvers, one decision: the row is locked so the second is refused.
+
+    `decide` reads the approval, checks it is pending, and writes - a check-then-act
+    that, unlocked, lets a concurrent reject and approve both pass the guard and
+    both write, leaving the audit trail with two contradictory entries for one
+    decision (#17). The `with_for_update` in `get_approval` serializes them.
+
+    Deterministic on purpose: one approver's decision is held open (uncommitted,
+    lock still on the row) while the other's runs. With the lock the second
+    blocks on the *read* and, once the first commits, re-reads a decided row and
+    is refused - one audit entry. Without it the second blocks on the *write*
+    instead, having already passed the guard against a `pending` read, and writes
+    a second, contradictory decision. Racing the two through `gather` alone does
+    not reproduce this: the pair serialises, and the first commits before the
+    second reads.
+    """
+
+    async def test_a_held_decision_blocks_the_second_which_is_then_refused(
+        self, db, engine
+    ) -> None:
+        import asyncio
+        import contextlib
+
+        from sqlalchemy import func, select
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+
+        from app.core.exceptions import BadRequestError
+        from app.db.models.audit_log import AppAdminAuditLog
+
+        org, owner = await _org(db)
+        approver_a = await _user(db)
+        approver_b = await _user(db)
+        db.add_all(
+            [
+                OrganizationMember(
+                    id=uuid.uuid4(), organization_id=org.id, user_id=approver_a.id, role="admin"
+                ),
+                OrganizationMember(
+                    id=uuid.uuid4(), organization_id=org.id, user_id=approver_b.id, role="admin"
+                ),
+            ]
+        )
+        await db.flush()
+        agent = await _agent(db, org)
+        run = await _run(db, org, agent, started_by=owner)
+        approval = await _approval(db, org, run)
+        await db.commit()
+
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        session_a = factory()
+        b_task: asyncio.Task[None] | None = None
+        try:
+            # A decides and holds it open: the row lock stays on the approval.
+            await ApprovalService(session_a).decide(
+                _ctx(org, approver_a), approval.id, approved=True
+            )
+
+            async def decide_b() -> None:
+                async with factory() as session_b:
+                    await ApprovalService(session_b).decide(
+                        _ctx(org, approver_b), approval.id, approved=False
+                    )
+                    await session_b.commit()
+
+            b_task = asyncio.create_task(decide_b())
+            await asyncio.sleep(0.4)
+            assert not b_task.done()  # blocked on A's lock
+
+            await session_a.commit()
+
+            with pytest.raises(BadRequestError):
+                await b_task
+            b_task = None
+        finally:
+            if b_task is not None:
+                b_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await b_task
+            await session_a.close()
+
+        async with factory() as session:
+            decided = await session.get(ToolApproval, approval.id)
+            assert decided.status == ApprovalStatus.APPROVED.value
+            audit_rows = await session.scalar(
+                select(func.count())
+                .select_from(AppAdminAuditLog)
+                .where(AppAdminAuditLog.target_id == str(approval.id))
+            )
+            assert audit_rows == 1

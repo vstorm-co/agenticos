@@ -108,6 +108,18 @@ export interface KnowledgeBase {
    */
   embedding_model: string;
   embedding_dim: number;
+  /**
+   * Whose endpoint serves that model - a provider id from
+   * `GET /rag/embedding-models`.
+   *
+   * Editable, unlike the model above, and the difference is the point: the same
+   * model at the same width produces vectors in the same space wherever it is
+   * served from, so moving a collection to another provider (a rotated key, an
+   * organization's own account) leaves everything already indexed valid, while
+   * moving it to another *model* would not.
+   */
+  embedding_provider: string;
+  embedding_secret_id: string | null;
   created_at: string;
   updated_at: string | null;
   /**
@@ -145,8 +157,38 @@ export interface CreateKnowledgeBaseInput {
    * Omit for the deployment default.
    */
   embedding_model?: string;
+  /** Whose endpoint serves it; omit for the deployment key's own provider. */
+  embedding_provider?: string;
   /** The org vault key that pays for embeddings; omit for the deployment key. */
   embedding_secret_id?: string;
+}
+
+/** What a collection's embeddings may be re-pointed at after the fact. */
+export interface EmbeddingProviderInput {
+  embedding_provider?: string;
+  embedding_secret_id?: string;
+  /**
+   * Go back to the deployment's key.
+   *
+   * Its own flag because a null `embedding_secret_id` means "leave the key
+   * alone" on a partial update, and both have to be sayable.
+   */
+  clear_embedding_secret?: boolean;
+}
+
+/** One provider a collection can embed through, from `GET /rag/embedding-models`. */
+export interface EmbeddingProvider {
+  provider: string;
+  name: string;
+  models: { model: string; dim: number }[];
+  /** Whether this deployment's own key pays here. */
+  deployment_key: boolean;
+}
+
+export interface EmbeddingModels {
+  default: string;
+  default_provider: string;
+  providers: EmbeddingProvider[];
 }
 
 /** A single document tracked in a KB's underlying vector collection. */

@@ -24,6 +24,7 @@ import { UploadProgressList } from "@/components/rag/upload-progress-list";
 import { DocumentsTable } from "@/components/rag/documents-table";
 import { SyncSourcesSection } from "@/components/rag/sync-sources-section";
 import { FileViewer } from "@/components/kb/file-viewer";
+import { EmbeddingDialog } from "@/components/kb/embedding-dialog";
 import { IngestionDialog } from "@/components/kb/ingestion-dialog";
 import { IngestionPanel } from "@/components/kb/ingestion-panel";
 import { UploadOverrideDialog } from "@/components/kb/upload-override-dialog";
@@ -84,6 +85,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     refresh,
     loadMoreDocuments,
     updateIngestion,
+    updateEmbeddings,
     uploadDocument,
     deleteDocument,
     deleteCollection,
@@ -103,6 +105,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   const [creatingSource, setCreatingSource] = useState(false);
   const [viewerDoc, setViewerDoc] = useState<KBDocument | null>(null);
   const [ingestionOpen, setIngestionOpen] = useState(false);
+  const [embeddingOpen, setEmbeddingOpen] = useState(false);
   const [overrideOpen, setOverrideOpen] = useState(false);
   /**
    * What a destructive control has asked for and not yet been granted.
@@ -290,7 +293,11 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
 
         <TabsContent value="ingestion">
           <div className="mb-8" data-tour="kb-ingestion">
-            <IngestionPanel kb={kb} onEdit={mayEdit ? () => setIngestionOpen(true) : undefined} />
+            <IngestionPanel
+              kb={kb}
+              onEdit={mayEdit ? () => setIngestionOpen(true) : undefined}
+              onEditEmbeddings={mayEdit ? () => setEmbeddingOpen(true) : undefined}
+            />
           </div>
         </TabsContent>
 
@@ -398,6 +405,13 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         config={kb.ingestion_config}
         collectionName={kb.collection_name}
         onSave={updateIngestion}
+      />
+
+      <EmbeddingDialog
+        open={embeddingOpen}
+        onOpenChange={setEmbeddingOpen}
+        kb={kb}
+        onSave={updateEmbeddings}
       />
 
       <UploadOverrideDialog

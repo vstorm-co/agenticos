@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.247"
+version = "0.0.273"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -21,11 +21,11 @@ dependencies = [
     # (#353), and an older FastAPI answers `TypeError` at import rather than
     # quietly reverting - but only 0.141.1 has been run against this suite.
     "fastapi>=0.141.1",
-    "uvicorn[standard]>=0.52.3",
+    "uvicorn[standard]>=0.52.4",
     "pydantic[email]>=2.13.4",
     "pydantic-settings>=2.15.0",
     "python-multipart>=0.0.20",
-    "logfire[fastapi,asyncpg,redis,httpx]>=4.40.0",
+    "logfire[fastapi,asyncpg,redis,httpx]>=4.41.0",
     "sqlalchemy[asyncio]>=2.0.52",
     "asyncpg>=0.31.0",
     # Alembic's, not the application's. Every application URL is
@@ -56,9 +56,9 @@ dependencies = [
     # whatever is current, which is fine as long as the lock resolves to at least
     # as new: this group's bump once locked 2.30.0 while `main` already held
     # 2.31.0, and the image installs the lock verbatim (`uv sync --frozen`).
-    "pydantic-ai-slim[openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai]>=2.30.0",
-    "genai-prices>=0.1.2",
-    "pydantic-ai-slim[mcp]>=2.30.0",
+    "pydantic-ai-slim[openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai]>=2.33.0",
+    "genai-prices>=0.1.4",
+    "pydantic-ai-slim[mcp]>=2.33.0",
     # Wrapped by three capabilities: `guardrails` (the ready-made secret/PII
     # detectors and the input/output/tool guard edges), `planning` (the plan
     # store, tools and cache-safe tail reminder) and `compaction` (the
@@ -66,7 +66,7 @@ dependencies = [
     # Pydantic AI is: this is where those are maintained, and pinning would
     # freeze the detectors and the model registry they read. 0.21.0 is the floor
     # all three were written against.
-    "pydantic-ai-harness>=0.21.0",
+    "pydantic-ai-harness>=0.24.0",
     "websockets>=15.0",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason
@@ -79,11 +79,11 @@ dependencies = [
     "pillow>=10.0.0",
     "python-docx>=1.1.0",
     "openpyxl>=3.1.0",
-    "llama-cloud>=2.14.0",
+    "llama-cloud>=2.14.1",
     "liteparse>=2.12.0",
-    "google-api-python-client>=2.0.0",
+    "google-api-python-client>=2.199.0",
     "google-auth>=2.56.3",
-    "boto3>=1.43.72",
+    "boto3>=1.43.78",
     "httpx>=0.28.0",
     "click>=8.1.0",
     # `cli/commands.py` renders every list the CLI prints. It has no import site
@@ -93,13 +93,13 @@ dependencies = [
     "tqdm>=4.70.0",
     "tavily-python>=0.7.27",
     "pydantic-monty>=0.0.21",
-    "pydantic-ai-skills>=0.11.0",
+    "pydantic-ai-skills>=1.4.0",
     # `console` for the toolset, `remote` for the sandboxd client. Deliberately
     # not `docker`: this container never touches the socket, so the Docker SDK
     # has no business in the image. The service runs beside us as `sandboxd`.
     # Floors at 0.2.26 for `FileInfo.modified_at`, which the listings carry to
     # the file viewer (#500).
-    "pydantic-ai-backend[console,remote]>=0.2.27",
+    "pydantic-ai-backend[console,remote]>=0.2.29",
     # Delegation. Floors at 0.2.16 for three fixes this integration depends on:
     # a suspended child no longer reported to the parent as completed (#64),
     # `event_stream_handler_factory` on the toolset so a fan-out's events can be
@@ -115,7 +115,7 @@ dependencies = [
     # exception's class rather than embedding the provider's message - the one
     # surface `tool_retry_notice` cannot reach, because a `ToolReturnPart` is
     # stored whole (#819). The floor is 0.2.20.
-    "subagents-pydantic-ai>=0.2.20",
+    "subagents-pydantic-ai>=0.2.21",
     "cryptography>=50.0.0",
     "aiogram>=3.17,<4.0",
     "slack-sdk>=3.35.0",
@@ -145,8 +145,8 @@ dev = [
     "anyio[trio]>=4.14.2",
     "pytest-cov>=6.1.0",
     "httpx>=0.28.0",
-    "ruff>=0.16.3",
-    "ty>=0.0.72",
+    "ruff>=0.16.4",
+    "ty>=0.0.74",
     "pre-commit>=4.6.2",
     "pytest-xdist>=3.8.0",
     # Shuffles the suite every run and prints the seed, so an order-dependent
@@ -368,7 +368,7 @@ ignore = [
 # third-party SDK calls are its debt, tracked rather than silently accepted:
 # they move out of this list when that subsystem is rewritten.
 "app/services/rag/retrieval.py" = ["A002", "S324"]
-"app/services/file_upload.py" = ["ASYNC230", "TRY300", "PTH123", "PTH108"]
+"app/services/file_upload.py" = ["TRY300", "PTH123", "PTH108"]
 # Template-inherited subsystems. These are readability rules whose value is
 # real but whose cost right now is churn in code we did not design and are not
 # yet responsible for. They lift file by file as each subsystem is rewritten —
@@ -462,12 +462,21 @@ include = [
     "app/agents/**",
     "app/commands/bootstrap.py",
     "app/commands/audit_skill_bindings.py",
+    "app/commands/vault_rotate.py",
     "app/commands/sandbox_runtimes.py",
     "app/core/permissions.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
     "app/core/vault.py",
+    # The audit trail, fail-closed and part of the caller's transaction. Every
+    # service that records a privileged action is already in this list; the trail
+    # they write to was not (#20).
+    "app/core/audit.py",
     "app/core/background.py",
+    # The SSRF allow/deny every outbound URL a tenant chooses is checked against -
+    # a webhook, an MCP server address. A hole here is a request to an internal
+    # address the operator cannot see, which is the pair to pinned_http below (#28).
+    "app/core/sanitize.py",
     # The client that dials the address it validated, for a URL the party being
     # validated chose. A miss here is an SSRF the operator cannot see.
     "app/core/pinned_http.py",
@@ -513,6 +522,7 @@ include = [
     # public surface filters at - so a toggle that fails open sends an agent's
     # reasoning to a stranger.
     "app/services/run_stream.py",
+    "app/services/run_reaper.py",
     "app/repositories/agent_workspace.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
@@ -682,12 +692,21 @@ include = [
     "app/agents/**",
     "app/commands/bootstrap.py",
     "app/commands/audit_skill_bindings.py",
+    "app/commands/vault_rotate.py",
     "app/commands/sandbox_runtimes.py",
     "app/core/permissions.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
     "app/core/vault.py",
+    # The audit trail, fail-closed and part of the caller's transaction. Every
+    # service that records a privileged action is already in this list; the trail
+    # they write to was not (#20).
+    "app/core/audit.py",
     "app/core/background.py",
+    # The SSRF allow/deny every outbound URL a tenant chooses is checked against -
+    # a webhook, an MCP server address. A hole here is a request to an internal
+    # address the operator cannot see, which is the pair to pinned_http below (#28).
+    "app/core/sanitize.py",
     # The client that dials the address it validated, for a URL the party being
     # validated chose. A miss here is an SSRF the operator cannot see.
     "app/core/pinned_http.py",
@@ -736,6 +755,7 @@ include = [
     # public surface filters at - so a toggle that fails open sends an agent's
     # reasoning to a stranger.
     "app/services/run_stream.py",
+    "app/services/run_reaper.py",
     "app/repositories/agent_workspace.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",

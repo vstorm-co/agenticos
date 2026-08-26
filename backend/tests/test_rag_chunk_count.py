@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import inspect
 import uuid
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -105,19 +106,17 @@ class TestWhatTheUploadPathRecords:
                     replaced_document_id=None,
                 )
             ),
-            # The flow disposes the store it built when the work ends (#948), so
-            # a stand-in service has to own one that can be closed.
-            store=MagicMock(aclose=AsyncMock()),
         )
+
+        @asynccontextmanager
+        async def _pipeline(**_kwargs: object) -> AsyncIterator[MagicMock]:
+            yield ingestion
 
         with (
             patch("app.worker.tasks.rag_tasks.get_worker_db_context", _worker_db),
             patch("app.services.rag_document.RAGDocumentService", return_value=documents),
             patch("app.worker.tasks.rag_tasks.assert_organization_within_budget", new=AsyncMock()),
-            patch(
-                "app.worker.tasks.rag_tasks._ingestion_service_for",
-                new=AsyncMock(return_value=ingestion),
-            ),
+            patch("app.worker.tasks.rag_tasks._ingestion_service", new=_pipeline),
             patch("app.worker.tasks.rag_tasks._record_embedding_spend", new=AsyncMock()),
         ):
             await _run_ingestion(document_id, "docs", "queued/handbook.md", "handbook.md", False)

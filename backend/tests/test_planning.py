@@ -25,7 +25,7 @@ from app.agents.capabilities.planning import (
     open_plan_store,
 )
 from app.agents.capabilities.planning._capability import (
-    _DESCRIPTIONS,
+    _TEXTS,
     PLANNING_TOOLS,
     SUBTASK_GUIDANCE,
     _guidance,
@@ -96,11 +96,14 @@ class TestTools:
 
 class TestDescriptions:
     def test_the_declaration_and_the_model_read_the_same_text(self):
-        """The person choosing what needs approval and the model deciding to call a
-        tool must see one string, not two paraphrases that drift apart."""
+        """One object, two lengths - never two paraphrases that drift apart.
+
+        The Builder shows the summary beside an approval checkbox; the model
+        reads that same sentence followed by the usage and the return shape.
+        """
         declared = {tool.id: tool.description for tool in PLANNING_TOOLS}
 
-        assert declared == _DESCRIPTIONS
+        assert declared == {name: text.summary for name, text in _TEXTS.items()}
 
     def test_the_model_reads_this_repositorys_text_not_the_librarys_default(self):
         built = build(
@@ -110,7 +113,18 @@ class TestDescriptions:
         assert toolset is not None
 
         offered = {name: tool.description for name, tool in toolset.tools.items()}
-        assert offered == _DESCRIPTIONS
+        assert offered == {name: text.render() for name, text in _TEXTS.items()}
+
+    def test_every_planning_tool_says_what_it_returns(self):
+        """The half a tool description usually leaves out, in the shape
+        pydantic-ai gives a docstring that has a `Returns:` section."""
+        built = build(
+            [CapabilityBinding(capability_id="planning", config={"enable_subtasks": True})]
+        )
+        toolset = built[0].get_toolset()
+        assert toolset is not None
+
+        assert all("<returns>" in tool.description for tool in toolset.tools.values())
 
 
 class TestGuidance:

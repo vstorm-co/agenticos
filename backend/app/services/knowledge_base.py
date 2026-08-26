@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.resource_grant import Visibility
@@ -25,7 +26,6 @@ from app.schemas.knowledge_base import (
 )
 from app.services.access import COLLECTION, SECRET, resolve_access, visible_resource_ids
 from app.services.collection_access import CollectionAccessService, readable_kb, writable_kb
-from app.services.embedding_resolution import EMBEDDING_KEY_PURPOSES
 from app.services.ingestion_config import (
     IngestionConfig,
     IngestionConfigService,
@@ -33,6 +33,7 @@ from app.services.ingestion_config import (
     deployment_defaults,
     deployment_embedding,
 )
+from app.services.rag import embedding_providers
 
 logger = logging.getLogger(__name__)
 
@@ -192,6 +193,10 @@ class KnowledgeBaseService:
             ingestion_config=deployment_defaults().model_dump(mode="json"),
             embedding_model=embedding_model,
             embedding_dim=embedding_dim,
+            # A collection that appeared under the vector store rather than
+            # through the form embeds where the deployment's own key points,
+            # because that is the only credential it has.
+            embedding_provider=embedding_providers.deployment_provider().provider,
         )
 
     async def delete_for_rag_collection(self, kb: KnowledgeBase) -> None:
@@ -302,9 +307,12 @@ class KnowledgeBaseService:
             else None
         )
         embedding_model, embedding_dim = chosen_embedding(data.embedding_model)
+        provider = embedding_providers.require(
+            data.embedding_provider, model=embedding_model, dim=embedding_dim
+        )
         if data.embedding_secret_id is not None:
             await self._check_embedding_secret(
-                data.embedding_secret_id, ctx=ctx, organization_id=org_id
+                data.embedding_secret_id, ctx=ctx, organization_id=org_id, provider=provider
             )
         return await knowledge_base_repo.create(
             self.db,
@@ -317,11 +325,17 @@ class KnowledgeBaseService:
             ingestion_config=config.model_dump(mode="json"),
             embedding_model=embedding_model,
             embedding_dim=embedding_dim,
+            embedding_provider=provider.provider,
             embedding_secret_id=data.embedding_secret_id,
         )
 
     async def _check_embedding_secret(
-        self, secret_id: UUID, *, ctx: AuthContext, organization_id: UUID | None
+        self,
+        secret_id: UUID,
+        *,
+        ctx: AuthContext,
+        organization_id: UUID | None,
+        provider: embedding_providers.EmbeddingProviderEntry,
     ) -> None:
         """Refuse a key the organization does not hold, or one of the wrong kind.
 
@@ -351,13 +365,13 @@ class KnowledgeBaseService:
                 message="That key is not in this organization's vault",
                 details={"embedding_secret_id": str(secret_id)},
             )
-        if row.purpose not in EMBEDDING_KEY_PURPOSES:
-            raise BadRequestError(
-                message=(
-                    f"That key is for {row.purpose}; embeddings run through "
-                    f"{', '.join(EMBEDDING_KEY_PURPOSES)}"
-                ),
-                details={"purpose": row.purpose},
+        if row.purpose != provider.provider:
+            raise refused_field(
+                "embedding_secret_id",
+                f"That key is for {row.purpose}, and this collection embeds through "
+                f"{provider.name}. A key sent to the wrong provider is refused by it, "
+                "and is somebody else's credential in somebody else's logs.",
+                purpose=row.purpose,
             )
 
     async def update(
@@ -373,12 +387,63 @@ class KnowledgeBaseService:
             if data.ingestion_config is None
             else await self._usable_config(ctx, data.ingestion_config)
         )
+        # The provider the collection will be on when this update lands, which is
+        # what the key has to match: moving to OpenAI and choosing an OpenAI key
+        # in one request must be accepted, and either half alone must be checked
+        # against the other half as it already stands. The model and the width are
+        # the collection's own - `require` refuses a provider that cannot serve
+        # them, because the vectors already stored are in that model's space.
+        provider = embedding_providers.require(
+            data.embedding_provider or kb.embedding_provider,
+            model=kb.embedding_model,
+            dim=kb.embedding_dim,
+        )
+        if data.embedding_secret_id is not None:
+            await self._check_embedding_secret(
+                data.embedding_secret_id,
+                ctx=ctx,
+                organization_id=kb.organization_id,
+                provider=provider,
+            )
+        elif data.embedding_provider is not None and not data.clear_embedding_secret:
+            await self._check_kept_secret(kb, provider=provider)
         return await knowledge_base_repo.update(
             self.db,
             db_kb=kb,
             name=data.name,
             description=data.description,
             ingestion_config=None if config is None else config.model_dump(mode="json"),
+            embedding_provider=data.embedding_provider,
+            embedding_secret_id=data.embedding_secret_id,
+            clear_embedding_secret=data.clear_embedding_secret,
+        )
+
+    async def _check_kept_secret(
+        self,
+        kb: KnowledgeBase,
+        *,
+        provider: embedding_providers.EmbeddingProviderEntry,
+    ) -> None:
+        """Refuse a provider change that would leave the old key pointed at it.
+
+        The key stays where it is unless the caller says otherwise, so moving the
+        provider on its own can produce a collection holding an OpenRouter key and
+        an OpenAI address - which is the one thing this whole change exists to stop.
+        Named on `embedding_provider`, because that is the control that moved.
+        """
+        if kb.embedding_secret_id is None or kb.organization_id is None:
+            return
+        row = await organization_secret_repo.get(
+            self.db, kb.embedding_secret_id, organization_id=kb.organization_id
+        )
+        if row is None or row.purpose == provider.provider:
+            return
+        raise refused_field(
+            "embedding_provider",
+            f"This collection pays with a {row.purpose} key, which {provider.name} will "
+            "not accept. Choose a key for the new provider, or fall back to the "
+            "deployment's.",
+            purpose=row.purpose,
         )
 
     async def _usable_config(

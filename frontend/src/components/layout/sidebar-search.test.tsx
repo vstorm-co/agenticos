@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import { SidebarSearch } from "./sidebar-search";
 
-vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+vi.mock("next-intl", async () => ({
+  useTranslations: (await import("@/test-utils/intl")).keyTranslations(),
+}));
 
 describe("SidebarSearch", () => {
   it("opens the command palette rather than searching anything itself", () => {
