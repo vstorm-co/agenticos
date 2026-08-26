@@ -20,6 +20,23 @@ engine = create_async_engine(
     pool_timeout=settings.DB_POOL_TIMEOUT,
 )
 
+# The vector store's pool, deliberately not the one above. A vector query runs
+# *inside* a request whose session already holds a connection from `engine` for
+# the whole handler, so putting both on one pool makes saturation a circular
+# wait: fifteen concurrent searches each hold one connection and block waiting
+# for a second, and nothing progresses until `DB_POOL_TIMEOUT` expires the lot.
+# One deliberate second pool for the process's vector work - the lifespan's
+# store, the per-request fallback, the knowledge capability - not one per store
+# instance, which is the shape #948 removed. Lazy like every engine here: a
+# deployment that never searches never connects it.
+vector_engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=settings.DB_ECHO,
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
+    pool_timeout=settings.DB_POOL_TIMEOUT,
+)
+
 async_session_maker = async_sessionmaker(
     engine,
     class_=AsyncSession,
@@ -124,5 +141,6 @@ async def get_worker_db_context() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def close_db() -> None:
-    """Close database connections."""
+    """Close database connections - both process pools."""
     await engine.dispose()
+    await vector_engine.dispose()

@@ -211,7 +211,8 @@ class TestTokenMode:
 
         assert admission.visitor == "user-42"
 
-    def test_a_rotated_embed_secret_still_verifies_a_visitor_token(self):
+    def test_a_rotated_embed_secret_still_verifies_a_visitor_token(self, monkeypatch):
+        monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: "k1" * 20, 2: "k2" * 20})
         """The latent bug this issue is about: the verifier unsealed at an
         implicit v1, so the day a master-key rotation `rewrap`s the vault, a `jwt`
         embed sealed at v1 and moved to v2 could never be opened again - every
@@ -220,7 +221,9 @@ class TestTokenMode:
         `unseal` patch, because the version is the whole point."""
         org = uuid.uuid4()
         secret = "s" * 32
-        sealed, _v1 = seal_fields({"jwt_secret": secret}, scope=VaultScope.organization(org))
+        sealed, _v1 = seal_fields(
+            {"jwt_secret": secret}, scope=VaultScope.organization(org), key_version=1
+        )
         rotated = rewrap(
             sealed["jwt_secret"].ciphertext,
             scope=VaultScope.organization(org),

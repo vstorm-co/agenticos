@@ -1,6 +1,7 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useEffect, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 
 import { StatusList, type StatusRow, type StatusTone } from "../primitives/status-list";
 import { WidgetFrame } from "../widget-frame";
@@ -47,10 +48,12 @@ export function RoutinesWidget({ title, hint, seeAll, options }: DashboardWidget
   // row and the chat's own summary read it from - one wording for "every 15
   // minutes" across the product rather than a second copy under this card.
   const tt = useTranslations("triggers");
+  const locale = useLocale();
   const { can } = usePermissions();
   const mayReadRuns = can(Perm.runsView);
   const { triggers, isLoading, isError, refetch } = useOrgTriggers();
   const { runs } = useRuns(undefined, { surface: "schedule", enabled: mayReadRuns });
+  useNextFireTick(triggers);
 
   if (isLoading) {
     return (
@@ -68,7 +71,7 @@ export function RoutinesWidget({ title, hint, seeAll, options }: DashboardWidget
   const rows = [...triggers]
     .sort((left, right) => rank(left) - rank(right) || due(left) - due(right))
     .slice(0, SHOWN)
-    .map((trigger) => row(trigger, lastRun.get(trigger.last_run_id ?? ""), t, tt));
+    .map((trigger) => row(trigger, lastRun.get(trigger.last_run_id ?? ""), t, tt, locale));
 
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
@@ -98,19 +101,87 @@ function due(trigger: Trigger): number {
  *
  * The pill is the *outcome*, because that is the question a glance asks: a
  * routine that has been failing every hour for a day looks exactly like a
- * healthy one if the card only says when it next fires. What it cost goes in the
- * subtitle beside the cadence, where it is legible without competing.
+ * healthy one if the card only says when it next fires. When it next fires and
+ * what the last run cost go in the subtitle beside the cadence, where they are
+ * legible without competing.
  */
-function row(trigger: Trigger, run: AgentRun | undefined, t: Translate, tt: Translate): StatusRow {
+function row(
+  trigger: Trigger,
+  run: AgentRun | undefined,
+  t: Translate,
+  tt: Translate,
+  locale: string,
+): StatusRow {
   const [pill, tone] = outcome(trigger, run, t);
   return {
     label: trigger.name ?? trigger.agent_name ?? t("unnamed"),
-    sub: [cadenceText(trigger, tt), run ? t("cost", { cost: run.cost_usd }) : null]
+    sub: [
+      cadenceText(trigger, tt),
+      nextFireText(trigger, t, locale),
+      run ? t("cost", { cost: run.cost_usd }) : null,
+    ]
       .filter((part) => part !== null)
       .join(" · "),
     pill,
     tone,
   };
+}
+
+/** The upcoming fire of a live schedule, in ms - null when there is none, or
+ * when the instant has passed: a `next_fire_at` in the past is a fire the
+ * heartbeat has yet to claim, and "next" about it would assert a future that
+ * already failed to happen, loudest exactly when the worker is down. */
+function upcomingFireMs(trigger: Trigger): number | null {
+  if (!trigger.is_active || trigger.next_fire_at === null) return null;
+  const at = new Date(trigger.next_fire_at).getTime();
+  return at >= Date.now() ? at : null;
+}
+
+/**
+ * "next Aug 22, 09:00 UTC" for a live schedule whose next fire is still ahead.
+ *
+ * In UTC, because the cadence beside it is ("Daily at 09:00 UTC") - a local
+ * instant next to a UTC cadence reads as a contradiction two hours wide. The
+ * year appears only when the fire is outside the current one: a 999-day
+ * interval can put it years out, where "Feb 29" alone names the wrong February.
+ */
+function nextFireText(trigger: Trigger, t: Translate, locale: string): string | null {
+  const upcoming = upcomingFireMs(trigger);
+  if (upcoming === null) return null;
+  const at = new Date(upcoming);
+  const shown = at.toLocaleString(locale, {
+    timeZone: "UTC",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    ...(at.getUTCFullYear() === new Date().getUTCFullYear() ? {} : { year: "numeric" as const }),
+  });
+  return t("nextFire", { at: shown });
+}
+
+/** setTimeout's ceiling; a longer delay wraps and fires at once. */
+const MAX_DELAY_MS = 2 ** 31 - 1;
+
+/**
+ * Re-render when the soonest upcoming fire comes due, so a card left on screen
+ * drops its "next" caption the moment it stops being true. The data stays as
+ * fresh as the query; only the clock half of the caption is ours to keep
+ * honest. A fire further out than setTimeout's ceiling just re-arms early.
+ */
+function useNextFireTick(triggers: Trigger[]): void {
+  const [, setTick] = useState(0);
+  const soonest = triggers.reduce<number | null>((min, trigger) => {
+    const upcoming = upcomingFireMs(trigger);
+    if (upcoming === null) return min;
+    return min === null ? upcoming : Math.min(min, upcoming);
+  }, null);
+  useEffect(() => {
+    if (soonest === null) return;
+    const delay = Math.min(Math.max(soonest - Date.now(), 0) + 1_000, MAX_DELAY_MS);
+    const timer = setTimeout(() => setTick((tick) => tick + 1), delay);
+    return () => clearTimeout(timer);
+  }, [soonest]);
 }
 
 function outcome(trigger: Trigger, run: AgentRun | undefined, t: Translate): [string, StatusTone] {
@@ -120,7 +191,11 @@ function outcome(trigger: Trigger, run: AgentRun | undefined, t: Translate): [st
   // than the page reaches, or this reader may not read runs at all. Saying
   // "succeeded" would be a guess and saying "failed" a worse one.
   if (run === undefined) return [t("fired"), "neutral"];
-  if (run.status === "failed" || run.status === "budget_exceeded")
+  if (
+    run.status === "failed" ||
+    run.status === "budget_exceeded" ||
+    run.status === "guardrail_blocked"
+  )
     return [t(`status.${run.status}`), "err"];
   if (run.down_rated) return [t("ratedDown"), "warn"];
   if (run.status === "completed") return [t("succeeded"), "ok"];

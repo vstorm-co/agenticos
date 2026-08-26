@@ -13,7 +13,7 @@ is why every write in this API used to be acknowledged before it was durable
 """
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import Awaitable, Callable
 from typing import Annotated, Any
 
 from fastapi import Depends
@@ -83,6 +83,7 @@ Redis = Annotated[RedisClient, Depends(get_redis)]
 
 from app.services.user import UserService
 from app.services.session import SessionService
+from app.services.oauth_exchange import OAuthExchangeService
 from app.services.conversation import ConversationService
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.sandbox_workspace import SandboxWorkspaceService
@@ -99,8 +100,14 @@ def get_session_service(db: DBSession) -> SessionService:
     return SessionService(db)
 
 
+def get_oauth_exchange_service(redis: Redis) -> OAuthExchangeService:
+    """Create OAuthExchangeService instance with the Redis client."""
+    return OAuthExchangeService(redis)
+
+
 UserSvc = Annotated[UserService, Depends(get_user_service)]
 SessionSvc = Annotated[SessionService, Depends(get_session_service)]
+OAuthExchangeSvc = Annotated[OAuthExchangeService, Depends(get_oauth_exchange_service)]
 
 
 def get_conversation_service(db: DBSession) -> ConversationService:
@@ -910,12 +917,10 @@ from fastapi import Request
 
 from app.core.config import settings
 from app.services.rag.embeddings import EmbeddingService
-from app.services.embedding_resolution import embeddings_for_collection
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.retrieval import RetrievalService
-from app.services.rag.vectorstore import PgVectorStore
-from app.services.rag.vectorstore import BaseVectorStore
+from app.services.rag.vectorstore import BaseVectorStore, process_vector_store
 
 
 def get_embedding_service(request: Request) -> EmbeddingService:
@@ -928,30 +933,19 @@ def get_embedding_service(request: Request) -> EmbeddingService:
 EmbeddingSvc = Annotated[EmbeddingService, Depends(get_embedding_service)]
 
 
-async def get_vectorstore(
-    request: Request, embedder: EmbeddingSvc
-) -> AsyncGenerator[BaseVectorStore, None]:
+def get_vectorstore(request: Request, embedder: EmbeddingSvc) -> BaseVectorStore:
     """The store this request reads, from the lifespan or built for the request.
 
-    The lifespan builds one for the process and disposes it at shutdown. It is
-    absent when that construction failed - the lifespan catches and logs
-    "pgvector connection failed" and carries on serving - and then this builds
-    one per request, each with a pooled engine of its own. Undisposed, that is a
-    degraded deployment answering knowledge-base requests by consuming its
-    remaining Postgres connections a handful at a time (#948), so a store built
-    here is closed when the request ends. The lifespan's is not: it does not
-    belong to this request.
+    The lifespan builds one for the process. It is absent when the embedding
+    warmup failed - the lifespan logs it and carries on serving - and then this
+    builds one per request. Both ride the application's own engine, so the
+    per-request one owns nothing to dispose: it used to open a pooled engine of
+    its own, and a degraded deployment answered knowledge-base requests by
+    consuming its remaining Postgres connections a handful at a time (#948).
     """
     if hasattr(request.state, "vector_store"):
-        yield request.state.vector_store
-        return
-    store = PgVectorStore(
-        settings=settings.rag, embedding_service=embedder, resolver=embeddings_for_collection
-    )
-    try:
-        yield store
-    finally:
-        await store.aclose()
+        return request.state.vector_store  # type: ignore[no-any-return]
+    return process_vector_store(settings.rag, embedder)
 
 
 VectorStoreSvc = Annotated[BaseVectorStore, Depends(get_vectorstore)]

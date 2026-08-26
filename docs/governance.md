@@ -855,6 +855,32 @@ This is the only read in the codebase that crosses every organization, for the
 reason a schedule has no tenant to be scoped to. Every write it makes is still in
 the row's own organization.
 
+### A run whose process died
+
+The other state nothing in-process will ever resolve. A run's row is committed
+`running` before its model is called ([#12][12-issue]), so a worker killed
+mid-run — OOM, a deploy that does not drain — leaves a durable row with nothing
+left to finish it: in Activity for ever, and blocking any schedule whose
+trigger it was the linked run of. An hourly sweep ends anything still `running`
+past `STALE_RUN_REAPED_AFTER_HOURS` (six hours by default; zero switches it
+off), as `failed` — nobody stopped this run, the infrastructure did, and an
+operator filtering run history for problems is exactly who should see it. The
+error on the row is the sweep's own sentence; the process that knew more died.
+
+A run's age here is its **last transition**, not its first start: a resume
+keeps the original `started_at` — the run spans both segments — so a run
+approved days after it parked ages from the moment its replay began, not from
+a start that would have it reaped mid-replay. The ceiling does not have to be
+exact either way, because a live run the sweep flips anyway flips itself back:
+its own terminal write lands later and wins. What a
+reaped run cannot recover is its spend — the ledger died with the process — so
+the row keeps the zeros it was opened with rather than being given a number
+somebody would reconcile against a bill. And nobody is mailed: the failure
+notification rides `finish`, which has the agent and its spec in hand; a sweep
+has neither.
+
+[12-issue]: https://github.com/vstorm-co/agenticos/issues/12
+
 ### An approval inside a delegation
 
 A delegate's tools are gated by the delegate's own spec, and it reaches the same

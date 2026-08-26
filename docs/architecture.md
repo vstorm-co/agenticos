@@ -121,9 +121,10 @@ matters as much as the fact.
 A route asks for `DBSession` (`app/api/deps.py`), which resolves `get_db_session`
 (`app/db/session.py`). Everything below the route shares that one session:
 services take it in their constructor, repositories take it as their first
-argument, and neither ever calls `commit()`. `flush()` sends the statements so
-the row has an id and the constraints have been checked; the commit happens once,
-on the way out.
+argument, and neither ever calls `commit()` — with one deliberate exception, the
+agent run path, described [below](#the-run-paths-two-commits). `flush()` sends
+the statements so the row has an id and the constraints have been checked; the
+commit happens once, on the way out.
 
 **On the way out means before the response is written.** The alias declares
 `Depends(get_db_session, scope="function")`, which registers the session's exit
@@ -168,6 +169,36 @@ handlers and CLI commands open `get_db_context()`, and worker tasks
 `get_worker_db_context()`; all three go through the same `_managed_session`, so
 they commit on a clean exit of their own `async with` and start their deferred
 work in the same place — which has nothing to do with a response.
+
+### The run path's two commits
+
+One path deliberately commits earlier than "on the way out": an agent run. The
+runner commits once **before the model is called** and once more in the
+terminal `finally` (`AgentRunnerService._run`, and `ChatAgentRunner.run` for
+the streaming chat). A model call takes seconds to minutes, and a transaction
+left open across it holds a pooled connection `idle in transaction` for the
+duration — fifteen concurrent runs used to be the entire pool ([#12][12]).
+Committing first also makes the run row readable from every other session for
+the whole life of the run, and makes a resumed run's exit from the approval
+queue durable before the approved call is replayed, so a crash mid-replay
+cannot hand the same approval out twice ([#3][3]). The terminal commit is the
+other half: the session context only commits on a clean exit, which a failed,
+budget-stopped or cancelled run is not, and a run missing from history is a
+run nobody is accountable for. Both boundaries are proved against a real
+database in `tests/integration/test_run_commit_boundary.py`.
+
+Visibility cuts both ways: anything that used to reason "an executing run's
+row cannot be seen" now reasons about a row that *is* seen. The agent-triggers
+scheduler is the one place that did. Its no-overlap guard blocks on every
+non-terminal run in the trigger's conversation — which now includes a
+concurrent `run_now` or event fire's live run, protection the old
+invisibility could not offer — while a worker that dies mid-run leaves a
+`running` row nothing in-process will ever finish. What bounds that row is
+the hourly stale-run sweep, which ends it `failed` past
+`STALE_RUN_REAPED_AFTER_HOURS`; the scheduled fire's own liveness signal
+stays its renewed lease (`app/repositories/agent_trigger.py::claim_due`).
+[Governance](governance.md#a-run-whose-process-died) has what the sweep
+settles and deliberately leaves alone.
 
 ### Dispatching background work from a request
 
@@ -218,6 +249,8 @@ emails in `app/services/notifications.py` carry their own context and touch no
 row. Neither is a job queue: anything that must survive a restart is a Prefect
 deployment.
 
+[3]: https://github.com/vstorm-co/agenticos/issues/3
+[12]: https://github.com/vstorm-co/agenticos/issues/12
 [353]: https://github.com/vstorm-co/agenticos/issues/353
 [417]: https://github.com/vstorm-co/agenticos/issues/417
 [658]: https://github.com/vstorm-co/agenticos/issues/658
