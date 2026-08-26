@@ -3069,7 +3069,10 @@ class TestACommitThatCannotLandRunner:
         """A stop cancels the run; a commit that then cannot land must not turn
         that into a failed run by replacing the `CancelledError`."""
         db = _db()
-        db.commit = AsyncMock(side_effect=RuntimeError("could not serialize access"))
+        # Two commits reach the session now: the opening one before the model
+        # call (#12) and the terminal one. Only the terminal write is under
+        # test, so the first is allowed to land.
+        db.commit = AsyncMock(side_effect=[None, RuntimeError("could not serialize access")])
         service = AgentRunnerService(db)
         prepared = _prepared()
         prepared.built.agent.run = AsyncMock(side_effect=asyncio.CancelledError)
@@ -3081,14 +3084,17 @@ class TestACommitThatCannotLandRunner:
         ):
             await service.execute(_ctx(), uuid.uuid4(), "hello")
 
-        db.commit.assert_awaited_once()
+        assert db.commit.await_count == 2
 
     @pytest.mark.anyio
     async def test_a_failing_commit_on_a_clean_run_still_surfaces(self):
         """When nothing else ended the run, a commit that cannot land is the one
         thing wrong and does surface."""
         db = _db()
-        db.commit = AsyncMock(side_effect=RuntimeError("could not commit"))
+        # Two commits reach the session now: the opening one before the model
+        # call (#12) and the terminal one. Only the terminal write is under
+        # test, so the first is allowed to land.
+        db.commit = AsyncMock(side_effect=[None, RuntimeError("could not commit")])
         service = AgentRunnerService(db)
         prepared = _prepared()
         prepared.built.agent.run = AsyncMock(return_value=MagicMock(output="the answer"))
@@ -3117,7 +3123,8 @@ class TestACommitThatCannotLandRunner:
         ):
             await service.execute(_ctx(), uuid.uuid4(), "hello")
 
-        db.commit.assert_not_awaited()
+        # Only the opening commit; the terminal one is never reached.
+        db.commit.assert_awaited_once()
 
     @pytest.mark.anyio
     async def test_a_commit_failure_surfaces_even_inside_a_callers_except(self):
@@ -3126,7 +3133,10 @@ class TestACommitThatCannotLandRunner:
         completed. The run's own terminal state is tracked instead, so the
         failure surfaces."""
         db = _db()
-        db.commit = AsyncMock(side_effect=RuntimeError("could not commit"))
+        # Two commits reach the session now: the opening one before the model
+        # call (#12) and the terminal one. Only the terminal write is under
+        # test, so the first is allowed to land.
+        db.commit = AsyncMock(side_effect=[None, RuntimeError("could not commit")])
         service = AgentRunnerService(db)
         prepared = _prepared()
         prepared.built.agent.run = AsyncMock(return_value=MagicMock(output="ok"))

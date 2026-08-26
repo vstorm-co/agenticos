@@ -953,17 +953,23 @@ class TestACommitThatCannotLand:
             raise asyncio.CancelledError
 
         db = _db()
-        db.commit = AsyncMock(side_effect=RuntimeError("could not serialize access"))
+        # Two commits reach the session now: the opening one before the model
+        # call (#12) and the terminal one. Only the terminal write is under
+        # test, so the first is allowed to land.
+        db.commit = AsyncMock(side_effect=[None, RuntimeError("could not serialize access")])
         with _runner(_prepared()), pytest.raises(asyncio.CancelledError):
             await _run(db, stream=_cancelled)
-        db.commit.assert_awaited_once()
+        assert db.commit.await_count == 2
 
     @pytest.mark.anyio
     async def test_a_failing_commit_on_a_clean_run_still_surfaces(self):
         """When nothing else ended the run, a commit that cannot land is the one
         thing wrong and does surface."""
         db = _db()
-        db.commit = AsyncMock(side_effect=RuntimeError("could not commit"))
+        # Two commits reach the session now: the opening one before the model
+        # call (#12) and the terminal one. Only the terminal write is under
+        # test, so the first is allowed to land.
+        db.commit = AsyncMock(side_effect=[None, RuntimeError("could not commit")])
         with _runner(_prepared()), pytest.raises(RuntimeError, match="could not commit"):
             await _run(db)
 
@@ -981,14 +987,18 @@ class TestACommitThatCannotLand:
             runner.finish = AsyncMock(side_effect=RuntimeError("connection dropped"))
             with pytest.raises(asyncio.CancelledError):
                 await _run(db, stream=_cancelled)
-        db.commit.assert_not_awaited()
+        # Only the opening commit; the terminal one is never reached.
+        db.commit.assert_awaited_once()
 
     @pytest.mark.anyio
     async def test_a_commit_failure_surfaces_even_inside_a_callers_except(self):
         """#235 review: a caller's handled exception must not make this run's own
         commit failure look like the thing being unwound and get swallowed."""
         db = _db()
-        db.commit = AsyncMock(side_effect=RuntimeError("could not commit"))
+        # Two commits reach the session now: the opening one before the model
+        # call (#12) and the terminal one. Only the terminal write is under
+        # test, so the first is allowed to land.
+        db.commit = AsyncMock(side_effect=[None, RuntimeError("could not commit")])
         with _runner(_prepared()):
             try:
                 raise ValueError("boom")  # noqa: TRY301 - a caller already mid-except
