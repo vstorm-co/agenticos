@@ -1098,6 +1098,33 @@ async def window_aggregates(
     )
 
 
+async def window_totals(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    start: datetime,
+    end: datetime,
+    where: RunFilter | None = None,
+) -> tuple[int, Decimal]:
+    """The count and cost of a window, in one SELECT and nothing more.
+
+    The previous window is a delta against the current one - it reports only how
+    many runs and how much they cost - so it does not pay for
+    `window_aggregates`' distinct-user count or its two ordered-set percentiles,
+    which make PostgreSQL sort the window's durations for numbers nobody reads.
+    """
+    conditions = _window_conditions(
+        organization_id=organization_id, start=start, end=end, where=where
+    )
+    result = await db.execute(
+        select(func.count(AgentRun.id), func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
+            *conditions
+        )
+    )
+    total, cost = result.one()
+    return int(total or 0), Decimal(cost or 0)
+
+
 async def runs_by_day(
     db: AsyncSession,
     *,

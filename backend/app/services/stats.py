@@ -185,15 +185,16 @@ class StatsService:
         org = ctx.organization_id
 
         # The window's scalars - count, cost, distinct users, latency percentiles -
-        # share one WHERE, so each window is one query rather than four.
+        # share one WHERE, so the window is one query rather than four. The previous
+        # window is only a count and a cost, so it takes the lighter aggregate and
+        # does not sort durations for percentiles nobody reads.
         current = await agent_run_repo.window_aggregates(
             self.db, organization_id=org, start=window.start, end=window.end, where=where
         )
-        previous = await agent_run_repo.window_aggregates(
+        previous_total, previous_model_usd = await agent_run_repo.window_totals(
             self.db, organization_id=org, start=prev_start, end=prev_end, where=where
         )
         total = current.total
-        previous_total = previous.total
 
         day_rows = {
             row[0]: row
@@ -268,7 +269,6 @@ class StatsService:
         # agent - reports model spend alone rather than billing a card for a
         # collection somebody else synced.
         model_usd = current.cost_usd
-        previous_model_usd = previous.cost_usd
         ingestion_usd = Decimal(0)
         previous_ingestion_usd = Decimal(0)
         if where == RunFilter():

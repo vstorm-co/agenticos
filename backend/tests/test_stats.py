@@ -72,6 +72,15 @@ def repos(monkeypatch: pytest.MonkeyPatch) -> dict[str, AsyncMock]:
     monkeypatch.setattr("app.services.stats.agent_run_repo.window_aggregates", window_aggregates)
     mocks["window_aggregates"] = window_aggregates
 
+    # The previous window takes the lighter count+cost aggregate; delegate it to the
+    # same two mocks so a test still drives it through `count_runs`/`sum_cost_window`.
+    async def _window_totals(db: object = None, **kwargs: object) -> tuple[int, Decimal]:
+        return await mocks["count_runs"](db, **kwargs), await mocks["sum_cost_window"](db, **kwargs)
+
+    window_totals = AsyncMock(side_effect=_window_totals)
+    monkeypatch.setattr("app.services.stats.agent_run_repo.window_totals", window_totals)
+    mocks["window_totals"] = window_totals
+
     ingestion = AsyncMock(return_value=Decimal(0))
     monkeypatch.setattr("app.services.stats.ingestion_spend_repo.sum_cost_window", ingestion)
     mocks["ingestion_sum_cost_window"] = ingestion
