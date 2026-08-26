@@ -977,7 +977,7 @@
         "description": "Co działa, gdy nikogo nie ma przy klawiaturze - najbliższe najpierw - i jak poszło ostatnie uruchomienie.",
         "unnamed": "Rutyna bez nazwy",
         "cost": "${cost}",
-        "nextFire": "następne {at}",
+        "nextFire": "następne {at} UTC",
         "paused": "wstrzymana",
         "neverRun": "jeszcze nie uruchomiona",
         "fired": "odpalona",
@@ -986,8 +986,8 @@
         "status": {
           "failed": "niepowodzenie",
           "budget_exceeded": "przekroczony budżet",
+          "guardrail_blocked": "zablokowana przez guardrail",
           "running": "w toku",
-          "pending": "startuje",
           "cancelled": "anulowana",
           "awaiting_approval": "czeka na zatwierdzenie"
         },

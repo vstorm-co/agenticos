@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -159,6 +159,12 @@ describe("the routines widget", () => {
     expect(screen.getByText("running")).toBeVisible();
   });
 
+  it("marks a guardrail-blocked routine as a failure, not a curiosity", () => {
+    renderWidget([trigger()], [run({ status: "guardrail_blocked" })]);
+
+    expect(screen.getByText("guardrail blocked")).toBeVisible();
+  });
+
   it("shows the cadence and what the last run cost", () => {
     renderWidget([trigger()]);
 
@@ -166,12 +172,49 @@ describe("the routines widget", () => {
     expect(screen.getByText(/\$0\.0042/)).toBeVisible();
   });
 
-  it("says when a live schedule fires next", () => {
-    // Matched on the caption word, not the formatted instant: the time renders in
-    // the machine's own timezone, which differs between a laptop and CI.
+  it("says when a live schedule fires next, in UTC, with the year when it is far", () => {
+    // UTC because the cadence beside it is; the year because a 999-day interval
+    // can put the fire outside the current one, where "Jan 5" alone names the
+    // wrong January.
     renderWidget([trigger({ next_fire_at: "2099-01-05T12:00:00Z" })]);
 
-    expect(screen.getByText(/next /)).toBeVisible();
+    expect(screen.getByText(/next Jan 5, 2099.*UTC/)).toBeVisible();
+  });
+
+  it("keeps the year out of a fire within the current one", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2099-01-01T00:00:00Z"));
+      renderWidget([trigger({ next_fire_at: "2099-01-05T12:00:00Z" })]);
+
+      expect(screen.getByText(/next Jan 5, 12/)).toBeVisible();
+      expect(screen.queryByText(/2099/)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("drops the 'next' caption at the instant the fire comes due", () => {
+    // The card can sit on screen past the fire; the data stays as fresh as the
+    // query, but the clock half of the caption re-renders itself honest.
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2099-01-05T11:59:00Z"));
+      // Two upcoming fires: the ticker re-arms on the sooner of them.
+      renderWidget([
+        trigger({ id: "t-due", next_fire_at: "2099-01-05T12:00:00Z" }),
+        trigger({ id: "t-later", name: "Later digest", next_fire_at: "2099-01-05T12:30:00Z" }),
+      ]);
+      expect(screen.getByText(/next Jan 5, 12:00/)).toBeVisible();
+
+      act(() => {
+        vi.advanceTimersByTime(62_000);
+      });
+      expect(screen.queryByText(/next Jan 5, 12:00/)).toBeNull();
+      expect(screen.getByText(/next Jan 5, 12:30/)).toBeVisible();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("does not call an overdue fire 'next' - a missed time is not a future", () => {
@@ -223,15 +266,18 @@ describe("the routines widget", () => {
       trigger({ id: "t-soon", name: "Soon", next_fire_at: "2026-08-21T08:00:00Z" }),
       trigger({ id: "t-later", name: "Later", next_fire_at: "2026-08-21T20:00:00Z" }),
       trigger({ id: "t-event", name: "On an issue", trigger_type: "event", next_fire_at: null }),
+      trigger({ id: "t-event-2", name: "On a push", trigger_type: "event", next_fire_at: null }),
     ]);
 
     const labels = screen.getAllByRole("listitem").map((row) => row.textContent);
 
     expect(labels[0]).toContain("Soon");
     expect(labels[1]).toContain("Later");
-    // Live but not on a clock: after the schedules, before the paused.
+    // Live but not on a clock: after the schedules, before the paused - and two
+    // of them keep their incoming order, having no fire to sort between.
     expect(labels[2]).toContain("On an issue");
-    expect(labels[3]).toContain("Paused one");
+    expect(labels[3]).toContain("On a push");
+    expect(labels[4]).toContain("Paused one");
   });
 
   it("lists a routine by its agent when it has no name of its own", () => {

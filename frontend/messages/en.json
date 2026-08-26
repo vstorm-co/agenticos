@@ -1626,7 +1626,7 @@
         "description": "What runs with nobody at the keyboard, soonest first, and how the last one went.",
         "unnamed": "Untitled routine",
         "cost": "${cost}",
-        "nextFire": "next {at}",
+        "nextFire": "next {at} UTC",
         "paused": "paused",
         "neverRun": "not run yet",
         "fired": "fired",
@@ -1635,8 +1635,8 @@
         "status": {
           "failed": "failed",
           "budget_exceeded": "over budget",
+          "guardrail_blocked": "guardrail blocked",
           "running": "running",
-          "pending": "starting",
           "cancelled": "cancelled",
           "awaiting_approval": "awaiting approval"
         },
