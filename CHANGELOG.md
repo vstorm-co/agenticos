@@ -17,6 +17,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.265] - 2026-08-26
+
+### Fixed
+
+- **Upload parsing and local file storage were `async def` over pure blocking work,
+  with no suspension point at all.** `FileUploadService.parse_content` ran pymupdf
+  over every page and openpyxl over every cell, and `LocalFileStorage.save`/`load`
+  decoded and wrote or read up to `MAX_UPLOAD_SIZE` - so one user uploading a large
+  PDF, or an agent turn loading three attached images, froze every other request and
+  every in-flight agent WebSocket stream on that uvicorn worker until the work
+  landed. Every branch of the parse and both byte operations are offloaded with
+  `asyncio.to_thread`. The codebase already knew the pattern: `agents/mcp.py` routes
+  DNS through a thread, and `rag_document.py` switched a write to anyio for exactly
+  this reason - while writing the identical bytes twice, only one of which had been
+  fixed. (#25)
+- The now-dead `ASYNC230` per-file ruff ignore on `file_upload.py` is gone: the only
+  blocking open left is `pymupdf.open` inside a sync helper, so the rule no longer
+  fires. Three thread-identity regression tests assert the parse and the two byte
+  operations each run off the event loop's thread, and each fails if its
+  `to_thread` is reverted. (#25)
+- Scope is the two request-path functions. The worker-side blocking IO the issue
+  also lists is the worker rather than the request path, and is tracked separately.
+  (#25)
+
 ## [0.0.264] - 2026-08-26
 
 ### Fixed
