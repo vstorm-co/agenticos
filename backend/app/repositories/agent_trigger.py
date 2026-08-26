@@ -321,34 +321,36 @@ async def claim_due(db: AsyncSession, *, now: datetime, limit: int = 100) -> lis
       yet is not terminal, so it keeps the schedule from piling runs behind an
       undecided gate. The caller advances `next_fire_at` under the same
       transaction, so the common case never reaches this join.
-    * no undecided top-level `awaiting_approval` run sits in the trigger's own
-      run-log conversation. The `last_run_id` join is a fast, indexed check on the
-      *linked* previous run, but the link and the run are written in two steps:
-      `_run` commits an `awaiting_approval` row, and only then does `fire` stamp
-      `last_run_id` against it. A worker that dies between those leaves a durable
-      parked run the schedule must still wait behind, with `last_run_id` still
-      naming the previous terminal run - so once the lease lapses the join alone
-      would reclaim the trigger and fire over the pending approval. This `EXISTS`
-      reconciles the conversation directly, catching a parked run whether or not
-      it was ever linked. Top-level only (`parent_run_id IS NULL`): a delegated
-      child shares the conversation but is not the fire.
+    * no non-terminal top-level run sits in the trigger's own run-log
+      conversation. The `last_run_id` join is a fast, indexed check on the *linked*
+      previous run, but the link and the run are written in two steps: `_run`
+      commits its row, and only then does `fire` stamp `last_run_id` against it. A
+      worker that dies between those leaves a durable run the schedule must still
+      wait behind, with `last_run_id` still naming the previous terminal run - so
+      once the lease lapses the join alone would reclaim the trigger and fire over
+      it. This `EXISTS` reconciles the conversation directly, catching an
+      in-flight run whether or not it was ever linked. Top-level only
+      (`parent_run_id IS NULL`): a delegated child shares the conversation but is
+      not the fire.
 
-      `awaiting_approval` only, never `running`: a run's row is committed
-      `running` before its model is called (#12), so every executing run - a
-      concurrent `run_now`, an event fire, this schedule's own - is visible
-      here for its whole life, and a worker that dies mid-run leaves that row
-      `running` for ever. Blocking on it would wedge the schedule permanently
-      on a crash nothing can resolve; liveness for the scheduled fire is the
-      lease above, not the run row. A parked row has a resolver - the person
-      the approval is waiting on - which is what earns it the block.
+      `running` earns the block as much as `awaiting_approval` does, and for a
+      reason the lease cannot cover: a run's row is committed `running` before
+      its model is called (#12), so a *concurrent* `run_now` or event fire -
+      which takes no lease - is visible here for its whole life, and a schedule
+      that ignored it would run the same agent twice into one run log, paying
+      for both. What keeps a *crashed* run's durable `running` row from wedging
+      the schedule for ever is not this predicate but the stale-run sweep,
+      which ends such a row `failed` within its ceiling
+      (`app/services/run_reaper.py`); until it does, waiting behind a row that
+      claims to be running is the safe reading of it.
     """
-    parked = aliased(AgentRun)
-    has_run_awaiting_approval = (
-        select(parked.id)
+    in_flight = aliased(AgentRun)
+    has_run_in_flight = (
+        select(in_flight.id)
         .where(
-            parked.conversation_id == AgentTrigger.conversation_id,
-            parked.parent_run_id.is_(None),
-            parked.status == RunStatus.AWAITING_APPROVAL.value,
+            in_flight.conversation_id == AgentTrigger.conversation_id,
+            in_flight.parent_run_id.is_(None),
+            in_flight.status.in_(_NON_TERMINAL_STATUSES),
         )
         .correlate(AgentTrigger)
         .exists()
@@ -360,7 +362,7 @@ async def claim_due(db: AsyncSession, *, now: datetime, limit: int = 100) -> lis
             AgentTrigger.is_active.is_(True),
             AgentTrigger.next_fire_at <= now,
             (AgentTrigger.last_run_id.is_(None)) | (AgentRun.status.not_in(_NON_TERMINAL_STATUSES)),
-            ~has_run_awaiting_approval,
+            ~has_run_in_flight,
             (AgentTrigger.fire_in_flight_since.is_(None))
             | (AgentTrigger.fire_in_flight_since <= now - FIRE_LEASE),
         )

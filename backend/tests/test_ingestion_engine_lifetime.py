@@ -315,11 +315,14 @@ class TestAConnectorSyncsEngine:
 class TestTheProcessEngineStore:
     """The API's stores ride the application engine and own nothing to dispose."""
 
-    def test_the_factory_binds_the_process_engine_and_the_platform_resolver(self):
+    def test_the_factory_binds_the_vector_engine_and_the_platform_resolver(self):
         """The two invariants every process-store site used to spell by hand -
-        the engine that is not a private pool (#12), and the resolver one of
-        five sites once forgot (#306) - live in the factory and nowhere else."""
-        from app.db.session import engine
+        the engine and the resolver one of five sites once forgot (#306) - live
+        in the factory and nowhere else. The engine is the process's *vector*
+        pool, deliberately not the request pool: a handler already holds a
+        request connection while the store asks for a second, so one shared
+        pool turns saturation into a circular wait."""
+        from app.db.session import engine, vector_engine
         from app.services.embedding_resolution import embeddings_for_collection
         from app.services.rag import vectorstore
 
@@ -327,7 +330,8 @@ class TestTheProcessEngineStore:
             store = vectorstore.process_vector_store(MagicMock(), MagicMock())
 
         assert store is store_cls.return_value
-        assert store_cls.call_args.kwargs["engine"] is engine
+        assert store_cls.call_args.kwargs["engine"] is vector_engine
+        assert store_cls.call_args.kwargs["engine"] is not engine
         assert store_cls.call_args.kwargs["resolver"] is embeddings_for_collection
 
     async def test_a_request_without_a_lifespan_store_builds_a_process_store(self):

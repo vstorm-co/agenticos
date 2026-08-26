@@ -189,14 +189,16 @@ database in `tests/integration/test_run_commit_boundary.py`.
 
 Visibility cuts both ways: anything that used to reason "an executing run's
 row cannot be seen" now reasons about a row that *is* seen. The agent-triggers
-scheduler is the one place that did — its no-overlap guard blocks only on a
-parked `awaiting_approval` run, never on `running`, because a worker that dies
-mid-run leaves that row `running` with nothing in-process left to finish it;
-the scheduled fire's liveness signal is its renewed lease, not the run row
-(`app/repositories/agent_trigger.py::claim_due`). The row itself is bounded by
+scheduler is the one place that did. Its no-overlap guard blocks on every
+non-terminal run in the trigger's conversation — which now includes a
+concurrent `run_now` or event fire's live run, protection the old
+invisibility could not offer — while a worker that dies mid-run leaves a
+`running` row nothing in-process will ever finish. What bounds that row is
 the hourly stale-run sweep, which ends it `failed` past
-`STALE_RUN_REAPED_AFTER_HOURS` —
-[Governance](governance.md#a-run-whose-process-died) has what that settles.
+`STALE_RUN_REAPED_AFTER_HOURS`; the scheduled fire's own liveness signal
+stays its renewed lease (`app/repositories/agent_trigger.py::claim_due`).
+[Governance](governance.md#a-run-whose-process-died) has what the sweep
+settles and deliberately leaves alone.
 
 ### Dispatching background work from a request
 

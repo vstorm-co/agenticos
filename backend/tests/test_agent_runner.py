@@ -1361,6 +1361,24 @@ class TestStoppingANonStreamingRun:
         assert written["cost_usd"] == Decimal("2.00")
 
 
+class TestMarkRunning:
+    @pytest.mark.anyio
+    async def test_leaving_the_queue_clears_the_parks_end_time(self):
+        """The park's `finish_run` wrote `ended_at`, and the replay's opening
+        commit publishes the row mid-run (#12) - left in place, a running run
+        would read as finished to every duration query, wearing the
+        pre-approval segment's span."""
+        from app.repositories import agent_run as agent_run_module
+
+        db = _db()
+        run = MagicMock(status=RunStatus.AWAITING_APPROVAL.value, ended_at=datetime.now(UTC))
+
+        await agent_run_module.mark_running(db, run=run)
+
+        assert run.status == RunStatus.RUNNING.value
+        assert run.ended_at is None
+
+
 class TestTheTransactionEndsBeforeTheModelCall:
     """The run row is committed before the model is asked anything (#12).
 

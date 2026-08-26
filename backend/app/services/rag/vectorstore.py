@@ -159,7 +159,7 @@ from itertools import batched
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
-from app.db.session import engine as db_engine
+from app.db.session import vector_engine
 from app.services.embedding_resolution import ResolvedEmbeddings, embeddings_for_collection
 from app.services.rag.config import EmbeddingsConfig, RAGSettings
 from app.services.rag.embeddings import EmbeddingService
@@ -580,21 +580,23 @@ class PgVectorStore(BaseVectorStore):
 def process_vector_store(
     settings: RAGSettings, embedding_service: EmbeddingService
 ) -> PgVectorStore:
-    """A store on the process's own engine, resolving embeddings per collection.
+    """A store on the process's vector engine, resolving embeddings per collection.
 
     The one construction the API's lifespan, its per-request fallback, the
     knowledge capability and the CLI all mean. Spelled once because it carries
     two invariants a call site can silently drop: the engine has to be the
-    application's own - not a private pool beside it (#12) - and the resolver
-    has to be the platform's, which one of five sites once forgot, billing
-    every collection's embeddings to the deployment key (#306). The worker's
-    flows are deliberately *not* this: they build an engine per flow, because a
-    pooled connection made on one event loop breaks the next
-    (`app.worker.tasks.rag_tasks._ingestion_service`).
+    process's shared vector pool - not a private pool per store (#948), and
+    not the request pool either, whose connections a handler already holds
+    while the store asks for a second (`app.db.session.vector_engine` says why
+    that is a circular wait) - and the resolver has to be the platform's, which
+    one of five sites once forgot, billing every collection's embeddings to the
+    deployment key (#306). The worker's flows are deliberately *not* this: they
+    build an engine per flow, because a pooled connection made on one event
+    loop breaks the next (`app.worker.tasks.rag_tasks._ingestion_service`).
     """
     return PgVectorStore(
         settings=settings,
         embedding_service=embedding_service,
         resolver=embeddings_for_collection,
-        engine=db_engine,
+        engine=vector_engine,
     )

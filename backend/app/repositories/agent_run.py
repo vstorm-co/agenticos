@@ -282,8 +282,17 @@ async def claim_parked_run(
 
 
 async def mark_running(db: AsyncSession, *, run: AgentRun) -> AgentRun:
-    """Take a parked run out of the queue before replaying it."""
+    """Take a parked run out of the queue before replaying it.
+
+    `ended_at` is cleared as part of the transition: the park wrote one, and
+    since the row is committed `running` before the replay's model call (#12),
+    leaving it in place would publish a run that is both running and ended -
+    duration queries count every non-null `ended_at`, and the UI would show the
+    pre-approval segment's span for the whole replay. The terminal write sets
+    it again.
+    """
     run.status = RunStatus.RUNNING.value
+    run.ended_at = None
     db.add(run)
     await db.flush()
     await db.refresh(run)

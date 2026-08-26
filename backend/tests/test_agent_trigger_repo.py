@@ -18,7 +18,6 @@ from unittest.mock import MagicMock
 import pytest
 from sqlalchemy.dialects import postgresql
 
-from app.db.models.agent_run import RunStatus
 from app.db.models.agent_trigger import AgentTrigger
 from app.repositories import agent_trigger_repo
 
@@ -262,21 +261,20 @@ class TestClaiming:
         assert "parent_run_id is null" in sql
         assert now in _filters(session).values()
 
-    async def test_a_crashed_runs_durable_running_row_does_not_wedge_the_schedule(self):
-        """The conversation reconcile blocks on `awaiting_approval` alone. A run's
-        row is committed `running` before its model is called (#12), so a worker
-        that dies mid-run leaves it `running` for ever - a status with no
-        resolver. Blocking on it would skip the trigger on every tick for good;
-        the scheduled fire's liveness is the lease, not the run row. A parked
-        row keeps the block: the person its approval waits on can settle it."""
+    async def test_the_claim_blocks_on_every_non_terminal_run_in_the_conversation(self):
+        """A run's row is committed `running` before its model is called (#12),
+        so a concurrent `run_now` or event fire - which takes no lease - is
+        visible here for its whole life, and a schedule that ignored it would
+        run the same agent twice into one run log, paying for both. What keeps
+        a *crashed* run's durable `running` row from wedging the schedule for
+        ever is the stale-run sweep, not this predicate - it ends such a row
+        `failed` within its ceiling (#1078)."""
         session = _RecordingSession(_scalars([]))
         await agent_trigger_repo.claim_due(session, now=datetime(2026, 6, 1, tzinfo=UTC))
 
         sql = _sql(session)
         exists_clause = sql.split("not (exists", 1)[1].split("))", 1)[0]
-        assert "status = " in exists_clause
-        assert "status in" not in exists_clause
-        assert RunStatus.AWAITING_APPROVAL.value in _filters(session).values()
+        assert "status in" in exists_clause
 
     async def test_a_claim_returns_the_rows_it_locked(self):
         rows = [MagicMock(), MagicMock()]
