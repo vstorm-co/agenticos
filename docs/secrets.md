@@ -171,13 +171,36 @@ anybody. See [Permissions](permissions.md).
 ## Operations
 
 The master key is `VAULT_MASTER_KEY`. It falls back to `SECRET_KEY` so a fresh
-checkout runs with no extra setup, and an environment validator refuses the default
-`SECRET_KEY` outside development — but a production deployment should set it
-explicitly.
+checkout runs with no extra setup, and the config refuses an unset key anywhere
+except `local`/`development` — staging is a first-class deployment and routinely
+holds real provider keys, so it gets the same refusal production does.
 
-Losing it means every stored credential is unrecoverable and has to be re-entered.
-Rotating it is a staged operation, which the `key_version` column exists to make
-possible: `rewrap` moves an envelope to a new version without touching the payload.
+Losing every configured key means every stored credential is unrecoverable and has
+to be re-entered. Rotating is a staged operation, and `VAULT_MASTER_KEYS` is the
+staged form: a JSON map of every version still in use. The highest version seals
+new secrets; the older ones keep existing rows readable until they are re-wrapped.
+`key_version` on each sealed row records which version wrapped it, and asking for a
+version with no configured key fails naming the missing entry rather than as a
+generic decrypt error.
+
+```bash
+# 1. Configure both keys — the old one as the version that sealed today's rows,
+#    the new one above it — and unset the single VAULT_MASTER_KEY.
+#    VAULT_MASTER_KEYS={"1": "<old>", "2": "<new>"}
+# 2. Prove every stored envelope opens before anything moves:
+uv run agenticos cmd vault-rotate --dry-run
+# 3. Re-wrap every sealed row to the new version:
+uv run agenticos cmd vault-rotate
+# 4. Once it reports zero failures, drop version 1 from VAULT_MASTER_KEYS.
+```
+
+`vault-rotate` walks every table holding envelopes and moves each row's
+ciphertexts together with its version column, or not at all: a row that fails is
+named and left as it was, and the command exits non-zero so the old key is not
+dropped on a partial rotation. A row holding no envelope but naming a version — a
+connection whose credentials were cleared — has that claim moved to the current
+version too, so the next secret sealed into it lands on a key that still exists. Only the wrapped data key is re-sealed — payloads
+are untouched, which is what makes rotation cheap.
 
 ```bash
 uv run agenticos cmd doctor    # reports whether a vault key is configured at all

@@ -9,10 +9,28 @@ from sqlalchemy.pool import NullPool
 
 from app.core.background import discard_deferred, start_deferred
 from app.core.config import settings
+from app.core.exceptions import AppException
 
 logger = logging.getLogger(__name__)
 
 engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=settings.DB_ECHO,
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
+    pool_timeout=settings.DB_POOL_TIMEOUT,
+)
+
+# The vector store's pool, deliberately not the one above. A vector query runs
+# *inside* a request whose session already holds a connection from `engine` for
+# the whole handler, so putting both on one pool makes saturation a circular
+# wait: fifteen concurrent searches each hold one connection and block waiting
+# for a second, and nothing progresses until `DB_POOL_TIMEOUT` expires the lot.
+# One deliberate second pool for the process's vector work - the lifespan's
+# store, the per-request fallback, the knowledge capability - not one per store
+# instance, which is the shape #948 removed. Lazy like every engine here: a
+# deployment that never searches never connects it.
+vector_engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DB_ECHO,
     pool_size=settings.DB_POOL_SIZE,
@@ -49,8 +67,12 @@ async def _managed_session(
         try:
             yield session
             await session.commit()
-        except Exception:
-            logger.exception("DB session error, rolling back")
+        except Exception as exc:
+            # A domain refusal (a 4xx AppException) is an ordinary outcome, not an
+            # application error, so it rolls back without a traceback - the ERROR
+            # line, and its stack, is kept for the unexpected and for 5xx faults (#19).
+            if not isinstance(exc, AppException) or exc.status_code >= 500:
+                logger.exception("DB session error, rolling back")
             try:
                 await session.rollback()
             except Exception:
@@ -124,5 +146,6 @@ async def get_worker_db_context() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def close_db() -> None:
-    """Close database connections."""
+    """Close database connections - both process pools."""
     await engine.dispose()
+    await vector_engine.dispose()

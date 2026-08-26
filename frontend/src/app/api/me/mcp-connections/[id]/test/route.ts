@@ -9,10 +9,13 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   }
   const { id } = await context.params;
   try {
-    const data = await backendFetch<unknown>(`/api/v1/me/mcp-connections/${id}/test`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const data = await backendFetch<unknown>(
+      `/api/v1/me/mcp-connections/${encodeURIComponent(id)}/test`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
     return bffJson(data);
   } catch (error) {
     if (error instanceof BackendApiError) {

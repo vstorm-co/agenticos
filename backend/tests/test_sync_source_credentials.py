@@ -98,7 +98,9 @@ def _service(
             )
         ),
     )
-    return SyncSourceService(MagicMock())
+    db = MagicMock()
+    db.flush = AsyncMock()
+    return SyncSourceService(db)
 
 
 def _vault_row(*, kind: str, hint: str = "a1b2") -> SimpleNamespace:

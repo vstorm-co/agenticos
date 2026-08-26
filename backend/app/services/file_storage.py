@@ -4,6 +4,7 @@ Supports local filesystem storage.
 Files are organized per-user: {storage_root}/{user_id}/{uuid}_{filename}
 """
 
+import asyncio
 import logging
 import os
 import re
@@ -210,14 +211,17 @@ class LocalFileStorage(BaseFileStorage):
         user_dir.mkdir(parents=True, exist_ok=True)
         storage_name = make_storage_filename(filename)
         file_path = user_dir / storage_name
-        file_path.write_bytes(data)
+        # Up to MAX_UPLOAD_SIZE bytes; on the request loop it stalls every other
+        # request on this worker until the write lands (the sibling in
+        # rag_document.py switched to anyio for the same reason).
+        await asyncio.to_thread(file_path.write_bytes, data)
         return f"{safe_user}/{storage_name}"
 
     async def load(self, storage_path: str) -> bytes:
         file_path = self._resolve_safe_path(storage_path)
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {storage_path}")
-        return file_path.read_bytes()
+        return await asyncio.to_thread(file_path.read_bytes)
 
     async def delete(self, storage_path: str) -> None:
         file_path = self._resolve_safe_path(storage_path)

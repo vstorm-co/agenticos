@@ -6,9 +6,9 @@ from app.agents.capabilities._registry import (
     register,
 )
 from app.agents.capabilities.knowledge._capability import Knowledge, KnowledgeConfig
-from app.agents.capabilities.knowledge._search import aclose_retrieval_service
+from app.agents.capabilities.knowledge._search import reset_retrieval_service
 
-__all__ = ["Knowledge", "KnowledgeConfig", "aclose_retrieval_service"]
+__all__ = ["Knowledge", "KnowledgeConfig", "reset_retrieval_service"]
 
 
 @register(

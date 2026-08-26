@@ -1,0 +1,23 @@
+[
+  {
+    "provider": "openrouter",
+    "name": "OpenRouter",
+    "base_url": "https://openrouter.ai/api/v1",
+    "deployment_key": true,
+    "models": [
+      { "model": "text-embedding-3-small", "dim": 1536 },
+      { "model": "text-embedding-3-large", "dim": 3072 },
+      { "model": "text-embedding-ada-002", "dim": 1536 }
+    ]
+  },
+  {
+    "provider": "openai",
+    "name": "OpenAI",
+    "base_url": "https://api.openai.com/v1",
+    "models": [
+      { "model": "text-embedding-3-small", "dim": 1536 },
+      { "model": "text-embedding-3-large", "dim": 3072 },
+      { "model": "text-embedding-ada-002", "dim": 1536 }
+    ]
+  }
+]

@@ -152,3 +152,33 @@ class TestAgentRepositoryLock:
         sql = str(statement.compile(dialect=postgresql.dialect()))
         assert "FOR KEY SHARE" in sql
         assert "FOR NO KEY UPDATE" not in sql
+
+
+class TestOrganizationSecretRepository:
+    """Promoting a departing owner's private keys before their row is deleted."""
+
+    @pytest.mark.anyio
+    async def test_promote_owned_private_to_org_only_touches_the_owners_private_rows(self):
+        """`ck_secret_private_needs_owner` is why this runs before the `SET NULL`:
+        an org key is left alone, and only the private ones this owner holds are
+        flipped to org visibility (#9)."""
+        from uuid import uuid4
+
+        from sqlalchemy.dialects import postgresql
+
+        from app.repositories import organization_secret as organization_secret_repo
+
+        session = MagicMock()
+        session.execute = AsyncMock(return_value=MagicMock(rowcount=2))
+        session.flush = AsyncMock()
+
+        owner_id = uuid4()
+        count = await organization_secret_repo.promote_owned_private_to_org(
+            session, owner_user_id=owner_id
+        )
+
+        assert count == 2
+        sql = str(session.execute.call_args.args[0].compile(dialect=postgresql.dialect()))
+        assert "UPDATE organization_secrets SET visibility" in sql
+        assert "owner_user_id" in sql
+        assert "visibility =" in sql  # the WHERE narrows to private rows only

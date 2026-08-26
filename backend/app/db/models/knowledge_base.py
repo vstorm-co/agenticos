@@ -50,6 +50,18 @@ class KnowledgeBase(TimestampMixin, Base):
     embedding_model: Mapped[str] = mapped_column(String(128), nullable=False)
     embedding_dim: Mapped[int] = mapped_column(Integer, nullable=False)
 
+    # Whose endpoint answers for that model. Unlike the two above this one is
+    # editable: the same model at the same width produces vectors in the same
+    # space wherever it is served from, so re-pointing the address and the
+    # credential leaves everything already stored valid. It used to be neither
+    # recorded nor chosen - every request went to OpenRouter, hardcoded in
+    # `EmbeddingService` - which is why an organization holding an OpenAI key
+    # could not use it and a rotated key meant re-ingesting the collection.
+    # Values are ids from `app/core/catalog/embedding_providers.json`.
+    embedding_provider: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default="openrouter"
+    )
+
     # The organization vault key this collection embeds on; NULL is the
     # deployment's key. SET NULL on delete: losing a key must degrade billing,
     # never take document search down.

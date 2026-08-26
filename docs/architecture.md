@@ -121,9 +121,10 @@ matters as much as the fact.
 A route asks for `DBSession` (`app/api/deps.py`), which resolves `get_db_session`
 (`app/db/session.py`). Everything below the route shares that one session:
 services take it in their constructor, repositories take it as their first
-argument, and neither ever calls `commit()`. `flush()` sends the statements so
-the row has an id and the constraints have been checked; the commit happens once,
-on the way out.
+argument, and neither ever calls `commit()` — with one deliberate exception, the
+agent run path, described [below](#the-run-paths-two-commits). `flush()` sends
+the statements so the row has an id and the constraints have been checked; the
+commit happens once, on the way out.
 
 **On the way out means before the response is written.** The alias declares
 `Depends(get_db_session, scope="function")`, which registers the session's exit
@@ -169,6 +170,36 @@ handlers and CLI commands open `get_db_context()`, and worker tasks
 they commit on a clean exit of their own `async with` and start their deferred
 work in the same place — which has nothing to do with a response.
 
+### The run path's two commits
+
+One path deliberately commits earlier than "on the way out": an agent run. The
+runner commits once **before the model is called** and once more in the
+terminal `finally` (`AgentRunnerService._run`, and `ChatAgentRunner.run` for
+the streaming chat). A model call takes seconds to minutes, and a transaction
+left open across it holds a pooled connection `idle in transaction` for the
+duration — fifteen concurrent runs used to be the entire pool ([#12][12]).
+Committing first also makes the run row readable from every other session for
+the whole life of the run, and makes a resumed run's exit from the approval
+queue durable before the approved call is replayed, so a crash mid-replay
+cannot hand the same approval out twice ([#3][3]). The terminal commit is the
+other half: the session context only commits on a clean exit, which a failed,
+budget-stopped or cancelled run is not, and a run missing from history is a
+run nobody is accountable for. Both boundaries are proved against a real
+database in `tests/integration/test_run_commit_boundary.py`.
+
+Visibility cuts both ways: anything that used to reason "an executing run's
+row cannot be seen" now reasons about a row that *is* seen. The agent-triggers
+scheduler is the one place that did. Its no-overlap guard blocks on every
+non-terminal run in the trigger's conversation — which now includes a
+concurrent `run_now` or event fire's live run, protection the old
+invisibility could not offer — while a worker that dies mid-run leaves a
+`running` row nothing in-process will ever finish. What bounds that row is
+the hourly stale-run sweep, which ends it `failed` past
+`STALE_RUN_REAPED_AFTER_HOURS`; the scheduled fire's own liveness signal
+stays its renewed lease (`app/repositories/agent_trigger.py::claim_due`).
+[Governance](governance.md#a-run-whose-process-died) has what the sweep
+settles and deliberately leaves alone.
+
 ### Dispatching background work from a request
 
 **Work that will read a row this request wrote is handed over with
@@ -194,6 +225,13 @@ upload, a sync somebody started, a channel connection's stream and a trigger's
 manual "run now" are all handed over. The ordering is proved against a real
 database in `tests/integration/test_flow_starts_after_commit.py`.
 
+At the other end of the process's life, the application lifespan closes the loop:
+after intake stops and serving has drained, it `await`s `background.drain()` for
+whatever `spawn` handed off and is still in flight, **before** disposing the
+vector store, Redis and the session those tasks read. Without it a shutdown
+mid-ingestion cancelled the flow and left the document in `processing` — the same
+stuck row as [#417][417], reached from the other end.
+
 The trigger's manual fire is there for a second reason worth naming, because it
 is the other half of why a request hands work over at all: `POST
 /agents/{id}/triggers/{id}/run` used to *await* the run it started, so an agent
@@ -218,6 +256,8 @@ emails in `app/services/notifications.py` carry their own context and touch no
 row. Neither is a job queue: anything that must survive a restart is a Prefect
 deployment.
 
+[3]: https://github.com/vstorm-co/agenticos/issues/3
+[12]: https://github.com/vstorm-co/agenticos/issues/12
 [353]: https://github.com/vstorm-co/agenticos/issues/353
 [417]: https://github.com/vstorm-co/agenticos/issues/417
 [658]: https://github.com/vstorm-co/agenticos/issues/658
@@ -275,6 +315,33 @@ table in the schema. The index on `parent_run_id` serves
 `list_runs(parent_run_id=...)`, which is what `GET /runs?parent_run_id=` asks; see
 [Governance](governance.md#what-run-history-shows) for why run history never lists
 the two kinds of row together.
+
+## Deleting a member or a tenant
+
+A few foreign keys would, on delete, drive precisely the write a `CHECK`
+constraint forbids — so the cascade the schema declares and the invariant it also
+declares disagree, and the delete raises inside the database as a 500 rather than
+doing anything. Three pairs are reconciled in the service before the row goes,
+inside the request's own transaction:
+
+- **A leaver's private secret.** `organization_secrets.owner_user_id` is
+  `SET NULL`, but `ck_secret_private_needs_owner` forbids an ownerless private
+  secret. `UserService.delete` promotes the leaver's private secrets to org
+  visibility first, so the null the cascade writes is legal and the key stays
+  reachable by the organization rather than stranded.
+- **A creator's organizations.** `organizations.created_by_user_id` is
+  `RESTRICT`, and every signup creates a personal org, so a bare `DELETE users`
+  never worked for a real account. The personal org is removed with its owner; a
+  shared one is handed to another owner, or the delete is refused when there is
+  none to hand it to.
+- **An org-scoped collection.** `knowledge_bases.organization_id` is `SET NULL`,
+  but `ck_knowledge_bases_org_scope_has_org` forbids an org-scoped row with no
+  org. `OrganizationService.delete` removes org-scoped collections explicitly —
+  vector table and all — before the org row goes; a personal collection that
+  merely carries the org's id is left to the `SET NULL`, which its scope permits.
+  Because dropping the vector table needs the request-scoped store, the delete
+  route wires it in through a dedicated dependency; every other org route uses the
+  plain service and builds no store it would never touch.
 
 ## What a run handed its model, and why it is a table
 
