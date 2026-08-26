@@ -17,6 +17,38 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.262] - 2026-08-26
+
+### Changed
+
+- **The RAG sync-source wizard kept a second schema-form renderer.**
+  `ConfigureStep` sat next to `SchemaForm`, the generator the agent Builder and the
+  vault secret forms already share, so field types, help text and secret masking
+  were maintained twice - and had already drifted: `SchemaForm` had no textarea,
+  `ConfigureStep` had no enum. The config step renders through `SchemaForm` now,
+  with a connector's `config_schema` adapted to the JSON Schema subset it reads;
+  `ConfigureStep` keeps only its wizard chrome and the wizard's props are unchanged.
+  The "no enum" half of the divergence closes for free, because the config step *is*
+  `SchemaForm`. (#568)
+- **`connectorConfigToJsonSchema()` in `frontend/src/lib/connector-schema.ts`** is
+  the single place the two field-type vocabularies meet, and its `switch` over
+  `ConnectorFieldType` is exhaustive - so a fifth connector field type is a compile
+  error until a JSON Schema mapping is chosen, rather than the silent fall-through
+  to a text box the typed `Literal` originally replaced. (#568)
+- A plain-textarea kind on `SchemaForm` (`x-textarea`), distinct from
+  `x-multiline`'s Markdown editor, which is for prose. No capability emits it, so
+  the secret and agent forms are untouched and the branch is inert without the
+  keyword. (#568)
+- Two visible changes on the wizard, both `SchemaForm`'s existing behaviour rather
+  than anything new: a field's default shows as its value rather than as grey
+  placeholder text, and a boolean whose default is on draws on. Neither changes what
+  the wizard sends - nothing is stored until a field is edited, so the sent `config`
+  is identical. (#568)
+- Scope is deliberately the renderer, not the backend wire shapes. Converging the
+  two so connectors emit JSON Schema natively, and the adapter and
+  `ConnectorConfigField` disappear, is the higher-risk half and is #1093. (#568,
+  #1093)
+
 ## [0.0.261] - 2026-08-26
 
 An audit write that cannot be recorded now takes the action down with it.
