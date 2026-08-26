@@ -1,5 +1,6 @@
 """RAG tool for agent knowledge base search."""
 
+import asyncio
 import contextvars
 import logging
 from typing import TYPE_CHECKING, Any
@@ -18,41 +19,70 @@ if TYPE_CHECKING:
 
 _retrieval_service: "BaseRetrievalService | None" = None
 _vector_store: PgVectorStore | None = None
+_loop: asyncio.AbstractEventLoop | None = None
 
 
 def get_retrieval_service() -> "BaseRetrievalService":
-    """Get or create retrieval service singleton."""
-    global _retrieval_service, _vector_store
-    if _retrieval_service is not None:
+    """The retrieval service for the running event loop, built once per loop.
+
+    The store owns a pooled SQLAlchemy engine, and a pooled asyncpg connection
+    is bound to the loop that opened it. A single process-wide singleton is
+    right for the API, which serves every request on one long-lived loop - but
+    agents also run inside the Prefect worker, where a second flow run can reach
+    this from a *different* loop, and a store checked out there would hand it a
+    connection made on the first loop (`InterfaceError: attached to a different
+    loop`, intermittent and invisible to any single-loop test) (#1079).
+
+    So the store is keyed on the running loop rather than held unconditionally.
+    The common paths keep one store: the API builds it once and disposes it at
+    shutdown, and the worker's usual one-loop-per-flow-subprocess run builds one
+    per process. A worker that runs two flows on two loops in one process builds
+    one per loop; the store from a loop that has moved on is dropped rather than
+    reused - its pool cannot be disposed from another loop, so this trades a
+    bounded, at-most-one-behind leak for never handing a live loop a dead one's
+    connection. `get_worker_db_context` in `app/db/session.py` states the same
+    cross-loop rule for the pool it hands out.
+    """
+    global _retrieval_service, _vector_store, _loop
+    loop = asyncio.get_running_loop()
+    if _retrieval_service is not None and _loop is loop:
         return _retrieval_service
 
     rag_settings = settings.rag
     embedding_service = EmbeddingService(rag_settings)
+    # Built into locals and returned from them, not read back off the globals:
+    # a caller must receive the store it built on its own loop even if another
+    # thread with another loop overwrites the globals between here and the
+    # return. The globals are the cache for the next call; the return is this
+    # call's own.
     vector_store = PgVectorStore(
         rag_settings, embedding_service, resolver=embeddings_for_collection
     )
+    service = RetrievalService(vector_store, rag_settings)
     _vector_store = vector_store
-    _retrieval_service = RetrievalService(vector_store, rag_settings)
-    return _retrieval_service
+    _retrieval_service = service
+    _loop = loop
+    return service
 
 
 async def aclose_retrieval_service() -> None:
     """Release the pool this module's store opened, at shutdown.
 
     The store is built on the first knowledge search and then held for the life
-    of the process, which is right - rebuilding it per search would open a
-    connection pool per turn. What was missing is the other end: nothing
+    of the loop that built it, which is right - rebuilding it per search would
+    open a connection pool per turn. What was missing is the other end: nothing
     released it, so a second pool sat beside the one the lifespan built and
     outlived the shutdown that disposed that one (#948).
 
-    Called from the lifespan rather than from a `finally` here, because the
-    singleton is deliberately process-wide. Resetting both globals makes the
-    next search build a fresh store, so a shutdown that is followed by more work
-    - a test, a reload - does not search through a disposed one.
+    Called from the lifespan on the API's own loop, so it disposes the store
+    that loop built. Resetting the globals makes the next search build a fresh
+    store, so a shutdown that is followed by more work - a test, a reload - does
+    not search through a disposed one.
     """
-    global _retrieval_service, _vector_store
+    global _retrieval_service, _vector_store, _loop
     store, _vector_store = _vector_store, None
     _retrieval_service = None
+    _loop = None
     if store is not None:
         await store.aclose()
 

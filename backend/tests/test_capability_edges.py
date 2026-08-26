@@ -544,23 +544,32 @@ class TestLastMileBranches:
 
         assert parse_web_search('{"kind": "web_search", "results": "not a list"}') is None
 
-    def test_the_retrieval_service_is_a_singleton(self):
-        """Rebuilding the embedder per search would reload a model on every turn."""
+    @pytest.mark.anyio
+    async def test_the_retrieval_service_is_a_singleton_within_one_loop(self):
+        """Rebuilding the embedder per search would reload a model on every turn.
+
+        The reuse is per loop now (#1079): the cached service is returned only
+        when the running loop is the one it was built on, which this pins by
+        stamping the current loop beside the sentinel.
+        """
         import app.agents.capabilities.knowledge._search as search_module
 
         sentinel = object()
-        original = search_module._retrieval_service
+        original = (search_module._retrieval_service, search_module._loop)
         search_module._retrieval_service = sentinel  # type: ignore[assignment]
+        search_module._loop = asyncio.get_running_loop()
         try:
             assert search_module.get_retrieval_service() is sentinel
         finally:
-            search_module._retrieval_service = original
+            search_module._retrieval_service, search_module._loop = original
 
-    def test_the_retrieval_service_is_built_on_first_use(self):
+    @pytest.mark.anyio
+    async def test_the_retrieval_service_is_built_on_first_use(self):
         import app.agents.capabilities.knowledge._search as search_module
 
-        original = search_module._retrieval_service
+        original = (search_module._retrieval_service, search_module._loop)
         search_module._retrieval_service = None
+        search_module._loop = None
         try:
             with (
                 patch.object(search_module, "EmbeddingService"),
@@ -569,7 +578,50 @@ class TestLastMileBranches:
             ):
                 assert search_module.get_retrieval_service() is service_cls.return_value
         finally:
-            search_module._retrieval_service = original
+            search_module._retrieval_service, search_module._loop = original
+
+    def test_a_store_built_on_one_loop_is_not_reused_on_another(self):
+        """#1079. A pooled asyncpg connection is bound to the loop that opened
+        it, so a second loop - a worker running a second flow in the same
+        process - must build its own store rather than be handed the first
+        loop's, which would fail with `attached to a different loop`.
+        """
+        import app.agents.capabilities.knowledge._search as search_module
+
+        def _on_a_fresh_loop() -> object:
+            loop = asyncio.new_event_loop()
+            try:
+
+                async def _call() -> object:
+                    return search_module.get_retrieval_service()
+
+                return loop.run_until_complete(_call())
+            finally:
+                loop.close()
+
+        original = (
+            search_module._retrieval_service,
+            search_module._vector_store,
+            search_module._loop,
+        )
+        search_module._retrieval_service = None
+        search_module._vector_store = None
+        search_module._loop = None
+        try:
+            with (
+                patch.object(search_module, "EmbeddingService"),
+                patch.object(search_module, "PgVectorStore"),
+                patch.object(search_module, "RetrievalService", side_effect=[object(), object()]),
+            ):
+                first = _on_a_fresh_loop()
+                second = _on_a_fresh_loop()
+            assert first is not second
+        finally:
+            (
+                search_module._retrieval_service,
+                search_module._vector_store,
+                search_module._loop,
+            ) = original
 
 
 class TestServerCatalog:
