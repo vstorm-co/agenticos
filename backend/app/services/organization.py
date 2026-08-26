@@ -1,7 +1,9 @@
 import contextlib
 import logging
+from typing import TYPE_CHECKING
 from uuid import UUID
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -14,7 +16,7 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, OrgRoleName, Perm, role_has
 from app.db.locks import LockScope, hold_subject
 from app.db.models.organization import Organization, OrganizationMember, OrgRole
-from app.repositories import member_repo, organization_repo
+from app.repositories import knowledge_base_repo, member_repo, organization_repo
 from app.schemas.organization import (
     OrganizationCreate,
     OrganizationList,
@@ -25,6 +27,9 @@ from app.services import skill_library
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import avatar_filename, get_file_storage
 from app.services.skills import SkillService
+
+if TYPE_CHECKING:
+    from app.services.rag.vectorstore import BaseVectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +59,12 @@ def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRe
 class OrganizationService:
     _ALLOWED_AVATAR_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession, vector_store: "BaseVectorStore | None" = None):
         self.db = db
+        # Present only on the teardown path, where the request built a store to
+        # drop the tenant's vector tables with; None everywhere else, so ordinary
+        # org operations do not pay for one they never use (#9).
+        self._vector_store = vector_store
 
     async def get_by_id(self, org_id: UUID) -> Organization:
         org = await organization_repo.get_by_id(self.db, org_id)
@@ -96,19 +105,14 @@ class OrganizationService:
         return OrganizationList(items=items, total=len(items))
 
     async def list_for_user(self, user_id: UUID) -> list[dict]:
-        orgs = await organization_repo.list_for_user(self.db, user_id)
-        result = []
-        for org in orgs:
-            membership = await member_repo.get(self.db, organization_id=org.id, user_id=user_id)
-            count = await organization_repo.count_members(self.db, org.id)
-            result.append(
-                {
-                    "org": org,
-                    "role": membership.role if membership else OrgRole.MEMBER.value,
-                    "member_count": count,
-                }
-            )
-        return result
+        # Role and member count in two grouped queries, not two per organization:
+        # the role rides the membership join the listing already makes, and the
+        # counts come back keyed by organization (#953).
+        pairs = await organization_repo.list_for_user(self.db, user_id)
+        counts = await organization_repo.member_counts_for(self.db, [org.id for org, _ in pairs])
+        return [
+            {"org": org, "role": role, "member_count": counts.get(org.id, 0)} for org, role in pairs
+        ]
 
     async def create(self, data: OrganizationCreate, owner_id: UUID) -> Organization:
         """Create a new team organization (non-personal).
@@ -297,6 +301,28 @@ class OrganizationService:
         if not role_has(membership.role, Perm.ORG_DELETE):
             raise AuthorizationError(message="Only the Owner can delete the organization")
 
+        await self.purge(org)
+
+    async def purge(self, org: Organization) -> None:
+        """Remove an organization and its org-scoped collections, no guards.
+
+        The guards live in :meth:`delete`; this is the shared teardown, also
+        reached when a user's account is deleted and their personal org goes with
+        them (`app.services.user.UserService.delete`). Org-scoped collections are
+        removed explicitly first: `knowledge_bases.organization_id` is
+        `ON DELETE SET NULL`, and nulling an org-scoped row violates
+        `ck_knowledge_bases_org_scope_has_org` (#9). Personal collections that
+        merely carry this org's id are left to the `SET NULL`.
+        """
+        for kb in await knowledge_base_repo.list_org_scoped(self.db, org.id):
+            if self._vector_store is not None:
+                # Best-effort, and only against the database: a zero-document
+                # collection has no table yet, which is a `SQLAlchemyError`, not a
+                # reason to abandon the deletion. Mirrors the `drop_collection`
+                # route.
+                with contextlib.suppress(SQLAlchemyError):
+                    await self._vector_store.delete_collection(kb.collection_name)
+            await knowledge_base_repo.delete(self.db, kb.id)
         await organization_repo.delete(self.db, org)
 
     async def upload_avatar(

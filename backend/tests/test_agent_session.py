@@ -241,6 +241,7 @@ def _chat(
     )
     conversations.keep_summary = AsyncMock()
     conversations.keep_overhead = AsyncMock()
+    conversations.keep_plan = AsyncMock()
     with (
         patch("app.services.agent_session.persist_user_turn", new=prompt),
         patch("app.services.agent_session.persist_assistant_turn", new=answer),
@@ -2122,6 +2123,7 @@ class _Turn:
             conversations.return_value.model_history = AsyncMock(return_value=[])
             conversations.return_value.keep_summary = AsyncMock()
             conversations.return_value.keep_overhead = AsyncMock()
+            conversations.return_value.keep_plan = AsyncMock()
             yield
 
     async def in_flight(self) -> None:

@@ -10,10 +10,12 @@ from app.schemas.base import BaseSchema
 ConnectorFieldType = Literal["string", "boolean", "integer", "textarea"]
 """What the wizard draws for a field, and the whole vocabulary it can draw.
 
-A `Literal` because the four are the four cases `SyncSourceConfigureStep`
-renders: a switch, a textarea, a number input, and text for anything else. A
-connector inventing a fifth got the text input silently, which is a field the
-form cannot collect correctly and nothing anywhere reported.
+A `Literal` because these are the field kinds the wizard can render. It no
+longer renders them itself: the frontend maps each to JSON Schema in
+`connectorConfigToJsonSchema` and draws it with `SchemaForm`, the same component
+the agent Builder and the vault secret forms use (#568). Until the two backend
+schema shapes converge - JSON Schema everywhere, this `Literal` gone - that
+mapping is the bridge, and #1093 is the removal.
 """
 
 

@@ -8,7 +8,7 @@ look like an ordinary call (see tests/test_org_scope_regression.py).
 from uuid import UUID
 
 from sqlalchemy import bindparam, false, or_, select, text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -173,34 +173,75 @@ async def delete(db: AsyncSession, secret_id: UUID, *, organization_id: UUID) ->
     return True
 
 
-async def agents_using(
-    db: AsyncSession, *, organization_id: UUID, secret_id: UUID
-) -> list[tuple[UUID, str]]:
-    """Agents whose draft spec binds this secret to a capability.
+async def promote_owned_private_to_org(db: AsyncSession, *, owner_user_id: UUID) -> int:
+    """Make every private secret this user owns org-visible, across all their orgs.
 
-    A JSONB containment check rather than a column, because a binding lives
-    inside the spec - which is the right place for it: the spec is what gets
-    versioned, exported and reviewed. The draft is queried rather than the
-    published version because the question this answers is "what breaks if I
-    delete this key", and an agent that is *about* to be published with it
-    breaks just as thoroughly.
+    Deliberately not org-scoped, unlike the rest of this module: it runs when the
+    owner's account is deleted, and `owner_user_id` is about to be nulled by the
+    `SET NULL` cascade. `ck_secret_private_needs_owner` forbids a private secret
+    with no owner, so without this the delete violates the check and 500s (#9).
+    Promoting to org visibility is the outcome the column comment names - a
+    personal key whose owner leaves "becomes the organization's problem to clean
+    up" - and it leaves the row reachable rather than stranded.
+
+    Returns the number of rows promoted.
     """
+    result = await db.execute(
+        sql_update(OrganizationSecret)
+        .where(
+            OrganizationSecret.owner_user_id == owner_user_id,
+            OrganizationSecret.visibility == Visibility.PRIVATE.value,
+        )
+        .values(visibility=Visibility.ORG.value)
+    )
+    await db.flush()
+    return result.rowcount  # ty: ignore[unresolved-attribute]
+
+
+async def agents_using_for_secrets(
+    db: AsyncSession, *, organization_id: UUID, secret_ids: list[UUID]
+) -> dict[UUID, list[tuple[UUID, str]]]:
+    """For each secret, the agents whose draft spec binds it - in one query.
+
+    The vault listing asks this of every secret on the page, so it is answered
+    in one grouped read rather than one per secret (#953). A JSONB match rather
+    than a column, because a binding lives inside the spec - which is the right
+    place for it: the spec is what gets versioned, exported and reviewed. The
+    *draft* is queried rather than the published version because "what breaks if
+    I delete this key" includes an agent about to be published with it.
+
+    Every requested id is a key in the result, mapping to its agents in name
+    order; a secret nothing binds maps to an empty list.
+    """
+    usage: dict[UUID, list[tuple[UUID, str]]] = {secret_id: [] for secret_id in secret_ids}
+    if not secret_ids:
+        return usage
+    # `jsonb_array_elements` errors on anything that is not an array, so the
+    # `CASE` hands it an empty one for an agent whose spec has no `capabilities`
+    # list - the same rows the per-secret `@>` containment quietly skipped.
     query = text(
         """
-        SELECT id, name FROM agents
-        WHERE organization_id = :organization_id
-          AND draft_spec -> 'capabilities' @> :binding
-        ORDER BY name
+        SELECT DISTINCT a.id, a.name, cap ->> 'secret_id' AS secret_id
+        FROM agents a
+        CROSS JOIN LATERAL jsonb_array_elements(
+            CASE
+                WHEN jsonb_typeof(a.draft_spec -> 'capabilities') = 'array'
+                THEN a.draft_spec -> 'capabilities'
+                ELSE '[]'::jsonb
+            END
+        ) AS cap
+        WHERE a.organization_id = :organization_id
+          AND cap ->> 'secret_id' IN :secret_ids
+        ORDER BY a.name
         """
     ).bindparams(
         bindparam("organization_id", type_=PG_UUID(as_uuid=True)),
-        bindparam("binding", type_=JSONB),
+        bindparam("secret_ids", expanding=True),
     )
     result = await db.execute(
         query,
-        {
-            "organization_id": organization_id,
-            "binding": [{"secret_id": str(secret_id)}],
-        },
+        {"organization_id": organization_id, "secret_ids": [str(s) for s in secret_ids]},
     )
-    return [(row[0], row[1]) for row in result.all()]
+    for agent_id, name, secret_id in result.all():
+        usage[UUID(secret_id)].append((agent_id, name))
+    return usage

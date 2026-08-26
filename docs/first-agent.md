@@ -57,13 +57,22 @@ is a tour that stopped one step short of the point.
 
 Declining guides nobody; the offer returns at the end of the Agents **?** walk.
 Every other section's **?** ends the same way, offering to create that section's
-resource - a skill, a knowledge base, an MCP connection, an organization - and the
-Chat **?** offers a guided run through the chat surface itself: starting a
-conversation, switching which agent answers, and changing the model or thinking
-effort for a single chat. Chat can only talk to a *published* agent, so if there
-is none it opens by offering to build one first - a yes hands straight over to the
-agent flow. Past that it creates nothing, so it advances on Next rather than on
-anything appearing.
+resource - a skill, a knowledge base, an MCP connection, an organization, a
+routine. The Routines flow is the one that ends past its own create: a schedule
+that sits waiting for the clock teaches nothing, so the walk's last stop is the
+fresh row's own **Run now**, and the first fire lands in the run log while the
+reader watches. The Chat **?** offers a guided run through the chat surface
+itself: starting a conversation, switching which agent answers, and changing the
+model or thinking effort for a single chat. Chat can only talk to a *published*
+agent, so if there is none it opens by offering to build one first - a yes hands
+straight over to the agent flow. Past that it creates nothing, so it advances on
+Next rather than on anything appearing.
+
+The dashboard's own **?** is worth replaying once: its customize stop explains
+the whole editor - adding cards from the catalog (the same card more than once,
+if you want it per agent), dragging them between sections, resizing, hiding,
+renaming and colouring the sections themselves, named layouts and the reset -
+and every arrangement is per-person, so experimenting moves nobody else's page.
 
 ## 1. Store a provider key
 

@@ -6,6 +6,7 @@ from pydantic_ai.usage import RequestUsage
 from app.agents.capabilities.budget import record_ambient_usage
 from app.core.config import settings as app_settings
 from app.core.exceptions import ConfigurationError
+from app.services.rag import embedding_providers
 from app.services.rag.config import RAGSettings
 from app.services.rag.models import Document
 
@@ -71,34 +72,42 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         was built while FastAPI was still resolving dependencies.
 
         The key is required rather than left to the SDK's `OPENAI_API_KEY`
-        fallback. That fallback could not work here - `base_url` points at
-        OpenRouter, so an OpenAI key would have been accepted at construction
-        and rejected on the first request - and silently sending one vendor's
-        credential to another is not a fallback worth keeping.
+        fallback. That fallback could not work here - `base_url` is the
+        collection's provider, so an OpenAI key would have been accepted at
+        construction and rejected on the first request - and silently sending
+        one vendor's credential to another is not a fallback worth keeping.
 
-        The refusal names `key_origin` when it has one. Advising "set
-        OPENROUTER_API_KEY" to somebody who picked an organization key in the
-        UI is advice for a deployment they are not running; which key was
-        tried, and why that one, is the part that tells them what to do.
+        The advice depends on who is asking. A collection has a `key_origin`
+        naming it and the key it tried, and what it needs is a usable key of its
+        own: telling somebody who picked an organization key in the UI to set an
+        environment variable is advice for a deployment they are not running,
+        and where their collection embeds through another provider it is advice
+        that would send this deployment's key to the wrong vendor. A caller with
+        no collection - the warmup, a `rag-*` command - is the deployment
+        itself, and the variable is exactly what it is missing.
         """
         if self._client is None:
             if not self._api_key:
                 details: dict[str, str] = {
-                    "setting": "OPENROUTER_API_KEY",
                     "model": self.model,
+                    "endpoint": self._base_url or "the provider's default",
                 }
-                origin = ""
-                if self._key_origin is not None:
-                    origin = f" for {self._key_origin}"
-                    details["key_origin"] = self._key_origin
+                if self._key_origin is None:
+                    raise ConfigurationError(
+                        message=(
+                            "No embedding credential is configured, so documents cannot be "
+                            "indexed or searched. Set OPENROUTER_API_KEY in the backend "
+                            "environment and restart."
+                        ),
+                        details={**details, "setting": "OPENROUTER_API_KEY"},
+                    )
                 raise ConfigurationError(
                     message=(
-                        f"No embedding credential is configured{origin}, so documents "
-                        "cannot be indexed or searched. Set OPENROUTER_API_KEY in the "
-                        "backend environment and restart, or give the collection a "
-                        "usable key from its organization's vault."
+                        f"No embedding credential is configured for {self._key_origin}, so "
+                        "documents cannot be indexed or searched. Give the collection a key "
+                        "for that provider from its organization's vault."
                     ),
-                    details=details,
+                    details={**details, "key_origin": self._key_origin},
                 )
             self._client = OpenAI(api_key=self._api_key, base_url=self._base_url)
         return self._client
@@ -134,8 +143,9 @@ class EmbeddingService:
         api_key: str | None = None,
         expected_dim: int | None = None,
         key_origin: str | None = None,
+        base_url: str | None = None,
     ) -> None:
-        """One model, one credential, one expected width.
+        """One model, one endpoint, one credential, one expected width.
 
         `api_key` defaults to the deployment's key; a per-collection caller
         passes the organization's own (see `embedding_resolution`).
@@ -143,13 +153,22 @@ class EmbeddingService:
         passes the width its table was actually created at, which a later
         catalog change must not overrule. `key_origin` says in words where
         `api_key` came from, so a refusal for an empty one is actionable.
+
+        `base_url` is the collection's provider, and it defaults to the provider
+        the deployment's own key belongs to - which is what a caller with no
+        collection in hand has. It used to be this class's one hardcoded string,
+        so every collection embedded through OpenRouter whatever key it had
+        chosen: an organization's OpenAI key was sent to openrouter.ai, and
+        refused there.
         """
         config = settings.embeddings_config
         self.expected_dim = expected_dim if expected_dim is not None else config.dim
         self.provider = OpenAIEmbeddingProvider(
             model=config.model,
             api_key=api_key if api_key is not None else app_settings.OPENROUTER_API_KEY,
-            base_url="https://openrouter.ai/api/v1",
+            base_url=base_url
+            if base_url is not None
+            else embedding_providers.deployment_provider().base_url,
             key_origin=key_origin,
         )
 

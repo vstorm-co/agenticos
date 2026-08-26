@@ -88,9 +88,9 @@ class OrganizationSecretService:
         a key nothing binds is one nobody can account for, and a key whose owner
         has left is one nobody will rotate.
 
-        Two extra queries for the page, not two per row: emails resolve in one
-        lookup and usage in one per secret, which is bounded by how many secrets
-        an organization has - tens, not thousands.
+        Three extra queries for the page, not three per row: the emails, the
+        grant counts and the agent usage each resolve in one grouped lookup,
+        however many secrets the organization has.
         """
         # `None` is the role already reaching every key; anything else is the
         # extra ids a grant opened up. One call answers both, so the scope is
@@ -127,15 +127,20 @@ class OrganizationSecretService:
             resource_type=SECRET.key,
             resource_ids=[secret.id for secret in secrets],
         )
+        # Which agents bind each key, in one grouped query rather than one per
+        # row: a thirty-secret vault loaded its page in thirty-one queries (#953).
+        usage = await organization_secret_repo.agents_using_for_secrets(
+            self.db,
+            organization_id=ctx.organization_id,
+            secret_ids=[secret.id for secret in secrets],
+        )
         rows: list[SecretRead] = []
         for secret in secrets:
             owner = people.get(secret.owner_user_id) if secret.owner_user_id else None
             author = people.get(secret.created_by_user_id) if secret.created_by_user_id else None
             owner = owner or member_repo.MemberIdentity(email=None, avatar_url=None)
             author = author or member_repo.MemberIdentity(email=None, avatar_url=None)
-            used = await organization_secret_repo.agents_using(
-                self.db, organization_id=ctx.organization_id, secret_id=secret.id
-            )
+            used = usage.get(secret.id, [])
             rows.append(
                 SecretRead(
                     id=secret.id,

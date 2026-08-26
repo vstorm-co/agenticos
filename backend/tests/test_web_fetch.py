@@ -28,7 +28,7 @@ from pydantic_ai.usage import RunUsage
 
 from app.agents.capabilities._registry import CapabilityBinding, build, get
 from app.agents.capabilities.web_fetch import WebFetchConfig
-from app.agents.capabilities.web_fetch._capability import FETCH_DESCRIPTION
+from app.agents.capabilities.web_fetch._capability import FETCH_TEXT
 from app.services.agent_registry import DEFAULT_GRANTED_SCOPES
 
 pytestmark = pytest.mark.anyio
@@ -154,12 +154,13 @@ class TestWhatReachesTheFetch:
         """The library ships its own wording, and the Builder shows ours.
 
         The person choosing what to approve and the model choosing when to call
-        should be reading the same sentence - so the declared description is the
-        one handed to the tool, and this is what fails if they drift.
+        should be reading the same sentence - so the Builder shows the summary
+        that opens what the model reads, and this is what fails if they drift.
         """
         declared = next(tool for tool in get("web_fetch").tools if tool.id == "web_fetch")
-        assert declared.description == FETCH_DESCRIPTION
-        assert _local_tool(_built()).description == FETCH_DESCRIPTION
+        assert declared.description == FETCH_TEXT.summary
+        assert _local_tool(_built()).description == FETCH_TEXT.render()
+        assert _local_tool(_built()).description.startswith(f"<summary>{FETCH_TEXT.summary}")
 
     def test_the_content_bound_reaches_the_fetching_tool(self):
         fetcher = _local_tool(_built(max_content_chars=2_000)).function.__self__

@@ -8,6 +8,7 @@ from typing import Any, Literal, cast
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, and_, case, func, or_, select, tuple_
+from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -281,8 +282,17 @@ async def claim_parked_run(
 
 
 async def mark_running(db: AsyncSession, *, run: AgentRun) -> AgentRun:
-    """Take a parked run out of the queue before replaying it."""
+    """Take a parked run out of the queue before replaying it.
+
+    `ended_at` is cleared as part of the transition: the park wrote one, and
+    since the row is committed `running` before the replay's model call (#12),
+    leaving it in place would publish a run that is both running and ended -
+    duration queries count every non-null `ended_at`, and the UI would show the
+    pre-approval segment's span for the whole replay. The terminal write sets
+    it again.
+    """
     run.status = RunStatus.RUNNING.value
+    run.ended_at = None
     db.add(run)
     await db.flush()
     await db.refresh(run)
@@ -1378,14 +1388,24 @@ async def create_approval(
 
 
 async def get_approval(
-    db: AsyncSession, approval_id: UUID, *, organization_id: UUID
+    db: AsyncSession, approval_id: UUID, *, organization_id: UUID, for_update: bool = False
 ) -> ToolApproval | None:
-    result = await db.execute(
-        select(ToolApproval).where(
-            ToolApproval.id == approval_id,
-            ToolApproval.organization_id == organization_id,
-        )
+    """Read one approval; with `for_update`, hold its row for the transaction.
+
+    Deciding twice is a check-then-act race: two approvers open the queue, one
+    rejects and one approves within the same read-committed window, both read
+    `pending`, both pass the guard, and the audit trail ends with two
+    contradictory entries for one decision. `decide` takes the lock so the second
+    caller waits and then finds the row no longer pending - the same shape as
+    `claim_parked_run`.
+    """
+    query = select(ToolApproval).where(
+        ToolApproval.id == approval_id,
+        ToolApproval.organization_id == organization_id,
     )
+    if for_update:
+        query = query.with_for_update()
+    result = await db.execute(query)
     return result.scalar_one_or_none()
 
 
@@ -1599,6 +1619,48 @@ async def list_stale_approvals(
         .limit(limit)
     )
     return list(result.scalars().all())
+
+
+async def fail_stale_runs(
+    db: AsyncSession, *, older_than: datetime, ended_at: datetime, error: str
+) -> list[UUID]:
+    """End every run still `running` from before `older_than`, and name which.
+
+    A run's row is committed `running` before its model is called (#12), so a
+    process that dies mid-run - SIGKILL, OOM, a deploy that does not drain -
+    leaves a row nothing will ever finish. This is the write that bounds that:
+    the sweep's, on a schedule, which is why it is unscoped like
+    :func:`list_stale_approvals` and takes the same do-not-copy warning.
+
+    One conditional UPDATE rather than a read-then-write per row. The guard on
+    `status` re-evaluates against the committed row under the row lock, so a
+    run that reached its own terminal write between the sweep's tick and this
+    statement keeps its outcome - and a *live* run older than the ceiling that
+    this does flip is flipped back by its own terminal write, which lands
+    later and wins. `awaiting_approval` is deliberately not here: a parked row
+    has a resolver, and the approvals sweep is its ceiling.
+
+    A run's age is its **last transition**, not its `started_at`. A resume
+    keeps the row's original start - the run's span covers both segments - and
+    flips it back to `running` with `mark_running`, whose UPDATE stamps
+    `updated_at`. Aged on `started_at` alone, a run approved more than the
+    ceiling after it first parked would be reaped the moment its replay began,
+    and a scheduled trigger could observe that false terminal status and fire
+    on top of the approved call still executing. `updated_at` is null until a
+    row's first UPDATE, so a never-touched orphan ages from its start.
+    """
+    last_transition = func.coalesce(AgentRun.updated_at, AgentRun.started_at)
+    result = await db.execute(
+        sql_update(AgentRun)
+        .where(
+            AgentRun.status == RunStatus.RUNNING.value,
+            last_transition < older_than,
+        )
+        .values(status=RunStatus.FAILED.value, ended_at=ended_at, error=error)
+        .returning(AgentRun.id)
+    )
+    await db.flush()
+    return [row[0] for row in result.all()]
 
 
 async def decide_approval(

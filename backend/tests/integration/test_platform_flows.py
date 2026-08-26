@@ -2682,7 +2682,12 @@ class TestTheOrganizationsMonthlyCap:
 
     @staticmethod
     async def _prepare(db, tenant: Tenant, *, spec: AgentSpec, spent: Decimal):
-        """A published agent under this tenant, with `spent` already booked."""
+        """A published agent under this tenant, with `spent` already booked.
+
+        Committed, not only flushed: the budget baseline is read on a session
+        of its own (#12), the way production reads it, and what it can see is
+        what the database has agreed to - which a terminal run row always is.
+        """
         await _keyed_model_profile(db, tenant)
         agent = await _published_agent(db, tenant, spec=spec)
         await _run_row(
@@ -2692,6 +2697,7 @@ class TestTheOrganizationsMonthlyCap:
             cost=spent,
             started_at=datetime.now(UTC),
         )
+        await db.commit()
         return await AgentRunnerService(db).prepare(tenant.ctx, agent.id)
 
     async def test_a_run_is_refused_once_the_organization_is_over_its_cap(self, db) -> None:
@@ -2804,7 +2810,10 @@ class TestAnAgentsOwnMonthlyCap:
 
     @staticmethod
     async def _published(db, tenant: Tenant, *, spec: AgentSpec, spent: Decimal) -> Agent:
-        """A published agent with `spent` already booked against *it*."""
+        """A published agent with `spent` already booked against *it*.
+
+        Committed, not only flushed - see `TestTheOrganizationsMonthlyCap._prepare`.
+        """
         # For the side effect: publishing needs a resolvable model profile.
         await _keyed_model_profile(db, tenant)
         agent = await _published_agent(db, tenant, spec=spec)
@@ -2816,6 +2825,7 @@ class TestAnAgentsOwnMonthlyCap:
                 cost=spent,
                 started_at=datetime.now(UTC),
             )
+        await db.commit()
         return agent
 
     @staticmethod

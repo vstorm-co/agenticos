@@ -300,6 +300,12 @@ export const qk = {
       ["kb", id, "documents", documentId, "text"] as const,
     documentBytes: (id: string, documentId: string) =>
       ["kb", id, "documents", documentId, "bytes"] as const,
+    // What the parser made of one document, read back out of the chunks it
+    // produced. Registered because two tabs of the viewer read it - the parse as
+    // pages, and the same payload as the JSON that was actually stored - and a
+    // stored parse does not change, so the second tab must not fetch it again.
+    documentParsed: (id: string, documentId: string) =>
+      ["kb", id, "documents", documentId, "parsed"] as const,
   },
   attachments: {
     // A chat attachment, which is scoped to the user rather than to a collection
