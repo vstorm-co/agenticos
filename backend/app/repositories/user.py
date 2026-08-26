@@ -17,6 +17,12 @@ async def get_by_id(db: AsyncSession, user_id: UUID) -> User | None:
     return await db.get(User, user_id)
 
 
+async def get_by_id_for_update(db: AsyncSession, user_id: UUID) -> User | None:
+    """Fetch a user row and acquire a SELECT FOR UPDATE lock."""
+    result = await db.execute(select(User).where(User.id == user_id).with_for_update())
+    return result.scalar_one_or_none()
+
+
 async def get_by_email(db: AsyncSession, email: str) -> User | None:
     """Get user by email."""
     result = await db.execute(select(User).where(User.email == email))
