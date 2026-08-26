@@ -982,6 +982,24 @@ reorganisation, and it means them in whichever organization the spec is imported
 into. A named member who has left contributes nothing rather than raising - an
 approval queue must not go silent because one id no longer resolves.
 
+### An alert links to where the decision is
+
+**Approvals mail opens the queue** — `/runs?tab=approvals`, Activity's Approvals
+tab, which is the only surface carrying Approve and Reject. It used to open
+`/agents/{id}`, the Builder: one sentence of prose about tool calls reaching a
+queue, and no queue. So the one email whose whole purpose is *somebody has to
+decide, now* landed a search away from the decision, while the parked run aged
+towards `ApprovalService.expire_stale` (#935). There was no URL for the tab
+until #934 put it in `?tab=`.
+
+It deliberately does **not** name the run with `&run=`, though the alert holds
+one: the decide controls are on the queue row, and below `lg` a focused run
+replaces the list — which would hide them from the reader most likely to be on a
+phone.
+
+Budget mail opens the agent, and that is the right destination for it: the cap
+it reports is edited there.
+
 ### Two rules that are not negotiable
 
 **A per-person opt-out only ever subtracts.** Each recipient's own switches at

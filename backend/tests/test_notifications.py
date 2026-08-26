@@ -705,6 +705,37 @@ class TestPreferences:
         roles.assert_not_awaited()
 
 
+class TestWhereAnAlertSends:
+    """The link is the whole point of an alert, and nothing else checks it.
+
+    An email that says a run is parked is read by somebody who has to decide, and
+    the only thing they can do with it is click. Every one of these URLs is a
+    hand-built f-string that no route table, no type and no other test looks at -
+    so a page that moves, or a surface built somewhere other than where the string
+    guessed, is found by a person following the link and not finding the control.
+    """
+
+    @pytest.mark.anyio
+    async def test_the_approval_alert_addresses_the_queue_not_the_builder(self, sent):
+        """The regression. `/agents/{id}` is the Builder: it holds one sentence of
+        prose about tool calls reaching a queue, and no queue. So the click landed
+        on a page whose own subject is editing the agent, while the parked run
+        aged towards `ApprovalService.expire_stale` (#935)."""
+        with (
+            patch(f"{MODULE}.member_repo.list_emails_by_role", new=_roles("ops@acme.test")),
+            patch(f"{MODULE}.member_repo.list_emails_for_members", new=_members()),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                _run(), agent=_agent(), spec=_spec(), tools=["send_email"]
+            )
+
+        _, _, context = sent.calls[0]
+        assert context["approvals_url"].endswith("/runs?tab=approvals")
+        # Named because it is what the link used to be, and the agent id is still
+        # in scope at the call site.
+        assert "/agents/" not in context["approvals_url"]
+
+
 class TestDelivery:
     @pytest.mark.anyio
     async def test_a_send_is_handed_to_the_background(self, monkeypatch):

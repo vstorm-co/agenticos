@@ -141,7 +141,14 @@ class NotificationService:
         context = {
             "agent_name": agent.name,
             "tools": ", ".join(tools) if tools else "a tool call",
-            "approvals_url": f"{self._frontend}/agents/{agent.id}",
+            # The queue, not the agent. This addressed `/agents/{id}` - the
+            # Builder - where there is nothing to approve, so the one email whose
+            # whole purpose is "somebody has to decide, now" landed a search away
+            # from the decision while the run aged towards `expire_stale` (#935).
+            # Not `&run=`: the Approve and Reject controls are on the queue row,
+            # and below `lg` a focused run replaces the list - which would hide
+            # them from the reader most likely to be on a phone.
+            "approvals_url": f"{self._frontend}/runs?tab=approvals",
             "app_name": settings.PROJECT_NAME,
         }
         self._send(EmailKey.APPROVAL_REQUESTED, recipients, context)
