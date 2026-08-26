@@ -17,6 +17,32 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.278] - 2026-08-26
+
+### Fixed
+
+- **The dev reload supervisor killed healthy workers.** `SupervisedReload` replaces
+  a worker whose event loop has stopped turning, and the worker reports liveness
+  through uvicorn's `Config.callback_notify` - which `Server.on_tick` calls only
+  once `time.time() - last_notified > timeout_notify`, so the beat's *cadence* is
+  gated on the wall clock. The beat stamped `time.monotonic()` and the supervisor
+  judged with `time.monotonic() - beat`: a different clock from the one the cadence
+  runs on. On Docker Desktop's VM the wall clock can stall for tens of seconds
+  relative to monotonic while the loop keeps serving, so the cadence froze while
+  the monotonic verdict climbed, and a healthy serving worker was read as wedged
+  and killed - the replacement beating once and being killed again on the next
+  poll, which is the "container Up, nothing serving" the issue also reports. Both
+  ends read `time.time()` now, so a stalled wall clock stalls the cadence and the
+  reading together. (#1080)
+- `app/core/watchdog.py`, the in-process watchdog on the other two stacks, is left
+  untouched: it beats via `loop.call_later` and judges with `time.monotonic()`,
+  both the event loop's own clock, so it is internally consistent and never used
+  uvicorn's notify hook. The trade is stated: a real wedge coinciding with a
+  backward NTP step reads negative and defers the verdict, bounded by
+  `POLLS_BEFORE_WEDGED`, self-healing, and local-dev only - and since uvicorn gates
+  the cadence on wall time, a wall-clock verdict is the only self-consistent
+  choice. (#1080)
+
 ## [0.0.277] - 2026-08-26
 
 ### Fixed
