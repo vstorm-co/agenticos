@@ -13,6 +13,7 @@ import pytest
 from fastapi import FastAPI, Response
 from httpx import ASGITransport, AsyncClient
 
+from app.api.exception_handlers import register_exception_handlers
 from app.core.config import settings
 from app.core.middleware import SecurityHeadersMiddleware
 
@@ -66,4 +67,46 @@ async def test_an_excluded_path_keeps_its_framing_but_drops_the_csp() -> None:
     assert "content-security-policy" not in resp.headers
     assert resp.headers["x-frame-options"] == "DENY"
     assert resp.headers["x-content-type-options"] == "nosniff"
+    assert resp.headers["x-xss-protection"] == "0"
+
+
+async def test_an_unhandled_error_still_carries_the_security_headers() -> None:
+    # A genuinely unhandled exception is turned into a 500 by Starlette's
+    # ServerErrorMiddleware, which sits outside the whole middleware stack - so
+    # SecurityHeadersMiddleware never sees that response and the handler stamps
+    # the set itself. Without that, a 500 goes out bare.
+    app = FastAPI()
+    register_exception_handlers(app)
+    app.add_middleware(SecurityHeadersMiddleware)
+
+    @app.get("/boom")
+    async def boom() -> Response:
+        raise RuntimeError("kaboom")
+
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        resp = await ac.get("/boom")
+
+    assert resp.status_code == 500
+    assert "content-security-policy" in resp.headers
+    assert resp.headers["x-content-type-options"] == "nosniff"
+    assert resp.headers["x-frame-options"] == "DENY"
+    assert resp.headers["x-xss-protection"] == "0"
+    assert "permissions-policy" in resp.headers
+
+
+async def test_a_cors_preflight_carries_the_security_headers(client: AsyncClient) -> None:
+    # CORSMiddleware answers a preflight OPTIONS without calling inward, so the
+    # security layer has to sit outside it or the preflight response goes out
+    # without the headers.
+    resp = await client.options(
+        f"{settings.API_V1_STR}/health",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+
+    assert resp.headers["x-content-type-options"] == "nosniff"
+    assert resp.headers["x-frame-options"] == "DENY"
     assert resp.headers["x-xss-protection"] == "0"

@@ -35,7 +35,7 @@ curl http://localhost:8000/api/v1/health
 ### Reverse proxy
 Nginx config in `nginx/` proxies `/` → frontend, `/api` → backend, `/ws` → backend WebSocket. Update `server_name` and TLS cert paths in `nginx/conf.d/app.conf`.
 
-The backend sets its own security headers on every response — a Content-Security-Policy, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy` and `Permissions-Policy` — so a deployment behind any proxy, not only the bundled Nginx, is covered. The interactive API docs (`/docs`, `/redoc`, `/openapi.json`) are the one exception, and only for the CSP: Swagger and ReDoc load assets a strict policy forbids, so those pages drop the CSP while keeping their framing and MIME protections. HSTS is deliberately left to the proxy, which is where TLS terminates; a front proxy that sets its own CSP should make sure it is at least as strict.
+The backend sets its own security headers on every response — a Content-Security-Policy, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy` and `Permissions-Policy` — so a deployment behind any proxy, not only the bundled Nginx, is covered. A response for an unhandled exception is turned into a 500 outside the middleware stack, so its handler stamps the same headers itself. The interactive API docs (`/docs`, `/redoc`, `/api/v1/openapi.json`) are the one exception, and only for the CSP: Swagger and ReDoc load assets a strict policy forbids, so those pages drop the CSP while keeping their framing and MIME protections. HSTS is deliberately left to the proxy, which is where TLS terminates; a front proxy that sets its own CSP should make sure it is at least as strict.
 
 
 
