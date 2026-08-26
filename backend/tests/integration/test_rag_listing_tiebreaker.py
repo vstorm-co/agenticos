@@ -84,6 +84,7 @@ async def test_paging_get_for_kb_over_tied_timestamps_is_stable(db) -> None:
 async def test_get_all_over_tied_timestamps_is_a_total_order(db) -> None:
     ids = await _tied_docs(db, kb_id=await _kb(db), n=6)
 
-    rows = await rag_document_repo.get_all(db, collections=[_COLLECTION])
+    rows, total = await rag_document_repo.get_all(db, collections=[_COLLECTION])
 
+    assert total == len(ids)
     assert [row.id for row in rows] == sorted(ids, reverse=True)
