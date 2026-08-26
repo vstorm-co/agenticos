@@ -19,6 +19,7 @@ import pytest
 
 from app.core.exceptions import AuthorizationError, ValidationError
 from app.core.permissions import AuthContext, OrgRoleName
+from app.repositories.agent_run import WindowAggregates
 from app.services.stats import StatsService, resolve_window
 
 pytestmark = pytest.mark.anyio
@@ -52,6 +53,25 @@ def repos(monkeypatch: pytest.MonkeyPatch) -> dict[str, AsyncMock]:
         mock = AsyncMock(return_value=value)
         monkeypatch.setattr(f"app.services.stats.agent_run_repo.{name}", mock)
         mocks[name] = mock
+
+    # `usage` reads its window's scalars from one `window_aggregates` query now;
+    # this stub composes the answer from the four per-aggregate mocks above, so a
+    # test still sets `count_runs`, `sum_cost_window`, `latency_percentiles_ms` or
+    # `count_distinct_users` and controls the field it maps to - one call per
+    # window, the same order the standalone calls used to run in.
+    async def _window_aggregates(db: object = None, **kwargs: object) -> WindowAggregates:
+        total = await mocks["count_runs"](db, **kwargs)
+        cost = await mocks["sum_cost_window"](db, **kwargs)
+        distinct = await mocks["count_distinct_users"](db, **kwargs)
+        p50, p95 = await mocks["latency_percentiles_ms"](db, **kwargs)
+        return WindowAggregates(
+            total=total, cost_usd=cost, distinct_users=distinct, p50_ms=p50, p95_ms=p95
+        )
+
+    window_aggregates = AsyncMock(side_effect=_window_aggregates)
+    monkeypatch.setattr("app.services.stats.agent_run_repo.window_aggregates", window_aggregates)
+    mocks["window_aggregates"] = window_aggregates
+
     ingestion = AsyncMock(return_value=Decimal(0))
     monkeypatch.setattr("app.services.stats.ingestion_spend_repo.sum_cost_window", ingestion)
     mocks["ingestion_sum_cost_window"] = ingestion
@@ -264,8 +284,9 @@ class TestTheComposedAnswer:
         )
 
         assert result.pending_approvals == 2
+        # The distinct-user count rides in the one window query now, so it is
+        # computed either way; what a `user_id` scope drops is reporting it.
         assert result.active_users is None
-        repos["count_distinct_users"].assert_not_called()
 
     async def test_the_slices_map_through_with_their_names(self, repos) -> None:
         agent_id = uuid4()
