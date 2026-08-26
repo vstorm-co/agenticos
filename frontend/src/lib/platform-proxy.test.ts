@@ -280,6 +280,95 @@ describe("every org-scoped request carries the organization", () => {
 
 // -- is every interpolated path segment encoded? ------------------------------
 
+/** Skip a `'`- or `"`-quoted string from its opening quote; returns the index past its close. */
+function skipQuoted(src: string, at: number): number {
+  const quote = src[at];
+  let i = at + 1;
+  while (i < src.length) {
+    if (src[i] === "\\") {
+      i += 2;
+      continue;
+    }
+    if (src[i] === quote) return i + 1;
+    i++;
+  }
+  return i;
+}
+
+/** Consume a whole template literal from its opening backtick; returns its text and the index past its close. */
+function readTemplate(src: string, at: number): { text: string; end: number } {
+  let i = at + 1;
+  while (i < src.length) {
+    if (src[i] === "\\") {
+      i += 2;
+      continue;
+    }
+    if (src[i] === "`") return { text: src.slice(at, i + 1), end: i + 1 };
+    if (src[i] === "$" && src[i + 1] === "{") {
+      i = skipInterpolation(src, i);
+      continue;
+    }
+    i++;
+  }
+  return { text: src.slice(at), end: src.length };
+}
+
+/**
+ * Skip a `${...}` interpolation from its `$`; returns the index past its closing `}`.
+ *
+ * Brace depth is counted only outside string literals, and a nested template is
+ * consumed whole - so a `{` inside a quoted argument (`replace("{", "")`) or a
+ * nested query template does not throw the count off and absorb the segment
+ * after it (#1133).
+ */
+function skipInterpolation(src: string, at: number): number {
+  let depth = 0;
+  let i = at + 1; // at the '{'
+  while (i < src.length) {
+    const ch = src[i];
+    if (ch === "\\") {
+      i += 2;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      i = skipQuoted(src, i);
+      continue;
+    }
+    if (ch === "`") {
+      i = readTemplate(src, i).end;
+      continue;
+    }
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) return i + 1;
+    }
+    i++;
+  }
+  return i;
+}
+
+/** Every top-level template literal in the source, each consumed whole (nested templates included). */
+function templateLiterals(source: string): string[] {
+  const templates: string[] = [];
+  let i = 0;
+  while (i < source.length) {
+    const ch = source[i];
+    if (ch === "'" || ch === '"') {
+      i = skipQuoted(source, i);
+      continue;
+    }
+    if (ch === "`") {
+      const { text, end } = readTemplate(source, i);
+      templates.push(text);
+      i = end;
+      continue;
+    }
+    i++;
+  }
+  return templates;
+}
+
 /**
  * Path segments a hand-rolled proxy interpolates into a `/api/v1` template
  * without encoding.
@@ -288,15 +377,15 @@ describe("every org-scoped request carries the organization", () => {
  * path segment - segment-leading (`/${id}`) or composite (`prefix-${id}`) alike
  * - and `%2f`/`%2e%2e` in the raw value decode and normalise there:
  * `x%2F..%2F..%2Fopenapi.json` reaches the backend as a different path (#13, #30,
- * #1118). The host prefix (`${BACKEND_URL}`, before `/api/v1`) and the query
- * (`${...search}`, `${qs}`, a `${query ? ...}` ternary) are not segments and are
- * not matched - see `pathInterpolations` for where the query begins. A route
+ * #1118). The host prefix (`${BACKEND_URL}`, before `/api/v1`) and the query are
+ * not segments - see `pathInterpolations` for where the query begins. A route
  * built on the shared platformProxy forwards `nextUrl.pathname` verbatim, so it
  * interpolates nothing here and is left alone.
  */
 function unencodedSegments(source: string): string[] {
   const offenders: string[] = [];
-  for (const template of source.match(/`[^`]*\/api\/v1\/[^`]*`/g) ?? []) {
+  for (const template of templateLiterals(source)) {
+    if (!template.includes("/api/v1/")) continue;
     for (const expr of pathInterpolations(template)) {
       if (!expr.startsWith("encodeURIComponent")) offenders.push(expr);
     }
@@ -308,12 +397,13 @@ function unencodedSegments(source: string): string[] {
  * The interpolation expressions in a template's path portion, in order.
  *
  * Scanning starts at `/api/v1`, so the host prefix (`${BACKEND_URL}`) is not a
- * segment, and stops at the query: the first literal `?`, or the first
- * interpolation that attaches one (`${...search}`, `${qs}`, a `${query ? ...}`
- * ternary). Interpolations are brace-matched rather than regex-matched, so a
- * composite segment (`prefix-${id}`, not only `/${id}`) is caught, and a query
- * ternary's own inner `${...}` is consumed with it rather than mistaken for a
- * bare segment.
+ * segment. It stops at the query, and only at something that PROVABLY starts one:
+ * a literal `?` in the path text, an interpolation building a `` `?...` `` query
+ * template, or a `.search` string. A `?` in a ternary or `??`, or a parameter
+ * named `search`/`qs`/`query`, is a path expression and is still reported - a
+ * segment that reaches the backend must be encoded whatever it is called (#1133).
+ * Interpolations are string-aware brace-matched, so a `{` in a quoted argument or
+ * a nested template does not absorb the segment that follows.
  */
 function pathInterpolations(template: string): string[] {
   const exprs: string[] = [];
@@ -322,20 +412,10 @@ function pathInterpolations(template: string): string[] {
   for (; i < template.length; i++) {
     if (template[i] === "?") break; // a literal query separator: the rest is query
     if (template[i] === "$" && template[i + 1] === "{") {
-      let depth = 1;
-      let j = i + 2;
-      for (; j < template.length && depth > 0; j++) {
-        if (template[j] === "{") depth++;
-        else if (template[j] === "}") depth--;
-      }
-      const expr = template.slice(i + 2, j - 1).trim();
-      i = j - 1;
-      // A query attachment - a `${query ? ...}` ternary, or a search/qs/query
-      // reference - is not a path segment. `?.` optional chaining is not a query,
-      // so `\?` excludes it. Skip and keep scanning rather than stopping, so a
-      // real segment after a misread one is still checked; the literal `?` above
-      // is the true boundary.
-      if (/\?(?!\.)|\b(search|searchParams|qs|query)\b/.test(expr)) continue;
+      const end = skipInterpolation(template, i);
+      const expr = template.slice(i + 2, end - 1).trim();
+      i = end - 1;
+      if (/`\?/.test(expr) || /\.search\b/.test(expr)) break; // the query begins here
       exprs.push(expr);
     }
   }
@@ -373,6 +453,33 @@ describe("every hand-rolled proxy encodes its path segments", () => {
     // `?.` is not a query separator, so scanning must not stop at it - both the
     // optional-chained segment and the plain one after it stay in view.
     expect(unencodedSegments("fetch(`/api/v1/x/${a?.b}/${rawId}`)")).toEqual(["a?.b", "rawId"]);
+  });
+
+  it("reports a path expression that merely contains a query-ish token (#1133)", () => {
+    // A ternary, `??`, or a parameter named search/qs/query is still a path
+    // segment that reaches the backend - only a proven query separator is skipped.
+    expect(unencodedSegments("fetch(`/api/v1/x/${admin ? adminId : userId}`)")).toEqual([
+      "admin ? adminId : userId",
+    ]);
+    expect(unencodedSegments("fetch(`/api/v1/x/${kind ?? rawId}`)")).toEqual(["kind ?? rawId"]);
+    expect(unencodedSegments("fetch(`/api/v1/x/${search}`)")).toEqual(["search"]);
+  });
+
+  it("does not truncate a nested template and lose a later segment (#1133)", () => {
+    // The path ternary embeds a nested template `-${safe}`; both it and the plain
+    // `${rawId}` after it must still be seen, not cut off at the inner backtick.
+    expect(unencodedSegments('fetch(`/api/v1/x${flag ? `-${safe}` : ""}/${rawId}`)')).toEqual([
+      'flag ? `-${safe}` : ""',
+      "rawId",
+    ]);
+  });
+
+  it("does not miscount braces inside a quoted argument (#1133)", () => {
+    // The `"{"` inside `.replace` must not leave the brace counter one deep and
+    // swallow `${rawId}` into the encodeURIComponent expression above it.
+    expect(
+      unencodedSegments('fetch(`/api/v1/x/${encodeURIComponent(id.replace("{", ""))}/${rawId}`)'),
+    ).toEqual(["rawId"]);
   });
 
   it("has no hand-rolled proxy interpolating a bare segment", () => {
