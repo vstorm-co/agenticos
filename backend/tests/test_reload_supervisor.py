@@ -33,6 +33,7 @@ from uvicorn._subprocess import get_subprocess
 from uvicorn.supervisors import ChangeReload
 from uvicorn.supervisors.basereload import BaseReload
 
+from app.core.background import DRAIN_TIMEOUT
 from cli import reload_supervisor
 from cli.reload_supervisor import (
     APP,
@@ -386,6 +387,22 @@ def test_the_local_stack_runs_the_supervisor_and_not_uvicorns_own_reloader() -> 
         "--port",
         "8000",
     ]
+
+
+def test_the_stop_grace_lets_a_worker_finish_draining_before_it_is_killed() -> None:
+    """An 8s grace killed a draining worker before its 30s drain finished (#11).
+
+    Three numbers have to stay ordered for a background task to survive
+    `docker compose stop`: the drain waits up to `DRAIN_TIMEOUT`, the supervisor
+    then gives a beating worker `STOP_GRACE` before SIGKILL, and Docker gives the
+    container its `stop_grace_period` before its own. The supervisor cannot
+    import the drain timeout without pulling `app.main` into the reloader, so the
+    coupling it can only describe in a comment is what this holds shut.
+    """
+    compose: dict[str, Any] = yaml.safe_load(LOCAL_COMPOSE.read_text())
+    docker_grace = float(compose["services"]["app"]["stop_grace_period"].removesuffix("s"))
+
+    assert DRAIN_TIMEOUT < STOP_GRACE < docker_grace
 
 
 def test_a_worker_whose_event_loop_stopped_turning_is_replaced(

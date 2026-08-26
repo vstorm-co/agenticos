@@ -187,15 +187,21 @@ WEDGED_AFTER_ENV_VAR: Final = "EVENT_LOOP_WEDGED_AFTER"
 #
 # Two numbers, because "has not stopped yet" means different things either side
 # of the first beat. A worker that has served drains what it is holding -
-# in-flight requests, and the background tasks `app.core.background.drain`
-# waits on - so the wait has to cover that; eight seconds does, and stays inside
-# Docker's ten-second grace so the container exits because the supervisor
-# stopped it rather than because Docker gave up on it. A worker that has never
-# beaten never finished lifespan startup, so it is holding nothing and has
-# nothing to drain: all the wait buys there is the moment it takes to notice a
-# signal, and the rest of it is the hang #366 filed - Ctrl+C against a Postgres
-# that is down, waiting out a grace period for a worker that will never answer.
-STOP_GRACE: Final = 8.0
+# in-flight requests, then the background tasks `app.core.background.drain`
+# waits on for up to its 30s timeout - so the grace has to outlast that drain
+# with a margin for the socket teardown around it, and still sit under
+# docker-compose's 40s `stop_grace_period` so the container exits because the
+# supervisor stopped the worker rather than because Docker gave up on it. Eight
+# seconds did neither: it killed a draining worker at 8s and left its ingestion
+# row in `processing` (#11). This module cannot import the drain timeout without
+# pulling `app.main` in (see the docstring), so the coupling lives here: keep
+# `app.core.background.DRAIN_TIMEOUT` < this < the compose grace. A worker that
+# has never beaten never finished lifespan startup, so it is holding nothing and
+# has nothing to drain: all the wait buys there is the moment it takes to notice
+# a signal, and the rest of it is the hang #366 filed - Ctrl+C against a
+# Postgres that is down, waiting out a grace period for a worker that will never
+# answer.
+STOP_GRACE: Final = 35.0
 STOP_GRACE_BEFORE_THE_FIRST_BEAT: Final = 1.0
 
 # The value of the shared cell before the worker's first beat. A worker is
