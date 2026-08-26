@@ -17,6 +17,74 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.250] - 2026-08-26
+
+Every tool says what it returns, and one place decides whose mistake a failure was.
+
+### Added
+
+- **A `Returns:` on every tool.** Seven docstrings had none, so the model could not
+  know that `search_channels` answers `- name (id) - purpose`, that a history read
+  is capped at 200 messages with each cut to 500 characters, that `list_context` is
+  an index rather than bodies, or what `run_python` does with a final expression's
+  value. A tool whose answer can be a slice has to say so, or the model reasons
+  from the slice as though it were the whole set. `list_context` also answered an
+  empty string when nothing was attached, which reads to a model as a broken tool;
+  it says so in a sentence now. (#1075)
+- **One failure taxonomy, written down** in
+  `.claude/skills/agent-capability/references/tool-text-and-failures.md` and a new
+  section of `docs/reference/capabilities.md`, so the next capability is not a coin
+  flip.
+
+### Changed
+
+- **`steer` in `app/agents/capabilities/_failures.py` is the one place that
+  decides**, and it exists rather than a bare `raise ModelRetry` for a reason worth
+  stating: a retry raised past a tool's budget - one attempt by default, and
+  nothing raises it - does not fail the call, it ends the whole run with
+  `UnexpectedModelBehavior`. A model that sent the same malformed chart twice took
+  the conversation down with it. On the last attempt `steer` returns the message
+  instead, so the worst case is the string the tool would have returned anyway.
+  `charts`, `context`, `knowledge`, `image_generation` and `web_research` raised
+  unconditionally and now steer.
+- **`run_python` was on the wrong side of the taxonomy.** A `NameError` or a syntax
+  error in code the model itself wrote came back as `Execution failed: ...`, a
+  sentence indistinguishable from a result, when `code` is precisely the argument
+  it composed. It answers with a `RunOutcome` naming whose problem it is -
+  `MontySyntaxError`, `MontyRuntimeError`, `MontyTypingError` and
+  `MontyConversionError` are the program's, and the resource limits report as
+  `TimeoutError` and `MemoryError`, fixable the same way by writing something
+  cheaper - while a sandbox that died is not. A model error is no longer logged as
+  an exception: an error log full of `NameError`s hides the ones that are this
+  deployment's fault.
+- **What deliberately stays a returned string**: a command that exited non-zero, a
+  search with no hits, a channel the bot cannot see, and any refusal - a retry
+  prompt on a refusal invites the model to look for a way around it. The second row
+  of the taxonomy is the one that looks wrong and is not: a *transient* failure of
+  what is behind the tool is also a retry, because an error in the shape of a
+  result reads as "nothing found" and the model then answers from memory,
+  confidently, without saying it had to.
+- Consumes `pydantic-ai-backend` 0.2.28. The sandbox catalog shows
+  `TOOL_TEXT[id].summary` where the Builder used to render 2501 characters of
+  `execute` beside an approval checkbox, and `profile="agent"` drops the guidance
+  written for an agent working in a repository - about 240 tokens on every request,
+  for advice a scratch workspace deleted with its conversation cannot use.
+
+### Fixed
+
+- **A provider's own error text no longer reaches a tool return.** `web_search`
+  built its message with `str(exc)` from whatever the search SDK raised and
+  `generate_image` interpolated the provider exception. On the last attempt `steer`
+  *returns* that message rather than raising it, and a returned string is stored by
+  `app/services/transcript.py` and streamed verbatim - deliberately, because a
+  return is the tool's own answer, where a retry prompt is replaced with a notice
+  (#681, #695). So an httpx or SDK message naming the failing endpoint, and for
+  some providers a key in its query string, reached run history for every member
+  who could read the run. The message is now built from the provider name and the
+  exception's *class* - which still says whether the upstream timed out or refused
+  the credential - and the exception's own text goes to a `logger.exception` beside
+  the raise. Same rule, and the same reasoning, as `app/services/rag/failures.py`.
+
 ## [0.0.249] - 2026-08-26
 
 A week of full account access no longer sits in an access log.
