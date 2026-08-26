@@ -17,6 +17,36 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.264] - 2026-08-26
+
+### Fixed
+
+- **A malformed sealed payload put the decrypted credential in the log.**
+  `unseal_secret` promised `BadRequestError` for an envelope holding something that
+  is not a secret payload, but `_STORABLE_ADAPTER.validate_json(...)` raises
+  `pydantic_core.ValidationError`, which is not an `AppException` - so it reached
+  `unhandled_exception_handler` and `logger.exception`. A pydantic `ValidationError`
+  embeds the offending input in its message, and here that input is the decrypted
+  credential, so the plaintext landed in the log line and, under
+  `logfire.instrument_fastapi`, on the exception span - breaking the guarantee
+  `docs/secrets.md` states. It is caught and re-raised as
+  `BadRequestError(message="Stored secret is not a usable payload")` naming only the
+  recorded kind. (#21)
+- Two parts, both load-bearing. The **type change** is the primary guard: a 4xx
+  `AppException` is logged at warning with no `exc_info`, so no traceback is
+  formatted on the HTTP path and it never reaches the `logger.exception` handler.
+  And **`from None`** covers the non-HTTP readers whose traceback *is* rendered - a
+  Prefect task failure, `doctor.py`'s own formatting - by setting
+  `__suppress_context__` and keeping the chained `ValidationError`, which still
+  holds the plaintext in `__context__`, out of the formatted traceback. The
+  regression test pins `__suppress_context__` rather than `__cause__`, because
+  `__cause__` is `None` with or without `from None` and asserting on it would let a
+  future edit reintroduce the leak silently. (#21)
+- Reachable from `resolve_for_bindings`, `ModelProfileService` and the provider
+  listing key whenever a stored payload no longer validates: a hand-edited row, a
+  rollback to a build whose `SecretKind` enum lacks a kind a newer build wrote, or a
+  future field tightening. (#21)
+
 ## [0.0.263] - 2026-08-26
 
 ### Fixed
