@@ -17,6 +17,29 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.269] - 2026-08-26
+
+### Fixed
+
+- **An embed token with no `iat` was accepted for ever.**
+  `AgentEmbedService._verify_token` checked max-age only
+  `if isinstance(iat, int | float)` - opportunistically - and PyJWT requires
+  neither `iat` nor `exp`, so a correctly signed `{"sub": "user-42"}` carried no
+  freshness claim at all. One token scraped from a browser's network tab kept the
+  widget answering on the organization's bill indefinitely, which is the exact
+  failure the surrounding code twice names as the dangerous one. A within-window
+  `iat` is required unconditionally now: no `iat`, or one older than the 12h
+  ceiling, is refused. (#23)
+- **`exp` is deliberately not an alternative freshness claim.** Treating it as one
+  would let a customer's ordinary far-future `exp` override the ceiling, so a copied
+  token could replay until it expired - a milder version of the same leak. `exp`,
+  when present, is still validated by PyJWT, so it can only shorten the window,
+  never extend it past 12h. Behaviour is unchanged for every token that carries an
+  `iat`. (#23)
+- A pre-existing robustness gap left out of scope and filed: a malformed `null` or
+  `[]` `exp`/`iat` raises a raw `TypeError` inside `jwt.decode` and 500s. Not
+  exploitable - it fails closed. (#1107)
+
 ## [0.0.268] - 2026-08-26
 
 ### Fixed
