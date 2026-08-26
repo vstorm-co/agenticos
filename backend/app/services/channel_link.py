@@ -135,6 +135,13 @@ class ChannelLinkService:
         if request is None:
             return None
 
+        # Claim the single-use request before relinking. Two authenticated users
+        # confirming the same token both read it as valid, so consuming it first
+        # lets only the one whose DELETE claims the row proceed - the loser stops
+        # here rather than overwriting the winner's link (#1132).
+        if not await channel_link_request_repo.delete_by_id(self.db, request.id):
+            return None
+
         # get_or_create, not get-then-create: a concurrent inbound message could
         # otherwise collide on the identity's unique key and 500 the confirm (#1113).
         # The upsert leaves an existing user_id alone, so the link is the update below.
@@ -151,7 +158,6 @@ class ChannelLinkService:
                 self.db, db_identity=identity, update_data={"user_id": user_id}
             )
 
-        await channel_link_request_repo.delete_by_id(self.db, request.id)
         return request
 
     async def linked(self, user_id: UUID) -> list[ChannelIdentity]:

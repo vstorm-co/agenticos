@@ -111,3 +111,69 @@ async def test_a_confirm_racing_an_inbound_message_still_links_one_identity(
         )
         assert identity is not None
         assert identity.user_id == user_id  # the confirm's link landed
+
+
+async def test_two_confirms_of_one_token_leave_a_single_claimant(
+    engine: AsyncEngine,
+) -> None:
+    """A /link token is a single-use bearer credential. Two authenticated users
+    confirming it at once both read it as valid; consuming the request before
+    relinking lets only one win, so the token cannot be replayed to overwrite the
+    first claimant's link (#1132).
+    """
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    platform = "slack"
+    platform_user_id = uuid.uuid4().hex
+
+    async with factory() as setup:
+        user_a = User(
+            id=uuid.uuid4(),
+            email=f"{uuid.uuid4().hex}@example.com",
+            hashed_password="x",
+            is_active=True,
+        )
+        user_b = User(
+            id=uuid.uuid4(),
+            email=f"{uuid.uuid4().hex}@example.com",
+            hashed_password="x",
+            is_active=True,
+        )
+        setup.add_all([user_a, user_b])
+        await channel_link_request_repo.create(
+            setup,
+            token="tok-double",
+            platform=platform,
+            platform_user_id=platform_user_id,
+            platform_username=None,
+            platform_display_name=None,
+            expires_at=datetime.now(UTC) + timedelta(minutes=5),
+        )
+        await setup.commit()
+        a_id, b_id = user_a.id, user_b.id
+
+    async def confirm_as(user_id: uuid.UUID) -> object:
+        async with factory() as session:
+            spent = await ChannelLinkService(session).confirm("tok-double", user_id)
+            await session.commit()
+            return spent
+
+    results = await asyncio.gather(confirm_as(a_id), confirm_as(b_id))
+
+    # Exactly one confirm claimed the token; the other found it already spent.
+    assert sorted(r is None for r in results) == [False, True]
+
+    async with factory() as session:
+        identities = (
+            (
+                await session.execute(
+                    select(ChannelIdentity).where(
+                        ChannelIdentity.platform == platform,
+                        ChannelIdentity.platform_user_id == platform_user_id,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(identities) == 1  # one identity, linked to whichever confirm won
+        assert identities[0].user_id in {a_id, b_id}

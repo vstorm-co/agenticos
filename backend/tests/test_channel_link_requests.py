@@ -194,7 +194,9 @@ class TestRequesting:
 
 
 class TestConfirming:
-    async def _confirm(self, found: MagicMock | None, resolved: MagicMock | None) -> object:
+    async def _confirm(
+        self, found: MagicMock | None, resolved: MagicMock | None, *, claimed: bool = True
+    ) -> object:
         with (
             patch(
                 "app.services.channel_link.channel_link_request_repo.get_valid",
@@ -209,7 +211,7 @@ class TestConfirming:
             ) as updated,
             patch(
                 "app.services.channel_link.channel_link_request_repo.delete_by_id",
-                new=AsyncMock(),
+                new=AsyncMock(return_value=claimed),
             ) as spent,
         ):
             result = await ChannelLinkService(MagicMock()).confirm("tok", self.user_id)
@@ -250,6 +252,14 @@ class TestConfirming:
         assert self.resolved.call_count == 0
         assert self.updated.call_count == 0
         assert self.spent.call_count == 0
+
+    async def test_a_second_confirm_of_the_same_token_links_nothing(self):
+        """The token is single-use: a confirm whose claim of the request loses the
+        race - its DELETE removes no row - must not go on to relink the identity
+        and overwrite the winner's link (#1132)."""
+        assert await self._confirm(_request(), MagicMock(user_id=None), claimed=False) is None
+        assert self.resolved.call_count == 0
+        assert self.updated.call_count == 0
 
 
 class TestWhatTheBotSaysToAStranger:
