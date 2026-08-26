@@ -17,6 +17,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.259] - 2026-08-26
+
+### Fixed
+
+- **Every domain refusal was logged as an application error.** `_managed_session`
+  caught everything with `logger.exception(...)`, so a `NotFoundError` (404), an
+  `AuthorizationError` (403) and an `AlreadyExistsError` (409) each wrote a full
+  stack trace at ERROR - and on a platform whose value is mostly in what it
+  refuses, the refusals were the loudest lines in the log and a real 500 was buried
+  among them. A domain refusal rolls back and re-raises without a traceback now.
+  The ERROR line is kept for the unexpected and, deliberately, for a **5xx**
+  `AppException` such as `DatabaseError` or `ExternalServiceError`: that is a
+  server fault whose traceback the exception handler does not log, so suppressing
+  it here would lose it end to end. The gate is
+  `not isinstance(exc, AppException) or exc.status_code >= 500`, in a single branch
+  so the rollback stays wrapped on every path. The conftest mocks
+  `get_db_session`, which is why this lifecycle was off the tested path and the
+  noise went unseen. (#19)
+
 ## [0.0.258] - 2026-08-26
 
 ### Fixed
