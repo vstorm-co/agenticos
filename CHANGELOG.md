@@ -17,6 +17,37 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.277] - 2026-08-26
+
+### Fixed
+
+- **A cancelled save orphaned its file.**
+  `asyncio.to_thread(path.write_bytes, data)` cannot interrupt the running write,
+  so a task cancelled mid-write unwound with the file created *after* `save()` had
+  raised - the caller never got `storage_path`, so it could neither record the file
+  nor delete it. `write_bytes_cancel_safe` shields the write and, on cancellation,
+  waits it out and removes the file before the cancellation propagates. (#1108,
+  #25)
+- **Parses shared the executor with `bcrypt` and DNS.** A burst of uploads could
+  occupy every worker on the loop's default pool and queue sign-in and outbound
+  requests behind them. Parsing and the storage byte operations run on a dedicated
+  `ThreadPoolExecutor` in `app/core/blocking.py` now, bounded by
+  `FILE_IO_MAX_WORKERS` (default 8), so a parse storm saturates its own pool and
+  nothing else. The new module is registered in the coverage `include`, the ty
+  override and `PLATFORM_MODULES` - new platform code held to the 100% gate rather
+  than the template's downgraded rules. (#1108, #25)
+- Two defects in the new pool, found by the reviewer on the branch and fixed
+  before merge, both defeating the guarantee it was added for. The gate released
+  its admission slot when the *caller* unwound, and an executor cannot interrupt a
+  running job - so a cancelled caller handed its permit on while its own worker
+  stayed occupied, and a wave of cancellations admitted arbitrarily many jobs into
+  the pool's unbounded pending queue. The release rides the future's own
+  completion now. And `await asyncio.shield(_discard(...))` shielded the cleanup
+  task but not the frame awaiting it, so a second cancellation raised straight out
+  and left the cleanup to be cancelled with everything else - leaving exactly the
+  orphaned file it exists to prevent. Cancellations arriving while it runs are
+  absorbed until it finishes. (#1108)
+
 ## [0.0.276] - 2026-08-26
 
 ### Fixed
