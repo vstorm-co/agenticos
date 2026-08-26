@@ -295,6 +295,16 @@ function skipQuoted(src: string, at: number): number {
   return i;
 }
 
+/** Skip a `//` or block comment from its opening slash; returns the index past its end. */
+function skipComment(src: string, at: number): number {
+  if (src[at + 1] === "/") {
+    const nl = src.indexOf("\n", at);
+    return nl < 0 ? src.length : nl + 1;
+  }
+  const close = src.indexOf("*/", at + 2);
+  return close < 0 ? src.length : close + 2;
+}
+
 /** Consume a whole template literal from its opening backtick; returns its text and the index past its close. */
 function readTemplate(src: string, at: number): { text: string; end: number } {
   let i = at + 1;
@@ -354,6 +364,16 @@ function templateLiterals(source: string): string[] {
   let i = 0;
   while (i < source.length) {
     const ch = source[i];
+    // Before the quote check, because prose is full of apostrophes: an `'` in a
+    // comment otherwise opens a string that `skipQuoted` runs to the next one,
+    // swallowing whatever lies between. `admin/conversations/route.ts` says
+    // "drawer's" in a comment, and its `/api/v1/admin/conversations` template
+    // was invisible to this sweep because of it - a security guard reporting
+    // clean on a file it never read (#1133).
+    if (ch === "/" && (source[i + 1] === "/" || source[i + 1] === "*")) {
+      i = skipComment(source, i);
+      continue;
+    }
     if (ch === "'" || ch === '"') {
       i = skipQuoted(source, i);
       continue;
@@ -385,12 +405,40 @@ function templateLiterals(source: string): string[] {
 function unencodedSegments(source: string): string[] {
   const offenders: string[] = [];
   for (const template of templateLiterals(source)) {
-    if (!template.includes("/api/v1/")) continue;
+    // At a boundary rather than requiring the following slash to be literal:
+    // a proxy building `/api/v1${rawPath}` puts its interpolation directly
+    // after the prefix, and a slash-bearing value there switches path exactly
+    // as a later segment does (#1133).
+    if (!/\/api\/v1(\/|\$\{|`|$)/.test(template)) continue;
     for (const expr of pathInterpolations(template)) {
-      if (!expr.startsWith("encodeURIComponent")) offenders.push(expr);
+      if (!isFullyEncoded(expr)) offenders.push(expr);
     }
   }
   return offenders;
+}
+
+/**
+ * Whether the whole expression is one `encodeURIComponent(...)` around the whole value.
+ *
+ * `startsWith` is not enough: it accepts `encodeURIComponent(id) + rawSuffix`,
+ * where a slash-bearing suffix rebuilds the traversal this sweep exists to
+ * catch, and it accepts a look-alike name like `encodeURIComponentAlias(rawId)`.
+ * So the call must open the expression, its parentheses must balance to the very
+ * end, and nothing may follow (#1133).
+ */
+function isFullyEncoded(expr: string): boolean {
+  const call = "encodeURIComponent(";
+  if (!expr.startsWith(call)) return false;
+  let depth = 0;
+  for (let i = call.length - 1; i < expr.length; i++) {
+    if (expr[i] === "(") depth++;
+    else if (expr[i] === ")") {
+      depth--;
+      // Closed before the end, so something is appended to the encoded value.
+      if (depth === 0) return i === expr.length - 1;
+    }
+  }
+  return false;
 }
 
 /**
@@ -415,7 +463,7 @@ function pathInterpolations(template: string): string[] {
       const end = skipInterpolation(template, i);
       const expr = template.slice(i + 2, end - 1).trim();
       i = end - 1;
-      if (/`\?/.test(expr) || /\.search\b/.test(expr)) break; // the query begins here
+      if (/`\?/.test(expr) || /\b(?:nextUrl|url|location)\.search\b/.test(expr)) break;
       exprs.push(expr);
     }
   }
@@ -480,6 +528,56 @@ describe("every hand-rolled proxy encodes its path segments", () => {
     expect(
       unencodedSegments('fetch(`/api/v1/x/${encodeURIComponent(id.replace("{", ""))}/${rawId}`)'),
     ).toEqual(["rawId"]);
+  });
+
+  it("reads a file whose comments contain apostrophes (#1133)", () => {
+    // An `'` in prose is not a string opener. Treating it as one ran the scanner
+    // to the next apostrophe and swallowed everything between - including the
+    // template - so the sweep reported clean on a file it had never read.
+    const source = [
+      "// the admin drawer's recent-threads list",
+      "fetch(`/api/v1/x/${rawId}`)",
+    ].join("\n");
+    expect(unencodedSegments(source)).toEqual(["rawId"]);
+    expect(
+      unencodedSegments("/* a block comment's apostrophe */\nfetch(`/api/v1/x/${rawId}`)"),
+    ).toEqual(["rawId"]);
+    // And a quote inside a comment still does not hide a later real string.
+    expect(unencodedSegments("// don't\nconst s = 'x';\nfetch(`/api/v1/x/${rawId}`)")).toEqual([
+      "rawId",
+    ]);
+  });
+
+  it("requires the encoding call to wrap the whole value (#1133)", () => {
+    // A suffix appended after the call is unencoded, and a slash in it rebuilds
+    // the traversal; a look-alike function name is not the call at all.
+    expect(unencodedSegments("fetch(`/api/v1/x/${encodeURIComponent(id) + rawSuffix}`)")).toEqual([
+      "encodeURIComponent(id) + rawSuffix",
+    ]);
+    expect(unencodedSegments("fetch(`/api/v1/x/${encodeURIComponentAlias(rawId)}`)")).toEqual([
+      "encodeURIComponentAlias(rawId)",
+    ]);
+    // The genuine article, nested parentheses included, is still clean.
+    expect(unencodedSegments("fetch(`/api/v1/x/${encodeURIComponent(String(id))}`)")).toEqual([]);
+  });
+
+  it("does not read an ordinary .search property as the query (#1133)", () => {
+    // Only a real URL search string ends the path. A parameter that happens to
+    // expose `.search` is a path segment, and so is everything after it.
+    expect(unencodedSegments("fetch(`/api/v1/x/${params.search}/${rawId}`)")).toEqual([
+      "params.search",
+      "rawId",
+    ]);
+    // A genuine URL search string still ends it.
+    expect(unencodedSegments("fetch(`/api/v1/x${request.nextUrl.search}`)")).toEqual([]);
+  });
+
+  it("checks an interpolation attached straight to the version prefix (#1133)", () => {
+    // `/api/v1${rawPath}` has no literal slash after the prefix, so a substring
+    // test skipped the template entirely - while a slash-bearing value there
+    // switches path exactly as a later segment does.
+    expect(unencodedSegments("fetch(`${BACKEND_URL}/api/v1${rawPath}`)")).toEqual(["rawPath"]);
+    expect(unencodedSegments("fetch(`${BACKEND_URL}/api/v1${encodeURIComponent(p)}`)")).toEqual([]);
   });
 
   it("has no hand-rolled proxy interpolating a bare segment", () => {
