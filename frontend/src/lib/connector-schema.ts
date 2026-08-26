@@ -36,24 +36,29 @@ export function connectorConfigToJsonSchema(
  * One connector field as a JSON Schema property.
  *
  * `label` becomes `title` and `help` becomes `description`, which is what
- * `SchemaForm` reads for a field's label and its guidance. `default` is passed
- * through untouched: the backend serialises an absent default as `null`, and
- * `SchemaForm`'s own `defaultOf` already reads that as "no default".
+ * `SchemaForm` reads for a field's label and its guidance.
+ *
+ * The default is the field this treats with care. A connector's `default` is a
+ * placeholder, not an authoritative value: an S3 `region` left blank resolves
+ * to the credential's region or `S3_RAG_REGION` server-side, never to the
+ * schema's `us-east-1`, so rendering it as the field's value would show a
+ * setting the sync does not use. It therefore lands on `x-placeholder` (a grey
+ * hint, never stored) for the text-like kinds. A boolean is the exception: its
+ * default *is* what the backend applies when the key is omitted
+ * (`config.get("include_subfolders", True)`), so it stays on `default`, where
+ * `SchemaForm` reflects it on the switch.
  */
 function fieldToProperty(field: ConnectorConfigField): JsonSchemaProperty {
-  const base: JsonSchemaProperty = {
-    title: field.label,
-    description: field.help,
-    default: field.default,
-  };
+  const base: JsonSchemaProperty = { title: field.label, description: field.help };
+  const placeholder = field.default == null ? undefined : String(field.default);
   switch (field.type) {
     case "integer":
-      return { ...base, type: "integer" };
+      return { ...base, type: "integer", "x-placeholder": placeholder };
     case "boolean":
-      return { ...base, type: "boolean" };
+      return { ...base, type: "boolean", default: field.default };
     case "textarea":
-      return { ...base, type: "string", "x-textarea": true };
+      return { ...base, type: "string", "x-textarea": true, "x-placeholder": placeholder };
     case "string":
-      return { ...base, type: "string" };
+      return { ...base, type: "string", "x-placeholder": placeholder };
   }
 }

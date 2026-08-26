@@ -143,6 +143,13 @@ function SchemaField({
   // A connector's plain-text config box (`textarea`), distinct from the prompt
   // editor `multiline` gets: the two never coincide on one field.
   const textarea = property["x-textarea"] === true && !multiline;
+  // A hint shown in grey while the field is empty, never stored. A connector's
+  // config default lands here rather than on `default`, because its effective
+  // value is resolved server-side (an S3 region falls back to the credential's,
+  // not to the schema's) - so showing it as the value would claim a setting the
+  // sync will not use.
+  const placeholder =
+    typeof property["x-placeholder"] === "string" ? property["x-placeholder"] : undefined;
   // Off on every mount, including a re-open of the same dialog: revealing is a
   // decision about the room you are in, and the room changes.
   const [revealed, setRevealed] = useState(false);
@@ -167,6 +174,7 @@ function SchemaField({
             checked={value === undefined ? fallback === true : value === true}
             onCheckedChange={onChange}
             disabled={disabled}
+            {...invalid}
           />
         )}
       </div>
@@ -177,6 +185,7 @@ function SchemaField({
           type="number"
           min={property.minimum}
           max={property.maximum}
+          placeholder={placeholder}
           value={numberText(value, fallback)}
           disabled={disabled}
           // Empty means "unset", which is not the same as zero: an unset field
@@ -271,6 +280,7 @@ function SchemaField({
         <Textarea
           id={id}
           rows={6}
+          placeholder={placeholder}
           value={typeof value === "string" ? value : typeof fallback === "string" ? fallback : ""}
           disabled={disabled}
           spellCheck={false}
@@ -290,6 +300,7 @@ function SchemaField({
             type={masked && !revealed ? "password" : undefined}
             autoComplete={masked ? "off" : undefined}
             maxLength={property.maxLength}
+            placeholder={placeholder}
             value={typeof value === "string" ? value : typeof fallback === "string" ? fallback : ""}
             disabled={disabled}
             onChange={(event) =>

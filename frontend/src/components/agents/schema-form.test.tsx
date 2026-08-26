@@ -405,6 +405,57 @@ describe("SchemaForm", () => {
     expect(field).toHaveAccessibleDescription(/not valid JSON/);
   });
 
+  it("shows an x-placeholder as a hint and never as the field's value", () => {
+    // A connector default is a placeholder, not a value (its effective value is
+    // resolved server-side), so it arrives on `x-placeholder` and the field
+    // stays empty until somebody types.
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: {
+            region: { type: "string", title: "Region", "x-placeholder": "us-east-1" },
+            port: { type: "integer", title: "Port", "x-placeholder": "443" },
+            manifest: {
+              type: "string",
+              "x-textarea": true,
+              title: "Manifest",
+              "x-placeholder": "one path per line",
+            },
+          },
+        }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="x"
+      />,
+    );
+
+    const region = screen.getByLabelText(/Region/);
+    expect(region).toHaveValue("");
+    expect(region).toHaveAttribute("placeholder", "us-east-1");
+    expect(screen.getByLabelText(/Port/)).toHaveAttribute("placeholder", "443");
+    expect(screen.getByLabelText(/Manifest/)).toHaveAttribute("placeholder", "one path per line");
+  });
+
+  it("marks a refused boolean's switch, not only the sentence under it", () => {
+    // A field-level refusal has to reach the control it is about: the sentence
+    // renders for every kind, but assistive technology finds it through the
+    // switch's own aria-invalid and aria-describedby.
+    render(
+      <SchemaForm
+        schema={{ type: "object", properties: { verbose: { type: "boolean", title: "Verbose" } } }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="x"
+        errors={{ verbose: "Pick one" }}
+      />,
+    );
+
+    const toggle = screen.getByRole("switch", { name: /Verbose/ });
+    expect(toggle).toHaveAttribute("aria-invalid", "true");
+    expect(toggle).toHaveAccessibleDescription(/Pick one/);
+  });
+
   it("keeps the other fields when one changes", async () => {
     const onChange = vi.fn();
     render(

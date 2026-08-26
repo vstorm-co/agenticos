@@ -50,16 +50,31 @@ describe("connectorConfigToJsonSchema", () => {
     expect(schema.required).toEqual(["bucket"]);
   });
 
-  it("passes a field's default through untouched, including the absent one", () => {
-    // The backend serialises a field with no default as `null`; SchemaForm's own
-    // `defaultOf` reads that as "no default", so this must not rewrite it.
+  it("renders a text field's default as a placeholder, not a stored value", () => {
+    // A connector default is a hint: an S3 region left blank resolves to the
+    // credential's region server-side, never to the schema's `us-east-1`, so it
+    // must not arrive as the field's value.
     const schema = connectorConfigToJsonSchema({
       region: field({ default: "us-east-1" }),
       endpoint_url: field({ default: null }),
     });
 
-    expect(schema.properties?.region?.default).toBe("us-east-1");
-    expect(schema.properties?.endpoint_url?.default).toBeNull();
+    expect(schema.properties?.region?.["x-placeholder"]).toBe("us-east-1");
+    expect(schema.properties?.region?.default).toBeUndefined();
+    // No default declared: no placeholder invented.
+    expect(schema.properties?.endpoint_url?.["x-placeholder"]).toBeUndefined();
+  });
+
+  it("keeps a boolean's default, which the backend applies when the key is omitted", () => {
+    // Unlike a text default, `config.get("include_subfolders", True)` means the
+    // switch's default is what actually happens - so it stays on `default`, which
+    // SchemaForm reflects on the switch.
+    const schema = connectorConfigToJsonSchema({
+      include_subfolders: field({ type: "boolean", default: true }),
+    });
+
+    expect(schema.properties?.include_subfolders?.default).toBe(true);
+    expect(schema.properties?.include_subfolders?.["x-placeholder"]).toBeUndefined();
   });
 
   it("is an object schema even when the connector declares no fields", () => {

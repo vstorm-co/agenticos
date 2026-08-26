@@ -583,6 +583,15 @@ export interface JsonSchemaProperty {
    */
   "x-textarea"?: boolean;
   /**
+   * A grey hint shown while a string or number field is empty, never stored.
+   *
+   * Also connector-only: a connector's config default is a placeholder rather
+   * than an authoritative value - its effective default is resolved server-side
+   * (an S3 region falls back to the credential's) - so it arrives here instead
+   * of on `default`, which `SchemaForm` would otherwise render as the value.
+   */
+  "x-placeholder"?: string;
+  /**
    * What a `list[...]` holds. Only `{"type": "string"}` is rendered; anything
    * else is the richer editor the generated form deliberately does not grow.
    */
