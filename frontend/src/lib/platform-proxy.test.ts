@@ -284,23 +284,62 @@ describe("every org-scoped request carries the organization", () => {
  * Path segments a hand-rolled proxy interpolates into a `/api/v1` template
  * without encoding.
  *
- * `${x}` immediately after a `/` inside a versioned-API template literal is a
- * path segment, and `%2f`/`%2e%2e` in the raw value decode and normalise there:
- * `x%2F..%2F..%2Fopenapi.json` reaches the backend as a different path (#13,
- * #30). The host prefix (`${BACKEND_URL}`, before `/api/v1`) and the query
- * (`${...search}`, `${qs}` - never after a `/`) are not segments and not
- * matched. A route built on the shared platformProxy forwards `nextUrl.pathname`
- * verbatim, so it interpolates nothing here and is left alone.
+ * Every `${x}` in the path portion of a versioned-API template literal is a
+ * path segment - segment-leading (`/${id}`) or composite (`prefix-${id}`) alike
+ * - and `%2f`/`%2e%2e` in the raw value decode and normalise there:
+ * `x%2F..%2F..%2Fopenapi.json` reaches the backend as a different path (#13, #30,
+ * #1118). The host prefix (`${BACKEND_URL}`, before `/api/v1`) and the query
+ * (`${...search}`, `${qs}`, a `${query ? ...}` ternary) are not segments and are
+ * not matched - see `pathInterpolations` for where the query begins. A route
+ * built on the shared platformProxy forwards `nextUrl.pathname` verbatim, so it
+ * interpolates nothing here and is left alone.
  */
 function unencodedSegments(source: string): string[] {
   const offenders: string[] = [];
   for (const template of source.match(/`[^`]*\/api\/v1\/[^`]*`/g) ?? []) {
-    for (const match of template.matchAll(/\/\$\{([^{}]+)\}/g)) {
-      const expr = (match[1] ?? "").trim();
+    for (const expr of pathInterpolations(template)) {
       if (!expr.startsWith("encodeURIComponent")) offenders.push(expr);
     }
   }
   return offenders;
+}
+
+/**
+ * The interpolation expressions in a template's path portion, in order.
+ *
+ * Scanning starts at `/api/v1`, so the host prefix (`${BACKEND_URL}`) is not a
+ * segment, and stops at the query: the first literal `?`, or the first
+ * interpolation that attaches one (`${...search}`, `${qs}`, a `${query ? ...}`
+ * ternary). Interpolations are brace-matched rather than regex-matched, so a
+ * composite segment (`prefix-${id}`, not only `/${id}`) is caught, and a query
+ * ternary's own inner `${...}` is consumed with it rather than mistaken for a
+ * bare segment.
+ */
+function pathInterpolations(template: string): string[] {
+  const exprs: string[] = [];
+  let i = template.indexOf("/api/v1");
+  if (i < 0) return exprs;
+  for (; i < template.length; i++) {
+    if (template[i] === "?") break; // a literal query separator: the rest is query
+    if (template[i] === "$" && template[i + 1] === "{") {
+      let depth = 1;
+      let j = i + 2;
+      for (; j < template.length && depth > 0; j++) {
+        if (template[j] === "{") depth++;
+        else if (template[j] === "}") depth--;
+      }
+      const expr = template.slice(i + 2, j - 1).trim();
+      i = j - 1;
+      // A query attachment - a `${query ? ...}` ternary, or a search/qs/query
+      // reference - is not a path segment. `?.` optional chaining is not a query,
+      // so `\?` excludes it. Skip and keep scanning rather than stopping, so a
+      // real segment after a misread one is still checked; the literal `?` above
+      // is the true boundary.
+      if (/\?(?!\.)|\b(search|searchParams|qs|query)\b/.test(expr)) continue;
+      exprs.push(expr);
+    }
+  }
+  return exprs;
 }
 
 describe("every hand-rolled proxy encodes its path segments", () => {
@@ -312,6 +351,28 @@ describe("every hand-rolled proxy encodes its path segments", () => {
     expect(unencodedSegments("fetch(`${BACKEND_URL}/api/v1/x${request.nextUrl.search}`)")).toEqual(
       [],
     );
+  });
+
+  it("catches an interpolation mid-segment, not only after a slash (#1118)", () => {
+    // `x/../../admin` in a composite segment normalises into another backend
+    // path just as a segment-leading one does, so the guard must flag it too.
+    expect(unencodedSegments("fetch(`/api/v1/resources/prefix-${id}`)")).toEqual(["id"]);
+    expect(
+      unencodedSegments("fetch(`/api/v1/resources/prefix-${encodeURIComponent(id)}`)"),
+    ).toEqual([]);
+  });
+
+  it("does not mistake a query attachment for a bare segment", () => {
+    // The sessions-route ternary builds its own `?...`; its inner `${query}` and
+    // the trailing `${qs}` are query, not path, so neither is an offender.
+    expect(unencodedSegments('fetch(`/api/v1/sessions${query ? `?${query}` : ""}`)')).toEqual([]);
+    expect(unencodedSegments("fetch(`/api/v1/sessions?${qs}`)")).toEqual([]);
+  });
+
+  it("does not let optional chaining hide a later segment", () => {
+    // `?.` is not a query separator, so scanning must not stop at it - both the
+    // optional-chained segment and the plain one after it stay in view.
+    expect(unencodedSegments("fetch(`/api/v1/x/${a?.b}/${rawId}`)")).toEqual(["a?.b", "rawId"]);
   });
 
   it("has no hand-rolled proxy interpolating a bare segment", () => {
