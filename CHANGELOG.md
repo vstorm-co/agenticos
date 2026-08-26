@@ -17,6 +17,47 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.248] - 2026-08-26
+
+The routines onboarding path no longer freezes the page it is teaching.
+
+### Fixed
+
+- **Accepting the routine creation offer could freeze `/routines` outright.** The
+  offer was gated on the scope-blind, role-level `agents:run`, while the flow's
+  first target — the page's create buttons — mounts only on the per-agent `can_run`
+  answer, and the coach waits on a flow target with no timeout. An Owner in an
+  organization with no agents accepted the offer into a page that never came back.
+  Both layers now read the one answer the buttons themselves gate on
+  (`qk.agents.anyRunnable()`): `CreationOffer` suppresses the offer from that
+  cache, and every `create-routine` step carries an `OrgState.hasRunnableAgent`
+  include fed by the same query, so any residual path yields an inert flow rather
+  than a frozen one. (#594)
+- **That offer rendered `offer.create-routine.title` literally.** The copy was
+  never written, and a key read through a template literal is invisible to the
+  static catalog checks that would otherwise have failed the build. Added in en and
+  pl. (#594)
+
+### Added
+
+- **The routines widget says what it is sorted by.** The card ordered by next fire
+  and never told anybody; the sub-line now carries `next <instant>` for a live
+  schedule — and deliberately not for an overdue `next_fire_at`, which is a fire
+  the heartbeat has yet to claim and is loudest exactly when the worker is down.
+  Polish copy for the whole card, which had been falling back to English. (#594)
+- **`.claude/rules/frontend.md` now holds the widget mechanics** CLAUDE.md's "ships
+  its seams" rule had been pointing at: the five edits a new dashboard card is,
+  each with the failure it prevents. `docs/concepts.md` names Routines and the
+  widget, delegating the detail to `docs/triggers.md`, and `docs/first-agent.md`
+  walks a reader through the routine flow's Run now ending and the dashboard
+  customize stop. (#594)
+
+### Changed
+
+- `routines.tsx` is inside the frontend coverage gate. The widget directory is
+  gated file-by-file, so the card was invisible to the 100% gate however green its
+  tests ran — which then found the error state's retry unexercised. (#594)
+
 ## [0.0.247] - 2026-08-22
 
 An agent runs itself, with nobody at the keyboard.
