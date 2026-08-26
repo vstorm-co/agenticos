@@ -36,6 +36,23 @@ until this service has parsed it, and the client holds an id and a filename once
 the upload has answered. It is `null` for an image and for a file no parser could
 read, and a card with no excerpt shows its thumbnail or its name alone.
 
+### The blocking work runs off the request loop, on its own pool
+
+Parsing an upload (PyMuPDF over every page, openpyxl over every cell, a decode of
+the whole file) and reading or writing its bytes are blocking with no suspension
+point, so they run on a thread rather than the request loop — one large upload
+would otherwise freeze every other request and agent stream on the worker. They
+run on a **dedicated, bounded** pool (`app/core/blocking.py`, sized by
+`FILE_IO_MAX_WORKERS`), not `asyncio`'s shared default executor: that executor
+also carries `bcrypt` password hashing and pinned-host DNS, and a burst of
+uploads must not occupy every worker there and leave sign-in and outbound
+requests queued behind an unbounded backlog of upload buffers
+([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). The write is also
+cancellation-safe: an executor cannot interrupt a running `write_bytes`, so a
+cancelled upload waits the write out and deletes the file it created — the caller
+never receives a storage path, so it could otherwise neither record nor clean up
+the orphan.
+
 ### The whole page is the drop target
 
 A file dragged over the chat is accepted **anywhere on it**, not onto the

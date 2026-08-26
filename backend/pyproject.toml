@@ -473,6 +473,9 @@ include = [
     # they write to was not (#20).
     "app/core/audit.py",
     "app/core/background.py",
+    # The dedicated bounded pool for blocking file work, kept off the executor
+    # bcrypt and DNS share; its write is cancellation-safe (#1108).
+    "app/core/blocking.py",
     # The SSRF allow/deny every outbound URL a tenant chooses is checked against -
     # a webhook, an MCP server address. A hole here is a request to an internal
     # address the operator cannot see, which is the pair to pinned_http below (#28).
@@ -703,6 +706,9 @@ include = [
     # they write to was not (#20).
     "app/core/audit.py",
     "app/core/background.py",
+    # The dedicated bounded pool for blocking file work, kept off the executor
+    # bcrypt and DNS share; its write is cancellation-safe (#1108).
+    "app/core/blocking.py",
     # The SSRF allow/deny every outbound URL a tenant chooses is checked against -
     # a webhook, an MCP server address. A hole here is a request to an internal
     # address the operator cannot see, which is the pair to pinned_http below (#28).
