@@ -782,20 +782,14 @@ class ChannelMessageRouter:
         policy: dict[str, Any] = self._parse_policy(bot)
         mode: str = policy.get("mode", "open")
 
-        identity = await channel_identity_repo.get_by_platform_user(
+        identity = await channel_identity_repo.get_or_create(
             db,
             platform=incoming.platform,
             platform_user_id=incoming.platform_user_id,
+            platform_username=incoming.platform_username,
+            platform_display_name=incoming.platform_display_name,
+            user_id=None,
         )
-        if not identity:
-            identity = await channel_identity_repo.create(
-                db,
-                platform=incoming.platform,
-                platform_user_id=incoming.platform_user_id,
-                platform_username=incoming.platform_username,
-                platform_display_name=incoming.platform_display_name,
-                user_id=None,
-            )
 
         if mode == "jwt_linked" and policy.get("require_link", False) and not identity.user_id:
             raise AuthorizationError(

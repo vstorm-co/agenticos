@@ -1388,14 +1388,24 @@ async def create_approval(
 
 
 async def get_approval(
-    db: AsyncSession, approval_id: UUID, *, organization_id: UUID
+    db: AsyncSession, approval_id: UUID, *, organization_id: UUID, for_update: bool = False
 ) -> ToolApproval | None:
-    result = await db.execute(
-        select(ToolApproval).where(
-            ToolApproval.id == approval_id,
-            ToolApproval.organization_id == organization_id,
-        )
+    """Read one approval; with `for_update`, hold its row for the transaction.
+
+    Deciding twice is a check-then-act race: two approvers open the queue, one
+    rejects and one approves within the same read-committed window, both read
+    `pending`, both pass the guard, and the audit trail ends with two
+    contradictory entries for one decision. `decide` takes the lock so the second
+    caller waits and then finds the row no longer pending - the same shape as
+    `claim_parked_run`.
+    """
+    query = select(ToolApproval).where(
+        ToolApproval.id == approval_id,
+        ToolApproval.organization_id == organization_id,
     )
+    if for_update:
+        query = query.with_for_update()
+    result = await db.execute(query)
     return result.scalar_one_or_none()
 
 

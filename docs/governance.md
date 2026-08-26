@@ -81,6 +81,18 @@ one expensive call every time.
     to the session context - which rolls back on any exception and is never
     reached at all on cancellation.
 
+The guard is a hard stop for a run that *sees* the spend, and a run's own cost
+only lands on its row when it finishes. So the baseline a run reads is the sum of
+runs that have already finished, and concurrent runs are invisible to one
+another: fifty runs starting together against an organization one call short of
+its cap each read the same under-cap baseline and each proceed, overshooting by
+up to their combined cost. This is a property of an aggregate with no single row
+to lock - unlike the per-run and per-loop overshoot above, which the
+before-the-request check does bound - and it is why the cap is a ceiling on
+committed spend rather than a gate that serialises simultaneous runs. A
+deployment that needs a strict cap runs its agents through one queue rather than
+in parallel.
+
 ### A run costs more than its model requests
 
 A knowledge search embeds the question before it can search it, and that embedding
