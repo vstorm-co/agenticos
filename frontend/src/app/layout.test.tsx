@@ -1,6 +1,8 @@
 import { getLocale } from "next-intl/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { BUILT_IN_BRANDING } from "@/lib/branding";
+
 import RootLayout from "./layout";
 
 vi.mock("next-intl/server", async (importOriginal) => ({
@@ -13,6 +15,13 @@ vi.mock("next/font/local", () => ({
 }));
 
 vi.mock("./globals.css", () => ({}));
+
+// The layout awaits `readBranding`, which reaches BACKEND_URL. Unmocked, this
+// spec's result depends on what is listening on :8000 - and a port that accepts
+// connections without answering hangs it until the 15s deadline (#1075).
+vi.mock("@/lib/branding-server", () => ({
+  readBranding: vi.fn(async () => BUILT_IN_BRANDING),
+}));
 
 /**
  * `<html lang>` follows the active locale (#619).
