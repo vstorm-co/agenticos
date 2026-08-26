@@ -33,14 +33,13 @@ from app.core.exceptions import ConfigurationError
 from app.core.secret_kinds import ApiKeySecret, SecretKind, seal_secret
 from app.core.vault import VaultScope
 from app.services.embedding_resolution import EmbeddingKeySource, ResolvedEmbeddings
-from app.services.ingestion_config import IngestionConfig
 from app.services.rag.config import RAGSettings
 from app.services.rag.embedding_providers import deployment_provider
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.vectorstore import PgVectorStore
 from app.worker.tasks.rag_tasks import (
     _announcing_resolver,
-    _ingestion_service_for,
+    _ingestion_service,
     _say_in_flow_log,
 )
 
@@ -97,17 +96,18 @@ def _vault_row(plaintext: str, *, organization_id: uuid.UUID = _ORG):
 async def _store() -> PgVectorStore:
     """The store the ingestion flow actually builds.
 
-    Built through `_ingestion_service_for` rather than constructed here: what
-    #306 was is that function passing no `resolver=`, so a test that wires one
-    itself would pass against the bug it exists to catch. Only the processor -
-    parsers, chunker, image model, all of which need a session - is stubbed.
+    Built through `_ingestion_service` rather than constructed here: what
+    #306 was is that helper passing no `resolver=`, so a test that wires one
+    itself would pass against the bug it exists to catch. The engine is a
+    stand-in so no test here can open a live connection; these tests exercise
+    `_for_collection`, which never touches it.
     """
-    with patch("app.worker.tasks.rag_tasks.IngestionConfigService") as config_service:
-        config_service.return_value.build_processor = AsyncMock(return_value=MagicMock())
-        service = await _ingestion_service_for(
-            MagicMock(), config=IngestionConfig(), organization_id=_ORG
-        )
-    store = service.store
+    with patch(
+        "app.worker.tasks.rag_tasks.create_async_engine",
+        return_value=MagicMock(dispose=AsyncMock()),
+    ):
+        async with _ingestion_service(processor=MagicMock()) as service:
+            store = service.store
     assert isinstance(store, PgVectorStore)
     return store
 

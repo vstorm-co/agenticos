@@ -145,6 +145,7 @@ from app.db.models.agent_run import AgentRun, ApprovalStatus, RunOrder, RunStatu
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Message
 from app.db.models.run_manifest import RunManifest
+from app.db.session import get_worker_db_context
 from app.repositories import (
     agent_environment_repo,
     agent_exposure_repo,
@@ -1688,11 +1689,30 @@ class AgentRunnerService:
         # made `AgentSpec.budget.monthly_usd` a second organization cap wearing
         # an agent's name: an agent with a $10 limit was refused once its
         # *neighbours* had spent $10, and nothing ever isolated its own spend.
+        # Each on a session of its own, never the run's. The budget capability
+        # reads its baseline once, immediately before the run's first model
+        # request - a read on the shared session there would open a transaction
+        # that then sits `idle in transaction` for the rest of the run, holding
+        # the very connection the opening commit in `_run` exists to hand back:
+        # measured under 18 concurrent runs, the three past the pool waited 26
+        # seconds at this read (#12). The worker context and not the pooled one,
+        # because a trigger fires runs inside Prefect flows: a pooled connection
+        # made on one flow's event loop breaks whoever checks it out on the
+        # next, and this read happens on whatever loop the run is on. One
+        # connect per run, next to a model call.
         async def agent_period_spend() -> Decimal:
-            return await self.monthly_spend(ctx, agent_id=agent.id)
+            async with get_worker_db_context() as db:
+                return await agent_run_repo.sum_cost_since(
+                    db,
+                    organization_id=ctx.organization_id,
+                    since=month_start(),
+                    agent_id=agent.id,
+                    include_delegations=True,
+                )
 
         async def org_period_spend() -> Decimal:
-            return await self.monthly_spend(ctx)
+            async with get_worker_db_context() as db:
+                return await organization_monthly_spend(db, ctx.organization_id)
 
         # Opened after the run row, because a run-scoped workspace keys on it,
         # and before the agent, because the capability reads the backend out of
@@ -3114,11 +3134,12 @@ class AgentRunnerService:
         # end:
         #
         # A resume arriving *while this one is still building* waits at
-        # `claim_parked_run` - the row lock is held for the whole transaction -
-        # and then reads the status written here, so building first widens no
-        # window. A resume arriving *after this transaction commits* has no lock
-        # to wait on, and what refuses it is finding the run no longer parked; so
-        # the status has to change before the tool call is replayed, not after.
+        # `claim_parked_run` - the row lock is held until `_run` commits, which
+        # it does before anything is replayed - and then reads the status
+        # written here, so building first widens no window. A resume arriving
+        # *after that commit* has no lock to wait on, and what refuses it is
+        # finding the run no longer parked; so the status has to change before
+        # the tool call is replayed, not after.
         #
         # It is written last because a build refuses for reasons that have
         # nothing to do with this run: a secret a binding names deleted since the
@@ -3337,6 +3358,18 @@ class AgentRunnerService:
         :meth:`finish` queues with it, which is how a delegate that spent real
         money came to be recorded nowhere. Committing here is what makes the row
         survive; re-raising is what lets whoever cancelled see it happen.
+
+        **And the transaction ends before the model is asked anything.** Each
+        half of the opening commit is load-bearing: the run row becomes visible
+        to every other session while the run executes, and the pooled connection
+        goes back to the pool for the seconds-to-minutes the model takes,
+        instead of sitting `idle in transaction` holding a row lock - fifteen
+        concurrent runs used to be the entire pool (#12). On a resume it is also
+        what makes `mark_running` durable: a crash mid-replay leaves the run
+        `running` rather than parked with its approval still marked approved,
+        which a second resume would replay - re-sending whatever the approved
+        call already sent (#3). `ChatAgentRunner.run`, the one surface not
+        routed through here, sets the same boundary.
         """
         status = RunStatus.FAILED
         error: str | None = None
@@ -3346,6 +3379,10 @@ class AgentRunnerService:
         called: list[RecordedToolCall] = []
         settled: dict[str, str] = {}
         summarized: list[dict[str, Any]] | None = None
+        # The opening commit: the row is visible mid-run and no connection is
+        # held across the model call - the docstring carries the whole of it
+        # (#12, #3).
+        await self.db.commit()
         try:
             result = await self._answer(
                 prepared,
