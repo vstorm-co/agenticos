@@ -24,6 +24,7 @@ from app.core.logfire_setup import instrument_httpx
 from app.core.logfire_setup import instrument_pydantic_ai
 from app.core.logging import setup_logging
 from app.core.body_limit import BodySizeLimitMiddleware
+from app.core import background
 from app.core import maintenance
 from app.core.maintenance import MaintenanceModeMiddleware
 from app.core.middleware import RequestIDMiddleware
@@ -171,6 +172,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
         await _slack_adapter.stop_polling(_sbid)
     for _mbid in list(_mattermost_adapter._socket_tasks.keys()):
         await _mattermost_adapter.stop_polling(_mbid)
+    # Intake has stopped and serving is already drained, so what is left is
+    # in-flight fire-and-forget work - an ingestion or a sync a request or a
+    # channel message handed off. It reads the stores and the session below, so
+    # it has to finish (or be cancelled) before they are disposed, or a document
+    # is left stuck in `processing` forever (#417 is the same row, from the other
+    # end).
+    await background.drain()
     # The knowledge capability caches a store of its own, built on the first
     # search and reachable from no request; a shutdown followed by more work -
     # a test, a reload - must not search through it once `close_db` has run.

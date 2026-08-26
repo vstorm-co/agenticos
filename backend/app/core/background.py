@@ -28,7 +28,7 @@ import contextvars
 import logging
 from collections.abc import Coroutine
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, Final, cast
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -151,7 +151,17 @@ def discard_deferred(session: AsyncSession) -> None:
         )
 
 
-async def drain(timeout: float = 30.0) -> None:
+DRAIN_TIMEOUT: Final[float] = 30.0
+"""How long a clean shutdown waits for in-flight background work.
+
+`cli.reload_supervisor.STOP_GRACE` has to outlast this - it cannot import it,
+so it carries the coupling in a comment - and docker-compose's
+`stop_grace_period` has to outlast that in turn, or a draining worker is killed
+before it finishes (#11).
+"""
+
+
+async def drain(timeout: float = DRAIN_TIMEOUT) -> None:
     """Wait for in-flight background work, for a clean shutdown.
 
     Called from the application lifespan. Without it, shutting down mid-flight
