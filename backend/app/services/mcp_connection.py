@@ -490,7 +490,13 @@ class McpConnectionService:
     async def update(
         self, *, user_id: UUID, connection_id: UUID, data: McpConnectionUpdate
     ) -> McpConnection:
-        db_connection = await self._get_owned(user_id=user_id, connection_id=connection_id)
+        # Locked from the read: the token below is sealed at the row's recorded
+        # key version, and a rotation committing between an unlocked read and
+        # this write would tag the new envelope with a version it was not
+        # sealed under.
+        db_connection = await self._get_owned(
+            user_id=user_id, connection_id=connection_id, for_update=True
+        )
         update_data: dict[str, Any] = writable(
             data, over=McpConnection, exclude={"clear_allowed_tools"}
         )
@@ -1091,8 +1097,15 @@ class McpConnectionService:
             },
         )
 
-    async def _get_owned(self, *, user_id: UUID, connection_id: UUID) -> McpConnection:
-        db_connection = await mcp_connection_repo.get_by_id(self.db, connection_id)
+    async def _get_owned(
+        self, *, user_id: UUID, connection_id: UUID, for_update: bool = False
+    ) -> McpConnection:
+        fetch = (
+            mcp_connection_repo.get_by_id_for_update
+            if for_update
+            else mcp_connection_repo.get_by_id
+        )
+        db_connection = await fetch(self.db, connection_id)
         # The scope check is the load-bearing half. These routes authorize on
         # `user_id` alone and demand no organization permission, so without it
         # whoever created an organization connection could repoint a published
@@ -1175,7 +1188,8 @@ class McpConnectionService:
     async def update_for_org(
         self, ctx: AuthContext, *, connection_id: UUID, data: OrgMcpConnectionUpdate
     ) -> McpConnection:
-        db_connection = await self._get_org(ctx, connection_id)
+        # Locked from the read - same reason as `update` above.
+        db_connection = await self._get_org(ctx, connection_id, for_update=True)
         update_data: dict[str, Any] = writable(
             data, over=McpConnection, exclude={"clear_allowed_tools"}
         )
@@ -1331,7 +1345,9 @@ class McpConnectionService:
         """
         return await self._get_org(ctx, connection_id)
 
-    async def _get_org(self, ctx: AuthContext, connection_id: UUID) -> McpConnection:
+    async def _get_org(
+        self, ctx: AuthContext, connection_id: UUID, *, for_update: bool = False
+    ) -> McpConnection:
         """One organization connection, or a refusal that reveals nothing.
 
         Reported as "not found" rather than "forbidden" for the same reason as
@@ -1339,7 +1355,10 @@ class McpConnectionService:
         probe for what another tenant owns.
         """
         db_connection = await mcp_connection_repo.get_org_scoped_by_id(
-            self.db, connection_id=connection_id, organization_id=ctx.organization_id
+            self.db,
+            connection_id=connection_id,
+            organization_id=ctx.organization_id,
+            for_update=for_update,
         )
         if db_connection is None:
             raise NotFoundError(

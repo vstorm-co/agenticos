@@ -428,7 +428,7 @@ class TestUpdatingKeepsTheRowsKeyVersion:
             patch(
                 "app.services.channel_bot.channel_bot_repo.get_for_org",
                 new=AsyncMock(return_value=bot),
-            ),
+            ) as repo_get,
             patch(
                 "app.services.channel_bot.channel_bot_repo.update",
                 new=AsyncMock(return_value=bot),
@@ -437,6 +437,10 @@ class TestUpdatingKeepsTheRowsKeyVersion:
             service = ChannelBotService(MagicMock(), organization_id=org_id)
             await service.update(bot.id, ChannelBotUpdate(token="a-new-bot-token"))
 
+        # Sealing at the row's version is only safe while the row is held from
+        # the read - unlocked, a rotation commits in between and the new
+        # envelope lands tagged with a version it was not sealed under.
+        assert repo_get.await_args.kwargs["for_update"] is True
         update_data = repo_update.call_args.kwargs["update_data"]
         assert "secret_key_version" not in update_data
         assert (

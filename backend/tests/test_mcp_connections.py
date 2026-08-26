@@ -870,6 +870,9 @@ class TestMcpConnectionService:
     def repo(self, monkeypatch):
         mock_repo = MagicMock()
         mock_repo.get_by_id = AsyncMock()
+        # `update` reads through the locked variant; one mock serves both so a
+        # test can stage the row once, whichever path the service takes.
+        mock_repo.get_by_id_for_update = mock_repo.get_by_id
         mock_repo.get_by_name = AsyncMock(return_value=None)
         mock_repo.list_for_user = AsyncMock(return_value=([], 0))
         mock_repo.create = AsyncMock()
@@ -1076,6 +1079,24 @@ class TestMcpConnectionService:
             unseal(update_data["auth_token"], scope=VaultScope.user(user_id), key_version=2)
             == "new-token"
         )
+
+    @pytest.mark.anyio
+    async def test_update_reads_the_row_locked_before_resealing(self, service, repo):
+        """Sealing at the row's recorded version is only safe while the row is
+        held from the read - an unlocked read lets a rotation commit in between,
+        and the new envelope lands tagged with a version it was not sealed
+        under. If update read through the unlocked getter, the None staged on
+        it here would make it refuse."""
+        user_id = uuid4()
+        conn = _connection(user_id=user_id)
+        repo.get_by_id_for_update = AsyncMock(return_value=conn)
+        repo.get_by_id = AsyncMock(return_value=None)
+
+        await service.update(
+            user_id=user_id, connection_id=conn.id, data=McpConnectionUpdate(is_enabled=False)
+        )
+
+        assert repo.get_by_id_for_update.await_count == 1
 
     @pytest.mark.anyio
     async def test_update_empty_token_clears_it(self, service, repo):
@@ -1897,6 +1918,9 @@ class TestOrganizationConnections:
         update_data = repo.update.call_args.kwargs["update_data"]
         assert "ghp-rotated-4321" not in update_data["auth_token"]
         assert "secret_key_version" not in update_data
+        # Sealing at the row's version is only safe while the row is held from
+        # the read - the same race the channel-bot update locks against.
+        assert repo.get_org_scoped_by_id.await_args.kwargs["for_update"] is True
         assert (
             unseal(
                 update_data["auth_token"],
@@ -2159,10 +2183,9 @@ class TestOrganizationConnections:
         with pytest.raises(NotFoundError):
             await call(service, ctx, connection_id)
 
-        assert repo.get_org_scoped_by_id.call_args.kwargs == {
-            "connection_id": connection_id,
-            "organization_id": ctx.organization_id,
-        }
+        kwargs = repo.get_org_scoped_by_id.call_args.kwargs
+        assert kwargs["connection_id"] == connection_id
+        assert kwargs["organization_id"] == ctx.organization_id
 
     @pytest.mark.anyio
     async def test_get_org_connection_returns_the_row_it_finds(self, service, ctx, repo):

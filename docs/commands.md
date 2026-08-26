@@ -316,7 +316,7 @@ uv run agenticos cmd audit-skill-bindings
 
 # Re-wrap every stored secret under the current master key - the staged rotation
 # docs/secrets.md describes. Configure the old and new key side by side in
-# VAULT_MASTER_KEYS first; --dry-run performs the full unwrap-and-rewrap without
+# VAULT_MASTER_KEYS first; --dry-run fully unseals every stored envelope without
 # writing, so failures surface before anything moves. Exits non-zero when any row
 # could not move, so a script cannot drop the old key on a partial rotation.
 uv run agenticos cmd vault-rotate --dry-run

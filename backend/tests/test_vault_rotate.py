@@ -10,6 +10,7 @@ stored envelope opens under today's keys before anything moves.
 
 from __future__ import annotations
 
+import json
 import uuid
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -85,7 +86,7 @@ class TestRotateTable:
         assert unseal(bot.token_encrypted, scope=scope, key_version=2) == "bot-token"
         assert unseal(bot.webhook_secret_encrypted, scope=scope, key_version=2) == "hook-secret"
 
-    async def test_a_dry_run_unwraps_and_rewraps_but_writes_nothing(self, monkeypatch):
+    async def test_a_dry_run_unseals_every_envelope_and_writes_nothing(self, monkeypatch):
         monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: KEY_A})
         org_id = uuid.uuid4()
         sealed = seal("bot-token", scope=VaultScope.organization(org_id)).ciphertext
@@ -100,6 +101,43 @@ class TestRotateTable:
         assert report.rotated == 1
         assert bot.secret_key_version == 1
         assert bot.token_encrypted == sealed
+
+    async def test_a_dry_run_flags_a_damaged_payload_the_live_rewrap_would_miss(self):
+        """`rewrap` authenticates only the wrapped data key, so a corrupted
+        payload survives a live rotation unread and fails weeks later at
+        `unseal`. The preflight's whole promise is to find that row first, so
+        it opens payload and all."""
+        org_id = uuid.uuid4()
+        sealed = seal("bot-token", scope=VaultScope.organization(org_id)).ciphertext
+        envelope = json.loads(sealed)
+        envelope["p"] = envelope["p"][:-8] + "AAAAAAAA"
+        bot = _bot(org_id, token_encrypted=json.dumps(envelope))
+
+        report = Report()
+        await _rotate_table(
+            _db_returning([bot]), _spec("channel_bots"), target=1, dry_run=True, report=report
+        )
+
+        assert len(report.failures) == 1
+        assert str(bot.id) in report.failures[0]
+
+    async def test_a_dry_run_verifies_rows_already_at_the_current_version(self):
+        """A row the live sweep rightly skips is still a row the preflight has
+        to open - "already current" says nothing about whether it decrypts."""
+        org_id = uuid.uuid4()
+        foreign = seal("stolen", scope=VaultScope.organization(uuid.uuid4())).ciphertext
+        healthy = seal("bot-token", scope=VaultScope.organization(org_id)).ciphertext
+        bad = _bot(org_id, token_encrypted=foreign)
+        good = _bot(org_id, token_encrypted=healthy)
+
+        report = Report()
+        await _rotate_table(
+            _db_returning([bad, good]), _spec("channel_bots"), target=1, dry_run=True, report=report
+        )
+
+        assert report.current == 1
+        assert len(report.failures) == 1
+        assert str(bad.id) in report.failures[0]
 
     async def test_a_row_that_cannot_unwrap_is_reported_and_left_untouched(self, monkeypatch):
         """One unreadable row must not stop the sweep - stopping leaves an

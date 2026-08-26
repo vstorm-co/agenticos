@@ -32,7 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.commands import command, error, info, success
 from app.core.exceptions import AppException
-from app.core.vault import VaultScope, current_key_version, needs_rotation, rewrap
+from app.core.vault import VaultScope, current_key_version, needs_rotation, rewrap, unseal
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.channel_bot import ChannelBot
@@ -150,10 +150,28 @@ async def _rotate_table(
             else:
                 report.no_secret += 1
             continue
-        if not any(needs_rotation(value, key_version=version) for value in present.values()):
+        scope = spec.scope(row)
+        needs_move = any(needs_rotation(value, key_version=version) for value in present.values())
+        if dry_run:
+            # The preflight's promise is that every stored envelope *opens*, so
+            # it unseals payload and all: `rewrap` only authenticates the
+            # wrapped data key, and a row already at the current version would
+            # otherwise be waved through unread - either way a credential
+            # `unseal` rejects at runtime would pass the preflight.
+            try:
+                for value in present.values():
+                    unseal(value, scope=scope, key_version=version)
+            except AppException as exc:
+                report.failures.append(f"{spec.label} {row.id}: {exc.message}")
+                continue
+            if needs_move:
+                report.rotated += 1
+            else:
+                report.current += 1
+            continue
+        if not needs_move:
             report.current += 1
             continue
-        scope = spec.scope(row)
         try:
             rotated = {
                 name: rewrap(value, scope=scope, from_version=version, to_version=target)
@@ -162,10 +180,9 @@ async def _rotate_table(
         except AppException as exc:
             report.failures.append(f"{spec.label} {row.id}: {exc.message}")
             continue
-        if not dry_run:
-            for name, value in rotated.items():
-                setattr(row, name, value)
-            setattr(row, spec.version_attr, target)
+        for name, value in rotated.items():
+            setattr(row, name, value)
+        setattr(row, spec.version_attr, target)
         report.rotated += 1
 
 
@@ -182,16 +199,17 @@ async def _run(*, dry_run: bool) -> Report:
 @click.option(
     "--dry-run",
     is_flag=True,
-    help="Unwrap and re-wrap every row without writing, so failures surface before anything moves",
+    help="Unseal every stored envelope without writing, so failures surface before anything moves",
 )
 def vault_rotate(dry_run: bool) -> None:
     """Move every sealed row to the current master-key version.
 
     Exits non-zero when any row could not be re-wrapped, so a provisioning
-    script cannot drop the old key on a partial rotation. A dry run performs
-    the full unwrap-and-rewrap per row and writes nothing, which is how an
-    operator learns *before* rotating whether every stored envelope actually
-    opens under the keys configured today.
+    script cannot drop the old key on a partial rotation. A dry run fully
+    unseals every stored envelope - payload included, and rows already at the
+    current version too - and writes nothing, which is how an operator learns
+    *before* rotating whether every stored credential actually opens under the
+    keys configured today.
 
     Example:
         agenticos cmd vault-rotate --dry-run
