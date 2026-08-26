@@ -29,8 +29,9 @@ openssl rand -hex 32   # VAULT_MASTER_KEY — unwraps every credential stored at
 
 `SECRET_KEY` ships as a published string, and an empty `VAULT_MASTER_KEY` falls
 back to it so a fresh checkout runs at all. Both are fine on a laptop and are the
-whole security of a deployment anywhere else — and setting `VAULT_MASTER_KEY`
-explicitly is also what lets stored secrets survive a `SECRET_KEY` rotation.
+whole security of a deployment anywhere else — which is why the config refuses an
+unset `VAULT_MASTER_KEY` outside `local`/`development`. Setting it explicitly is
+also what lets stored secrets survive a `SECRET_KEY` rotation.
 
 ## Project Settings
 
@@ -93,7 +94,8 @@ ciphertext is therefore useless outside the tenant it was sealed for.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VAULT_MASTER_KEY` | (empty, falls back to `SECRET_KEY`) | Master key for the secret vault. Set it explicitly in production so stored secrets survive a `SECRET_KEY` rotation. Generate with: `openssl rand -hex 32` |
+| `VAULT_MASTER_KEY` | (empty, falls back to `SECRET_KEY`) | Master key for the secret vault — shorthand for version 1 of `VAULT_MASTER_KEYS`. Required outside `local`/`development` (unless the map below is set), so a staging vault cannot boot sealed under the published `SECRET_KEY` default. Generate with: `openssl rand -hex 32` |
+| `VAULT_MASTER_KEYS` | `{}` | Every master key still in use, by version, as JSON — `{"1": "<old>", "2": "<new>"}`. The highest version seals new secrets; older ones keep existing rows readable until `agenticos cmd vault-rotate` re-wraps them. When set it is the whole truth: `VAULT_MASTER_KEY` must then be empty. See [Secrets](secrets.md#operations) |
 
 ### API Key
 
@@ -790,9 +792,11 @@ stale and production's pipe ping goes unanswered.
 Before deploying to production, ensure these variables are properly set:
 1. `SECRET_KEY` -- Generate a unique 64-character hex key: `openssl rand -hex 32`
 2. `API_KEY` -- Generate a unique key: `openssl rand -hex 32`
-3. `ENVIRONMENT` -- Set to `production`
-4. `DEBUG` -- Set to `false`
-5. `POSTGRES_PASSWORD` -- Use a strong, unique password
-6. `CORS_ORIGINS` -- List only your actual frontend domain(s)
-7. `REDIS_PASSWORD` -- Set a strong password
-8. `OPENROUTER_API_KEY` -- Your production API key
+3. `VAULT_MASTER_KEY` -- Generate a unique key: `openssl rand -hex 32`. The config
+   refuses an empty one outside `local`/`development`
+4. `ENVIRONMENT` -- Set to `production`
+5. `DEBUG` -- Set to `false`
+6. `POSTGRES_PASSWORD` -- Use a strong, unique password
+7. `CORS_ORIGINS` -- List only your actual frontend domain(s)
+8. `REDIS_PASSWORD` -- Set a strong password
+9. `OPENROUTER_API_KEY` -- Your production API key

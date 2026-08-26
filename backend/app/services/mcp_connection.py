@@ -57,7 +57,7 @@ from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.core.sanitize import UrlRefusedError
 from app.core.secret_kinds import SecretKind
-from app.core.vault import SealedSecret, VaultScope, seal, unseal
+from app.core.vault import SealedSecret, VaultScope, current_key_version, seal, unseal
 from app.db.models.mcp_connection import McpConnection
 from app.db.updates import writable
 from app.repositories import mcp_connection_repo
@@ -477,7 +477,7 @@ class McpConnectionService:
                 name=data.name,
                 url=url,
                 auth_token=sealed.ciphertext if sealed else None,
-                secret_key_version=sealed.key_version if sealed else 1,
+                secret_key_version=sealed.key_version if sealed else current_key_version(),
                 allowed_tools=data.allowed_tools,
                 is_enabled=data.is_enabled,
             )
@@ -490,7 +490,13 @@ class McpConnectionService:
     async def update(
         self, *, user_id: UUID, connection_id: UUID, data: McpConnectionUpdate
     ) -> McpConnection:
-        db_connection = await self._get_owned(user_id=user_id, connection_id=connection_id)
+        # Locked from the read: the token below is sealed at the row's recorded
+        # key version, and a rotation committing between an unlocked read and
+        # this write would tag the new envelope with a version it was not
+        # sealed under.
+        db_connection = await self._get_owned(
+            user_id=user_id, connection_id=connection_id, for_update=True
+        )
         update_data: dict[str, Any] = writable(
             data, over=McpConnection, exclude={"clear_allowed_tools"}
         )
@@ -510,11 +516,11 @@ class McpConnectionService:
 
         if "auth_token" in update_data:
             token = (update_data["auth_token"] or "").strip()
-            # "" clears the stored token; a non-empty value replaces it.
-            sealed = seal(token, scope=VaultScope.user(user_id)) if token else None
+            # "" clears the stored token; a non-empty value replaces it, sealed at
+            # the row's version - one version column covers every envelope in the
+            # row, so bumping it would orphan the OAuth siblings (#552).
+            sealed = _seal_for(db_connection, token) if token else None
             update_data["auth_token"] = sealed.ciphertext if sealed else None
-            if sealed is not None:
-                update_data["secret_key_version"] = sealed.key_version
 
         if data.clear_allowed_tools:
             update_data["allowed_tools"] = None
@@ -1091,8 +1097,15 @@ class McpConnectionService:
             },
         )
 
-    async def _get_owned(self, *, user_id: UUID, connection_id: UUID) -> McpConnection:
-        db_connection = await mcp_connection_repo.get_by_id(self.db, connection_id)
+    async def _get_owned(
+        self, *, user_id: UUID, connection_id: UUID, for_update: bool = False
+    ) -> McpConnection:
+        fetch = (
+            mcp_connection_repo.get_by_id_for_update
+            if for_update
+            else mcp_connection_repo.get_by_id
+        )
+        db_connection = await fetch(self.db, connection_id)
         # The scope check is the load-bearing half. These routes authorize on
         # `user_id` alone and demand no organization permission, so without it
         # whoever created an organization connection could repoint a published
@@ -1149,7 +1162,7 @@ class McpConnectionService:
                 name=data.name,
                 url=url,
                 sealed_token=sealed.ciphertext if sealed else None,
-                secret_key_version=sealed.key_version if sealed else 1,
+                secret_key_version=sealed.key_version if sealed else current_key_version(),
                 allowed_tools=data.allowed_tools,
                 catalog_key=data.catalog_key,
                 is_enabled=data.is_enabled,
@@ -1175,7 +1188,8 @@ class McpConnectionService:
     async def update_for_org(
         self, ctx: AuthContext, *, connection_id: UUID, data: OrgMcpConnectionUpdate
     ) -> McpConnection:
-        db_connection = await self._get_org(ctx, connection_id)
+        # Locked from the read - same reason as `update` above.
+        db_connection = await self._get_org(ctx, connection_id, for_update=True)
         update_data: dict[str, Any] = writable(
             data, over=McpConnection, exclude={"clear_allowed_tools"}
         )
@@ -1195,13 +1209,11 @@ class McpConnectionService:
 
         if "auth_token" in update_data:
             token = (update_data["auth_token"] or "").strip()
-            # "" clears the stored token; a non-empty value replaces it.
-            sealed = (
-                seal(token, scope=VaultScope.organization(ctx.organization_id)) if token else None
-            )
+            # "" clears the stored token; a non-empty value replaces it, sealed at
+            # the row's version - one version column covers every envelope in the
+            # row, so bumping it would orphan the OAuth siblings (#552).
+            sealed = _seal_for(db_connection, token) if token else None
             update_data["auth_token"] = sealed.ciphertext if sealed else None
-            if sealed is not None:
-                update_data["secret_key_version"] = sealed.key_version
 
         if data.clear_allowed_tools:
             update_data["allowed_tools"] = None
@@ -1333,7 +1345,9 @@ class McpConnectionService:
         """
         return await self._get_org(ctx, connection_id)
 
-    async def _get_org(self, ctx: AuthContext, connection_id: UUID) -> McpConnection:
+    async def _get_org(
+        self, ctx: AuthContext, connection_id: UUID, *, for_update: bool = False
+    ) -> McpConnection:
         """One organization connection, or a refusal that reveals nothing.
 
         Reported as "not found" rather than "forbidden" for the same reason as
@@ -1341,7 +1355,10 @@ class McpConnectionService:
         probe for what another tenant owns.
         """
         db_connection = await mcp_connection_repo.get_org_scoped_by_id(
-            self.db, connection_id=connection_id, organization_id=ctx.organization_id
+            self.db,
+            connection_id=connection_id,
+            organization_id=ctx.organization_id,
+            for_update=for_update,
         )
         if db_connection is None:
             raise NotFoundError(
