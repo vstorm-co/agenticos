@@ -15,7 +15,7 @@ import hmac
 import logging
 import time
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.agents.capabilities.channel_tools import (
     ChannelDetails,
@@ -30,9 +30,13 @@ from app.services.channels.base import (
     IncomingAttachment,
     IncomingMessage,
     OutgoingMessage,
+    split_thread,
 )
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.router import ChannelMessageRouter
+
+if TYPE_CHECKING:
+    from slack_sdk.web.async_client import AsyncWebClient
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +64,19 @@ class SlackAdapter(ChannelAdapter):
         """Register the app-level token Socket Mode will connect with."""
         self._app_tokens[bot_id] = app_token
 
+    @staticmethod
+    def _web(bot_token: str) -> "AsyncWebClient":
+        """A Web API client for one bot's token.
+
+        The `slack_sdk` import is deferred to the call rather than the module so a
+        deployment that runs no Slack bot does not pay for the SDK at import time,
+        which is why every caller builds a client per request rather than holding
+        one on the adapter.
+        """
+        from slack_sdk.web.async_client import AsyncWebClient
+
+        return AsyncWebClient(token=bot_token)
+
     async def begin_reply(self, bot_token: str, msg: OutgoingMessage) -> str | None:
         """Post the message that will become the answer, and return its `ts`.
 
@@ -68,30 +85,24 @@ class SlackAdapter(ChannelAdapter):
         which is why the channel and the thread are split apart here the same way
         `send_message` splits them.
         """
-        from slack_sdk.web.async_client import AsyncWebClient
-
-        channel, _, thread_ts = msg.platform_chat_id.partition(":")
+        channel, thread_ts = split_thread(msg.platform_chat_id)
         kwargs: dict[str, Any] = {"channel": channel, "text": msg.text}
         if thread_ts:
             kwargs["thread_ts"] = thread_ts
-        response = await AsyncWebClient(token=bot_token).chat_postMessage(**kwargs)
+        response = await self._web(bot_token).chat_postMessage(**kwargs)
         posted = response.get("ts")
         return str(posted) if posted else None
 
     async def update_reply(self, bot_token: str, msg: OutgoingMessage, handle: str) -> None:
         """Rewrite a message already in the channel."""
-        from slack_sdk.web.async_client import AsyncWebClient
-
-        channel, _, _thread_ts = msg.platform_chat_id.partition(":")
-        await AsyncWebClient(token=bot_token).chat_update(channel=channel, ts=handle, text=msg.text)
+        channel, _thread_ts = split_thread(msg.platform_chat_id)
+        await self._web(bot_token).chat_update(channel=channel, ts=handle, text=msg.text)
 
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Send a reply back to Slack via the Web API."""
-        from slack_sdk.web.async_client import AsyncWebClient
+        client = self._web(bot_token)
 
-        client = AsyncWebClient(token=bot_token)
-
-        channel, _, thread_ts = msg.platform_chat_id.partition(":")
+        channel, thread_ts = split_thread(msg.platform_chat_id)
 
         kwargs: dict[str, Any] = {
             "channel": channel,
@@ -156,9 +167,7 @@ class SlackAdapter(ChannelAdapter):
         self, bot_token: str, channel_id: str, *, api_base_url: str | None
     ) -> ChannelDetails:
         """`conversations.info`, with the member count Slack only sends on request."""
-        from slack_sdk.web.async_client import AsyncWebClient
-
-        response = await AsyncWebClient(token=bot_token).conversations_info(
+        response = await self._web(bot_token).conversations_info(
             channel=channel_id, include_num_members=True
         )
         found: dict[str, Any] = response.get("channel") or {}
@@ -181,9 +190,7 @@ class SlackAdapter(ChannelAdapter):
         bounded by `limit`, because this runs inside a tool call somebody is
         waiting on, and serially it is the length of the channel in round trips.
         """
-        from slack_sdk.web.async_client import AsyncWebClient
-
-        client = AsyncWebClient(token=bot_token)
+        client = self._web(bot_token)
         response = await client.conversations_members(channel=channel_id, limit=limit)
         user_ids = [str(user_id) for user_id in (response.get("members") or [])][:limit]
         if not user_ids:
@@ -218,9 +225,7 @@ class SlackAdapter(ChannelAdapter):
         bigger than it answers "not a member", logged, which is the participant
         model's safe default rather than a claim about the room.
         """
-        from slack_sdk.web.async_client import AsyncWebClient
-
-        client = AsyncWebClient(token=bot_token)
+        client = self._web(bot_token)
         cursor: str | None = None
         for _ in range(_MEMBERSHIP_PAGES):
             response = await client.conversations_members(
@@ -250,9 +255,7 @@ class SlackAdapter(ChannelAdapter):
         name and the purpose - the two fields somebody would have typed into a
         search box.
         """
-        from slack_sdk.web.async_client import AsyncWebClient
-
-        response = await AsyncWebClient(token=bot_token).conversations_list(
+        response = await self._web(bot_token).conversations_list(
             types="public_channel,private_channel", limit=1000, exclude_archived=True
         )
         needle = query.casefold()
@@ -285,11 +288,7 @@ class SlackAdapter(ChannelAdapter):
         the tool for turning ids into people, and the model can call it when the
         answer actually depends on who spoke.
         """
-        from slack_sdk.web.async_client import AsyncWebClient
-
-        response = await AsyncWebClient(token=bot_token).conversations_history(
-            channel=channel_id, limit=limit
-        )
+        response = await self._web(bot_token).conversations_history(channel=channel_id, limit=limit)
         messages = list(reversed(response.get("messages") or []))
         return [
             ChannelPost(
@@ -373,9 +372,7 @@ class SlackAdapter(ChannelAdapter):
 
         client = SocketModeClient(
             app_token=app_token,
-            web_client=__import__(
-                "slack_sdk.web.async_client", fromlist=["AsyncWebClient"]
-            ).AsyncWebClient(token=bot_token),
+            web_client=self._web(bot_token),
         )
 
         async def handler(client_: Any, req: SocketModeRequest) -> None:

@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import hmac
 import logging
+from collections.abc import AsyncIterator
 from typing import Any
 
 from aiogram import Bot, Dispatcher
@@ -46,10 +47,28 @@ class TelegramAdapter(ChannelAdapter):
     def __init__(self) -> None:
         self._polling_tasks: dict[str, asyncio.Task[None]] = {}
 
+    @staticmethod
+    @contextlib.asynccontextmanager
+    async def _bot(
+        bot_token: str, *, default: DefaultBotProperties | None = None
+    ) -> AsyncIterator[Bot]:
+        """A Telegram bot bound to one token, its TLS session closed on the way out.
+
+        aiogram opens a fresh session per `Bot` and leaks the connection if it is
+        not closed, so every send and every read goes through one of these rather
+        than repeating the try/finally. `default` is how the streamed replies ask
+        for Markdown parse mode while the plain sends take none; `None` builds a bot
+        with no default, the historic form the rest use.
+        """
+        bot = Bot(token=bot_token, default=default) if default is not None else Bot(token=bot_token)
+        try:
+            yield bot
+        finally:
+            await bot.session.close()
+
     async def begin_reply(self, bot_token: str, msg: OutgoingMessage) -> str | None:
         """Send the message that will become the answer, and return its id."""
-        bot = Bot(token=bot_token)
-        try:
+        async with self._bot(bot_token) as bot:
             sent = await bot.send_message(
                 chat_id=msg.platform_chat_id,
                 text=msg.text,
@@ -57,8 +76,6 @@ class TelegramAdapter(ChannelAdapter):
                 if msg.reply_to_message_id
                 else None,
             )
-        finally:
-            await bot.session.close()
         return str(sent.message_id)
 
     async def update_reply(self, bot_token: str, msg: OutgoingMessage, handle: str) -> None:
@@ -68,13 +85,10 @@ class TelegramAdapter(ChannelAdapter):
         being streamed, and Telegram rejects an unclosed `**` with a 400. The
         final send formats it, once the text is whole.
         """
-        bot = Bot(token=bot_token)
-        try:
+        async with self._bot(bot_token) as bot:
             await bot.edit_message_text(
                 chat_id=msg.platform_chat_id, message_id=int(handle), text=msg.text
             )
-        finally:
-            await bot.session.close()
 
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Send a reply back to Telegram.
@@ -82,12 +96,10 @@ class TelegramAdapter(ChannelAdapter):
         Tries Markdown parse mode first; falls back to plain text if
         Telegram rejects the formatting (common with LLM-generated markdown).
         """
-        bot = Bot(
-            token=bot_token,
-            default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN),
-        )
         reply_to = int(msg.reply_to_message_id) if msg.reply_to_message_id else None
-        try:
+        async with self._bot(
+            bot_token, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN)
+        ) as bot:
             if msg.image_png is not None:
                 from aiogram.types import BufferedInputFile
 
@@ -115,8 +127,6 @@ class TelegramAdapter(ChannelAdapter):
                     parse_mode=None,
                     reply_to_message_id=reply_to,
                 )
-        finally:
-            await bot.session.close()
 
     @staticmethod
     async def _send_documents(bot: Bot, msg: OutgoingMessage, reply_to: int | None) -> None:
@@ -169,12 +179,9 @@ class TelegramAdapter(ChannelAdapter):
         A Telegram chat has a `description` and no separate topic, so `purpose`
         carries it and `topic` stays empty rather than repeating it.
         """
-        bot = Bot(token=bot_token)
-        try:
+        async with self._bot(bot_token) as bot:
             chat = await bot.get_chat(chat_id=channel_id)
             count = await bot.get_chat_member_count(chat_id=channel_id)
-        finally:
-            await bot.session.close()
 
         return ChannelDetails(
             channel_id=str(chat.id),
@@ -195,11 +202,8 @@ class TelegramAdapter(ChannelAdapter):
         while reading as "everybody here" would have the model tell somebody
         their colleague is not in the chat.
         """
-        bot = Bot(token=bot_token)
-        try:
+        async with self._bot(bot_token) as bot:
             administrators = await bot.get_chat_administrators(chat_id=channel_id)
-        finally:
-            await bot.session.close()
 
         return [
             ChannelMember(
@@ -229,13 +233,11 @@ class TelegramAdapter(ChannelAdapter):
             member_id = int(platform_user_id)
         except ValueError:
             return False
-        bot = Bot(token=bot_token)
-        try:
-            found = await bot.get_chat_member(chat_id=channel_id, user_id=member_id)
-        except TelegramBadRequest:
-            return False
-        finally:
-            await bot.session.close()
+        async with self._bot(bot_token) as bot:
+            try:
+                found = await bot.get_chat_member(chat_id=channel_id, user_id=member_id)
+            except TelegramBadRequest:
+                return False
         return found.status not in ("left", "kicked")
 
     async def start_polling(self, bot_id: str, bot_token: str) -> None:
@@ -273,44 +275,36 @@ class TelegramAdapter(ChannelAdapter):
 
     async def _run_polling_once(self, bot_id: str, bot_token: str) -> None:
         """Run one polling session using aiogram Dispatcher."""
-        bot = Bot(
-            token=bot_token,
-            default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN),
-        )
-        dp = Dispatcher()
+        async with self._bot(
+            bot_token, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN)
+        ) as bot:
+            dp = Dispatcher()
 
-        @dp.message()
-        async def on_message(message: AiogramMessage) -> None:
-            await self._handle_update(message, bot_id)
+            @dp.message()
+            async def on_message(message: AiogramMessage) -> None:
+                await self._handle_update(message, bot_id)
 
-        try:
             await dp.start_polling(bot, handle_signals=False)
-        finally:
-            await bot.session.close()
 
     async def register_webhook(self, bot_token: str, url: str, secret: str | None) -> bool:
         """Register a webhook URL with Telegram."""
-        bot = Bot(token=bot_token)
-        try:
-            await bot.set_webhook(url=url, secret_token=secret)
-            return True
-        except Exception:
-            logger.exception("Failed to register Telegram webhook")
-            return False
-        finally:
-            await bot.session.close()
+        async with self._bot(bot_token) as bot:
+            try:
+                await bot.set_webhook(url=url, secret_token=secret)
+                return True
+            except Exception:
+                logger.exception("Failed to register Telegram webhook")
+                return False
 
     async def delete_webhook(self, bot_token: str) -> bool:
         """Remove the webhook from Telegram."""
-        bot = Bot(token=bot_token)
-        try:
-            await bot.delete_webhook()
-            return True
-        except Exception:
-            logger.exception("Failed to delete Telegram webhook")
-            return False
-        finally:
-            await bot.session.close()
+        async with self._bot(bot_token) as bot:
+            try:
+                await bot.delete_webhook()
+                return True
+            except Exception:
+                logger.exception("Failed to delete Telegram webhook")
+                return False
 
     def verify_webhook_signature(
         self, headers: dict[str, str], secret: str, body: str | None = None
@@ -432,8 +426,7 @@ class TelegramAdapter(ChannelAdapter):
         and the path it resolves to expires - so resolving it at parse time would
         hand the router a link that had gone stale by the time anybody used it.
         """
-        bot = Bot(token=bot_token)
-        try:
+        async with self._bot(bot_token) as bot:
             info = await bot.get_file(attachment.handle)
             if info.file_path is None:
                 raise ValueError(f"Telegram returned no path for {attachment.filename}")
@@ -441,8 +434,6 @@ class TelegramAdapter(ChannelAdapter):
             if buffer is None:
                 raise ValueError(f"Telegram returned no bytes for {attachment.filename}")
             return buffer.read()
-        finally:
-            await bot.session.close()
 
     async def _handle_update(self, message: AiogramMessage, bot_id: str) -> None:
         """Route one update from the polling loop, through the one parser.
