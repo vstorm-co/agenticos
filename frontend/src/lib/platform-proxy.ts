@@ -49,9 +49,18 @@ const WITH_BODY = new Set(["POST", "PUT", "PATCH"]);
  * A proxy forwards what the origin said rather than inventing a policy of its
  * own: `Content-Disposition` is how a download gets its filename, and a
  * `Cache-Control` the backend chose - the catalog icons, an embed bundle - is
- * the backend's decision to make.
+ * the backend's decision to make. `Content-Length` is here because the response
+ * body is streamed through rather than buffered: without carrying the length the
+ * backend declared, the hop would turn a known-size download into a chunked one
+ * and a progress bar into a spinner, and lose the size a truncated transfer is
+ * detected against.
  */
-const DESCRIBES_THE_BODY = ["content-type", "content-disposition", "cache-control"];
+const DESCRIBES_THE_BODY = [
+  "content-type",
+  "content-disposition",
+  "cache-control",
+  "content-length",
+];
 
 /**
  * What a response gets when the backend named no policy at all.
@@ -120,18 +129,18 @@ export function platformProxy(): ProxyHandlers {
         ...(contentType ? { "Content-Type": contentType } : {}),
         ...(organizationId ? { [ORG_HEADER]: organizationId } : {}),
       },
-      // The request's own stream, not `await request.arrayBuffer()`: a 50 MB
-      // upload buffered whole in this process before one byte reaches FastAPI is
-      // memory the container's limit decides the fate of, and streaming keeps
-      // the bytes bytes without holding them. `duplex: "half"` is undici's
-      // requirement for a streamed request body and is not yet in the DOM
-      // `RequestInit` type, hence the cast.
-      body: WITH_BODY.has(request.method) ? request.body : undefined,
-      duplex: "half",
+      // Bytes, not text, and buffered rather than streamed. Reading the body as
+      // an ArrayBuffer keeps a PDF's bytes intact, and keeping it buffered is
+      // deliberate: a streamed request body cannot be replayed, so undici cannot
+      // follow the 307 FastAPI answers on a trailing-slash mismatch, and it
+      // drops `Content-Length`, which is the header `BodySizeLimitMiddleware`
+      // reads to reject an oversized upload early. The response is where
+      // streaming pays and costs nothing (below); the request is not.
+      body: WITH_BODY.has(request.method) ? await request.arrayBuffer() : undefined,
       // A proxy must never serve a cached answer: the reply depends on the
       // caller's role and on rows that change under them.
       cache: "no-store",
-    } as RequestInit & { duplex: "half" });
+    });
 
     // The backend's own body stream, passed through rather than buffered: a 204
     // carries a null body and stays empty, an error body reaches the client

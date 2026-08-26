@@ -107,7 +107,10 @@ describe("platformProxy", () => {
     expect(await response.json()).toEqual({ detail: "You cannot edit this agent" });
   });
 
-  it("streams a body through on writes rather than buffering it", async () => {
+  it("buffers a write body so a redirect can replay it and the size limit sees it", async () => {
+    // Not streamed: undici cannot replay a stream through the 307 FastAPI answers
+    // on a trailing-slash mismatch, and a streamed request carries no
+    // `Content-Length` for the backend's body-size check to read.
     const backend = backendReplies("{}");
 
     await platformProxy().POST(
@@ -115,13 +118,9 @@ describe("platformProxy", () => {
     );
 
     const init = backend.forwarded().init as RequestInit & { duplex?: string };
-    // The request's own stream is forwarded, not `await request.arrayBuffer()`,
-    // so a 50 MB upload is never held whole in this process. Read here only to
-    // prove the bytes survive the hop; `duplex: "half"` is what undici needs to
-    // send a streamed body.
-    expect(init.duplex).toBe("half");
-    const body = init.body as ReadableStream<Uint8Array>;
-    expect(await new Response(body).text()).toBe('{"spec":{"name":"S"}}');
+    expect(init.duplex).toBeUndefined();
+    const body = init.body as ArrayBuffer;
+    expect(new TextDecoder().decode(body)).toBe('{"spec":{"name":"S"}}');
   });
 
   it("does not read a body on a GET", async () => {
@@ -172,6 +171,17 @@ describe("platformProxy", () => {
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(pdf);
     expect(response.headers.get("Content-Type")).toBe("application/pdf");
     expect(response.headers.get("Content-Disposition")).toBe('attachment; filename="handbook.pdf"');
+  });
+
+  it("carries the backend's Content-Length on a streamed download", async () => {
+    // The response body is streamed, so the length no longer follows from a
+    // buffer: without forwarding it, a known-size download becomes a chunked one
+    // and a progress bar a spinner.
+    backendReplies('{"ok":true}', { headers: { "Content-Length": "11" } });
+
+    const response = await platformProxy().GET(request("/api/agents"));
+
+    expect(response.headers.get("Content-Length")).toBe("11");
   });
 
   it("returns an empty 204 rather than inventing a body", async () => {
