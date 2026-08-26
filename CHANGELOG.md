@@ -17,6 +17,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.272] - 2026-08-26
+
+### Fixed
+
+- **A malformed embed-token claim was a 500 rather than a refusal.**
+  `_verify_token` decoded a visitor token inside a `try/except jwt.PyJWTError`, but
+  a signed token whose `exp` or `iat` is `null`, `[]` or `{}` makes PyJWT's own
+  validation run `int()` on it - which raises a bare `TypeError`, not a
+  `PyJWTError`, so it escaped the handler and became an uncaught 500 with a logged
+  traceback. Not attacker-exploitable: claim validation runs after signature
+  verification, so minting such a token needs the customer's own signing secret,
+  and it fails closed. The catch covers `TypeError` now and raises `EmbedDenied`.
+  `ValueError` is left out deliberately - on the pinned PyJWT only these coercions
+  raise a bare `TypeError`, and every malformed-segment, base64, JSON or
+  non-numeric case is already a `PyJWTError` subclass, so catching it would be an
+  unreachable branch. (#1107)
+
 ## [0.0.271] - 2026-08-26
 
 ### Fixed
