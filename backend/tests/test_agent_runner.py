@@ -2861,3 +2861,25 @@ class TestACommitThatCannotLandRunner:
             await service.execute(_ctx(), uuid.uuid4(), "hello")
 
         db.commit.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_commit_failure_surfaces_even_inside_a_callers_except(self):
+        """#235 review: `sys.exc_info()` would report a *caller's* handled
+        exception and wrongly swallow a real commit failure on a run that itself
+        completed. The run's own terminal state is tracked instead, so the
+        failure surfaces."""
+        db = _db()
+        db.commit = AsyncMock(side_effect=RuntimeError("could not commit"))
+        service = AgentRunnerService(db)
+        prepared = _prepared()
+        prepared.built.agent.run = AsyncMock(return_value=MagicMock(output="ok"))
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+        ):
+            try:
+                raise ValueError("boom")  # noqa: TRY301 - a caller already mid-except
+            except ValueError:
+                with pytest.raises(RuntimeError, match="could not commit"):
+                    await service.execute(_ctx(), uuid.uuid4(), "hello")

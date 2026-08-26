@@ -957,3 +957,16 @@ class TestACommitThatCannotLand:
             with pytest.raises(asyncio.CancelledError):
                 await _run(db, stream=_cancelled)
         db.commit.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_commit_failure_surfaces_even_inside_a_callers_except(self):
+        """#235 review: a caller's handled exception must not make this run's own
+        commit failure look like the thing being unwound and get swallowed."""
+        db = _db()
+        db.commit = AsyncMock(side_effect=RuntimeError("could not commit"))
+        with _runner(_prepared()):
+            try:
+                raise ValueError("boom")  # noqa: TRY301 - a caller already mid-except
+            except ValueError:
+                with pytest.raises(RuntimeError, match="could not commit"):
+                    await _run(db)

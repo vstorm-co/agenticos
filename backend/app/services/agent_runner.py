@@ -54,7 +54,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import sys
 from collections import Counter
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
@@ -3325,6 +3324,13 @@ class AgentRunnerService:
         called: list[RecordedToolCall] = []
         settled: dict[str, str] = {}
         summarized: list[dict[str, Any]] | None = None
+        # True once this run reaches a terminal state here rather than unwinding -
+        # a completion, a park, or a caught budget/guardrail stop. It is what the
+        # terminal write below reads to decide whether a persistence failure
+        # should surface or be logged under the exception already propagating out
+        # of this run (#235). `sys.exc_info()` cannot answer that: it also reports
+        # a caller's handled exception when `execute` is awaited from inside one.
+        finished_cleanly = False
         try:
             result = await self._answer(
                 prepared,
@@ -3362,6 +3368,7 @@ class AgentRunnerService:
             else:
                 output = result.output
                 status = RunStatus.COMPLETED
+            finished_cleanly = True
         except asyncio.CancelledError:
             # The caller went away, or a delegation this run sits under was
             # stopped. Cancelled is not failed, and the tokens spent up to here
@@ -3376,6 +3383,7 @@ class AgentRunnerService:
             error = str(exc)
             budget_scope = exc.scope
             logger.info("Run %s stopped by budget: %s", prepared.run.id, exc)
+            finished_cleanly = True
         except GuardrailBlocked as exc:
             # A refusal, not a malfunction - its own status for the same reason
             # `BUDGET_EXCEEDED` is. The message names the edge and the refusal, not
@@ -3383,6 +3391,7 @@ class AgentRunnerService:
             status = RunStatus.GUARDRAIL_BLOCKED
             error = str(exc)
             logger.info("Run %s blocked by a %s guardrail", prepared.run.id, exc.edge)
+            finished_cleanly = True
         except Exception as exc:
             error = run_failure_summary(exc)
             logger.exception("Agent run %s failed", prepared.run.id)
@@ -3400,7 +3409,6 @@ class AgentRunnerService:
             # on any exception and is skipped entirely by a cancellation, so a run
             # that failed, was stopped or ran out of budget would otherwise vanish
             # from the history somebody opens.
-            ending = sys.exc_info()[0]
             try:
                 await self.finish(
                     prepared,
@@ -3454,7 +3462,7 @@ class AgentRunnerService:
                         )
                 await self.db.commit()
             except Exception:
-                if ending is None:
+                if finished_cleanly:
                     raise
                 logger.exception("Could not persist the terminal state of run %s", prepared.run.id)
 

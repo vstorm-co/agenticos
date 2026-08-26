@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import sys
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
@@ -383,6 +382,14 @@ class ChatAgentRunner:
         budget_scope: BudgetScope | None = None
         output = ""
         summarized: list[dict[str, Any]] | None = None
+        # Set as the last statement of the `try`, so it is True only when this run
+        # completed or parked without raising. It is what the terminal write below
+        # reads to decide whether a persistence failure should surface or be
+        # logged under the exception already unwinding this run (#235).
+        # `sys.exc_info()` cannot answer that: it also reports a *caller's* handled
+        # exception when `run` is awaited from inside one, which would suppress a
+        # real persistence failure on a run that itself succeeded.
+        finished_cleanly = False
         try:
             async with prepared.iterate(
                 user_input,
@@ -409,6 +416,7 @@ class ChatAgentRunner:
             else:
                 output = result.output
                 status = RunStatus.COMPLETED
+            finished_cleanly = True
         except asyncio.CancelledError:
             # The user pressed stop, or the socket went away mid-run. Cancelled
             # is not failed, and the tokens spent up to here were still spent.
@@ -448,7 +456,6 @@ class ChatAgentRunner:
             # the session context: that exit rolls back on any exception and is
             # skipped entirely by a cancellation, so a run that failed, was stopped
             # or ran out of budget would otherwise vanish from history.
-            ending = sys.exc_info()[0]
             try:
                 await self.runner.finish(
                     prepared,
@@ -459,7 +466,7 @@ class ChatAgentRunner:
                 )
                 await self.db.commit()
             except Exception:
-                if ending is None:
+                if finished_cleanly:
                     raise
                 logger.exception("Could not persist the terminal state of run %s", prepared.run.id)
 
