@@ -17,6 +17,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.257] - 2026-08-26
+
+### Fixed
+
+- **Twelve specs mocked `next-intl` as a translator missing part of `t`** - eleven
+  as a bare `(key) => key`, and `kb-detail-sections` as a hand-rolled cache that
+  had grown `t.rich` but still lacked `t.markup` and `t.has`. `t` carries all three,
+  and a component reading a message with a tag calls `t.rich`. They were green only
+  because none of their components reads a rich message *yet*: the #395 guard steers
+  copy toward `t.rich`, so they will, and then one throws `t.rich is not a function`
+  inside a component several files from the assertion - which is exactly how #610
+  was found. A shared `keyTranslations(format)` in `src/test-utils/intl.ts` is now
+  the one definition of a key-returning translator, complete with `rich`, `markup`
+  and `has`, and each local mock uses it while keeping its own key shape and, for
+  kb-detail, its per-namespace cache, so no assertion moved. The mock factory is
+  `async` and imports the helper inside itself, because `vi.mock` is hoisted above
+  the static imports. `intl.test.ts` asserts the helper carries all three, so the
+  next mock added by copy-paste cannot lose them silently. (#612, #610)
+
 ## [0.0.256] - 2026-08-26
 
 ### Changed
