@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.258] - 2026-08-26
+
+### Fixed
+
+- **Nothing called `background.drain()`, though its docstring said the lifespan
+  did.** So shutting down mid-flight cancelled an ingestion or a sync that
+  `background.spawn` had handed off, and left a document stuck in `processing`
+  forever. The lifespan now awaits the drain after intake stops and before the
+  vector store, Redis and the session are disposed - the draining task reads all
+  three, so it has to finish or be cancelled first. `tests/test_lifespan_drain.py`
+  drives the real `main.lifespan` with startup's heavy collaborators stubbed,
+  spawns a task inside the serving window and asserts it runs to completion on
+  shutdown. (#11)
+
 ## [0.0.257] - 2026-08-26
 
 ### Fixed
