@@ -61,6 +61,8 @@ export default defineConfig({
         // cards #149 added are outside the gate, and pulling them in with a
         // directory glob would make this branch responsible for covering them.
         "src/components/dashboard/widgets/sandbox-*.tsx",
+        // The routines card, held to the gate by #594's own "done when".
+        "src/components/dashboard/widgets/routines.tsx",
         "src/components/orgs/**/*.tsx",
         "src/components/runs/**/*.tsx",
         "src/components/sandboxes/**/*.tsx",

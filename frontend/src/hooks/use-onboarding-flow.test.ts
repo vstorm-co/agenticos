@@ -29,6 +29,9 @@ const rig = vi.hoisted(() => ({
   mcpLoading: false,
   orgs: [] as unknown[] | undefined,
   routines: 0,
+  anyRunnable: true,
+  anyRunnableLoading: false,
+  anyRunnableFetching: false,
   can: (_permission: Permission): boolean => true,
 }));
 
@@ -79,6 +82,13 @@ vi.mock("@/hooks/use-organizations", () => ({
 vi.mock("@/hooks/use-org-triggers", () => ({
   useOrgTriggers: () => ({ total: rig.routines, isLoading: false }),
 }));
+vi.mock("@/hooks/use-can-create-trigger", () => ({
+  useCanCreateTriggerQuery: () => ({
+    canCreate: rig.anyRunnable,
+    isLoading: rig.anyRunnableLoading,
+    isFetching: rig.anyRunnableLoading || rig.anyRunnableFetching,
+  }),
+}));
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: rig.can, isLoading: false, error: null }),
 }));
@@ -120,6 +130,9 @@ beforeEach(() => {
   rig.mcpLoading = false;
   rig.orgs = [];
   rig.routines = 0;
+  rig.anyRunnable = true;
+  rig.anyRunnableLoading = false;
+  rig.anyRunnableFetching = false;
   rig.can = () => true;
   nav.pathname = "/dashboard";
   useAgentSelectionStore.setState({ selectedAgentId: null });
@@ -177,6 +190,52 @@ describe("useOnboardingFlow", () => {
     rig.agentsLoading = false;
     rerender();
     expect(result.current.isActive).toBe(true);
+  });
+
+  it("waits for the runnable-agent answer, then runs the routine flow inert-free", () => {
+    // The routine flow's steps branch on the per-agent `can_run` answer, so the
+    // snapshot must not freeze "no runnable agent" from the unanswered first
+    // frame - a flow frozen on that default would drop both steps for a caller
+    // whose answer was merely still in flight.
+    rig.anyRunnableLoading = true;
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-routine"));
+    expect(result.current.isActive).toBe(false);
+
+    rig.anyRunnableLoading = false;
+    rerender();
+    expect(result.current.isActive).toBe(true);
+    expect(result.current.steps.map((step) => step.id)).toEqual([
+      "flow-routine-create",
+      "flow-routine-run-now",
+    ]);
+  });
+
+  it("does not freeze a runnable-agent answer a refetch is about to replace", () => {
+    // Cached-but-stale: React Query reports isLoading false the moment it holds
+    // any answer, while the refetch that may overturn it is still in flight.
+    // Freezing that stale answer strands the flow either way - a revoked grant
+    // waits on buttons the refresh hides, a fresh one reads as inert.
+    rig.anyRunnableFetching = true;
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-routine"));
+    expect(result.current.isActive).toBe(false);
+
+    rig.anyRunnableFetching = false;
+    rerender();
+    expect(result.current.isActive).toBe(true);
+  });
+
+  it("goes inert, not frozen, for a caller who can run no agent", () => {
+    // Scope-blind `can` passes here, but no reachable agent is runnable, so the
+    // page never mounts the create buttons the first step points at - and the
+    // coach waits on a flow target without a timeout. Zero steps keeps the coach
+    // unmounted instead.
+    rig.anyRunnable = false;
+    const { result } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-routine"));
+    expect(result.current.steps).toHaveLength(0);
+    expect(result.current.isActive).toBe(false);
   });
 
   it("meets the signal only once the resource list grows past where it began", () => {
