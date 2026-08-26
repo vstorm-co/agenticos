@@ -41,7 +41,7 @@ from app.services import rate_limit
 from app.services import trigger_dedupe
 from app.services.channels import dedupe as channel_dedupe
 from app.services.channels import membership as channel_membership
-from app.services.channels.supervisor import open_inbound_stream
+from app.services.channels.supervisor import allow_intake, begin_shutdown, open_inbound_stream
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +143,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     from app.services.channels.slack import SlackAdapter
     from app.services.channels.telegram import TelegramAdapter
 
+    # A previous lifespan in this process (a test, a reload) may have declined
+    # intake on its way down; this one is serving, so permit it again (#1119).
+    allow_intake()
+
     _telegram_adapter = TelegramAdapter()
     register_adapter(_telegram_adapter)
     try:
@@ -172,6 +176,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # watched; app/core/watchdog.py says why.
     watchdog.start()
     yield state
+    # Decline new intake before anything else: a bot activated moments ago left a
+    # deferred `open_inbound_stream` that `drain()` below awaits, and without this
+    # its `start_polling` would reopen a stream after the stop loops - after intake
+    # was meant to be closed (#1119).
+    begin_shutdown()
     # The channel consumers stop first, and the stores go after them. Serving is
     # already drained by the time this runs, but a polling task is work this
     # process owns: an inbound Telegram or Slack message can start a run, and a
