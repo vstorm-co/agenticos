@@ -269,8 +269,8 @@ async def _prepare(
         name = "delegate" if pinned is None else str(pinned.spec["name"])
         return _agent_row(delegate_id, slug=_slug(name))
 
-    async def get_collection(_db: Any, collection_id: uuid.UUID) -> Any:
-        return known_collections.get(collection_id)
+    async def get_collections(_db: Any, ids: Any) -> Any:
+        return {cid: known_collections[cid] for cid in ids if cid in known_collections}
 
     catalog = [_profile("fast")] if profiles is None else profiles
     by_id = {profile.id: profile for profile in catalog}
@@ -306,7 +306,9 @@ async def _prepare(
             new=AsyncMock(return_value=None if workspace is None else MagicMock(backend=workspace)),
         ),
         patch(f"{RUNNER}.workspace_snapshot", new=AsyncMock(return_value=set())),
-        patch(f"{RUNNER}.knowledge_base_repo.get_by_id", new=AsyncMock(side_effect=get_collection)),
+        patch(
+            f"{RUNNER}.knowledge_base_repo.get_by_ids", new=AsyncMock(side_effect=get_collections)
+        ),
         patch(
             f"{RUNNER}.agent_repo.get_version", new=AsyncMock(side_effect=get_version)
         ) as fetch_version,

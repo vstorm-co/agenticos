@@ -14,6 +14,19 @@ async def get_by_id(db: AsyncSession, kb_id: UUID) -> KnowledgeBase | None:
     return await db.get(KnowledgeBase, kb_id)
 
 
+async def get_by_ids(db: AsyncSession, ids: Sequence[UUID]) -> dict[UUID, KnowledgeBase]:
+    """The collections for a set of ids, keyed by id, in one query.
+
+    An id with no row is simply absent from the map, the same way `get_by_id`
+    answers `None`: the caller decides what a reference to a collection that is
+    gone means, and here it degrades an agent's reach rather than failing a run.
+    """
+    if not ids:
+        return {}
+    result = await db.execute(select(KnowledgeBase).where(KnowledgeBase.id.in_(ids)))
+    return {kb.id: kb for kb in result.scalars()}
+
+
 async def get_accessible(
     db: AsyncSession,
     *,

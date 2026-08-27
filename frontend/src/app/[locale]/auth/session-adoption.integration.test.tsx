@@ -7,6 +7,7 @@ import CallbackPage from "./callback/page";
 import MagicLinkPage from "./magic-link/page";
 import { AuthGuard } from "@/components/layout/auth-guard";
 import { apiClient } from "@/lib/api-client";
+import { rememberReturnTo } from "@/lib/oauth-return";
 import { useAuthStore, useConversationStore } from "@/stores";
 
 /**
@@ -61,6 +62,7 @@ beforeEach(() => {
   searchParams.forEach((_, key) => searchParams.delete(key));
   useAuthStore.getState().logout();
   useConversationStore.getState().reset();
+  window.sessionStorage.clear();
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 });
 
@@ -105,6 +107,54 @@ describe("the OAuth callback", () => {
     resolve({ user: arriving, access_token: "t-new" });
     await waitFor(() => expect(useAuthStore.getState().user?.id).toBe("u-new"));
     expect(apiClient.post).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * Where the round trip ends (#135).
+ *
+ * A visitor at `/login?returnTo=/agents/a-1` who signed in with the password
+ * form resumed the deep link; one who clicked a provider button landed on the
+ * dashboard, so which button they picked decided where they ended up. The path
+ * is written beside the provider link - `oauth-buttons.test.tsx` holds that
+ * half - and read back here.
+ */
+describe("where the OAuth callback lands", () => {
+  async function signIn() {
+    searchParams.set("code", "one-time");
+    vi.mocked(apiClient.post).mockResolvedValue({ user: arriving, access_token: "t-new" });
+    render(
+      <QueryClientProvider client={client}>
+        <CallbackPage />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(replace).toHaveBeenCalled());
+    return vi.mocked(replace).mock.calls[0]?.[0];
+  }
+
+  it("resumes the deep link the visitor was headed to", async () => {
+    rememberReturnTo("/agents/a-1");
+
+    expect(await signIn()).toBe("/agents/a-1");
+  });
+
+  it("consumes it, so a second sign-in in this tab does not resume it", async () => {
+    rememberReturnTo("/agents/a-1");
+    await signIn();
+
+    expect(window.sessionStorage.getItem("oauthReturnTo")).toBeNull();
+  });
+
+  it("lands on the dashboard when the trip carried no deep link", async () => {
+    expect(await signIn()).toBe("/dashboard");
+  });
+
+  it("refuses a path that leaves this origin", async () => {
+    // `postSignInDestination` is the one place that decides this, and it stays
+    // the one place: nothing on the way here re-implements the check.
+    rememberReturnTo("//evil.example/agents");
+
+    expect(await signIn()).toBe("/dashboard");
   });
 });
 

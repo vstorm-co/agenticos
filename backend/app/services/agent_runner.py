@@ -1029,6 +1029,27 @@ def _outcome(
     return agent_run.result
 
 
+def _classify_output(
+    result: AgentRunResult[str | DeferredToolRequests], *, parked: dict[str, str]
+) -> tuple[RunStatus, str, PausedRunState | None]:
+    """The terminal status a finished run reaches, and what it carries there.
+
+    The success half of both run surfaces - the batch runner's `_run` and the
+    chat runner - which have to move in lockstep: a `DeferredToolRequests` output
+    is a run parked on an approval, and a new `PausedRunState` field or a change to
+    how a park is recorded belongs in one place rather than two copies. Anything
+    else is the completed answer. The exception paths differ between the two (the
+    chat surface re-raises so the waiting caller is told why) and stay with each.
+    """
+    if isinstance(result.output, DeferredToolRequests):
+        paused = PausedRunState(
+            messages=ModelMessagesTypeAdapter.dump_python(result.all_messages(), mode="json"),
+            tool_call_ids=parked,
+        )
+        return RunStatus.AWAITING_APPROVAL, "", paused
+    return RunStatus.COMPLETED, result.output, None
+
+
 type RunStream = Callable[[AgentIteration[AgentDeps, str | DeferredToolRequests]], Awaitable[None]]
 """How a surface that shows an answer arriving drives the run.
 
@@ -1430,9 +1451,10 @@ class AgentRunnerService:
         Resolved server-side and passed through deps: the model asks *what* to
         search, never *where*.
         """
+        found = await knowledge_base_repo.get_by_ids(self.db, spec.collection_ids)
         names: list[str] = []
         for collection_id in spec.collection_ids:
-            collection = await knowledge_base_repo.get_by_id(self.db, collection_id)
+            collection = found.get(collection_id)
             if collection is None or collection.organization_id != ctx.organization_id:
                 # A collection deleted after publish degrades the agent's reach
                 # rather than failing the run - the answer is worse, not absent.
@@ -1499,10 +1521,13 @@ class AgentRunnerService:
                 row and its unsealed token, and a capability may reach neither -
                 the same reason the workspace backend is opened here rather than
                 inside `sandbox`.
-            exposure: The binding that admitted this run, when one did. It is
-                stamped on the run row and its caps are enforced - so a run that
-                arrived through a place the agent was published to is both
-                attributable to that place and bounded by it.
+            exposure: The binding that admitted this run, when one did. It
+                supplies the prompt appended to the spec, the channel tools it
+                grants, its environment and its session scope, and is stamped on
+                the run row - so a run that arrived through a place the agent was
+                published to is attributable to that place. It carries no cap of
+                its own: the two budgets are the agent's and the organization's
+                (`BudgetScope`), and `agent_exposures` has no cap column.
             model_profile_id: Run on this model instead of the one the spec
                 names. What an agent *does* - its instructions, its tools, its
                 approval gates - is unchanged; only which model executes it is.
@@ -1700,6 +1725,15 @@ class AgentRunnerService:
         # made on one flow's event loop breaks whoever checks it out on the
         # next, and this read happens on whatever loop the run is on. One
         # connect per run, next to a model call.
+        # Both leave this run's own row out. A baseline is what *other* runs have
+        # already spent; what this one spends is the ledger's, and on a resume
+        # the two are the same money. A run that spent $6 and parked has
+        # `cost_usd = 6.00` committed, and the ledger is re-seeded with that $6
+        # so finishing does not overwrite the cost with only the continuation's -
+        # summed as well, the first model request after an approval saw $12
+        # against a $10 cap and refused a run with $4 of headroom (#15). On a
+        # fresh run the row is there too, at zero, so this changes nothing and
+        # needs no branch.
         async def agent_period_spend() -> Decimal:
             async with get_worker_db_context() as db:
                 return await agent_run_repo.sum_cost_since(
@@ -1708,11 +1742,14 @@ class AgentRunnerService:
                     since=month_start(),
                     agent_id=agent.id,
                     include_delegations=True,
+                    exclude_run_id=run.id,
                 )
 
         async def org_period_spend() -> Decimal:
             async with get_worker_db_context() as db:
-                return await organization_monthly_spend(db, ctx.organization_id)
+                return await organization_monthly_spend(
+                    db, ctx.organization_id, exclude_run_id=run.id
+                )
 
         # Opened after the run row, because a run-scoped workspace keys on it,
         # and before the agent, because the capability reads the backend out of
@@ -3413,20 +3450,11 @@ class AgentRunnerService:
             # the one call a person reviewed as the one call with no recorded
             # output anywhere (agenticos#506).
             settled = settled_calls_in(new_messages)
-            if isinstance(result.output, DeferredToolRequests):
-                paused = PausedRunState(
-                    messages=ModelMessagesTypeAdapter.dump_python(
-                        result.all_messages(), mode="json"
-                    ),
-                    tool_call_ids=prepared.approvals.parked,
-                )
-                status = RunStatus.AWAITING_APPROVAL
+            status, output, paused = _classify_output(result, parked=prepared.approvals.parked)
+            if paused is not None:
                 logger.info(
                     "Run %s parked on %d approval(s)", prepared.run.id, len(paused.tool_call_ids)
                 )
-            else:
-                output = result.output
-                status = RunStatus.COMPLETED
             finished_cleanly = True
         except asyncio.CancelledError:
             # The caller went away, or a delegation this run sits under was

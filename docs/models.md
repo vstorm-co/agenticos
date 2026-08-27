@@ -152,9 +152,40 @@ over the others.
 provider cannot be selectable in the Builder without being constructible at run
 time.
 
+## Which list answers which question
+
+Six things in this repository know something about models and providers, and they
+are not six copies of one list. Each answers a different question, and the one
+they are all derived from is the first:
+
+| Ask | Answered by |
+|---|---|
+| Which providers may a profile point at, and what credential does each want? | `PROVIDERS` in `backend/app/agents/model_resolver.py` — **the source of truth**, and only for the part model inference cannot know |
+| How do I construct the client? | `pydantic_ai`'s own `infer_provider_class` / `infer_model`. Not this platform's business, and deliberately not restated here |
+| How do I read this provider's live model list? | `backend/app/core/catalog/model_listings.json` |
+| What do I suggest when the provider cannot be asked? | `backend/app/core/catalog/curated_models.json` |
+| What does this model cost, and how much context does it take? | the `genai-prices` snapshot, through `model_catalog.priced_model` |
+| Which models draw images? | `backend/app/core/catalog/image_models.json`, plus the SDK's own answer about which providers can draw at all |
+
+Everything below the first row is **derived** from it, and a derived copy that
+drifts fails nothing at run time — it shows a picker for a provider that does not
+exist, or leaves out one that does.
+`tests/test_model_catalog.py::TestOneAnswerPerQuestion` is what makes that a
+failing build instead: every key in either catalog file has to name a provider
+`PROVIDERS` has, so does every entry in the image catalog, and every provider has
+to appear on this page. Adding the twenty-eighth is one edit plus whatever that
+test then asks for.
+
+Two crossings are worth knowing about because they are lookups that can answer
+nothing. The price snapshot spells three providers differently — `xai` is `x-ai`,
+`bedrock` is `aws`, `google_cloud` is `google` — and `_PRICE_PROVIDER_ALIASES`
+bridges them. The image catalog carries its own `provider` and `prefix` pair,
+which is a third vocabulary again.
+
 ## Which models a provider offers
 
-The model-id field is populated from two sources, in this order.
+The model-id field is populated from two sources, in this order — and from
+neither, for seven providers, which the answer says out loud.
 
 **Live.** Twenty providers publish a list endpoint, and it is the only source that
 knows about a model released this morning: `anthropic`, `openai`, `google`,
@@ -187,7 +218,7 @@ which providers can draw at all — see
 
 **Curated.** A short list per provider, used when the provider publishes nothing,
 when the call fails, or when there is no key to make it with. It lives in
-`backend/app/core/catalog/model_fallbacks.json` beside the other deployment
+`backend/app/core/catalog/curated_models.json` beside the other deployment
 catalogs, so adding a model is one entry rather than a Python edit — and the
 listings themselves are `model_listings.json` in the same directory, which is what
 makes a new provider's endpoint data too.
@@ -216,6 +247,16 @@ which is the null the paragraph below describes.
 | `xai` | `grok-4.5`, `grok-4.3` |
 | `groq` | `openai/gpt-oss-120b`, `llama-3.3-70b-versatile` |
 | `openrouter` | five common cross-provider ids |
+
+**Neither, and it says so.** Seven providers publish no listing this platform can
+read and have no curated entry — `github`, `heroku`, `ollama`, `litellm`, `azure`,
+`bedrock` and `google_cloud`. The response's `source` is `unlisted` for those,
+not `curated`: an empty shortlist is not a shortlist, and claiming one is what
+turns "this platform cannot enumerate this provider" into "this provider has no
+models" (#923). The picker asks for the id instead. `ollama` and `litellm` are the
+ones worth wiring — both publish an OpenAI-shaped `/v1/models` at the endpoint
+the profile already stores — and that needs the listing to be told a base URL,
+which a fixed `ListingSpec.url` cannot be.
 
 Neither source is authoritative, which is why the field stays free text.
 

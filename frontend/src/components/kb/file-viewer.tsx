@@ -12,6 +12,7 @@ import { JsonView } from "@/components/ui/json-view";
 import { qk } from "@/lib/query-keys";
 import { getParsedKBDocument, kbDocumentAccess } from "@/lib/rag-api";
 import type { KBParsedContent } from "@/types";
+import { getErrorMessage } from "@/lib/api-error";
 
 interface FileViewerDoc {
   id: string;
@@ -99,6 +100,7 @@ function useParsedDocument(kbId: string, docId: string) {
 /** The loading and refused states both tabs share, or null once there is a parse. */
 function ParseState({ error, parsed }: { error: unknown; parsed: KBParsedContent | undefined }) {
   const t = useTranslations("kb");
+  const tErrors = useTranslations("errors");
 
   if (error !== null)
     // Most often "No parsed content for this document": still processing, or
@@ -107,7 +109,7 @@ function ParseState({ error, parsed }: { error: unknown; parsed: KBParsedContent
       <div className="flex flex-col items-center gap-2 px-8 py-10 text-center">
         <p className="text-foreground text-sm font-medium">{t("noParsedContentShow")}</p>
         <p className="text-muted-foreground max-w-md text-xs">
-          {error instanceof Error ? error.message : t("failedLoadParsedContent")}
+          {getErrorMessage(error, tErrors, t("failedLoadParsedContent"))}
         </p>
       </div>
     );

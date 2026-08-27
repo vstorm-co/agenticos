@@ -417,7 +417,8 @@ class PgVectorStore(BaseVectorStore):
             # and `RAGDocument.source_path` is a hash index for the same reason),
             # which would fail every ingest into the collection. Hashing the
             # value has no such ceiling. `IF NOT EXISTS` so this is idempotent;
-            # `migrations/0056` backfills the collections that predate it.
+            # `0058_backfill_rag_lookup_indexes` backfills the collections that
+            # predate it.
             for suffix, key in (
                 (VECTOR_SOURCE_PATH_INDEX_SUFFIX, "source_path"),
                 (VECTOR_FILENAME_INDEX_SUFFIX, "filename"),

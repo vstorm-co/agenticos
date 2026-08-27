@@ -216,8 +216,10 @@ class TestPrepare:
         agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
         spec = AgentSpec(name="Support", collection_ids=[live_id, deleted_id, foreign_id])
 
-        async def get_collection(_db, collection_id):
-            return collections[collection_id]
+        async def get_collections(_db, ids):
+            # A batched read: an id with no row is absent from the map, the way
+            # `deleted_id` is here, rather than returning a None value.
+            return {cid: collections[cid] for cid in ids if collections.get(cid) is not None}
 
         with (
             patch.object(
@@ -230,8 +232,8 @@ class TestPrepare:
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
-                "app.services.agent_runner.knowledge_base_repo.get_by_id",
-                new=AsyncMock(side_effect=get_collection),
+                "app.services.agent_runner.knowledge_base_repo.get_by_ids",
+                new=AsyncMock(side_effect=get_collections),
             ),
             patch(
                 "app.services.agent_runner.agent_run_repo.create_run",
@@ -429,6 +431,7 @@ class TestPrepare:
         """The two spend lookups the runner hands the factory, by argument name."""
         service = AgentRunnerService(_db())
         agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        run = MagicMock(id=uuid.uuid4())
 
         with (
             patch.object(
@@ -444,13 +447,13 @@ class TestPrepare:
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
                 "app.services.agent_runner.agent_run_repo.create_run",
-                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+                new=AsyncMock(return_value=run),
             ),
             patch("app.services.agent_runner.build_agent") as build,
         ):
             await service.prepare(ctx, agent.id)
 
-        return {"agent_id": agent.id, **build.call_args.kwargs}
+        return {"agent_id": agent.id, "run_id": run.id, **build.call_args.kwargs}
 
     @pytest.mark.anyio
     async def test_the_spend_the_agent_checks_its_budget_against_is_this_calendar_month(self):
@@ -504,6 +507,44 @@ class TestPrepare:
         assert total.call_args.kwargs["agent_id"] == built["agent_id"]
         assert total.call_args.kwargs["organization_id"] == ctx.organization_id
         assert total.call_args.kwargs["since"] == month_start()
+
+    @pytest.mark.anyio
+    async def test_a_resumed_runs_own_prior_spend_is_not_counted_twice(self):
+        """Both baselines leave this run's own row out, and the resume path is why.
+
+        A resumed run keeps its row. It spent $6 and parked, so `finish_run` has
+        committed `cost_usd = 6.00`, and `_spend_already_booked` re-seeds the
+        ledger with the same $6 - which it must, or finishing the continuation
+        would overwrite the cost with only what the continuation cost. Summed
+        into the baseline as well, the first model request after the approval
+        saw $12 against a $10 cap and refused a run with $4 of headroom (#15).
+
+        A baseline is what *other* runs have already spent; what this one spends
+        is the ledger's. On a fresh run the row is there too, at zero, so there
+        is no branch to get wrong.
+        """
+        ctx = _ctx()
+        built = await self._period_lookups(ctx)
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.sum_cost_since",
+                new=AsyncMock(return_value=Decimal("0")),
+            ) as total,
+            patch(
+                "app.services.spend.ingestion_spend_repo.sum_cost_since",
+                new=AsyncMock(return_value=Decimal("0")),
+            ),
+        ):
+            await built["agent_period_spend"]()
+            agent_scoped = total.call_args.kwargs
+            await built["org_period_spend"]()
+            organization_scoped = total.call_args.kwargs
+
+        assert agent_scoped["exclude_run_id"] == built["run_id"]
+        # The organization's cap double-counted identically, through
+        # `organization_monthly_spend`.
+        assert organization_scoped["exclude_run_id"] == built["run_id"]
 
 
 class TestSpendReporting:

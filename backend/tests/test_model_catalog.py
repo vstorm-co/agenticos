@@ -7,12 +7,15 @@ they do not*: a dropdown of ids the provider does not serve is worse than an
 empty one, because each is a run that fails with an authentication-shaped error.
 """
 
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
 
+from app.agents.model_resolver import PROVIDERS
 from app.services import model_catalog
+from app.services.image_models import CATALOG as IMAGE_CATALOG
 from app.services.model_catalog import CURATED, LISTINGS, curated_models, models_for
 
 MODULE = "app.services.model_catalog"
@@ -129,12 +132,37 @@ class TestWhenTheProviderWillNotSay:
         assert models
 
     @pytest.mark.anyio
-    async def test_a_provider_with_no_listing_and_no_curation_answers_empty(self):
+    async def test_a_failed_call_with_nothing_curated_is_unlisted_too(self):
+        """Four paths reach the fallback - no listing, no key, a failed call, an
+        empty answer - and they have to agree. `mistral` publishes a listing and
+        has no curated entry, so a transient failure used to answer `curated`
+        about a shortlist that does not exist (#923)."""
+        client = _responds({})
+        client.get = AsyncMock(side_effect=httpx.ConnectError("no route"))
+        with patch(f"{MODULE}.httpx.AsyncClient", return_value=client):
+            models, source = await models_for("mistral", api_key="k")
+
+        assert (models, source) == ([], "unlisted")
+
+    @pytest.mark.anyio
+    async def test_an_empty_answer_with_nothing_curated_is_unlisted_as_well(self):
+        with patch(f"{MODULE}.httpx.AsyncClient", return_value=_responds({"data": []})):
+            models, source = await models_for("mistral", api_key="k")
+
+        assert (models, source) == ([], "unlisted")
+
+    @pytest.mark.anyio
+    async def test_a_provider_with_no_listing_and_no_curation_says_it_is_unlisted(self):
         """Not an error: the field is free text, and a self-hosted endpoint
-        nobody has a list for is the case it was built for."""
+        nobody has a list for is the case it was built for.
+
+        `unlisted` rather than `curated`, because seven providers land here and
+        `curated` about an empty list claims a shortlist that does not exist
+        (#923). It is the difference between "the provider could not be asked"
+        and "this platform cannot enumerate this one at all"."""
         models, source = await models_for("some-self-hosted-thing")
 
-        assert (models, source) == ([], "curated")
+        assert (models, source) == ([], "unlisted")
 
 
 class TestCaching:
@@ -262,3 +290,146 @@ class TestCuratedFallbacksAreData:
         from app.services.model_catalog import LISTINGS
 
         assert LISTINGS["together"].array_path == ""
+
+
+def _documented_providers() -> set[str]:
+    """The ids in the `| Provider | id | Credential | Custom URL |` tables.
+
+    Read off the second cell of every row under one of those headers, so a row
+    added or removed is the thing being compared - and prose elsewhere on the
+    page is not.
+    """
+    page = (Path(__file__).resolve().parents[2] / "docs" / "models.md").read_text()
+    ids: set[str] = set()
+    in_table = False
+    for line in page.splitlines():
+        if line.startswith("| Provider | id |"):
+            in_table = True
+            continue
+        if in_table and not line.startswith("|"):
+            in_table = False
+        if not in_table or line.startswith("|---"):
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) > 1 and cells[1].startswith("`"):
+            ids.add(cells[1].strip("`"))
+    return ids
+
+
+def _documented_rows() -> dict[str, dict[str, str]]:
+    """The four-column provider rows, by id.
+
+    The hosted and self-hosted tables. The third one - the providers whose
+    credential is genuinely not an API key - has three columns and describes its
+    credential in prose, so there is nothing there to compare a field against.
+    """
+    page = (Path(__file__).resolve().parents[2] / "docs" / "models.md").read_text()
+    rows: dict[str, dict[str, str]] = {}
+    in_table = False
+    for line in page.splitlines():
+        if line.startswith("| Provider | id | Credential | Custom URL |"):
+            in_table = True
+            continue
+        if in_table and not line.startswith("|"):
+            in_table = False
+        if not in_table or line.startswith("|---"):
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) == 4 and cells[1].startswith("`"):
+            rows[cells[1].strip("`")] = {"credential": cells[2], "custom_url": cells[3]}
+    return rows
+
+
+class TestOneAnswerPerQuestion:
+    """Which list answers what, and that the derived copies still agree (#923).
+
+    "What models and providers exist" is answered in six places. `PROVIDERS` is
+    the one the platform runs on - it holds the part `infer_provider_class`
+    cannot know, the credential shape - and every other list is derived from it:
+    the listings, the curated shortlist, the image catalog, and the tables in
+    `docs/models.md`. A derived copy that drifts fails nothing at run time; it
+    shows a picker for a provider that does not exist, or leaves out one that
+    does, which is how the tool catalog rendered two tools as raw JSON for five
+    weeks (#144).
+    """
+
+    def test_every_listing_names_a_provider_the_platform_has(self):
+        assert [provider for provider in LISTINGS if provider not in PROVIDERS] == []
+
+    def test_every_curated_entry_names_a_provider_the_platform_has(self):
+        assert [provider for provider in CURATED if provider not in PROVIDERS] == []
+
+    def test_every_image_provider_names_one_too(self):
+        # A third vocabulary - `image_models.json` carries its own `provider` and
+        # `prefix` pair - and the crossing is a lookup that answers `None` for a
+        # provider spelled differently.
+        assert [entry.provider for entry in IMAGE_CATALOG if entry.provider not in PROVIDERS] == []
+
+    def test_every_image_prefix_belongs_to_the_provider_it_is_paired_with(self):
+        """The pair, not each half.
+
+        The prefix is deliberately not always the provider's own - the image
+        path wants OpenAI's Responses API where the chat path wants Chat
+        Completions - so it cannot simply be compared. What must hold is that it
+        is *rooted* in the provider: `google` paired with `openai-responses`
+        passes an id check and a `draws_images` check, and then builds an OpenAI
+        model while the capability hands it Google's credential.
+        """
+        mismatched = [
+            (entry.provider, entry.prefix)
+            for entry in IMAGE_CATALOG
+            if entry.prefix.split("-")[0] != entry.provider
+            and entry.prefix != PROVIDERS[entry.provider].prefix
+        ]
+
+        assert mismatched == []
+
+    def test_the_documented_provider_table_is_the_provider_table(self):
+        """`docs/models.md` is a hand-written copy of `PROVIDERS`, and the repo's
+        rule is one copy on purpose. Until it is generated, this is what makes
+        adding the twenty-eighth provider a change that fails until the page
+        knows about it.
+
+        The **id column of the tables**, not a search of the page for the token:
+        a search passes on a removed provider whose row is still there, and on
+        an id the prose happens to mention for another reason - the page names
+        one it deliberately does not support. Two directions, one comparison.
+        """
+        assert _documented_providers() == set(PROVIDERS)
+
+    def test_the_page_says_which_providers_take_an_endpoint(self):
+        """`PROVIDERS` is authoritative for the *credential shape*, and the two
+        four-column tables copy it - so a `base_url_param` added or removed
+        without touching the row leaves somebody looking for an Endpoint field
+        that is not there, or not looking for one that is."""
+        wrong = [
+            provider
+            for provider, row in _documented_rows().items()
+            if ("✓" in row["custom_url"]) is not PROVIDERS[provider].supports_base_url
+        ]
+
+        assert wrong == []
+
+    def test_the_page_names_the_endpoint_parameter_the_sdk_wants(self):
+        """Only where it differs from `base_url`, which is what the rows do:
+        xAI calls it `api_host` and LiteLLM `api_base`, and a profile carrying
+        the wrong one is a setting somebody spends an afternoon on."""
+        wrong = [
+            provider
+            for provider, row in _documented_rows().items()
+            if "`" in row["custom_url"]
+            and row["custom_url"].split("`")[1] != PROVIDERS[provider].base_url_param
+        ]
+
+        assert wrong == []
+
+    def test_the_page_says_which_providers_need_no_key(self):
+        """`keyless` decides whether the key field may be left empty, and the
+        Credential cell is where a reader learns that."""
+        wrong = [
+            provider
+            for provider, row in _documented_rows().items()
+            if ("none" in row["credential"]) is not PROVIDERS[provider].keyless
+        ]
+
+        assert wrong == []

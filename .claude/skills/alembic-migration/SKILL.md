@@ -11,9 +11,13 @@ Async SQLAlchemy 2.0 + Alembic on PostgreSQL. `backend/alembic/versions/`, numbe
 **The chain starts at `0001_baseline`,** which is 65 earlier revisions collapsed into
 one on 2026-07-31. Read its docstring before your first migration: it records the
 model/migration drift that squash resolved, and why three indexes had to be moved
-onto the models first. Revisions the docs cite by number (`0038` for the vault,
-`0066` for `users.role`, `0046` for the Tesseract codes) resolve in git history
-before that commit, not in this directory.
+onto the models first. **The numbering restarted with it**, so a revision number
+cited anywhere for work that predates the squash - `0038` for the vault,
+`0066` for `users.role`, `0046` for the Tesseract codes - now names a *different*
+migration in this directory, or none. That is worse than a dangling reference
+because it resolves. Cite a revision by its full file name and only while it is
+still here; for anything older the baseline holds the schema it arrived at, and
+the revision itself is in git history before 2026-07-31.
 
 **The models are the source of truth now, and that is newly true.** Before the
 squash they were not: composite indexes and a CHECK existed only in migrations, so
@@ -50,7 +54,8 @@ table ingestion writes through.
    - server defaults, enum changes, JSONB and array types — the usual autogenerate
      blind spots
    - name the file with the next sequential prefix, and give it a **docstring** saying
-     why. Read `0038_one_vault_for_every_secret.py` for the standard.
+     why. Read `0042_sync_source_secret_id.py` for the standard - what the
+     column is for, what the alternatives were, and why this one was followable.
 
 4. **Apply, then round-trip:**
    ```bash
@@ -72,9 +77,13 @@ A narrower rule does not only reject new input — **it makes existing rows unre
 and a Pydantic model that refuses to validate one field of one row takes down the whole
 listing endpoint with a 500.
 
-`0046_ocr_language_tesseract_codes.py` is the worked example: `IngestionConfig.ocr_language`
-went from "anything 2–16 characters" to Tesseract's `^[a-z]{3}(\+[a-z]{3})*$`, and every
-row written before it held `"en"`. The data migration shipped in the same revision.
+The worked example is the one that narrowed `IngestionConfig.ocr_language` from
+"anything 2–16 characters" to Tesseract's `^[a-z]{3}(\+[a-z]{3})*$` while every row
+written before it held `"en"`; the data migration shipped in the same revision. To
+read it, reach for **git history before 2026-07-31**: `0001_baseline` carries the
+schema those 65 revisions arrived at and none of their `UPDATE`s, so a data
+migration is exactly what it cannot show you. Its own docstring says so - "the
+decisions those revisions recorded are prose now rather than files".
 
 - **Adding** a field to a JSONB-stored model is safe — missing keys take their default.
 - **Narrowing** an existing one needs the backfill in the same change.
@@ -85,12 +94,20 @@ The same applies to the agent spec, which is stored as JSON. See the `agent-spec
 
 Org-scoped tables carry a `NOT NULL organization_id` and tenant-scoped unique
 constraints — isolation is enforced by the schema so a missed `WHERE` is a constraint
-violation rather than a data leak. `0027_enforce_org_scope` and
-`0029_conversation_org_not_null` are the pattern for retro-fitting that onto an existing
-table: backfill, then constrain, in that order, in one revision.
+violation rather than a data leak. The pattern for retro-fitting that onto an
+existing table is **fill the column, then constrain it, in that order and in one
+revision** - `0023_embed_kinds` is the worked example: two `UPDATE`s give every
+existing row a `kind` and a `config`, and only then do the two
+`alter_column(nullable=False)` calls run.
+
+Where the value cannot be derived, the honest alternative is **refuse**, not
+guess. `0042_sync_source_secret_id` does that: it counts the `sync_sources` rows
+with a null `organization_id`, raises if any exist with what to do about them,
+and constrains the column afterwards. An id invented for a tenant-scoped row is a
+row in the wrong tenant.
 
 Anything encrypted needs a `secret_key_version` column — a staged master-key rotation
-has to know which key sealed an envelope (`0038`). See the `vault-secrets` skill.
+has to know which key sealed an envelope. See the `vault-secrets` skill.
 
 ## Backfills
 

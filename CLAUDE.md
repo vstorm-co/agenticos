@@ -95,19 +95,28 @@ Easy to violate, cross-cutting, and each one has been violated here at least onc
 - Route handlers return `-> Any`; `response_model` does the serialization (avoids double
   Pydantic validation).
 - Every secret at rest goes through `app/core/vault.py`. **There is no second
-  mechanism**, and adding one is the defect migrations `0038` and `0042` removed -
-  the second of them being `app/core/crypto.py`, which held RAG connector
-  credentials on one deployment-wide Fernet key and made this sentence untrue for
-  one table until #937 deleted it.
+  mechanism**, and adding one is the defect two migrations removed - the second
+  of them `0042_sync_source_secret_id`, which took `app/core/crypto.py` off RAG
+  connector credentials. They had been sealed with one deployment-wide Fernet key,
+  which made this sentence untrue for one table until #937 deleted it. The first
+  predates the squash, so it is in git history rather than in a file.
 - `datetime.now(UTC)`, never `datetime.utcnow()`.
 - `secrets.compare_digest()` for API key comparison, never `==`.
 - **Do not reintroduce what was deliberately removed:** `UserRole`, `User.has_role()`,
-  `RoleChecker`, `CurrentAdmin`, `CurrentSuperuser` (dropped in `0066` — authority
-  inside an organization is a membership row plus the permission catalog), or
-  `CHANNEL_ENCRYPTION_KEY` and the deployment-wide Fernet keys (dropped in `0038`),
-  or `app/core/crypto.py` and a `secret: true` field in a connector's
-  `CONFIG_SCHEMA` (dropped in `0042` - a connector credential is a vault secret the
-  source references by id).
+  `RoleChecker`, `CurrentAdmin`, `CurrentSuperuser` (the `users.role` column went
+  with them — authority inside an organization is a membership row plus the
+  permission catalog), or `CHANNEL_ENCRYPTION_KEY` and the deployment-wide Fernet
+  keys, or `app/core/crypto.py` and a `secret: true` field in a connector's
+  `CONFIG_SCHEMA` (`0042_sync_source_secret_id` - a connector credential is a vault
+  secret the source references by id).
+
+  **The first two have no revision of their own any more.** 65 were collapsed into
+  `0001_baseline` on 2026-07-31 and the numbering restarted, so `0038` and `0066`
+  name a *different* migration today or none at all — which is worse than a
+  dangling reference, because it resolves. The baseline carries the schema those
+  revisions arrived at and none of their data migrations; to read one, use git
+  history before that date. Cite a revision by its full file name, and only for
+  one that is still in `backend/alembic/versions/`.
 
 ## Read the matching rule before writing code
 

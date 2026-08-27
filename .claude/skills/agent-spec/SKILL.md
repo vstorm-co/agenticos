@@ -42,7 +42,7 @@ A narrower rule does not only reject new input — it makes **existing rows
 unreadable**, and a Pydantic model that refuses to validate one field of one row
 takes down the whole listing endpoint with a 500.
 
-`IngestionConfig` / migration `0046_ocr_tesseract` is the worked example outside the
+`IngestionConfig` and its OCR language codes are the worked example outside the
 spec: `ocr_language` went from "anything 2–16 characters" to Tesseract's
 `^[a-z]{3}(\+[a-z]{3})*$`, and every row written before it held `"en"`. The data
 migration shipped in the same revision.
