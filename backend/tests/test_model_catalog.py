@@ -14,6 +14,7 @@ import httpx
 import pytest
 
 from app.agents.model_resolver import PROVIDERS
+from app.core.secret_kinds import SecretKind
 from app.services import model_catalog
 from app.services.image_models import CATALOG as IMAGE_CATALOG
 from app.services.model_catalog import CURATED, LISTINGS, curated_models, models_for
@@ -321,7 +322,9 @@ def _documented_rows() -> dict[str, dict[str, str]]:
 
     The hosted and self-hosted tables. The third one - the providers whose
     credential is genuinely not an API key - has three columns and describes its
-    credential in prose, so there is nothing there to compare a field against.
+    credential in prose, so there is nothing there to compare a *field* against;
+    which table it is in is the assertion instead, in
+    :func:`_providers_documented_as_not_api_key`.
     """
     page = (Path(__file__).resolve().parents[2] / "docs" / "models.md").read_text()
     rows: dict[str, dict[str, str]] = {}
@@ -338,6 +341,31 @@ def _documented_rows() -> dict[str, dict[str, str]]:
         if len(cells) == 4 and cells[1].startswith("`"):
             rows[cells[1].strip("`")] = {"credential": cells[2], "custom_url": cells[3]}
     return rows
+
+
+def _providers_documented_as_not_api_key() -> set[str]:
+    """The ids under "Credential is not an API key".
+
+    Which of the three tables a provider sits in is itself a claim about its
+    credential shape - the heading says so - and it is the only claim those
+    three rows make that a field can be compared against. Before this they were
+    the three providers with the most involved credentials and the three outside
+    the guard entirely (#1252).
+    """
+    page = (Path(__file__).resolve().parents[2] / "docs" / "models.md").read_text()
+    section = page.split("### Credential is not an API key", 1)
+    if len(section) == 1:
+        return set()
+    ids: set[str] = set()
+    for line in section[1].splitlines():
+        if not line.startswith("|"):
+            if ids:
+                break
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) == 3 and cells[1].startswith("`"):
+            ids.add(cells[1].strip("`"))
+    return ids
 
 
 class TestOneAnswerPerQuestion:
@@ -422,6 +450,33 @@ class TestOneAnswerPerQuestion:
         ]
 
         assert wrong == []
+
+    def test_the_three_tables_partition_the_providers(self):
+        """Each provider is documented once, and the guard reaches all of them.
+
+        `_documented_rows` covers the two four-column tables; without this the
+        Azure, Bedrock and Vertex rows were in no assertion but the id one -
+        the three most involved credential shapes, outside the check (#1252).
+        """
+        four_column = set(_documented_rows())
+        three_column = _providers_documented_as_not_api_key()
+
+        assert four_column & three_column == set()
+        assert four_column | three_column == set(PROVIDERS)
+
+    def test_which_table_a_provider_is_in_matches_its_credential(self):
+        """The heading is the claim: a provider under "Credential is not an API
+        key" must not take one, and one in the other two must. Moving a row
+        between tables without changing `secret_kind` - or the reverse - is the
+        drift this catches."""
+        misfiled = [
+            provider
+            for provider in PROVIDERS
+            if (PROVIDERS[provider].secret_kind is SecretKind.API_KEY)
+            is (provider in _providers_documented_as_not_api_key())
+        ]
+
+        assert misfiled == []
 
     def test_the_page_says_which_providers_need_no_key(self):
         """`keyless` decides whether the key field may be left empty, and the
