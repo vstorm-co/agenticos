@@ -1,9 +1,10 @@
 """Session repository (PostgreSQL async)."""
 
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select, update
+from sqlalchemy import Select, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.session import Session
@@ -25,11 +26,24 @@ async def get_by_refresh_token_hash(db: AsyncSession, token_hash: str) -> Sessio
     return result.scalar_one_or_none()
 
 
+def _open(query: Select[tuple[Any]]) -> Select[tuple[Any]]:
+    """Narrow a session query to the ones actually still usable.
+
+    `is_active` alone is not that. A session is deactivated when somebody signs
+    out or an administrator revokes it, but nothing sweeps the ones that simply
+    ran out: the row stays `is_active` until the next refresh finds it expired
+    and declines it. So a query on `is_active` counts sessions that cannot be
+    used again, which is how the admin drawer reported open sessions for an
+    account whose every session had lapsed (#1256).
+    """
+    return query.where(Session.is_active.is_(True), Session.expires_at > datetime.now(UTC))
+
+
 async def get_user_sessions(
     db: AsyncSession,
     user_id: UUID,
     *,
-    active_only: bool = True,
+    open_only: bool = True,
     skip: int = 0,
     limit: int | None = None,
 ) -> list[Session]:
@@ -37,10 +51,14 @@ async def get_user_sessions(
 
     `limit` of None returns every session, which is what the callers that
     revoke or validate one need. The listing route passes a page.
+
+    `open_only=False` is the whole history, which is what answers "when were
+    they last here": somebody who has signed out has no open session and has
+    very much been here.
     """
     query = select(Session).where(Session.user_id == user_id)
-    if active_only:
-        query = query.where(Session.is_active.is_(True))
+    if open_only:
+        query = _open(query)
     # `last_used_at` alone is not a total order - a user who signs in twice in
     # the same request cycle gets two rows with the same timestamp, and an
     # unstable order means a row can appear on two pages or on neither. `id`
@@ -56,12 +74,12 @@ async def count_user_sessions(
     db: AsyncSession,
     user_id: UUID,
     *,
-    active_only: bool = True,
+    open_only: bool = True,
 ) -> int:
     """How many sessions the user has, for the page count."""
     query = select(func.count(Session.id)).where(Session.user_id == user_id)
-    if active_only:
-        query = query.where(Session.is_active.is_(True))
+    if open_only:
+        query = _open(query)
     return (await db.execute(query)).scalar_one()
 
 

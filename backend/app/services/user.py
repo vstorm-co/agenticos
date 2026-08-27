@@ -110,17 +110,26 @@ class UserService:
     async def admin_detail(self, user_id: UUID) -> AdminUserDetail:
         """Where this person has access, when they were last here, what is open.
 
-        Three reads rather than one because they are three tables, and they are
-        here rather than in the drawer because a client assembling them would
-        make three round trips to answer one question - and would have to know
-        that "no sessions ever" and "no sessions now" are different answers.
+        Four reads rather than one because they are three tables and two
+        questions, and they are here rather than in the drawer because a client
+        assembling them would make as many round trips to answer one question -
+        and would have to know that "no sessions ever" and "no sessions now" are
+        different answers.
+
+        **Two scopes, not one.** Where somebody was last seen is a fact about
+        every session they have ever had; how many are open is a fact about the
+        ones still usable. Reading both off the open set answered "Never signed
+        in" for anybody who had signed out - which is most accounts most of the
+        time, and the opposite of the truth on the field this drawer exists for
+        (#1256).
 
         The user is fetched first so an unknown id is a 404 rather than an empty
         detail about nobody.
         """
         await self.get_by_id(user_id)
         memberships = await organization_repo.list_for_user(self.db, user_id)
-        sessions = await session_repo.get_user_sessions(self.db, user_id, active_only=True)
+        sessions = await session_repo.get_user_sessions(self.db, user_id, open_only=False)
+        open_sessions = await session_repo.get_user_sessions(self.db, user_id, open_only=True)
         return AdminUserDetail(
             memberships=[
                 AdminUserMembership(
@@ -132,11 +141,14 @@ class UserService:
                 )
                 for organization, role in memberships
             ],
-            # The sessions come back most-recently-used first, so the head is
-            # both answers: when they were last here, and the newest one open.
+            # Most-recently-used first, so the head is when they were last
+            # here - signed out or not.
             last_seen_at=sessions[0].last_used_at if sessions else None,
-            active_sessions=len(sessions),
-            newest_session_at=max((s.created_at for s in sessions), default=None),
+            active_sessions=len(open_sessions),
+            # Of the open ones: it is read beside their count, and "newest
+            # session August" under "0 open sessions" is a sentence about
+            # nothing.
+            newest_session_at=max((s.created_at for s in open_sessions), default=None),
         )
 
     async def admin_list_with_counts(

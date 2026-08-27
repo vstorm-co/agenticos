@@ -57,7 +57,7 @@ async def test_a_page_reports_the_total_not_its_own_length(service: SessionServi
 
     assert len(result.items) == 2
     assert result.total == 17
-    assert fetch.await_args.kwargs == {"active_only": True, "skip": 10, "limit": 2}
+    assert fetch.await_args.kwargs == {"open_only": True, "skip": 10, "limit": 2}
 
 
 async def test_the_page_is_what_the_caller_asked_for(service: SessionService) -> None:
