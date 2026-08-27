@@ -382,11 +382,18 @@ class UserService:
         The heirs are locked here too, and in a stable order with self, because
         `reassign_creator` hands a solely-created shared org to an heir and so
         takes FOR KEY SHARE on the heir's user row through the FK. Two users who
-        co-own each other's shared orgs self-deleting at once would each hold FOR
-        UPDATE on their own row and then wait for the other's - a cycle Postgres
+        co-own each other's shared orgs self-deleting at once would each hold a
+        lock on their own row and then wait for the other's - a cycle Postgres
         breaks by aborting one with a 40P01 500. Taking every user-row lock in
         ascending id order makes both requests queue on the lower id first, so
         the cycle cannot form (#1134).
+
+        Self is FOR UPDATE (for #1115); the heirs are FOR NO KEY UPDATE, one step
+        weaker. It still conflicts with the other self-delete's FOR UPDATE, so the
+        ordering holds, but it does *not* conflict with the FOR KEY SHARE an
+        unrelated foreign-key write takes on an heir - a channel identity relinked
+        to them, say - which FOR UPDATE would have, turning that write into a fresh
+        cross-table deadlock this fix must not introduce.
         """
         heir_ids: set[UUID] = set()
         for org in await organization_repo.list_created_by(self.db, user_id):
@@ -400,9 +407,10 @@ class UserService:
 
         user: User | None = None
         for uid in sorted({user_id, *heir_ids}):
-            locked = await user_repo.get_by_id_for_update(self.db, uid)
             if uid == user_id:
-                user = locked
+                user = await user_repo.get_by_id_for_update(self.db, uid)
+            else:
+                await user_repo.get_by_id_for_no_key_update(self.db, uid)
         if user is None:
             raise NotFoundError(message="User not found", details={"user_id": user_id})
         return user
