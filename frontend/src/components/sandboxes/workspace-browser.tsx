@@ -192,6 +192,25 @@ export function WorkspaceBrowser() {
         ),
       },
       {
+        key: "owner",
+        header: t("owner"),
+        sortable: true,
+        sortValue: (workspace) => workspace.owner_label,
+        // **Who, beside who else.** `access_label` one column along describes the
+        // *scope* - "everybody who talks to this agent", "one person" - and on an
+        // `agent`-scoped workspace shared by six people that is exactly the
+        // question this row could not answer (#137).
+        //
+        // Plain text, never a link: `owner_ref` is a string and a Slack-sourced
+        // workspace's owner is a platform id rather than an account, so half the
+        // rows would carry a destination that does not exist (#131).
+        cell: (workspace) => (
+          <span className="text-muted-foreground block min-w-0 truncate text-xs">
+            {workspace.owner_label}
+          </span>
+        ),
+      },
+      {
         key: "whoCanSeeIt",
         header: t("whoCanSeeIt"),
         // The label alone. The `container` badge beside it repeated on every row
