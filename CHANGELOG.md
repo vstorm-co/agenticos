@@ -17,6 +17,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.309] - 2026-08-27
+
+### Fixed
+
+- **Twenty-seven toasts read `.message` off a caught error instead of resolving it
+  through the catalog.** Since #603 a refusal a BFF route mints carries a `{ code }`
+  and no sentence - the handler sits outside `[locale]` and has no translator - and
+  `getErrorMessage` is the only reader that resolves one against the `errors`
+  namespace. A site reading `.message` showed the code humanized into an English
+  sentence under every locale: `Backend unavailable` where the catalog says
+  `Backend service unavailable`, and the Polish copy never at all. Backend-envelope
+  refusals were unaffected, since their message passes through as written; what
+  mis-rendered was the proxy's own 401, a backend that is down, and the upload and
+  session failures. (#655, #603)
+- The guard reads every source file for the pattern rather than testing the sites
+  that were migrated, **because the failure is a missing call** and a test of the
+  migrated sites cannot fail when a twenty-eighth is added beside them. It
+  immediately found six the issue had not listed - the multi-line shape prettier
+  produces. One site keeps its shape on purpose: `use-onboarding` shows an
+  `ApiError`'s message and a fallback for anything else, because "Failed to fetch"
+  is not something to put in front of somebody. (#655)
+
 ## [0.0.308] - 2026-08-27
 
 ### Fixed
