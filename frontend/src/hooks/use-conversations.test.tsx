@@ -702,6 +702,84 @@ describe("creating, renaming and removing a conversation", () => {
   });
 });
 
+describe("starring a conversation", () => {
+  /**
+   * The star is the one thing this hook patches rather than refetching, and the
+   * boundary is exact: which list a thread belongs to is the server's answer,
+   * but whether *this reader* starred it is a fact about the row the client
+   * just decided. Patching it is what makes the click instant; the band it
+   * moves into still comes from the server (#929).
+   */
+  async function hook(query?: ConversationQuery) {
+    const rendered = renderHook(() => useConversations(query), { wrapper });
+    await waitFor(() => expect(rendered.result.current.isLoading).toBe(false));
+    return rendered.result;
+  }
+
+  beforeEach(() => {
+    serve({ items: [conversation("c-1"), conversation("c-2")] });
+  });
+
+  it("shows the star before the server has answered", async () => {
+    const result = await hook();
+    let settle: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+
+    act(() => {
+      void result.current.setFavourite("c-1", true);
+    });
+
+    await waitFor(() =>
+      expect(result.current.conversations.find((c) => c.id === "c-1")?.is_favourite).toBe(true),
+    );
+    expect(apiClient.post).toHaveBeenCalledWith("/conversations/c-1/favourite", {});
+    act(() => settle({}));
+  });
+
+  it("unstars through the DELETE, not a second POST", async () => {
+    const result = await hook();
+    vi.mocked(apiClient.delete).mockResolvedValue({});
+
+    await act(async () => {
+      await result.current.setFavourite("c-1", false);
+    });
+
+    expect(apiClient.delete).toHaveBeenCalledWith("/conversations/c-1/favourite");
+  });
+
+  it("asks the server for the list again, because the band is an ordering", async () => {
+    const result = await hook();
+    vi.mocked(apiClient.post).mockResolvedValue({});
+    serve({ items: [conversation("c-2", { is_favourite: true }), conversation("c-1")] });
+
+    await act(async () => {
+      await result.current.setFavourite("c-2", true);
+    });
+
+    await waitFor(() =>
+      expect(result.current.conversations.map((c) => c.id)).toEqual(["c-2", "c-1"]),
+    );
+  });
+
+  it("puts the star back when the request is refused", async () => {
+    // The cost of patching first: a refusal has to undo it, or the row keeps a
+    // star the server never recorded and a reload takes it away without a word.
+    const result = await hook();
+    vi.mocked(apiClient.post).mockRejectedValue("boom");
+
+    await act(async () => {
+      await result.current.setFavourite("c-1", true);
+    });
+
+    expect(result.current.conversations.find((c) => c.id === "c-1")?.is_favourite).toBe(false);
+    expect(toast.error).toHaveBeenCalledWith("Could not change the favourite");
+  });
+});
+
 describe("a request that outlives the account that made it", () => {
   it("keeps a conversation created by one account out of the next one's list", async () => {
     // The one write that adds a row rather than mapping over the rows already

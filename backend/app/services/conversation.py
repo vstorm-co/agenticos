@@ -419,6 +419,11 @@ class ConversationService:
             archived_only=archived_only,
             sort_by=sort_by,
             sort_dir=sort_dir,
+            # Not in the archived view. A star survives archiving - the thread is
+            # still one somebody cares about - but the band is the active list's,
+            # and a band inside the archive would be a second place to look for
+            # what archiving just moved (#929).
+            favourites_first_for=None if archived_only or user_id is None else user_id,
             participant_conversation_ids=participant_ids,
         )
         total = await conversation_repo.count_conversations(
@@ -432,6 +437,7 @@ class ConversationService:
             participant_conversation_ids=participant_ids,
         )
         await self._attach_agents(items)
+        await self._attach_favourites(items, user_id=user_id)
         return items, total
 
     async def _attach_agents(self, conversations: Sequence[Conversation]) -> None:
@@ -460,6 +466,51 @@ class ConversationService:
                 )
                 for agent in by_conversation.get(conversation.id, [])
             ]
+
+    async def _attach_favourites(
+        self, conversations: Sequence[Conversation], *, user_id: UUID | None
+    ) -> None:
+        """Say, per row, whether this reader has starred it.
+
+        Set on the ORM object for the reason `_attach_agents` is: the route
+        serializes the row straight through the read schema. One query for the
+        page, and none at all for a listing with no reader - the admin one,
+        where a star belongs to nobody in particular and the column would be a
+        different person's every request.
+        """
+        if not conversations:
+            return
+        starred = (
+            set()
+            if user_id is None
+            else await conversation_repo.favourite_ids(
+                self.db,
+                user_id=user_id,
+                conversation_ids=[conversation.id for conversation in conversations],
+            )
+        )
+        for conversation in conversations:
+            conversation.is_favourite = conversation.id in starred  # ty: ignore[unresolved-attribute]
+
+    async def set_favourite(
+        self, conversation_id: UUID, *, organization_id: UUID, user_id: UUID, favourite: bool
+    ) -> Conversation:
+        """Star or unstar a conversation for one reader.
+
+        Checked as a **read**, not a write: a star says where a thread sits in
+        the starrer's own sidebar and changes nothing about the thread, so
+        somebody a conversation was shared with may favourite it exactly as its
+        owner may. `for_write` here would refuse the reader the feature is for.
+        """
+        conversation = await self.get_conversation(
+            conversation_id, organization_id=organization_id, user_id=user_id
+        )
+        await conversation_repo.set_favourite(
+            self.db, user_id=user_id, conversation_id=conversation.id, favourite=favourite
+        )
+        await self._attach_agents([conversation])
+        conversation.is_favourite = favourite  # ty: ignore[unresolved-attribute]
+        return conversation
 
     async def admin_list_with_users(
         self,

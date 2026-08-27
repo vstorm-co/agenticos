@@ -213,6 +213,48 @@ async def archive_conversation(
     )
 
 
+@router.post("/{conversation_id}/favourite", response_model=ConversationRead)
+async def favourite_conversation(
+    conversation_id: UUID,
+    conversation_service: ConversationSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+) -> Any:
+    """Star a conversation, for the caller.
+
+    A favourite belongs to the reader: it lifts the thread to the top of *their*
+    sidebar and changes nothing about the thread. So it is authorized as a read -
+    somebody a conversation was shared with may star it exactly as its owner may -
+    and starring what is already starred is not an error (#929).
+    """
+    return await conversation_service.set_favourite(
+        conversation_id,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+        favourite=True,
+    )
+
+
+@router.delete("/{conversation_id}/favourite", response_model=ConversationRead)
+async def unfavourite_conversation(
+    conversation_id: UUID,
+    conversation_service: ConversationSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+) -> Any:
+    """Unstar a conversation, for the caller.
+
+    Answers with the row rather than 204, like its POST: the sidebar re-renders
+    one item and would otherwise have to guess what the rest of it now says.
+    """
+    return await conversation_service.set_favourite(
+        conversation_id,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+        favourite=False,
+    )
+
+
 @router.get("/{conversation_id}/messages", response_model=MessageList)
 async def list_messages(
     conversation_id: UUID,
