@@ -167,6 +167,14 @@ they are all derived from is the first:
 | What does this model cost, and how much context does it take? | the `genai-prices` snapshot, through `model_catalog.priced_model` |
 | Which models draw images? | `backend/app/core/catalog/image_models.json`, plus the SDK's own answer about which providers can draw at all |
 
+!!! info "Everything below the first row is derived from it"
+
+    A derived copy that drifts fails nothing at run time - it shows a picker for
+    a provider that does not exist, or leaves out one that does.
+    `tests/test_model_catalog.py::TestOneAnswerPerQuestion` is what makes that a
+    failing build instead, and it requires every provider to appear on **this
+    page**.
+
 Everything below the first row is **derived** from it, and a derived copy that
 drifts fails nothing at run time — it shows a picker for a provider that does not
 exist, or leaves out one that does.
@@ -296,6 +304,11 @@ snapshot. Nothing phones home for them, which means two things worth knowing:
   recorded as partially priced rather than as costing nothing. A budget that
   silently treated an unknown model as free would be a budget with a hole in it.
 - Updating prices is a dependency bump.
+
+!!! warning "A keyless provider records no spend"
+
+    Spend is attributed to the [vault secret](secrets.md) the run resolved to,
+    and a keyless provider has none to attribute it to.
 
 Spend is attributed to the [vault secret](secrets.md) the run resolved to — which
 is why a keyless provider records none: there is no key to attribute it to. Cost

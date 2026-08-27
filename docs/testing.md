@@ -2,6 +2,11 @@
 
 ## Running Tests
 
+!!! tip "While writing, run what covers the change; the suite is the pre-push gate"
+
+    A file answers in about a second where the suite takes a minute and a half,
+    and says the same thing about the change.
+
 While writing, run what covers the change — a file answers in about a second where
 the suite takes a minute and a half, and says the same thing:
 
@@ -23,8 +28,13 @@ suite is import-bound — every worker imports the app once — and gains nothin
 that, while an uncapped `auto` on a many-core laptop is *slower* than serial, all of
 it worker startup (#520).
 
-**Every run is shuffled**, by `pytest-randomly`, and the header says with what:
-`Using --randomly-seed=1697040112`. An order-dependent test — one that passes only
+!!! warning "Every run is shuffled, and a test that passed yesterday may have been depending on the order"
+
+    `pytest-randomly` prints the seed in the header
+    (`Using --randomly-seed=1697040112`). Replay that seed **serially** to get
+    the same order back - `-n auto` does not fix which worker runs what.
+
+An order-dependent test — one that passes only
 because something before it left state behind — is the classic "green on my laptop,
 red in CI", and a suite that always runs in collection order never asks the question.
 CI asks it in a fresh order every run.
@@ -64,17 +74,23 @@ repeating their commands, and `tests/test_ci_parity.py` fails if a gating job
 grows a step `make check` does not run. It has drifted four times — see
 [Commands](commands.md#before-a-pull-request) for what `check` leaves out and why.
 
-**CI may run fewer jobs than `check` does, and that is not drift.** `test`,
-`test-frontend` and `e2e` are skipped on a pull request whose changed paths cannot
-affect them — a docs-only change runs none of the three, a backend-only change runs
-no frontend suite. What decides is `scripts/ci_changed_scope.py`, it errs towards
-running, and [Branches](branching.md#a-required-check-may-legitimately-report-skipped)
-has the rule and why a `skipped` required check still lets a merge through. Locally
-there is no equivalent: `check` runs everything.
+!!! info "CI may run fewer jobs than `check` does, and that is not drift"
 
-`make test-fast` skips coverage, which makes it the wrong last word before a push:
-the gate is most of what these commands are for. `pytest` without `uv run` picks up
-whatever interpreter is on the path rather than the pinned 3.12.
+    `test`, `test-frontend` and `e2e` are skipped on a pull request whose changed
+    paths cannot affect them, and a `skipped` required check still lets a merge
+    through. Locally there is no equivalent: `check` runs everything.
+
+A docs-only change runs none of the three; a backend-only change runs no frontend
+suite. What decides is `scripts/ci_changed_scope.py`, it errs towards running, and
+[Branches](branching.md#a-required-check-may-legitimately-report-skipped) has the
+rule.
+
+!!! danger "Two ways to push something that has not been verified"
+
+    `make test-fast` skips coverage, which makes it the wrong last word before a
+    push - the gate is most of what these commands are for. And `pytest` without
+    `uv run` picks up whatever interpreter is on the path rather than the pinned
+    3.12.
 
 ## Test Structure
 
@@ -128,6 +144,12 @@ pytestmark = pytest.mark.anyio   # at the top of the module
 or `@pytest.mark.anyio` on the test, which `tests/api/test_users.py` does where
 only some of a file is async. Either works; the module-level form is the habit
 here because most files are async throughout.
+
+!!! warning "`@pytest.mark.asyncio` does not work here, and there is no `asyncio_mode` to make it"
+
+    The suite runs on **anyio**. An unmarked `async def` fails at collection with
+    a message about the framework rather than about the test, so it reads as a
+    broken environment on the way in.
 
 `@pytest.mark.asyncio` does not, and there is no `asyncio_mode` setting to make
 it work: the suite runs on **anyio**. An unmarked `async def` is not a silent
@@ -267,11 +289,17 @@ schema that had no tiebreak at all.
 
 ### What is worth a test here
 
-Most of this platform's value is in what it refuses, so the refusal is the case
-that has to exist: a cross-tenant read (including one where the caller owns the
-row), an ungranted scope, a budget checked *before* the model request and
-recorded even when the run fails, a spec refused at publish rather than at run
-time, and no plaintext secret in any response, log line or audit entry.
+!!! important "Cover the refusal"
+
+    Most of this platform's value is in what it refuses, so the refusal is the
+    case that has to exist:
+
+    - a cross-tenant read — **including one where the caller owns the row**;
+    - an ungranted scope;
+    - a budget checked *before* the model request, and recorded even when the run
+      fails;
+    - a spec refused at publish rather than at run time;
+    - no plaintext secret in any response, log line or audit entry.
 
 `.claude/rules/testing.md` and the `backend-tests` skill carry the rest - the
 traps, the worked examples and the history behind each. This page is the shape of
