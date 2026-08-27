@@ -1446,7 +1446,8 @@
         "organizations": "Organizations",
         "title": "Platform at a glance",
         "users": "Users",
-        "description": "Deployment-wide counts: organizations, people, agents, conversations."
+        "description": "Deployment-wide counts: organizations, people, agents, conversations.",
+        "messages": "{count, plural, =1 {1 message} other {# messages}}"
       },
       "platform-ratings": {
         "empty": {
@@ -2519,7 +2520,6 @@
     "slashCommands": "Slash commands",
     "startNewChat": "Start new chat",
     "system": "System",
-    "systemHealth": "System health",
     "team": "Team",
     "toggleMenu": "Toggle menu",
     "untitledConversation": "Untitled conversation",
@@ -3049,7 +3049,6 @@
       "json": "JSON",
       "latencyMs": "{ms} ms",
       "likes": "Likes",
-      "manageUsers": "Manage users",
       "members": "Members",
       "message": "Message",
       "messages": "Messages",
@@ -3061,12 +3060,10 @@
       "organizations": "Organizations",
       "organizations2": "Organizations",
       "overallStatus": "Overall status",
-      "perServiceStatusUptime": "Per-service status & uptime",
       "personal": "Personal",
       "refresh2": "Refresh",
       "resultCount": "{count, plural, =1 {1 result} other {# results}}",
       "searchByEmailName": "Search by email or name…",
-      "searchSuspendImpersonate": "Search, suspend, impersonate",
       "serviceDatabase": "Database",
       "serviceDatabaseDetail": "PostgreSQL primary",
       "serviceModelAccess": "Model access",
@@ -3084,9 +3081,7 @@
       "stateUnhealthy": "Failing",
       "status": "Status",
       "suspended": "Suspended",
-      "systemHealth": "System health",
       "totalCount": "{count, number} total",
-      "totalUsers": "Total users",
       "tryAgain": "Try again",
       "user": "User",
       "usersConversationsOrgsSystem": "Users, conversations, organizations, and system health.",
