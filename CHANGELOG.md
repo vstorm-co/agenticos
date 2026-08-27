@@ -17,6 +17,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.315] - 2026-08-27
+
+### Fixed
+
+- **Every REST helper in the Mattermost adapter opened its own HTTP client**, and
+  Slack's attachment download did too, so each call paid a fresh TCP connection and
+  TLS handshake against a host it had just talked to. A streamed channel turn is not
+  one call - the live reply pushes an edit roughly every second, plus typing, the
+  opening, the final edit and a download per attachment - so a minute-long answer
+  spent seconds of wall clock re-establishing connections it already had, and the
+  bot host saw the socket churn of a client that never keeps one open. One client
+  per adapter now, built in `__init__` and closed at shutdown: Mattermost's ten
+  call sites borrow it through a `nullcontext` so none of them closes it and the
+  pool stays warm, and no call site changed. (#952)
+- `ChannelAdapter` grows a no-op close, and the lifespan calls it on every adapter
+  **after** polling has stopped and background work has drained - so a turn still
+  finishing an edit is never cut off from its client. The two non-channel per-call
+  clients the issue also lists have no adapter lifecycle to hang a reused client
+  on, and are filed separately. (#952)
+
 ## [0.0.314] - 2026-08-27
 
 ### Fixed
