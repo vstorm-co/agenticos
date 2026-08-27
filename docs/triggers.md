@@ -60,8 +60,9 @@ flowchart TD
     J -->|no| R400["400"]
     J -->|yes| F{trigger active,<br/>filter matches?}
     F -->|no| R202["202 - nothing to do"]
-    F -->|yes| RUN[the agent runs, spending the org's budget]
-    RUN --> R202b["202"]
+    F -->|yes| SUB["submit a capped Prefect flow"]
+    SUB --> R202b["202 - accepted, not finished"]
+    SUB -.->|later, in the worker| RUN[the agent runs, spending the org's budget]
 ```
 
 - **The URL** is built on the deployment's one public address (`PUBLIC_BASE_URL`), not
@@ -103,6 +104,13 @@ flowchart TD
 A request whose signature does not verify is refused with a `403` before the runner
 is ever reached; the secret is sealed in the [vault](secrets.md) and never appears
 in a read, a listing, or the URL.
+
+!!! info "The `202` means accepted, not finished"
+
+    A matched delivery is submitted as its own `run-scheduled-trigger` flow and
+    the agent runs in the worker, so the provider gets its answer in one fast
+    Prefect call rather than waiting out a model. Do not read a `202` as
+    "the agent has replied" - read the run in Activity for that.
 
 A verified delivery that has nothing to do - an inactive trigger, or a payload the
 filter does not match - answers `202` exactly as a fired one does, so holding the secret

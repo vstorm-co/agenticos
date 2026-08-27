@@ -101,10 +101,10 @@ middle job runs a model over code the pull request controls.
 ```mermaid
 flowchart LR
     C["context<br/><i>pull-requests: read</i><br/>refuses a fork head, before checkout"]
-    R["review<br/><i>contents: read</i><br/><b>holds OPENAI_API_KEY</b>"]
+    R["review<br/><i>contents: read</i><br/>checks out the head and<br/>assembles the diff itself<br/><b>holds OPENAI_API_KEY</b>"]
     P["publish<br/><i>pull-requests: write</i><br/>no key"]
-    C -->|the diff, as an artifact| R
-    R -->|findings, as an artifact| P
+    C -->|"title and body, as an artifact"| R
+    R -->|"findings.json, as an artifact"| P
     P --> PR[a comment on the pull request]
 ```
 
@@ -117,8 +117,11 @@ flowchart LR
 !!! success "The job holding the key can write nothing back"
 
     No comment, no label, no ref — whatever the model is talked into. The job
-    that writes has never seen the key. Findings travel between them as an artifact, because a split like this
-means job outputs can carry a summary string but not a file.
+    that writes has never seen the key. Findings travel to `publish` as an artifact, because a split like this means job
+outputs can carry a summary string but not a file. Note where the pull request's
+own code enters: `context` hands over only the title and body, and the **`review`**
+job checks out the head and assembles the diff itself — inside the job that holds
+the key, which is why that job can write nothing back.
 
 `context` also refuses a fork head, via the API and **before checkout**. Forks
 are disabled on this repository today; this is what keeps the guarantee true on

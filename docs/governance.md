@@ -793,8 +793,11 @@ sequenceDiagram
     alt approved
         Q->>G: resume with the arguments that were read
         G->>M: execute those, not what it proposes now
-    else rejected or expired
-        Q->>M: a refusal it can relay, not a crash
+    else rejected
+        Q->>G: resume, replaying the denial
+        G->>M: a refusal it can relay, not a crash
+    else expired
+        Q--xM: the run ends `cancelled`. No further model request
     end
 ```
 
