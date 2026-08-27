@@ -114,12 +114,13 @@ function LevelBadge({ permission }: { permission: Permission }) {
  */
 export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogProps) {
   const tErrors = useTranslations("errors");
+  const tc = useTranslations("common");
   const t = useTranslations("chat");
   const { shares, isLoading, shareConversation, fetchShares, revokeShare } =
     useConversationShares();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const currentUserId = useAuthStore((state) => state.user?.id);
-  const { members } = useMembers(activeOrgId ?? "");
+  const { members, error: membersError, fetchMembers } = useMembers(activeOrgId ?? "");
   const [picked, setPicked] = useState<string | null>(null);
   const [permission, setPermission] = useState<Permission>("view");
   const [shareLink, setShareLink] = useState<string | null>(null);
@@ -260,6 +261,17 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
             <p className="text-muted-foreground text-xs">
               {permission === "edit" ? t("editMeans") : t("viewMeans")}
             </p>
+            {/* Said, because the picker is the only way to name somebody: a
+                members request that failed would otherwise leave it empty and
+                disabled with no explanation and nothing to press. */}
+            {membersError !== null && (
+              <p className="text-destructive flex flex-wrap items-center gap-2 text-xs">
+                {t("membersCouldNotBeRead")}
+                <Button variant="ghost" size="sm" onClick={() => fetchMembers()}>
+                  {tc("retry")}
+                </Button>
+              </p>
+            )}
           </div>
 
           {shares.length > 0 && (

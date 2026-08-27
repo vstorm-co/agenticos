@@ -10,6 +10,8 @@ const fetchShares = vi.fn();
 const revokeShare = vi.fn();
 const listedMembers = vi.fn<() => OrganizationMember[]>(() => []);
 const listedShares = vi.fn<() => Record<string, unknown>[]>(() => []);
+const membersError = vi.fn<() => string | null>(() => null);
+const fetchMembers = vi.fn();
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/hooks", () => ({
@@ -20,7 +22,11 @@ vi.mock("@/hooks", () => ({
     fetchShares,
     revokeShare,
   }),
-  useMembers: () => ({ members: listedMembers() }),
+  useMembers: () => ({
+    members: listedMembers(),
+    error: membersError(),
+    fetchMembers,
+  }),
 }));
 // Imported by its own path rather than through the barrel, so it is mocked by
 // that path too.
@@ -62,6 +68,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   listedMembers.mockReturnValue(MEMBERS);
   listedShares.mockReturnValue([]);
+  membersError.mockReturnValue(null);
   shareConversation.mockResolvedValue({ id: "s-1" });
   revokeShare.mockResolvedValue(undefined);
 });
@@ -212,6 +219,20 @@ describe("choosing who to share with", () => {
     await userEvent.click(screen.getByRole("option", { name: "Edit" }));
 
     expect(screen.getByRole("button", { name: "Share conversation" })).toBeDisabled();
+  });
+
+  it("says so when the people could not be read, and offers a retry", async () => {
+    // The picker is the only way to name somebody, so a failed members request
+    // would otherwise be an empty disabled control with no explanation and
+    // nothing to press.
+    listedMembers.mockReturnValue([]);
+    membersError.mockReturnValue("boom");
+    renderDialog();
+
+    expect(screen.getByText(/could not be read/)).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(fetchMembers).toHaveBeenCalled();
   });
 
   it("shares with the id the picker holds, not an address", async () => {

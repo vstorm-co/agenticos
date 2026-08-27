@@ -892,6 +892,7 @@
     "link": "Link",
     "linkGenerated": "Share link generated",
     "loading": "Loading…",
+    "membersCouldNotBeRead": "The people in this organization could not be read.",
     "modelPicker": {
       "agentModel": "Agent's model",
       "chooseProvider": "Choose a provider",

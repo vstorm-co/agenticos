@@ -221,6 +221,7 @@
     "generateShareLink": "Wygeneruj link do udostępnienia",
     "helpful": "Pomocne",
     "linkGenerated": "Link do udostępnienia wygenerowany",
+    "membersCouldNotBeRead": "Nie udało się odczytać osób w tej organizacji.",
     "newChat": "Nowy czat",
     "newConversation": "Nowa konwersacja",
     "noConversations": "Brak konwersacji",
