@@ -17,6 +17,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.297] - 2026-08-27
+
+### Added
+
+- **The Builder speaks Polish.** `pl.json` held no `agents` namespace at all - 0 of
+  563 keys - so the whole Builder rendered in English under `/pl`, the largest
+  single gap in the catalog. All 563 are translated as one namespace rather than
+  piecemeal, because a namespace is the unit a person reads and seventy Polish
+  strings among four hundred English ones reads worse than a consistently English
+  panel. The product's own nouns stay English and are inflected into Polish
+  grammar - agent, spec, capability, skill, embed, budget, run, prompt, provider,
+  token, vault, workspace, sandbox, MCP - so a Polish reader meets the same words
+  the docs, the API and an exported YAML use; `secret` follows the convention
+  already in the file and becomes `sekret`. Counts are ICU `plural` with Polish's
+  `few` and `many` arms rather than ternaries, with any noun the number agrees
+  with inside the plural, and every interpolation and `t.rich` tag is preserved.
+  (#643)
+
 ## [0.0.296] - 2026-08-27
 
 ### Changed
