@@ -3038,7 +3038,6 @@
       "eachRowSaysWhat": "Each row says what was checked. Auto-refreshes every 30s.",
       "everyCheckPassed": "Every check passed",
       "everyStatusHereComes": "Every status here comes from a probe that ran when this page loaded. There is no uptime history: nothing records one, and a number that looks like one would be made up.",
-      "everyTenantDeploymentOnly": "Every tenant in the deployment - only the platform admin sees this list.",
       "failedFetchHealth": "Failed to fetch health",
       "failingServices": "Failing: {names}",
       "inspect": "Inspect",
