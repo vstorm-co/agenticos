@@ -256,6 +256,21 @@ async def _fetch(spec: ListingSpec, api_key: str | None) -> list[CatalogModel]:
         return _read_listing(response.json(), spec)
 
 
+def _fallback(curated: list[CatalogModel]) -> tuple[list[CatalogModel], CatalogSource]:
+    """What to answer when the provider could not be asked, or said nothing.
+
+    One function because there are four such paths - no listing, no key, a call
+    that failed, an empty response - and the interesting half is what they all
+    do when there is nothing curated either. Nothing to show and nothing to fall
+    back on is not "this provider has no models"; it is this platform not being
+    able to enumerate them, and `curated` about an empty list claims a shortlist
+    that does not exist. `mistral` is exactly this case: it publishes a listing
+    and has no curated entry, so a failed call used to answer `curated` with
+    nothing in it (#923).
+    """
+    return (curated, "curated") if curated else ([], "unlisted")
+
+
 async def models_for(
     provider: str, *, api_key: str | None = None
 ) -> tuple[list[CatalogModel], CatalogSource]:
@@ -275,11 +290,7 @@ async def models_for(
     curated = list(curated_models(provider))
 
     if spec is None or (spec.auth_header is not None and api_key is None):
-        # Nothing to show and nothing to fall back on is not "this provider has
-        # no models" - it is this platform not being able to enumerate them. A
-        # picker that says the first about Bedrock is wrong; one that says the
-        # second asks for the id (#923).
-        return (curated, "curated") if curated else ([], "unlisted")
+        return _fallback(curated)
 
     # Keyed on the provider alone, not on the key: two keys for one provider see
     # the same catalog, and keying on the key would put a secret in a cache key.
@@ -292,10 +303,10 @@ async def models_for(
         models = await _fetch(spec, api_key)
     except Exception:
         logger.warning("Could not list models for %s; using the curated list", provider)
-        return curated, "curated"
+        return _fallback(curated)
 
     if not models:
-        return curated, "curated"
+        return _fallback(curated)
 
     async with _lock:
         _cache[provider] = _Entry(models=tuple(models), fetched_at=time.monotonic())

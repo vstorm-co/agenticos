@@ -132,6 +132,26 @@ class TestWhenTheProviderWillNotSay:
         assert models
 
     @pytest.mark.anyio
+    async def test_a_failed_call_with_nothing_curated_is_unlisted_too(self):
+        """Four paths reach the fallback - no listing, no key, a failed call, an
+        empty answer - and they have to agree. `mistral` publishes a listing and
+        has no curated entry, so a transient failure used to answer `curated`
+        about a shortlist that does not exist (#923)."""
+        client = _responds({})
+        client.get = AsyncMock(side_effect=httpx.ConnectError("no route"))
+        with patch(f"{MODULE}.httpx.AsyncClient", return_value=client):
+            models, source = await models_for("mistral", api_key="k")
+
+        assert (models, source) == ([], "unlisted")
+
+    @pytest.mark.anyio
+    async def test_an_empty_answer_with_nothing_curated_is_unlisted_as_well(self):
+        with patch(f"{MODULE}.httpx.AsyncClient", return_value=_responds({"data": []})):
+            models, source = await models_for("mistral", api_key="k")
+
+        assert (models, source) == ([], "unlisted")
+
+    @pytest.mark.anyio
     async def test_a_provider_with_no_listing_and_no_curation_says_it_is_unlisted(self):
         """Not an error: the field is free text, and a self-hosted endpoint
         nobody has a list for is the case it was built for.
@@ -272,6 +292,30 @@ class TestCuratedFallbacksAreData:
         assert LISTINGS["together"].array_path == ""
 
 
+def _documented_providers() -> set[str]:
+    """The ids in the `| Provider | id | Credential | Custom URL |` tables.
+
+    Read off the second cell of every row under one of those headers, so a row
+    added or removed is the thing being compared - and prose elsewhere on the
+    page is not.
+    """
+    page = (Path(__file__).resolve().parents[2] / "docs" / "models.md").read_text()
+    ids: set[str] = set()
+    in_table = False
+    for line in page.splitlines():
+        if line.startswith("| Provider | id |"):
+            in_table = True
+            continue
+        if in_table and not line.startswith("|"):
+            in_table = False
+        if not in_table or line.startswith("|---"):
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) > 1 and cells[1].startswith("`"):
+            ids.add(cells[1].strip("`"))
+    return ids
+
+
 class TestOneAnswerPerQuestion:
     """Which list answers what, and that the derived copies still agree (#923).
 
@@ -297,14 +341,15 @@ class TestOneAnswerPerQuestion:
         # provider spelled differently.
         assert [entry.provider for entry in IMAGE_CATALOG if entry.provider not in PROVIDERS] == []
 
-    def test_every_provider_is_in_the_page_that_documents_them(self):
+    def test_the_documented_provider_table_is_the_provider_table(self):
         """`docs/models.md` is a hand-written copy of `PROVIDERS`, and the repo's
         rule is one copy on purpose. Until it is generated, this is what makes
         adding the twenty-eighth provider a change that fails until the page
-        knows about it."""
-        page = Path(__file__).resolve().parents[2] / "docs" / "models.md"
-        undocumented = [
-            provider for provider in PROVIDERS if f"`{provider}`" not in page.read_text()
-        ]
+        knows about it.
 
-        assert undocumented == []
+        The **id column of the tables**, not a search of the page for the token:
+        a search passes on a removed provider whose row is still there, and on
+        an id the prose happens to mention for another reason - the page names
+        one it deliberately does not support. Two directions, one comparison.
+        """
+        assert _documented_providers() == set(PROVIDERS)
