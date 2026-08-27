@@ -94,6 +94,15 @@ describe("the file tree", () => {
     );
   });
 
+  it("marks nothing when the open id names no file it holds", () => {
+    // A stale id - the pane's file was deleted, or the listing has been refetched
+    // since - selects nothing rather than the first row.
+    const nodes = buildTree([resource("references/a.md", "id-a")]);
+    render(<FileTree nodes={nodes} openId={"id-gone"} onOpen={vi.fn()} />);
+
+    expect(screen.queryByRole("treeitem", { selected: true })).toBeNull();
+  });
+
   it("never marks a folder as the selection, because a folder does not open", () => {
     const nodes = buildTree([resource("references/a.md", "id-a")]);
     render(<FileTree nodes={nodes} openId={"id-a"} onOpen={vi.fn()} />);

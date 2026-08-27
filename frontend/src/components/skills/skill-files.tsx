@@ -16,18 +16,29 @@
  * ask for a folder.
  */
 
-import { useState } from "react";
-import { ChevronRight, FileText, Folder, FolderOpen, Upload } from "lucide-react";
+import { useMemo, useState } from "react";
+import { FileText, Upload } from "lucide-react";
 
-import { FileEditor } from "@/components/files";
+import { FileEditor, PathTree, type PathTreeNode } from "@/components/files";
 import { Button, Input, Label, Textarea } from "@/components/ui";
 import { useSkillResource } from "@/hooks";
-import type { TreeNode } from "@/lib/file-tree";
-import { cn } from "@/lib/utils";
+import { folderPaths, type TreeNode } from "@/lib/file-tree";
 import type { SkillResourceSummary } from "@/types/providers";
 import { useTranslations } from "next-intl";
 
-/** The tree itself, so a caller can put its own things above it. */
+/**
+ * A skill's files as a tree, over the shared one.
+ *
+ * The mechanics - the recursion, the expand-collapse set, the chevron, the two
+ * folder icons, `role="tree"` - are `PathTree` in `components/files`, shared with
+ * the workspace explorer, which had written all of it a second time with a
+ * second node shape (#137). What is left here is what a *skill's* row says and
+ * how this surface identifies a file: by resource id, because two files can
+ * share a name in different folders and the id is what the pane fetches by.
+ *
+ * Folders start open, which is what `folderPaths` answers: a skill holds a
+ * handful of files and a tree that starts closed hides all of them.
+ */
 export function FileTree({
   nodes,
   openId,
@@ -37,105 +48,63 @@ export function FileTree({
   openId: string | null;
   onOpen: (id: string) => void;
 }) {
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const toggleFolder = (path: string) =>
-    setCollapsed((previous) => {
-      const next = new Set(previous);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
-      return next;
-    });
+  const t = useTranslations("skills");
+  const rows = useMemo(() => asPathNodes(nodes), [nodes]);
+  const openPaths = useMemo(() => new Set(folderPaths(nodes)), [nodes]);
+  const selectedPath = useMemo(() => pathOfId(rows, openId), [rows, openId]);
 
-  if (nodes.length === 0) return null;
   return (
-    <TreeLevel
-      nodes={nodes}
-      depth={0}
-      openId={openId}
-      collapsed={collapsed}
-      onToggleFolder={toggleFolder}
-      onOpen={onOpen}
+    <PathTree
+      nodes={rows}
+      label={t("fileTree")}
+      selectedPath={selectedPath}
+      onSelect={(node) => {
+        if (node.id !== null) onOpen(node.id);
+      }}
+      initialOpenPaths={openPaths}
+      renderFile={(node) => (
+        <>
+          <FileText className="text-muted-foreground h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span className="truncate font-mono text-xs">{node.label}</span>
+        </>
+      )}
     />
   );
 }
 
-function TreeLevel({
-  nodes,
-  depth,
-  openId,
-  collapsed,
-  onToggleFolder,
-  onOpen,
-}: {
-  nodes: TreeNode[];
-  depth: number;
-  openId: string | null;
-  collapsed: Set<string>;
-  onToggleFolder: (path: string) => void;
-  onOpen: (id: string) => void;
-}) {
-  return (
-    <ul role={depth === 0 ? "tree" : "group"} className="space-y-0.5">
-      {nodes.map((node) =>
-        node.kind === "folder" ? (
-          <li
-            key={node.path}
-            role="treeitem"
-            aria-expanded={!collapsed.has(node.path)}
-            // A folder is never the selection - only a file opens in the pane -
-            // but the role requires the attribute, and saying "false" is the
-            // truthful way to say it.
-            aria-selected={false}
-          >
-            <button
-              type="button"
-              onClick={() => onToggleFolder(node.path)}
-              style={{ paddingLeft: `${depth * 12 + 4}px` }}
-              className="hover:bg-accent flex w-full items-center gap-1.5 rounded px-1 py-1 text-left text-sm transition-colors"
-            >
-              <ChevronRight
-                className={cn(
-                  "text-muted-foreground h-3 w-3 shrink-0 transition-transform",
-                  !collapsed.has(node.path) && "rotate-90",
-                )}
-              />
-              {collapsed.has(node.path) ? (
-                <Folder className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-              ) : (
-                <FolderOpen className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-              )}
-              <span className="truncate">{node.label}</span>
-            </button>
-            {!collapsed.has(node.path) && (
-              <TreeLevel
-                nodes={node.children}
-                depth={depth + 1}
-                openId={openId}
-                collapsed={collapsed}
-                onToggleFolder={onToggleFolder}
-                onOpen={onOpen}
-              />
-            )}
-          </li>
-        ) : (
-          <li key={node.id} role="treeitem" aria-selected={openId === node.id}>
-            <button
-              type="button"
-              onClick={() => onOpen(node.id)}
-              style={{ paddingLeft: `${depth * 12 + 20}px` }}
-              className={cn(
-                "flex w-full items-center gap-1.5 rounded px-1 py-1 text-left text-sm transition-colors",
-                openId === node.id ? "bg-accent text-foreground" : "hover:bg-accent/60",
-              )}
-            >
-              <FileText className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-              <span className="truncate font-mono text-xs">{node.label}</span>
-            </button>
-          </li>
-        ),
-      )}
-    </ul>
+/** A skill's tree node, plus the id this surface opens a file by. */
+interface SkillTreeNode extends PathTreeNode {
+  id: string | null;
+  children: SkillTreeNode[];
+}
+
+/** `lib/file-tree`'s union in the shape the shared tree reads. */
+function asPathNodes(nodes: TreeNode[]): SkillTreeNode[] {
+  return nodes.map((node) =>
+    node.kind === "folder"
+      ? {
+          label: node.label,
+          path: node.path,
+          isDir: true,
+          children: asPathNodes(node.children),
+          id: null,
+        }
+      : { label: node.label, path: node.path, isDir: false, children: [], id: node.id },
   );
+}
+
+/** The path of the file with this id, which is what the shared tree selects by. */
+function pathOfId(nodes: SkillTreeNode[], id: string | null): string | null {
+  if (id === null) return null;
+  for (const node of nodes) {
+    if (!node.isDir) {
+      if (node.id === id) return node.path;
+      continue;
+    }
+    const found = pathOfId(node.children, id);
+    if (found !== null) return found;
+  }
+  return null;
 }
 
 /**

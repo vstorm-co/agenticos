@@ -406,8 +406,8 @@ describe("the tree built from the paths", () => {
 
     expect(tree).toHaveLength(1);
     expect(tree[0]!.isDir).toBe(true);
-    expect(tree[0]!.name).toBe("uploads");
-    expect(tree[0]!.children.map((child) => child.name)).toEqual(["x.pdf"]);
+    expect(tree[0]!.label).toBe("uploads");
+    expect(tree[0]!.children.map((child) => child.label)).toEqual(["x.pdf"]);
   });
 
   it("uses the directory row where the listing includes one, not two folders", () => {
@@ -427,13 +427,13 @@ describe("the tree built from the paths", () => {
     // where a reader looks first.
     const tree = treeOf([file("/z.txt"), file("/a.txt"), file("/m/one.txt")]);
 
-    expect(tree.map((node) => node.name)).toEqual(["m", "a.txt", "z.txt"]);
+    expect(tree.map((node) => node.label)).toEqual(["m", "a.txt", "z.txt"]);
   });
 
   it("keeps two folders apart", () => {
     const tree = treeOf([file("/a/one.txt"), file("/b/two.txt")]);
 
-    expect(tree.map((node) => node.name)).toEqual(["a", "b"]);
+    expect(tree.map((node) => node.label)).toEqual(["a", "b"]);
     expect(tree[0]!.children.map((child) => child.path)).toEqual(["/a/one.txt"]);
   });
 });

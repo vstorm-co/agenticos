@@ -4413,6 +4413,7 @@
     "fileCount": "{count, plural, =0 {No files} =1 {1 file} other {# files}}",
     "fileRemoved": "File removed",
     "fileSaved": "File saved",
+    "fileTree": "Skill files",
     "files": "Files",
     "files2": "Files",
     "files3": "Files",
