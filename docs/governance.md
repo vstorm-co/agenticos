@@ -1008,10 +1008,19 @@ So the audience is split by the permission rather than trimmed to it:
 | Recipient holds | Gets |
 |---|---|
 | `approvals:decide` | the request, with the link to the queue |
-| anything less | the *fact* - the run is held, the people who can decide have been told, nothing is asked of them - linking to the agent, which every role may open |
+| anything less | the *fact*: the run is held not failed, approving it belongs to an owner, admin or operator, and nothing is asked of them |
 
 Trimming instead would leave the one person definitely waiting on the run - the
 person who started it - hearing nothing about why it stopped.
+
+The second email carries **no link**, and that is deliberate rather than
+unfinished. `agents:view` being a role permission does not make one agent
+reachable: agent access is resolved per resource, so a `chosen` recipient with no
+grant to a private agent would get a second call to action the platform refuses -
+the same defect in a new place. Nothing is asked of that reader, so nothing is
+offered. Nor does it claim anybody else has been told: an audience of one
+non-decider means nobody who can decide was mailed at all, and a sentence
+promising otherwise would leave them waiting on somebody who never heard.
 
 Which roles decide is read off the permission catalog, not listed beside it: a
 role gaining or losing `approvals:decide` must not leave the routing behind,

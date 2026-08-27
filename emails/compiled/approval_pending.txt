@@ -6,10 +6,7 @@ Subject: [[agent_name]] is held, waiting on an approval
 The run is held, not failed. It resumes from where it stopped once the call is
 approved, and ends there if it is denied.
 
-Deciding is not yours on this deployment, so the people who can have been
-told. Nothing is asked of you.
-
-The agent:
-[[agent_url]]
+Approving it is not yours on this deployment - an owner, an admin or an operator
+can. Nothing is asked of you; this is so you know why the run went quiet.
 
 - The [[app_name]] Team

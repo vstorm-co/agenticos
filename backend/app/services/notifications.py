@@ -170,16 +170,17 @@ class NotificationService:
             self._send(EmailKey.APPROVAL_REQUESTED, approvers, context)
         if not onlookers:
             return
+        # No link at all, and that is the point of it: `agents:view` being a role
+        # permission does not make one agent reachable, because agent access is
+        # resolved per resource - a `chosen` recipient with no grant to a private
+        # agent would get a second call to action the platform refuses. Nothing is
+        # asked of this reader, so nothing is offered.
         self._send(
             EmailKey.APPROVAL_PENDING,
             onlookers,
             {
                 "agent_name": context["agent_name"],
                 "tools": context["tools"],
-                # The agent, not the queue: `agents:view` is held by every role,
-                # so this is a destination the whole audience can open - which is
-                # the property the Review button did not have.
-                "agent_url": f"{self._frontend}/agents/{agent.id}",
                 "app_name": context["app_name"],
             },
         )

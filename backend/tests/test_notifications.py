@@ -403,14 +403,13 @@ class TestApprovalRequested:
         """The case #1203 is about, and the one the initiator audience exists
         for: they are the person definitely waiting on the run, so they are told
         it is held - without a button the platform would refuse them."""
-        agent = _agent()
         with (
             patch(f"{MODULE}.member_repo.list_emails_by_role", new=_roles()),
             patch(f"{MODULE}.member_repo.list_emails_for_members", new=_members("asker@acme.test")),
         ):
             await NotificationService(MagicMock()).approval_requested(
                 _run(user_id=uuid.uuid4()),
-                agent=agent,
+                agent=_agent(),
                 spec=_spec(),
                 tools=["send_email"],
             )
@@ -419,10 +418,10 @@ class TestApprovalRequested:
         assert key is EmailKey.APPROVAL_PENDING
         assert recipients == ["asker@acme.test"]
         assert context["tools"] == "send_email"
-        # The agent, which every role may open - not the queue, which is the
-        # destination that was being promised and refused.
-        assert context["agent_url"].endswith(f"/agents/{agent.id}")
-        assert "approvals_url" not in context
+        # No destination at all. `agents:view` being a role permission does not
+        # make one agent reachable - access is resolved per resource - so any
+        # link here is a second call to action the platform might refuse.
+        assert not [key for key in context if key.endswith("_url")]
 
     @pytest.mark.anyio
     async def test_one_audience_can_be_both_and_each_gets_its_own_mail(self, sent):
