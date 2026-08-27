@@ -618,10 +618,14 @@ Four consequences worth knowing:
   `GET` or a PATCH told somebody who had starred a thread that they had not
   (#1254). A read with no reader — the admin listing, the run path resolving a
   thread — asks for nobody's stars and pays no query to say so, and a read that
-  only *authorizes* turns it off explicitly: `GET /conversations/{id}/messages`
-  resolves the conversation twice, through `list_messages` and
-  `conversation_cost`, and serializes neither it nor its star. On by default is
-  what keeps a route from forgetting; off is a deliberate act inside a service.
+  only *authorizes* turns it off explicitly with `include_favourite=False`. Those
+  are the reads whose result is discarded or is not a conversation:
+  `GET /conversations/{id}/messages`, which resolves the thread twice through
+  `list_messages` and `conversation_cost`; the three workspace routes; every turn
+  of an existing chat, through `agent._resolve_in_org`; and the writes —
+  `add_message`, `delete_conversation`, and `set_favourite`, which overwrites the
+  flag itself. On by default is what keeps a route that *does* serialize a
+  conversation from forgetting; off is a deliberate act at the call site.
 - **Starring is idempotent under contention**, because the insert is
   `ON CONFLICT DO NOTHING` rather than a read followed by an insert. Two
   overlapping POSTs for the same pair both saw no row and the second violated
