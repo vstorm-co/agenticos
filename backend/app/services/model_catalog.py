@@ -302,7 +302,14 @@ async def models_for(
     try:
         models = await _fetch(spec, api_key)
     except Exception:
-        logger.warning("Could not list models for %s; using the curated list", provider)
+        # What is said has to match what is answered: for a provider with no
+        # curated entry there is no list to fall back to, and a log line during
+        # an outage claiming there was is the opposite account of the response.
+        logger.warning(
+            "Could not list models for %s; %s",
+            provider,
+            "using the curated list" if curated else "and there is no curated list to fall back to",
+        )
         return _fallback(curated)
 
     if not models:

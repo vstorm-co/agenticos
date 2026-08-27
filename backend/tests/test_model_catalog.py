@@ -316,6 +316,30 @@ def _documented_providers() -> set[str]:
     return ids
 
 
+def _documented_rows() -> dict[str, dict[str, str]]:
+    """The four-column provider rows, by id.
+
+    The hosted and self-hosted tables. The third one - the providers whose
+    credential is genuinely not an API key - has three columns and describes its
+    credential in prose, so there is nothing there to compare a field against.
+    """
+    page = (Path(__file__).resolve().parents[2] / "docs" / "models.md").read_text()
+    rows: dict[str, dict[str, str]] = {}
+    in_table = False
+    for line in page.splitlines():
+        if line.startswith("| Provider | id | Credential | Custom URL |"):
+            in_table = True
+            continue
+        if in_table and not line.startswith("|"):
+            in_table = False
+        if not in_table or line.startswith("|---"):
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) == 4 and cells[1].startswith("`"):
+            rows[cells[1].strip("`")] = {"credential": cells[2], "custom_url": cells[3]}
+    return rows
+
+
 class TestOneAnswerPerQuestion:
     """Which list answers what, and that the derived copies still agree (#923).
 
@@ -341,6 +365,25 @@ class TestOneAnswerPerQuestion:
         # provider spelled differently.
         assert [entry.provider for entry in IMAGE_CATALOG if entry.provider not in PROVIDERS] == []
 
+    def test_every_image_prefix_belongs_to_the_provider_it_is_paired_with(self):
+        """The pair, not each half.
+
+        The prefix is deliberately not always the provider's own - the image
+        path wants OpenAI's Responses API where the chat path wants Chat
+        Completions - so it cannot simply be compared. What must hold is that it
+        is *rooted* in the provider: `google` paired with `openai-responses`
+        passes an id check and a `draws_images` check, and then builds an OpenAI
+        model while the capability hands it Google's credential.
+        """
+        mismatched = [
+            (entry.provider, entry.prefix)
+            for entry in IMAGE_CATALOG
+            if entry.prefix.split("-")[0] != entry.provider
+            and entry.prefix != PROVIDERS[entry.provider].prefix
+        ]
+
+        assert mismatched == []
+
     def test_the_documented_provider_table_is_the_provider_table(self):
         """`docs/models.md` is a hand-written copy of `PROVIDERS`, and the repo's
         rule is one copy on purpose. Until it is generated, this is what makes
@@ -353,3 +396,40 @@ class TestOneAnswerPerQuestion:
         one it deliberately does not support. Two directions, one comparison.
         """
         assert _documented_providers() == set(PROVIDERS)
+
+    def test_the_page_says_which_providers_take_an_endpoint(self):
+        """`PROVIDERS` is authoritative for the *credential shape*, and the two
+        four-column tables copy it - so a `base_url_param` added or removed
+        without touching the row leaves somebody looking for an Endpoint field
+        that is not there, or not looking for one that is."""
+        wrong = [
+            provider
+            for provider, row in _documented_rows().items()
+            if ("✓" in row["custom_url"]) is not PROVIDERS[provider].supports_base_url
+        ]
+
+        assert wrong == []
+
+    def test_the_page_names_the_endpoint_parameter_the_sdk_wants(self):
+        """Only where it differs from `base_url`, which is what the rows do:
+        xAI calls it `api_host` and LiteLLM `api_base`, and a profile carrying
+        the wrong one is a setting somebody spends an afternoon on."""
+        wrong = [
+            provider
+            for provider, row in _documented_rows().items()
+            if "`" in row["custom_url"]
+            and row["custom_url"].split("`")[1] != PROVIDERS[provider].base_url_param
+        ]
+
+        assert wrong == []
+
+    def test_the_page_says_which_providers_need_no_key(self):
+        """`keyless` decides whether the key field may be left empty, and the
+        Credential cell is where a reader learns that."""
+        wrong = [
+            provider
+            for provider, row in _documented_rows().items()
+            if ("none" in row["credential"]) is not PROVIDERS[provider].keyless
+        ]
+
+        assert wrong == []
