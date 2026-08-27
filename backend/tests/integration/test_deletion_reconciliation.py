@@ -23,7 +23,10 @@ from app.core.config import settings as app_settings
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.rag_document import RAGDocument
 from app.db.models.user import User
+from app.repositories import knowledge_base_repo
+from app.services.file_storage import get_file_storage
 from app.services.organization import OrganizationService
 from app.services.rag.vectorstore import PgVectorStore
 from app.services.user import UserService
@@ -69,6 +72,38 @@ def _org_collection(org_id: uuid.UUID, collection_name: str) -> KnowledgeBase:
         embedding_dim=1536,
         organization_id=org_id,
         visibility="org",
+    )
+
+
+def _personal_kb(org_id: uuid.UUID, owner_id: uuid.UUID, collection_name: str) -> KnowledgeBase:
+    return KnowledgeBase(
+        id=uuid.uuid4(),
+        name="My notes",
+        scope=KBScope.PERSONAL.value,
+        collection_name=collection_name,
+        embedding_model="text-embedding-3-small",
+        embedding_dim=1536,
+        organization_id=org_id,
+        owner_user_id=owner_id,
+        visibility="private",
+    )
+
+
+def _kb_document(
+    collection_name: str, kb_id: uuid.UUID, org_id: uuid.UUID, storage_path: str
+) -> RAGDocument:
+    return RAGDocument(
+        id=uuid.uuid4(),
+        collection_name=collection_name,
+        filename="notes.txt",
+        filesize=5,
+        filetype="txt",
+        storage_path=storage_path,
+        status="completed",
+        chunk_count=0,
+        ingestion_config={},
+        knowledge_base_id=kb_id,
+        organization_id=org_id,
     )
 
 
@@ -167,6 +202,92 @@ class TestDeletingAUser:
         await db.refresh(org)
         assert org.created_by_user_id == heir.id
         assert await db.get(User, creator.id) is None
+
+    async def test_deleting_a_user_removes_their_personal_knowledge_base_whole(
+        self, engine: AsyncEngine
+    ) -> None:
+        """A personal-scoped KB the user owns is torn down whole - rows, files and
+        vector table - rather than orphaned by the `SET NULL` cascade with its
+        name still blocking reuse (#1131)."""
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        storage = get_file_storage()
+        stored_path = await storage.save("kb-owner", "notes.txt", b"hello")
+        collection = f"kbnine{uuid.uuid4().hex[:12]}"
+        table = store._table(collection)
+        async with factory() as s:
+            user = _user()
+            s.add(user)
+            await s.flush()
+            org = await _org(s, user, is_personal=True)
+            kb = _personal_kb(org.id, user.id, collection)
+            s.add(kb)
+            await s.flush()
+            s.add(_kb_document(collection, kb.id, org.id, stored_path))
+            await s.execute(text(f"CREATE TABLE {table} (id int)"))
+            await s.commit()
+            user_id, kb_id = user.id, kb.id
+
+        async with factory() as s:
+            await UserService(s, vector_store=store).delete(user_id)
+            await s.commit()
+
+        async with factory() as s:
+            assert await s.get(KnowledgeBase, kb_id) is None
+            docs = await s.execute(
+                select(RAGDocument).where(RAGDocument.knowledge_base_id == kb_id)
+            )
+            assert docs.scalars().all() == []
+            assert (await s.execute(text("SELECT to_regclass(:t)"), {"t": table})).scalar() is None
+            assert await s.get(User, user_id) is None
+            # The name is reusable: no surviving row claims it.
+            assert await knowledge_base_repo.get_by_collection_name(s, collection) is None
+
+        assert storage.get_full_path(stored_path) is None
+
+    async def test_a_personal_kb_sharing_a_collection_keeps_the_table(
+        self, engine: AsyncEngine
+    ) -> None:
+        """Two KBs can back onto one physical table (collection_name is not
+        tenant-unique, #913), so deleting one owner's personal KB removes its rows
+        but not the table the other still references (#1131)."""
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbnine{uuid.uuid4().hex[:12]}"
+        table = store._table(collection)
+        async with factory() as s:
+            leaver = _user()
+            keeper = _user()
+            s.add_all([leaver, keeper])
+            await s.flush()
+            leaver_org = await _org(s, leaver, is_personal=True)
+            keeper_org = await _org(s, keeper, is_personal=True)
+            s.add(_personal_kb(leaver_org.id, leaver.id, collection))
+            keeper_kb = _personal_kb(keeper_org.id, keeper.id, collection)
+            s.add(keeper_kb)
+            await s.execute(text(f"CREATE TABLE {table} (id int)"))
+            await s.commit()
+            leaver_id, keeper_kb_id = leaver.id, keeper_kb.id
+
+        async with factory() as s:
+            await UserService(s, vector_store=store).delete(leaver_id)
+            await s.commit()
+
+        async with factory() as s:
+            assert await s.get(KnowledgeBase, keeper_kb_id) is not None
+            assert (
+                await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
+            ).scalar() is not None
 
 
 class TestDeletingAnOrg:
