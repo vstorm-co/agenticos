@@ -489,16 +489,24 @@ describe("nothing outside this module shows a refusal's raw message", () => {
    * test of the sites that were migrated cannot fail when a twenty-sixth is
    * added beside them.
    */
-  // Every shape the sweep actually found, and they were not one: the ternary,
-  // the `=== null` inversion of it, and an `if` that returns. What they share is
-  // reading `.message` off a value the code has just decided is an error - which
-  // is the read `getErrorMessage` exists to replace.
+  /**
+   * A `.message` read off something the code is treating as a caught error.
+   *
+   * Matched on the *name* rather than on the shape around it, because the shape
+   * kept being a new one: a ternary, its `=== null` inversion, an `if` that
+   * returns, a typed `.catch((cause: Error) => …)` and an `(x as Error)` cast -
+   * five spellings across two review rounds, each of which had walked past the
+   * previous regex. What they have in common is the identifier, and a reader
+   * of `error.message` in a component is reading a refusal whatever the syntax.
+   *
+   * `problem.message` and a chat message's `.content` are untouched: neither
+   * name is one a `catch` binds.
+   */
+  const CAUGHT = String.raw`(?:e|err|error|cause|exc|failure|reason|[A-Za-z_$][\w$]*(?:Error|Failure))`;
   const READS_MESSAGE = new RegExp(
     [
-      // `err instanceof Error ? err.message` and `error === null ? null : error.message`
-      String.raw`(?:instanceof (?:Api)?Error|===\s*null)\s*\?[\s\S]{0,40}?\.message\b`,
-      // `if (error instanceof Error) return error.message;`
-      String.raw`instanceof (?:Api)?Error\)\s*return\s+[A-Za-z_$][\w$]*\.message\b`,
+      String.raw`\b${CAUGHT}\.message\b`,
+      String.raw`\(\s*[A-Za-z_$][\w$]*\s+as\s+(?:Api)?Error\s*\)\.message\b`,
     ].join("|"),
   );
 
@@ -516,13 +524,18 @@ describe("nothing outside this module shows a refusal's raw message", () => {
     const root = join(process.cwd(), "src");
     const offenders = ["app", "components", "hooks", "stores"]
       .flatMap((directory) => sources(join(root, directory)))
-      .filter((path) => READS_MESSAGE.test(readFileSync(path, "utf8")))
-      .map((path) => path.slice(root.length + 1));
+      .map((path) => path.slice(root.length + 1))
+      // A BFF route handler renders nothing: `bffJson({ detail: error.message })`
+      // forwards the backend's own sentence to the client that *will* render it,
+      // and that client is what this rule is about. Its own refusals are a
+      // separate contract - `bffRefusal` with a code from `BFF_ERROR_KEYS`.
+      .filter((path) => !path.startsWith(join("app", "api") + "/"))
+      .filter((path) => READS_MESSAGE.test(readFileSync(join(root, path), "utf8")));
 
     expect(offenders).toEqual([]);
   });
 
-  it("recognises every shape that was really there", () => {
+  it("recognises every spelling two review rounds turned up", () => {
     for (const shape of [
       'e instanceof Error ? e.message : t("uploadFailed")',
       'err instanceof ApiError ? err.message : t("saveFailed")',
@@ -530,6 +543,9 @@ describe("nothing outside this module shows a refusal's raw message", () => {
       "if (error instanceof Error) return error.message;",
       // Broken over lines, which is how prettier writes most of them.
       "queryError instanceof Error\n      ? queryError.message\n      : null",
+      ".catch((cause: Error) => setError(cause.message))",
+      "setError((cause as Error).message)",
+      "loadError.message",
     ]) {
       expect(READS_MESSAGE.test(shape), shape).toBe(true);
     }
@@ -538,8 +554,11 @@ describe("nothing outside this module shows a refusal's raw message", () => {
       'getErrorMessage(e, tErrors, t("uploadFailed"))',
       // The guard `use-auth` and friends do on a status reads no message.
       "error instanceof ApiError && error.status === 401",
-      // Nor does a refusal's own field, which is not the caught error.
+      // Nor does a refusal's own field, or a chat message - neither name is one
+      // a `catch` binds.
       "problem.message",
+      "message.content",
+      "lastMessage.message_type",
     ]) {
       expect(READS_MESSAGE.test(shape), shape).toBe(false);
     }
