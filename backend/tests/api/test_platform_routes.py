@@ -38,6 +38,7 @@ from app.core.exceptions import NotFoundError, RunExecutionError
 from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Scope
 from app.db.models.resource_grant import Visibility
 from app.main import app
+from app.repositories.agent_run import WindowAggregates
 from app.schemas.agent import ParkedCall
 from app.services.agent_runner import RunSegment
 from app.services.sharing import SharingService
@@ -1143,6 +1144,13 @@ class TestStatsScopeIsDecidedInTheService:
             ("count_distinct_users", 0),
             ("count_pending_approval_runs", 0),
             ("usage_by_user", []),
+            (
+                "window_aggregates",
+                WindowAggregates(
+                    total=0, cost_usd=Decimal(0), distinct_users=0, p50_ms=None, p95_ms=None
+                ),
+            ),
+            ("window_totals", (0, Decimal(0))),
         ):
             monkeypatch.setattr(
                 f"app.services.stats.agent_run_repo.{name}", AsyncMock(return_value=value)

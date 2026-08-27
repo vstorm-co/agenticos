@@ -162,6 +162,35 @@ know the rule exists and reads the refusal as the product being broken. That is
 also why the allowed domains are published: they are not a secret, and the
 deployment is on the company's own host.
 
+## Finding one tenant among all of them
+
+`GET /admin/organizations` is the only surface that answers *what tenants exist*,
+and it is app-admin only for the reason it is useful: it is cross-tenant by
+construction. It answers a page of organizations with each one's member and agent
+counts and its earliest owner — who to ask about it. Every owner field is null
+together, for an organization whose last owner left, which is a state only the
+deployment admin can fix and therefore one they have to be shown.
+
+| Parameter | |
+|---|---|
+| `search` | Name, slug, or the owner's address. The term is text, not a pattern — `100%` finds the tenant called that rather than all of them |
+| `sort_by` | `name`, `slug`, `members`, `agents`, `created_at`. Anything else is a 422 |
+| `sort_dir` | `asc` / `desc`, defaulting to newest first |
+| `kind` | `personal`, `team`, or `all`. Every account is given a personal organization at sign-up, so on most deployments they are most of the list |
+| `skip`, `limit` | One server page, up to 100 |
+
+**All of it happens in SQL, before `OFFSET`/`LIMIT`**, and `total` counts what was
+narrowed to rather than the deployment. That is the difference between a sort and
+the appearance of one: a page sorted after it arrives claims a whole-collection
+order that fifty rows cannot deliver, which is why the admin's tenant list carried
+no controls at all while the route answered none (#921). The order breaks ties on
+the id, so paging a column where rows share a value lists each of them once.
+
+A column outside the set is refused by name rather than matched against nothing,
+for the two reasons `GET /runs` refuses one: an empty page reads as *this
+deployment has no tenants*, and an `ORDER BY` assembled from a query string is an
+injection surface.
+
 ## An app admin cannot lock the deployment out through the console
 
 `is_active` is enforced on the next request and `is_app_admin` is what the admin

@@ -28,6 +28,7 @@ cost a second place for every change to sit, so it was removed.
 | Spelling, across every tracked file | codespell — as a hook on the files a commit touches, and as `make lint-spelling` in CI's `lint` job over the whole tree |
 | Routes hold only routers, no banner comments, no dead code | `check_routes.py`, `check_comments.py` and `vulture` — hooks in `.pre-commit-config.yaml` (each scans the whole tree, `pass_filenames: false`) and steps of `make lint-backend` in CI's `lint` job |
 | No dependency declared that nothing imports | `deptry` — a step of `make lint-backend` in CI's `lint` job, gating on DEP002 and DEP004. Not a pre-commit hook: it reads the whole manifest against the whole tree, so there is no per-file version of the question |
+| YAML formatting, workflow security, the pre-commit basics, across every tracked file | yamlfmt, zizmor and `pre-commit-hooks` (`end-of-file-fixer`, `trailing-whitespace`, `check-yaml/json/toml`, `detect-private-key` …) — as hooks on the files a commit touches, and as `make lint-precommit` in CI's `lint` job over the whole tree. Like spelling, these are per-file by nature, so a `rev:` bump that brings a new rule breaks every existing file with nothing noticing until an unrelated edit is refused by it |
 
 A hook only ever reads what a commit touches, which makes it a poor gate on its
 own: a misspelling that merges with its file sits there until somebody edits that
@@ -62,8 +63,8 @@ gate missing from it, and this repository has already paid for that twice (#143,
 #165). Only two exemptions exist, both checked rather than assumed: `docs/**`,
 `mkdocs.yml` and a top-level `*.md` (no test reads any of them), and the opposite
 half of the tree for each of the two unit suites. `e2e` is exempted from neither
-half. `lint` is never gated at all, because `make lint-spelling` is the only thing
-that reads every tracked file.
+half. `lint` is never gated at all, because `make lint-spelling` and
+`make lint-precommit` read every tracked file.
 
 The second exemption stops short of one directory. `frontend/src/app/api/**` is
 the BFF, and `backend/tests/api/test_bff_forwarded_paths.py` checks the

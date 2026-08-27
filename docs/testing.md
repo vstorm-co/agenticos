@@ -78,65 +78,204 @@ whatever interpreter is on the path rather than the pinned 3.12.
 
 ## Test Structure
 
+Four layers, and which one a test belongs to is decided by what it needs rather
+than by what it is about.
+
 ```
-tests/
-├── conftest.py          # Shared fixtures
-├── api/                 # API endpoint tests
-│   ├── test_health.py
-│   └── test_auth.py
-├── unit/                # Unit tests (services, utils)
-│   └── test_services.py
-└── integration/         # Integration tests
-    └── test_db.py
+backend/tests/
+├── conftest.py          # the shared fixtures, and the test database's name
+├── test_*.py            # unit: one module, its dependencies mocked at the repository boundary
+├── api/                 # the app driven through `client`, grouped by the question asked
+└── integration/
+    └── conftest.py      # creates a database of its own, and drops it afterwards
 ```
 
-## Key Fixtures (`conftest.py`)
+`tests/api/` is grouped by **what is being asked**, not by route module: some files
+take one endpoint (`test_admin_ratings_window.py`), and `test_platform_routes.py`
+sweeps a whole family at once, which is why `agents.py` has no file of its own.
+Look for the question before looking for the path.
+
+| Layer | Where | For |
+|---|---|---|
+| Unit | `tests/test_*.py` | One module. Repositories are mocked; the service under test never is |
+| API | `tests/api/`, and some at the top level | The route: its gate, its status code, what reaches the service |
+| Integration | `tests/integration/` | What only a database answers - an `ORDER BY`, a cascade, a unique constraint, a query that is really tenant-scoped |
+| E2E | `frontend/e2e/` | Journeys crossing the whole system - see [Frontend Tests](#frontend-tests) |
+
+There is no `tests/unit/` directory: a unit test is a `test_*.py` at the top of
+`tests/`. The layer is **what a test needs, not where it sits**, and the top level
+holds plenty that drives the app through an `AsyncClient` of its own -
+`test_rag_document_listing.py`, `test_oauth_signin_exchange.py`,
+`test_security_headers.py`. Looking only under `tests/api/` for existing route
+coverage will miss them.
+
+**One exception, and it is at the top level rather than in `integration/`.**
+`tests/test_migrations.py` cycles the whole Alembic chain against a real database,
+which it creates and drops itself under a name of its own - because
+`downgrade base` drops every table, and inheriting `POSTGRES_DB` once emptied a
+developer's working database. It is collected by an ordinary `pytest tests/`. It
+is not in `integration/` because it does not use that package's `db` fixture at
+all: it runs `alembic` in subprocesses.
+
+## Async - anyio, not pytest-asyncio
 
 ```python
-# Database session for tests
-@pytest.fixture
-async def db_session():
-    async with async_session() as session:
-        yield session
-        await session.rollback()
+import pytest
 
-# Test client
-@pytest.fixture
-def client():
-    return TestClient(app)
-
-# Authenticated client
-@pytest.fixture
-async def auth_client(client, test_user):
-    token = create_access_token(test_user.id)
-    client.headers["Authorization"] = f"Bearer {token}"
-    return client
+pytestmark = pytest.mark.anyio   # at the top of the module
 ```
+
+or `@pytest.mark.anyio` on the test, which `tests/api/test_users.py` does where
+only some of a file is async. Either works; the module-level form is the habit
+here because most files are async throughout.
+
+`@pytest.mark.asyncio` does not, and there is no `asyncio_mode` setting to make
+it work: the suite runs on **anyio**. An unmarked `async def` is not a silent
+pass - pytest 9 fails it at collection with *"async def functions are not
+natively supported"* and lists the plugins that would fix it - but it is a
+failure whose message is about the framework rather than about the test, so it
+reads as a broken environment on the way in. The `anyio_backend` fixture pins
+`asyncio`, because that is what uvicorn runs.
+
+## Key Fixtures (`tests/conftest.py`)
+
+Five. None of them is a `test_user` or a signed-in client, and that is the
+point: an authenticated caller is a dependency override, so a test says which
+authority it is exercising rather than inheriting one. `tests/api/test_users.py`
+builds an `auth_client` of its own out of exactly those overrides - a local
+fixture for the file that needs one, not a shared one every file inherits.
+
+| Fixture | |
+|---|---|
+| `anyio_backend` | Pins `asyncio`, and nothing names it - anyio asks for it |
+| `client` | `httpx.AsyncClient` over `ASGITransport(app=app)` — **not** Starlette's `TestClient`. Overrides `get_db_session` and `get_redis`, and clears `app.dependency_overrides` afterwards |
+| `mock_db_session` | An `AsyncMock`. Its `info` is a real dict, because that is where `spawn_after_commit` queues work |
+| `mock_redis` | A `MagicMock(spec=RedisClient)` with the async methods stubbed |
+| `api_key_headers` | The service-to-service header, for a route behind `ValidAPIKey` |
+
+`tests/integration/conftest.py` adds the ones that touch a database. The package
+refuses any database whose name contains neither `test` nor `ci`, and empties
+every table between tests. **It skips itself when none is reachable only outside
+CI**: with `CI` set it raises instead, because a skip and a Postgres service that
+failed to start read identically in pytest's output and only one of them is
+acceptable on a runner.
+
+| Fixture | |
+|---|---|
+| `db` | A real `AsyncSession` - what almost every integration test takes |
+| `engine` | The `AsyncEngine` behind it, for a test that needs a session `db` cannot be: *more than one* - a race, a concurrent write, two transactions that have to interleave, where one `AsyncSession` shared across them is not a second connection but a corrupted one - or one the code under test makes for itself, which is how the RAG tests hand `PgVectorStore` its own `async_sessionmaker`. Eighteen files take it |
+| `database_url`, `schema_url` | Session-scoped, and the reason the two above are safe: they name the throwaway database and create its schema once |
 
 ## Writing Tests
 
-### API Endpoint Test
+Name the behaviour, not the function, so that a failure says what broke:
+`test_a_grant_widens_access_without_promoting_the_member`, not `test_resolve`.
+
+### A service test
+
 ```python
-def test_health_check(client):
-    response = client.get("/api/v1/health")
-    assert response.status_code == 200
-    assert response.json()["status"] == "healthy"
+import pytest
+from unittest.mock import AsyncMock
+from uuid import uuid4
+
+from app.core.exceptions import NotFoundError
+from app.repositories import user as user_repo
+from app.services.user import UserService
+
+pytestmark = pytest.mark.anyio
+
+
+async def test_an_unknown_user_is_a_refusal_rather_than_a_none(monkeypatch, mock_db_session):
+    monkeypatch.setattr(user_repo, "get_by_id", AsyncMock(return_value=None))
+    service = UserService(mock_db_session)
+
+    with pytest.raises(NotFoundError):
+        await service.get_by_id(uuid4())
 ```
 
-### Service Test
+The repository is mocked and the service is not. A test that mocks the thing it
+is testing passes when the implementation is deleted.
+
+### An API test
+
+The caller is an override, which is what makes the refusal testable:
+
 ```python
-async def test_create_item(db_session):
-    service = ItemService(db_session)
-    item = await service.create(ItemCreate(name="Test"))
-    assert item.name == "Test"
+import pytest
+from httpx import AsyncClient
+from uuid import uuid4
+
+from app.api import deps
+from app.core.permissions import AuthContext, OrgRoleName
+from app.main import app
+
+pytestmark = pytest.mark.anyio
+
+
+async def test_creating_an_agent_without_agents_edit_is_refused(client: AsyncClient):
+    # A role, not a permission list: `AuthContext` reads its own permissions out
+    # of `ROLE_PERMS` by name, so the test exercises the catalog rather than a
+    # set it invented.
+    viewer = AuthContext(
+        user_id=uuid4(), organization_id=uuid4(), role=str(OrgRoleName.VIEWER)
+    )
+    app.dependency_overrides[deps.get_auth_context] = lambda: viewer
+
+    response = await client.post("/api/v1/agents", json={"name": "Support"})
+
+    assert response.status_code == 403
 ```
 
-### Test with Authentication
+`tests/api/test_platform_routes.py` does this by sweeping, rather than one
+assertion per route: the gate a route carries is a table, and a table is walked
+rather than restated. It walks the **platform prefixes** - `/agents`, `/runs`,
+`/approvals`, `/spend`, `/stats`, `/skills` and the rest of `_PLATFORM_PREFIXES` -
+which is why most of those have no file of their own, and why `/auth`,
+`/organizations` and `/users` still need their own: the sweep passes over them.
+
+### An integration test
+
+Only for what a mocked session cannot answer, which is usually an ordering, a
+constraint or a cascade. `tests/integration/test_message_order.py` is the shape:
+a turn writes its question and its answer inside one transaction, so both rows
+carry the same `created_at` to the microsecond and the tie is broken by a column
+rather than by the planner.
+
 ```python
-def test_protected_endpoint(auth_client):
-    response = auth_client.get("/api/v1/users/me")
-    assert response.status_code == 200
+import pytest
+
+from app.repositories import conversation as conversation_repo
+from app.services.transcript import TranscriptService
+
+pytestmark = pytest.mark.anyio
+
+
+async def test_the_question_precedes_the_answer_it_got(db):
+    # `_conversation` and `_run` are the file's own builders - a row per table,
+    # added to `db` and flushed. Nothing is mocked; that is the whole point.
+    conversation = await _conversation(db)
+    run = await _run(db, conversation)
+
+    await TranscriptService(db).record(run, prompt="ask", answer="answer")
+
+    written = await conversation_repo.get_messages_by_conversation(db, conversation.id)
+    assert [message.role for message in written] == ["user", "assistant"]
 ```
+
+The bug there *was* Postgres, and a mocked session would have passed against the
+schema that had no tiebreak at all.
+
+### What is worth a test here
+
+Most of this platform's value is in what it refuses, so the refusal is the case
+that has to exist: a cross-tenant read (including one where the caller owns the
+row), an ungranted scope, a budget checked *before* the model request and
+recorded even when the run fails, a spec refused at publish rather than at run
+time, and no plaintext secret in any response, log line or audit entry.
+
+`.claude/rules/testing.md` and the `backend-tests` skill carry the rest - the
+traps, the worked examples and the history behind each. This page is the shape of
+the suite; neither repeats the other.
 
 ## Frontend Tests
 

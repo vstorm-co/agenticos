@@ -17,7 +17,15 @@ returns rows, so nothing about the omission is loud.
 from sqlalchemy import ColumnElement
 from sqlalchemy.orm import InstrumentedAttribute
 
-type SearchableColumn = InstrumentedAttribute[str] | InstrumentedAttribute[str | None]
+# A mapped column, or one a subquery exposes - the admin's organization search
+# reaches the owner's address through an outer join, and that column is not an
+# attribute of any model.
+type SearchableColumn = (
+    InstrumentedAttribute[str]
+    | InstrumentedAttribute[str | None]
+    | ColumnElement[str]
+    | ColumnElement[str | None]
+)
 
 
 def contains_ci(column: SearchableColumn, term: str) -> ColumnElement[bool]:

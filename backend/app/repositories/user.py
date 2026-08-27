@@ -3,7 +3,6 @@
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import delete as sql_delete
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -123,19 +122,22 @@ async def delete(db: AsyncSession, user_id: UUID) -> User | None:
     return user
 
 
-async def delete_non_admins(db: AsyncSession) -> int:
-    """Bulk-delete every user who does not administer the deployment.
+async def list_non_admins(db: AsyncSession) -> list[User]:
+    """Every user who does not administer the deployment.
 
-    Used by `agenticos cmd seed --clear`. Keyed on `is_app_admin` because that is
-    the only privilege left on a user row - the `role` column this used to read
-    was dropped before the migration chain was squashed, so the old predicate raised
-    `AttributeError` before deleting anything.
+    Keyed on `is_app_admin` because that is the only privilege left on a user row
+    - the `role` column this used to read was dropped before the migration chain
+    was squashed, so the old predicate raised `AttributeError` before deleting
+    anything.
 
-    Returns the number of rows removed.
+    Returned rather than bulk-deleted so `UserService.delete_non_admins` can
+    remove them one at a time through the single-row `delete`, which reconciles
+    each user's personal org and owned rows first: a bulk `DELETE users` 500s on
+    the personal-org `created_by_user_id` RESTRICT FK every seeded account has
+    (#1124).
     """
-    result = await db.execute(sql_delete(User).where(User.is_app_admin.is_(False)))
-    await db.flush()
-    return result.rowcount  # ty: ignore[unresolved-attribute]
+    result = await db.execute(select(User).where(User.is_app_admin.is_(False)))
+    return list(result.scalars().all())
 
 
 async def has_any(db: AsyncSession) -> bool:

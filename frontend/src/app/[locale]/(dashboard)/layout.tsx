@@ -48,11 +48,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 `relative` rather than `contain: paint`, which fixes it equally
                 and would also make this the containing block for every `fixed`
                 descendant - the chat's sources panel and two drop overlays are
-                `fixed` and rendered inline, so containment would move them. */}
+                `fixed` and rendered inline, so containment would move them.
+
+                No bottom padding here, and that is the fix rather than an
+                omission: `DeploymentGate` wraps every page in a `min-h-0 flex-1`
+                box, so a long page overflows *that* and this element's padding
+                edge stays where the shorter box ended - buried mid-content.
+                Measured at 0px below the last card, at every width, in Chromium
+                151 and WebKit 26.5. The room under a page is declared once, on
+                `PageTransition`'s unconstrained branch, where it paints (#933). */}
             <main
               id="main"
               tabIndex={-1}
-              className="relative flex min-h-0 flex-1 flex-col overflow-auto px-3 pt-4 pb-20 sm:px-6 sm:pt-8 lg:pb-16"
+              className="relative flex min-h-0 flex-1 flex-col overflow-auto px-3 pt-4 sm:px-6 sm:pt-8"
             >
               {/* Inside `main` rather than around the whole shell: a
                   maintenance window still leaves the navigation and the account
