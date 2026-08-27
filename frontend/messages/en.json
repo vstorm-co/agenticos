@@ -824,10 +824,8 @@
     "failedDeleteConversation": "Failed to delete conversation",
     "failedFetchMessages": "Failed to fetch messages",
     "failedLoadCommands": "Failed to load commands",
-    "failedRemoveRating": "Failed to remove rating",
     "failedRenameConversation": "Failed to rename conversation",
     "failedRestoreConversation": "Failed to restore conversation",
-    "failedSubmitRating": "Failed to submit rating",
     "failedToGenerateLink": "Failed to generate link",
     "failedToRevoke": "Failed to revoke access",
     "failedToShare": "Failed to share conversation",
@@ -907,7 +905,6 @@
     "rating": {
       "unknownError": "Unknown error"
     },
-    "ratingFailed": "Failed to submit rating",
     "ratingRemoved": "Rating removed",
     "regenerate": "Regenerate response",
     "reject": "Reject",
