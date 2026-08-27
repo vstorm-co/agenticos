@@ -17,6 +17,38 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.303] - 2026-08-27
+
+### Added
+
+- **The deployment's tenant list can be searched, sorted, filtered and paged.**
+  `/admin/organizations` is the only surface that answers *what tenants exist*, and
+  it offered no way to find one: fifty rows, one fixed order, no search, no filter,
+  and nothing said about the rest. The users tab beside it has had all four since
+  #284; this page came out of that sweep with the shell and none of the controls,
+  because the route behind it answered none. `search` covers name, slug and the
+  owner's address - through `contains_ci`, so `100%` finds the tenant called that
+  rather than all of them (#372) - alongside `sort_by`, `sort_dir` and a
+  `personal`/`team`/`all` filter. (#921)
+- All of it applies **before `OFFSET`/`LIMIT`**, with `total` counting what was
+  narrowed to rather than the deployment, and a value outside its type is a **422**
+  rather than a silent fallback: an empty page reads as "this deployment has no
+  tenants", and an `ORDER BY` assembled from a query string is an injection
+  surface. The order breaks ties on the id, so paging a column where rows share a
+  value lists each row once. The query moved out of the service into the
+  repository, where a service's queries belong. (#921)
+
+### Fixed
+
+- **The dashboard's top-organizations card and this page shared a query key** while
+  asking for different things - five rows against fifty of whatever the page is
+  narrowed to - so whichever mounted first filled the cache and the other rendered
+  its answer. The key carries the request now, and one hook serves both. And
+  `contains_ci` was typed to mapped columns only, while the owner's address is a
+  column of an outer-joined subquery: widening the alias is what keeps this search
+  going *through* the one helper that escapes `%` and `_` rather than around it.
+  (#921, #372)
+
 ## [0.0.302] - 2026-08-27
 
 ### Fixed
