@@ -11,7 +11,7 @@ conversation out of the window. Skills invert that:
 ```mermaid
 flowchart LR
     A["the agent's context<br/><i>names + one-line descriptions only</i>"] -->|list_skills| B{is one relevant?}
-    B -->|no| Z["nothing loaded, nothing paid for"]
+    B -->|no| Z["no body loaded"]
     B -->|yes| C["load_skill - the body"]
     C --> D{does the body<br/>point at a file?}
     D -->|no| Z2[answer]
@@ -19,7 +19,15 @@ flowchart LR
     E --> Z2
 ```
 
-Twenty skills cost almost nothing; the twenty-first costs nothing either.
+Twenty skills cost roughly twenty descriptions instead of twenty procedures.
+
+!!! note "Discovery is cheap, not free"
+
+    `list_skills` answers with every attached skill's name and description, and
+    that result goes into the next model request — so each skill an agent is
+    bound to does cost tokens on a turn where discovery runs. It is a line per
+    skill against a body per skill, which is why the numbers work; it is not
+    grounds for binding an unbounded catalogue.
 
 The other half of the point is who writes them. A skill is a row in the database,
 editable in the UI, so a support lead can fix the refund policy on a Tuesday

@@ -83,10 +83,9 @@ the model in `app/db/models/__init__.py` or Alembic will not see it.
 
 ```python
 # app/repositories/notification.py
-from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.notification import Notification
@@ -112,7 +111,20 @@ async def list_unread(db: AsyncSession, limit: int = 50) -> list[Notification]:
         .limit(limit)
     )
     return list(result.scalars().all())
+
+
+async def count_unread(db: AsyncSession) -> int:
+    result = await db.execute(
+        select(func.count()).select_from(Notification).where(Notification.is_read.is_(False))
+    )
+    return result.scalar_one()
 ```
+
+!!! warning "A paged list needs a real count, not `len(items)`"
+
+    `*List`'s `total` is how many rows **match**, which is what a client pages
+    against. `len(items)` is how many came back — equal only until the first page
+    fills up, and then quietly wrong in the direction that hides rows.
 
 !!! danger "`flush()` + `refresh()`, never `commit()`"
 
@@ -159,8 +171,9 @@ class NotificationService:
             )
         return notification
 
-    async def list_unread(self) -> list[Notification]:
-        return await notification_repo.list_unread(self.db)
+    async def list_unread(self) -> tuple[list[Notification], int]:
+        items = await notification_repo.list_unread(self.db)
+        return items, await notification_repo.count_unread(self.db)
 ```
 
 The service holds the session and nothing else; repositories are imported as
@@ -204,8 +217,8 @@ async def create_notification(
 
 @router.get("", response_model=NotificationList)
 async def list_unread(service: NotificationSvc, user: CurrentUser) -> Any:
-    items = await service.list_unread()
-    return NotificationList(items=items, total=len(items))
+    items, total = await service.list_unread()
+    return NotificationList(items=items, total=total)
 ```
 
 !!! note "`-> Any`, on purpose"

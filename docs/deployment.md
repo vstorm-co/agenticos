@@ -204,7 +204,8 @@ injection surface.
 
     On the single-admin install `make platform-bootstrap` produces, a stray click
     on your own row ended administration until somebody reached a terminal.
-    Recovery is `agenticos cmd create-app-admin` from a shell.
+    Recovery is `agenticos cmd create-app-admin <email>` from a shell — the
+    email is a required argument.
 
 `is_active` is enforced on the next request and `is_app_admin` is what the admin
 pages read, so an app admin acting on **their own** row from `/admin/users` could

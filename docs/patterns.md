@@ -114,18 +114,21 @@ async def get_conversations_by_user(
     skip: int = 0,
     limit: int = 50,
 ) -> list[Conversation]:
-    result = await db.execute(
-        select(Conversation)
-        .where(Conversation.organization_id == organization_id)
-        .offset(skip)
-        .limit(limit)
-    )
+    query = select(Conversation).where(Conversation.organization_id == organization_id)
+    if user_id:
+        query = query.where(Conversation.user_id == user_id)
+    result = await db.execute(query.offset(skip).limit(limit))
     return list(result.scalars().all())
 ```
 
-`organization_id` has no default anywhere in that module, on purpose: every
-conversation belongs to a tenant, and a caller that cannot name one has a bug
-rather than a default.
+Two things about that signature. `organization_id` has no default anywhere in
+that module, on purpose: every conversation belongs to a tenant, and a caller
+that cannot name one has a bug rather than a default. And a narrowing argument
+that is accepted has to be **applied** — a query that takes `user_id` and filters
+only on the tenant answers with every member's conversations. (The real module
+widens the user predicate to confirmed channel participants through
+`_reachable_by`, over ids the caller has already vetted against the platform;
+what matters here is that the argument reaches the `WHERE` clause at all.)
 
 !!! danger "`flush()`, never `commit()`"
 

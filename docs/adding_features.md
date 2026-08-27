@@ -70,12 +70,18 @@ What ships today is in the [capability catalog](reference/capabilities.md).
 
 ## Adding a Database Migration
 
-!!! warning "A model change with no migration fails `make check`"
+!!! warning "`make db-check` skips itself when no database is listening"
 
-    `make db-check` runs `alembic check`, and it is part of `check` and of CI's
-    `lint` job. Autogenerate is a draft, not an answer: read the revision before
-    committing it, and give it a downgrade that actually reverses it —
-    `make test-migrations` cycles the whole chain both ways.
+    `alembic check` needs one, so the target prints a warning and **exits 0**
+    without a database on `CHECK_DB_PORT` — a model change with no migration then
+    passes local `make check`. CI's **`test`** job has a Postgres beside it and so
+    does not skip, which is where that mistake is actually caught. Run
+    `make docker-db` first if you want the local answer.
+
+!!! tip "Autogenerate is a draft, not an answer"
+
+    Read the revision before committing it, and give it a downgrade that actually
+    reverses it — `make test-migrations` cycles the whole chain both ways.
 
 ```bash
 # Create migration
