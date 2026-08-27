@@ -2017,3 +2017,111 @@ class TestThePlanAConversationIsWorkingTo:
         await ConversationService(AsyncMock()).keep_plan(uuid4(), [{"content": "x"}])
 
         stored.assert_not_awaited()
+
+
+@pytest.mark.anyio
+class TestAFavouriteBelongsToTheReader:
+    """A star says where a thread sits in *the starrer's* sidebar (#929).
+
+    Which is why it is a row per `(user_id, conversation_id)` rather than a
+    column: a conversation can be shared and a channel thread has participants,
+    so a boolean on the row would let one person's star move the thread for
+    everybody who can see it.
+    """
+
+    async def test_starring_takes_a_read_check_rather_than_a_write_one(self, monkeypatch):
+        """Somebody a conversation was shared with is exactly who this is for.
+        `for_write` here would refuse the reader the feature exists for."""
+        conversation = MockConversation()
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(
+            conversation_repo, "agents_in_conversations", AsyncMock(return_value={})
+        )
+        stored = AsyncMock()
+        monkeypatch.setattr(conversation_repo, "set_favourite", stored)
+        service = ConversationService(AsyncMock())
+        may_read = AsyncMock(return_value=True)
+        monkeypatch.setattr(service, "_may_read", may_read)
+        monkeypatch.setattr(service, "_may_write", AsyncMock(return_value=False))
+
+        result = await service.set_favourite(
+            conversation.id,
+            organization_id=TEST_ORG_ID,
+            user_id=conversation.user_id or uuid4(),
+            favourite=True,
+        )
+
+        assert may_read.await_count == 1
+        assert result.is_favourite is True
+        assert stored.await_args.kwargs["favourite"] is True
+
+    async def test_a_thread_in_another_tenant_is_missing_rather_than_starrable(self, monkeypatch):
+        conversation = MockConversation(organization_id=uuid4())
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        stored = AsyncMock()
+        monkeypatch.setattr(conversation_repo, "set_favourite", stored)
+
+        with pytest.raises(NotFoundError):
+            await ConversationService(AsyncMock()).set_favourite(
+                conversation.id,
+                organization_id=TEST_ORG_ID,
+                user_id=uuid4(),
+                favourite=True,
+            )
+
+        stored.assert_not_awaited()
+
+    async def test_the_active_list_bands_favourites_and_the_archive_does_not(self, monkeypatch):
+        """A star survives archiving - the thread is still one somebody cares
+        about - but the band is the active list's. A band inside the archive
+        would be a second place to look for what archiving just moved."""
+        listed = AsyncMock(return_value=[])
+        monkeypatch.setattr(conversation_repo, "get_conversations_by_user", listed)
+        monkeypatch.setattr(conversation_repo, "count_conversations", AsyncMock(return_value=0))
+        monkeypatch.setattr(conversation_repo, "favourite_ids", AsyncMock(return_value=set()))
+        service = ConversationService(AsyncMock())
+        reader = uuid4()
+
+        with patch("app.services.conversation.channel_membership") as membership:
+            membership.confirmed_participant_threads = AsyncMock(return_value=set())
+
+            await service.list_conversations(user_id=reader, organization_id=TEST_ORG_ID)
+            assert listed.await_args.kwargs["favourites_first_for"] == reader
+
+            await service.list_conversations(
+                user_id=reader, organization_id=TEST_ORG_ID, archived_only=True
+            )
+            assert listed.await_args.kwargs["favourites_first_for"] is None
+
+            # Nor the mixed listing `ChatContainer` uses to find the open
+            # conversation: enough old archived favourites at the top of it
+            # would push the selected row off the first page.
+            await service.list_conversations(
+                user_id=reader, organization_id=TEST_ORG_ID, include_archived=True
+            )
+            assert listed.await_args.kwargs["favourites_first_for"] is None
+
+    async def test_a_listing_with_no_reader_asks_for_nobodys_stars(self, monkeypatch):
+        """The admin listing. A favourite column there would be a different
+        person's every request."""
+        conversation = MockConversation()
+        monkeypatch.setattr(
+            conversation_repo, "get_conversations_by_user", AsyncMock(return_value=[conversation])
+        )
+        monkeypatch.setattr(conversation_repo, "count_conversations", AsyncMock(return_value=1))
+        monkeypatch.setattr(
+            conversation_repo, "agents_in_conversations", AsyncMock(return_value={})
+        )
+        asked = AsyncMock(return_value=set())
+        monkeypatch.setattr(conversation_repo, "favourite_ids", asked)
+
+        items, _ = await ConversationService(AsyncMock()).list_conversations(
+            organization_id=TEST_ORG_ID
+        )
+
+        asked.assert_not_awaited()
+        assert items[0].is_favourite is False

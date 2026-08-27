@@ -386,6 +386,59 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     [invalidateLists, setError, t, tErrors],
   );
 
+  /**
+   * Flip one row's star everywhere it is cached, without refetching.
+   *
+   * The exception to "mutations invalidate, they do not patch" above, and the
+   * boundary is exact: which list a thread belongs to is the server's answer
+   * and stays so, but whether *this reader* starred it is a fact about the row
+   * that the client just decided. Patching it is what makes the click
+   * instant; the reordering still comes from the server (#929).
+   */
+  const patchFavourite = useCallback(
+    (id: string, favourite: boolean) => {
+      queryClient.setQueriesData<ConversationListResponse>(
+        { queryKey: qk.conversations.list() },
+        (prev) =>
+          prev === undefined
+            ? prev
+            : {
+                ...prev,
+                items: prev.items.map((item) =>
+                  item.id === id ? { ...item, is_favourite: favourite } : item,
+                ),
+              },
+      );
+    },
+    [queryClient],
+  );
+
+  const setFavourite = useCallback(
+    async (id: string, favourite: boolean) => {
+      // The account this started as, for the same reason every other request
+      // here captures one: a star refused after somebody else has signed in
+      // would roll back *their* cached row and show them the previous
+      // account's error.
+      const startedAs = useAuthStore.getState().user?.id;
+      patchFavourite(id, favourite);
+      try {
+        if (favourite) await apiClient.post(`/conversations/${id}/favourite`, {});
+        else await apiClient.delete(`/conversations/${id}/favourite`);
+        if (!stillSameAccount(startedAs)) return;
+        // The band is an ordering the server applies, so the list is refetched
+        // to move the row - the star itself is already right on screen.
+        await invalidateLists();
+      } catch (err) {
+        if (!stillSameAccount(startedAs)) return;
+        patchFavourite(id, !favourite);
+        const message = getErrorMessage(err, tErrors, t("failedFavouriteConversation"));
+        setError(message);
+        toast.error(message);
+      }
+    },
+    [patchFavourite, invalidateLists, setError, t, tErrors],
+  );
+
   const deleteConversation = useCallback(
     async (id: string) => {
       try {
@@ -480,6 +533,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     selectConversation,
     archiveConversation,
     unarchiveConversation,
+    setFavourite,
     deleteConversation,
     renameConversation,
     startNewChat,

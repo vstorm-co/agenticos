@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useCanCreateTrigger, useConversations } from "@/hooks";
@@ -23,6 +23,7 @@ import { useChatSidebarStore } from "@/stores";
 import {
   Archive,
   ArchiveRestore,
+  Star,
   CalendarClock,
   ChevronDown,
   ChevronLeft,
@@ -56,6 +57,7 @@ interface ConversationItemProps {
   onUnarchive: () => void;
   onRename: (title: string) => void;
   onShare: () => void;
+  onFavourite: (favourite: boolean) => void;
 }
 
 function ConversationItem({
@@ -67,6 +69,7 @@ function ConversationItem({
   onUnarchive,
   onRename,
   onShare,
+  onFavourite,
 }: ConversationItemProps) {
   const t = useTranslations("chat");
   const [showMenu, setShowMenu] = useState(false);
@@ -132,6 +135,29 @@ function ConversationItem({
         </div>
       )}
 
+      {/* Shown on hover, and kept on once it is starred: a control that
+          disappears is one nobody finds twice, and the star is also the only
+          thing on the row saying which band it is in. */}
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-label={conversation.is_favourite ? t("unfavourite") : t("favourite")}
+        aria-pressed={conversation.is_favourite === true}
+        className={cn(
+          // `focus-visible` as well as hover: a keyboard user tabs to this, and
+          // an `opacity-0` control with focus on it is one nobody can see they
+          // have reached.
+          "touch:opacity-100 h-8 w-8 shrink-0 p-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+          conversation.is_favourite && "text-warning opacity-100",
+        )}
+        onClick={(e) => {
+          e.stopPropagation();
+          onFavourite(conversation.is_favourite !== true);
+        }}
+      >
+        <Star className={cn("h-4 w-4", conversation.is_favourite && "fill-current")} />
+      </Button>
+
       <div className="relative">
         <Button
           variant="ghost"
@@ -173,6 +199,24 @@ function ConversationItem({
               >
                 <Share2 className="h-4 w-4" />
                 {t("share")}
+              </button>
+              {/* In the menu as well as on the row: the hover control does not
+                  exist on a touch screen until something is long-pressed. */}
+              <button
+                className="hover:bg-secondary flex min-h-[44px] w-full items-center gap-2 px-3 py-3 text-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFavourite(conversation.is_favourite !== true);
+                  setShowMenu(false);
+                }}
+              >
+                <Star
+                  className={cn(
+                    "h-4 w-4",
+                    conversation.is_favourite && "text-warning fill-current",
+                  )}
+                />
+                {conversation.is_favourite ? t("unfavourite") : t("favourite")}
               </button>
               {conversation.is_archived ? (
                 <button
@@ -235,6 +279,7 @@ interface ConversationListProps {
   onDelete: (id: string) => void;
   onArchive: (id: string) => void;
   onUnarchive: (id: string) => void;
+  onFavourite: (id: string, favourite: boolean) => void;
   onRename: (id: string, title: string) => void;
   onNewChat: () => void;
   onNavigate?: () => void;
@@ -255,6 +300,7 @@ function ConversationList({
   onDelete,
   onArchive,
   onUnarchive,
+  onFavourite,
   onRename,
   onNewChat,
   onNavigate,
@@ -285,6 +331,40 @@ function ConversationList({
   };
 
   const isArchivedView = view === "archived";
+
+  /**
+   * The list, split into the starred run at the top and everything else.
+   *
+   * A split of what arrived rather than a filter over it: the server has
+   * already put the favourites first - it has to, because the list is paged and
+   * a favourite sorted into page two by recency would sit under fifty threads
+   * that are not (#929) - so this reads the run off the front and heads it.
+   *
+   * One band, not two: the rest of the list keeps the heading it always had,
+   * which is the count above it. A second "Everything else" would be a label on
+   * the absence of a label.
+   *
+   * Not in the archived view. A star survives archiving, but the band is the
+   * active list's, and a band inside the archive would be a second place to
+   * look for what archiving just moved.
+   */
+  const bands = useMemo(() => {
+    const starred = isArchivedView
+      ? []
+      : conversations.slice(
+          0,
+          conversations.findIndex((conversation) => conversation.is_favourite !== true) === -1
+            ? conversations.length
+            : conversations.findIndex((conversation) => conversation.is_favourite !== true),
+        );
+    const rest = conversations.slice(starred.length);
+    return [
+      ...(starred.length > 0
+        ? [{ key: "favourites", heading: t("favourites"), rows: starred }]
+        : []),
+      ...(rest.length > 0 ? [{ key: "rest", heading: null, rows: rest }] : []),
+    ];
+  }, [conversations, isArchivedView, t]);
 
   return (
     <>
@@ -408,18 +488,29 @@ function ConversationList({
             <p className="text-muted-foreground px-1 pb-1 text-[10px]">
               {ts("counted", { count: total })}
             </p>
-            {conversations.map((conversation) => (
-              <ConversationItem
-                key={conversation.id}
-                conversation={conversation}
-                isActive={conversation.id === currentConversationId}
-                onSelect={() => handleSelect(conversation.id)}
-                onDelete={() => onDelete(conversation.id)}
-                onArchive={() => onArchive(conversation.id)}
-                onUnarchive={() => onUnarchive(conversation.id)}
-                onRename={(title) => onRename(conversation.id, title)}
-                onShare={() => setShareConversationId(conversation.id)}
-              />
+            {bands.map(({ key, heading, rows }) => (
+              <div key={key} className="space-y-1">
+                {heading !== null && (
+                  <p className="text-muted-foreground flex items-center gap-1 px-1 pt-1 text-[10px] font-medium tracking-wide uppercase">
+                    <Star className="h-3 w-3 fill-current" aria-hidden />
+                    {heading}
+                  </p>
+                )}
+                {rows.map((conversation) => (
+                  <ConversationItem
+                    key={conversation.id}
+                    conversation={conversation}
+                    isActive={conversation.id === currentConversationId}
+                    onSelect={() => handleSelect(conversation.id)}
+                    onDelete={() => onDelete(conversation.id)}
+                    onArchive={() => onArchive(conversation.id)}
+                    onUnarchive={() => onUnarchive(conversation.id)}
+                    onFavourite={(favourite) => onFavourite(conversation.id, favourite)}
+                    onRename={(title) => onRename(conversation.id, title)}
+                    onShare={() => setShareConversationId(conversation.id)}
+                  />
+                ))}
+              </div>
             ))}
           </div>
         )}
@@ -497,6 +588,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     deleteConversation,
     archiveConversation,
     unarchiveConversation,
+    setFavourite,
     renameConversation,
     startNewChat,
   } = useConversations({
@@ -558,6 +650,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     onDelete: deleteConversation,
     onArchive: archiveConversation,
     onUnarchive: unarchiveConversation,
+    onFavourite: setFavourite,
     onRename: renameConversation,
     onNewChat: startNewChat,
     onLoadMore: fetchMoreConversations,

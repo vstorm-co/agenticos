@@ -1106,7 +1106,11 @@
     },
     "view": "View",
     "web": "Web",
-    "whatWentWrong": "What went wrong?"
+    "whatWentWrong": "What went wrong?",
+    "favourite": "Favourite",
+    "unfavourite": "Remove from favourites",
+    "favourites": "Favourites",
+    "failedFavouriteConversation": "Could not change the favourite"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
