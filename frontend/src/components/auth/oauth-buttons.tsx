@@ -1,6 +1,7 @@
 "use client";
 
 import { BACKEND_URL } from "@/lib/constants";
+import { rememberReturnTo } from "@/lib/oauth-return";
 
 import { GlyphIcon } from "@/components/icons/glyph";
 import { AUTH_GLYPHS, type AuthProvider } from "@/lib/auth-glyphs.generated";
@@ -25,7 +26,6 @@ function readProviders(): Provider[] {
 }
 
 interface OAuthButtonsProps {
-  next?: string;
   /** Override label suffix when used in register page. */
   variant?: "signin" | "signup";
   /**
@@ -38,15 +38,20 @@ interface OAuthButtonsProps {
    * it off the query here and holds it in the session across the round trip.
    */
   invitation?: string | null;
+  /**
+   * Where the visitor was headed. Written to `sessionStorage` as the button is
+   * clicked rather than sent to the provider: the trip starts and ends in this
+   * tab, so nothing has to hold it for us (#135).
+   */
+  returnTo?: string | null;
 }
 
-function OAuthButtons({ next, variant = "signin", invitation }: OAuthButtonsProps) {
+function OAuthButtons({ variant = "signin", invitation, returnTo }: OAuthButtonsProps) {
   const t = useTranslations("auth");
   const providers = readProviders();
   if (providers.length === 0) return null;
 
   const query = new URLSearchParams();
-  if (next) query.set("next", next);
   if (invitation) query.set("invitation", invitation);
   const search = query.size > 0 ? `?${query.toString()}` : "";
 
@@ -62,6 +67,9 @@ function OAuthButtons({ next, variant = "signin", invitation }: OAuthButtonsProp
           <a
             key={provider}
             href={url}
+            // Also when there is nothing to remember: an abandoned deep link
+            // left in storage would be resumed by the next sign-in from this tab.
+            onClick={() => rememberReturnTo(returnTo)}
             className="border-foreground/15 hover:border-foreground/40 hover:bg-foreground/[0.03] text-foreground inline-flex h-11 w-full items-center justify-center gap-3 rounded-full border px-5 text-sm font-medium transition-colors"
           >
             <GlyphIcon glyph={AUTH_GLYPHS[provider]} className="h-4 w-4" aria-hidden />
@@ -77,16 +85,18 @@ export function OAuthBlock({
   label,
   variant,
   invitation,
+  returnTo,
 }: {
   label: string;
   variant?: "signin" | "signup";
   invitation?: string | null;
+  returnTo?: string | null;
 }) {
   if (!process.env.NEXT_PUBLIC_OAUTH_PROVIDERS) return null;
   return (
     <div className="space-y-5">
       <OAuthDivider label={label} />
-      <OAuthButtons variant={variant} invitation={invitation} />
+      <OAuthButtons variant={variant} invitation={invitation} returnTo={returnTo} />
     </div>
   );
 }
