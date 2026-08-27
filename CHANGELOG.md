@@ -17,6 +17,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.313] - 2026-08-27
+
+### Fixed
+
+- **A mutation's invalidation could be answered with pre-write data**, which is
+  what made `sharing.spec.ts` and `skills.spec.ts` flake. A mutation's `onSuccess`
+  invalidated and relied on the refetch - but `invalidateQueries` **dedupes its
+  refetch onto a fetch already in flight**, and both the sharing panel and the
+  skills gallery fan out several reads on mount. A read that began before the
+  mutation committed resolved with the pre-write body, marked the query fresh, and
+  the panel kept the old value until a reload. It hit the *second* mutation in a
+  sequence and never the first, which is exactly the shape the issue describes.
+  Each hook's one `invalidate` helper cancels the query before invalidating now, so
+  the invalidation dispatches a genuinely new post-commit fetch rather than
+  awaiting the stale one it meant to replace. (#154)
+- Worth being clear about what this was not: the read is ordered after the commit
+  and reaches Postgres, and `no-store` has been in effect since #405 - the client
+  simply dropped the fresh answer. (#154, #405, #230)
+
 ## [0.0.312] - 2026-08-27
 
 ### Added
