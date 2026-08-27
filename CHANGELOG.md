@@ -17,6 +17,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.308] - 2026-08-27
+
+### Fixed
+
+- **A resumed run's own prior spend was counted twice, so it was refused with
+  headroom to spare.** A resumed run keeps its row, so by the time it continues
+  `finish_run` has committed what it spent - and two things then read that same
+  number: the budget baseline sums `agent_runs.cost_usd`, and the ledger is
+  re-seeded with it. Both are right on their own. The seeding has to happen, or
+  finishing the continuation overwrites the cost with only what the continuation
+  cost and the per-run budget resets every time somebody approves something -
+  exactly the run a budget is for. The baseline has to sum the column, because that
+  is where a month's spend is. Together, an agent capped at $10 that spent $6 and
+  parked came back to `6 + 6 = 12` on its first model request and was refused with
+  $4 left, while the alert told its owner it had reached a cap it was at 60% of.
+  The organization-wide cap double-counted identically. The baseline now excludes
+  the run asking. (#15)
+- **Not only on resume**, and deliberately so: a baseline is what *other* runs have
+  already spent, and what this one spends is the ledger's. On a fresh run the row
+  is there too, at zero, so the exclusion changes nothing there and needs no
+  branch - one rule instead of a resume-shaped exception. It is off by default,
+  because a figure a person reads is a different question and a report that hid the
+  run somebody was looking at would be wrong. (#15)
+
 ## [0.0.307] - 2026-08-27
 
 ### Fixed
