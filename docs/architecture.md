@@ -27,11 +27,8 @@ services, which in turn delegate to repositories.
     repository - and fails just as loudly if its allowlist keeps an exemption
     that no longer applies.
 
-`backend/tests/test_route_layering.py` fails if any module under
-`app/api/routes/` imports from `app.repositories`, and fails just as loudly if its
-allowlist keeps an exemption that no longer applies. The rule had drifted in five
-modules before anything read for it — none of them a leak, because each handler
-passed the scope it happened to know. That is the cost: a scope a route owns is a
+The rule had drifted in five modules before anything read for it — none of them a
+leak, because each handler passed the scope it happened to know. That is the cost: a scope a route owns is a
 scope no service test can see, and the next reader of the entity has to know to pass
 the same thing. The single exemption is a `Literal` of sort orders, imported as a
 type rather than as data access.

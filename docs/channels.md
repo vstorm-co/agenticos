@@ -29,14 +29,10 @@ checks — the surface changes, the agent does not.
     fixed at creation, because a tag already pasted, a client already written and
     a link already sent all name the same row.
 
-**Three of those eight are one table, and its rows differ by a `kind`.** A
-widget, a raw socket and a hosted page are each an *embed*: one public key, one
-rate bucket, one budget, one pause switch, and one set of refusals. What differs
-is what there is to configure and what admits a visitor — which is why the
-Builder asks which one you want before it asks anything else, and why a page has
-no allowed-origins list rather than an ignored one. A kind is fixed at creation:
-a tag already pasted, a client already written and a link already sent all name
-the same row.
+One public key, one rate bucket, one budget, one pause switch, and one set of
+refusals. What differs is what there is to configure and what admits a visitor —
+which is why the Builder asks which one you want before it asks anything else,
+and why a page has no allowed-origins list rather than an ignored one.
 
 Every run records the surface that admitted it — `web`, `embed`, `api`, `slack`,
 `telegram` or `mattermost` — which is what the dashboard's by-surface chart
@@ -248,11 +244,7 @@ over it would take the conversation with it.
     page used to show one lump of text after thirty seconds of nothing, and that
     was the loop rather than the transport.
 
-**This is the dashboard's own frame vocabulary, not a second one.** The chat in
-`/chat` and this socket drive one loop (`app/services/run_stream.py`), so an
-answer arrives here a word at a time the same way it does there — a hosted page
-used to show one lump of text after thirty seconds of nothing, and that was the
-loop rather than the transport. Every frame carries `{ "type": …, "data": { … } }`.
+Every frame carries `{ "type": …, "data": { … } }`.
 
 | `type` | `data` | Meaning |
 |---|---|---|

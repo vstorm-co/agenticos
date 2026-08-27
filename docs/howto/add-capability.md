@@ -35,11 +35,8 @@ weather/
     `tests/test_capability_layout.py` is what fails instead.
 
 This layout is not a suggestion — `tests/test_capability_layout.py` enforces it.
-Every package has a `_capability.py`, every package offering tools of its own
-has a `_toolset.py`, and `@register` appears in `__init__.py` and nowhere else
-(a registration in a submodule only fires if something imports that module,
-which is how a capability vanishes from the Builder with every test still
-green). A capability with no tools — `clock`, `thinking` — is listed in that
+Every package has a `_capability.py` and every package offering tools of its own
+has a `_toolset.py`. A capability with no tools — `clock`, `thinking` — is listed in that
 test with the reason why, rather than carrying an empty module.
 
 The tools live apart from the capability class because a tool's **name and

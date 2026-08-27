@@ -169,11 +169,8 @@ paths as well as on `change_role`, which is what #696 closed.
     a page acting on the organization in its path while reading permissions for
     the active one decides Acme's members by the caller's role in Globex.
 
-`X-Organization-Id` travels on
-every request from the console and names the *active* organization, so a page
-that acts on an org from its path - `/orgs/{id}/members` - has two notions of
-"which tenant" and the organizations list opens that page without switching. They
-are one now: the dashboard's `ActiveOrgGuard` adopts the organization a path
+The organizations list opens `/orgs/{id}/members` without switching, so that page
+used to hold two notions of "which tenant". They are one now: the dashboard's `ActiveOrgGuard` adopts the organization a path
 names, before the page asks anything, so what a caller may do there is what they
 may do *there* (#1032).
 

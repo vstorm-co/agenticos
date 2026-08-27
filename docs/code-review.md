@@ -68,21 +68,26 @@ Deliberately **not** on `synchronize`. Two developers, a dozen pushes per pull
 request: a review on every one of them is a review nobody reads. Ask for a
 re-run when the fixes are in.
 
-"When the fixes are in" means **all of them**, not one at a time. Each run reads
-the whole diff and costs minutes and money, and the question it answers is "is
-this branch finished" — so ask it when you believe the branch is finished. It is
-fine to go round more than once: label, fix everything it found plus whatever
-reviewing your own work turns up, label again, until it comes back clean. What
-is not fine is a label per finding, which asks the same question of the same
-diff over and over.
+!!! important "Ask it when you believe the branch is finished"
 
-Re-running is the label, and there is no `/review` comment trigger — that is a
-security property, not an omission. `issue_comment` is a **privileged** event:
-it runs from the default branch *with secrets*, for a comment on any pull
-request including one from a fork. Checking out the pull request's own code in
-that context, inside the job holding `OPENAI_API_KEY`, is exactly the shape
-CodeQL flags as `actions/untrusted-checkout` — and it was right to. The label
-does the same job through `pull_request`, which hands a fork neither the secret
+    Each run reads the whole diff and costs minutes and money, and the question
+    it answers is "is this branch finished". A label per finding asks the same
+    question of the same diff over and over; the work between the labels is where
+    most defects are actually found.
+
+It is fine to go round more than once: label, fix everything it found plus
+whatever reviewing your own work turns up, label again, until it comes back
+clean.
+
+!!! danger "There is no `/review` comment trigger, and that is a security property"
+
+    `issue_comment` is a **privileged** event: it runs from the default branch
+    *with secrets*, for a comment on any pull request including one from a fork.
+    Checking out the pull request's own code in that context, inside the job
+    holding `OPENAI_API_KEY`, is exactly what CodeQL flags as
+    `actions/untrusted-checkout`.
+
+The label does the same job through `pull_request`, which hands a fork neither the secret
 nor a writable token, so the exposure is gone rather than argued about.
 
 Adding a label needs write access, which is the same bar the comment trigger
@@ -93,15 +98,26 @@ was checking with `author_association`.
 `.github/workflows/ai-review.yml` splits the work by privilege, because the
 middle job runs a model over code the pull request controls.
 
+```mermaid
+flowchart LR
+    C["context<br/><i>pull-requests: read</i><br/>refuses a fork head, before checkout"]
+    R["review<br/><i>contents: read</i><br/><b>holds OPENAI_API_KEY</b>"]
+    P["publish<br/><i>pull-requests: write</i><br/>no key"]
+    C -->|the diff, as an artifact| R
+    R -->|findings, as an artifact| P
+    P --> PR[a comment on the pull request]
+```
+
 | Job | Permissions | Holds the key |
 |---|---|---|
 | `context` | `pull-requests: read` | no |
 | `review` | `contents: read` | **yes** |
 | `publish` | `pull-requests: write`, `actions: read` | no |
 
-The job with `OPENAI_API_KEY` can write nothing back — no comment, no label, no
-ref — whatever the model is talked into. The job that writes has never seen the
-key. Findings travel between them as an artifact, because a split like this
+!!! success "The job holding the key can write nothing back"
+
+    No comment, no label, no ref — whatever the model is talked into. The job
+    that writes has never seen the key. Findings travel between them as an artifact, because a split like this
 means job outputs can carry a summary string but not a file.
 
 `context` also refuses a fork head, via the API and **before checkout**. Forks

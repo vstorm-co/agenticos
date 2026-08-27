@@ -30,9 +30,7 @@ git clone https://github.com/vstorm-co/agenticos && cd agenticos
     Every variable in `docker-compose.yml` carries a default, deliberately, so
     the stack starts on a clean checkout.
 
-Every variable in `docker-compose.yml`
-carries a default, deliberately, so the stack starts on a clean checkout. One
-value is generated rather than defaulted: `make dev` runs `make sandbox-token`
+One value is generated rather than defaulted: `make dev` runs `make sandbox-token`
 first, which appends a fresh `SANDBOXD_TOKEN` to `backend/.env` if there is not
 one there already. The sandbox service refuses to start without it - it can run
 commands on this host, so an empty default would be a shared secret of `""`.

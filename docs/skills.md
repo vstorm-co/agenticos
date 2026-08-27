@@ -115,9 +115,7 @@ for anyone holding `skills:edit`:
     Applying twice would bump a version against a body already stored, and
     discarding something applied would tell a reader it never landed.
 
-Applying twice would bump a version against a body already
-stored, and discarding something applied would tell a reader it never landed. The
-proposal carries the whole body rather than a diff, so a reviewer weeks later is
+The proposal carries the whole body rather than a diff, so a reviewer weeks later is
 comparing two complete versions instead of applying a patch somewhere it was never
 meant to go. A directory the agent created with no `SKILL.md` in it, and one whose
 frontmatter it mangled, are both refused rather than guessed at — and a *deleted*

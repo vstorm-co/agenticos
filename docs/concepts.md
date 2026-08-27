@@ -168,11 +168,8 @@ starting its work again.
     one spend ledger. There is no `delegated` status: how a run *ended* and how
     it *started* are two questions.
 
-A run can also contain another run. When an agent delegates to a published agent,
-that delegation gets an `agent_runs` row of its own carrying `parent_run_id` - so
-"what did the researcher cost this month" has an answer - while both share one
-spend ledger. There is no `delegated` status, because how a run *ended* and how it
-*started* are two questions and `parent_run_id` answers the second.
+`parent_run_id` answers "how did this run start"; the status answers "how did it
+end".
 
 ### A run and its transcript
 

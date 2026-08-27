@@ -28,12 +28,9 @@ authority that already administers users and tenants across the installation.
     sign-in header with no name on it. The API answers *overrides* and each
     renderer resolves a null against its own built-in.
 
-An operator who has never
-opened the page has no row at all, and one who clears a field is asking for the
-default back rather than for a sign-in header with no name on it. So the API
-answers *overrides* and each renderer resolves a null against its own built-in —
-the console against `APP_NAME` and `SITE` in `frontend/src/lib/`, the backend
-against `settings.PROJECT_NAME` for the mail it sends itself.
+An operator who has never opened the page has no row at all. The console resolves
+a null against `APP_NAME` and `SITE` in `frontend/src/lib/`; the backend resolves
+it against `settings.PROJECT_NAME` for the mail it sends itself.
 
 Two constants for one product name can drift, so
 `backend/tests/test_deployment_settings.py` pins them equal. It reads the
@@ -211,9 +208,8 @@ injection surface.
 
 `is_active` is enforced on the next request and `is_app_admin` is what the admin
 pages read, so an app admin acting on **their own** row from `/admin/users` could
-sign themselves out, drop `/admin`, or delete the account — and on the
-single-admin install `make platform-bootstrap` produces, a stray click ended
-administration until somebody reached a terminal. `UserService.admin_update` and
+sign themselves out, drop `/admin`, or delete the account.
+`UserService.admin_update` and
 `admin_delete` refuse the self-suspend and the self-delete, and the drawer does
 not offer Suspend, Demote or Impersonate on your own row (Delete stays, visible
 and refused, because "why can I not delete myself" has an answer worth showing).

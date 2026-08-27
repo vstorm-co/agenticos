@@ -7,9 +7,6 @@
     A file answers in about a second where the suite takes a minute and a half,
     and says the same thing about the change.
 
-While writing, run what covers the change — a file answers in about a second where
-the suite takes a minute and a half, and says the same thing:
-
 ```bash
 cd backend
 
@@ -151,13 +148,10 @@ here because most files are async throughout.
     a message about the framework rather than about the test, so it reads as a
     broken environment on the way in.
 
-`@pytest.mark.asyncio` does not, and there is no `asyncio_mode` setting to make
-it work: the suite runs on **anyio**. An unmarked `async def` is not a silent
-pass - pytest 9 fails it at collection with *"async def functions are not
-natively supported"* and lists the plugins that would fix it - but it is a
-failure whose message is about the framework rather than about the test, so it
-reads as a broken environment on the way in. The `anyio_backend` fixture pins
-`asyncio`, because that is what uvicorn runs.
+An unmarked `async def` is not a silent pass: pytest 9 fails it at collection
+with *"async def functions are not natively supported"* and lists the plugins
+that would fix it. The `anyio_backend` fixture pins `asyncio`, because that is
+what uvicorn runs.
 
 ## Key Fixtures (`tests/conftest.py`)
 

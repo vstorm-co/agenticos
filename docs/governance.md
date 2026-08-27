@@ -882,13 +882,11 @@ hourly sweep denies by timeout anything still pending past `APPROVAL_EXPIRY_HOUR
 
 !!! warning "It is the run that matters, not the row"
 
-    An approval left pending keeps its run in `awaiting_approval` indefinitely:
+    A pending approval keeps its run in `awaiting_approval` indefinitely:
     work that is neither finished nor going to be.
 
-An approval left pending keeps its run
-in `awaiting_approval` indefinitely: work that is neither finished nor going to be,
-sitting in run history and in the oldest-waiting age on the dashboard. So the sweep
-follows each expired call down to the run behind it and ends it, `cancelled` —
+Such a run sits in history and in the oldest-waiting age on the dashboard, so the
+sweep follows each expired call down to the run behind it and ends it, `cancelled` —
 nobody came back, and what it spent before it parked stands.
 
 Three things it deliberately does not do:

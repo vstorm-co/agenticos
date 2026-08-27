@@ -193,6 +193,14 @@ not define.
 
 ### Size Limits
 
+!!! warning "Two ceilings, and the browser has its own copy of one"
+
+    A chat attachment is refused by `CHAT_MAX_UPLOAD_SIZE_MB` (10 MB); a
+    knowledge-base document by `MAX_UPLOAD_SIZE_MB` (50 MB). Set
+    `NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB` to match the first: too high and the
+    composer accepts a file the API refuses, too low and it refuses one the API
+    would take.
+
 - Maximum attachment size: `CHAT_MAX_UPLOAD_SIZE_MB` (default: **10 MB**). This is
   the section's own limit — a chat attachment is refused by this number, not by the
   knowledge base's larger `MAX_UPLOAD_SIZE_MB`, and the two are separate settings
@@ -838,11 +846,18 @@ the collection name it had then, and those used to be dropped from the page afte
 
 ### What a sync source is not allowed to decide
 
+!!! danger "Whoever can drop a file in a shared folder chooses the string the next sync handles"
+
+    Two of those strings used to be taken at face value: a file name that was a
+    path (`../../../../home/app/.ssh/authorized_keys` is a legal Drive name), and
+    a folder id that reached Drive's query language. `remote_names.py` refuses
+    both, and `BaseSyncConnector` - not a connector - decides where a byte lands,
+    so a connector added later inherits the refusal rather than having to
+    remember it.
+
 A source's contents are not the deployment's to trust, and on a Drive folder
 shared outside the organization they are not even the tenant's: sharing is what
-folder sharing is *for*, so whoever can drop a file in one chooses the string
-the next sync handles. Two of those strings used to be taken at face value, and
-`app/services/rag/remote_names.py` is where both are now refused.
+folder sharing is *for*.
 
 **A file name is a label, not a path component.** `../../../../home/app/.ssh/authorized_keys`
 is a legal Drive file name, and the connector wrote `dest_dir / file.name`
@@ -874,9 +889,14 @@ been shared. The fallback is gone; the setting now serves only the
 
 ### The credential is a vault secret, not a config field
 
-`sync_sources.config` says how to *find* the documents — a folder id, a bucket, a
-prefix — and holds nothing that has to be kept. What authenticates is a vault
-secret the source names in `secret_id`: a `gcp_service_account` for Drive, an
+!!! danger "A credential never goes in a connector's `CONFIG_SCHEMA`"
+
+    `sync_sources.config` says how to *find* the documents. What authenticates is
+    a vault secret the source names in `secret_id` - and there is no
+    deployment-wide fallback, because a fallback means one tenant's folder id
+    choosing what is read under the operator's identity.
+
+What the source names in `secret_id` is a `gcp_service_account` for Drive or an
 `aws_credentials` pair for S3, declared by the connector as `SECRET_KIND` and
 offered to the wizard as `secret_kind` on the connector listing.
 

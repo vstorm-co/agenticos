@@ -118,12 +118,9 @@ sequenceDiagram
     ([#860](https://github.com/vstorm-co/agenticos/issues/860)). The address that
     passed the check is now the address connected to.
 
-Every URL reached in that flow is SSRF-checked, not just the one somebody typed:
-discovery means the *remote server* chooses most of the addresses we call, and
-those deserve the same policy as the one it typed. **And the address that passed the
-check is the address connected to** — the request goes to the resolved IP with
-the original host in the `Host` header and in TLS SNI, so the certificate is
-still verified against the name and nothing resolves it a second time.
+The request goes to the resolved IP with the original host in the `Host` header
+and in TLS SNI, so the certificate is still verified against the name and nothing
+resolves it a second time.
 
 That second half is what [#860](https://github.com/vstorm-co/agenticos/issues/860)
 closed, and it matters here more than anywhere else in the product. The address

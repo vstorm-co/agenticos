@@ -4,9 +4,7 @@ The state of the platform and what is left, written so someone picking this up
 cold knows both what exists and *why it was built that way*. Sections match the
 board in the working plan (`VstormOS — MVP`).
 
-Updated: 2026-07-27.
-
----
+Updated: 2026-08-27.
 
 ## Where the platform stands
 
@@ -19,14 +17,12 @@ Updated: 2026-07-27.
 | Agent registry | Done. Draft → validate → publish → frozen version |
 | Runs, budgets, approvals | Done, resume included |
 | Skills and collections | Done, backend and UI |
-| MCP | Catalog, per-user connections, and agent bindings resolved at run time. Org-scoped connection *management* missing (R8) |
-| Surfaces | Web chat, Playground, API, Slack and Telegram `@mention` — one run path, one set of books |
+| MCP | Catalog, per-user **and** org-scoped connections, agent bindings resolved at run time |
+| Surfaces | Web chat, Playground, API, an embeddable widget, a raw WebSocket, a hosted page, Slack, Telegram and Mattermost — one run path, one set of books |
 | Ingestion | Per-collection parser, chunking, OCR and image-description model; overridable per upload. Embedding model fixed at creation |
 | Frontend | Agents, Builder, Skills, Sharing, Providers, MCP catalog, Activity, Roles, ingestion settings |
-| Tests | 1,644 backend, 564 frontend, E2E present. **Coverage gate is red at 97.51%** — see R12 |
+| Tests | Four layers plus Playwright. The platform layer is at **100%, enforced in CI**; the frontend gate is 100% lines/statements/functions and 97.5% branches |
 | CI | Lint, types, tests, migrations forwards and back, frontend, E2E, security |
-
----
 
 ## Architecture, in the order it matters
 
@@ -47,8 +43,6 @@ someone is looking at a form, not at 3am in a customer conversation.
 
 **Every surface goes through one runner.** If each surface assembled its own
 agent, budgets and history would hold whatever each one remembered to record.
-
----
 
 ## Delivered since the last revision
 
@@ -120,58 +114,44 @@ means no ingestion path had ever been exercised locally or in CI, and an E2E
 upload spec was sitting skipped because of it. Now `pgvector/pgvector:pg16`.
 **Applying it locally needs the container recreated, which drops the dev volume.**
 
+## Closed since that revision
+
+**R12 the 100% gate** — restored, and `fail_under = 100` in
+`backend/pyproject.toml` is what holds it. Adding a module to the platform layer
+means editing two lists in that file, and `tests/test_coverage_gate.py` fails if
+they drift.
+
+**R8 organization-scoped MCP connections** — `scope`, `organization_id` and
+`catalog_key` are written; `org_mcp_connections.py` and `me_mcp_connections.py`
+are the two route modules, the org half gated on `connections:manage`, and a
+binding resolves at run time. See
+[MCP](mcp.md#personal-or-organization-wide).
+
+**R9 a public agent link** — a [hosted page](channels.md#a-hosted-page) is one
+kind of embed, served at `/e/{publicKey}`, with variables from the address bar and
+a thread a visitor can come back to. It reuses the run path, so budgets and
+history apply identically.
+
 ## Remaining work
-
-### R12 — Restore the 100% gate
-**Why:** it is the one rule that stops untested code landing, and it is currently
-not being enforced by anything except a red build. `app/services/skills.py` is at
-53%, `app/services/mcp_connection.py` at 94%, `app/repositories/mcp_connection.py`
-at 97% — roughly 108 statements arrived in gated modules without tests. The
-suite itself is green, which is the trap: `make test-fast` and a plain `pytest`
-both pass, and only `--cov` says otherwise.
-
-Some of the gap is security-relevant (skill path traversal, the UTF-8 guard on
-resources), so it needs tests that prove the refusal, not tests that execute the
-line.
-
-### R8 — Organization-scoped MCP connections
-**Why:** `AgentSpec.mcp_server_ids` exists and, until now, nothing read it. A
-published agent cannot depend on whose session runs it, so binding a *personal*
-connection to it is the wrong model — which is why `McpConnection` already has a
-`scope`, an `organization_id` and a `catalog_key`, from a migration now inside
-`0001_baseline`. Nothing writes those columns yet.
-
-- Repo and service for org-scoped rows, credential sealed per organization
-- Routes gated on `connections:manage`
-- Org UI, and mount `McpServerPicker` on the Builder once a binding can exist
-
-Until then the binding is refused at publish rather than silently ignored.
-
-### R9 — Public agent link
-**Why:** the answer to "can you just give me a link to it".
-
-- `/a/{slug}` hosted chat for one agent
-- Share token for org-wide or link access
-- Reuses the run path, so budgets and history apply identically
 
 ### R10 — Python SDK and a versioning contract (board I1)
 **Why:** the API is public from the first commit and has no client and no stated
 compatibility promise.
 
 ### R11 — Logfire dashboard (board H4)
-**Why:** `logfire_trace_id` is recorded on every run and nothing reads it.
-
----
+**Why:** `logfire_trace_id` is recorded on every run and still nothing reads it —
+it reaches `frontend/src/types/runs.ts` and stops there.
 
 ## Testing
 
 The bar and the layers are documented in [Testing](testing.md), and in
 [`CLAUDE.md`](https://github.com/vstorm-co/agenticos/blob/main/CLAUDE.md#testing)
 for anyone working in the repository.
-Short version: the platform layer is at 100% and CI enforces it;
-template-inherited subsystems are reported but do not gate the build, because
-mock-heavy tests over code we did not design buy a number rather than
-confidence.
+!!! abstract "Short version"
+
+    The platform layer is at 100% and CI enforces it; template-inherited
+    subsystems are reported but do not gate the build, because mock-heavy tests
+    over code we did not design buy a number rather than confidence.
 
 What is worth testing here specifically — tenant isolation, permission scopes,
 budget enforcement, spec validation, and that no response or log ever contains a

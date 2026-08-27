@@ -281,10 +281,8 @@ For the `github` source the algorithm is identical; only the header name changes
     every delivery arrives unsigned and is refused `403`. Budget an hour with a
     code step, not five minutes of clicking.
 
-It is tempting to reach for a no-code webhook action in Zapier or Make. Neither has an
-HMAC action: their standard "POST to a webhook" steps send the body but cannot sign it,
-so every delivery arrives unsigned and is refused `403`. You have to add their **code
-step** (Zapier's *Code by Zapier*, Make's *Custom JS / functions* module), compute the
+It is tempting to reach for a no-code webhook action in Zapier or Make. You have
+to add their **code step** (Zapier's *Code by Zapier*, Make's *Custom JS / functions* module), compute the
 `sha256=<hex>` HMAC over the exact body you are about to send, and set the
 `X-Signature-256` header from it.
 

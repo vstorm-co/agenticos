@@ -167,14 +167,10 @@ stringified by the code that raises.
     upstream client's exception text, or a setting describing the deployment. The
     diagnosis is not deleted; it moves to the log line beside the raise.
 
-Everything in `details` is
-read by whoever was refused, so it names the field, the id or the resource they
-can act on - never a filesystem path, an upstream client's exception text, or a
-setting whose value describes the deployment rather than a limit the caller is
-being held to (`max_mb` and `seats_limit` are exactly what a caller can act on;
-where the container keeps its templates is not). The diagnosis is not deleted, it
-moves: the path the loader searched and the vendor SDK's message go in the log
-line beside the raise, where an operator reads them and a caller does not.
+`max_mb` and `seats_limit` are exactly what a caller can act on; where the
+container keeps its templates is not. The path the loader searched and the vendor
+SDK's message go in the log line beside the raise, where an operator reads them
+and a caller does not.
 
 ```python
 except Exception as exc:
