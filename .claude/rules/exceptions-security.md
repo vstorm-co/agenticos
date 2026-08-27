@@ -136,4 +136,4 @@ explicit `edit` grant before `resolve_access` can widen their access.
 
 `UserRole`, `User.has_role()`, `RoleChecker`, `CurrentAdmin` and
 `CurrentSuperuser` no longer exist - the `users.role` column was dropped in
-migration `0066`. Do not reintroduce them.
+the squash and lives in `0001_baseline`. Do not reintroduce them.

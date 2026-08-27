@@ -267,7 +267,7 @@ uv run agenticos user list
 **There is no `--role` and no `set-role`.** A user's authority inside an
 organization is a membership row plus the [permission
 catalog](reference/permissions.md), granted from Users & Roles in the UI — the
-`users.role` column was dropped in migration `0066`. The only privilege this group
+`users.role` column was dropped before the migration chain was squashed. The only privilege this group
 can hand out is the global one, and `--superuser` is it. To grant or revoke it
 later:
 

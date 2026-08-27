@@ -14,8 +14,9 @@ Every provider key, channel bot token, MCP credential and third-party API key se
 through `app/core/vault.py`. **There is no second mechanism, and adding one is the
 mistake this design exists to prevent.**
 
-`CHANNEL_ENCRYPTION_KEY` and the deployment-wide Fernet keys are **gone** (migration
-`0038`). If you see them referenced anywhere — code, docs, a skill, an `.env` example
+`CHANNEL_ENCRYPTION_KEY` and the deployment-wide Fernet keys are **gone**, removed
+before the migration chain was squashed into `0001_baseline`. If you see them
+referenced anywhere — code, docs, a skill, an `.env` example
 — that reference is stale. Three mechanisms used to hold secrets and only one bound a
 ciphertext to its owner; a Slack token could be copied from one organization's row
 into another's and it decrypted.

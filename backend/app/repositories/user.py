@@ -63,7 +63,8 @@ async def create(
 
     Note: Password should already be hashed by the service layer.
 
-    There is no `role`: the column was dropped in migration `0066`, and authority
+    There is no `role`: the column was dropped before the migration chain was
+    squashed, and authority
     inside an organization is a membership row plus the permission catalog.
     `is_app_admin` is the one privilege a user carries on their own row, and it
     administers the deployment rather than any organization.
@@ -127,7 +128,7 @@ async def delete_non_admins(db: AsyncSession) -> int:
 
     Used by `agenticos cmd seed --clear`. Keyed on `is_app_admin` because that is
     the only privilege left on a user row - the `role` column this used to read
-    was dropped in migration `0066`, so the old predicate raised
+    was dropped before the migration chain was squashed, so the old predicate raised
     `AttributeError` before deleting anything.
 
     Returns the number of rows removed.
