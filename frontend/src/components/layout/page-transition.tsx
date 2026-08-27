@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 
+import { PAGE_CLEARANCE } from "@/lib/page-clearance";
 import { cn } from "@/lib/utils";
 
 /** Routes that scroll inside their own panes, not in `main`. */
@@ -27,17 +28,10 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
     // with its content, so padding here is painted after the last element.
     //
     // Not on the constrained branch: chat's composer belongs on the bottom
-    // edge, and room beneath it would be a gap under a fixed control. The
-    // mobile figure is the tab bar's `min-h-[56px]` plus the inset it carries,
-    // plus room to breathe - and the inset is in the sum rather than assumed
-    // away, because `viewportFit: "cover"` makes it 34px on a modern iPhone,
-    // which a flat 80px does not clear.
+    // edge, and room beneath it would be a gap under a fixed control.
     <div
       key={pathname}
-      className={cn(
-        "page-enter flex flex-1 flex-col",
-        constrained ? "min-h-0" : "pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-16",
-      )}
+      className={cn("page-enter flex flex-1 flex-col", constrained ? "min-h-0" : PAGE_CLEARANCE)}
     >
       {children}
     </div>
