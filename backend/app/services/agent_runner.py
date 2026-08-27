@@ -2988,7 +2988,7 @@ class AgentRunnerService:
         was parked before that map was stored, which is a step a surface cannot mark
         rather than a call it cannot decide.
         """
-        if run.status != "awaiting_approval":
+        if run.status != RunStatus.AWAITING_APPROVAL.value:
             return []
         approvals = await agent_run_repo.list_approvals_for_run(
             self.db, run_id=run.id, organization_id=ctx.organization_id
@@ -3003,7 +3003,7 @@ class AgentRunnerService:
                 tool_args=approval.tool_args or {},
             )
             for approval in approvals
-            if approval.status == "pending"
+            if approval.status == ApprovalStatus.PENDING.value
         ]
 
     async def resume(self, ctx: AuthContext, run_id: UUID) -> RunSegment:
