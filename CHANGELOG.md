@@ -17,6 +17,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.296] - 2026-08-27
+
+### Changed
+
+- **The two sessions BFF routes hand-rolled the forwarder block** - read the
+  cookie or 401, set the bearer, map the error, answer JSON - which is what
+  `platformProxy()` already does, *plus* the active-organization header, byte-
+  accurate bodies and the `no-store` those hand-rolled copies drop (#546, #553,
+  #106). Both are a `sessions/[[...path]]` mount now, the same shape `kb` and
+  `rag` use, and the query handling and id escaping they did by hand are the
+  proxy's passthrough. No endpoint behaviour changed. (#564)
+- The remaining clusters are deliberately left, each with a blocker on the issue
+  rather than a mechanical swap: `orgs/**` keeps a binary avatar route that cannot
+  coexist with an optional catch-all, and the header the proxy adds is a behaviour
+  change wanting an end-to-end check; `admin/**` carries a frontend admin gate
+  rather than a plain cookie read; and the MCP OAuth callback redirects rather than
+  forwards. (#564)
+
 ## [0.0.295] - 2026-08-27
 
 ### Changed
