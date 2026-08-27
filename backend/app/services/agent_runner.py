@@ -1725,6 +1725,15 @@ class AgentRunnerService:
         # made on one flow's event loop breaks whoever checks it out on the
         # next, and this read happens on whatever loop the run is on. One
         # connect per run, next to a model call.
+        # Both leave this run's own row out. A baseline is what *other* runs have
+        # already spent; what this one spends is the ledger's, and on a resume
+        # the two are the same money. A run that spent $6 and parked has
+        # `cost_usd = 6.00` committed, and the ledger is re-seeded with that $6
+        # so finishing does not overwrite the cost with only the continuation's -
+        # summed as well, the first model request after an approval saw $12
+        # against a $10 cap and refused a run with $4 of headroom (#15). On a
+        # fresh run the row is there too, at zero, so this changes nothing and
+        # needs no branch.
         async def agent_period_spend() -> Decimal:
             async with get_worker_db_context() as db:
                 return await agent_run_repo.sum_cost_since(
@@ -1733,11 +1742,14 @@ class AgentRunnerService:
                     since=month_start(),
                     agent_id=agent.id,
                     include_delegations=True,
+                    exclude_run_id=run.id,
                 )
 
         async def org_period_spend() -> Decimal:
             async with get_worker_db_context() as db:
-                return await organization_monthly_spend(db, ctx.organization_id)
+                return await organization_monthly_spend(
+                    db, ctx.organization_id, exclude_run_id=run.id
+                )
 
         # Opened after the run row, because a run-scoped workspace keys on it,
         # and before the agent, because the capability reads the backend out of

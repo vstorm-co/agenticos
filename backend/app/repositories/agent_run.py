@@ -575,6 +575,7 @@ async def sum_cost_since(
     since: datetime,
     agent_id: UUID | None = None,
     include_delegations: bool = False,
+    exclude_run_id: UUID | None = None,
 ) -> Decimal:
     """Total run spend in a window - what a monthly budget is checked against.
 
@@ -609,6 +610,17 @@ async def sum_cost_since(
     delegation the parent's caps bind, see `app/agents/factory.py` - but it is what
     makes "the researcher agent cost $40 this month" answerable and what a budget
     alert on that agent fires on.
+
+    `exclude_run_id` leaves one run's row out, and the budget guard is the only
+    caller that wants it: a baseline is what *other* runs have already spent, and
+    the asking run's own spend is its ledger's. It matters on a resume, where the
+    run keeps its row: a run that spent $6 and parked has `cost_usd = 6.00`
+    committed, and the ledger is re-seeded with the same $6 so that finishing
+    does not overwrite the cost with only what the continuation cost. Summed as
+    well, the first model request of the continuation saw $12 against a $10 cap
+    and refused a run with $4 of headroom (#15). A figure a person reads is not
+    this - a report that hid the run somebody is looking at would be wrong - so
+    it is off by default.
     """
     query = select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
         AgentRun.organization_id == organization_id,
@@ -618,6 +630,8 @@ async def sum_cost_since(
         query = query.where(AgentRun.agent_id == agent_id)
     if not include_delegations:
         query = query.where(AgentRun.parent_run_id.is_(None))
+    if exclude_run_id is not None:
+        query = query.where(AgentRun.id != exclude_run_id)
     result = await db.scalar(query)
     return Decimal(result or 0)
 
