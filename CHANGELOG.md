@@ -17,6 +17,29 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.285] - 2026-08-27
+
+### Fixed
+
+- **Deleting one organization dropped another tenant's vectors.**
+  `collection_name` is not tenant-unique (#913), so two organizations can back onto
+  one `rag_<name>` table, and the teardown dropped it unconditionally. The physical
+  table is dropped only when no other collection still references it, and last -
+  after the relational deletes flush, so a failure among them aborts before any
+  table is gone. (#1116, #9)
+- **Tracked documents outlived their collection and stayed reachable by name.**
+  `rag_documents` authorizes on `collection_name`, so a row outliving its knowledge
+  base was listable and downloadable by a later collection permitted the same name.
+  Each collection's document rows and their stored uploads are deleted before its
+  identifiers go, keyed on `knowledge_base_id` so a shared collection's co-tenant
+  rows are untouched. (#1116)
+- The residuals are documented on `purge` rather than left implied: the drop and
+  the file unlinks still commit outside the request transaction, and three
+  reachability residuals remain - a document with a null knowledge base sharing the
+  name, the deleted tenant's vectors inside a kept shared table, and a TOCTOU on the
+  reference check. All of them are rooted in the `collection_name` tenant-scoping of
+  #913. (#1137, #913)
+
 ## [0.0.284] - 2026-08-27
 
 ### Fixed
