@@ -17,6 +17,8 @@ import time
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
+import httpx
+
 from app.agents.capabilities.channel_tools import (
     ChannelDetails,
     ChannelMember,
@@ -54,6 +56,11 @@ class SlackAdapter(ChannelAdapter):
     platform: str = "slack"
 
     def __init__(self) -> None:
+        # One client per adapter for the file downloads below, not one per call,
+        # so fetching several attachments from one Slack turn reuses the
+        # connection rather than handshaking each time (#952). Sends go through
+        # the slack-sdk WebClient, which is per bot token, not through this.
+        self._http = httpx.AsyncClient(timeout=30.0, follow_redirects=True)
         self._socket_tasks: dict[str, asyncio.Task[None]] = {}
         # Each bot is its own Slack app, so Socket Mode connects with that
         # bot's xapp- token. Registered before polling starts, the same way
@@ -63,6 +70,9 @@ class SlackAdapter(ChannelAdapter):
     def remember_app_token(self, bot_id: str, app_token: str) -> None:
         """Register the app-level token Socket Mode will connect with."""
         self._app_tokens[bot_id] = app_token
+
+    async def aclose(self) -> None:
+        await self._http.aclose()
 
     @staticmethod
     def _web(bot_token: str) -> "AsyncWebClient":
@@ -515,12 +525,9 @@ class SlackAdapter(ChannelAdapter):
         content-type check - the failure mode here is silent corruption, not an
         error.
         """
-        import httpx
-
-        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-            response = await client.get(
-                attachment.handle, headers={"Authorization": f"Bearer {bot_token}"}
-            )
+        response = await self._http.get(
+            attachment.handle, headers={"Authorization": f"Bearer {bot_token}"}
+        )
         response.raise_for_status()
         if response.headers.get("content-type", "").startswith("text/html"):
             raise ValueError(

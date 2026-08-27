@@ -104,6 +104,11 @@ class MattermostAdapter(ChannelAdapter):
     platform: str = "mattermost"
 
     def __init__(self) -> None:
+        # One client per adapter, not one per call. A streamed turn is dozens of
+        # REST calls to the same host - an edit a second, plus typing and each
+        # attachment - and a fresh client per call throws the connection pool
+        # away before it is reused, paying a TLS handshake every time (#952).
+        self._http = httpx.AsyncClient(timeout=_HTTP_TIMEOUT)
         self._socket_tasks: dict[str, asyncio.Task[None]] = {}
         # Where each bot's server lives. Set by the service when a bot starts,
         # because the adapter is a singleton and the URL is per bot.
@@ -121,15 +126,18 @@ class MattermostAdapter(ChannelAdapter):
         """Record which Mattermost server a bot belongs to."""
         self._base_urls[bot_id] = api_base_url.rstrip("/")
 
-    @staticmethod
-    def _client() -> httpx.AsyncClient:
-        """An HTTP client carrying the shared timeout, for one request cycle.
+    def _client(self) -> contextlib.AbstractAsyncContextManager[httpx.AsyncClient]:
+        """The adapter's shared HTTP client, borrowed for one request cycle.
 
-        Mattermost keeps an idle socket open only so long, so every call opens its
-        own `async with` client rather than holding one on the adapter - the one
-        place the timeout is set, so a new REST call cannot forget it.
+        Wrapped in `nullcontext` so a call site's `async with` hands back the
+        shared client and does not close it on exit - the pool stays warm across
+        a streamed turn's many calls (#952). The client is built once in
+        `__init__`, the one place the timeout is set, and closed in `aclose`.
         """
-        return httpx.AsyncClient(timeout=_HTTP_TIMEOUT)
+        return contextlib.nullcontext(self._http)
+
+    async def aclose(self) -> None:
+        await self._http.aclose()
 
     @staticmethod
     def _headers(bot_token: str) -> dict[str, str]:
