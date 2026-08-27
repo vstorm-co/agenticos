@@ -17,6 +17,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.314] - 2026-08-27
+
+### Fixed
+
+- **The vault list kept the pre-write rows after a store or rotate**, roughly one
+  run in eight, so a new row never appeared and the spec timed out. The create
+  itself worked - the artifact showed the keys stored with an empty error alert, so
+  the write succeeded and the render was stale. Same dedup race as #154: the
+  mutation invalidated the list and relied on the refetch, and the vault page
+  issues its list read on load, so a read that began before the write committed
+  resolved with the pre-write body and marked the query fresh. The secrets hook's
+  one `invalidate` helper cancels the list query before invalidating. (#130, #154)
+- **Three `page.reload()` workarounds are retired with it** - the row appears on
+  its own now, which is the verification that it no longer flakes. On the issue's
+  two acceptance criteria: `submitDialog` already asserts the write's response
+  status and prints its body on a non-2xx, so a refused store fails at its source
+  before the row is awaited; and the create never failed - it answered 201, and the
+  list render was the stale half. (#130)
+
 ## [0.0.313] - 2026-08-27
 
 ### Fixed
