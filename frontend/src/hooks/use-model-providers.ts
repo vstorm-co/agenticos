@@ -135,7 +135,7 @@ interface ProviderModelList {
    * this deployment's own list was used because the provider publishes none or
    * could not be reached.
    */
-  source: "live" | "curated";
+  source: "live" | "curated" | "unlisted";
 }
 
 /**

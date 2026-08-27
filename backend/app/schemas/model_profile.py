@@ -148,10 +148,12 @@ class ImageProviderList(BaseSchema):
 class ProviderModelList(BaseSchema):
     items: list[ProviderModelRead]
     total: int
-    source: Literal["live", "curated"] = Field(
+    source: Literal["live", "curated", "unlisted"] = Field(
         description=(
             "Where the list came from: `live` if the provider answered, `curated` if this "
             "deployment's own list was used - because the provider publishes none, there is "
-            "no key to ask with, or the call failed."
+            "no key to ask with, or the call failed - and `unlisted` if there was neither, "
+            "which is the honest answer for a provider this platform cannot enumerate at "
+            "all rather than one whose shortlist happened to be empty."
         )
     )
