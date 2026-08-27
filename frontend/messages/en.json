@@ -3148,7 +3148,13 @@
       "limitsOrganizationsHint": "Counts the organizations an account owns, including the personal one it is given at sign-up. Being invited into somebody else's does not count. Leave empty for no limit.",
       "limitsAgents": "Agents per organization",
       "limitsAgentsHint": "Archived agents do not count, so retiring one frees its place. Leave empty for no limit.",
-      "limitsUnlimited": "No limit"
+      "limitsUnlimited": "No limit",
+      "searchOrganizations": "Search by name, slug or owner…",
+      "filterByKind": "Filter by kind",
+      "kindAll": "All organizations",
+      "kindPersonal": "Personal",
+      "kindTeam": "Team",
+      "noOrganizationsMatch": "No organizations match \"{query}\"."
     },
     "agentDetail": {
       "perMonth": "${amount} per month"

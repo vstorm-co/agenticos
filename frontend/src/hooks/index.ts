@@ -1,6 +1,12 @@
 export { useAuth } from "./use-auth";
 export { useCopyToClipboard } from "./use-copy-to-clipboard";
 export { useAdminUsers } from "./use-admin-users";
+export {
+  useAdminOrganizations,
+  ADMIN_ORG_SORT_KEYS,
+  type AdminOrgKind,
+  type AdminOrgSort,
+} from "./use-admin-organizations";
 export { useWebSocket } from "./use-websocket";
 export { useChat } from "./use-chat";
 export { useConversationWorkspace } from "./use-conversation-workspace";
@@ -77,7 +83,6 @@ export {
   type UsagePeriod,
 } from "./use-usage-stats";
 export {
-  useAdminOrganizations,
   useAdminRatingsSummary,
   useAdminStats,
   useRecentConversations,
