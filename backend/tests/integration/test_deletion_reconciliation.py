@@ -19,6 +19,7 @@ import pytest
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from app.core.background import discard_deferred, drain, start_deferred
 from app.core.config import settings as app_settings
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember
@@ -203,6 +204,11 @@ class TestDeletingAnOrg:
             org = await s.get(Organization, org_id)
             await OrganizationService(s, vector_store=store).purge(org)
             await s.commit()
+            # The table drop and file unlinks defer to after commit (#1137); a
+            # real request runs this from `_managed_session`, a raw session runs
+            # it here.
+            start_deferred(s)
+        await drain()
 
         async with factory() as s:
             remaining = await s.execute(
@@ -211,6 +217,51 @@ class TestDeletingAnOrg:
             assert remaining.scalars().all() == []
             assert (await s.execute(text("SELECT to_regclass(:t)"), {"t": table})).scalar() is None
             assert await s.get(Organization, org_id) is None
+
+    async def test_a_failed_teardown_commit_leaves_the_vector_table(
+        self, engine: AsyncEngine
+    ) -> None:
+        """The drop and the unlinks defer past the request commit (#1137).
+
+        Before this, `purge` dropped the table and unlinked files inside the
+        request, so a final commit that rolled back left the org, KB and doc rows
+        alive but their vectors and uploads already gone. Deferring the external
+        side effects means a rolled-back teardown discards them: the table, the
+        rows and the org all survive together.
+        """
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbnine{uuid.uuid4().hex[:12]}"
+        table = store._table(collection)
+        async with factory() as s:
+            user = _user()
+            s.add(user)
+            await s.flush()
+            org = await _org(s, user)
+            s.add(_org_collection(org.id, collection))
+            await s.execute(text(f"CREATE TABLE {table} (id int)"))
+            await s.commit()
+            org_id = org.id
+
+        async with factory() as s:
+            org = await s.get(Organization, org_id)
+            await OrganizationService(s, vector_store=store).purge(org)
+            # The request's final commit fails: mirror `_managed_session`'s
+            # failure path - roll back, then discard the deferred cleanup unrun.
+            await s.rollback()
+            discard_deferred(s)
+        await drain()
+
+        async with factory() as s:
+            assert (
+                await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
+            ).scalar() is not None
+            assert await s.get(Organization, org_id) is not None
 
     async def test_a_personal_collection_survives_its_orgs_deletion(
         self, engine: AsyncEngine
