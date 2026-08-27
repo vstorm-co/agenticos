@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.291] - 2026-08-27
+
+### Fixed
+
+- **The e2e job kept a screenshot of a flake and nothing else.**
+  `playwright.config.ts` set `trace` and `video` to `on-first-retry` while
+  `retries` is 0 - deliberately, so a real failure cannot go green on a second
+  attempt - and with no retry those never fire. The trace is the one artifact that
+  answers which locator it was waiting on and why, because it carries the DOM
+  timeline, the network log and the console, and it was missing from exactly the
+  runs that needed it. Both are `retain-on-failure` now, captured on the first and
+  only failure and kept for the failed test alone. The job already uploads the
+  report and the report embeds the trace, so no workflow change was needed. This
+  does not fix the flake - its cause is unknown until a failure is captured, which
+  is what this makes possible. (#162)
+
 ## [0.0.290] - 2026-08-27
 
 ### Added
