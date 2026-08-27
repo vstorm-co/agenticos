@@ -26,7 +26,7 @@ async def get_by_refresh_token_hash(db: AsyncSession, token_hash: str) -> Sessio
     return result.scalar_one_or_none()
 
 
-def _open(query: Select[tuple[Any]]) -> Select[tuple[Any]]:
+def _open(query: Select[tuple[Any]], *, now: datetime) -> Select[tuple[Any]]:
     """Narrow a session query to the ones actually still usable.
 
     `is_active` alone is not that. A session is deactivated when somebody signs
@@ -35,8 +35,13 @@ def _open(query: Select[tuple[Any]]) -> Select[tuple[Any]]:
     and declines it. So a query on `is_active` counts sessions that cannot be
     used again, which is how the admin drawer reported open sessions for an
     account whose every session had lapsed (#1256).
+
+    `now` is the caller's, not this function's, because a response can be built
+    from two statements: `SessionService.list_sessions` asks for a page and then
+    for the total, and a session lapsing between them would otherwise be in the
+    page and outside the count.
     """
-    return query.where(Session.is_active.is_(True), Session.expires_at > datetime.now(UTC))
+    return query.where(Session.is_active.is_(True), Session.expires_at > now)
 
 
 async def get_user_sessions(
@@ -44,6 +49,7 @@ async def get_user_sessions(
     user_id: UUID,
     *,
     open_only: bool = True,
+    now: datetime | None = None,
     skip: int = 0,
     limit: int | None = None,
 ) -> list[Session]:
@@ -58,7 +64,7 @@ async def get_user_sessions(
     """
     query = select(Session).where(Session.user_id == user_id)
     if open_only:
-        query = _open(query)
+        query = _open(query, now=now or datetime.now(UTC))
     # `last_used_at` alone is not a total order - a user who signs in twice in
     # the same request cycle gets two rows with the same timestamp, and an
     # unstable order means a row can appear on two pages or on neither. `id`
@@ -75,11 +81,12 @@ async def count_user_sessions(
     user_id: UUID,
     *,
     open_only: bool = True,
+    now: datetime | None = None,
 ) -> int:
     """How many sessions the user has, for the page count."""
     query = select(func.count(Session.id)).where(Session.user_id == user_id)
     if open_only:
-        query = _open(query)
+        query = _open(query, now=now or datetime.now(UTC))
     return (await db.execute(query)).scalar_one()
 
 
