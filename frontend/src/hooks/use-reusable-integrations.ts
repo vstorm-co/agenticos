@@ -15,6 +15,7 @@ import type {
   SyncSourceRead,
 } from "@/lib/rag-api";
 import type { KnowledgeBase } from "@/types";
+import { getErrorMessage } from "@/lib/api-error";
 
 interface UseReusableIntegrationsResult {
   integrations: SyncSourceRead[];
@@ -46,6 +47,7 @@ interface UseReusableIntegrationsResult {
  */
 export function useReusableIntegrations(orgId: string | null): UseReusableIntegrationsResult {
   const t = useTranslations("kb");
+  const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
 
   const {
@@ -68,12 +70,9 @@ export function useReusableIntegrations(orgId: string | null): UseReusableIntegr
     enabled: Boolean(orgId),
   });
 
-  const error =
-    queryError instanceof Error
-      ? queryError.message
-      : queryError
-        ? t("failedLoadReusableIntegrations")
-        : null;
+  const error = queryError
+    ? getErrorMessage(queryError, tErrors, t("failedLoadReusableIntegrations"))
+    : null;
 
   const writeCache = useCallback(
     (updater: (prev: SyncSourceRead[]) => SyncSourceRead[]) =>
@@ -115,10 +114,10 @@ export function useReusableIntegrations(orgId: string | null): UseReusableIntegr
         writeCache((prev) => prev.filter((source) => source.id !== sourceId));
         toast.success(t("integrationRemoved"));
       } catch (cause) {
-        toast.error(cause instanceof Error ? cause.message : t("failedRemoveIntegration"));
+        toast.error(getErrorMessage(cause, tErrors, t("failedRemoveIntegration")));
       }
     },
-    [orgId, writeCache, t],
+    [orgId, writeCache, t, tErrors],
   );
 
   const cloneInto = useCallback<UseReusableIntegrationsResult["cloneInto"]>(
@@ -130,11 +129,11 @@ export function useReusableIntegrations(orgId: string | null): UseReusableIntegr
         });
         toast.success(t("integrationAddedTo", { name: target.name }));
       } catch (cause) {
-        toast.error(cause instanceof Error ? cause.message : t("failedUseIntegration"));
+        toast.error(getErrorMessage(cause, tErrors, t("failedUseIntegration")));
         throw cause;
       }
     },
-    [t],
+    [t, tErrors],
   );
 
   return { integrations, connectors, isLoading, error, create, remove, cloneInto };

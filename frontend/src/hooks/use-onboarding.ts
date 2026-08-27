@@ -12,6 +12,7 @@ import { ROUTES } from "@/lib/constants";
 import { stepsForPage, visibleTourSteps, type TourStep } from "@/lib/onboarding/tour";
 import { useAuthStore, useOnboardingStore } from "@/stores";
 import type { User } from "@/types";
+import { getErrorMessage } from "@/lib/api-error";
 
 export interface OnboardingTourState {
   isOpen: boolean;
@@ -59,6 +60,7 @@ export function useOnboardingTour(): OnboardingTourState {
   const setUser = useAuthStore((state) => state.setUser);
   const { can, isLoading: permissionsLoading, error: permissionsError } = usePermissions();
   const t = useTranslations("onboarding");
+  const tErrors = useTranslations("errors");
   const { isOpen, index, mode, openTour, close, setIndex } = useOnboardingStore();
 
   const path = stripLocale(pathname);
@@ -114,10 +116,14 @@ export function useOnboardingTour(): OnboardingTourState {
         });
         setUser(updated);
       } catch (err) {
-        toast.error(err instanceof ApiError ? err.message : t("saveFailed"));
+        // Only a refusal's own words, never a raw `Error`'s: "Failed to
+        // fetch" is not something to put in front of somebody. Through
+        // `getErrorMessage` so a BFF code resolves against the catalog
+        // instead of arriving humanized into English (#655).
+        toast.error(err instanceof ApiError ? getErrorMessage(err, tErrors) : t("saveFailed"));
       }
     })();
-  }, [close, mode, user, setUser, t]);
+  }, [close, mode, user, setUser, t, tErrors]);
 
   const next = useCallback(
     () => setIndex(Math.min(clamped + 1, lastIndex)),

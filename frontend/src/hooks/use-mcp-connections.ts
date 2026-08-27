@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import {
   createMcpConnection,
@@ -52,6 +53,7 @@ interface UseMcpConnectionsResult {
  */
 export function useMcpConnections(): UseMcpConnectionsResult {
   const t = useTranslations("mcp");
+  const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
 
   const {
@@ -65,12 +67,9 @@ export function useMcpConnections(): UseMcpConnectionsResult {
     queryFn: listMcpConnections,
   });
 
-  const error =
-    queryError instanceof Error
-      ? queryError.message
-      : queryError
-        ? t("failedLoadConnections")
-        : null;
+  const error = queryError
+    ? getErrorMessage(queryError, tErrors, t("failedLoadConnections"))
+    : null;
 
   const writeCache = useCallback(
     (updater: (prev: McpConnectionRecord[]) => McpConnectionRecord[]) =>

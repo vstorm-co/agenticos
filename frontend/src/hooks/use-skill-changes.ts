@@ -73,12 +73,7 @@ export function useSkillChanges(status: ProposalStatus = "pending"): UseSkillCha
   return {
     changes,
     isLoading,
-    error:
-      queryError instanceof Error
-        ? queryError.message
-        : queryError
-          ? t("failedLoadProposedChanges")
-          : null,
+    error: queryError ? getErrorMessage(queryError, tErrors, t("failedLoadProposedChanges")) : null,
     apply: async (id: string) => {
       await applied.mutateAsync(id);
     },

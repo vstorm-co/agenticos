@@ -18,6 +18,7 @@ import {
   mergeWithUserCommands,
   type SlashCommand,
 } from "@/components/chat/slash-commands";
+import { getErrorMessage } from "@/lib/api-error";
 
 interface UseSlashCommandsResult {
   /** Raw rows from the backend (custom commands + built-in overrides). */
@@ -47,6 +48,7 @@ interface UseSlashCommandsResult {
  */
 export function useSlashCommands(): UseSlashCommandsResult {
   const t = useTranslations("chat");
+  const tErrors = useTranslations("errors");
   const tCommands = useTranslations("chat.commands");
   const queryClient = useQueryClient();
 
@@ -60,8 +62,7 @@ export function useSlashCommands(): UseSlashCommandsResult {
     queryFn: listSlashCommands,
   });
 
-  const error =
-    queryError instanceof Error ? queryError.message : queryError ? t("failedLoadCommands") : null;
+  const error = queryError ? getErrorMessage(queryError, tErrors, t("failedLoadCommands")) : null;
 
   const writeCache = useCallback(
     (updater: (prev: UserSlashCommandRecord[]) => UserSlashCommandRecord[]) =>

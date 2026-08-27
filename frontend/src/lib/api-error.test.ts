@@ -1,3 +1,6 @@
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+
 import { createTranslator } from "next-intl";
 import { describe, expect, it } from "vitest";
 
@@ -471,5 +474,93 @@ describe("BFF_ERROR_KEYS", () => {
       tPl,
     );
     expect(failure.toast).toBe("Wewnętrzny błąd serwera");
+  });
+});
+
+describe("nothing outside this module shows a refusal's raw message", () => {
+  /**
+   * The rule #603 established and #655 finished applying: a refusal a BFF route
+   * mints carries a `{ code }` and no sentence, and `getErrorMessage` is the
+   * only reader that resolves one against the `errors` namespace. A site that
+   * reads `.message` instead shows the code humanized into English - `Not
+   * authenticated` - under every locale.
+   *
+   * Asserted by reading the source, because the failure is a *missing* call: a
+   * test of the sites that were migrated cannot fail when a twenty-sixth is
+   * added beside them.
+   */
+  /**
+   * A `.message` read off something the code is treating as a caught error.
+   *
+   * Matched on the *name* rather than on the shape around it, because the shape
+   * kept being a new one: a ternary, its `=== null` inversion, an `if` that
+   * returns, a typed `.catch((cause: Error) => …)` and an `(x as Error)` cast -
+   * five spellings across two review rounds, each of which had walked past the
+   * previous regex. What they have in common is the identifier, and a reader
+   * of `error.message` in a component is reading a refusal whatever the syntax.
+   *
+   * `problem.message` and a chat message's `.content` are untouched: neither
+   * name is one a `catch` binds.
+   */
+  const CAUGHT = String.raw`(?:e|err|error|cause|exc|failure|reason|[A-Za-z_$][\w$]*(?:Error|Failure))`;
+  const READS_MESSAGE = new RegExp(
+    [
+      String.raw`\b${CAUGHT}\.message\b`,
+      String.raw`\(\s*[A-Za-z_$][\w$]*\s+as\s+(?:Api)?Error\s*\)\.message\b`,
+    ].join("|"),
+  );
+
+  function sources(directory: string): string[] {
+    const found: string[] = [];
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) found.push(...sources(path));
+      else if (/\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name)) found.push(path);
+    }
+    return found;
+  }
+
+  it("reads it off a caught error nowhere the product renders", () => {
+    const root = join(process.cwd(), "src");
+    const offenders = ["app", "components", "hooks", "stores"]
+      .flatMap((directory) => sources(join(root, directory)))
+      .map((path) => path.slice(root.length + 1))
+      // A BFF route handler renders nothing: `bffJson({ detail: error.message })`
+      // forwards the backend's own sentence to the client that *will* render it,
+      // and that client is what this rule is about. Its own refusals are a
+      // separate contract - `bffRefusal` with a code from `BFF_ERROR_KEYS`.
+      .filter((path) => !path.startsWith(join("app", "api") + "/"))
+      .filter((path) => READS_MESSAGE.test(readFileSync(join(root, path), "utf8")));
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("recognises every spelling two review rounds turned up", () => {
+    for (const shape of [
+      'e instanceof Error ? e.message : t("uploadFailed")',
+      'err instanceof ApiError ? err.message : t("saveFailed")',
+      "error === null ? null : error.message",
+      "if (error instanceof Error) return error.message;",
+      // Broken over lines, which is how prettier writes most of them.
+      "queryError instanceof Error\n      ? queryError.message\n      : null",
+      ".catch((cause: Error) => setError(cause.message))",
+      "setError((cause as Error).message)",
+      "loadError.message",
+    ]) {
+      expect(READS_MESSAGE.test(shape), shape).toBe(true);
+    }
+
+    for (const shape of [
+      'getErrorMessage(e, tErrors, t("uploadFailed"))',
+      // The guard `use-auth` and friends do on a status reads no message.
+      "error instanceof ApiError && error.status === 401",
+      // Nor does a refusal's own field, or a chat message - neither name is one
+      // a `catch` binds.
+      "problem.message",
+      "message.content",
+      "lastMessage.message_type",
+    ]) {
+      expect(READS_MESSAGE.test(shape), shape).toBe(false);
+    }
   });
 });
