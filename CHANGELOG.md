@@ -17,6 +17,41 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.310] - 2026-08-27
+
+### Changed
+
+- **`PROVIDERS` is named as the source of truth**, for the one thing model
+  inference cannot know - the credential shape - with the other five lists derived
+  from it. Constructing the client stays Pydantic AI's, deliberately not restated.
+  `docs/models.md` gains a table saying which list answers which question, plus the
+  two crossings that are lookups able to answer nothing, and a drift test keeps it
+  true: every key in either catalog file must name a provider `PROVIDERS` has, so
+  must every image-catalog entry, and every provider must appear on the page.
+  (#923)
+- **`model_fallbacks.json` is `curated_models.json`.** It has nothing to do with a
+  profile's fallback chain - a different feature entirely - and the name was the
+  first thing a reader met. A curated list is still worth keeping: it is the answer
+  when the provider *cannot be asked*, not an answer for a provider that publishes
+  nothing. (#923)
+- **`source` is three answers rather than two.** Seven providers publish no listing
+  this platform can read *and* have no curated entry, so they answered `curated`
+  about a shortlist that does not exist. They answer `unlisted` now, end to end
+  through the schema and the picker's type. Nothing on screen changes - the dropdown
+  already said the right thing - the API contract was the part that was wrong.
+  (#923)
+- `ollama` and `litellm` both publish an OpenAI-shaped listing at the endpoint the
+  profile already stores and are the two worth wiring, but that needs a listing
+  which can be told a base URL rather than a fixed one - a real change, not a
+  catalog entry. Written into the page rather than guessed at, and no endpoint URLs
+  were invented for the others to make a table look complete. (#923)
+- The drift test that keeps this true compares less than the claim needs in four
+  ways - the page searched for a token rather than compared to a table, only the
+  id checked though the credential shape is what makes `PROVIDERS` authoritative,
+  one table excluded and unchecked anywhere else, and the image catalog checked on
+  its provider but not its prefix - so it is filed rather than left implied.
+  (#1252)
+
 ## [0.0.309] - 2026-08-27
 
 ### Fixed
