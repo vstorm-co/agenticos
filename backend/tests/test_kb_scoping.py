@@ -204,7 +204,7 @@ class TestKBAccessControl:
         ):
             svc = KnowledgeBaseService(mock_db)
             with pytest.raises(BadRequestError):
-                await svc.delete(kb.id, ctx=_ctx(organization_id=org_id))
+                await svc.delete(kb.id, ctx=_ctx(organization_id=org_id), vector_store=MagicMock())
 
     @pytest.mark.anyio
     async def test_default_kb_in_another_org_is_reported_as_missing_not_undeletable(self, mock_db):
@@ -221,7 +221,7 @@ class TestKBAccessControl:
         ):
             svc = KnowledgeBaseService(mock_db)
             with pytest.raises(NotFoundError):
-                await svc.delete(kb.id, ctx=_ctx())
+                await svc.delete(kb.id, ctx=_ctx(), vector_store=MagicMock())
 
     @pytest.mark.anyio
     async def test_non_app_admin_cannot_create_app_kb(self, mock_db):
@@ -263,13 +263,26 @@ class TestKBAccessControl:
     async def test_personal_kb_owner_can_delete(self, mock_db):
         user_id = uuid.uuid4()
         kb = _kb("personal", owner_user_id=user_id)
+        store = MagicMock(delete_collection=AsyncMock())
 
         with (
             patch("app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)),
             patch("app.repositories.knowledge_base_repo.delete", new=AsyncMock(return_value=True)),
+            patch(
+                "app.repositories.rag_document_repo.delete_by_knowledge_base",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
+                "app.repositories.knowledge_base_repo.list_by_collection_name",
+                new=AsyncMock(return_value=[]),
+            ),
         ):
             svc = KnowledgeBaseService(mock_db)
-            await svc.delete(kb.id, ctx=_ctx(user_id=user_id))
+            await svc.delete(kb.id, ctx=_ctx(user_id=user_id), vector_store=store)
+
+        # The row is not the whole teardown: with nothing else on the collection,
+        # its vector table is dropped too, not left orphaned (#1266).
+        store.delete_collection.assert_awaited_once_with(kb.collection_name)
 
     @pytest.mark.anyio
     async def test_personal_kb_non_owner_is_refused_as_missing(self, mock_db):
@@ -285,7 +298,7 @@ class TestKBAccessControl:
         ):
             svc = KnowledgeBaseService(mock_db)
             with pytest.raises(NotFoundError):
-                await svc.delete(kb.id, ctx=_ctx())
+                await svc.delete(kb.id, ctx=_ctx(), vector_store=MagicMock())
 
     @pytest.mark.anyio
     async def test_app_kb_non_admin_is_refused_as_forbidden(self, mock_db):
@@ -297,7 +310,7 @@ class TestKBAccessControl:
         ):
             svc = KnowledgeBaseService(mock_db)
             with pytest.raises(AuthorizationError):
-                await svc.delete(kb.id, ctx=_ctx())
+                await svc.delete(kb.id, ctx=_ctx(), vector_store=MagicMock())
 
     @pytest.mark.anyio
     async def test_a_viewer_who_can_read_an_org_kb_cannot_write_to_it(self, mock_db):

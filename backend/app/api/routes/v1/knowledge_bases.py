@@ -127,10 +127,15 @@ async def update_knowledge_base(
 async def delete_knowledge_base(
     kb_id: UUID,
     service: KnowledgeBaseSvc,
+    vector_store: VectorStoreSvc,
     ctx: Auth,
 ) -> None:
-    """Delete a Knowledge Base. Default KBs cannot be deleted."""
-    await service.delete(kb_id, ctx=ctx)
+    """Delete a Knowledge Base - its documents, files and vector table too.
+
+    Default KBs cannot be deleted. The vector store is wired in so the physical
+    `rag_<collection>` table is dropped with the row rather than orphaned (#1266).
+    """
+    await service.delete(kb_id, ctx=ctx, vector_store=vector_store)
 
 
 @router.get("/{kb_id}/documents", response_model=RAGTrackedDocumentList)

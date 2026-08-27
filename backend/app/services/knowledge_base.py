@@ -1,8 +1,11 @@
+import contextlib
 import logging
 import re
 import secrets
+from typing import TYPE_CHECKING
 from uuid import UUID
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
@@ -26,6 +29,7 @@ from app.schemas.knowledge_base import (
 )
 from app.services.access import COLLECTION, SECRET, resolve_access, visible_resource_ids
 from app.services.collection_access import CollectionAccessService, readable_kb, writable_kb
+from app.services.file_storage import get_file_storage
 from app.services.ingestion_config import (
     IngestionConfig,
     IngestionConfigService,
@@ -34,6 +38,9 @@ from app.services.ingestion_config import (
     deployment_embedding,
 )
 from app.services.rag import embedding_providers
+
+if TYPE_CHECKING:
+    from app.services.rag.vectorstore import BaseVectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -464,7 +471,21 @@ class KnowledgeBaseService:
         await service.check_llamaparse_secret(ctx.organization_id, chosen)
         return chosen
 
-    async def delete(self, kb_id: UUID, *, ctx: AuthContext) -> None:
+    async def delete(
+        self, kb_id: UUID, *, ctx: AuthContext, vector_store: "BaseVectorStore"
+    ) -> None:
+        """Delete a knowledge base and everything it owns.
+
+        The row is not the whole of it: deleting only the `knowledge_bases` row
+        left the `rag_documents` rows (their FK is `SET NULL`, so they survived
+        detached and readable by a later same-named collection), the uploaded
+        files, and the physical `rag_<collection>` vector table all behind, with
+        the collection name still blocking reuse (#1266). So the documents and
+        their files go, then the row, then the table - dropped only when no other
+        base still references the name, which is not tenant-unique (#913). The
+        store is required, not optional, so a delete route cannot silently skip
+        the teardown again.
+        """
         # Access first, then the rule about default bases: "cannot delete the
         # default knowledge base" is a statement about a row, so answering it for
         # another organization's id confirms both that the id exists and that it
@@ -472,7 +493,16 @@ class KnowledgeBaseService:
         kb = await self.get_for_write(kb_id, ctx=ctx)
         if kb.is_default:
             raise BadRequestError(message="Cannot delete the default knowledge base")
+        collection = kb.collection_name
+        storage_paths = await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
         await knowledge_base_repo.delete(self.db, kb.id)
+        storage = get_file_storage()
+        for storage_path in storage_paths:
+            with contextlib.suppress(Exception):
+                await storage.delete(storage_path)
+        if not await knowledge_base_repo.list_by_collection_name(self.db, collection):
+            with contextlib.suppress(SQLAlchemyError):
+                await vector_store.delete_collection(collection)
 
     def _check_create_permission(self, *, scope: str, ctx: AuthContext) -> None:
         if scope == KBScope.APP.value and not ctx.is_app_admin:
