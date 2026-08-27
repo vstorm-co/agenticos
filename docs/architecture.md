@@ -602,16 +602,28 @@ boolean on `conversations`, because a conversation can be shared and a channel
 thread has participants rather than an owner: a column would let one person's
 star decide where the thread sits for everybody who can see it.
 
-Three consequences worth knowing:
+Four consequences worth knowing:
 
 - **`POST`/`DELETE /conversations/{id}/favourite` are authorized as a *read*.**
   A star says where a thread sits in the starrer's own sidebar and changes
   nothing about the thread, so somebody a conversation was shared with may star
   it exactly as its owner may. `for_write` there would refuse the reader the
-  feature exists for.
-- **`is_favourite` on a listed row is the caller's**, filled in one query per
-  page — so the admin listing, which has no reader, answers `false` throughout
-  rather than a different person's stars each request.
+  feature exists for. Both routes carry `Auth` for the same reason every other
+  read of one does: without a context `_may_read_trigger_log` answers false, and
+  a trigger's run-log the caller may open through `runs:view` would be one they
+  could not star (#1254).
+- **`is_favourite` is the caller's, and it is stamped in `get_conversation`** —
+  the one read every reader-scoped one goes through, rather than at each route.
+  It reached two responses out of eight while each route had to remember, so a
+  `GET` or a PATCH told somebody who had starred a thread that they had not
+  (#1254). A read with no reader — the admin listing, the run path resolving a
+  thread — asks for nobody's stars and pays no query to say so.
+- **Starring is idempotent under contention**, because the insert is
+  `ON CONFLICT DO NOTHING` rather than a read followed by an insert. Two
+  overlapping POSTs for the same pair both saw no row and the second violated
+  the primary key; the client also serializes its own pending star per
+  conversation, so a double click cannot have the DELETE answered before the
+  POST it followed.
 - **The band is an `ORDER BY`, not a grouping of the page.** The sidebar is
   paged, so a favourite sorted into page two by recency would sit under fifty
   threads that are not one. Within each band the chosen sort still applies, and

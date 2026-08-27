@@ -824,6 +824,89 @@ describe("starring a conversation", () => {
     expect(vi.mocked(apiClient.get).mock.calls.length).toBe(before);
   });
 
+  it("holds a second click until the first request has answered", async () => {
+    // The POST and the DELETE are separate requests and nothing made the second
+    // wait for the first, so a double click could have them answered out of
+    // order - the DELETE first, the POST committing after it - leaving the
+    // thread starred with nothing on screen saying so and no further click to
+    // reconcile them (#1254).
+    const result = await hook();
+    let settle: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+    vi.mocked(apiClient.delete).mockResolvedValue({});
+
+    act(() => {
+      void result.current.setFavourite("c-1", true);
+      void result.current.setFavourite("c-1", false);
+    });
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    expect(apiClient.delete).not.toHaveBeenCalled();
+    // The screen is already showing the second click, which is the point of
+    // patching first: only the request is queued.
+    expect(result.current.conversations.find((c) => c.id === "c-1")?.is_favourite).toBe(false);
+
+    await act(async () => {
+      settle({});
+      await Promise.resolve();
+    });
+
+    await waitFor(() =>
+      expect(apiClient.delete).toHaveBeenCalledWith("/conversations/c-1/favourite"),
+    );
+  });
+
+  it("queues per conversation, so one slow star does not hold another thread's", async () => {
+    const result = await hook();
+    vi.mocked(apiClient.post).mockReturnValue(new Promise(() => {}));
+    vi.mocked(apiClient.delete).mockResolvedValue({});
+
+    act(() => {
+      void result.current.setFavourite("c-1", true);
+      void result.current.setFavourite("c-2", false);
+    });
+
+    await waitFor(() =>
+      expect(apiClient.delete).toHaveBeenCalledWith("/conversations/c-2/favourite"),
+    );
+  });
+
+  it("does not roll back from a refusal two clicks old", async () => {
+    // Star, unstar, star: the row is starred and the first POST is the one that
+    // fails. Undoing it would take the star off a thread the reader has since
+    // put it back on, and the queued requests still decide what the server
+    // holds - so only the newest click owns what is on screen.
+    const result = await hook();
+    let refuse: (reason: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        refuse = reject;
+      }),
+    );
+    // The queued DELETE never answers, so nothing refetches the list and what
+    // is asserted below is the patched cache rather than a fresh page.
+    vi.mocked(apiClient.delete).mockReturnValue(new Promise(() => {}));
+
+    act(() => {
+      void result.current.setFavourite("c-1", true);
+      void result.current.setFavourite("c-1", false);
+      void result.current.setFavourite("c-1", true);
+    });
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      refuse("boom");
+      await Promise.resolve();
+    });
+
+    expect(result.current.conversations.find((c) => c.id === "c-1")?.is_favourite).toBe(true);
+    expect(toast.error).toHaveBeenCalledWith("Could not change the favourite");
+  });
+
   it("puts the star back when the request is refused", async () => {
     // The cost of patching first: a refusal has to undo it, or the row keeps a
     // star the server never recorded and a reload takes it away without a word.

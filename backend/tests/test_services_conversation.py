@@ -225,6 +225,7 @@ class TestConversationServiceGetConversation:
 
         with patch("app.services.conversation.conversation_repo") as mock_repo:
             mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
+            mock_repo.favourite_ids = AsyncMock(return_value=set())
 
             result = await service.get_conversation(
                 conv_id, user_id=user_id, organization_id=TEST_ORG_ID
@@ -285,6 +286,7 @@ class TestConversationServiceGetConversation:
             patch("app.services.conversation.channel_membership") as mock_membership,
         ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
+            mock_repo.favourite_ids = AsyncMock(return_value=set())
             mock_share_repo.get_share = AsyncMock(return_value=None)
             mock_membership.confirms_participation = AsyncMock(return_value=True)
 
@@ -325,6 +327,7 @@ class TestATriggerRunLogReadsThroughItsAgent:
             patch("app.services.conversation.resolve_access") as resolve,
         ):
             repo.get_conversation_by_id = AsyncMock(return_value=conv)
+            repo.favourite_ids = AsyncMock(return_value=set())
             share.get_share = AsyncMock(return_value=None)
             membership.confirms_participation = AsyncMock(return_value=False)
             triggers.get_by_conversation_id = AsyncMock(return_value=trigger)
@@ -337,6 +340,45 @@ class TestATriggerRunLogReadsThroughItsAgent:
 
             assert result.id == conv_id
             agents.get.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_that_viewer_may_also_star_it(self, service: ConversationService):
+        """`set_favourite` reached `get_conversation` without the context, so
+        `_may_read_trigger_log` answered false and both favourite endpoints
+        returned 404 on a thread the caller could open - a refusal to somebody
+        permitted, on the surface the run-log work deliberately opened (#1254).
+        """
+        conv = MockConversation(user_id=None)
+        ctx = MagicMock()
+        ctx.has.return_value = True
+        with (
+            patch("app.services.conversation.conversation_repo") as repo,
+            patch("app.services.conversation.conversation_share_repo") as share,
+            patch("app.services.conversation.channel_membership") as membership,
+            patch("app.services.conversation.agent_trigger_repo") as triggers,
+            patch("app.services.conversation.agent_repo") as agents,
+            patch("app.services.conversation.resolve_access") as resolve,
+        ):
+            repo.get_conversation_by_id = AsyncMock(return_value=conv)
+            repo.favourite_ids = AsyncMock(return_value=set())
+            repo.set_favourite = AsyncMock()
+            repo.agents_in_conversations = AsyncMock(return_value={})
+            share.get_share = AsyncMock(return_value=None)
+            membership.confirms_participation = AsyncMock(return_value=False)
+            triggers.get_by_conversation_id = AsyncMock(return_value=MagicMock(agent_id=uuid4()))
+            agents.get = AsyncMock(return_value=MagicMock())
+            resolve.return_value = True
+
+            starred = await service.set_favourite(
+                conv.id,
+                organization_id=TEST_ORG_ID,
+                user_id=uuid4(),
+                favourite=True,
+                ctx=ctx,
+            )
+
+            assert starred.is_favourite is True
+            assert repo.set_favourite.await_args.kwargs["favourite"] is True
 
     @pytest.mark.anyio
     async def test_without_runs_view_the_run_log_is_refused(self, service: ConversationService):
@@ -490,6 +532,7 @@ class TestParticipationDoesNotCarryTheWrite:
             patch("app.services.conversation.channel_membership") as mock_membership,
         ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
+            mock_repo.favourite_ids = AsyncMock(return_value=set())
             mock_share_repo.get_share = AsyncMock(return_value=None)
             mock_membership.confirms_participation = AsyncMock(return_value=True)
 
@@ -594,6 +637,7 @@ class TestParticipationDoesNotCarryTheWrite:
             patch("app.services.conversation.conversation_share_repo") as mock_share_repo,
         ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
+            mock_repo.favourite_ids = AsyncMock(return_value=set())
             mock_repo.archive_conversation = AsyncMock(return_value=conversation)
             mock_share_repo.get_share = AsyncMock(return_value=MagicMock())
 
@@ -610,6 +654,7 @@ class TestParticipationDoesNotCarryTheWrite:
 
         with patch("app.services.conversation.conversation_repo") as mock_repo:
             mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
+            mock_repo.favourite_ids = AsyncMock(return_value=set())
             mock_repo.archive_conversation = AsyncMock(return_value=conversation)
 
             archived = await service.archive_conversation(
@@ -658,6 +703,7 @@ class TestParticipationDoesNotCarryTheWrite:
             patch("app.services.conversation.channel_membership") as mock_membership,
         ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
+            mock_repo.favourite_ids = AsyncMock(return_value=set())
             mock_repo.delete_conversation = AsyncMock()
             mock_share_repo.get_share = AsyncMock(return_value=None)
             mock_membership.confirms_participation = AsyncMock(return_value=True)
@@ -1635,6 +1681,7 @@ class TestSayingATurnWasStopped:
             mock_repo.get_conversation_by_id = AsyncMock(
                 return_value=MockConversation(id=conv_id, organization_id=TEST_ORG_ID)
             )
+            mock_repo.favourite_ids = AsyncMock(return_value=set())
             mock_repo.get_messages_by_conversation = AsyncMock(
                 return_value=[MockMessage(run_id=run_id)]
             )
@@ -1653,6 +1700,7 @@ class TestSayingATurnWasStopped:
             mock_repo.get_conversation_by_id = AsyncMock(
                 return_value=MockConversation(id=conv_id, organization_id=TEST_ORG_ID)
             )
+            mock_repo.favourite_ids = AsyncMock(return_value=set())
             mock_repo.get_messages_by_conversation = AsyncMock(return_value=[MockMessage()])
             mock_repo.count_messages = AsyncMock(return_value=1)
             mock_repo.run_statuses = AsyncMock(return_value={})
@@ -2039,6 +2087,7 @@ class TestAFavouriteBelongsToTheReader:
         monkeypatch.setattr(
             conversation_repo, "agents_in_conversations", AsyncMock(return_value={})
         )
+        monkeypatch.setattr(conversation_repo, "favourite_ids", AsyncMock(return_value=set()))
         stored = AsyncMock()
         monkeypatch.setattr(conversation_repo, "set_favourite", stored)
         service = ConversationService(AsyncMock())
@@ -2056,6 +2105,50 @@ class TestAFavouriteBelongsToTheReader:
         assert may_read.await_count == 1
         assert result.is_favourite is True
         assert stored.await_args.kwargs["favourite"] is True
+
+    async def test_a_single_read_says_whether_this_reader_starred_it(self, monkeypatch):
+        """The star reached exactly two responses before this - the listing and
+        the POST that set it - so `GET /conversations/{id}` and the PATCH told a
+        caller who really had starred the thread that they had not, and the
+        sidebar un-starred it on the next render (#1254)."""
+        conversation = MockConversation()
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(
+            conversation_repo, "agents_in_conversations", AsyncMock(return_value={})
+        )
+        monkeypatch.setattr(
+            conversation_repo, "favourite_ids", AsyncMock(return_value={conversation.id})
+        )
+        service = ConversationService(AsyncMock())
+        monkeypatch.setattr(service, "_may_read", AsyncMock(return_value=True))
+
+        read = await service.get_conversation(
+            conversation.id, organization_id=TEST_ORG_ID, user_id=uuid4()
+        )
+
+        assert read.is_favourite is True
+
+    async def test_a_read_with_no_reader_asks_for_nobodys_stars(self, monkeypatch):
+        """An internal read - the run path resolving a thread - has no reader to
+        answer for, and must not pay a query to say so."""
+        conversation = MockConversation()
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(
+            conversation_repo, "agents_in_conversations", AsyncMock(return_value={})
+        )
+        asked = AsyncMock(return_value=set())
+        monkeypatch.setattr(conversation_repo, "favourite_ids", asked)
+
+        read = await ConversationService(AsyncMock()).get_conversation(
+            conversation.id, organization_id=TEST_ORG_ID
+        )
+
+        asked.assert_not_awaited()
+        assert read.is_favourite is False
 
     async def test_a_thread_in_another_tenant_is_missing_rather_than_starrable(self, monkeypatch):
         conversation = MockConversation(organization_id=uuid4())

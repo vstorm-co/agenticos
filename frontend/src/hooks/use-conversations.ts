@@ -413,6 +413,15 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     [queryClient],
   );
 
+  // One chain per conversation, so two clicks on the same star cannot land
+  // out of order. The POST and the DELETE are separate requests and nothing
+  // made the second wait for the first, so a double click could have the
+  // DELETE answered first and the POST commit after it - leaving the thread
+  // starred while the screen said otherwise, with no further click to
+  // reconcile them (#1254). The optimistic patch still happens at once; only
+  // the request is queued, so the star is as instant as it was.
+  const favouriteChains = useRef(new Map<string, Promise<void>>());
+
   const setFavourite = useCallback(
     async (id: string, favourite: boolean) => {
       // The account this started as, for the same reason every other request
@@ -421,20 +430,29 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       // account's error.
       const startedAs = useAuthStore.getState().user?.id;
       patchFavourite(id, favourite);
-      try {
-        if (favourite) await apiClient.post(`/conversations/${id}/favourite`, {});
-        else await apiClient.delete(`/conversations/${id}/favourite`);
-        if (!stillSameAccount(startedAs)) return;
-        // The band is an ordering the server applies, so the list is refetched
-        // to move the row - the star itself is already right on screen.
-        await invalidateLists();
-      } catch (err) {
-        if (!stillSameAccount(startedAs)) return;
-        patchFavourite(id, !favourite);
-        const message = getErrorMessage(err, tErrors, t("failedFavouriteConversation"));
-        setError(message);
-        toast.error(message);
-      }
+      const chains = favouriteChains.current;
+      const send = async (): Promise<void> => {
+        try {
+          if (favourite) await apiClient.post(`/conversations/${id}/favourite`, {});
+          else await apiClient.delete(`/conversations/${id}/favourite`);
+          if (!stillSameAccount(startedAs)) return;
+          // The band is an ordering the server applies, so the list is refetched
+          // to move the row - the star itself is already right on screen.
+          await invalidateLists();
+        } catch (err) {
+          if (!stillSameAccount(startedAs)) return;
+          // Only the newest click owns the row's displayed state; rolling back
+          // from an older one would undo a star the reader has since set.
+          if (chains.get(id) === mine) patchFavourite(id, !favourite);
+          const message = getErrorMessage(err, tErrors, t("failedFavouriteConversation"));
+          setError(message);
+          toast.error(message);
+        }
+      };
+      const mine = (chains.get(id) ?? Promise.resolve()).then(send);
+      chains.set(id, mine);
+      await mine;
+      if (chains.get(id) === mine) chains.delete(id);
     },
     [patchFavourite, invalidateLists, setError, t, tErrors],
   );

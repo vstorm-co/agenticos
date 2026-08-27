@@ -258,6 +258,14 @@ class ConversationService:
                 msg.rating_count = rating_counts.get(msg.id)  # ty: ignore[unresolved-attribute]
         if include_messages and conversation.messages:
             await self._attach_authors(conversation.messages)
+        # Here rather than at each route, because this is the one read every
+        # reader-scoped one goes through - `update`, `archive` and `set_favourite`
+        # all return the object it hands back. Only two responses carried the flag
+        # before, so `GET /conversations/{id}` and the PATCH answered `false` to a
+        # caller who really had starred the thread (#1254). Skipped entirely for a
+        # call with no reader: an internal read pays no query, and a star belongs
+        # to nobody in particular there.
+        await self._attach_favourites([conversation], user_id=user_id)
         return conversation
 
     async def _may_read(
