@@ -494,6 +494,38 @@ The project supports two authentication methods, both always available:
    - A single shared key set via the `API_KEY` environment variable.
    - Uses constant-time comparison (`secrets.compare_digest`) to prevent timing attacks.
 
+### Where a fresh session lands
+
+Three doors establish a session by three routes - the password form, the OAuth
+callback, and a magic link - and exactly one of them decides where the visitor
+ends up: `postSignInDestination` in `frontend/src/lib/auth-landing.ts`, which
+honours a deep link only when it is a same-origin path and answers the dashboard
+otherwise. Three answers in three places is drift, and the drift has been real
+twice: on the roles axis, where the landing forked by role, and on the provider
+axis, where the OAuth round trip lost `?returnTo=`.
+
+What differs per door is only how the path *travels*:
+
+| Door | How the path reaches the landing |
+|---|---|
+| Password form | it never left the tab - read straight off `?returnTo=` |
+| OAuth callback | `sessionStorage`, which is allowed because the round trip starts and ends in the same tab on this origin |
+| Magic link | a signed claim in the token, because the link is followed from an email - another tab, often another application, where `sessionStorage` is empty by construction |
+
+The magic link's path is refused at the **request** rather than filtered at the
+landing: `MagicLinkRequest.return_to` accepts a path on this deployment and
+nothing with a scheme, a second leading slash, a backslash or a control
+character, so a token that could be made to hold an arbitrary string never
+exists. The landing judges it again anyway - a check that runs once, on the
+server, on a value that then travels through an email, is a check the client
+cannot rely on having happened.
+
+`POST /auth/magic-link/verify` therefore answers with `MagicLinkToken` - the
+token pair plus `return_to`, unapplied. Its own schema rather than a nullable
+field on `Token`, because the other three token responses have no return path to
+carry and a field that is always null on most of them is one a client learns to
+ignore.
+
 ### Authorization
 
 There is no role column on the user and no role-based route dependency. What a

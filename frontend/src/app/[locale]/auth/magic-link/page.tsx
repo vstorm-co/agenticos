@@ -9,8 +9,12 @@ import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { getErrorMessage } from "@/lib/api-error";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { useReauthenticate } from "@/hooks/use-auth";
-import { postSignInDestination } from "@/lib/auth-landing";
+import { goToDestination, postSignInDestination } from "@/lib/auth-landing";
 import { ROUTES } from "@/lib/constants";
+
+interface MagicLinkVerified {
+  return_to?: string | null;
+}
 
 /**
  * Magic-link verification page.
@@ -40,14 +44,21 @@ export default function MagicLinkVerifyPage() {
     if (!token) return;
     let active = true;
     apiClient
-      .post("/auth/magic-link/verify", { token })
-      .then(async () => {
+      .post<MagicLinkVerified>("/auth/magic-link/verify", { token })
+      .then(async (verified) => {
         if (!active) return;
         // The link may be for a different account than the tab already had.
         await reauthenticate();
         if (!active) return;
         setState("success");
-        router.replace(postSignInDestination());
+        // The path travels in the token rather than in `sessionStorage`, which
+        // is what the OAuth round trip uses and which is empty here: a magic
+        // link is followed from an email, in another tab and often another
+        // application (#1214). `postSignInDestination` still decides whether it
+        // is safe to honour, and `goToDestination` picks the navigation that
+        // survives a fragment - the two halves the password form and the OAuth
+        // callback already share.
+        goToDestination(postSignInDestination(verified?.return_to), (href) => router.replace(href));
       })
       .catch((err: unknown) => {
         if (!active) return;
