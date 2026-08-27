@@ -91,10 +91,9 @@ backend/tests/
 ```
 
 `tests/api/` is grouped by **what is being asked**, not by route module: some files
-take one endpoint (`test_admin_organizations_query.py`), and
-`test_platform_routes.py` walks every registered route at once, which is why
-`agents.py` has no file of its own. Look for the question before looking for the
-path.
+take one endpoint (`test_admin_ratings_window.py`), and `test_platform_routes.py`
+sweeps a whole family at once, which is why `agents.py` has no file of its own.
+Look for the question before looking for the path.
 
 | Layer | Where | For |
 |---|---|---|
@@ -130,9 +129,11 @@ because that is what uvicorn runs.
 
 ## Key Fixtures (`tests/conftest.py`)
 
-Five, and there is deliberately no `test_user` and no `auth_client`: an
-authenticated caller is a dependency override, so that a test says which
-authority it is exercising rather than inheriting one.
+Five. None of them is a `test_user` or a signed-in client, and that is the
+point: an authenticated caller is a dependency override, so a test says which
+authority it is exercising rather than inheriting one. `tests/api/test_users.py`
+builds an `auth_client` of its own out of exactly those overrides - a local
+fixture for the file that needs one, not a shared one every file inherits.
 
 | Fixture | |
 |---|---|
@@ -212,9 +213,12 @@ async def test_creating_an_agent_without_agents_edit_is_refused(client: AsyncCli
     assert response.status_code == 403
 ```
 
-`tests/api/test_platform_routes.py` does this for **every** registered route at
-once, which is why most routes have no file of their own: the gate a route
-carries is a table, and a table is walked rather than restated.
+`tests/api/test_platform_routes.py` does this by sweeping, rather than one
+assertion per route: the gate a route carries is a table, and a table is walked
+rather than restated. It walks the **platform prefixes** - `/agents`, `/runs`,
+`/approvals`, `/spend`, `/stats`, `/skills` and the rest of `_PLATFORM_PREFIXES` -
+which is why most of those have no file of their own, and why `/auth`,
+`/organizations` and `/users` still need their own: the sweep passes over them.
 
 ### An integration test
 
@@ -228,16 +232,21 @@ rather than by the planner.
 import pytest
 
 from app.repositories import conversation as conversation_repo
+from app.services.transcript import TranscriptService
 
 pytestmark = pytest.mark.anyio
 
 
-async def test_a_question_and_its_answer_come_back_in_the_order_they_were_written(db):
-    conversation = await _a_conversation_with_one_turn(db)
+async def test_the_question_precedes_the_answer_it_got(db):
+    # `_conversation` and `_run` are the file's own builders - a row per table,
+    # added to `db` and flushed. Nothing is mocked; that is the whole point.
+    conversation = await _conversation(db)
+    run = await _run(db, conversation)
 
-    messages = await conversation_repo.get_messages_by_conversation(db, conversation.id)
+    await TranscriptService(db).record(run, prompt="ask", answer="answer")
 
-    assert [message.role for message in messages] == ["user", "assistant"]
+    written = await conversation_repo.get_messages_by_conversation(db, conversation.id)
+    assert [message.role for message in written] == ["user", "assistant"]
 ```
 
 The bug there *was* Postgres, and a mocked session would have passed against the
