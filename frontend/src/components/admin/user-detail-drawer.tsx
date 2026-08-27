@@ -37,9 +37,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui";
-import Link from "next/link";
-
-import { ROUTES } from "@/lib/constants";
 import type { AdminUser } from "@/types";
 import { apiClient } from "@/lib/api-client";
 import { formatDateTime } from "@/lib/utils";
@@ -227,12 +224,17 @@ export function UserDetailDrawer({
               value={
                 detailLoading
                   ? "…"
-                  : detail?.last_seen_at
-                    ? formatDateTime(detail.last_seen_at, locale)
-                    : // Not a date and not blank: an account created and never
-                      // used is a different decision from a dormant one, and
-                      // this is the field an admin looks for first.
-                      t("neverSignedIn")
+                  : detailError
+                    ? // Not "Never signed in": that is a claim about the
+                      // account, and the request that would have supported it
+                      // failed. The blocks below say what happened.
+                      "-"
+                    : detail?.last_seen_at
+                      ? formatDateTime(detail.last_seen_at, locale)
+                      : // Not a date and not blank: an account created and
+                        // never used is a different decision from a dormant
+                        // one, and this is the field an admin looks for first.
+                        t("neverSignedIn")
               }
             />
           </dl>
@@ -255,24 +257,29 @@ export function UserDetailDrawer({
               <p className="text-muted-foreground text-xs">{t("noMemberships")}</p>
             ) : (
               <ul className="space-y-1">
+                {/* Not links, and that is a finding rather than a decision:
+                    `/orgs/{id}` resolves through `get_for_user`, which 404s for
+                    anybody who is not a member - including an app admin, and
+                    including the target's own personal organization, which is
+                    the common case here. A link most of these rows cannot open
+                    is worse than the name and the role, which is what the
+                    decision actually needs. See #1245. */}
                 {detail.memberships.map((membership) => (
-                  <li key={membership.organization_id}>
-                    <Link
-                      href={`${ROUTES.ORGS}/${membership.organization_id}`}
-                      className="border-border bg-background hover:border-foreground/30 hover:bg-accent flex items-center justify-between gap-2 rounded-lg border px-3 py-2 transition-colors"
-                    >
-                      <span className="text-foreground min-w-0 flex-1 truncate text-xs font-medium">
-                        {membership.name}
-                      </span>
-                      {membership.is_personal && (
-                        <Badge variant="outline" className="shrink-0 text-[10px]">
-                          {t("personalOrg")}
-                        </Badge>
-                      )}
-                      <span className="text-muted-foreground shrink-0 text-xs">
-                        {membership.role}
-                      </span>
-                    </Link>
+                  <li
+                    key={membership.organization_id}
+                    className="border-border bg-background flex items-center justify-between gap-2 rounded-lg border px-3 py-2"
+                  >
+                    <span className="text-foreground min-w-0 flex-1 truncate text-xs font-medium">
+                      {membership.name}
+                    </span>
+                    {membership.is_personal && (
+                      <Badge variant="outline" className="shrink-0 text-[10px]">
+                        {t("personalOrg")}
+                      </Badge>
+                    )}
+                    <span className="text-muted-foreground shrink-0 text-xs">
+                      {membership.role}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -317,28 +324,27 @@ export function UserDetailDrawer({
               <p className="text-muted-foreground text-xs">{t("noConversationsFound")}</p>
             ) : (
               <ul className="space-y-1">
+                {/* Not links either, for the neighbouring reason: this list is
+                    deployment-wide and Activity is scoped to the admin's own
+                    active organization, so a link would usually land on an
+                    empty page - or, worse, on the same person's runs in a
+                    different tenant. There is no admin-readable destination for
+                    one of these at all; #1245 is where that sits. */}
                 {conversations.map((c) => (
-                  <li key={c.id}>
-                    {/* A link, because opening it is the one thing an admin
-                        would do with this list and the only thing it did not
-                        offer. `?run=` is Activity's own hand-off - there is no
-                        cross-tenant transcript read, so the answer to "what
-                        did they do" is the runs, not the messages. */}
-                    <Link
-                      href={`${ROUTES.RUNS}?person=${subject.id}`}
-                      className="border-border bg-background hover:border-foreground/30 hover:bg-accent flex items-center justify-between gap-2 rounded-lg border px-3 py-2 transition-colors"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="text-foreground truncate text-xs font-medium">
-                          {c.title || t("untitled")}
-                        </p>
-                        <p className="text-muted-foreground truncate text-xs">
-                          {formatDateTime(c.created_at, locale)}
-                          {typeof c.message_count === "number" &&
-                            ` · ${t("messageCountShort", { count: c.message_count })}`}
-                        </p>
-                      </div>
-                    </Link>
+                  <li
+                    key={c.id}
+                    className="border-border bg-background flex items-center justify-between gap-2 rounded-lg border px-3 py-2"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-foreground truncate text-xs font-medium">
+                        {c.title || t("untitled")}
+                      </p>
+                      <p className="text-muted-foreground truncate text-xs">
+                        {formatDateTime(c.created_at, locale)}
+                        {typeof c.message_count === "number" &&
+                          ` · ${t("messageCountShort", { count: c.message_count })}`}
+                      </p>
+                    </div>
                   </li>
                 ))}
               </ul>

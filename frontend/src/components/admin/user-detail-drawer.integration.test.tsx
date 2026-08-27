@@ -84,13 +84,33 @@ beforeEach(() => {
 });
 
 describe("what the drawer answers", () => {
-  it("names each organization, the role in it, and links to it", async () => {
+  it("names each organization and the role in it", async () => {
     // The answer it exists to give, and the one entirely absent before.
     mount();
 
-    const membership = await screen.findByRole("link", { name: /Acme/ });
-    expect(membership).toHaveAttribute("href", "/orgs/o-1");
-    expect(membership).toHaveTextContent("builder");
+    const membership = await screen.findByText("Acme");
+    expect(membership.closest("li")).toHaveTextContent("builder");
+  });
+
+  it("does not link a row an admin cannot open", async () => {
+    // `/orgs/{id}` resolves through `get_for_user`, which 404s for anybody who
+    // is not a member - an app admin included, and the target's own personal
+    // organization is the common case. A link most of these rows cannot open
+    // is worse than the name and the role (#1245).
+    mount();
+
+    await screen.findByText("Acme");
+    expect(screen.queryByRole("link", { name: /Acme/ })).toBeNull();
+  });
+
+  it("does not claim a sign-in history the request failed to fetch", async () => {
+    // "Never signed in" is a claim about the account, and the read that would
+    // have supported it did not answer.
+    serve(new Error("Backend unavailable"));
+    mount();
+
+    await waitFor(() => expect(screen.getAllByText("Backend unavailable")).toHaveLength(2));
+    expect(screen.queryByText("Never signed in")).toBeNull();
   });
 
   it("says an account has never signed in rather than leaving it blank", async () => {
@@ -125,7 +145,7 @@ describe("what the drawer answers", () => {
 describe("the three privileged actions", () => {
   it("asks before suspending, and names what happens", async () => {
     mount();
-    await screen.findByRole("link", { name: /Acme/ });
+    await screen.findByText("Acme");
 
     await userEvent.click(screen.getByRole("button", { name: /Suspend/ }));
 
@@ -139,7 +159,7 @@ describe("the three privileged actions", () => {
 
   it("asks before granting deployment administration", async () => {
     mount();
-    await screen.findByRole("link", { name: /Acme/ });
+    await screen.findByText("Acme");
 
     await userEvent.click(screen.getByRole("button", { name: /Promote|admin/i }));
 
@@ -151,7 +171,7 @@ describe("the three privileged actions", () => {
     // The recoverable direction. A confirmation on the button that undoes one
     // is a question about nothing.
     mount({ ...USER, is_active: false });
-    await screen.findByRole("link", { name: /Acme/ });
+    await screen.findByText("Acme");
 
     await userEvent.click(screen.getByRole("button", { name: /Reactivate/i }));
 
