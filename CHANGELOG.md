@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.299] - 2026-08-27
+
+### Fixed
+
+- **The BFF proxy read every request and response body fully into memory before
+  forwarding either.** `MAX_UPLOAD_SIZE_MB` is 50 and the knowledge-base path
+  allows it, so a 50 MB document was held whole in the Node process before one
+  byte reached the backend - ten concurrent uploads is 500 MB of heap, and the
+  container's memory limit decides what happens next. In the other direction a
+  workspace file, a document or a run export gave the browser nothing until the
+  last byte had reached the proxy, so time-to-first-byte was the whole transfer
+  and a large export read as a hung page. Both directions stream now, with
+  `duplex: "half"` for the outbound body as undici requires. Bytes stay bytes, so
+  a multipart boundary and a PDF survive the hop, a 204 still carries a null body,
+  and an error body still reaches the client verbatim. (#951)
+
 ## [0.0.298] - 2026-08-27
 
 ### Fixed
