@@ -107,7 +107,11 @@ function WidgetHint({ title, text }: { title: string; text: string }) {
           // this shows" is eleven identical stops to a screen reader, with
           // nothing saying which card each one belongs to.
           aria-label={t("whatThisShows", { title })}
-          className="text-muted-foreground/50 hover:text-foreground shrink-0 transition-colors"
+          // The hit area is the padding, not the glyph. A bare button around a
+          // `size-3.5` icon is a 14x14 target - a third of the 44px both mobile
+          // platforms ask for, and there are one of these per card. `-m-2`
+          // gives the padding back to the layout so nothing moves.
+          className="text-muted-foreground/50 hover:text-foreground -m-2 shrink-0 p-2 transition-colors"
         >
           <Info className="size-3.5" aria-hidden />
         </button>
