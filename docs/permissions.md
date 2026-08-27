@@ -27,6 +27,22 @@ single source of truth; this page explains it.
     favour of Activity, and `/admin/conversations?user_id=` lists one account's
     threads without opening any of them.
 
+```mermaid
+flowchart TD
+    subgraph L1["Layer 1 · the deployment"]
+        A["<code>users.is_app_admin</code><br/>a boolean outside every organization"]
+    end
+    subgraph L2["Layer 2 · the organization"]
+        B["a row in <code>organization_members</code><br/>carrying a name from <code>OrgRoleName</code>"]
+    end
+    subgraph L3["Layer 3 · one row"]
+        C["<code>resource_grants</code><br/>and a resource's own visibility"]
+    end
+    A -.->|"bypasses, and the audit log is what holds it"| B
+    B -->|"role scope"| E{{"effective access<br/><code>max(role scope, grant)</code>"}}
+    C -->|"grant on that row"| E
+```
+
 ## Layer 1: `users.is_app_admin` - the deployment superadmin
 
 A boolean on the user, entirely outside organizations. Two effects:
@@ -147,7 +163,13 @@ Derived from the catalog rather than from a role name, so a custom role (Phase
 against the literal `"admin"` and could not see one at all - on the invitation
 paths as well as on `change_role`, which is what #696 closed.
 
-**A page's organization is the one in its URL.** `X-Organization-Id` travels on
+!!! warning "A page's organization is the one in its URL"
+
+    `X-Organization-Id` travels on every request from the *active* selection, so
+    a page acting on the organization in its path while reading permissions for
+    the active one decides Acme's members by the caller's role in Globex.
+
+`X-Organization-Id` travels on
 every request from the console and names the *active* organization, so a page
 that acts on an org from its path - `/orgs/{id}/members` - has two notions of
 "which tenant" and the organizations list opens that page without switching. They
@@ -196,18 +218,27 @@ One formula, in `app/services/access.py`:
 effective access to one row = max(role scope, grant on that row)
 ```
 
-**A grant widens what a role allows; it never narrows it.** Sharing one agent
-with a Viewer works without promoting them, and a Builder's org-wide view is not
-taken away by the absence of a grant.
+!!! danger "A grant widens what a role allows; it never narrows it"
+
+    Sharing one agent with a Viewer works without promoting them, and a
+    Builder's org-wide view is not taken away by the absence of a grant.
 
 `resolve_access` in order:
 
-1. No subject in the context → refused. Always, whatever the role says.
-2. `resource.organization_id != ctx.organization_id` → refused. **Tenancy is
-   checked before anything else.**
-3. Does the role's scope alone reach this row? If yes, done - no query.
-4. Only now is `resource_grants` consulted, and the level compared against the
-   minimum the permission requires.
+```mermaid
+flowchart TD
+    S{"a subject in the context?"} -->|no| R1([refused])
+    S -->|yes| T{"same organization<br/>as the row?"}
+    T -->|no| R2([refused])
+    T -->|yes| Sc{"does the role's scope<br/>reach this row?"}
+    Sc -->|yes| Y([allowed — no query])
+    Sc -->|no| G{"a grant on the row,<br/>at or above the level<br/>the permission needs?"}
+    G -->|yes| Y2([allowed])
+    G -->|no| R3([refused])
+```
+
+Tenancy is checked before anything else, and a context with no subject is refused
+whatever its role says.
 
 ### A surface with nobody in front of it
 

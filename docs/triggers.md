@@ -51,6 +51,19 @@ An event trigger hands you two things: a **webhook URL** and a **signing secret*
 provider POSTs its payload to the URL and signs the request; the platform recomputes
 the signature and fires the agent only if the two match.
 
+```mermaid
+flowchart TD
+    P[A provider, or your own script] -->|POST + signature header| W["/api/v1/webhooks/triggers/{source}/{id}"]
+    W --> V{signature verifies?}
+    V -->|no| R403["403 - refused before the runner"]
+    V -->|yes| J{a JSON object?}
+    J -->|no| R400["400"]
+    J -->|yes| F{trigger active,<br/>filter matches?}
+    F -->|no| R202["202 - nothing to do"]
+    F -->|yes| RUN[the agent runs, spending the org's budget]
+    RUN --> R202b["202"]
+```
+
 - **The URL** is built on the deployment's one public address (`PUBLIC_BASE_URL`), not
   on the dashboard's origin - the webhook is served by the API host, which is usually a
   different origin from the UI. Its shape is:
@@ -79,13 +92,17 @@ the signature and fires the agent only if the two match.
   A **polled** source signs nothing and holds no secret: it was not addressed, it was
   read, and the account's own OAuth grant is what authorized reading it.
 
-The signature is not decoration. Without it, the URL is the only thing between a stranger
-and your organization's model budget - and URLs leak: into logs, into a provider's
-delivery history, into a screenshot in a support ticket. Anyone who has the URL could
-fire the agent at will and spend against your caps. The secret is what makes a delivery
-*authentic* rather than merely *addressed correctly*. A request whose signature does not
-verify is refused with a `403` before the runner is ever reached; the secret is sealed
-in the [vault](secrets.md) and never appears in a read, a listing, or the URL.
+!!! danger "The signature is not decoration"
+
+    Without it, the URL is the only thing between a stranger and your
+    organization's model budget - and URLs leak: into logs, into a provider's
+    delivery history, into a screenshot in a support ticket. Anyone who has the
+    URL could fire the agent at will and spend against your caps. The secret is
+    what makes a delivery *authentic* rather than merely *addressed correctly*.
+
+A request whose signature does not verify is refused with a `403` before the runner
+is ever reached; the secret is sealed in the [vault](secrets.md) and never appears
+in a read, a listing, or the URL.
 
 A verified delivery that has nothing to do - an inactive trigger, or a payload the
 filter does not match - answers `202` exactly as a fired one does, so holding the secret
@@ -216,47 +233,53 @@ bytes:
   produces different bytes (reordered keys, different spacing). Sign a string and send
   that *same* string.
 
-**curl:**
+=== "curl"
 
-```bash
-SECRET='your-signing-secret'
-URL='https://api.example.com/api/v1/webhooks/triggers/webhook/<trigger_id>'
-BODY='{"hello":"world"}'
+    ```bash
+    SECRET='your-signing-secret'
+    URL='https://api.example.com/api/v1/webhooks/triggers/webhook/<trigger_id>'
+    BODY='{"hello":"world"}'
 
-SIG="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | sed 's/^.* //')"
+    SIG="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | sed 's/^.* //')"
 
-curl -sS -X POST "$URL" \
-  -H 'Content-Type: application/json' \
-  -H "X-Signature-256: $SIG" \
-  --data-raw "$BODY"
-```
+    curl -sS -X POST "$URL" \
+      -H 'Content-Type: application/json' \
+      -H "X-Signature-256: $SIG" \
+      --data-raw "$BODY"
+    ```
 
-**Python** (httpx):
+=== "Python (httpx)"
 
-```python
-import hashlib
-import hmac
+    ```python
+    import hashlib
+    import hmac
 
-import httpx
+    import httpx
 
-secret = b"your-signing-secret"
-url = "https://api.example.com/api/v1/webhooks/triggers/webhook/<trigger_id>"
-body = b'{"hello":"world"}'
+    secret = b"your-signing-secret"
+    url = "https://api.example.com/api/v1/webhooks/triggers/webhook/<trigger_id>"
+    body = b'{"hello":"world"}'
 
-signature = "sha256=" + hmac.new(secret, body, hashlib.sha256).hexdigest()
+    signature = "sha256=" + hmac.new(secret, body, hashlib.sha256).hexdigest()
 
-# content=body sends these exact bytes. json=... would re-serialize and sign nothing.
-httpx.post(
-    url,
-    content=body,
-    headers={"Content-Type": "application/json", "X-Signature-256": signature},
-)
-```
+    # content=body sends these exact bytes. json=... would re-serialize and sign nothing.
+    httpx.post(
+        url,
+        content=body,
+        headers={"Content-Type": "application/json", "X-Signature-256": signature},
+    )
+    ```
 
 For the `github` source the algorithm is identical; only the header name changes to
 `X-Hub-Signature-256`.
 
 ## Zapier and Make cannot do this without a code step
+
+!!! warning "Neither has an HMAC action"
+
+    Their standard "POST to a webhook" steps send the body but cannot sign it, so
+    every delivery arrives unsigned and is refused `403`. Budget an hour with a
+    code step, not five minutes of clicking.
 
 It is tempting to reach for a no-code webhook action in Zapier or Make. Neither has an
 HMAC action: their standard "POST to a webhook" steps send the body but cannot sign it,
@@ -270,6 +293,12 @@ five minutes of clicking. If you are only proving the trigger end to end, sign a
 by hand with the snippet above first.
 
 ## Testing locally
+
+!!! tip "Try *Run now* before setting up a provider"
+
+    It fires either kind of trigger once, on demand, with no signature and no
+    webhook involved - the fastest way to confirm the agent, its prompt and its
+    budget behave.
 
 On a laptop `PUBLIC_BASE_URL` defaults to `http://localhost:8000`, so the URL the dialog
 hands you is unreachable from GitHub or any hosted relay - they cannot see your machine.

@@ -6,16 +6,27 @@ the same pattern: **Models → Schemas → Repositories → Services → Endpoin
 
 ## Request Flow
 
-```
-HTTP Request → API Route → Service → Repository → Database
-                  ↓
-              Response ← Service ← Repository ←
+```mermaid
+flowchart LR
+    Q([HTTP request]) --> R[API route]
+    R --> S[Service]
+    S --> P[Repository]
+    P --> D[(PostgreSQL)]
+    D -.-> P
+    P -.-> S
+    S -.-> R
+    R -.-> A([Response])
 ```
 
 Routes never contain direct database calls. All data access goes through
 services, which in turn delegate to repositories.
 
-**That is a test rather than a convention.**
+!!! info "It is a test, not a convention"
+
+    `backend/tests/test_route_layering.py` fails if a route imports a
+    repository - and fails just as loudly if its allowlist keeps an exemption
+    that no longer applies.
+
 `backend/tests/test_route_layering.py` fails if any module under
 `app/api/routes/` imports from `app.repositories`, and fails just as loudly if its
 allowlist keeps an exemption that no longer applies. The rule had drifted in five
@@ -137,8 +148,29 @@ code on the exit stack FastAPI unwinds between the path operation returning and
 4. the response is written to the socket;
 5. the session is closed.
 
-That ordering is the whole contract, and it is what lets a client act on its own
-answer: **a 2xx means the write is readable, not merely accepted.** FastAPI's
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client
+    participant R as Route
+    participant S as Session
+    C->>R: request
+    R->>S: flush (ids, constraints)
+    R-->>R: return, response_model serializes
+    R->>S: COMMIT
+    S-->>R: committed
+    R->>R: start deferred background work
+    R-->>C: 2xx written
+    R->>S: close
+```
+
+!!! danger "A 2xx means the write is readable, not merely accepted"
+
+    That ordering is the whole contract. A bare `Depends(get_db_session)`
+    anywhere reintroduces FastAPI's default and swaps steps 2 and 4 -
+    `tests/api/test_db_session_scope.py` fails on one.
+
+That ordering is what lets a client act on its own answer. FastAPI's
 default for a dependency with `yield` is `scope="request"`, which puts steps 2
 and 4 the other way round — and did here until [#353][353], where an acceptance
 answered 204 while the membership row it created stayed invisible to the very

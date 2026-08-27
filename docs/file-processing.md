@@ -11,22 +11,15 @@ When a user uploads a file in the chat interface, the following pipeline runs:
 
 ### Flow
 
-```
-1. Upload     POST /api/v1/files/upload
-               |
-2. Validate    Check MIME type against allowed list + enforce size limit
-               |
-3. Classify    Determine file_type: "image", "pdf", "docx", "spreadsheet", "text"
-               |
-4. Parse       Extract text content (images skip this step)
-               |
-5. Store       Save file to media/{user_id}/ via FileStorageService
-               |
-6. Record      Create ChatFile row in database
-               |
-7. Link        When message is sent, ChatFile is attached via message_id FK
-               |
-8. Display     Composer shows a card per attachment: name, excerpt, type, size
+```mermaid
+flowchart TD
+    U["Upload<br/><code>POST /api/v1/files/upload</code>"] --> V["Validate<br/>MIME against the allowed list, size limit"]
+    V --> C["Classify<br/>image · pdf · docx · spreadsheet · text"]
+    C --> P["Parse<br/>extract text — images skip this"]
+    P --> S["Store<br/><code>media/{user_id}/</code>"]
+    S --> R["Record<br/>a <code>ChatFile</code> row"]
+    R --> L["Link<br/>attached to the message by <code>message_id</code>"]
+    L --> D["Display<br/>a card per attachment: name, excerpt, type, size"]
 ```
 
 The upload response carries a `preview` — the first three lines of the extracted
@@ -265,23 +258,21 @@ different pipeline handles parsing, chunking, and embedding.
 
 ### Ingestion Flow
 
-```
-1. Input       File path (CLI) or uploaded file (API)
-                |
-2. Parse       DocumentProcessor selects parser by file type
-                |
-3. Chunk       Text split into segments (configurable size/overlap/strategy)
-                |
-4. Embed       Chunks embedded via configured provider
-                |
-5. Store       Vectors written to vector database
-                |
-6. Track       RAGDocument record created in SQL (status tracking)
+```mermaid
+flowchart TD
+    I["Input<br/>a path (CLI) or an upload (API)"] --> P["Parse<br/><code>DocumentProcessor</code> picks a parser by type"]
+    P --> C["Chunk<br/>size, overlap and strategy are configurable"]
+    C --> E["Embed<br/>through the collection's provider"]
+    E --> S["Store<br/>vectors in <code>rag_&lt;collection&gt;</code>"]
+    S --> T["Track<br/>a <code>RAGDocument</code> row carries the status"]
 ```
 
-Over the API the order is the other way round: the `RAGDocument` row is written
-first and steps 2–5 run in a background task against a session of their own,
-which is why an upload answers `{"status": "processing"}` rather than waiting.
+!!! note "Over the API the order is the other way round"
+
+    The `RAGDocument` row is written **first** and the middle four steps run in a
+    background task with a session of their own - which is why an upload answers
+    `202 {"status": "processing"}` rather than waiting.
+
 There are two addresses an upload can arrive at — `POST /rag/collections/{name}/ingest`
 and `POST /kb/{kb_id}/documents` — and both answer **202** with the same
 `RAGIngestResponse`, every field of it, `"document_id": null` included: the vector
