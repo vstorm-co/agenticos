@@ -907,6 +907,57 @@ describe("starring a conversation", () => {
     expect(toast.error).toHaveBeenCalledWith("Could not change the favourite");
   });
 
+  it("drops a queued click when the account changed while it waited", async () => {
+    // The queue's own hazard: a click waiting its turn is sent with whatever
+    // cookies the browser holds when it gets one, so waiting out a sign-out
+    // would land A's star as B's on a thread they can both read. The account is
+    // checked before the request goes, not only after it answers.
+    const result = await hook();
+    let settle: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+
+    act(() => {
+      void result.current.setFavourite("c-1", true);
+      void result.current.setFavourite("c-1", false);
+    });
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+
+    act(() => {
+      useAuthStore.getState().setUser({ id: "u-next", email: "next@example.com" } as never);
+    });
+    await act(async () => {
+      settle({});
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(apiClient.delete).not.toHaveBeenCalled();
+  });
+
+  it("does not hold the next click behind the list refetch", async () => {
+    // The refetch is outside the chain, because what has to be serialized is
+    // the write. Behind it, a slow GET leaves an unstar optimistic while the
+    // server keeps the star - and a reload then loses the reader's last choice.
+    const result = await hook();
+    vi.mocked(apiClient.post).mockResolvedValue({});
+    vi.mocked(apiClient.delete).mockResolvedValue({});
+    vi.mocked(apiClient.get).mockImplementation(() => new Promise(() => {}));
+
+    await act(async () => {
+      void result.current.setFavourite("c-1", true);
+      await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+      void result.current.setFavourite("c-1", false);
+    });
+
+    await waitFor(() =>
+      expect(apiClient.delete).toHaveBeenCalledWith("/conversations/c-1/favourite"),
+    );
+  });
+
   it("puts the star back when the request is refused", async () => {
     // The cost of patching first: a refusal has to undo it, or the row keeps a
     // star the server never recorded and a reload takes it away without a word.
