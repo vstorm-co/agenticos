@@ -107,15 +107,19 @@ describe("platformProxy", () => {
     expect(await response.json()).toEqual({ detail: "You cannot edit this agent" });
   });
 
-  it("passes a body through on writes", async () => {
+  it("buffers a write body so a redirect can replay it and the size limit sees it", async () => {
+    // Not streamed: undici cannot replay a stream through the 307 FastAPI answers
+    // on a trailing-slash mismatch, and a streamed request carries no
+    // `Content-Length` for the backend's body-size check to read.
     const backend = backendReplies("{}");
 
     await platformProxy().POST(
       request("/api/agents", { method: "POST", body: JSON.stringify({ spec: { name: "S" } }) }),
     );
 
-    // Bytes, so an upload survives the hop; decoded here only to read it.
-    const body = backend.forwarded().init.body as ArrayBuffer;
+    const init = backend.forwarded().init as RequestInit & { duplex?: string };
+    expect(init.duplex).toBeUndefined();
+    const body = init.body as ArrayBuffer;
     expect(new TextDecoder().decode(body)).toBe('{"spec":{"name":"S"}}');
   });
 
@@ -167,6 +171,17 @@ describe("platformProxy", () => {
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(pdf);
     expect(response.headers.get("Content-Type")).toBe("application/pdf");
     expect(response.headers.get("Content-Disposition")).toBe('attachment; filename="handbook.pdf"');
+  });
+
+  it("carries the backend's Content-Length on a streamed download", async () => {
+    // The response body is streamed, so the length no longer follows from a
+    // buffer: without forwarding it, a known-size download becomes a chunked one
+    // and a progress bar a spinner.
+    backendReplies('{"ok":true}', { headers: { "Content-Length": "11" } });
+
+    const response = await platformProxy().GET(request("/api/agents"));
+
+    expect(response.headers.get("Content-Length")).toBe("11");
   });
 
   it("returns an empty 204 rather than inventing a body", async () => {
