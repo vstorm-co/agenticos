@@ -17,6 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.286] - 2026-08-27
+
+### Fixed
+
+- **`seed --clear` never worked on a seeded database.** It called a bulk
+  `DELETE FROM users WHERE is_app_admin = false`, and every seeded account has a
+  personal organization whose `created_by_user_id` is `ON DELETE RESTRICT` - so the
+  delete raised `ForeignKeyViolation` on the first row and the command 500'd. The
+  bulk path bypassed the reconciliation only the single-row delete runs.
+  `delete_non_admins` lists the non-admins and removes each through `delete` now, so
+  each personal organization is purged and each owned row reconciled first, on the
+  same path `DELETE /users/{id}` uses. One transaction, so a refusal - a non-admin
+  who solely owns a shared organization - rolls the whole clear back rather than
+  half-clearing. (#1124, #1117)
+
 ## [0.0.285] - 2026-08-27
 
 ### Fixed
