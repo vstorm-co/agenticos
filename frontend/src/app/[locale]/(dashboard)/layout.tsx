@@ -50,19 +50,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 descendant - the chat's sources panel and two drop overlays are
                 `fixed` and rendered inline, so containment would move them.
 
-                `pb-20 lg:pb-16` is the **only** declaration of how much room is
-                under a page, and it is painted - measured at 80px and 64px in
-                Chromium 151, WebKit 26.5 and Firefox 153 against this app's own
-                stylesheet. Four surfaces used to re-add it inside their content
-                at three different values, on top of this one, which is what
-                made "how far does a page clear the bottom" three answers
-                (#933). `pb-20` is the larger because the mobile tab bar
-                (`min-h-[56px]` plus the safe-area inset) sits over the content
-                below `lg`. */}
+                No bottom padding here, and that is the fix rather than an
+                omission: `DeploymentGate` wraps every page in a `min-h-0 flex-1`
+                box, so a long page overflows *that* and this element's padding
+                edge stays where the shorter box ended - buried mid-content.
+                Measured at 0px below the last card, at every width, in Chromium
+                151 and WebKit 26.5. The room under a page is declared once, on
+                `PageTransition`'s unconstrained branch, where it paints (#933). */}
             <main
               id="main"
               tabIndex={-1}
-              className="relative flex min-h-0 flex-1 flex-col overflow-auto px-3 pt-4 pb-20 sm:px-6 sm:pt-8 lg:pb-16"
+              className="relative flex min-h-0 flex-1 flex-col overflow-auto px-3 pt-4 sm:px-6 sm:pt-8"
             >
               {/* Inside `main` rather than around the whole shell: a
                   maintenance window still leaves the navigation and the account
