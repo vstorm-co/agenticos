@@ -2,6 +2,7 @@
 """RAG document service."""
 
 import anyio
+import contextlib
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
@@ -476,13 +477,18 @@ class RAGDocumentService:
 
         await rag_document_repo.delete(self.db, doc.id)
 
-    async def delete_by_collection(self, collection_name: str) -> int:
-        """Delete all RAG document records for a collection.
+    async def delete_by_collection(self, collection_name: str) -> None:
+        """Delete a collection's document rows and unlink their stored uploads.
 
-        Returns:
-            Number of deleted records.
+        The bulk row delete used to return only a count, so nothing removed the
+        uploaded files and every one was orphaned on disk when a collection was
+        dropped (#1265). The unlink is best-effort - a file already gone is not a
+        reason to fail the drop - and mirrors the org purge's teardown.
         """
-        return await rag_document_repo.delete_by_collection(self.db, collection_name)
+        storage = get_file_storage()
+        for storage_path in await rag_document_repo.delete_by_collection(self.db, collection_name):
+            with contextlib.suppress(Exception):
+                await storage.delete(storage_path)
 
     async def get_parsed_content(
         self, doc_id: str, vector_store: BaseVectorStore
