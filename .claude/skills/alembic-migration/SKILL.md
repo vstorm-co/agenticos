@@ -16,8 +16,8 @@ cited anywhere for work that predates the squash - `0038` for the vault,
 `0066` for `users.role`, `0046` for the Tesseract codes - now names a *different*
 migration in this directory, or none. That is worse than a dangling reference
 because it resolves. Cite a revision by its full file name and only while it is
-still here; anything older is in `0001_baseline` and in git history before
-2026-07-31.
+still here; for anything older the baseline holds the schema it arrived at, and
+the revision itself is in git history before 2026-07-31.
 
 **The models are the source of truth now, and that is newly true.** Before the
 squash they were not: composite indexes and a CHECK existed only in migrations, so
@@ -79,8 +79,11 @@ listing endpoint with a 500.
 
 The worked example is the one that narrowed `IngestionConfig.ocr_language` from
 "anything 2–16 characters" to Tesseract's `^[a-z]{3}(\+[a-z]{3})*$` while every row
-written before it held `"en"`. The data migration shipped in the same revision; the
-revision itself predates the squash and is inside `0001_baseline`.
+written before it held `"en"`; the data migration shipped in the same revision. To
+read it, reach for **git history before 2026-07-31**: `0001_baseline` carries the
+schema those 65 revisions arrived at and none of their `UPDATE`s, so a data
+migration is exactly what it cannot show you. Its own docstring says so - "the
+decisions those revisions recorded are prose now rather than files".
 
 - **Adding** a field to a JSONB-stored model is safe — missing keys take their default.
 - **Narrowing** an existing one needs the backfill in the same change.

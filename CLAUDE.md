@@ -99,7 +99,7 @@ Easy to violate, cross-cutting, and each one has been violated here at least onc
   of them `0042_sync_source_secret_id`, which took `app/core/crypto.py` off RAG
   connector credentials. They had been sealed with one deployment-wide Fernet key,
   which made this sentence untrue for one table until #937 deleted it. The first
-  predates the squash and is inside `0001_baseline`.
+  predates the squash, so it is in git history rather than in a file.
 - `datetime.now(UTC)`, never `datetime.utcnow()`.
 - `secrets.compare_digest()` for API key comparison, never `==`.
 - **Do not reintroduce what was deliberately removed:** `UserRole`, `User.has_role()`,
@@ -110,12 +110,13 @@ Easy to violate, cross-cutting, and each one has been violated here at least onc
   `CONFIG_SCHEMA` (`0042_sync_source_secret_id` - a connector credential is a vault
   secret the source references by id).
 
-  **The first two are inside `0001_baseline` and have no revision of their own any
-  more.** 65 revisions were collapsed into it on 2026-07-31 and the numbering
-  restarted, so `0038` and `0066` name a *different* migration today or none at
-  all — which is worse than a dangling reference, because it resolves. Cite a
-  revision by its full file name, and only for one that is still in
-  `backend/alembic/versions/`.
+  **The first two have no revision of their own any more.** 65 were collapsed into
+  `0001_baseline` on 2026-07-31 and the numbering restarted, so `0038` and `0066`
+  name a *different* migration today or none at all — which is worse than a
+  dangling reference, because it resolves. The baseline carries the schema those
+  revisions arrived at and none of their data migrations; to read one, use git
+  history before that date. Cite a revision by its full file name, and only for
+  one that is still in `backend/alembic/versions/`.
 
 ## Read the matching rule before writing code
 

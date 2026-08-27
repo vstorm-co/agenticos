@@ -71,7 +71,8 @@ question a role cannot — not "may this role touch agents?" but *which* agents.
 
 `UserRole`, `User.has_role()`, `RoleChecker`, `CurrentAdmin`, `CurrentSuperuser`.
 The `users.role` column was dropped before the migration chain was squashed, so
-it lives in `0001_baseline`. Do not reintroduce any of
+there is no revision to point at: `0001_baseline` simply creates `users` without
+it. Do not reintroduce any of
 them, and do not add `--role` to a CLI command. Authority inside an organization is
 a membership row plus this catalog.
 
