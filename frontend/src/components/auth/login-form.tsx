@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { ArrowRight } from "lucide-react";
 
 import { OAuthBlock } from "@/components/auth/oauth-buttons";
+import { returnToForAttempt } from "@/lib/oauth-return";
 import { Button, Input, Label } from "@/components/ui";
 import { useAuth } from "@/hooks";
 import { ApiError } from "@/lib/api-client";
@@ -147,7 +148,7 @@ export function LoginForm() {
         </Button>
       </form>
 
-      <OAuthBlock label={t("orSignInWith")} returnTo={search.get("returnTo")} />
+      <OAuthBlock label={t("orSignInWith")} returnTo={returnToForAttempt(search)} />
     </div>
   );
 }

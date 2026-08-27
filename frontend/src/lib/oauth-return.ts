@@ -43,6 +43,33 @@ export function rememberReturnTo(path: string | null | undefined): void {
   }
 }
 
+/**
+ * What an attempt started from this URL should remember.
+ *
+ * `?returnTo=` when the visitor arrived with one. Otherwise nothing - *except*
+ * on a retry: a failed provider attempt comes back to `/login?error=…` with the
+ * deep link gone from the URL and the one written before the attempt still in
+ * storage, so clearing there would drop a path nobody abandoned. Only the OAuth
+ * callback and the provider redirect mint that `error`, which is what makes it
+ * a reliable "this is the second attempt at the same thing".
+ */
+export function returnToForAttempt(search: {
+  get: (name: string) => string | null;
+}): string | null {
+  const named = search.get("returnTo");
+  if (named) return named;
+  return search.get("error") ? peek() : null;
+}
+
+/** Read without consuming - only {@link returnToForAttempt} needs this. */
+function peek(): string | null {
+  try {
+    return window.sessionStorage.getItem(KEY);
+  } catch {
+    return null;
+  }
+}
+
 /** The remembered path, removed as it is read. */
 export function takeReturnTo(): string | null {
   try {

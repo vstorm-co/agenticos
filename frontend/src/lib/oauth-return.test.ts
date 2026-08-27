@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { rememberReturnTo, takeReturnTo } from "./oauth-return";
+import { rememberReturnTo, returnToForAttempt, takeReturnTo } from "./oauth-return";
 
 afterEach(() => {
   window.sessionStorage.clear();
@@ -62,5 +62,47 @@ describe("carrying a return path across the provider round trip", () => {
     });
 
     expect(() => rememberReturnTo(null)).not.toThrow();
+  });
+});
+
+describe("what an attempt started from this URL should remember", () => {
+  const url = (query: string) => new URLSearchParams(query);
+
+  it("takes the deep link the visitor arrived with", () => {
+    expect(returnToForAttempt(url("returnTo=/agents/a-1"))).toBe("/agents/a-1");
+  });
+
+  it("takes nothing from a plain sign-in page", () => {
+    rememberReturnTo("/agents/abandoned");
+
+    expect(returnToForAttempt(url(""))).toBeNull();
+  });
+
+  it("keeps the path across a retry, where the URL has lost it", () => {
+    // A failed provider attempt comes back to `/login?error=oauth_failed` with
+    // no `returnTo` on it. Clearing there drops a path nobody abandoned.
+    rememberReturnTo("/agents/a-1");
+
+    expect(returnToForAttempt(url("error=oauth_failed"))).toBe("/agents/a-1");
+  });
+
+  it("prefers the URL's own deep link over what is stored", () => {
+    rememberReturnTo("/agents/older");
+
+    expect(returnToForAttempt(url("error=oauth_failed&returnTo=/agents/newer"))).toBe(
+      "/agents/newer",
+    );
+  });
+
+  it("answers with nothing on a retry that never carried one", () => {
+    expect(returnToForAttempt(url("error=oauth_failed"))).toBeNull();
+  });
+
+  it("survives a browser that refuses to be read", () => {
+    vi.spyOn(window.sessionStorage, "getItem").mockImplementation(() => {
+      throw new Error("denied");
+    });
+
+    expect(returnToForAttempt(url("error=oauth_failed"))).toBeNull();
   });
 });

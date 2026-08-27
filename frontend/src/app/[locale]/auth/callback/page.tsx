@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Spinner } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { useAdoptSession } from "@/hooks/use-auth";
-import { postSignInDestination } from "@/lib/auth-landing";
+import { goToDestination, postSignInDestination } from "@/lib/auth-landing";
 import { takeReturnTo } from "@/lib/oauth-return";
 import type { User } from "@/types";
 import { useTranslations } from "next-intl";
@@ -72,7 +72,12 @@ export default function AuthCallbackPage() {
         // The deep link the visitor was headed to, written beside the provider
         // link they clicked and consumed here. Not the OAuth `state` parameter:
         // the trip starts and ends in the same tab on this origin (#135).
-        router.replace(postSignInDestination(takeReturnTo()));
+        //
+        // Through `goToDestination`, which the password form also goes through:
+        // a destination with a fragment has to load the document, and a branch
+        // only one door takes is a deep link that behaves differently depending
+        // on which button was pressed.
+        goToDestination(postSignInDestination(takeReturnTo()), (href) => router.replace(href));
       } catch {
         if (!cancelled) {
           setExchangeFailed(true);
