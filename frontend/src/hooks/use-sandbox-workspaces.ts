@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import {
   listAllWorkspaceFiles,
@@ -31,6 +32,7 @@ interface UseWorkspacesResult {
  */
 export function useSandboxWorkspaces(measure = false): UseWorkspacesResult {
   const t = useTranslations("pages.workspaces");
+  const tErrors = useTranslations("errors");
   // Keyed on the flag, so turning counting on is a new query rather than a refetch
   // that replaces the cheap answer with the expensive one and back again.
   const { data, isLoading, error } = useQuery({
@@ -43,7 +45,7 @@ export function useSandboxWorkspaces(measure = false): UseWorkspacesResult {
     unreadable: data?.unreadable ?? 0,
     truncated: data?.truncated ?? false,
     isLoading,
-    error: error instanceof Error ? error.message : error ? t("failedLoadWorkspaces") : null,
+    error: error ? getErrorMessage(error, tErrors, t("failedLoadWorkspaces")) : null,
   };
 }
 
@@ -60,6 +62,8 @@ interface UseAllWorkspaceFilesResult {
  * trip per container-backed one - so it is not what a page pays for on load.
  */
 export function useAllWorkspaceFiles(enabled: boolean): UseAllWorkspaceFilesResult {
+  const t = useTranslations("pages.workspaces");
+  const tErrors = useTranslations("errors");
   const {
     data: listing = null,
     isLoading,
@@ -74,7 +78,7 @@ export function useAllWorkspaceFiles(enabled: boolean): UseAllWorkspaceFilesResu
   return {
     listing,
     isLoading: enabled && isLoading,
-    error: error === null ? null : error.message,
+    error: error ? getErrorMessage(error, tErrors, t("failedLoadWorkspaces")) : null,
   };
 }
 
@@ -92,6 +96,7 @@ interface UseWorkspaceFilesResult {
  */
 export function useWorkspaceFiles(workspaceId: string | null): UseWorkspaceFilesResult {
   const t = useTranslations("pages.workspaces");
+  const tErrors = useTranslations("errors");
   const {
     data: files = null,
     isLoading,
@@ -106,7 +111,7 @@ export function useWorkspaceFiles(workspaceId: string | null): UseWorkspaceFiles
   return {
     files,
     isLoading: workspaceId !== null && isLoading,
-    error: error instanceof Error ? error.message : error ? t("workspaceUnreadable") : null,
+    error: error ? getErrorMessage(error, tErrors, t("workspaceUnreadable")) : null,
   };
 }
 

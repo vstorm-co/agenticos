@@ -17,6 +17,294 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.311] - 2026-08-27
+
+### Added
+
+- **A conversation can be favourited, into a band at the top of the sidebar.** A
+  thread somebody returns to every day sat in the same list as the one-question
+  thread from three weeks ago, and the only way back was search or scrolling. The
+  favourite is **the reader's**: a row per user and conversation rather than a
+  boolean on the thread, because a thread can be shared and a channel thread has
+  participants rather than an owner - so a column would let one person's star
+  decide where it sits for everybody who can see it. Two people looking at the same
+  shared thread see two sidebars. (#929)
+- **Starring is authorized as a read**, deliberately: a star changes nothing about
+  the thread, it moves it in the starrer's own sidebar, so somebody a conversation
+  was shared with may star it exactly as its owner may - a write check there would
+  refuse the reader the feature exists for. And **the band is an `ORDER BY` rather
+  than a grouping of the page**: the sidebar is paged, so a favourite sorted into
+  page two by recency would sit under fifty threads that are not one, and grouping
+  after the page arrives cannot fix that. Archiving keeps the star and drops the
+  band, because a band inside the archive would be a second place to look for what
+  archiving just moved. (#929)
+- The one place the client patches rather than invalidating, with the boundary
+  stated: whether *this reader* starred it is a fact about the row the client just
+  decided, so patching makes the click instant while the reordering still comes
+  from the server - and a refusal puts the star back, or the row keeps a star the
+  server never recorded. (#929)
+- Five things the feature does not yet hold, filed rather than left implied: the
+  auth context is dropped on the way to the conversation read, so a caller who may
+  see an ownerless trigger run log is refused the star on one they can open;
+  `is_favourite` is emitted `false` on every read but the two that attach it; the
+  read-then-insert is not idempotent under a concurrent or retried POST; a
+  double-click can leave a thread starred; and the optimistic rollback crosses an
+  account change. (#1254)
+
+## [0.0.310] - 2026-08-27
+
+### Changed
+
+- **`PROVIDERS` is named as the source of truth**, for the one thing model
+  inference cannot know - the credential shape - with the other five lists derived
+  from it. Constructing the client stays Pydantic AI's, deliberately not restated.
+  `docs/models.md` gains a table saying which list answers which question, plus the
+  two crossings that are lookups able to answer nothing, and a drift test keeps it
+  true: every key in either catalog file must name a provider `PROVIDERS` has, so
+  must every image-catalog entry, and every provider must appear on the page.
+  (#923)
+- **`model_fallbacks.json` is `curated_models.json`.** It has nothing to do with a
+  profile's fallback chain - a different feature entirely - and the name was the
+  first thing a reader met. A curated list is still worth keeping: it is the answer
+  when the provider *cannot be asked*, not an answer for a provider that publishes
+  nothing. (#923)
+- **`source` is three answers rather than two.** Seven providers publish no listing
+  this platform can read *and* have no curated entry, so they answered `curated`
+  about a shortlist that does not exist. They answer `unlisted` now, end to end
+  through the schema and the picker's type. Nothing on screen changes - the dropdown
+  already said the right thing - the API contract was the part that was wrong.
+  (#923)
+- `ollama` and `litellm` both publish an OpenAI-shaped listing at the endpoint the
+  profile already stores and are the two worth wiring, but that needs a listing
+  which can be told a base URL rather than a fixed one - a real change, not a
+  catalog entry. Written into the page rather than guessed at, and no endpoint URLs
+  were invented for the others to make a table look complete. (#923)
+- The drift test that keeps this true compares less than the claim needs in four
+  ways - the page searched for a token rather than compared to a table, only the
+  id checked though the credential shape is what makes `PROVIDERS` authoritative,
+  one table excluded and unchecked anywhere else, and the image catalog checked on
+  its provider but not its prefix - so it is filed rather than left implied.
+  (#1252)
+
+## [0.0.309] - 2026-08-27
+
+### Fixed
+
+- **Twenty-seven toasts read `.message` off a caught error instead of resolving it
+  through the catalog.** Since #603 a refusal a BFF route mints carries a `{ code }`
+  and no sentence - the handler sits outside `[locale]` and has no translator - and
+  `getErrorMessage` is the only reader that resolves one against the `errors`
+  namespace. A site reading `.message` showed the code humanized into an English
+  sentence under every locale: `Backend unavailable` where the catalog says
+  `Backend service unavailable`, and the Polish copy never at all. Backend-envelope
+  refusals were unaffected, since their message passes through as written; what
+  mis-rendered was the proxy's own 401, a backend that is down, and the upload and
+  session failures. (#655, #603)
+- The guard reads every source file for the pattern rather than testing the sites
+  that were migrated, **because the failure is a missing call** and a test of the
+  migrated sites cannot fail when a twenty-eighth is added beside them. It
+  immediately found six the issue had not listed - the multi-line shape prettier
+  produces. One site keeps its shape on purpose: `use-onboarding` shows an
+  `ApiError`'s message and a fallback for anything else, because "Failed to fetch"
+  is not something to put in front of somebody. (#655)
+
+## [0.0.308] - 2026-08-27
+
+### Fixed
+
+- **A resumed run's own prior spend was counted twice, so it was refused with
+  headroom to spare.** A resumed run keeps its row, so by the time it continues
+  `finish_run` has committed what it spent - and two things then read that same
+  number: the budget baseline sums `agent_runs.cost_usd`, and the ledger is
+  re-seeded with it. Both are right on their own. The seeding has to happen, or
+  finishing the continuation overwrites the cost with only what the continuation
+  cost and the per-run budget resets every time somebody approves something -
+  exactly the run a budget is for. The baseline has to sum the column, because that
+  is where a month's spend is. Together, an agent capped at $10 that spent $6 and
+  parked came back to `6 + 6 = 12` on its first model request and was refused with
+  $4 left, while the alert told its owner it had reached a cap it was at 60% of.
+  The organization-wide cap double-counted identically. The baseline now excludes
+  the run asking. (#15)
+- **Not only on resume**, and deliberately so: a baseline is what *other* runs have
+  already spent, and what this one spends is the ledger's. On a fresh run the row
+  is there too, at zero, so the exclusion changes nothing there and needs no
+  branch - one rule instead of a resume-shaped exception. It is off by default,
+  because a figure a person reads is a different question and a report that hid the
+  run somebody was looking at would be wrong. (#15)
+
+## [0.0.307] - 2026-08-27
+
+### Fixed
+
+- **The docs claimed a per-binding spending limit that does not exist.**
+  `docs/channels.md` listed it among what an operator sets on a binding, "on top of
+  the agent's own and the organization's", and the runner's docstring said the
+  exposure's caps are enforced. `agent_exposures` has no cap column and
+  `BudgetScope` has exactly two members. The exposure supplies the prompt, the
+  channel tools, its environment and its session scope, and is stamped on the run
+  row - which is what the docstring says now. An operator reading that page
+  believed a public Slack bot was independently capped. (#29)
+- **The cited migration revisions do not dangle, they resolve to the wrong file.**
+  65 revisions were collapsed into `0001_baseline` and the numbering restarted, so
+  a citation lands on a real migration about something else: `0038` was cited eight
+  times for the vault and is the run manifest, `0066` nine times for `users.role`
+  and is nothing at all, and six more besides. Each is replaced by what the reader
+  needs - "before the chain was squashed", "inside `0001_baseline`" - or by a
+  revision that is still there. `CLAUDE.md` and the `alembic-migration` skill now
+  say the numbering restarted and that a citation names a full file name or
+  nothing. `docs/plans/` is deliberately untouched: a plan records what was true
+  when it was written. (#29)
+- The issue's other two claims have since become true and are left as they stand:
+  rate limiting exists on the public and auth surfaces, and the terminal commit is
+  explicit on every surface rather than only web chat. (#29, #39, #1025)
+- Also fixed with it: `main` had been red on `lint-frontend` since the admin
+  Overview was deleted. #921 added a caption for the organizations page and #922
+  removed the page that read it, each green before the other landed - so the key
+  reached `main` with no reader and the i18n guard failed the whole job on the
+  next branch to merge `main` in. Deleted rather than given a reader, because the
+  caption belonged to a page that no longer exists. (#921, #922)
+
+## [0.0.306] - 2026-08-27
+
+### Changed
+
+- **Three sections of `docs/testing.md` described the generator's suite rather than
+  this one**, and each told a reader to do something that cannot work here: a
+  `tests/unit/` that does not exist, a `db_session` fixture that is called
+  something else, a `client` returning Starlette's `TestClient` where the rules
+  single out that it is not, and `auth_client`/`test_user` fixtures the conftest
+  explains the absence of. The worst was a sync test calling an async client -
+  which returns a coroutine and asserts on it, so it **passes while testing
+  nothing**. The page taught the two patterns the rules exist to prevent, and
+  nothing noticed because no code is generated from it. (#212)
+- The sections now carry the four layers and the actual tree, a new "anyio, not
+  pytest-asyncio" section because a missing `pytestmark` is the failure that looks
+  like a pass, the five fixtures that exist, and three examples each taken from a
+  test in the repository. Every name was checked against the conftests, `deps.py`
+  and the repository it cites. Running Tests, Frontend Tests and Test Database were
+  written for this repository and are left alone. (#212)
+
+## [0.0.305] - 2026-08-27
+
+### Fixed
+
+- **Which sign-in button somebody clicked decided where they ended up.** A visitor
+  at `/login?returnTo=/agents/a-1` who used the password form resumed the deep
+  link; one who clicked a provider button landed on the dashboard - the drift #121
+  removed on the roles axis, still present on the provider axis. Nothing carried
+  the path: the browser leaves this origin for the provider and comes back to
+  `/auth/callback`, and neither hop had room for it, so the callback decided the
+  destination with nothing. It is carried in `sessionStorage` rather than the OAuth
+  `state`, because the whole trip starts and ends in the same tab on this origin -
+  a value written beside the provider link is there to be read when the browser
+  returns, and no server has to hold it. A flow that ends somewhere else finds
+  nothing and lands on the dashboard, which is where it landed before. (#135, #121)
+- The value is **consumed as it is read**, so a deep link somebody abandoned is not
+  resumed by the next sign-in from that tab, and a click with nothing to remember
+  clears rather than skips, for the same reason. Nothing in the carrier validates
+  the path: `postSignInDestination` stays the one place that decides whether a
+  return path is safe to honour, and a second copy of that rule would be a second
+  answer to it. `OAuthButtons` also loses a `next` prop nothing passed and the
+  backend never read. (#135)
+- `/auth/magic-link` has the same defect and cannot take the same fix - the link is
+  followed from an email, so a per-tab store is empty by construction - and is
+  filed rather than folded in. (#135)
+
+## [0.0.304] - 2026-08-27
+
+### Changed
+
+- **`/admin` lands on Users, and the Overview is gone.** The page held six figures
+  and three links, and every one of them was already on screen somewhere the reader
+  had been. The figures came from the same endpoint the `platform` dashboard widget
+  reads, on a dashboard that has been arrangeable since #213 - so the page was a
+  fixed second copy of a card the reader can already place where they want it, and
+  two copies of six numbers disagree the first time one is edited. The three links
+  were three of the five tabs the section's own strip renders directly above them,
+  so a third of the page was navigation to where the reader already was. `/admin`
+  is the section index and redirects, exactly as `/settings` redirects to Profile:
+  a bookmark still works, and the sidebar entry still lights up, because
+  `isRouteActive` matches the section rather than the page. (#922, #213)
+
+## [0.0.303] - 2026-08-27
+
+### Added
+
+- **The deployment's tenant list can be searched, sorted, filtered and paged.**
+  `/admin/organizations` is the only surface that answers *what tenants exist*, and
+  it offered no way to find one: fifty rows, one fixed order, no search, no filter,
+  and nothing said about the rest. The users tab beside it has had all four since
+  #284; this page came out of that sweep with the shell and none of the controls,
+  because the route behind it answered none. `search` covers name, slug and the
+  owner's address - through `contains_ci`, so `100%` finds the tenant called that
+  rather than all of them (#372) - alongside `sort_by`, `sort_dir` and a
+  `personal`/`team`/`all` filter. (#921)
+- All of it applies **before `OFFSET`/`LIMIT`**, with `total` counting what was
+  narrowed to rather than the deployment, and a value outside its type is a **422**
+  rather than a silent fallback: an empty page reads as "this deployment has no
+  tenants", and an `ORDER BY` assembled from a query string is an injection
+  surface. The order breaks ties on the id, so paging a column where rows share a
+  value lists each row once. The query moved out of the service into the
+  repository, where a service's queries belong. (#921)
+
+### Fixed
+
+- **The dashboard's top-organizations card and this page shared a query key** while
+  asking for different things - five rows against fifty of whatever the page is
+  narrowed to - so whichever mounted first filled the cache and the other rendered
+  its answer. The key carries the request now, and one hook serves both. And
+  `contains_ci` was typed to mapped columns only, while the owner's address is a
+  column of an outer-joined subquery: widening the alias is what keeps this search
+  going *through* the one helper that escapes `%` and `_` rather than around it.
+  (#921, #372)
+
+## [0.0.302] - 2026-08-27
+
+### Fixed
+
+- **No dashboard page had any room under it**, though `main` declared the padding.
+  The reason is `DeploymentGate`, which wraps every page in a flex box that does
+  not grow with its content - so a long page overflows it and `main`'s padding
+  edge stays where the shorter box ended, buried mid-content. Measured against the
+  app's own stylesheet on a transcription of the real chain: 0px with the gate
+  wrapper in place, 80px and 64px without it. The room moves onto
+  `PageTransition`'s unconstrained branch, which does grow with its content, and
+  lands after the last element in both engines. The constrained branch keeps none,
+  because chat's composer belongs on the bottom edge and room beneath a fixed
+  control is a gap under it. (#933)
+- **The mobile figure counts the safe-area inset** rather than assuming it away:
+  `viewportFit: "cover"` makes it 34px on a modern iPhone, and the tab bar is 56px
+  plus that, so a flat 80px left the last ten pixels of every page under the bar.
+  Four surfaces carried their own workaround at three different values - which is
+  why nobody noticed the layout's own declaration was inert - and all four are
+  gone. The regression test reads the *pages*, not the wrapper: asserting that
+  `PageTransition` carries the padding would not catch a fifth surface re-adding
+  its own, which is the regression that actually happened. (#933)
+- One screen is left behind and filed rather than folded in: `DeploymentGate`
+  returns the maintenance notice directly and never reaches `PageTransition`, so
+  it has no clearance - as it had none before, since the declaration it would have
+  inherited was the inert one. (#1241)
+
+## [0.0.301] - 2026-08-27
+
+### Fixed
+
+- **A frontend spec issued a real HTTP request, so its result depended on what was
+  listening on port 8000.** `RootLayout` awaits `readBranding()`, which fetches
+  against the backend, and `layout.test.tsx` mocked the translator, the font and
+  the stylesheet but not that read. With nothing listening the connection is
+  refused and the branding falls back, so the spec passed - which is CI, and why
+  the suite had been green. With a healthy backend it also passed. But against a
+  port that accepts and never answers, the fetch never settles and both cases die
+  on the 15-second deadline - and a crash-looping backend container does exactly
+  that, because Docker publishes the port and its proxy accepts the connection
+  while nothing inside is listening. One more mock, alongside the three already
+  there: 30.5s and two failures becomes 0.63s and two passes. (#1075)
+- Not fixed, and noted on the issue: `readBranding` swallows every failure into
+  the built-in branding plus a warning, so a page rendered with defaults because
+  the backend was unreachable is indistinguishable from one told to use defaults.
+  (#1075)
+
 ## [0.0.300] - 2026-08-27
 
 ### Fixed

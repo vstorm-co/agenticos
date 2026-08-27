@@ -117,7 +117,7 @@ export default function DashboardPage() {
   // brief default is never a wider page than the person may see.
   if (isLoading) {
     return (
-      <div className="space-y-6 pb-8">
+      <div className="space-y-6">
         <PageHeader title={t("title")} />
         <LoadingState variant="stats" />
       </div>
@@ -193,7 +193,7 @@ export default function DashboardPage() {
 
   if (editing) {
     return (
-      <div className="space-y-6 pb-8">
+      <div className="space-y-6">
         <PageHeader title={t("title")} description={t("edit.subtitle")} />
         <DashboardEditor
           initialEntries={initialItems}
@@ -243,7 +243,7 @@ export default function DashboardPage() {
   // to keep arranging, never a blank page that reads as broken.
   if (visible.length === 0) {
     return (
-      <div className="space-y-6 pb-8">
+      <div className="space-y-6">
         <PageHeader title={t("title")} description={t(`subtitles.${audience}`)} />
         <EmptyState
           icon={LayoutGrid}
@@ -261,7 +261,7 @@ export default function DashboardPage() {
   const firstOrgSectionId = sections.find((section) => section.id !== "deployment")?.id;
 
   return (
-    <div className="pb-12">
+    <div>
       <PageHeader
         title={t("title")}
         description={t(`subtitles.${audience}`)}

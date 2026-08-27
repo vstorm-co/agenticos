@@ -81,6 +81,17 @@ one expensive call every time.
     to the session context - which rolls back on any exception and is never
     reached at all on cancellation.
 
+!!! important "A baseline is what *other* runs have spent"
+
+    Both lookups leave the asking run's own row out. A resumed run keeps its
+    row, and by then `finish_run` has committed what it spent — while the
+    ledger is re-seeded with the same figure, which it must be, or finishing
+    the continuation would overwrite the cost with only what the continuation
+    cost. Counted in both places, an agent capped at $10 that spent $6 and
+    parked came back to `6 + 6 = 12` on its first model request and was
+    refused with $4 of headroom, telling its owner it had reached a cap it was
+    at 60% of. The organization's cap double-counted identically.
+
 The guard is a hard stop for a run that *sees* the spend, and a run's own cost
 only lands on its row when it finishes. So the baseline a run reads is the sum of
 runs that have already finished, and concurrent runs are invisible to one

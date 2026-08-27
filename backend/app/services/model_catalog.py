@@ -41,7 +41,17 @@ logger = logging.getLogger(__name__)
 CACHE_TTL_SECONDS = 60 * 60
 LISTING_TIMEOUT_SECONDS = 6.0
 
-CatalogSource = Literal["live", "curated"]
+CatalogSource = Literal["live", "curated", "unlisted"]
+"""Where a picker's suggestions came from, and it is three answers rather than two.
+
+`live` is the provider's own listing; `curated` is this deployment's short
+list, served when the provider cannot be asked. `unlisted` is neither, and it
+exists because the difference matters on screen: seven providers publish no
+listing this platform can read *and* have no curated entry, so they answered
+`([], "curated")` - a dropdown saying the provider offers nothing, about a
+provider that offers plenty. `unlisted` says the platform cannot enumerate
+this one and the id has to be typed, which is true (#923).
+"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,7 +138,7 @@ class FallbackModel:
 # the snapshot has never heard of - which is how a typo or a retired model is
 # caught rather than shipped as a dropdown the provider refuses.
 CURATED: dict[str, tuple[FallbackModel, ...]] = catalog.load(
-    "model_fallbacks.json", TypeAdapter(dict[str, tuple[FallbackModel, ...]])
+    "curated_models.json", TypeAdapter(dict[str, tuple[FallbackModel, ...]])
 )
 
 
@@ -246,6 +256,21 @@ async def _fetch(spec: ListingSpec, api_key: str | None) -> list[CatalogModel]:
         return _read_listing(response.json(), spec)
 
 
+def _fallback(curated: list[CatalogModel]) -> tuple[list[CatalogModel], CatalogSource]:
+    """What to answer when the provider could not be asked, or said nothing.
+
+    One function because there are four such paths - no listing, no key, a call
+    that failed, an empty response - and the interesting half is what they all
+    do when there is nothing curated either. Nothing to show and nothing to fall
+    back on is not "this provider has no models"; it is this platform not being
+    able to enumerate them, and `curated` about an empty list claims a shortlist
+    that does not exist. `mistral` is exactly this case: it publishes a listing
+    and has no curated entry, so a failed call used to answer `curated` with
+    nothing in it (#923).
+    """
+    return (curated, "curated") if curated else ([], "unlisted")
+
+
 async def models_for(
     provider: str, *, api_key: str | None = None
 ) -> tuple[list[CatalogModel], CatalogSource]:
@@ -265,7 +290,7 @@ async def models_for(
     curated = list(curated_models(provider))
 
     if spec is None or (spec.auth_header is not None and api_key is None):
-        return curated, "curated"
+        return _fallback(curated)
 
     # Keyed on the provider alone, not on the key: two keys for one provider see
     # the same catalog, and keying on the key would put a secret in a cache key.
@@ -277,11 +302,18 @@ async def models_for(
     try:
         models = await _fetch(spec, api_key)
     except Exception:
-        logger.warning("Could not list models for %s; using the curated list", provider)
-        return curated, "curated"
+        # What is said has to match what is answered: for a provider with no
+        # curated entry there is no list to fall back to, and a log line during
+        # an outage claiming there was is the opposite account of the response.
+        logger.warning(
+            "Could not list models for %s; %s",
+            provider,
+            "using the curated list" if curated else "and there is no curated list to fall back to",
+        )
+        return _fallback(curated)
 
     if not models:
-        return curated, "curated"
+        return _fallback(curated)
 
     async with _lock:
         _cache[provider] = _Entry(models=tuple(models), fetched_at=time.monotonic())

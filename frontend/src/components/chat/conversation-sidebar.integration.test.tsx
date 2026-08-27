@@ -51,13 +51,14 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/chat",
 }));
 
-function conversation(id: string, title: string) {
+function conversation(id: string, title: string, favourite = false) {
   return {
     id,
     title,
     created_at: "2026-07-01T00:00:00Z",
     updated_at: null,
     is_archived: false,
+    is_favourite: favourite,
     agents: [],
   };
 }
@@ -378,5 +379,76 @@ describe("who the trigger menu is offered to", () => {
     await screen.findAllByText("Quarterly numbers");
 
     expect(within(list()).queryByRole("button", { name: "New schedule or trigger" })).toBeNull();
+  });
+});
+
+describe("the favourites band", () => {
+  /**
+   * The server puts the starred threads first - it has to, because the list is
+   * paged - so what the sidebar owns is reading that run off the front and
+   * heading it. A filter over the page would be a different feature: it would
+   * find only the favourites that happened to be on the page already (#929).
+   */
+  it("heads the starred run and leaves the rest unheaded", async () => {
+    serve([
+      conversation("c-1", "Rota cover", true),
+      conversation("c-2", "Refund policy"),
+      conversation("c-3", "Quarterly numbers"),
+    ]);
+    mount();
+
+    const heading = await within(list()).findByText("Favourites");
+    expect(heading).toBeVisible();
+    // One band heading, not two: the rest of the list keeps the count it always
+    // had, and "Everything else" would be a label on the absence of a label.
+    expect(within(list()).getAllByText("Favourites")).toHaveLength(1);
+  });
+
+  it("says nothing about favourites when there are none", async () => {
+    serve([conversation("c-1", "Refund policy")]);
+    mount();
+
+    expect(await within(list()).findByText("Refund policy")).toBeVisible();
+    expect(within(list()).queryByText("Favourites")).toBeNull();
+  });
+
+  it("stars a thread through the star, not the menu", async () => {
+    serve([conversation("c-1", "Refund policy")]);
+    vi.mocked(apiClient.post).mockResolvedValue({});
+    mount();
+    await within(list()).findByText("Refund policy");
+
+    await userEvent.click(within(list()).getByRole("button", { name: "Favourite" }));
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/conversations/c-1/favourite", {}),
+    );
+  });
+
+  it("offers to remove it once it is starred", async () => {
+    serve([conversation("c-1", "Rota cover", true)]);
+    vi.mocked(apiClient.delete).mockResolvedValue({});
+    mount();
+    await within(list()).findByText("Rota cover");
+
+    const star = within(list()).getByRole("button", { name: "Remove from favourites" });
+    expect(star).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(star);
+
+    await waitFor(() =>
+      expect(apiClient.delete).toHaveBeenCalledWith("/conversations/c-1/favourite"),
+    );
+  });
+
+  it("does not band the archive, where a star still exists but has no band", async () => {
+    // A star survives archiving - the thread is still one somebody cares about
+    // - but the band is the active list's. The server stops ordering by it, so
+    // the sidebar must stop heading it.
+    urlParams = new URLSearchParams("view=archived");
+    serve([conversation("c-1", "Rota cover", true)]);
+    mount();
+
+    expect(await within(list()).findByText("Rota cover")).toBeVisible();
+    expect(within(list()).queryByText("Favourites")).toBeNull();
   });
 });

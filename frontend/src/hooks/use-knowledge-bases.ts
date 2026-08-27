@@ -10,7 +10,7 @@ import {
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { apiClient, ApiError } from "@/lib/api-client";
-import { parseErrorMessage } from "@/lib/api-error";
+import { getErrorMessage, parseErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import type {
   ConnectorList,
@@ -151,6 +151,7 @@ export interface UploadProgress {
 export function useKBDetail(id: string | null) {
   const queryClient = useQueryClient();
   const t = useTranslations("knowledgeBases");
+  const tErrors = useTranslations("errors");
   const activeOrgId = useTenantId();
 
   /**
@@ -265,11 +266,14 @@ export function useKBDetail(id: string | null) {
   // page's error. The three sections are not - they report through
   // `sectionFailures` instead.
   const loadError = kbQuery.error ?? documentsQuery.error;
-  const error = loadError
-    ? loadError instanceof Error
-      ? loadError.message
-      : failedLoadMessage
-    : null;
+  // Through `getErrorMessage`, so a BFF refusal's code resolves against the
+  // `errors` catalog rather than arriving humanized into English (#655).
+  // Memoized because the React Compiler cannot preserve the surrounding hook's
+  // manual memoization across a bare call here.
+  const error = useMemo(
+    () => (loadError ? getErrorMessage(loadError, tErrors, failedLoadMessage) : null),
+    [loadError, tErrors, failedLoadMessage],
+  );
 
   // A first load of a load-bearing read that failed with nothing to show - as
   // opposed to a refresh that failed over data already on screen. `isLoadingError`
@@ -304,9 +308,9 @@ export function useKBDetail(id: string | null) {
     try {
       await fetchNextPage({ throwOnError: true });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : failedLoadMoreMessage);
+      toast.error(getErrorMessage(e, tErrors, failedLoadMoreMessage));
     }
-  }, [id, fetchNextPage, failedLoadMoreMessage]);
+  }, [id, fetchNextPage, failedLoadMoreMessage, tErrors]);
 
   /**
    * Replace how this collection's documents are parsed, from now on.
@@ -434,14 +438,14 @@ export function useKBDetail(id: string | null) {
         toast.success(t("uploaded", { name: file.name }));
         await refresh();
       } catch (e) {
-        const msg = e instanceof Error ? e.message : t("uploadFailed");
+        const msg = getErrorMessage(e, tErrors, t("uploadFailed"));
         toast.error(msg);
         throw e;
       } finally {
         clear();
       }
     },
-    [id, refresh, activeOrgId, t],
+    [id, refresh, activeOrgId, t, tErrors],
   );
 
   const deleteDocument = useCallback(
@@ -467,10 +471,10 @@ export function useKBDetail(id: string | null) {
         );
         toast.success(t("documentRemoved"));
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : t("failedDeleteDocument"));
+        toast.error(getErrorMessage(e, tErrors, t("failedDeleteDocument")));
       }
     },
-    [id, activeOrgId, stillSameTenant, queryClient, t],
+    [id, activeOrgId, stillSameTenant, queryClient, t, tErrors],
   );
 
   /**
@@ -493,10 +497,10 @@ export function useKBDetail(id: string | null) {
       queryClient.invalidateQueries({ queryKey: qk.kb.list() });
       toast.success(t("deleted"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("failedDelete"));
+      toast.error(getErrorMessage(e, tErrors, t("failedDelete")));
       throw e;
     }
-  }, [id, queryClient, t]);
+  }, [id, queryClient, t, tErrors]);
 
   /**
    * Wire up a sync source, and leave its refusal to the wizard.
@@ -557,11 +561,11 @@ export function useKBDetail(id: string | null) {
         }
         return created;
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : t("failedCloneIntegration"));
+        toast.error(getErrorMessage(e, tErrors, t("failedCloneIntegration")));
         throw e;
       }
     },
-    [id, activeOrgId, stillSameTenant, queryClient, t],
+    [id, activeOrgId, stillSameTenant, queryClient, t, tErrors],
   );
 
   const triggerSyncSource = useCallback(
@@ -573,10 +577,10 @@ export function useKBDetail(id: string | null) {
         // Refresh later to pick up new docs that the worker pulls in.
         setTimeout(() => refresh(), 2000);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : t("failedTriggerSync"));
+        toast.error(getErrorMessage(e, tErrors, t("failedTriggerSync")));
       }
     },
-    [id, refresh, t],
+    [id, refresh, t, tErrors],
   );
 
   const deleteSyncSource = useCallback(
@@ -596,10 +600,10 @@ export function useKBDetail(id: string | null) {
         );
         toast.success(t("syncSourceRemoved"));
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : t("failedRemoveSyncSource"));
+        toast.error(getErrorMessage(e, tErrors, t("failedRemoveSyncSource")));
       }
     },
-    [id, activeOrgId, stillSameTenant, queryClient, t],
+    [id, activeOrgId, stillSameTenant, queryClient, t, tErrors],
   );
 
   return {

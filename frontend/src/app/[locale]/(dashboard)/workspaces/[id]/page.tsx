@@ -25,9 +25,10 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
     // Without every link the panes are as tall as their content - which for a
     // workspace holding one folder was 300 px under 600 px of nothing.
     //
-    // `flex-1` and not `h-full`: `main` carries `pb-20`, and a child at 100% of the
-    // content box plus that padding overflows it by exactly the padding, which is a
-    // scrollbar on every page that would otherwise have none.
+    // `flex-1` and not `h-full`: the page wrapper above carries the room under a
+    // page, and a child at 100% of the content box plus that padding overflows it
+    // by exactly the padding - a scrollbar on every page that would otherwise
+    // have none.
     <div className="flex min-h-0 flex-1 flex-col gap-6">
       <PageHeader title={t("workspace")} description={t("whatOneAgentKeeping")} />
       <div data-tour="workspace-files" className="flex min-h-0 flex-1 flex-col">

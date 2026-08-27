@@ -320,6 +320,15 @@ class ConversationRead(ConversationBase, TimestampSchema):
     user_id: UUID | None = None
     organization_id: UUID | None = None
     is_archived: bool = False
+    is_favourite: bool = Field(
+        default=False,
+        description=(
+            "Whether the **caller** has starred this thread. A property of the reader "
+            "rather than of the row: a conversation can be shared and a channel thread "
+            "has participants, so one person's star must not decide where it sits for "
+            "everybody who can see it."
+        ),
+    )
     agents: list[ConversationAgent] = Field(
         default_factory=list,
         description=(

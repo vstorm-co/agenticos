@@ -21,6 +21,12 @@ export interface Conversation {
   created_at: string;
   updated_at: string;
   is_archived: boolean;
+  /**
+   * Whether **the caller** has starred it. A property of the reader rather than
+   * of the row - a thread can be shared, and one person's star must not decide
+   * where it sits for everybody who can see it (#929).
+   */
+  is_favourite?: boolean;
   /** In the order they first answered. Empty means the general assistant. */
   agents?: ConversationAgent[];
 }

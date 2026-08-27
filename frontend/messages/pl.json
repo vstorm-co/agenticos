@@ -55,7 +55,6 @@
     "overview": "Przegląd",
     "users": "Użytkownicy",
     "conversations": "Rozmowy",
-    "systemHealth": "Stan systemu",
     "system": "System",
     "account": "Konto",
     "notifications": "Powiadomienia",
@@ -237,7 +236,11 @@
     "failedToRevoke": "Nie udało się cofnąć dostępu",
     "tools": {
       "patternInFile": "{pattern} w {file}"
-    }
+    },
+    "favourite": "Dodaj do ulubionych",
+    "unfavourite": "Usuń z ulubionych",
+    "favourites": "Ulubione",
+    "failedFavouriteConversation": "Nie udało się zmienić ulubionych"
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",
@@ -552,7 +555,8 @@
           "title": "Jeszcze nic tu nie ma",
           "description": "Świeża instalacja: brak organizacji poza startową, brak uruchomień."
         },
-        "description": "Liczby dla całej instalacji: organizacje, ludzie, agenci, rozmowy."
+        "description": "Liczby dla całej instalacji: organizacje, ludzie, agenci, rozmowy.",
+        "messages": "{count, plural, =1 {1 wiadomość} few {# wiadomości} many {# wiadomości} other {# wiadomości}}"
       },
       "health": {
         "title": "Zdrowie usług",

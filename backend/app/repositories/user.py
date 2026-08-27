@@ -62,7 +62,8 @@ async def create(
 
     Note: Password should already be hashed by the service layer.
 
-    There is no `role`: the column was dropped in migration `0066`, and authority
+    There is no `role`: the column was dropped before the migration chain was
+    squashed, and authority
     inside an organization is a membership row plus the permission catalog.
     `is_app_admin` is the one privilege a user carries on their own row, and it
     administers the deployment rather than any organization.
@@ -125,7 +126,9 @@ async def list_non_admins(db: AsyncSession) -> list[User]:
     """Every user who does not administer the deployment.
 
     Keyed on `is_app_admin` because that is the only privilege left on a user row
-    - the `role` column this used to read was dropped in migration `0066`.
+    - the `role` column this used to read was dropped before the migration chain
+    was squashed, so the old predicate raised `AttributeError` before deleting
+    anything.
 
     Returned rather than bulk-deleted so `UserService.delete_non_admins` can
     remove them one at a time through the single-row `delete`, which reconciles

@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import { useKBDetail, useKnowledgeBases } from "./use-knowledge-bases";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, ApiError } from "@/lib/api-client";
+import { parseErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
 import { DEFAULT_INGESTION_CONFIG } from "@/lib/ingestion-config";
@@ -527,6 +528,30 @@ describe("one collection's page", () => {
     });
 
     expect(toast.error).toHaveBeenCalledWith("Failed to load more documents");
+  });
+
+  it("resolves a BFF refusal's code against the catalog, not into English", async () => {
+    // The regression #655 is about. A refusal a BFF route mints carries a code
+    // and no sentence, and `parseErrorMessage` humanizes it so that a reader
+    // showing `.message` says something rather than a sentinel - "Backend
+    // unavailable". The catalog says "Backend **service** unavailable", and it
+    // is the catalog that is translated. The difference is visible in English
+    // only for a code whose copy is not its own name; under `pl` it is every
+    // one of them.
+    serveDetail({ documents: [document("d-1")], documentsTotal: 3 });
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    await waitFor(() => expect(result.current.documents).toHaveLength(1));
+
+    const refusal = { code: "BACKEND_UNAVAILABLE" };
+    vi.mocked(apiClient.get).mockRejectedValue(
+      new ApiError(503, parseErrorMessage(refusal), refusal),
+    );
+    await act(async () => {
+      await result.current.loadMoreDocuments();
+    });
+
+    expect(toast.error).toHaveBeenCalledWith("Backend service unavailable");
+    expect(toast.error).not.toHaveBeenCalledWith("Backend unavailable");
   });
 
   it("loads no more documents when nothing is open", async () => {

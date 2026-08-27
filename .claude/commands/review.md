@@ -13,7 +13,7 @@ Read the change in the context of the system, not as a diff. For each file, chec
 - Listings call `visible_resource_ids(...)` — `None` means "reaches everything", `[]`
   means "nothing extra"; confusing them leaks or hides rows
 - No `UserRole`, `has_role`, `RoleChecker`, `CurrentAdmin`, `CurrentSuperuser`, no
-  `--role` flag. Those were removed in migration `0066`
+  `--role` flag. Those were removed before the migration chain was squashed
 - Org-scoped rows: is the tenant actually constrained, in the schema and not only in a
   `WHERE`?
 
@@ -26,7 +26,7 @@ Read the change in the context of the system, not as a diff. For each file, chec
 
 **Secrets**
 - Everything at rest goes through `app/core/vault.py`. A second encryption mechanism is
-  the defect migration `0038` removed
+  the defect the vault was built to remove
 - No plaintext in a response, a log line, an audit entry or a spec. `SecretStr` on every
   secret-bearing field
 - A capability declares a secret *kind*; a binding names the instance

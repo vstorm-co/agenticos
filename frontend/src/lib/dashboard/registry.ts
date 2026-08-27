@@ -263,15 +263,17 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     options: { period: true, agent: true, person: true },
     seeAll: ROUTES.RUNS,
   },
-  // Four counters and no series behind any of them, so two rows is the height:
-  // a third was a hand's width of nothing under the numbers.
+  // Counters and no series behind any of them, so two rows is the height: a
+  // third was a hand's width of nothing under the numbers.
   platform: {
     id: "platform",
     gate: adminOnly,
     defaultSpan: "s8",
     defaultRows: "r2",
     category: "platform",
-    seeAll: ROUTES.ADMIN,
+    // The people behind the counts. It pointed at `/admin`, which rendered
+    // these same figures a second time and now redirects here anyway (#922).
+    seeAll: ROUTES.ADMIN_USERS,
   },
   health: {
     id: "health",
@@ -288,7 +290,9 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s7",
     defaultRows: "r3",
     category: "platform",
-    seeAll: ROUTES.ADMIN,
+    // The whole tenant list, which is what "see all" means on a card showing
+    // the largest few.
+    seeAll: ROUTES.ADMIN_ORGANIZATIONS,
   },
   // No seeAll: the deployment-wide ratings page left with the admin overhaul -
   // ratings are read where the runs are, on the Activity page, per org.

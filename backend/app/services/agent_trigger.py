@@ -1357,7 +1357,7 @@ class AgentTriggerService:
         scheduled worker path passes it. `run_now` and an event fire reach `fire`
         with no claim behind them, and a marker they find belongs to a concurrent
         scheduled fire still relying on it: clearing it would reopen the trigger to
-        the next tick mid-run, the self-overlap `0025` exists to close.
+        the next tick mid-run, the self-overlap `0051_trigger_fire_in_flight` exists to close.
 
         The identity check is what keeps a slow fire from clearing a *newer* claim's
         marker. If this fire outran the lease, `claim_due` may have re-claimed the

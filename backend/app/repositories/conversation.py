@@ -16,6 +16,7 @@ from app.db.models.agent_run import AgentRun
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.channel_session import ChannelSession
 from app.db.models.conversation import Conversation, Message, ToolCall
+from app.db.models.conversation_favourite import ConversationFavourite
 from app.db.models.user import User
 from app.repositories._search import contains_ci
 
@@ -360,6 +361,66 @@ def _ordering(columns: dict[str, Any], sort_by: str, sort_dir: str) -> Any:
     return column.nulls_last()
 
 
+def _favourited_by(user_id: UUID) -> ColumnElement[bool]:
+    """Whether this reader has starred the conversation the query is over.
+
+    An `EXISTS` rather than a join, for the reason `agent_id` is one in
+    :func:`_list_filters`: a join against a table keyed on `(user_id,
+    conversation_id)` cannot multiply a row today, and would the moment anything
+    else is keyed differently. Correlated on `Conversation` alone, or SQLAlchemy
+    correlates every table it recognises and the subquery loses its FROM.
+    """
+    return (
+        select(ConversationFavourite.conversation_id)
+        .select_from(ConversationFavourite)
+        .where(
+            ConversationFavourite.conversation_id == Conversation.id,
+            ConversationFavourite.user_id == user_id,
+        )
+        .correlate(Conversation)
+        .exists()
+    )
+
+
+async def favourite_ids(
+    db: AsyncSession, *, user_id: UUID, conversation_ids: Collection[UUID]
+) -> set[UUID]:
+    """Which of these conversations this reader has starred.
+
+    One query for a whole page rather than a column on each row: the flag is the
+    caller's, so it cannot be selected with the conversation without putting the
+    reader into every query that reads one.
+    """
+    if not conversation_ids:
+        return set()
+    result = await db.execute(
+        select(ConversationFavourite.conversation_id).where(
+            ConversationFavourite.user_id == user_id,
+            ConversationFavourite.conversation_id.in_(conversation_ids),
+        )
+    )
+    return set(result.scalars().all())
+
+
+async def set_favourite(
+    db: AsyncSession, *, user_id: UUID, conversation_id: UUID, favourite: bool
+) -> None:
+    """Star or unstar one conversation for one reader.
+
+    Idempotent in both directions: starring what is already starred is not an
+    error, and neither is unstarring what was never starred. A star is a
+    preference rather than a transaction, and a toast saying "already a
+    favourite" would be the interface apologising for agreeing.
+    """
+    existing = await db.get(ConversationFavourite, (user_id, conversation_id))
+    if favourite and existing is None:
+        db.add(ConversationFavourite(user_id=user_id, conversation_id=conversation_id))
+        await db.flush()
+    elif not favourite and existing is not None:
+        await db.delete(existing)
+        await db.flush()
+
+
 async def get_conversations_by_user(
     db: AsyncSession,
     user_id: UUID | None = None,
@@ -373,6 +434,7 @@ async def get_conversations_by_user(
     archived_only: bool = False,
     sort_by: str = "updated_at",
     sort_dir: str = "desc",
+    favourites_first_for: UUID | None = None,
     participant_conversation_ids: Collection[UUID] = frozenset(),
 ) -> list[Conversation]:
     """Get one organization's conversations, optionally narrowed to one user.
@@ -381,6 +443,13 @@ async def get_conversations_by_user(
     the tenant would return every tenant's rows, and that mistake must not look
     like an ordinary call. The narrowing arguments after it are shared with the
     admin listing - see :func:`_list_filters` for what each one means.
+
+    `favourites_first_for` puts this reader's starred threads at the top, and it
+    has to happen **here** rather than by grouping the page after it arrives: the
+    list is paged, so a favourite sorted into page two by recency would sit under
+    fifty threads that are not favourites (#929). Within each band the chosen
+    sort still applies, because "the order you starred them in" is a second
+    ordering nobody asked for.
 
     `participant_conversation_ids` widens a user's list to channel threads whose
     membership the caller has already confirmed against the platform - see
@@ -396,7 +465,9 @@ async def get_conversations_by_user(
         archived_only=archived_only,
     ):
         query = query.where(condition)
-    query = query.order_by(_ordering(_sort_columns(), sort_by, sort_dir)).offset(skip).limit(limit)
+    orders = [] if favourites_first_for is None else [_favourited_by(favourites_first_for).desc()]
+    orders.append(_ordering(_sort_columns(), sort_by, sort_dir))
+    query = query.order_by(*orders).offset(skip).limit(limit)
     result = await db.execute(query)
     return list(result.scalars().all())
 

@@ -564,7 +564,7 @@ return await service.usage(ctx, scope=scope, ...)
 
 `UserRole`, `User.has_role()`, `RoleChecker`, `CurrentAdmin` and
 `CurrentSuperuser` were the template's model and are gone, along with the
-`users.role` column (migration `0066`). They were a third answer to a question
+`users.role` column, which went with the squash into `0001_baseline`. They were a third answer to a question
 that already had two.
 
 ### IDOR Protection
@@ -594,6 +594,30 @@ used to default to `None`, `None` meant unscoped, and an omission is
 indistinguishable from an intention — two routes serving ordinary members simply
 left it out, and any signed-in user could read and append to any conversation in
 the deployment.
+
+### A favourite belongs to the reader, not to the thread
+
+`conversation_favourites` is a row per `(user_id, conversation_id)` and not a
+boolean on `conversations`, because a conversation can be shared and a channel
+thread has participants rather than an owner: a column would let one person's
+star decide where the thread sits for everybody who can see it.
+
+Three consequences worth knowing:
+
+- **`POST`/`DELETE /conversations/{id}/favourite` are authorized as a *read*.**
+  A star says where a thread sits in the starrer's own sidebar and changes
+  nothing about the thread, so somebody a conversation was shared with may star
+  it exactly as its owner may. `for_write` there would refuse the reader the
+  feature exists for.
+- **`is_favourite` on a listed row is the caller's**, filled in one query per
+  page — so the admin listing, which has no reader, answers `false` throughout
+  rather than a different person's stars each request.
+- **The band is an `ORDER BY`, not a grouping of the page.** The sidebar is
+  paged, so a favourite sorted into page two by recency would sit under fifty
+  threads that are not one. Within each band the chosen sort still applies, and
+  the archived view is not banded at all: a star survives archiving, but a band
+  inside the archive would be a second place to look for what archiving just
+  moved.
 
 There is **no way to read a conversation across tenants any more.** The sentinel
 that used to spell that out (`UNSCOPED`) had exactly one caller,

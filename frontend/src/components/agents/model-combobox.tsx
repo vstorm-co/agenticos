@@ -20,7 +20,7 @@ interface ModelComboboxProps {
   onChange: (model: string) => void;
   options: ModelOption[];
   /** Where the list came from, so the panel can be honest about it. */
-  source: "live" | "curated" | null;
+  source: "live" | "curated" | "unlisted" | null;
   loading?: boolean;
   disabled?: boolean;
   placeholder: string;

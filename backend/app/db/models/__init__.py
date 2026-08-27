@@ -9,6 +9,7 @@ from app.db.models.message_rating import MessageRating
 from app.db.models.rag_document import RAGDocument
 from app.db.models.sync_log import SyncLog
 from app.db.models.sync_source import SyncSource
+from app.db.models.conversation_favourite import ConversationFavourite
 from app.db.models.conversation_share import ConversationShare
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_identity import ChannelIdentity
@@ -52,6 +53,7 @@ __all__ = [
     "RAGDocument",
     "SyncLog",
     "SyncSource",
+    "ConversationFavourite",
     "ConversationShare",
     "ChannelBot",
     "ChannelIdentity",

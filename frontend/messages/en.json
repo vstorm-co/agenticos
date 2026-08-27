@@ -1125,7 +1125,11 @@
     },
     "view": "View",
     "web": "Web",
-    "whatWentWrong": "What went wrong?"
+    "whatWentWrong": "What went wrong?",
+    "favourite": "Favourite",
+    "unfavourite": "Remove from favourites",
+    "favourites": "Favourites",
+    "failedFavouriteConversation": "Could not change the favourite"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -1462,7 +1466,8 @@
         "organizations": "Organizations",
         "title": "Platform at a glance",
         "users": "Users",
-        "description": "Deployment-wide counts: organizations, people, agents, conversations."
+        "description": "Deployment-wide counts: organizations, people, agents, conversations.",
+        "messages": "{count, plural, =1 {1 message} other {# messages}}"
       },
       "platform-ratings": {
         "empty": {
@@ -2535,7 +2540,6 @@
     "slashCommands": "Slash commands",
     "startNewChat": "Start new chat",
     "system": "System",
-    "systemHealth": "System health",
     "team": "Team",
     "toggleMenu": "Toggle menu",
     "untitledConversation": "Untitled conversation",
@@ -3057,7 +3061,6 @@
       "eachRowSaysWhat": "Each row says what was checked. Auto-refreshes every 30s.",
       "everyCheckPassed": "Every check passed",
       "everyStatusHereComes": "Every status here comes from a probe that ran when this page loaded. There is no uptime history: nothing records one, and a number that looks like one would be made up.",
-      "everyTenantDeploymentOnly": "Every tenant in the deployment - only the platform admin sees this list.",
       "failedFetchHealth": "Failed to fetch health",
       "failingServices": "Failing: {names}",
       "inspect": "Inspect",
@@ -3065,7 +3068,6 @@
       "json": "JSON",
       "latencyMs": "{ms} ms",
       "likes": "Likes",
-      "manageUsers": "Manage users",
       "members": "Members",
       "message": "Message",
       "messages": "Messages",
@@ -3077,12 +3079,10 @@
       "organizations": "Organizations",
       "organizations2": "Organizations",
       "overallStatus": "Overall status",
-      "perServiceStatusUptime": "Per-service status & uptime",
       "personal": "Personal",
       "refresh2": "Refresh",
       "resultCount": "{count, plural, =1 {1 result} other {# results}}",
       "searchByEmailName": "Search by email or name…",
-      "searchSuspendImpersonate": "Search, suspend, impersonate",
       "serviceDatabase": "Database",
       "serviceDatabaseDetail": "PostgreSQL primary",
       "serviceModelAccess": "Model access",
@@ -3100,9 +3100,7 @@
       "stateUnhealthy": "Failing",
       "status": "Status",
       "suspended": "Suspended",
-      "systemHealth": "System health",
       "totalCount": "{count, number} total",
-      "totalUsers": "Total users",
       "tryAgain": "Try again",
       "user": "User",
       "usersConversationsOrgsSystem": "Users, conversations, organizations, and system health.",
@@ -3167,7 +3165,13 @@
       "limitsOrganizationsHint": "Counts the organizations an account owns, including the personal one it is given at sign-up. Being invited into somebody else's does not count. Leave empty for no limit.",
       "limitsAgents": "Agents per organization",
       "limitsAgentsHint": "Archived agents do not count, so retiring one frees its place. Leave empty for no limit.",
-      "limitsUnlimited": "No limit"
+      "limitsUnlimited": "No limit",
+      "searchOrganizations": "Search by name, slug or owner…",
+      "filterByKind": "Filter by kind",
+      "kindAll": "All organizations",
+      "kindPersonal": "Personal",
+      "kindTeam": "Team",
+      "noOrganizationsMatch": "No organizations match \"{query}\"."
     },
     "agentDetail": {
       "perMonth": "${amount} per month"
