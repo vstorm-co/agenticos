@@ -17,6 +17,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.301] - 2026-08-27
+
+### Fixed
+
+- **A frontend spec issued a real HTTP request, so its result depended on what was
+  listening on port 8000.** `RootLayout` awaits `readBranding()`, which fetches
+  against the backend, and `layout.test.tsx` mocked the translator, the font and
+  the stylesheet but not that read. With nothing listening the connection is
+  refused and the branding falls back, so the spec passed - which is CI, and why
+  the suite had been green. With a healthy backend it also passed. But against a
+  port that accepts and never answers, the fetch never settles and both cases die
+  on the 15-second deadline - and a crash-looping backend container does exactly
+  that, because Docker publishes the port and its proxy accepts the connection
+  while nothing inside is listening. One more mock, alongside the three already
+  there: 30.5s and two failures becomes 0.63s and two passes. (#1075)
+- Not fixed, and noted on the issue: `readBranding` swallows every failure into
+  the built-in branding plus a warning, so a page rendered with defaults because
+  the backend was unreachable is indistinguishable from one told to use defaults.
+  (#1075)
+
 ## [0.0.300] - 2026-08-27
 
 ### Fixed
