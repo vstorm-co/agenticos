@@ -718,6 +718,7 @@ describe("starring a conversation", () => {
 
   beforeEach(() => {
     serve({ items: [conversation("c-1"), conversation("c-2")] });
+    useAuthStore.getState().setUser({ id: "u-a", email: "a@example.com" } as never);
   });
 
   it("shows the star before the server has answered", async () => {
@@ -763,6 +764,64 @@ describe("starring a conversation", () => {
     await waitFor(() =>
       expect(result.current.conversations.map((c) => c.id)).toEqual(["c-2", "c-1"]),
     );
+  });
+
+  it("leaves the next account's row alone when the refusal outlives the first", async () => {
+    // Every other request here captures the account it started as. A star
+    // refused after somebody else signed in would roll back *their* cached row
+    // and show them the previous account's error.
+    const result = await hook();
+    let refuse: (reason: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockReturnValue(
+      new Promise((_resolve, reject) => {
+        refuse = reject;
+      }),
+    );
+
+    act(() => {
+      void result.current.setFavourite("c-1", true);
+    });
+    await waitFor(() =>
+      expect(result.current.conversations.find((c) => c.id === "c-1")?.is_favourite).toBe(true),
+    );
+
+    act(() => {
+      useAuthStore.getState().setUser({ id: "u-next", email: "next@example.com" } as never);
+    });
+    await act(async () => {
+      refuse("boom");
+      await Promise.resolve();
+    });
+
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("does not refetch the next account's lists when the star lands after a switch", async () => {
+    // The mirror of the case above: a *successful* star resolving into
+    // somebody else's session must not invalidate their sidebar either.
+    const result = await hook();
+    let settle: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+
+    act(() => {
+      void result.current.setFavourite("c-1", true);
+    });
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    const before = vi.mocked(apiClient.get).mock.calls.length;
+
+    act(() => {
+      useAuthStore.getState().setUser({ id: "u-next", email: "next@example.com" } as never);
+    });
+    await act(async () => {
+      settle({});
+      await Promise.resolve();
+    });
+
+    expect(vi.mocked(apiClient.get).mock.calls.length).toBe(before);
   });
 
   it("puts the star back when the request is refused", async () => {

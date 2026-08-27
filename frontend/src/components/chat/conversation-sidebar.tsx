@@ -144,7 +144,10 @@ function ConversationItem({
         aria-label={conversation.is_favourite ? t("unfavourite") : t("favourite")}
         aria-pressed={conversation.is_favourite === true}
         className={cn(
-          "touch:opacity-100 h-8 w-8 shrink-0 p-0 opacity-0 group-hover:opacity-100",
+          // `focus-visible` as well as hover: a keyboard user tabs to this, and
+          // an `opacity-0` control with focus on it is one nobody can see they
+          // have reached.
+          "touch:opacity-100 h-8 w-8 shrink-0 p-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
           conversation.is_favourite && "text-warning opacity-100",
         )}
         onClick={(e) => {

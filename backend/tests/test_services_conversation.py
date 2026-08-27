@@ -2097,6 +2097,14 @@ class TestAFavouriteBelongsToTheReader:
             )
             assert listed.await_args.kwargs["favourites_first_for"] is None
 
+            # Nor the mixed listing `ChatContainer` uses to find the open
+            # conversation: enough old archived favourites at the top of it
+            # would push the selected row off the first page.
+            await service.list_conversations(
+                user_id=reader, organization_id=TEST_ORG_ID, include_archived=True
+            )
+            assert listed.await_args.kwargs["favourites_first_for"] is None
+
     async def test_a_listing_with_no_reader_asks_for_nobodys_stars(self, monkeypatch):
         """The admin listing. A favourite column there would be a different
         person's every request."""

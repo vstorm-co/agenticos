@@ -419,11 +419,18 @@ class ConversationService:
             archived_only=archived_only,
             sort_by=sort_by,
             sort_dir=sort_dir,
-            # Not in the archived view. A star survives archiving - the thread is
-            # still one somebody cares about - but the band is the active list's,
-            # and a band inside the archive would be a second place to look for
-            # what archiving just moved (#929).
-            favourites_first_for=None if archived_only or user_id is None else user_id,
+            # Only where the list is the active one. A star survives archiving -
+            # the thread is still one somebody cares about - but the band is the
+            # active list's, and a band inside the archive would be a second
+            # place to look for what archiving just moved (#929).
+            #
+            # `include_archived` is excluded for a second reason: that listing is
+            # the mixed one `ChatContainer` uses to find the conversation somebody
+            # has open, and enough old archived favourites at the top of it would
+            # push the selected row off the first page.
+            favourites_first_for=(
+                None if archived_only or include_archived or user_id is None else user_id
+            ),
             participant_conversation_ids=participant_ids,
         )
         total = await conversation_repo.count_conversations(

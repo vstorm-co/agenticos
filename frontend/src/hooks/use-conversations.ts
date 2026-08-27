@@ -415,14 +415,21 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
 
   const setFavourite = useCallback(
     async (id: string, favourite: boolean) => {
+      // The account this started as, for the same reason every other request
+      // here captures one: a star refused after somebody else has signed in
+      // would roll back *their* cached row and show them the previous
+      // account's error.
+      const startedAs = useAuthStore.getState().user?.id;
       patchFavourite(id, favourite);
       try {
         if (favourite) await apiClient.post(`/conversations/${id}/favourite`, {});
         else await apiClient.delete(`/conversations/${id}/favourite`);
+        if (!stillSameAccount(startedAs)) return;
         // The band is an ordering the server applies, so the list is refetched
         // to move the row - the star itself is already right on screen.
         await invalidateLists();
       } catch (err) {
+        if (!stillSameAccount(startedAs)) return;
         patchFavourite(id, !favourite);
         const message = getErrorMessage(err, tErrors, t("failedFavouriteConversation"));
         setError(message);
