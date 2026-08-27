@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="1200" height="400" role="img" aria-label="AgenticOS — the operating system for your company's AI agents">
+  <title>AgenticOS — the operating system for your company's AI agents</title>
+  <rect width="1200" height="400" fill="#ffffff"/>
+
+  <!-- The claim, drawn: one spec on the left, one runner, and the surfaces it
+       reaches. Nothing here is decorative - it is the sentence the README opens
+       with, which is the only reason a hero earns its bytes. -->
+  <g transform="translate(72 96)">
+    <g transform="translate(0 -34) scale(0.72)">
+      <g fill="none" stroke="#5a8cda" stroke-width="2.5" stroke-linecap="round">
+        <circle cx="32" cy="32" r="21.5" stroke-dasharray="34 9"/>
+        <circle cx="32" cy="32" r="14" stroke-dasharray="22 7" stroke-opacity="0.75"/>
+      </g>
+      <circle cx="32" cy="32" r="6.5" fill="#5a8cda"/>
+      <g fill="#5a8cda">
+        <circle cx="32" cy="10.5" r="3.6"/><circle cx="50.6" cy="42.8" r="3.6"/><circle cx="13.4" cy="42.8" r="3.6"/>
+      </g>
+    </g>
+    <text x="62" y="4" font-family="ui-sans-serif,-apple-system,Segoe UI,Inter,Helvetica,Arial,sans-serif" font-size="46" font-weight="700" letter-spacing="-1.2" fill="#15191d">AgenticOS</text>
+    <text x="2" y="56" font-family="ui-sans-serif,-apple-system,Segoe UI,Inter,Helvetica,Arial,sans-serif" font-size="20" fill="#5c636b">The operating system for your company&#39;s AI agents.</text>
+    <text x="2" y="86" font-family="ui-sans-serif,-apple-system,Segoe UI,Inter,Helvetica,Arial,sans-serif" font-size="20" fill="#5c636b">Self-hosted, open source, and yours.</text>
+    <text x="2" y="136" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="15" fill="#5a8cda">An agent here is data, not code.</text>
+  </g>
+
+  <!-- spec -> runner -> surfaces -->
+  <g font-family="ui-sans-serif,-apple-system,Segoe UI,Inter,Helvetica,Arial,sans-serif">
+    <g transform="translate(576 60)">
+      <rect width="164" height="88" rx="10" fill="#f6f7f9" stroke="#e3e6e9"/>
+      <text x="16" y="26" font-size="12" font-weight="600" letter-spacing="0.6" fill="#5c636b">SPEC</text>
+      <text x="16" y="48" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12" fill="#15191d">instructions</text>
+      <text x="16" y="65" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12" fill="#15191d">capabilities</text>
+      <text x="16" y="82" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12" fill="#15191d">budget</text>
+    </g>
+
+    <g stroke="#5a8cda" stroke-width="1.75" fill="none" stroke-linecap="round">
+      <path d="M740 104 h44"/>
+      <path d="M946 104 h40"/>
+      <path d="M946 104 c22 0 22 -46 44 -46"/>
+      <path d="M946 104 c22 0 22 46 44 46"/>
+    </g>
+    <circle cx="990" cy="58" r="3.2" fill="#5a8cda"/>
+    <circle cx="990" cy="104" r="3.2" fill="#5a8cda"/>
+    <circle cx="990" cy="150" r="3.2" fill="#5a8cda"/>
+
+    <g transform="translate(784 76)">
+      <rect width="162" height="56" rx="10" fill="#f6f7f9" stroke="#5a8cda"/>
+      <text x="16" y="24" font-size="12" font-weight="600" letter-spacing="0.6" fill="#5a8cda">ONE RUNNER</text>
+      <text x="16" y="43" font-size="12" fill="#5c636b">budget · approval · audit</text>
+    </g>
+
+    <g font-size="13" fill="#15191d">
+      <text x="1002" y="62">Web chat, HTTP API</text>
+      <text x="1002" y="108">Slack, Telegram</text>
+      <text x="1002" y="154">Widget, hosted page</text>
+    </g>
+  </g>
+
+  <!-- The refusals, which is what the platform is actually for -->
+  <g transform="translate(72 296)" font-family="ui-sans-serif,-apple-system,Segoe UI,Inter,Helvetica,Arial,sans-serif">
+    <rect x="-8" y="-26" width="1056" height="72" rx="12" fill="#f6f7f9" stroke="#e3e6e9"/>
+    <text x="12" y="-2" font-size="12" font-weight="600" letter-spacing="0.6" fill="#5c636b">WHAT IT REFUSES</text>
+    <g font-size="13.5" fill="#15191d">
+      <text x="12" y="26">A cross-tenant read</text>
+      <text x="212" y="26">An ungranted scope</text>
+      <text x="412" y="26">A budget breach</text>
+      <text x="600" y="26">A second decision on a decided approval</text>
+    </g>
+  </g>
+</svg>
