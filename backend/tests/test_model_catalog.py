@@ -293,15 +293,20 @@ class TestCuratedFallbacksAreData:
         assert LISTINGS["together"].array_path == ""
 
 
-def _documented_providers() -> set[str]:
-    """The ids in the `| Provider | id | Credential | Custom URL |` tables.
+def _documented_ids() -> list[str]:
+    """Every id in the three `| Provider | id | ...` tables, in page order.
 
     Read off the second cell of every row under one of those headers, so a row
     added or removed is the thing being compared - and prose elsewhere on the
     page is not.
+
+    A **list**, not a set: a provider documented twice is a row somebody added
+    without noticing the one already there, and the tables' own claim is one row
+    each. Collapsing to a set answers "is it mentioned" and lets the duplicate
+    through every comparison below.
     """
     page = (Path(__file__).resolve().parents[2] / "docs" / "models.md").read_text()
-    ids: set[str] = set()
+    ids: list[str] = []
     in_table = False
     for line in page.splitlines():
         if line.startswith("| Provider | id |"):
@@ -313,7 +318,7 @@ def _documented_providers() -> set[str]:
             continue
         cells = [cell.strip() for cell in line.strip("|").split("|")]
         if len(cells) > 1 and cells[1].startswith("`"):
-            ids.add(cells[1].strip("`"))
+            ids.append(cells[1].strip("`"))
     return ids
 
 
@@ -421,9 +426,11 @@ class TestOneAnswerPerQuestion:
         The **id column of the tables**, not a search of the page for the token:
         a search passes on a removed provider whose row is still there, and on
         an id the prose happens to mention for another reason - the page names
-        one it deliberately does not support. Two directions, one comparison.
+        one it deliberately does not support. Two directions, one comparison -
+        and sorted sequences rather than sets, so a provider documented twice
+        fails here too.
         """
-        assert _documented_providers() == set(PROVIDERS)
+        assert sorted(_documented_ids()) == sorted(PROVIDERS)
 
     def test_the_page_says_which_providers_take_an_endpoint(self):
         """`PROVIDERS` is authoritative for the *credential shape*, and the two
@@ -458,11 +465,15 @@ class TestOneAnswerPerQuestion:
         Azure, Bedrock and Vertex rows were in no assertion but the id one -
         the three most involved credential shapes, outside the check (#1252).
         """
-        four_column = set(_documented_rows())
+        four_column = _documented_rows()
         three_column = _providers_documented_as_not_api_key()
 
-        assert four_column & three_column == set()
-        assert four_column | three_column == set(PROVIDERS)
+        assert set(four_column) & three_column == set()
+        assert set(four_column) | three_column == set(PROVIDERS)
+        # Both helpers key on the id, so a row duplicated inside one table
+        # collapses and the two comparisons above still pass. The count is what
+        # notices; `sorted(_documented_ids())` above is what names it.
+        assert len(four_column) + len(three_column) == len(_documented_ids())
 
     def test_which_table_a_provider_is_in_matches_its_credential(self):
         """The heading is the claim: a provider under "Credential is not an API
