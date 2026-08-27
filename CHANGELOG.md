@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.289] - 2026-08-27
+
+### Fixed
+
+- **A rating cast in chat left the dashboard's summaries stale.** `rating-buttons`
+  hand-rolled two `fetch` calls with their own headers, `response.ok` handling and
+  error parsing - the shape `frontend.md` forbids - so the endpoints were invisible
+  to the query layer and nothing was invalidated until the next mount. Both go
+  through `src/lib/message-rating-api.ts` and `use-message-rating` now, whose
+  `onSuccess` invalidates the ratings and admin-ratings summary roots, and the two
+  duplicated error-parse blocks are one `getErrorMessage`. The chat's own thumb
+  counts still reconcile locally, because they live in the message store. Three
+  i18n keys the hand-rolled catches used are deleted with them. (#563)
+
 ## [0.0.288] - 2026-08-27
 
 ### Changed
