@@ -17,6 +17,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.306] - 2026-08-27
+
+### Changed
+
+- **Three sections of `docs/testing.md` described the generator's suite rather than
+  this one**, and each told a reader to do something that cannot work here: a
+  `tests/unit/` that does not exist, a `db_session` fixture that is called
+  something else, a `client` returning Starlette's `TestClient` where the rules
+  single out that it is not, and `auth_client`/`test_user` fixtures the conftest
+  explains the absence of. The worst was a sync test calling an async client -
+  which returns a coroutine and asserts on it, so it **passes while testing
+  nothing**. The page taught the two patterns the rules exist to prevent, and
+  nothing noticed because no code is generated from it. (#212)
+- The sections now carry the four layers and the actual tree, a new "anyio, not
+  pytest-asyncio" section because a missing `pytestmark` is the failure that looks
+  like a pass, the five fixtures that exist, and three examples each taken from a
+  test in the repository. Every name was checked against the conftests, `deps.py`
+  and the repository it cites. Running Tests, Frontend Tests and Test Database were
+  written for this repository and are left alone. (#212)
+
 ## [0.0.305] - 2026-08-27
 
 ### Fixed
