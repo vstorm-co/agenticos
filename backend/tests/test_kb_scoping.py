@@ -267,6 +267,7 @@ class TestKBAccessControl:
 
         with (
             patch("app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)),
+            patch("app.repositories.knowledge_base_repo.lock", new=AsyncMock(return_value=kb)),
             patch("app.repositories.knowledge_base_repo.delete", new=AsyncMock(return_value=True)),
             patch(
                 "app.repositories.rag_document_repo.delete_by_knowledge_base",
@@ -276,6 +277,7 @@ class TestKBAccessControl:
                 "app.repositories.knowledge_base_repo.list_by_collection_name",
                 new=AsyncMock(return_value=[]),
             ),
+            patch("app.repositories.sync_source.get_all", new=AsyncMock(return_value=[])),
         ):
             svc = KnowledgeBaseService(mock_db)
             await svc.delete(kb.id, ctx=_ctx(user_id=user_id), vector_store=store)
@@ -283,6 +285,74 @@ class TestKBAccessControl:
         # The row is not the whole teardown: with nothing else on the collection,
         # its vector table is dropped too, not left orphaned (#1266).
         store.delete_collection.assert_awaited_once_with(kb.collection_name)
+
+    @pytest.mark.anyio
+    async def test_deleting_the_last_kb_locks_it_and_deactivates_its_sources(self, mock_db):
+        """The teardown locks the base before enumerating its documents, so a
+        concurrent insert cannot detach a row; and once no base claims the
+        collection name, a scheduled sync source pointing at it is deactivated
+        rather than left to recreate the table this dropped (#1266)."""
+        user_id = uuid.uuid4()
+        kb = _kb("personal", owner_user_id=user_id)
+        store = MagicMock(delete_collection=AsyncMock())
+        source = MagicMock(id=uuid.uuid4())
+        lock = AsyncMock(return_value=kb)
+        get_all = AsyncMock(return_value=[source])
+        update = AsyncMock()
+
+        with (
+            patch("app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)),
+            patch("app.repositories.knowledge_base_repo.lock", new=lock),
+            patch("app.repositories.knowledge_base_repo.delete", new=AsyncMock(return_value=True)),
+            patch(
+                "app.repositories.rag_document_repo.delete_by_knowledge_base",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
+                "app.repositories.knowledge_base_repo.list_by_collection_name",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("app.repositories.sync_source.get_all", new=get_all),
+            patch("app.repositories.sync_source.update", new=update),
+        ):
+            svc = KnowledgeBaseService(mock_db)
+            await svc.delete(kb.id, ctx=_ctx(user_id=user_id), vector_store=store)
+
+        lock.assert_awaited_once_with(mock_db, kb.id)
+        get_all.assert_awaited_once_with(mock_db, collection_name=kb.collection_name)
+        update.assert_awaited_once_with(mock_db, source.id, is_active=False)
+
+    @pytest.mark.anyio
+    async def test_deleting_a_kb_a_sibling_still_holds_keeps_the_collection(self, mock_db):
+        """A collection another base still claims keeps its vector table and its
+        sync sources - the teardown removes only what this base owned (#1266)."""
+        user_id = uuid.uuid4()
+        kb = _kb("personal", owner_user_id=user_id)
+        store = MagicMock(delete_collection=AsyncMock())
+        get_all = AsyncMock()
+        update = AsyncMock()
+
+        with (
+            patch("app.repositories.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=kb)),
+            patch("app.repositories.knowledge_base_repo.lock", new=AsyncMock(return_value=kb)),
+            patch("app.repositories.knowledge_base_repo.delete", new=AsyncMock(return_value=True)),
+            patch(
+                "app.repositories.rag_document_repo.delete_by_knowledge_base",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
+                "app.repositories.knowledge_base_repo.list_by_collection_name",
+                new=AsyncMock(return_value=[MagicMock()]),
+            ),
+            patch("app.repositories.sync_source.get_all", new=get_all),
+            patch("app.repositories.sync_source.update", new=update),
+        ):
+            svc = KnowledgeBaseService(mock_db)
+            await svc.delete(kb.id, ctx=_ctx(user_id=user_id), vector_store=store)
+
+        store.delete_collection.assert_not_awaited()
+        get_all.assert_not_awaited()
+        update.assert_not_awaited()
 
     @pytest.mark.anyio
     async def test_personal_kb_non_owner_is_refused_as_missing(self, mock_db):

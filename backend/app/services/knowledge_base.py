@@ -20,6 +20,7 @@ from app.repositories import (
     rag_document_repo,
     resource_grant_repo,
 )
+from app.repositories import sync_source as sync_source_repo
 from app.repositories.rag_document import CollectionCounts
 from app.schemas.knowledge_base import (
     KnowledgeBaseCreate,
@@ -494,6 +495,10 @@ class KnowledgeBaseService:
         if kb.is_default:
             raise BadRequestError(message="Cannot delete the default knowledge base")
         collection = kb.collection_name
+        # Lock the base before enumerating its documents, so a concurrent upload
+        # or sync inserting a row cannot slip in between the enumeration and the
+        # base delete and survive detached under `ON DELETE SET NULL` (#1266).
+        await knowledge_base_repo.lock(self.db, kb.id)
         storage_paths = await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
         await knowledge_base_repo.delete(self.db, kb.id)
         storage = get_file_storage()
@@ -501,6 +506,13 @@ class KnowledgeBaseService:
             with contextlib.suppress(Exception):
                 await storage.delete(storage_path)
         if not await knowledge_base_repo.list_by_collection_name(self.db, collection):
+            # No base references the name any more, so any sync source still
+            # pointing at it is dangling: `get_due_for_sync` would re-select it
+            # and `_run_source_sync` would recreate the very table this drops
+            # (#1266). Deactivate rather than delete - the source keeps its
+            # connector and vault credential, but stops being scheduled.
+            for source in await sync_source_repo.get_all(self.db, collection_name=collection):
+                await sync_source_repo.update(self.db, source.id, is_active=False)
             with contextlib.suppress(SQLAlchemyError):
                 await vector_store.delete_collection(collection)
 
