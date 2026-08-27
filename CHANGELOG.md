@@ -17,6 +17,32 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.305] - 2026-08-27
+
+### Fixed
+
+- **Which sign-in button somebody clicked decided where they ended up.** A visitor
+  at `/login?returnTo=/agents/a-1` who used the password form resumed the deep
+  link; one who clicked a provider button landed on the dashboard - the drift #121
+  removed on the roles axis, still present on the provider axis. Nothing carried
+  the path: the browser leaves this origin for the provider and comes back to
+  `/auth/callback`, and neither hop had room for it, so the callback decided the
+  destination with nothing. It is carried in `sessionStorage` rather than the OAuth
+  `state`, because the whole trip starts and ends in the same tab on this origin -
+  a value written beside the provider link is there to be read when the browser
+  returns, and no server has to hold it. A flow that ends somewhere else finds
+  nothing and lands on the dashboard, which is where it landed before. (#135, #121)
+- The value is **consumed as it is read**, so a deep link somebody abandoned is not
+  resumed by the next sign-in from that tab, and a click with nothing to remember
+  clears rather than skips, for the same reason. Nothing in the carrier validates
+  the path: `postSignInDestination` stays the one place that decides whether a
+  return path is safe to honour, and a second copy of that rule would be a second
+  answer to it. `OAuthButtons` also loses a `next` prop nothing passed and the
+  backend never read. (#135)
+- `/auth/magic-link` has the same defect and cannot take the same fix - the link is
+  followed from an email, so a per-tab store is empty by construction - and is
+  filed rather than folded in. (#135)
+
 ## [0.0.304] - 2026-08-27
 
 ### Changed
