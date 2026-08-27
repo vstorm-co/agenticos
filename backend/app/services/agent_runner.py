@@ -965,6 +965,15 @@ class PreparedRun:
     promises to keep. So the write is skipped while the store is still empty:
     there is nothing this turn did to the checklist to record. An agent that
     writes a new plan dumps a non-empty one and replaces the row as usual.
+
+    This tracks *what was seeded*, not whether the store was touched, and the
+    difference is one case: a turn that writes a plan and then empties it leaves
+    the withheld checklist in the row rather than clearing it. Nothing observes
+    that - `plan_items` has one reader, the seed, and the seed withholds a
+    finished plan either way - so the row differs only in holding a list nobody
+    will be seeded with. Tracking the store's dirtiness instead would need a
+    delegating `PlanStore`: `write_plan` goes through `set_items`, which the
+    library emits no event for.
     """
 
     @property
