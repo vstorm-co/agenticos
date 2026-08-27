@@ -16,6 +16,25 @@ import type {
   ConversationMessage,
 } from "@/types";
 
+/**
+ * One chain of pending stars per conversation, so two clicks on the same star
+ * cannot land out of order.
+ *
+ * The POST and the DELETE are separate requests and nothing made the second wait
+ * for the first, so a double click could have the DELETE answered first and the
+ * POST commit after it - leaving the thread starred while the screen said
+ * otherwise, with no further click to reconcile them (#1254). The optimistic
+ * patch still happens at once; only the request is queued, so the star is as
+ * instant as it was.
+ *
+ * Module scope rather than a ref, because what is being ordered is requests in
+ * flight in this tab and a request does not stop when the sidebar unmounts. Two
+ * components reading this hook are two refs, and navigating away from the chat
+ * and back is a third - each of which would send its click without waiting for
+ * a pending one it cannot see. An entry is removed when its chain drains.
+ */
+const favouriteChains = new Map<string, Promise<void>>();
+
 interface CreateConversationResponse {
   id: string;
   title?: string;
@@ -413,15 +432,6 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     [queryClient],
   );
 
-  // One chain per conversation, so two clicks on the same star cannot land
-  // out of order. The POST and the DELETE are separate requests and nothing
-  // made the second wait for the first, so a double click could have the
-  // DELETE answered first and the POST commit after it - leaving the thread
-  // starred while the screen said otherwise, with no further click to
-  // reconcile them (#1254). The optimistic patch still happens at once; only
-  // the request is queued, so the star is as instant as it was.
-  const favouriteChains = useRef(new Map<string, Promise<void>>());
-
   const setFavourite = useCallback(
     async (id: string, favourite: boolean) => {
       // The account this started as, for the same reason every other request
@@ -430,7 +440,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       // account's error.
       const startedAs = useAuthStore.getState().user?.id;
       patchFavourite(id, favourite);
-      const chains = favouriteChains.current;
+      const chains = favouriteChains;
       let sent = false;
       const send = async (): Promise<void> => {
         // Checked here as well as after, and this is the half that matters: a

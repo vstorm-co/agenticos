@@ -704,6 +704,12 @@ describe("creating, renaming and removing a conversation", () => {
 
 describe("starring a conversation", () => {
   /**
+   * A pending star is the tab's, not this render's - `favouriteChains` is a
+   * module constant, because a request does not stop when the sidebar unmounts.
+   * So a test that holds a star or an unstar open has to release it before it
+   * finishes, or that promise stays at the head of the conversation's chain for
+   * every test after it.
+   *
    * The star is the one thing this hook patches rather than refetching, and the
    * boundary is exact: which list a thread belongs to is the server's answer,
    * but whether *this reader* starred it is a fact about the row the client
@@ -862,7 +868,12 @@ describe("starring a conversation", () => {
 
   it("queues per conversation, so one slow star does not hold another thread's", async () => {
     const result = await hook();
-    vi.mocked(apiClient.post).mockReturnValue(new Promise(() => {}));
+    let settle: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
     vi.mocked(apiClient.delete).mockResolvedValue({});
 
     act(() => {
@@ -873,6 +884,7 @@ describe("starring a conversation", () => {
     await waitFor(() =>
       expect(apiClient.delete).toHaveBeenCalledWith("/conversations/c-2/favourite"),
     );
+    act(() => settle({}));
   });
 
   it("does not roll back from a refusal two clicks old", async () => {
@@ -887,9 +899,16 @@ describe("starring a conversation", () => {
         refuse = reject;
       }),
     );
-    // The queued DELETE never answers, so nothing refetches the list and what
-    // is asserted below is the patched cache rather than a fresh page.
-    vi.mocked(apiClient.delete).mockReturnValue(new Promise(() => {}));
+    // The queued DELETE is held rather than answered, so nothing refetches the
+    // list and what is asserted below is the patched cache rather than a fresh
+    // page. Released at the end, because the queue is the tab's: a star left
+    // pending here would be at the head of c-1's chain for every test after it.
+    let release: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.delete).mockReturnValue(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
 
     act(() => {
       void result.current.setFavourite("c-1", true);
@@ -905,6 +924,10 @@ describe("starring a conversation", () => {
 
     expect(result.current.conversations.find((c) => c.id === "c-1")?.is_favourite).toBe(true);
     expect(toast.error).toHaveBeenCalledWith("Could not change the favourite");
+    await act(async () => {
+      release({});
+      await Promise.resolve();
+    });
   });
 
   it("drops a queued click when the account changed while it waited", async () => {
@@ -953,6 +976,45 @@ describe("starring a conversation", () => {
       void result.current.setFavourite("c-1", false);
     });
 
+    await waitFor(() =>
+      expect(apiClient.delete).toHaveBeenCalledWith("/conversations/c-1/favourite"),
+    );
+  });
+
+  it("still queues behind a star that outlived the sidebar", async () => {
+    // Leaving the chat unmounts the sidebar; the request it started carries on,
+    // because nothing aborts it. A queue that lived on the hook would be
+    // discarded with it, and the unstar on the way back would be sent without
+    // waiting - which is the ordering bug the queue exists to prevent, reached
+    // by a different route.
+    const first = renderHook(() => useConversations({}), { wrapper });
+    await waitFor(() => expect(first.result.current.isLoading).toBe(false));
+    let settle: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+    vi.mocked(apiClient.delete).mockResolvedValue({});
+
+    act(() => {
+      void first.result.current.setFavourite("c-1", true);
+    });
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    first.unmount();
+
+    const second = await hook();
+    await act(async () => {
+      void second.current.setFavourite("c-1", false);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(apiClient.delete).not.toHaveBeenCalled();
+
+    await act(async () => {
+      settle({});
+      await Promise.resolve();
+    });
     await waitFor(() =>
       expect(apiClient.delete).toHaveBeenCalledWith("/conversations/c-1/favourite"),
     );
