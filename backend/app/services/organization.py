@@ -40,6 +40,34 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+async def _purge_external_state(
+    storage_paths: list[str],
+    collections: list[str],
+    vector_store: "BaseVectorStore | None",
+) -> None:
+    """Unlink stored uploads and drop vector tables, after an org purge commits.
+
+    Deferred with `spawn_after_commit` (see `OrganizationService.purge`), so it
+    runs only once the relational teardown has committed: a commit that fails
+    rolls the rows back and this never runs, leaving nothing pointing at a
+    dropped table or a missing file (#1137). A module function taking primitives
+    and the process-lived store - not a method - so the queued coroutine holds
+    nothing belonging to the request session, which is gone by the time it runs.
+    """
+    storage = get_file_storage()
+    for storage_path in storage_paths:
+        with contextlib.suppress(Exception):
+            await storage.delete(storage_path)
+    if vector_store is not None:
+        for collection in collections:
+            # Best-effort, and only against the database: `delete_collection`
+            # issues `DROP TABLE IF EXISTS`, so a collection whose table was
+            # never created is not an error, and any other database failure is
+            # not a reason to abandon the rest of the cleanup.
+            with contextlib.suppress(SQLAlchemyError):
+                await vector_store.delete_collection(collection)
+
+
 def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRead:
     """One organization as a member of it sees it.
 
@@ -366,33 +394,9 @@ class OrganizationService:
         if storage_paths or to_drop:
             spawn_after_commit(
                 self.db,
-                self._clean_up_external_state(storage_paths, to_drop),
+                _purge_external_state(storage_paths, to_drop, self._vector_store),
                 name="org_purge_cleanup",
             )
-
-    async def _clean_up_external_state(
-        self, storage_paths: list[str], collections: list[str]
-    ) -> None:
-        """Unlink stored uploads and drop vector tables, after the purge commits.
-
-        Deferred with `spawn_after_commit`, so it runs only once the relational
-        teardown has committed: a commit that fails rolls the rows back and this
-        never runs, leaving nothing pointing at a dropped table or a missing file
-        (#1137). It touches no request-session state - only file storage and the
-        vector store's own engine - because the session that scheduled it is gone
-        by the time it runs.
-        """
-        storage = get_file_storage()
-        for storage_path in storage_paths:
-            with contextlib.suppress(Exception):
-                await storage.delete(storage_path)
-        if self._vector_store is not None:
-            for collection in collections:
-                # Best-effort, and only against the database: a zero-document
-                # collection has no table yet, which is a `SQLAlchemyError`, not a
-                # reason to abandon the cleanup. Mirrors the `drop_collection` route.
-                with contextlib.suppress(SQLAlchemyError):
-                    await self._vector_store.delete_collection(collection)
 
     async def _collection_still_referenced(self, collection_name: str) -> bool:
         """Whether another knowledge base still backs onto this collection's table.

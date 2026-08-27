@@ -24,7 +24,9 @@ from app.core.config import settings as app_settings
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.rag_document import RAGDocument
 from app.db.models.user import User
+from app.services.file_storage import get_file_storage
 from app.services.organization import OrganizationService
 from app.services.rag.vectorstore import PgVectorStore
 from app.services.user import UserService
@@ -70,6 +72,24 @@ def _org_collection(org_id: uuid.UUID, collection_name: str) -> KnowledgeBase:
         embedding_dim=1536,
         organization_id=org_id,
         visibility="org",
+    )
+
+
+def _org_document(
+    collection_name: str, kb_id: uuid.UUID, org_id: uuid.UUID, storage_path: str
+) -> RAGDocument:
+    return RAGDocument(
+        id=uuid.uuid4(),
+        collection_name=collection_name,
+        filename="doc.txt",
+        filesize=7,
+        filetype="txt",
+        storage_path=storage_path,
+        status="completed",
+        chunk_count=0,
+        ingestion_config={},
+        knowledge_base_id=kb_id,
+        organization_id=org_id,
     )
 
 
@@ -262,6 +282,77 @@ class TestDeletingAnOrg:
                 await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
             ).scalar() is not None
             assert await s.get(Organization, org_id) is not None
+
+    async def test_a_committed_teardown_unlinks_the_stored_files(self, engine: AsyncEngine) -> None:
+        """A document row goes in the transaction; its stored upload is unlinked
+        by the post-commit cleanup once the teardown commits (#1137)."""
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        storage = get_file_storage()
+        stored_path = await storage.save("teardown-user", "doc.txt", b"payload")
+        collection = f"kbnine{uuid.uuid4().hex[:12]}"
+        async with factory() as s:
+            user = _user()
+            s.add(user)
+            await s.flush()
+            org = await _org(s, user)
+            kb = _org_collection(org.id, collection)
+            s.add(kb)
+            await s.flush()
+            s.add(_org_document(collection, kb.id, org.id, stored_path))
+            await s.commit()
+            org_id = org.id
+
+        assert storage.get_full_path(stored_path) is not None
+
+        async with factory() as s:
+            org = await s.get(Organization, org_id)
+            await OrganizationService(s, vector_store=store).purge(org)
+            await s.commit()
+            start_deferred(s)
+        await drain()
+
+        assert storage.get_full_path(stored_path) is None
+
+    async def test_a_rolled_back_teardown_keeps_the_stored_files(self, engine: AsyncEngine) -> None:
+        """The file unlink defers past the commit too, so a teardown that rolls
+        back leaves the stored upload in place (#1137)."""
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        storage = get_file_storage()
+        stored_path = await storage.save("teardown-user", "doc.txt", b"payload")
+        collection = f"kbnine{uuid.uuid4().hex[:12]}"
+        async with factory() as s:
+            user = _user()
+            s.add(user)
+            await s.flush()
+            org = await _org(s, user)
+            kb = _org_collection(org.id, collection)
+            s.add(kb)
+            await s.flush()
+            s.add(_org_document(collection, kb.id, org.id, stored_path))
+            await s.commit()
+            org_id = org.id
+
+        async with factory() as s:
+            org = await s.get(Organization, org_id)
+            await OrganizationService(s, vector_store=store).purge(org)
+            await s.rollback()
+            discard_deferred(s)
+        await drain()
+
+        assert storage.get_full_path(stored_path) is not None
+        await storage.delete(stored_path)
 
     async def test_a_personal_collection_survives_its_orgs_deletion(
         self, engine: AsyncEngine
