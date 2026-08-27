@@ -129,7 +129,7 @@ os.environ["PREFECT_HOME"] = str(Path(tempfile.gettempdir()) / "agenticos-prefec
 os.environ["PREFECT_SERVER_EPHEMERAL_ENABLED"] = "true"
 os.environ["PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS"] = "90"
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -149,6 +149,21 @@ def anyio_backend() -> str:
     Options: "asyncio" or "trio". We use asyncio since that's what uvicorn uses.
     """
     return "asyncio"
+
+
+@pytest.fixture(autouse=True)
+def _reset_channel_intake() -> Generator[None, None, None]:
+    """Reset the channel supervisor's shutdown flag after every test.
+
+    `_shutting_down` is a process global, and a test that runs the real lifespan
+    (`test_lifespan_drain.py`) sets it on the way down. Under the randomized
+    parallel suite that leaks into a later test that opens an inbound stream,
+    which the flag would then decline - a red run that passes on re-run (#1119).
+    """
+    yield
+    from app.services.channels.supervisor import allow_intake
+
+    allow_intake()
 
 
 @pytest.fixture
