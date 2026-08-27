@@ -289,6 +289,52 @@ class TestDeletingAUser:
                 await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
             ).scalar() is not None
 
+    async def test_a_refused_delete_leaves_the_personal_kb_intact(
+        self, engine: AsyncEngine
+    ) -> None:
+        """The sole-owner refusal is decided before any teardown, so a delete that
+        refuses does not leave the user's personal KB's files or table gone while
+        its row rolls back (#1131)."""
+        from app.core.exceptions import BadRequestError
+
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        storage = get_file_storage()
+        stored_path = await storage.save("kb-owner", "notes.txt", b"hello")
+        collection = f"kbnine{uuid.uuid4().hex[:12]}"
+        table = store._table(collection)
+        async with factory() as s:
+            user = _user()
+            s.add(user)
+            await s.flush()
+            await _org(s, user)  # a shared org solely owned -> the delete refuses
+            personal_org = await _org(s, user, is_personal=True)
+            kb = _personal_kb(personal_org.id, user.id, collection)
+            s.add(kb)
+            await s.flush()
+            s.add(_kb_document(collection, kb.id, personal_org.id, stored_path))
+            await s.execute(text(f"CREATE TABLE {table} (id int)"))
+            await s.commit()
+            user_id, kb_id = user.id, kb.id
+
+        async with factory() as s:
+            with pytest.raises(BadRequestError):
+                await UserService(s, vector_store=store).delete(user_id)
+            await s.rollback()
+
+        async with factory() as s:
+            assert await s.get(KnowledgeBase, kb_id) is not None
+            assert (
+                await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
+            ).scalar() is not None
+        assert storage.get_full_path(stored_path) is not None
+        await storage.delete(stored_path)
+
 
 class TestDeletingAnOrg:
     async def test_it_drops_org_scoped_collections_and_their_vector_tables(

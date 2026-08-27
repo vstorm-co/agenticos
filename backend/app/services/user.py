@@ -418,19 +418,18 @@ class UserService:
         from app.services.rag.embeddings import EmbeddingService
         from app.services.rag.vectorstore import process_vector_store
 
-        await organization_secret_repo.promote_owned_private_to_org(self.db, owner_user_id=user_id)
-
-        vector_store = self._vector_store or process_vector_store(
-            settings.rag, EmbeddingService(settings=settings.rag)
-        )
-        await self._purge_personal_collections(vector_store, user_id)
-
-        org_service = OrganizationService(self.db, vector_store=vector_store)
-        handled: set[UUID] = set()
-        for org in await organization_repo.list_created_by(self.db, user_id):
-            handled.add(org.id)
+        # Every refusal is decided first, before any irreversible cleanup. The
+        # personal-KB and personal-org teardown below drop vector tables and
+        # unlink files through sessions of their own, and a BadRequestError raised
+        # afterwards cannot undo them: the request session rolls the relational
+        # deletes back, and the restored rows then point at data already gone
+        # (#1131). So the sole-owner checks run in a side-effect-free pass, and
+        # the heir each shared org is handed to is captured here and reused below
+        # rather than re-read after the cleanup.
+        created = await organization_repo.list_created_by(self.db, user_id)
+        heirs: dict[UUID, UUID] = {}
+        for org in created:
             if org.is_personal:
-                await org_service.purge(org)
                 continue
             heir = await member_repo.other_owner_id(
                 self.db, organization_id=org.id, exclude_user_id=user_id
@@ -441,15 +440,16 @@ class UserService:
                     "transfer ownership or delete the organization first",
                     details={"user_id": user_id, "organization_id": org.id},
                 )
-            await organization_repo.reassign_creator(self.db, org=org, new_creator_id=heir)
+            heirs[org.id] = heir
 
         # Ownership moves without the creator FK, so a user can be the sole Owner
         # of an org they did not create - one `list_created_by` never returns.
         # Deleting them cascades that last owner membership away and leaves the
         # org ownerless: no 500, but nobody can manage it through the owner-gated
         # APIs (#1117). Refuse, unless another owner is there to keep it.
+        created_ids = {org.id for org in created}
         for org in await organization_repo.list_owned_by(self.db, user_id):
-            if org.id in handled:
+            if org.id in created_ids:
                 continue
             other_owner = await member_repo.other_owner_id(
                 self.db, organization_id=org.id, exclude_user_id=user_id
@@ -459,6 +459,22 @@ class UserService:
                     message="Cannot delete the sole owner of a shared organization; "
                     "transfer ownership or delete the organization first",
                     details={"user_id": user_id, "organization_id": org.id},
+                )
+
+        await organization_secret_repo.promote_owned_private_to_org(self.db, owner_user_id=user_id)
+
+        vector_store = self._vector_store or process_vector_store(
+            settings.rag, EmbeddingService(settings=settings.rag)
+        )
+        await self._purge_personal_collections(vector_store, user_id)
+
+        org_service = OrganizationService(self.db, vector_store=vector_store)
+        for org in created:
+            if org.is_personal:
+                await org_service.purge(org)
+            else:
+                await organization_repo.reassign_creator(
+                    self.db, org=org, new_creator_id=heirs[org.id]
                 )
 
     async def _purge_personal_collections(
