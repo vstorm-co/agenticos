@@ -135,6 +135,33 @@ describe("useSharing", () => {
     expect(toast.error).toHaveBeenCalledTimes(2);
   });
 
+  it("cancels the in-flight read before invalidating, so a stale refetch cannot win (#154)", async () => {
+    // invalidateQueries dedupes its refetch onto a fetch already running; a read
+    // that began before the mutation committed would otherwise resolve with the
+    // pre-write body and leave the panel stale. Cancelling first forces a new
+    // post-commit fetch.
+    vi.mocked(apiClient.put).mockResolvedValue({});
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const cancelSpy = vi.spyOn(client, "cancelQueries");
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+    const scoped = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => useSharing("agent", "a1"), { wrapper: scoped });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.share.mutateAsync({ subject_user_id: "u-sam", level: "read" });
+
+    const key = ["sharing", "agent", "a1"];
+    expect(cancelSpy).toHaveBeenCalledWith({ queryKey: key });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: key });
+    const cancelOrder = cancelSpy.mock.invocationCallOrder[0] ?? 0;
+    const invalidateOrder = invalidateSpy.mock.invocationCallOrder[0] ?? 0;
+    expect(cancelOrder).toBeGreaterThan(0);
+    expect(cancelOrder).toBeLessThan(invalidateOrder);
+  });
+
   it("addresses a collection at the plural of its own noun", async () => {
     // Four routes exist per type and the paths are not derivable from the type
     // name; a wrong stem shares a resource that does not exist.

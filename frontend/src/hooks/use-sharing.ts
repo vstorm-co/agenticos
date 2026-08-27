@@ -52,13 +52,16 @@ export function useSharing(resourceType: SharingResourceType, resourceId: string
     enabled: !!resourceId,
   });
 
-  const invalidate = useCallback(
-    () =>
-      queryClient.invalidateQueries({
-        queryKey: qk.sharing.detail(resourceType, resourceId ?? ""),
-      }),
-    [queryClient, resourceType, resourceId],
-  );
+  const invalidate = useCallback(async () => {
+    const queryKey = qk.sharing.detail(resourceType, resourceId ?? "");
+    // Cancel an in-flight read before invalidating: invalidateQueries dedupes
+    // its refetch onto a fetch already running, so a read that began before this
+    // mutation committed resolves with the pre-write body, marks the query
+    // fresh, and the panel keeps the old value until a reload (#154). Cancelling
+    // first makes the invalidation dispatch a genuinely new, post-commit fetch.
+    await queryClient.cancelQueries({ queryKey });
+    await queryClient.invalidateQueries({ queryKey });
+  }, [queryClient, resourceType, resourceId]);
 
   const share = useMutation({
     mutationFn: (input: ShareInput) => apiClient.put<ResourceGrant>(`${base}/grants`, input),
