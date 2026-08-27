@@ -22,6 +22,25 @@ async def get_by_id_for_update(db: AsyncSession, user_id: UUID) -> User | None:
     return result.scalar_one_or_none()
 
 
+async def app_admin_ids_for_update(db: AsyncSession) -> list[UUID]:
+    """Every app admin's id, locked, in a fixed order.
+
+    The lock is on the *set* rather than on one row, because what has to hold is
+    a fact about the set: a deployment keeps at least one administrator. Two
+    admins deleting each other locked different target rows, never contended,
+    and both committed - leaving nobody who could sign in to administer the
+    deployment and a direct database write as the only recovery (#1208).
+
+    `ORDER BY id` is what keeps that from being a deadlock instead: rows are
+    locked in the order they are returned, so two requests taking the same set
+    take it in the same order and one waits rather than both holding half of it.
+    """
+    result = await db.execute(
+        select(User.id).where(User.is_app_admin.is_(True)).order_by(User.id).with_for_update()
+    )
+    return list(result.scalars().all())
+
+
 async def get_by_email(db: AsyncSession, email: str) -> User | None:
     """Get user by email."""
     result = await db.execute(select(User).where(User.email == email))
