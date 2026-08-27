@@ -17,6 +17,38 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.307] - 2026-08-27
+
+### Fixed
+
+- **The docs claimed a per-binding spending limit that does not exist.**
+  `docs/channels.md` listed it among what an operator sets on a binding, "on top of
+  the agent's own and the organization's", and the runner's docstring said the
+  exposure's caps are enforced. `agent_exposures` has no cap column and
+  `BudgetScope` has exactly two members. The exposure supplies the prompt, the
+  channel tools, its environment and its session scope, and is stamped on the run
+  row - which is what the docstring says now. An operator reading that page
+  believed a public Slack bot was independently capped. (#29)
+- **The cited migration revisions do not dangle, they resolve to the wrong file.**
+  65 revisions were collapsed into `0001_baseline` and the numbering restarted, so
+  a citation lands on a real migration about something else: `0038` was cited eight
+  times for the vault and is the run manifest, `0066` nine times for `users.role`
+  and is nothing at all, and six more besides. Each is replaced by what the reader
+  needs - "before the chain was squashed", "inside `0001_baseline`" - or by a
+  revision that is still there. `CLAUDE.md` and the `alembic-migration` skill now
+  say the numbering restarted and that a citation names a full file name or
+  nothing. `docs/plans/` is deliberately untouched: a plan records what was true
+  when it was written. (#29)
+- The issue's other two claims have since become true and are left as they stand:
+  rate limiting exists on the public and auth surfaces, and the terminal commit is
+  explicit on every surface rather than only web chat. (#29, #39, #1025)
+- Also fixed with it: `main` had been red on `lint-frontend` since the admin
+  Overview was deleted. #921 added a caption for the organizations page and #922
+  removed the page that read it, each green before the other landed - so the key
+  reached `main` with no reader and the i18n guard failed the whole job on the
+  next branch to merge `main` in. Deleted rather than given a reader, because the
+  caption belonged to a page that no longer exists. (#921, #922)
+
 ## [0.0.306] - 2026-08-27
 
 ### Changed
