@@ -17,6 +17,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.287] - 2026-08-27
+
+### Fixed
+
+- **A bot activated moments before shutdown reopened intake at exit.** It leaves a
+  committed, tracked `open_inbound_stream` task that may not have run yet: the
+  lifespan stops the adapter tasks that exist, then drains - and that task's final
+  step creates a new, *untracked* polling or socket task after the stop loops have
+  passed. The supervisor carries a shutting-down flag now; `open_inbound_stream`
+  declines to open when it is set, re-checked after `stop_polling` so a task
+  suspended there when shutdown begins cannot slip a reopen through either. The
+  lifespan sets it as the first shutdown statement, before the stop loops and the
+  drain, and clears it at startup so a following lifespan - a test, a reload -
+  serves again. The flag is the lifespan's alone, so the in-process drain the RAG
+  sync command issues while the server keeps serving never touches it and a
+  legitimate reopen still opens. (#1119, #1095)
+
 ## [0.0.286] - 2026-08-27
 
 ### Fixed
