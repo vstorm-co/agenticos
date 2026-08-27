@@ -48,7 +48,7 @@ from app.agents.capabilities.budget import BudgetScope
 from app.agents.spec import AgentSpec, AlertAudience, AlertSpec
 from app.core.background import spawn
 from app.core.config import settings
-from app.core.permissions import OrgRoleName
+from app.core.permissions import ROLE_PERMS, OrgRoleName, Perm
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.user import NotificationPreference
@@ -64,6 +64,14 @@ logger = logging.getLogger(__name__)
 # the spend; a builder can create an agent but is not who gets called when the
 # organization's month runs out.
 _ESCALATION_ROLES = [OrgRoleName.OWNER.value, OrgRoleName.ADMIN.value]
+
+# Who may actually answer a parked tool call. Derived from the catalog rather
+# than listed, so a role gaining or losing `approvals:decide` cannot leave this
+# behind - which is the whole failure #1203 reports, one level up: a mail whose
+# call to action the platform will refuse.
+_DECIDING_ROLES = [
+    str(role) for role, perms in ROLE_PERMS.items() if Perm.APPROVALS_DECIDE in perms
+]
 
 ReportPeriod = Literal["weekly", "monthly"]
 
@@ -127,6 +135,17 @@ class NotificationService:
         run has no initiator, and a queue nobody is told about is a run that sits
         parked until it is noticed. An agent whose approvals should only ever
         reach the person who asked says so in its spec.
+
+        **Two emails, because the audience holds two positions.**
+        `approvals:decide` belongs to `owner`, `admin` and `operator`; a builder
+        starting their own agent from the chat is the ordinary initiator and
+        holds none of it. They were sent "waiting on your approval" with a
+        Review button that opens a page whose queue the server refuses them -
+        the refusal arriving as an absent tab rather than a sentence (#1203).
+        So the deciders get the request, and everybody else gets the fact: the
+        run is held, somebody who can decide has been told, nothing is asked of
+        them. Dropping them instead would leave the one person definitely
+        waiting on the run uninformed.
         """
         recipients = await self._audience(
             spec.notifications.approvals,
@@ -137,6 +156,7 @@ class NotificationService:
         )
         if not recipients:
             return
+        deciders = await self._deciders(run.organization_id, "notify_approval_requests")
 
         context = {
             "agent_name": agent.name,
@@ -144,7 +164,25 @@ class NotificationService:
             "approvals_url": f"{self._frontend}/agents/{agent.id}",
             "app_name": settings.PROJECT_NAME,
         }
-        self._send(EmailKey.APPROVAL_REQUESTED, recipients, context)
+        approvers = [address for address in recipients if address in deciders]
+        onlookers = [address for address in recipients if address not in deciders]
+        if approvers:
+            self._send(EmailKey.APPROVAL_REQUESTED, approvers, context)
+        if not onlookers:
+            return
+        self._send(
+            EmailKey.APPROVAL_PENDING,
+            onlookers,
+            {
+                "agent_name": context["agent_name"],
+                "tools": context["tools"],
+                # The agent, not the queue: `agents:view` is held by every role,
+                # so this is a destination the whole audience can open - which is
+                # the property the Review button did not have.
+                "agent_url": f"{self._frontend}/agents/{agent.id}",
+                "app_name": context["app_name"],
+            },
+        )
 
     async def usage_report(self, organization_id: UUID, *, period: ReportPeriod) -> bool:
         """What the organization's agents spent over the window.
@@ -276,6 +314,25 @@ class NotificationService:
         )
         app_admins = await member_repo.list_app_admin_emails(self.db, preference=preference)
         return sorted(set(by_role) | set(app_admins))
+
+    async def _deciders(
+        self, organization_id: UUID, preference: NotificationPreference
+    ) -> set[str]:
+        """Addresses that may actually answer a parked call.
+
+        The roles holding `approvals:decide`, plus the deployment's app admins -
+        who hold no membership row and are given every permission by
+        `AuthContext.permissions`, so a mail asking them to decide is one they
+        can act on.
+        """
+        by_role = await member_repo.list_emails_by_role(
+            self.db,
+            organization_id=organization_id,
+            roles=_DECIDING_ROLES,
+            preference=preference,
+        )
+        app_admins = await member_repo.list_app_admin_emails(self.db, preference=preference)
+        return set(by_role) | set(app_admins)
 
     async def _audience(
         self,

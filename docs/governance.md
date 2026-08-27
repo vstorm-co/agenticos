@@ -993,6 +993,30 @@ reorganisation, and it means them in whichever organization the spec is imported
 into. A named member who has left contributes nothing rather than raising - an
 approval queue must not go silent because one id no longer resolves.
 
+### The approval alert is two emails
+
+`approvals:decide` belongs to `owner`, `admin` and `operator`. The default
+audience for a parked call includes whoever started the run, and a builder
+starting their own agent from the chat is the ordinary initiator - so the alert
+routinely reached somebody the platform would refuse. They got **"waiting on
+your approval"** with a **Review the request** button, followed it, and Activity
+drew no Approvals tab at all: the refusal arriving as an absent tab rather than a
+sentence.
+
+So the audience is split by the permission rather than trimmed to it:
+
+| Recipient holds | Gets |
+|---|---|
+| `approvals:decide` | the request, with the link to the queue |
+| anything less | the *fact* - the run is held, the people who can decide have been told, nothing is asked of them - linking to the agent, which every role may open |
+
+Trimming instead would leave the one person definitely waiting on the run - the
+person who started it - hearing nothing about why it stopped.
+
+Which roles decide is read off the permission catalog, not listed beside it: a
+role gaining or losing `approvals:decide` must not leave the routing behind,
+which is the same defect one level up.
+
 ### Two rules that are not negotiable
 
 **A per-person opt-out only ever subtracts.** Each recipient's own switches at
