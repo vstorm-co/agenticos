@@ -53,19 +53,32 @@ async def _purge_external_state(
     dropped table or a missing file (#1137). A module function taking primitives
     and the process-lived store - not a method - so the queued coroutine holds
     nothing belonging to the request session, which is gone by the time it runs.
+
+    Because it runs after the commit that frees the collection name, a second
+    org can claim that name and back a table onto it before this drop fires -
+    `CollectionAccessService.claim` checks only `knowledge_bases` rows. So each
+    table is re-checked here, in its own session, and dropped only when no base
+    references the name again; deferral would otherwise widen the #913 TOCTOU
+    from a sub-request window to the whole gap before this runs, and drop the new
+    tenant's table.
     """
+    from app.db.session import get_db_context
+
     storage = get_file_storage()
     for storage_path in storage_paths:
         with contextlib.suppress(Exception):
             await storage.delete(storage_path)
-    if vector_store is not None:
-        for collection in collections:
-            # Best-effort, and only against the database: `delete_collection`
-            # issues `DROP TABLE IF EXISTS`, so a collection whose table was
-            # never created is not an error, and any other database failure is
-            # not a reason to abandon the rest of the cleanup.
-            with contextlib.suppress(SQLAlchemyError):
-                await vector_store.delete_collection(collection)
+    if vector_store is not None and collections:
+        async with get_db_context() as db:
+            for collection in collections:
+                if await knowledge_base_repo.list_by_collection_name(db, collection):
+                    continue
+                # Best-effort, and only against the database: `delete_collection`
+                # issues `DROP TABLE IF EXISTS`, so a collection whose table was
+                # never created is not an error, and any other database failure is
+                # not a reason to abandon the rest of the cleanup.
+                with contextlib.suppress(SQLAlchemyError):
+                    await vector_store.delete_collection(collection)
 
 
 def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRead:

@@ -354,6 +354,51 @@ class TestDeletingAnOrg:
         assert storage.get_full_path(stored_path) is not None
         await storage.delete(stored_path)
 
+    async def test_a_recreated_collection_survives_the_deferred_drop(
+        self, engine: AsyncEngine
+    ) -> None:
+        """The drop runs after the commit that frees the collection name, so a
+        second org can reclaim it before the cleanup fires; the deferred cleanup
+        re-checks references and leaves the new tenant's table in place (#1137)."""
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbnine{uuid.uuid4().hex[:12]}"
+        table = store._table(collection)
+        async with factory() as s:
+            user = _user()
+            s.add(user)
+            await s.flush()
+            org = await _org(s, user)
+            s.add(_org_collection(org.id, collection))
+            await s.execute(text(f"CREATE TABLE {table} (id int)"))
+            await s.commit()
+            org_id = org.id
+
+        async with factory() as s:
+            org = await s.get(Organization, org_id)
+            await OrganizationService(s, vector_store=store).purge(org)
+            await s.commit()
+            # A second org claims the freed name before the deferred cleanup runs.
+            async with factory() as claimant:
+                other = _user()
+                claimant.add(other)
+                await claimant.flush()
+                other_org = await _org(claimant, other)
+                claimant.add(_org_collection(other_org.id, collection))
+                await claimant.commit()
+            start_deferred(s)
+        await drain()
+
+        async with factory() as s:
+            assert (
+                await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
+            ).scalar() is not None
+
     async def test_a_personal_collection_survives_its_orgs_deletion(
         self, engine: AsyncEngine
     ) -> None:
