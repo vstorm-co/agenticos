@@ -71,6 +71,24 @@ class SearchUnavailable(Exception):
     """
 
 
+def _unavailable(provider: str, exc: Exception) -> str:
+    """What a failed provider call may tell the model, for an exception it may not.
+
+    A search SDK puts the failing request in its message, so `str(exc)` routinely
+    holds an endpoint and a query string with a key in it. On the model's last
+    attempt `steer` *returns* this text rather than raising it, and a returned
+    string is stored and streamed verbatim - the retry prompt is replaced with a
+    notice (#681, #695), a return is the tool's own answer and is not. So only the
+    class name travels, which still says whether the upstream timed out or refused
+    the credential; the exception's own text stays in the `logger.exception` beside
+    the raise. Same rule, and the same reason, as `app/services/rag/failures.py`.
+    """
+    return (
+        f"{provider} search is unavailable ({type(exc).__name__}). "
+        "The server log has the full error."
+    )
+
+
 async def search(
     query: str,
     *,
@@ -140,7 +158,8 @@ async def _duckduckgo(query: str, max_results: int) -> list[WebSearchResult]:
     try:
         rows = await to_thread.run_sync(_run)
     except Exception as exc:
-        raise SearchUnavailable(f"DuckDuckGo search failed: {exc}") from exc
+        logger.exception("DuckDuckGo search failed")
+        raise SearchUnavailable(_unavailable("DuckDuckGo", exc)) from exc
 
     return [
         _hit(row.get("title"), row.get("href") or row.get("url"), row.get("body")) for row in rows
@@ -161,7 +180,8 @@ async def _tavily(query: str, max_results: int, api_key: str) -> list[WebSearchR
             query=query, max_results=max_results
         )
     except Exception as exc:
-        raise SearchUnavailable(f"Tavily search failed: {exc}") from exc
+        logger.exception("Tavily search failed")
+        raise SearchUnavailable(_unavailable("Tavily", exc)) from exc
 
     return [
         _hit(row.get("title"), row.get("url"), row.get("content"), row.get("score"))
@@ -181,7 +201,8 @@ async def _brave(query: str, max_results: int, api_key: str) -> list[WebSearchRe
             response.raise_for_status()
             payload = response.json()
     except Exception as exc:
-        raise SearchUnavailable(f"Brave search failed: {exc}") from exc
+        logger.exception("Brave search failed")
+        raise SearchUnavailable(_unavailable("Brave", exc)) from exc
 
     return [
         _hit(row.get("title"), row.get("url"), row.get("description"))
@@ -205,7 +226,8 @@ async def _exa(query: str, max_results: int, api_key: str) -> list[WebSearchResu
             response.raise_for_status()
             payload = response.json()
     except Exception as exc:
-        raise SearchUnavailable(f"Exa search failed: {exc}") from exc
+        logger.exception("Exa search failed")
+        raise SearchUnavailable(_unavailable("Exa", exc)) from exc
 
     return [
         _hit(row.get("title"), row.get("url"), row.get("text"), row.get("score"))

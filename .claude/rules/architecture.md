@@ -41,7 +41,7 @@ async def delete(db: AsyncSession, entity_id: UUID) -> Entity | None:
 ```
 
 Rules:
-- ALWAYS `db.flush()` + `db.refresh()`, NEVER `db.commit()` — the request's session commits once, after the route returns and *before* the response is written (`docs/architecture.md#the-requests-transaction`)
+- ALWAYS `db.flush()` + `db.refresh()`, NEVER `db.commit()` — the request's session commits once, after the route returns and *before* the response is written (`docs/architecture.md#the-requests-transaction`). The one sanctioned exception is the agent run path: `AgentRunnerService._run` and `ChatAgentRunner.run` commit before the model call and again in the terminal `finally` (#12, #3)
 - Use keyword-only args after `db`: `create(db, *, email: str, name: str)`
 - Return the entity (or None for get/delete), never return IDs or dicts
 - Functions are async (PostgreSQL via asyncpg)

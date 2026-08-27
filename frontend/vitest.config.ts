@@ -61,6 +61,8 @@ export default defineConfig({
         // cards #149 added are outside the gate, and pulling them in with a
         // directory glob would make this branch responsible for covering them.
         "src/components/dashboard/widgets/sandbox-*.tsx",
+        // The routines card, held to the gate by #594's own "done when".
+        "src/components/dashboard/widgets/routines.tsx",
         "src/components/orgs/**/*.tsx",
         "src/components/runs/**/*.tsx",
         "src/components/sandboxes/**/*.tsx",
@@ -86,6 +88,8 @@ export default defineConfig({
         "src/components/chat/message-item.tsx",
         "src/components/chat/message-list.tsx",
         "src/components/chat/pending-messages.tsx",
+        "src/components/chat/plan-checklist.tsx",
+        "src/components/chat/plan-strip.tsx",
         "src/components/chat/rating-buttons.tsx",
         "src/components/chat/slash-command-palette.tsx",
         "src/components/chat/share-dialog.tsx",

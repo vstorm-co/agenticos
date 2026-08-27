@@ -84,7 +84,13 @@ async def delete_for_identity(db: AsyncSession, *, platform: str, platform_user_
     await db.flush()
 
 
-async def delete_by_id(db: AsyncSession, request_id: UUID) -> None:
-    """Drop one request by id, once it has been confirmed."""
-    await db.execute(delete(ChannelLinkRequest).where(ChannelLinkRequest.id == request_id))
+async def delete_by_id(db: AsyncSession, request_id: UUID) -> bool:
+    """Consume one request by id, returning whether this call claimed it.
+
+    A `/link` token is single-use. The DELETE row-locks, so when two confirms
+    race the same token only the first deletes a row (True); the second waits,
+    finds it gone, and gets False - the loser must not relink the identity (#1132).
+    """
+    result = await db.execute(delete(ChannelLinkRequest).where(ChannelLinkRequest.id == request_id))
     await db.flush()
+    return (result.rowcount or 0) > 0  # ty: ignore[unresolved-attribute]

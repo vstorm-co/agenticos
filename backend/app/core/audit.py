@@ -5,6 +5,8 @@ from contextvars import ContextVar
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.db.models.audit_log import AppAdminAuditLog
 
 logger = logging.getLogger(__name__)
@@ -36,7 +38,7 @@ def current_impersonator() -> UUID | None:
 
 
 async def record_audit(
-    db,
+    db: AsyncSession,
     *,
     actor_user_id: UUID | None,
     action: str,
@@ -46,26 +48,31 @@ async def record_audit(
     details: dict[str, Any] | None = None,
     ip_address: str | None = None,
 ) -> None:
-    """Persist an audit log entry. Failures are logged but do not raise.
+    """Persist an audit log entry within the caller's transaction.
+
+    The write shares the request's session, so it commits or rolls back with the
+    action it records: a failure to record propagates and rolls the mutation back
+    rather than letting a privileged action land unaudited. The trail is
+    load-bearing for the app-admin bypass story in `docs/governance.md`, so
+    fail-open here would be a hole, not resilience. Swallowing the error also
+    never achieved silence - `flush` leaves the session needing a rollback, so
+    the request's commit raised `PendingRollbackError` and 500'd anyway.
 
     `actor_user_id` is `None` for the one caller that has no actor: the approval
     expiry sweep, which records that *nobody* decided. It is required rather than
     defaulted, so passing no actor stays a deliberate act at each call site
     instead of the thing that happens when an argument is forgotten.
     """
-    try:
-        impersonator_id = _impersonator_id.get()
-        entry = AppAdminAuditLog(
-            actor_user_id=actor_user_id,
-            impersonator_user_id=impersonator_id if impersonator_id != actor_user_id else None,
-            action=action,
-            organization_id=organization_id,
-            target_type=target_type,
-            target_id=str(target_id) if target_id is not None else None,
-            details=details,
-            ip_address=ip_address,
-        )
-        db.add(entry)
-        await db.flush()
-    except Exception:
-        logger.exception("Failed to write audit log for action=%s actor=%s", action, actor_user_id)
+    impersonator_id = _impersonator_id.get()
+    entry = AppAdminAuditLog(
+        actor_user_id=actor_user_id,
+        impersonator_user_id=impersonator_id if impersonator_id != actor_user_id else None,
+        action=action,
+        organization_id=organization_id,
+        target_type=target_type,
+        target_id=str(target_id) if target_id is not None else None,
+        details=details,
+        ip_address=ip_address,
+    )
+    db.add(entry)
+    await db.flush()

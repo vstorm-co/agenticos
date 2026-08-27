@@ -7,6 +7,7 @@ worth testing here is that constraint holding.
 """
 
 import json
+import traceback
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -31,7 +32,7 @@ from app.core.secret_kinds import (
     seal_secret,
     unseal_secret,
 )
-from app.core.vault import VaultScope
+from app.core.vault import VaultScope, seal
 from app.repositories import member_repo
 from app.services.organization_secret import OrganizationSecretService
 from tests.test_model_profiles import service_account_json
@@ -213,6 +214,33 @@ class TestSealAndOpen:
 
         assert refused.value.details == {"recorded": "aws_credentials", "sealed": "api_key"}
 
+    def test_a_payload_that_does_not_validate_is_refused_without_naming_the_value(self):
+        """A stored payload that no longer validates - a row edited underneath the
+        schema, a rollback to a build whose `SecretKind` lacks a kind a newer one
+        wrote - is refused without the decrypted credential reaching the message or
+        a chained traceback. `validate_json`'s own `ValidationError` embeds the
+        offending input, which here is the plaintext (#21)."""
+        scope = VaultScope.organization(uuid.uuid4())
+        sealed = seal(json.dumps({"kind": "bogus", "api_key": "sk-live-SUPERSECRET"}), scope=scope)
+
+        with pytest.raises(BadRequestError) as refused:
+            unseal_secret(sealed.ciphertext, kind=SecretKind.API_KEY, scope=scope)
+
+        assert refused.value.details == {"recorded": "api_key"}
+        assert "SUPERSECRET" not in str(refused.value)
+        # The leak surface is the *rendered* traceback - what `logger.exception`
+        # and an OTel span emit. `__cause__` is `None` with or without `from None`
+        # (implicit chaining never sets it), so it does not pin the fix; the
+        # property that keeps the chained `ValidationError` - which still holds the
+        # plaintext in `__context__` - out of the formatting is `__suppress_context__`.
+        assert refused.value.__suppress_context__ is True
+        rendered = "".join(
+            traceback.format_exception(
+                type(refused.value), refused.value, refused.value.__traceback__
+            )
+        )
+        assert "SUPERSECRET" not in rendered
+
 
 class TestStoringASecret:
     @pytest.mark.anyio
@@ -307,8 +335,8 @@ class TestStoringASecret:
                 new=AsyncMock(return_value={}),
             ),
             patch(
-                "app.services.organization_secret.organization_secret_repo.agents_using",
-                new=AsyncMock(return_value=[]),
+                "app.services.organization_secret.organization_secret_repo.agents_using_for_secrets",
+                new=AsyncMock(return_value={}),
             ),
         ):
             rows = await OrganizationSecretService(_db()).list_secrets(ctx)

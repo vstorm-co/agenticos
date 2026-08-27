@@ -16,7 +16,9 @@ const currentUser = vi.fn<() => { is_app_admin?: boolean } | null>(() => ({
 }));
 const push = vi.fn();
 
-vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+vi.mock("next-intl", async () => ({
+  useTranslations: (await import("@/test-utils/intl")).keyTranslations(),
+}));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
   // next-intl's createNavigation wraps these at module scope; see `vitest.setup.ts`.

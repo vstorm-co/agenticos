@@ -10,7 +10,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const accessToken = request.cookies.get("access_token")?.value;
     if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
     const { id } = await params;
-    const data = await backendFetch(`/api/v1/orgs/${id}`, {
+    const data = await backendFetch(`/api/v1/orgs/${encodeURIComponent(id)}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     return bffJson(data);
@@ -27,7 +27,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
     const { id } = await params;
     const body = await request.json();
-    const data = await backendFetch(`/api/v1/orgs/${id}`, {
+    const data = await backendFetch(`/api/v1/orgs/${encodeURIComponent(id)}`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -45,7 +45,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const accessToken = request.cookies.get("access_token")?.value;
     if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
     const { id } = await params;
-    await backendFetch(`/api/v1/orgs/${id}`, {
+    await backendFetch(`/api/v1/orgs/${encodeURIComponent(id)}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${accessToken}` },
     });
