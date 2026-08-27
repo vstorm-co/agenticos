@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.304] - 2026-08-27
+
+### Changed
+
+- **`/admin` lands on Users, and the Overview is gone.** The page held six figures
+  and three links, and every one of them was already on screen somewhere the reader
+  had been. The figures came from the same endpoint the `platform` dashboard widget
+  reads, on a dashboard that has been arrangeable since #213 - so the page was a
+  fixed second copy of a card the reader can already place where they want it, and
+  two copies of six numbers disagree the first time one is edited. The three links
+  were three of the five tabs the section's own strip renders directly above them,
+  so a third of the page was navigation to where the reader already was. `/admin`
+  is the section index and redirects, exactly as `/settings` redirects to Profile:
+  a bookmark still works, and the sidebar entry still lights up, because
+  `isRouteActive` matches the section rather than the page. (#922, #213)
+
 ## [0.0.303] - 2026-08-27
 
 ### Added
