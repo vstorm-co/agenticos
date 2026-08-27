@@ -17,6 +17,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.298] - 2026-08-27
+
+### Fixed
+
+- **Every agent run began with one query per bound collection.**
+  `_collection_names` runs inside `prepare`, so an agent bound to five knowledge
+  bases added five serial round trips to the front of every turn - before the
+  model was called, to read rows very likely already in the session's identity
+  map. `get_by_ids` reads them in one `WHERE id IN (...)`, and the resolution
+  iterates the returned map. The tenant check and the degradation it exists for -
+  a collection gone or foreign narrows the agent's reach rather than failing the
+  run - are unchanged: they read from a dict instead of awaiting a query each, and
+  an id with no row is simply absent from the map. (#954)
+- The finding names six id-resolving loops as one habit; this is the only one on a
+  per-run path. The other five are publish-time or admin-path, where N is small
+  and the cost is invisible, and their line references predate a since-moved file,
+  so they want re-locating rather than a blind change. (#954)
+
 ## [0.0.297] - 2026-08-27
 
 ### Added
