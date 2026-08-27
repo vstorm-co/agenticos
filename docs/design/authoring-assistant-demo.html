@@ -157,6 +157,13 @@ h1 { font-size:24px; font-weight:600; letter-spacing:-.01em; }
 .strip-title { font-weight:600; font-size:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .strip-note { font-size:12px; color:var(--muted-foreground); margin-top:4px; }
 .strip-actions { display:flex; gap:8px; align-items:center; }
+.strip-mode { flex-basis:100%; display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:12px; padding-top:12px; border-top:1px solid var(--brand-line); }
+.strip-mode .lbl { font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--brand); }
+.mode-seg { display:inline-flex; gap:2px; border:1px solid var(--input); border-radius:8px; padding:2px; background:var(--card); }
+.mode-seg button { border-radius:6px; padding:4px 12px; font-size:12px; font-weight:500; color:var(--muted-foreground); }
+.mode-seg button.on { background:var(--foreground); color:var(--background); }
+.mode-note { font-size:12px; color:var(--muted-foreground); flex:1; min-width:14rem; }
+.mode-note b { color:var(--foreground); font-weight:600; }
 
 /* ============ diff — the SpecDiff idiom from version-history.tsx ============ */
 .editor-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
@@ -432,6 +439,15 @@ table.replay { width:100%; border-collapse:collapse; font-size:12.5px; min-width
           <button class="btn btn-sm btn-ghost" onclick="dismissAll()">Dismiss all</button>
           <span id="verify-controls" style="display:contents"></span>
           <button class="btn btn-sm btn-outline" onclick="toast('Demo — starts a new improver run. An ordinary run: budgeted, metered, visible in Activity.')">Run again</button>
+        </div>
+        <div class="strip-mode">
+          <span class="lbl">Apply mode</span>
+          <div class="mode-seg" role="tablist" aria-label="How accepted changes reach production">
+            <button class="on" onclick="setMode('manual',this)">Manual</button>
+            <button onclick="setMode('canary',this)">Canary</button>
+            <button onclick="setMode('auto',this)">Auto</button>
+          </div>
+          <span class="mode-note" id="mode-note">Nothing goes live without a person — you Accept, then Publish.</span>
         </div>
       </div>
 
@@ -957,6 +973,17 @@ function refresh() {
 function setCount(id, n) {
   const el = document.getElementById(id);
   el.textContent = n; el.style.display = n > 0 ? "" : "none";
+}
+
+/* ---------- apply mode (manual → canary → auto) ---------- */
+function setMode(m, btn){
+  document.querySelectorAll('.mode-seg button').forEach(b=>b.classList.toggle('on', b===btn));
+  const notes={
+    manual:'Nothing goes live without a person — you Accept, then Publish.',
+    canary:'Accepted changes ship to a <b>canary</b> slice of traffic first; replay must pass, rollback is one click.',
+    auto:'Eval-gated changes graduate on their own — behind <b>replay + canary + org switch + budget cap</b>. Off by default.'
+  };
+  document.getElementById('mode-note').innerHTML = notes[m];
 }
 
 /* ---------- verify: idle → running → results, re-runnable ---------- */
