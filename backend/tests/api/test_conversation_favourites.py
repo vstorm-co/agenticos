@@ -21,12 +21,14 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api.deps import (
     get_active_organization,
+    get_auth_context,
     get_conversation_service,
     get_current_user,
     get_db_session,
 )
 from app.core.config import settings
 from app.core.exceptions import NotFoundError
+from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 
 pytestmark = pytest.mark.anyio
@@ -68,7 +70,14 @@ class _Organization:
 async def service() -> AsyncGenerator[AsyncMock, None]:
     caller = _User()
     app.dependency_overrides[get_current_user] = lambda: caller
-    app.dependency_overrides[get_active_organization] = lambda: _Organization()
+    organization = _Organization()
+    app.dependency_overrides[get_active_organization] = lambda: organization
+    # The read of a trigger's run-log needs it: without a context
+    # `_may_read_trigger_log` answers false, and a conversation the caller may
+    # read through `runs:view` would be one they could not star.
+    app.dependency_overrides[get_auth_context] = lambda: AuthContext(
+        user_id=caller.id, organization_id=organization.id, role=str(OrgRoleName.MEMBER)
+    )
     app.dependency_overrides[get_db_session] = lambda: AsyncMock()
     conversations = AsyncMock()
     app.dependency_overrides[get_conversation_service] = lambda: conversations
@@ -114,6 +123,8 @@ async def test_both_carry_the_caller_and_the_active_organization(service: AsyncM
     kwargs = service.set_favourite.await_args.kwargs
     assert kwargs["user_id"] is not None
     assert kwargs["organization_id"] is not None
+    # And the context, which is what lets a trigger's run-log be starred at all.
+    assert kwargs["ctx"] is not None
     assert service.set_favourite.await_args.args[0] == CONVERSATION_ID
 
 

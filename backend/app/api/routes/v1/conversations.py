@@ -219,6 +219,7 @@ async def favourite_conversation(
     conversation_service: ConversationSvc,
     current_user: CurrentUser,
     active_org: ActiveOrg,
+    ctx: Auth,
 ) -> Any:
     """Star a conversation, for the caller.
 
@@ -232,6 +233,7 @@ async def favourite_conversation(
         organization_id=active_org.id,
         user_id=current_user.id,
         favourite=True,
+        ctx=ctx,
     )
 
 
@@ -241,6 +243,7 @@ async def unfavourite_conversation(
     conversation_service: ConversationSvc,
     current_user: CurrentUser,
     active_org: ActiveOrg,
+    ctx: Auth,
 ) -> Any:
     """Unstar a conversation, for the caller.
 
@@ -252,6 +255,7 @@ async def unfavourite_conversation(
         organization_id=active_org.id,
         user_id=current_user.id,
         favourite=False,
+        ctx=ctx,
     )
 
 

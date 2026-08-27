@@ -500,7 +500,13 @@ class ConversationService:
             conversation.is_favourite = conversation.id in starred  # ty: ignore[unresolved-attribute]
 
     async def set_favourite(
-        self, conversation_id: UUID, *, organization_id: UUID, user_id: UUID, favourite: bool
+        self,
+        conversation_id: UUID,
+        *,
+        organization_id: UUID,
+        user_id: UUID,
+        favourite: bool,
+        ctx: AuthContext | None = None,
     ) -> Conversation:
         """Star or unstar a conversation for one reader.
 
@@ -508,9 +514,13 @@ class ConversationService:
         the starrer's own sidebar and changes nothing about the thread, so
         somebody a conversation was shared with may favourite it exactly as its
         owner may. `for_write` here would refuse the reader the feature is for.
+
+        `ctx` travels for the same reason it does on every other read: without
+        it `_may_read_trigger_log` answers false, and a trigger's run-log the
+        caller may read through `runs:view` is one they could not star.
         """
         conversation = await self.get_conversation(
-            conversation_id, organization_id=organization_id, user_id=user_id
+            conversation_id, organization_id=organization_id, user_id=user_id, ctx=ctx
         )
         await conversation_repo.set_favourite(
             self.db, user_id=user_id, conversation_id=conversation.id, favourite=favourite
