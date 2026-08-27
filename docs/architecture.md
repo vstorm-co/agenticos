@@ -627,6 +627,23 @@ and what the model was handed beside it, which is the question that screen was
 being used for. What is left of it is `GET /admin/conversations?user_id=`: one
 named account's threads, listed for the admin user drawer and never read.
 
+### What the admin user drawer asks for
+
+`GET /admin/users/{id}/detail` is its own route rather than fields on
+`GET /admin/users/{id}`, because it is a **view** assembled from three tables -
+memberships, sessions, and the user row - and a user is read in a dozen places
+that need none of it.
+
+It exists because the drawer answered none of the questions an admin opening a
+row actually has: it showed the id, the email already in the table, the display
+name and a join date (#942). What it answers now is where this person has
+access and with what authority, when they were last here, and whether anything
+of theirs is still signed in. `last_seen_at` is **null rather than absent** for
+an account that has never signed in, because "created and never used" and
+"dormant since March" are different decisions.
+
+The whole route is `CurrentAppAdmin`: every field on it is about somebody else.
+
 For full endpoint-level permissions, see `docs/permissions.md`.
 
 ## File Processing in Chat

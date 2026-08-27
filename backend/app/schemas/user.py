@@ -127,3 +127,39 @@ class ImpersonateResponse(BaseSchema):
     impersonated_user_id: str
     impersonated_by: str
     expires_in: int
+
+
+class AdminUserMembership(BaseSchema):
+    """One organization this person belongs to, and what they are in it."""
+
+    organization_id: UUID
+    name: str
+    slug: str
+    is_personal: bool
+    role: str
+
+
+class AdminUserDetail(BaseSchema):
+    """What a deployment admin needs before deciding something about a person.
+
+    The questions the user drawer exists to answer and could not: where does
+    this person have access and with what authority, when were they last here,
+    and is anything of theirs still signed in (#942). Separate from
+    :class:`UserRead` because it is a *view*, assembled from three tables, and
+    folding it into the row every other reader gets would make three queries the
+    price of reading a user anywhere.
+    """
+
+    memberships: list[AdminUserMembership]
+    last_seen_at: datetime | None = Field(
+        default=None,
+        description=(
+            "The most recent activity on any of their sessions, or null for an account "
+            "that has never signed in - which is not the same as a dormant one, and the "
+            "drawer says so."
+        ),
+    )
+    active_sessions: int = Field(
+        default=0, description="How many sessions are still open, not how many ever were."
+    )
+    newest_session_at: datetime | None = None

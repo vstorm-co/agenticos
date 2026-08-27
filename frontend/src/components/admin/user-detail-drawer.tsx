@@ -4,7 +4,17 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { getErrorMessage } from "@/lib/api-error";
 import { useChanged } from "@/hooks/use-changed";
-import { Copy, KeyRound, Mail, Shield, ShieldOff, Trash2, UserX } from "lucide-react";
+import {
+  Building2,
+  Copy,
+  KeyRound,
+  Mail,
+  MonitorSmartphone,
+  Shield,
+  ShieldOff,
+  Trash2,
+  UserX,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { LoadingState } from "@/components/states";
@@ -50,6 +60,21 @@ interface ConversationStub {
   message_count?: number;
 }
 
+interface Membership {
+  organization_id: string;
+  name: string;
+  slug: string;
+  is_personal: boolean;
+  role: string;
+}
+
+interface UserDetail {
+  memberships: Membership[];
+  last_seen_at: string | null;
+  active_sessions: number;
+  newest_session_at: string | null;
+}
+
 export function UserDetailDrawer({
   user,
   open,
@@ -76,6 +101,19 @@ export function UserDetailDrawer({
       apiClient
         .get<{ items: ConversationStub[] }>(`/admin/conversations?user_id=${user!.id}&limit=8`)
         .then((d) => d.items),
+    enabled: open && Boolean(user),
+  });
+
+  // Where this person has access, when they were last here, what is still
+  // open - three tables the server assembles, because a client doing it makes
+  // three round trips to answer one question (#942).
+  const {
+    data: detail = null,
+    isPending: detailLoading,
+    error: detailError,
+  } = useQuery({
+    queryKey: qk.admin.userDetail(user?.id ?? "none"),
+    queryFn: () => apiClient.get<UserDetail>(`/admin/users/${user!.id}/detail`),
     enabled: open && Boolean(user),
   });
 
@@ -111,10 +149,10 @@ export function UserDetailDrawer({
     }
   };
 
-  const handleCopyId = async () => {
+  const copy = async (value: string, message: string) => {
     try {
-      await navigator.clipboard.writeText(subject.id);
-      toast.success(t("userIdCopied"));
+      await navigator.clipboard.writeText(value);
+      toast.success(message);
     } catch {
       toast.error(t("copyFailed"));
     }
@@ -162,12 +200,112 @@ export function UserDetailDrawer({
             )}
           </div>
 
+          {/* Every row always renders, so the block is the same height for
+              every account: `display name` used to appear only when set, and
+              the layout moved as an admin stepped through the table. The email
+              carries a copy because it is the field people paste. */}
           <dl className="border-border divide-border mt-5 divide-y rounded-xl border">
-            <KV label={t("userId")} value={subject.id} mono onCopy={handleCopyId} />
-            <KV label={t("email")} value={subject.email} mono />
-            {subject.full_name && <KV label={t("displayName")} value={subject.full_name} />}
+            <KV
+              label={t("email")}
+              value={subject.email}
+              mono
+              onCopy={() => copy(subject.email, t("emailCopied"))}
+            />
+            <KV label={t("displayName")} value={subject.full_name || "-"} />
+            <KV
+              label={t("userId")}
+              value={subject.id}
+              mono
+              onCopy={() => copy(subject.id, t("userIdCopied"))}
+            />
             <KV label={t("joined")} value={formatDateTime(subject.created_at, locale)} />
+            <KV
+              label={t("lastSeen")}
+              value={
+                detailLoading
+                  ? "…"
+                  : detailError
+                    ? // Not "Never signed in": that is a claim about the
+                      // account, and the request that would have supported it
+                      // failed. The blocks below say what happened.
+                      "-"
+                    : detail?.last_seen_at
+                      ? formatDateTime(detail.last_seen_at, locale)
+                      : // Not a date and not blank: an account created and
+                        // never used is a different decision from a dormant
+                        // one, and this is the field an admin looks for first.
+                        t("neverSignedIn")
+              }
+            />
           </dl>
+
+          <section className="mt-7">
+            <h3 className="text-foreground mb-3 flex items-center gap-2 text-sm font-semibold">
+              <Building2 className="h-4 w-4" aria-hidden />
+              {t("memberships")}
+            </h3>
+            {detailLoading ? (
+              <LoadingState variant="skeleton-list" rows={2} />
+            ) : detailError ? (
+              // A failed read and an account in no organization are different
+              // sentences, and an admin acting on the second when it was the
+              // first is acting on nothing.
+              <p className="text-destructive text-xs">
+                {getErrorMessage(detailError, tErrors, t("membershipsCouldNotBeRead"))}
+              </p>
+            ) : !detail || detail.memberships.length === 0 ? (
+              <p className="text-muted-foreground text-xs">{t("noMemberships")}</p>
+            ) : (
+              <ul className="space-y-1">
+                {/* Not links, and that is a finding rather than a decision:
+                    `/orgs/{id}` resolves through `get_for_user`, which 404s for
+                    anybody who is not a member - including an app admin, and
+                    including the target's own personal organization, which is
+                    the common case here. A link most of these rows cannot open
+                    is worse than the name and the role, which is what the
+                    decision actually needs. See #1245. */}
+                {detail.memberships.map((membership) => (
+                  <li
+                    key={membership.organization_id}
+                    className="border-border bg-background flex items-center justify-between gap-2 rounded-lg border px-3 py-2"
+                  >
+                    <span className="text-foreground min-w-0 flex-1 truncate text-xs font-medium">
+                      {membership.name}
+                    </span>
+                    {membership.is_personal && (
+                      <Badge variant="outline" className="shrink-0 text-[10px]">
+                        {t("personalOrg")}
+                      </Badge>
+                    )}
+                    <span className="text-muted-foreground shrink-0 text-xs">
+                      {membership.role}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="mt-7">
+            <h3 className="text-foreground mb-3 flex items-center gap-2 text-sm font-semibold">
+              <MonitorSmartphone className="h-4 w-4" aria-hidden />
+              {t("sessions")}
+            </h3>
+            {detailLoading ? (
+              <LoadingState variant="skeleton-list" rows={1} />
+            ) : detailError ? (
+              <p className="text-destructive text-xs">
+                {getErrorMessage(detailError, tErrors, t("sessionsCouldNotBeRead"))}
+              </p>
+            ) : (
+              <p className="text-muted-foreground text-xs">
+                {t("openSessions", { count: detail?.active_sessions ?? 0 })}
+                {detail?.newest_session_at
+                  ? ` · ${t("newestSession", { when: formatDateTime(detail.newest_session_at, locale) })}`
+                  : ""}
+              </p>
+            )}
+          </section>
 
           <section className="mt-7">
             <h3 className="text-foreground mb-3 text-sm font-semibold">
@@ -186,6 +324,12 @@ export function UserDetailDrawer({
               <p className="text-muted-foreground text-xs">{t("noConversationsFound")}</p>
             ) : (
               <ul className="space-y-1">
+                {/* Not links either, for the neighbouring reason: this list is
+                    deployment-wide and Activity is scoped to the admin's own
+                    active organization, so a link would usually land on an
+                    empty page - or, worse, on the same person's runs in a
+                    different tenant. There is no admin-readable destination for
+                    one of these at all; #1245 is where that sits. */}
                 {conversations.map((c) => (
                   <li
                     key={c.id}
@@ -208,47 +352,67 @@ export function UserDetailDrawer({
           </section>
         </div>
 
+        {/* Weighted by consequence, left to right. Impersonate is the everyday
+            one and stays plain; the two that change an account go behind a
+            confirmation naming what happens; Delete is last, destructive and
+            apart. All four used to be the same `outline` button in one row -
+            the two most consequential looking exactly like the least. */}
         <footer className="border-border flex flex-wrap items-center gap-2 border-t px-5 py-4">
           {!isSelf && (
             <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onUpdate(subject.id, { is_active: !subject.is_active })}
-              >
-                {subject.is_active ? (
-                  <>
-                    <UserX className="mr-1.5 h-3.5 w-3.5" />
-                    {t("suspend")}
-                  </>
-                ) : (
-                  <>
-                    <Mail className="mr-1.5 h-3.5 w-3.5" />
-                    {t("reactivate")}
-                  </>
-                )}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onUpdate(subject.id, { is_app_admin: !subject.is_app_admin })}
-              >
-                {subject.is_app_admin ? (
-                  <>
-                    <ShieldOff className="mr-1.5 h-3.5 w-3.5" />
-                    {t("demote")}
-                  </>
-                ) : (
-                  <>
-                    <Shield className="mr-1.5 h-3.5 w-3.5" />
-                    {t("promoteAdmin")}
-                  </>
-                )}
-              </Button>
               <Button variant="outline" size="sm" onClick={handleImpersonate}>
                 <KeyRound className="mr-1.5 h-3.5 w-3.5" />
                 {t("impersonate")}
               </Button>
+              {subject.is_active ? (
+                <Confirm
+                  title={t("suspendUserNamed", { email: subject.email })}
+                  description={t("suspendSignsThemOutImmediately")}
+                  confirmLabel={t("suspendUser")}
+                  onConfirm={() => onUpdate(subject.id, { is_active: false })}
+                >
+                  <Button variant="ghost" size="sm">
+                    <UserX className="mr-1.5 h-3.5 w-3.5" />
+                    {t("suspend")}
+                  </Button>
+                </Confirm>
+              ) : (
+                // Reactivating gives access back, which is the recoverable
+                // direction: no confirmation for the button that undoes one.
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onUpdate(subject.id, { is_active: true })}
+                >
+                  <Mail className="mr-1.5 h-3.5 w-3.5" />
+                  {t("reactivate")}
+                </Button>
+              )}
+              {subject.is_app_admin ? (
+                <Confirm
+                  title={t("demoteUserNamed", { email: subject.email })}
+                  description={t("demoteLosesEveryAdminSurface")}
+                  confirmLabel={t("demoteUser")}
+                  onConfirm={() => onUpdate(subject.id, { is_app_admin: false })}
+                >
+                  <Button variant="ghost" size="sm">
+                    <ShieldOff className="mr-1.5 h-3.5 w-3.5" />
+                    {t("demote")}
+                  </Button>
+                </Confirm>
+              ) : (
+                <Confirm
+                  title={t("promoteUserNamed", { email: subject.email })}
+                  description={t("promoteGrantsEveryTenant")}
+                  confirmLabel={t("promoteAdmin")}
+                  onConfirm={() => onUpdate(subject.id, { is_app_admin: true })}
+                >
+                  <Button variant="ghost" size="sm">
+                    <Shield className="mr-1.5 h-3.5 w-3.5" />
+                    {t("promoteAdmin")}
+                  </Button>
+                </Confirm>
+              )}
             </>
           )}
 
@@ -321,5 +485,43 @@ function KV({
         )}
       </dd>
     </div>
+  );
+}
+
+/**
+ * An action that changes somebody's access, behind one question.
+ *
+ * The same `AlertDialog` Delete already used, given a name so that the two
+ * account-level changes beside it can have one too - and so the sentence they
+ * are confirmed with is the consequence rather than "are you sure".
+ */
+function Confirm({
+  title,
+  description,
+  confirmLabel,
+  onConfirm,
+  children,
+}: {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  children: React.ReactNode;
+}) {
+  const t = useTranslations("admin");
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>{children}</AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm}>{confirmLabel}</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

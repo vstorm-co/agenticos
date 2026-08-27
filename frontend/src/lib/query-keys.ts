@@ -429,6 +429,8 @@ export const qk = {
     conversations: (params: { userId?: string; limit?: number }) =>
       ["admin", "conversations", params] as const,
     system: () => ["admin", "system"] as const,
+    /** One person's memberships, last-seen and open sessions - the user drawer. */
+    userDetail: (userId: string) => ["admin", "users", userId, "detail"] as const,
     // The deployment-wide answer-quality summary over a window. The window is
     // the key, so picking another period refetches rather than re-rendering the
     // last one's chart.
