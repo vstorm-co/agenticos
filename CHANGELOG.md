@@ -17,6 +17,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.290] - 2026-08-27
+
+### Added
+
+- **`make lint-precommit` reads the whole tree with the hooks that only ever read
+  a diff.** `yamlfmt`, `zizmor` and the `pre-commit-hooks` basics saw only the
+  files a commit touched, and no gate ever ran them over everything. That is fine
+  while the rules are fixed and stops being fine the moment Dependabot bumps a
+  `rev:`: a new `zizmor` rule makes every workflow in the tree violate it, nothing
+  notices because no commit has touched a workflow, and weeks later an unrelated
+  one-line edit is refused by a finding that has nothing to do with it - the shape
+  of #188, one tool over. `make lint-spelling` already solved exactly this for
+  codespell; this gives the rest the same treatment. (#203)
+- `SKIP` drops the hooks another target already gates over the tree, plus
+  `no-commit-to-branch`, which fails by design when CI checks out `main` - so
+  nothing is gated twice and no fixer rewrites a file mid-check. A fixer that does
+  run reports rather than commits, because pre-commit exits non-zero on a
+  modification, which is the failure CI needs. Wired into `lint` so `make check`
+  reaches it, and into CI's `lint` job, with `test_ci_parity.py` holding both
+  directions the way it already does for `lint-spelling`. (#203)
+
 ## [0.0.289] - 2026-08-27
 
 ### Fixed
