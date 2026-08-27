@@ -484,11 +484,15 @@ class RAGDocumentService:
         uploaded files and every one was orphaned on disk when a collection was
         dropped (#1265). The unlink is best-effort - a file already gone is not a
         reason to fail the drop - and mirrors the org purge's teardown.
+
+        `get_file_storage()` is resolved inside the suppression, and only when
+        there is a path to unlink: it `mkdir`s `MEDIA_DIR` on construction, so a
+        misconfigured storage backend would otherwise raise here and 500 a drop
+        whose vector table the route has already removed.
         """
-        storage = get_file_storage()
         for storage_path in await rag_document_repo.delete_by_collection(self.db, collection_name):
             with contextlib.suppress(Exception):
-                await storage.delete(storage_path)
+                await get_file_storage().delete(storage_path)
 
     async def get_parsed_content(
         self, doc_id: str, vector_store: BaseVectorStore
