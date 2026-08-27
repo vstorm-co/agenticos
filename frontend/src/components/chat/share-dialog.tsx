@@ -164,7 +164,11 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
     try {
       const share = await shareConversation(conversationId, {
         generate_link: true,
-        permission,
+        // Always view, whatever the picker above says. A token reaches exactly
+        // one route - `GET /conversations/shared/{token}` - so there is no
+        // token-authorised write to grant, and an `edit` link would promise
+        // renaming, archiving and appending that the surface cannot do (#931).
+        permission: "view",
       });
       if (share?.share_token) {
         const url = `${window.location.origin}/shared/${share.share_token}`;
@@ -339,6 +343,9 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
                 </Button>
               )}
             </div>
+            {/* Said before the link is minted, not after: the level chosen above
+                is about a person, and a link is read-only whatever it says. */}
+            <p className="text-muted-foreground text-xs">{t("linkIsViewOnly")}</p>
             {shareLink && (
               <p className="text-muted-foreground text-xs break-all">
                 {copied ? t("copied") : shareLink}

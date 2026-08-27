@@ -891,6 +891,7 @@
     "knowledgeBase": "Knowledge base",
     "link": "Link",
     "linkGenerated": "Share link generated",
+    "linkIsViewOnly": "Anyone with the link can read this conversation. A link is always read-only.",
     "loading": "Loading…",
     "membersCouldNotBeRead": "The people in this organization could not be read.",
     "modelPicker": {

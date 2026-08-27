@@ -221,6 +221,7 @@
     "generateShareLink": "Wygeneruj link do udostępnienia",
     "helpful": "Pomocne",
     "linkGenerated": "Link do udostępnienia wygenerowany",
+    "linkIsViewOnly": "Każdy z linkiem może czytać tę konwersację. Link zawsze jest tylko do czytania.",
     "membersCouldNotBeRead": "Nie udało się odczytać osób w tej organizacji.",
     "newChat": "Nowy czat",
     "newConversation": "Nowa konwersacja",

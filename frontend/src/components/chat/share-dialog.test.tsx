@@ -385,7 +385,11 @@ describe("sharing by link", () => {
     expect(toast.error).toHaveBeenCalledWith("Link sharing is off for this organization");
   });
 
-  it("carries the chosen access level into the link", async () => {
+  it("mints a view-only link whatever the level above it says", async () => {
+    // A token reaches exactly one route - `GET /conversations/shared/{token}` -
+    // so there is no token-authorised write to grant. An `edit` link would
+    // promise renaming, archiving and appending that the surface cannot do, and
+    // the level select is about a *person* (#931).
     shareConversation.mockResolvedValue({ id: "s-1", share_token: "tok" });
     renderDialog();
     await userEvent.click(screen.getByRole("combobox", { name: "Access level" }));
@@ -395,8 +399,14 @@ describe("sharing by link", () => {
 
     expect(shareConversation).toHaveBeenCalledWith("c1", {
       generate_link: true,
-      permission: "edit",
+      permission: "view",
     });
+  });
+
+  it("says a link is read-only before one is minted", async () => {
+    renderDialog();
+
+    expect(screen.getByText(/A link is always read-only/)).toBeVisible();
   });
 });
 
