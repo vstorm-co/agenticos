@@ -376,4 +376,3 @@ describe("a refusal the proxy minted", () => {
     expect(toast.error).not.toHaveBeenCalledWith("Backend unavailable");
   });
 });
-
