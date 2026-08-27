@@ -7,7 +7,13 @@ from fastapi import APIRouter, Query, Request, status
 from app.api.deps import CurrentAppAdmin, DBSession, UserSvc
 from app.core.audit import current_impersonator, record_audit
 from app.core.security import create_access_token
-from app.schemas.user import AdminUserList, ImpersonateResponse, UserRead, UserUpdate
+from app.schemas.user import (
+    AdminUserDetail,
+    AdminUserList,
+    ImpersonateResponse,
+    UserRead,
+    UserUpdate,
+)
 
 router = APIRouter()
 
@@ -36,6 +42,23 @@ async def get_user(
     service: UserSvc,
 ) -> Any:
     return await service.get_by_id(user_id)
+
+
+@router.get("/{user_id}/detail", response_model=AdminUserDetail)
+async def get_user_detail(
+    user_id: UUID,
+    _: CurrentAppAdmin,
+    service: UserSvc,
+) -> Any:
+    """Where this person has access, when they were last here, what is open.
+
+    Its own route rather than fields on `GET /{user_id}`, because it is a view
+    assembled from three tables and a user is read in a dozen places that need
+    none of it. What it answers is what a deployment admin is about to decide
+    on: an account with no membership anywhere and no session in three months
+    is a different decision from one that owns two organizations (#942).
+    """
+    return await service.admin_detail(user_id)
 
 
 @router.patch("/{user_id}", response_model=UserRead)

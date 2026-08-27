@@ -32,7 +32,12 @@ from app.repositories import (
     user_repo,
 )
 from app.schemas.conversation_share import AdminUserList, AdminUserRead
-from app.schemas.user import UserCreate, UserUpdate
+from app.schemas.user import (
+    AdminUserDetail,
+    AdminUserMembership,
+    UserCreate,
+    UserUpdate,
+)
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
 from app.services.file_storage import avatar_filename, get_file_storage
@@ -101,6 +106,38 @@ class UserService:
 
     async def has_any(self) -> bool:
         return await user_repo.has_any(self.db)
+
+    async def admin_detail(self, user_id: UUID) -> AdminUserDetail:
+        """Where this person has access, when they were last here, what is open.
+
+        Three reads rather than one because they are three tables, and they are
+        here rather than in the drawer because a client assembling them would
+        make three round trips to answer one question - and would have to know
+        that "no sessions ever" and "no sessions now" are different answers.
+
+        The user is fetched first so an unknown id is a 404 rather than an empty
+        detail about nobody.
+        """
+        await self.get_by_id(user_id)
+        memberships = await organization_repo.list_for_user(self.db, user_id)
+        sessions = await session_repo.get_user_sessions(self.db, user_id, active_only=True)
+        return AdminUserDetail(
+            memberships=[
+                AdminUserMembership(
+                    organization_id=organization.id,
+                    name=organization.name,
+                    slug=organization.slug,
+                    is_personal=organization.is_personal,
+                    role=role,
+                )
+                for organization, role in memberships
+            ],
+            # The sessions come back most-recently-used first, so the head is
+            # both answers: when they were last here, and the newest one open.
+            last_seen_at=sessions[0].last_used_at if sessions else None,
+            active_sessions=len(sessions),
+            newest_session_at=max((s.created_at for s in sessions), default=None),
+        )
 
     async def admin_list_with_counts(
         self,

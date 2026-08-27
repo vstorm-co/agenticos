@@ -15,6 +15,7 @@ import { GET as ratingsSummary } from "./ratings/summary/route";
 import { GET as stats } from "./stats/route";
 import { GET as system } from "./system/route";
 import { GET as getUser, PATCH as patchUser, DELETE as deleteUser } from "./users/[userId]/route";
+import { GET as userDetail } from "./users/[userId]/detail/route";
 import { POST as impersonate } from "./users/[userId]/impersonate/route";
 import { GET as users } from "./users/route";
 import { requireAdmin } from "@/lib/admin-auth";
@@ -69,6 +70,13 @@ const GUARDED: [string, () => Promise<Response>][] = [
     "a user deletion",
     () =>
       deleteUser(request("http://localhost:3000/api/admin/users/u-1"), {
+        params: Promise.resolve({ userId: "u-1" }),
+      }),
+  ],
+  [
+    "one user's memberships, last-seen and sessions",
+    () =>
+      userDetail(request("http://localhost:3000/api/admin/users/u-1/detail"), {
         params: Promise.resolve({ userId: "u-1" }),
       }),
   ],
@@ -160,6 +168,15 @@ describe("what the admin screens filter on", () => {
     }
     expect(path).not.toContain("search");
     expect(path).not.toContain("status");
+  });
+
+  it("forwards the drawer's detail read under the user it names", async () => {
+    await userDetail(request("http://localhost:3000/api/admin/users/u%201/detail"), {
+      params: Promise.resolve({ userId: "u 1" }),
+    });
+
+    // Encoded, like every other route here: an id is somebody else's input.
+    expect(forwarded()).toBe("/api/v1/admin/users/u%201/detail");
   });
 
   it("carries every user-list filter, sort included", async () => {
