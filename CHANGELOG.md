@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.288] - 2026-08-27
+
+### Changed
+
+- **One `{date, likes, dislikes}` day-point instead of four declarations feeding
+  one chart.** `RatingsByDay`, an inline array inside the conversation summary and
+  the chart's own `RatingsPoint` all described the same shape, so adding a field to
+  one left the others silently unchanged. `RatingsByDay` is the single day-point
+  now - the chart prop, its wrapper and the admin summary all reference it - and
+  `RatingsPoint` is deleted. The admin summary response is renamed to
+  `AdminRatingsSummary`, so it no longer differs from `RatingsSummary` by a single
+  trailing `s`, which is trivially confused on import. Pure type consolidation, no
+  behaviour change. (#559)
+
 ## [0.0.287] - 2026-08-27
 
 ### Fixed
