@@ -17,6 +17,42 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.312] - 2026-08-27
+
+### Added
+
+- **The admin user drawer answers the question it is opened for.** It showed four
+  facts - the id, the email already in the table, the display name and a join date -
+  and offered four buttons, three of them rendered identically. **Where this person
+  has access was entirely absent**, though it is the answer the drawer exists to
+  give: an account with no membership anywhere is a different decision from one that
+  owns two organizations. It now carries the organizations and the role in each,
+  linked; when they were last here, with `last_seen_at` **null rather than blank**
+  for an account that has never signed in, because *created and never used* and
+  *dormant since March* are different decisions; and how many sessions are open with
+  when the newest began. All from one route rather than fields on the user, because
+  it is a view over three tables that a user is read in a dozen places without.
+  (#942)
+- **The actions are weighted by consequence.** All four used to be the same outline
+  button in one row - the two most consequential looking exactly like the least, and
+  two of them firing on a single click. Impersonate is the everyday one and stays
+  plain; suspend is confirmed, saying they are signed out immediately; promote and
+  demote are confirmed, naming what it grants - every permission in every
+  organization on the deployment, including ones they are not a member of; delete
+  stays last and apart. **Reactivate is deliberately not confirmed**: it is the
+  recoverable direction, and a question about undoing a refusal is a question about
+  nothing. (#942)
+- The conversations are links now - opening one is the thing an admin would do with
+  that list and the one thing it did not offer - and the two new blocks keep the
+  three states the conversations list already got right, with the failures saying
+  *different* sentences: a 502 on the memberships and an account in no organization
+  are not the same thing. Revoking a session is deliberately out of scope: it needs
+  a route with its own audit entry, which is a different thread. (#942, #941, #943)
+- The last-seen figure does not yet hold its own claim and is filed: both figures
+  are read with `active_only=True`, so a user who has signed out has no active
+  session rows and reads as "Never signed in" - the very case the field exists to
+  separate from *created and never used*. (#1256)
+
 ## [0.0.311] - 2026-08-27
 
 ### Added
