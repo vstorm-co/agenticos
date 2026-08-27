@@ -8,7 +8,13 @@ import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { setUrlParam } from "@/lib/utils";
-import { useAgentSelectionStore, useAuthStore, useConversationStore, useChatStore } from "@/stores";
+import {
+  useAgentSelectionStore,
+  useAuthStore,
+  useConversationStore,
+  useChatStore,
+  useOrgStore,
+} from "@/stores";
 import type {
   Conversation,
   ConversationCost,
@@ -439,22 +445,30 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       // would roll back *their* cached row and show them the previous
       // account's error.
       const startedAs = useAuthStore.getState().user?.id;
+      // The organization too, for the same reason and one layer down:
+      // `apiClient` stamps `X-Organization-Id` from the store when the request
+      // is *sent*, so a click queued across a switch would be refused for a
+      // conversation in the tenant it was made in - leaving the server on the
+      // previous click's answer with nothing on screen saying so.
+      const startedIn = useOrgStore.getState().activeOrgId;
       patchFavourite(id, favourite);
       const chains = favouriteChains;
       let sent = false;
+      const stillHere = () =>
+        stillSameAccount(startedAs) && useOrgStore.getState().activeOrgId === startedIn;
       const send = async (): Promise<void> => {
         // Checked here as well as after, and this is the half that matters: a
         // click queued behind a slow request is sent with whatever cookies the
         // browser holds when its turn comes, so waiting out a sign-out would
         // have A's queued star land as B's on a thread they both can read. The
         // checks after the call only protect the cache.
-        if (!stillSameAccount(startedAs)) return;
+        if (!stillHere()) return;
         try {
           if (favourite) await apiClient.post(`/conversations/${id}/favourite`, {});
           else await apiClient.delete(`/conversations/${id}/favourite`);
           sent = true;
         } catch (err) {
-          if (!stillSameAccount(startedAs)) return;
+          if (!stillHere()) return;
           // Only the newest click owns the row's displayed state; rolling back
           // from an older one would undo a star the reader has since set.
           if (chains.get(id) === mine) patchFavourite(id, !favourite);
@@ -466,11 +480,16 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       const mine = (chains.get(id) ?? Promise.resolve()).then(send);
       chains.set(id, mine);
       await mine;
-      if (chains.get(id) === mine) chains.delete(id);
+      // Only the newest click refetches. A superseded one would answer with the
+      // state its own request left behind - the server's star, while the reader
+      // has since unstarred it - and patch that over the newer optimistic row.
+      // The click that supersedes it invalidates when its own write lands.
+      const newest = chains.get(id) === mine;
+      if (newest) chains.delete(id);
       // Outside the chain: what has to be serialized is the write, and holding
       // the next click behind a refetch of the lists means a slow GET can leave
       // an unstar optimistic while the server keeps the star indefinitely.
-      if (!sent || !stillSameAccount(startedAs)) return;
+      if (!sent || !newest || !stillHere()) return;
       // The band is an ordering the server applies, so the list is refetched to
       // move the row - the star itself is already right on screen.
       await invalidateLists();

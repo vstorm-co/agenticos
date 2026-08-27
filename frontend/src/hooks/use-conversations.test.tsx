@@ -6,7 +6,13 @@ import { toast } from "sonner";
 
 import { useConversations, type ConversationQuery } from "./use-conversations";
 import { apiClient } from "@/lib/api-client";
-import { useAgentSelectionStore, useAuthStore, useChatStore, useConversationStore } from "@/stores";
+import {
+  useAgentSelectionStore,
+  useAuthStore,
+  useChatStore,
+  useConversationStore,
+  useOrgStore,
+} from "@/stores";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -58,6 +64,7 @@ beforeEach(() => {
   useConversationStore.getState().reset();
   useChatStore.setState({ messages: [], isStreaming: false });
   useAgentSelectionStore.setState({ selectedAgentId: null, defaultAgentId: null });
+  useOrgStore.setState({ activeOrgId: null });
   serve();
   vi.mocked(apiClient.post).mockResolvedValue(conversation("c-new"));
   vi.mocked(apiClient.patch).mockResolvedValue({});
@@ -1018,6 +1025,79 @@ describe("starring a conversation", () => {
     await waitFor(() =>
       expect(apiClient.delete).toHaveBeenCalledWith("/conversations/c-1/favourite"),
     );
+  });
+
+  it("drops a queued click when the organization changed while it waited", async () => {
+    // `apiClient` stamps `X-Organization-Id` from the store when the request is
+    // sent, so a click queued across a switch is refused for a conversation in
+    // the tenant it was made in - and the server keeps the previous click's
+    // answer with nothing on screen saying so.
+    useOrgStore.setState({ activeOrgId: "org-a" });
+    const result = await hook();
+    let settle: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+
+    act(() => {
+      void result.current.setFavourite("c-1", true);
+      void result.current.setFavourite("c-1", false);
+    });
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+
+    act(() => {
+      useOrgStore.setState({ activeOrgId: "org-b" });
+    });
+    await act(async () => {
+      settle({});
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(apiClient.delete).not.toHaveBeenCalled();
+  });
+
+  it("leaves the refetch to the newest click", async () => {
+    // A superseded click would answer with the state its own request left
+    // behind - the server's star, while the reader has since unstarred it - and
+    // patch that over the newer row.
+    const result = await hook();
+    let settle: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+    let release: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.delete).mockReturnValue(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+
+    act(() => {
+      void result.current.setFavourite("c-1", true);
+      void result.current.setFavourite("c-1", false);
+    });
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    const before = vi.mocked(apiClient.get).mock.calls.length;
+
+    await act(async () => {
+      settle({});
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // The POST answered and was superseded, so it refetched nothing; the DELETE
+    // that replaced it will, once it lands.
+    expect(vi.mocked(apiClient.get).mock.calls.length).toBe(before);
+    expect(result.current.conversations.find((c) => c.id === "c-1")?.is_favourite).toBe(false);
+    await act(async () => {
+      release({});
+      await Promise.resolve();
+    });
   });
 
   it("puts the star back when the request is refused", async () => {
