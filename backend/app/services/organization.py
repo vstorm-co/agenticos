@@ -16,7 +16,12 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, OrgRoleName, Perm, role_has
 from app.db.locks import LockScope, hold_subject
 from app.db.models.organization import Organization, OrganizationMember, OrgRole
-from app.repositories import knowledge_base_repo, member_repo, organization_repo
+from app.repositories import (
+    knowledge_base_repo,
+    member_repo,
+    organization_repo,
+    rag_document_repo,
+)
 from app.schemas.organization import (
     OrganizationCreate,
     OrganizationList,
@@ -313,17 +318,67 @@ class OrganizationService:
         `ON DELETE SET NULL`, and nulling an org-scoped row violates
         `ck_knowledge_bases_org_scope_has_org` (#9). Personal collections that
         merely carry this org's id are left to the `SET NULL`.
+
+        FOR UPDATE first: listing the collections and then deleting the org is
+        check-then-act, so an org-scoped collection inserted concurrently (it
+        takes FOR KEY SHARE on this row) would slip in between the list and the
+        DELETE, be nulled by the `SET NULL`, and violate the same CHECK. The lock
+        makes that insert wait, so the list sees every collection there is - a
+        fresh read under READ COMMITTED (#1115).
+
+        Each collection's documents (rows and stored uploads) go before its
+        identifiers do: `rag_documents` authorization keys on `collection_name`,
+        so a row left behind is readable by a later collection permitted the same
+        name (#1116). Deleting by `knowledge_base_id` scopes this to the KB being
+        torn down; a doc row that shares the name but carries no KB link, and the
+        vectors that stay in a shared table kept below, are #913 residuals this
+        cannot reach without a tenant column to filter on.
+
+        The physical vector table is dropped last, and only when no other
+        knowledge base still backs onto it - `collection_name` is not
+        tenant-unique (#913), so two organizations can share one table and
+        dropping it for one would destroy the other's vectors. Dropping last means
+        a failure among the relational deletes aborts before any table is gone.
+        The drops and the file unlinks are the residual this does not close: they
+        commit / unlink outside the request transaction, so if the final request
+        commit fails after them, the rows come back pointing at vectors and
+        uploads already gone. A retry-safe post-commit cleanup would close that
+        window (#1137).
         """
+        await organization_repo.get_by_id_for_update(self.db, org.id)
+        collections: list[str] = []
         for kb in await knowledge_base_repo.list_org_scoped(self.db, org.id):
-            if self._vector_store is not None:
-                # Best-effort, and only against the database: a zero-document
-                # collection has no table yet, which is a `SQLAlchemyError`, not a
-                # reason to abandon the deletion. Mirrors the `drop_collection`
-                # route.
-                with contextlib.suppress(SQLAlchemyError):
-                    await self._vector_store.delete_collection(kb.collection_name)
+            await self._purge_documents(kb.id)
+            collections.append(kb.collection_name)
             await knowledge_base_repo.delete(self.db, kb.id)
         await organization_repo.delete(self.db, org)
+
+        if self._vector_store is not None:
+            for collection in dict.fromkeys(collections):
+                if await self._collection_still_referenced(collection):
+                    continue
+                # Best-effort, and only against the database: a zero-document
+                # collection has no table yet, which is a `SQLAlchemyError`, not a
+                # reason to abandon the deletion. Mirrors the `drop_collection` route.
+                with contextlib.suppress(SQLAlchemyError):
+                    await self._vector_store.delete_collection(collection)
+
+    async def _purge_documents(self, kb_id: UUID) -> None:
+        """Delete a knowledge base's tracked documents and their stored files."""
+        storage = get_file_storage()
+        for storage_path in await rag_document_repo.delete_by_knowledge_base(self.db, kb_id):
+            with contextlib.suppress(Exception):
+                await storage.delete(storage_path)
+
+    async def _collection_still_referenced(self, collection_name: str) -> bool:
+        """Whether another knowledge base still backs onto this collection's table.
+
+        Read after the org's own rows are deleted (and flushed), so it counts only
+        knowledge bases outside this teardown - a table one of them shares must
+        not be dropped (#1116, #913).
+        """
+        others = await knowledge_base_repo.list_by_collection_name(self.db, collection_name)
+        return len(others) > 0
 
     async def upload_avatar(
         self,

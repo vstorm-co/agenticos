@@ -1046,6 +1046,85 @@ async def latency_percentiles_ms(
     )
 
 
+@dataclass(frozen=True)
+class WindowAggregates:
+    """Every scalar the dashboard reads over one window, from one query."""
+
+    total: int
+    cost_usd: Decimal
+    distinct_users: int
+    p50_ms: float | None
+    p95_ms: float | None
+
+
+async def window_aggregates(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    start: datetime,
+    end: datetime,
+    where: RunFilter | None = None,
+) -> WindowAggregates:
+    """The five scalars over one window, in a single SELECT.
+
+    `count_runs`, `sum_cost_window`, `count_distinct_users` and
+    `latency_percentiles_ms` all read this window's exact same rows and WHERE, so
+    the dashboard asks for them once rather than four round trips. The count, sum
+    and distinct see every row in the window; the percentiles need no
+    `ended_at IS NOT NULL` of their own, because an unfinished run's duration is
+    null and `percentile_cont` ignores a null the way the standalone function's
+    explicit filter did - the same distribution, one query.
+    """
+    conditions = _window_conditions(
+        organization_id=organization_id, start=start, end=end, where=where
+    )
+    duration_ms = func.extract("epoch", AgentRun.ended_at - AgentRun.started_at) * 1000
+    result = await db.execute(
+        select(
+            func.count(AgentRun.id),
+            func.coalesce(func.sum(AgentRun.cost_usd), 0),
+            func.count(func.distinct(AgentRun.user_id)),
+            func.percentile_cont(0.5).within_group(duration_ms),
+            func.percentile_cont(0.95).within_group(duration_ms),
+        ).where(*conditions)
+    )
+    total, cost, distinct_users, p50, p95 = result.one()
+    return WindowAggregates(
+        total=int(total or 0),
+        cost_usd=Decimal(cost or 0),
+        distinct_users=int(distinct_users or 0),
+        p50_ms=float(p50) if p50 is not None else None,
+        p95_ms=float(p95) if p95 is not None else None,
+    )
+
+
+async def window_totals(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    start: datetime,
+    end: datetime,
+    where: RunFilter | None = None,
+) -> tuple[int, Decimal]:
+    """The count and cost of a window, in one SELECT and nothing more.
+
+    The previous window is a delta against the current one - it reports only how
+    many runs and how much they cost - so it does not pay for
+    `window_aggregates`' distinct-user count or its two ordered-set percentiles,
+    which make PostgreSQL sort the window's durations for numbers nobody reads.
+    """
+    conditions = _window_conditions(
+        organization_id=organization_id, start=start, end=end, where=where
+    )
+    result = await db.execute(
+        select(func.count(AgentRun.id), func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
+            *conditions
+        )
+    )
+    total, cost = result.one()
+    return int(total or 0), Decimal(cost or 0)
+
+
 async def runs_by_day(
     db: AsyncSession,
     *,

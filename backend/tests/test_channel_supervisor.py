@@ -10,7 +10,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.services.channels.supervisor import close_inbound_stream, open_inbound_stream
+from app.services.channels.supervisor import (
+    allow_intake,
+    begin_shutdown,
+    close_inbound_stream,
+    open_inbound_stream,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -94,3 +99,39 @@ class TestClosing:
         deleted and a background task failing about it."""
         with patch("app.services.channels.supervisor.get_adapter", side_effect=KeyError("discord")):
             await close_inbound_stream(bot_id="b-1", platform="discord")
+
+
+class TestShutdown:
+    """A stream deferred just before shutdown must not reopen intake at exit (#1119).
+
+    The `_shutting_down` flag is a process global; `tests/conftest.py` resets it
+    after every test, so a `begin_shutdown()` here does not leak.
+    """
+
+    async def test_a_late_open_declines_to_reopen_intake_while_shutting_down(self):
+        begin_shutdown()
+        adapter = _adapter()
+        with patch("app.services.channels.supervisor.get_adapter", return_value=adapter) as get:
+            await open_inbound_stream(bot_id="b-1", platform="telegram", token="tok")
+
+        get.assert_not_called()
+        adapter.start_polling.assert_not_awaited()
+
+    async def test_a_shutdown_during_stop_polling_still_declines_to_reopen(self):
+        """The flag can flip while the open is suspended at stop_polling, so it is
+        re-checked before start_polling - a task parked there does not reopen."""
+        adapter = _adapter()
+        adapter.stop_polling = AsyncMock(side_effect=lambda *_: begin_shutdown())
+        with patch("app.services.channels.supervisor.get_adapter", return_value=adapter):
+            await open_inbound_stream(bot_id="b-1", platform="telegram", token="tok")
+
+        adapter.start_polling.assert_not_awaited()
+
+    async def test_intake_reopens_once_a_fresh_lifespan_permits_it(self):
+        begin_shutdown()
+        allow_intake()
+        adapter = _adapter()
+        with patch("app.services.channels.supervisor.get_adapter", return_value=adapter):
+            await open_inbound_stream(bot_id="b-1", platform="telegram", token="tok")
+
+        adapter.start_polling.assert_awaited_once()

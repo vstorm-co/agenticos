@@ -77,7 +77,27 @@ class UserService:
         return await user_repo.get_multi(self.db, skip=skip, limit=limit)
 
     async def delete_non_admins(self) -> int:
-        return await user_repo.delete_non_admins(self.db)
+        """Delete every non-admin user, reconciling each as single deletion does.
+
+        Not a bulk `DELETE users`: every account has a personal org whose
+        `created_by_user_id` FK is RESTRICT, so a bulk delete 500s on the first
+        row (#1124). Each goes through `delete`, which runs `_release_owned_rows`
+        - purging the personal org, promoting private secrets, handing off or
+        refusing owned orgs - the same reconciliation `DELETE /users/{id}` uses.
+
+        `is_app_admin` is rechecked under the row lock, not just filtered by the
+        list: a `create-app-admin` that promotes a listed account before this loop
+        reaches it would otherwise have it deleted despite the command's promise
+        to keep admins, since `delete` does not re-read the flag (#1139).
+        """
+        removed = 0
+        for candidate in await user_repo.list_non_admins(self.db):
+            locked = await user_repo.get_by_id_for_update(self.db, candidate.id)
+            if locked is None or locked.is_app_admin:
+                continue
+            await self.delete(candidate.id)
+            removed += 1
+        return removed
 
     async def has_any(self) -> bool:
         return await user_repo.has_any(self.db)
@@ -308,7 +328,13 @@ class UserService:
         return str(full_path) if full_path is not None else None
 
     async def delete(self, user_id: UUID) -> User:
-        user = await user_repo.get_by_id(self.db, user_id)
+        # FOR UPDATE before the reconcile: releasing the rows that would block the
+        # delete and then deleting is check-then-act, so a private secret or
+        # personal org inserted concurrently (both take FOR KEY SHARE on this row)
+        # would land a fresh CHECK/RESTRICT blocker between the reconcile and the
+        # DELETE and 500 it. The lock makes that insert wait, so the reconcile
+        # sees every child there is - a fresh read under READ COMMITTED (#1115).
+        user = await user_repo.get_by_id_for_update(self.db, user_id)
         if not user:
             raise NotFoundError(
                 message="User not found",
@@ -326,11 +352,18 @@ class UserService:
         secret; every signup creates a personal org, and `created_by_user_id` is
         `RESTRICT`. Each is resolved here in the request's own transaction, before
         the row goes.
+
+        A fourth case is not a 500 but a silent orphan: a user who is the sole
+        Owner of an org they did *not* create takes its last owner membership with
+        them (`ON DELETE CASCADE`), leaving nobody who can manage it. That is
+        refused here too (#1117).
         """
         await organization_secret_repo.promote_owned_private_to_org(self.db, owner_user_id=user_id)
 
         org_service = OrganizationService(self.db)
+        handled: set[UUID] = set()
         for org in await organization_repo.list_created_by(self.db, user_id):
+            handled.add(org.id)
             if org.is_personal:
                 await org_service.purge(org)
                 continue
@@ -344,6 +377,24 @@ class UserService:
                     details={"user_id": user_id, "organization_id": org.id},
                 )
             await organization_repo.reassign_creator(self.db, org=org, new_creator_id=heir)
+
+        # Ownership moves without the creator FK, so a user can be the sole Owner
+        # of an org they did not create - one `list_created_by` never returns.
+        # Deleting them cascades that last owner membership away and leaves the
+        # org ownerless: no 500, but nobody can manage it through the owner-gated
+        # APIs (#1117). Refuse, unless another owner is there to keep it.
+        for org in await organization_repo.list_owned_by(self.db, user_id):
+            if org.id in handled:
+                continue
+            other_owner = await member_repo.other_owner_id(
+                self.db, organization_id=org.id, exclude_user_id=user_id
+            )
+            if other_owner is None:
+                raise BadRequestError(
+                    message="Cannot delete the sole owner of a shared organization; "
+                    "transfer ownership or delete the organization first",
+                    details={"user_id": user_id, "organization_id": org.id},
+                )
 
     async def admin_update(
         self, user_id: UUID, user_in: UserUpdate, *, acting_admin_id: UUID

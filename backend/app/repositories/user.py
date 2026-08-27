@@ -3,7 +3,6 @@
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import delete as sql_delete
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +14,12 @@ from app.repositories._search import contains_ci
 async def get_by_id(db: AsyncSession, user_id: UUID) -> User | None:
     """Get user by ID."""
     return await db.get(User, user_id)
+
+
+async def get_by_id_for_update(db: AsyncSession, user_id: UUID) -> User | None:
+    """Fetch a user row and acquire a SELECT FOR UPDATE lock."""
+    result = await db.execute(select(User).where(User.id == user_id).with_for_update())
+    return result.scalar_one_or_none()
 
 
 async def get_by_email(db: AsyncSession, email: str) -> User | None:
@@ -116,19 +121,20 @@ async def delete(db: AsyncSession, user_id: UUID) -> User | None:
     return user
 
 
-async def delete_non_admins(db: AsyncSession) -> int:
-    """Bulk-delete every user who does not administer the deployment.
+async def list_non_admins(db: AsyncSession) -> list[User]:
+    """Every user who does not administer the deployment.
 
-    Used by `agenticos cmd seed --clear`. Keyed on `is_app_admin` because that is
-    the only privilege left on a user row - the `role` column this used to read
-    was dropped in migration `0066`, so the old predicate raised
-    `AttributeError` before deleting anything.
+    Keyed on `is_app_admin` because that is the only privilege left on a user row
+    - the `role` column this used to read was dropped in migration `0066`.
 
-    Returns the number of rows removed.
+    Returned rather than bulk-deleted so `UserService.delete_non_admins` can
+    remove them one at a time through the single-row `delete`, which reconciles
+    each user's personal org and owned rows first: a bulk `DELETE users` 500s on
+    the personal-org `created_by_user_id` RESTRICT FK every seeded account has
+    (#1124).
     """
-    result = await db.execute(sql_delete(User).where(User.is_app_admin.is_(False)))
-    await db.flush()
-    return result.rowcount  # ty: ignore[unresolved-attribute]
+    result = await db.execute(select(User).where(User.is_app_admin.is_(False)))
+    return list(result.scalars().all())
 
 
 async def has_any(db: AsyncSession) -> bool:

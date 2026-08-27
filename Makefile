@@ -285,7 +285,7 @@ deps-upgrade-all:
 # the guard scripts, while CI additionally ran eslint, prettier and tsc - so
 # `make lint` passed on a branch with a type error in a `.tsx`, and CLAUDE.md's
 # "ruff + ty + eslint + tsc" described a command that ran half of that.
-lint: lint-backend lint-frontend lint-spelling
+lint: lint-backend lint-frontend lint-spelling lint-precommit
 
 # `ruff check .` from `backend/` reads every tracked tree there - app, tests, cli
 # and alembic - rather than the three named paths it used to, which left the nine
@@ -356,6 +356,24 @@ lint-frontend:
 # git tree inside `backend/`.
 lint-spelling:
 	uv run --project backend pre-commit run codespell --all-files
+
+# The pre-commit-hooks basics, yamlfmt and zizmor over the whole tree rather than
+# the files a commit touches. Those hooks are per-file by nature, so nothing had
+# ever read the tree with them: a rev bump brings a new zizmor rule, every
+# workflow now violates it, and nobody notices until an unrelated one-line edit to
+# a workflow is refused by a finding that has nothing to do with the change (#203,
+# the shape of #188 one tool over).
+#
+# SKIP drops the hooks another target already gates over the tree - codespell is
+# `lint-spelling`, the ruff/ty/vulture/guard/prettier/eslint/tsc/i18n hooks are
+# `lint-backend`/`lint-frontend` - so this neither doubles their time nor lets a
+# fixer (ruff --fix, prettier --write) rewrite a file mid-check. `no-commit-to-branch`
+# fails by design when CI checks out `main`, so it goes too. A fixer that does run
+# (end-of-file-fixer, yamlfmt) reports rather than commits: pre-commit exits
+# non-zero on a modification, which is the failure CI needs.
+lint-precommit:
+	SKIP=no-commit-to-branch,codespell,ruff-format,ruff-check,ty,vulture,check-routes,check-comments,check-backticks,prettier,eslint,tsc,check-i18n \
+		uv run --project backend pre-commit run --all-files
 
 # The write side of both halves. `lint-frontend` checks prettier rather than
 # applying it, so without the second line here the only way to fix a formatting
@@ -734,6 +752,7 @@ help:
 	@echo "  make lint-backend  Just the Python half"
 	@echo "  make lint-frontend Just the TypeScript half"
 	@echo "  make lint-spelling Just codespell, over every tracked file"
+	@echo "  make lint-precommit yamlfmt, zizmor and the pre-commit basics, over every tracked file"
 	@echo "  make format        Auto-format code (ruff + prettier)"
 	@echo "  make check         Every CI job except e2e - before opening a pull request"
 	@echo ""

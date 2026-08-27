@@ -8,7 +8,7 @@ import { listSyncSources } from "@/lib/rag-api";
 import { useOrgStore } from "@/stores";
 import type { UsagePeriod } from "./use-usage-stats";
 import type { AdminStats, SystemHealth } from "@/types/admin";
-import type { Conversation, RatingSummary } from "@/types/conversation";
+import type { AdminRatingsSummary, Conversation } from "@/types/conversation";
 import type { AgentRunList } from "@/types/runs";
 
 /** Failed or out-of-budget runs, newest first - the recent-failures card. */
@@ -123,7 +123,7 @@ export function useAdminRatingsSummary(period: UsagePeriod, options?: { enabled?
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.admin.ratings({ from: period.from, to: period.to }),
     queryFn: () =>
-      apiClient.get<RatingSummary>("/admin/ratings/summary", {
+      apiClient.get<AdminRatingsSummary>("/admin/ratings/summary", {
         params: { from: period.from, to: period.to },
       }),
     enabled: options?.enabled ?? true,

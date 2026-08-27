@@ -17,6 +17,367 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.302] - 2026-08-27
+
+### Fixed
+
+- **No dashboard page had any room under it**, though `main` declared the padding.
+  The reason is `DeploymentGate`, which wraps every page in a flex box that does
+  not grow with its content - so a long page overflows it and `main`'s padding
+  edge stays where the shorter box ended, buried mid-content. Measured against the
+  app's own stylesheet on a transcription of the real chain: 0px with the gate
+  wrapper in place, 80px and 64px without it. The room moves onto
+  `PageTransition`'s unconstrained branch, which does grow with its content, and
+  lands after the last element in both engines. The constrained branch keeps none,
+  because chat's composer belongs on the bottom edge and room beneath a fixed
+  control is a gap under it. (#933)
+- **The mobile figure counts the safe-area inset** rather than assuming it away:
+  `viewportFit: "cover"` makes it 34px on a modern iPhone, and the tab bar is 56px
+  plus that, so a flat 80px left the last ten pixels of every page under the bar.
+  Four surfaces carried their own workaround at three different values - which is
+  why nobody noticed the layout's own declaration was inert - and all four are
+  gone. The regression test reads the *pages*, not the wrapper: asserting that
+  `PageTransition` carries the padding would not catch a fifth surface re-adding
+  its own, which is the regression that actually happened. (#933)
+- One screen is left behind and filed rather than folded in: `DeploymentGate`
+  returns the maintenance notice directly and never reaches `PageTransition`, so
+  it has no clearance - as it had none before, since the declaration it would have
+  inherited was the inert one. (#1241)
+
+## [0.0.301] - 2026-08-27
+
+### Fixed
+
+- **A frontend spec issued a real HTTP request, so its result depended on what was
+  listening on port 8000.** `RootLayout` awaits `readBranding()`, which fetches
+  against the backend, and `layout.test.tsx` mocked the translator, the font and
+  the stylesheet but not that read. With nothing listening the connection is
+  refused and the branding falls back, so the spec passed - which is CI, and why
+  the suite had been green. With a healthy backend it also passed. But against a
+  port that accepts and never answers, the fetch never settles and both cases die
+  on the 15-second deadline - and a crash-looping backend container does exactly
+  that, because Docker publishes the port and its proxy accepts the connection
+  while nothing inside is listening. One more mock, alongside the three already
+  there: 30.5s and two failures becomes 0.63s and two passes. (#1075)
+- Not fixed, and noted on the issue: `readBranding` swallows every failure into
+  the built-in branding plus a warning, so a page rendered with defaults because
+  the backend was unreachable is indistinguishable from one told to use defaults.
+  (#1075)
+
+## [0.0.300] - 2026-08-27
+
+### Fixed
+
+- **Six of a usage window's scalars were six serial round trips for numbers one
+  SELECT answers.** `StatsService.usage` ran fifteen aggregates one after another,
+  and six of them are scalars over one window with the same WHERE - the count and
+  cost of the window and of the window before it, the distinct-user count, and the
+  two latency percentiles. `window_aggregates` reads all five in one query and
+  `usage` calls it once per window, so six scalar round trips become two. The
+  percentiles need no `ended_at IS NOT NULL` of their own there: an unfinished
+  run's duration is null, and `percentile_cont` ignores a null exactly as the
+  standalone filter did. (#949)
+- The GROUP BY aggregates stay their own queries. Each groups differently, so they
+  cannot fold into one SELECT, and running them concurrently would need a
+  connection each - an `AsyncSession` is one connection and serialises. (#949)
+
+## [0.0.299] - 2026-08-27
+
+### Fixed
+
+- **The BFF proxy read every request and response body fully into memory before
+  forwarding either.** `MAX_UPLOAD_SIZE_MB` is 50 and the knowledge-base path
+  allows it, so a 50 MB document was held whole in the Node process before one
+  byte reached the backend - ten concurrent uploads is 500 MB of heap, and the
+  container's memory limit decides what happens next. In the other direction a
+  workspace file, a document or a run export gave the browser nothing until the
+  last byte had reached the proxy, so time-to-first-byte was the whole transfer
+  and a large export read as a hung page. Both directions stream now, with
+  `duplex: "half"` for the outbound body as undici requires. Bytes stay bytes, so
+  a multipart boundary and a PDF survive the hop, a 204 still carries a null body,
+  and an error body still reaches the client verbatim. (#951)
+
+## [0.0.298] - 2026-08-27
+
+### Fixed
+
+- **Every agent run began with one query per bound collection.**
+  `_collection_names` runs inside `prepare`, so an agent bound to five knowledge
+  bases added five serial round trips to the front of every turn - before the
+  model was called, to read rows very likely already in the session's identity
+  map. `get_by_ids` reads them in one `WHERE id IN (...)`, and the resolution
+  iterates the returned map. The tenant check and the degradation it exists for -
+  a collection gone or foreign narrows the agent's reach rather than failing the
+  run - are unchanged: they read from a dict instead of awaiting a query each, and
+  an id with no row is simply absent from the map. (#954)
+- The finding names six id-resolving loops as one habit; this is the only one on a
+  per-run path. The other five are publish-time or admin-path, where N is small
+  and the cost is invisible, and their line references predate a since-moved file,
+  so they want re-locating rather than a blind change. (#954)
+
+## [0.0.297] - 2026-08-27
+
+### Added
+
+- **The Builder speaks Polish.** `pl.json` held no `agents` namespace at all - 0 of
+  563 keys - so the whole Builder rendered in English under `/pl`, the largest
+  single gap in the catalog. All 563 are translated as one namespace rather than
+  piecemeal, because a namespace is the unit a person reads and seventy Polish
+  strings among four hundred English ones reads worse than a consistently English
+  panel. The product's own nouns stay English and are inflected into Polish
+  grammar - agent, spec, capability, skill, embed, budget, run, prompt, provider,
+  token, vault, workspace, sandbox, MCP - so a Polish reader meets the same words
+  the docs, the API and an exported YAML use; `secret` follows the convention
+  already in the file and becomes `sekret`. Counts are ICU `plural` with Polish's
+  `few` and `many` arms rather than ternaries, with any noun the number agrees
+  with inside the plural, and every interpolation and `t.rich` tag is preserved.
+  (#643)
+
+## [0.0.296] - 2026-08-27
+
+### Changed
+
+- **The two sessions BFF routes hand-rolled the forwarder block** - read the
+  cookie or 401, set the bearer, map the error, answer JSON - which is what
+  `platformProxy()` already does, *plus* the active-organization header, byte-
+  accurate bodies and the `no-store` those hand-rolled copies drop (#546, #553,
+  #106). Both are a `sessions/[[...path]]` mount now, the same shape `kb` and
+  `rag` use, and the query handling and id escaping they did by hand are the
+  proxy's passthrough. No endpoint behaviour changed. (#564)
+- The remaining clusters are deliberately left, each with a blocker on the issue
+  rather than a mechanical swap: `orgs/**` keeps a binary avatar route that cannot
+  coexist with an optional catch-all, and the header the proxy adds is a behaviour
+  change wanting an end-to-end check; `admin/**` carries a frontend admin gate
+  rather than a plain cookie read; and the MCP OAuth callback redirects rather than
+  forwards. (#564)
+
+## [0.0.295] - 2026-08-27
+
+### Changed
+
+- **Four transport blocks were copied across the three channel adapters**, so a
+  change to any had to be made at six to ten sites by hand and a fourth channel
+  would copy them all again. `split_thread` replaces the partition-and-unpack at
+  three Mattermost and three Slack sites, and `channel_key` calls it too, so "which
+  channel is this" has one implementation. `SlackAdapter._web` holds the lazy
+  client import and construction that nine sites repeated - including a dynamic
+  import in the Socket Mode path - with the import still deferred, so a deployment
+  running no Slack bot does not pay for the SDK. `TelegramAdapter._bot` is an async
+  context manager wrapping the bot and the `try/finally` close that **ten** methods
+  repeated, each of them a TLS session leaked if the close was forgotten. And the
+  Mattermost client and bearer header, repeated at ten sites each, now have one
+  definition apiece, so the timeout and the auth shape do too. (#565, #547)
+
+## [0.0.294] - 2026-08-27
+
+### Changed
+
+- **Both run surfaces turned a finished result into `(status, output, paused)`
+  with the same block, copied verbatim** - a `DeferredToolRequests` output builds
+  a `PausedRunState` and becomes `AWAITING_APPROVAL`, anything else is the
+  completed answer. That is the delicate half: a new `PausedRunState` field, or a
+  change to how a park is recorded, had to move in lockstep across two files. It
+  is `_classify_output` now, beside `_outcome`, which `agent_chat` already imports
+  from there. The **exception paths stay with each surface**, because they
+  genuinely differ - the chat runner re-raises `BudgetExceeded` and
+  `GuardrailBlocked` so the waiting visitor is told why, while the batch runner
+  records and moves on - so extracting those would have been a behaviour change.
+  (#567)
+
+## [0.0.293] - 2026-08-27
+
+### Fixed
+
+- **A unit word anywhere in a string exempted the whole sentence from the i18n
+  sweep.** `NOT_A_SENTENCE`'s unit alternative had `.*` on both sides, so
+  "Use rem instead of pixels for spacing", "Change the deg value before saving"
+  and "This px setting is wrong" all left the sweep untranslated - the same defect
+  as #656 and #678, and the widest of the three. It also never did its stated job:
+  a CSS measurement is written `12px`, and a word boundary before `px` needs one
+  between `2` and `p`, so `"Set the width to 12px"` was reported anyway. The
+  alternative caught the standalone token it was never written for and missed the
+  measurement it was. And it was dead in any case, because a phrase genuinely made
+  of units is already answered by `isFormatter`, which asks that *every* word be a
+  unit or an acronym rather than that one of them be. Deleted, with the docstring
+  now recording why there is no unit alternative so it is not re-added. (#741,
+  #656, #678)
+
+## [0.0.292] - 2026-08-27
+
+### Changed
+
+- **`parked_calls` compared statuses against raw strings** where every sibling in
+  the file uses `RunStatus` and `ApprovalStatus`. A raw literal is invisible to a
+  rename: change the enum member and the string silently stops matching, which on
+  this path means a parked run that no longer reads as parked. Both now go through
+  the enum, matching the resume path a few methods down; behaviour is identical,
+  since both are `StrEnum`. The skill repository's `update` and `update_resource`
+  take `dict[str, Any]` like every other repository's, rather than a bare `dict`.
+  (#545)
+- One item of the bag was **misdiagnosed and dropped rather than done**:
+  `InvitationCreate.email` was said to need the `max_length=255` its siblings
+  carry, against an over-length address reaching the column. It does not
+  reproduce - `EmailStr` enforces the RFC total length of 254, which is below the
+  column's 255, so a format-valid address can never exceed it and an over-length
+  one is refused with a clean 422 at the schema. Adding the constraint would have
+  been an untestable one, because no input reaches it. (#545)
+
+## [0.0.291] - 2026-08-27
+
+### Fixed
+
+- **The e2e job kept a screenshot of a flake and nothing else.**
+  `playwright.config.ts` set `trace` and `video` to `on-first-retry` while
+  `retries` is 0 - deliberately, so a real failure cannot go green on a second
+  attempt - and with no retry those never fire. The trace is the one artifact that
+  answers which locator it was waiting on and why, because it carries the DOM
+  timeline, the network log and the console, and it was missing from exactly the
+  runs that needed it. Both are `retain-on-failure` now, captured on the first and
+  only failure and kept for the failed test alone. The job already uploads the
+  report and the report embeds the trace, so no workflow change was needed. This
+  does not fix the flake - its cause is unknown until a failure is captured, which
+  is what this makes possible. (#162)
+
+## [0.0.290] - 2026-08-27
+
+### Added
+
+- **`make lint-precommit` reads the whole tree with the hooks that only ever read
+  a diff.** `yamlfmt`, `zizmor` and the `pre-commit-hooks` basics saw only the
+  files a commit touched, and no gate ever ran them over everything. That is fine
+  while the rules are fixed and stops being fine the moment Dependabot bumps a
+  `rev:`: a new `zizmor` rule makes every workflow in the tree violate it, nothing
+  notices because no commit has touched a workflow, and weeks later an unrelated
+  one-line edit is refused by a finding that has nothing to do with it - the shape
+  of #188, one tool over. `make lint-spelling` already solved exactly this for
+  codespell; this gives the rest the same treatment. (#203)
+- `SKIP` drops the hooks another target already gates over the tree, plus
+  `no-commit-to-branch`, which fails by design when CI checks out `main` - so
+  nothing is gated twice and no fixer rewrites a file mid-check. A fixer that does
+  run reports rather than commits, because pre-commit exits non-zero on a
+  modification, which is the failure CI needs. Wired into `lint` so `make check`
+  reaches it, and into CI's `lint` job, with `test_ci_parity.py` holding both
+  directions the way it already does for `lint-spelling`. (#203)
+
+## [0.0.289] - 2026-08-27
+
+### Fixed
+
+- **A rating cast in chat left the dashboard's summaries stale.** `rating-buttons`
+  hand-rolled two `fetch` calls with their own headers, `response.ok` handling and
+  error parsing - the shape `frontend.md` forbids - so the endpoints were invisible
+  to the query layer and nothing was invalidated until the next mount. Both go
+  through `src/lib/message-rating-api.ts` and `use-message-rating` now, whose
+  `onSuccess` invalidates the ratings and admin-ratings summary roots, and the two
+  duplicated error-parse blocks are one `getErrorMessage`. The chat's own thumb
+  counts still reconcile locally, because they live in the message store. Three
+  i18n keys the hand-rolled catches used are deleted with them. (#563)
+
+## [0.0.288] - 2026-08-27
+
+### Changed
+
+- **One `{date, likes, dislikes}` day-point instead of four declarations feeding
+  one chart.** `RatingsByDay`, an inline array inside the conversation summary and
+  the chart's own `RatingsPoint` all described the same shape, so adding a field to
+  one left the others silently unchanged. `RatingsByDay` is the single day-point
+  now - the chart prop, its wrapper and the admin summary all reference it - and
+  `RatingsPoint` is deleted. The admin summary response is renamed to
+  `AdminRatingsSummary`, so it no longer differs from `RatingsSummary` by a single
+  trailing `s`, which is trivially confused on import. Pure type consolidation, no
+  behaviour change. (#559)
+
+## [0.0.287] - 2026-08-27
+
+### Fixed
+
+- **A bot activated moments before shutdown reopened intake at exit.** It leaves a
+  committed, tracked `open_inbound_stream` task that may not have run yet: the
+  lifespan stops the adapter tasks that exist, then drains - and that task's final
+  step creates a new, *untracked* polling or socket task after the stop loops have
+  passed. The supervisor carries a shutting-down flag now; `open_inbound_stream`
+  declines to open when it is set, re-checked after `stop_polling` so a task
+  suspended there when shutdown begins cannot slip a reopen through either. The
+  lifespan sets it as the first shutdown statement, before the stop loops and the
+  drain, and clears it at startup so a following lifespan - a test, a reload -
+  serves again. The flag is the lifespan's alone, so the in-process drain the RAG
+  sync command issues while the server keeps serving never touches it and a
+  legitimate reopen still opens. (#1119, #1095)
+
+## [0.0.286] - 2026-08-27
+
+### Fixed
+
+- **`seed --clear` never worked on a seeded database.** It called a bulk
+  `DELETE FROM users WHERE is_app_admin = false`, and every seeded account has a
+  personal organization whose `created_by_user_id` is `ON DELETE RESTRICT` - so the
+  delete raised `ForeignKeyViolation` on the first row and the command 500'd. The
+  bulk path bypassed the reconciliation only the single-row delete runs.
+  `delete_non_admins` lists the non-admins and removes each through `delete` now, so
+  each personal organization is purged and each owned row reconciled first, on the
+  same path `DELETE /users/{id}` uses. One transaction, so a refusal - a non-admin
+  who solely owns a shared organization - rolls the whole clear back rather than
+  half-clearing. (#1124, #1117)
+
+## [0.0.285] - 2026-08-27
+
+### Fixed
+
+- **Deleting one organization dropped another tenant's vectors.**
+  `collection_name` is not tenant-unique (#913), so two organizations can back onto
+  one `rag_<name>` table, and the teardown dropped it unconditionally. The physical
+  table is dropped only when no other collection still references it, and last -
+  after the relational deletes flush, so a failure among them aborts before any
+  table is gone. (#1116, #9)
+- **Tracked documents outlived their collection and stayed reachable by name.**
+  `rag_documents` authorizes on `collection_name`, so a row outliving its knowledge
+  base was listable and downloadable by a later collection permitted the same name.
+  Each collection's document rows and their stored uploads are deleted before its
+  identifiers go, keyed on `knowledge_base_id` so a shared collection's co-tenant
+  rows are untouched. (#1116)
+- The residuals are documented on `purge` rather than left implied: the drop and
+  the file unlinks still commit outside the request transaction, and three
+  reachability residuals remain - a document with a null knowledge base sharing the
+  name, the deleted tenant's vectors inside a kept shared table, and a TOCTOU on the
+  reference check. All of them are rooted in the `collection_name` tenant-scoping of
+  #913. (#1137, #913)
+
+## [0.0.284] - 2026-08-27
+
+### Fixed
+
+- **Deleting a user could leave an organization with no owner at all.**
+  `UserService._release_owned_rows` reconciled only organizations the user
+  *created*, but ownership moves without the creator FK - after a transfer, or
+  after the creator is reassigned away - so a user can be the sole Owner of an
+  organization they did not create. The created-organizations listing never returns
+  it, so deleting that user cascaded their last owner membership away and left a
+  silent orphan nobody can manage through the owner-gated APIs. Not a 500 like the
+  #9 cases, which is what made it quiet. A second pass over the organizations where
+  the user holds an Owner membership refuses the delete when they are the sole
+  owner - the same refusal the created-organization path already raises - and does
+  nothing when another owner remains. (#1117, #9)
+
+## [0.0.283] - 2026-08-27
+
+### Fixed
+
+- **A concurrent insert reopened the exact 500 the delete reconciliation closed.**
+  Reconcile-then-delete is check-then-act, and with no row lock an org-scoped
+  collection inserted between the purge's collection list and its
+  `DELETE organizations` is SET NULL-ed into a
+  `ck_knowledge_bases_org_scope_has_org` violation - and a private secret or
+  personal organization inserted between a user delete's reconcile and its
+  `DELETE users` lands the same CHECK or RESTRICT blocker.
+  `OrganizationService.purge` and `UserService.delete` take
+  `SELECT ... FOR UPDATE` on the row they are about before enumerating: a
+  concurrent child insert takes `FOR KEY SHARE` on that parent through its FK,
+  which `FOR UPDATE` conflicts with, so the insert waits and the reconcile sees
+  every child on a fresh read under READ COMMITTED. (#1115, #9)
+- A rare deadlock when two users who co-own each other's shared organizations
+  self-delete simultaneously was found while reviewing this and filed rather than
+  folded in - Postgres aborts one with a 500. (#1134)
+
 ## [0.0.282] - 2026-08-27
 
 ### Fixed

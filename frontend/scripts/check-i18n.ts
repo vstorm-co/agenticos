@@ -156,8 +156,15 @@ const ENTITY = /&(?:[a-zA-Z]+|#\d+);/g;
  * the character class cannot see - `` `Bearer ${token}` `` holds no punctuation at all,
  * so it reads as a word, a space and an interpolation, which is exactly the prose shape
  * `isTemplateCopy` looks for.
+ *
+ * Unit words (`px`, `rem`, `deg`, `vh`, `vw`) are deliberately *not* here, and #741 is
+ * why: a `\b(?:px|rem|…)\b` alternative exempted any template that merely contained the
+ * word - `` `Use ${x} rem instead of pixels for spacing` `` - the same defect the
+ * string-literal path carried. A phrase genuinely made of units is answered by
+ * `isFormatter` below, which asks that *every* word be a unit or an acronym; a sentence
+ * with one unit word in it is prose and is reported.
  */
-const MACHINE_READ = /[/&=<>#]|\b(?:px|rem|deg|vh|vw|attachment|Bearer|Basic)\b/;
+const MACHINE_READ = /[/&=<>#]|\b(?:attachment|Bearer|Basic)\b/;
 /**
  * A unit, and the answer to the fourteen number-and-unit formatters #395 left open -
  * `` `${Math.round(bytes / 1024)} KiB` ``,
@@ -201,7 +208,16 @@ const UNITS = new Set([
 const MACHINE_WORD = /^[A-Z0-9_]+$/;
 /**
  * What `NOT_A_SENTENCE` keeps out of the string-literal rule: a label built from title
- * case around a separator, a short acronym label, a CSS measurement.
+ * case around a separator, and a short acronym label.
+ *
+ * A phrase made of units - `12px`, `{bytes} KiB` - is not a third alternative here:
+ * `isFormatter` answers it by asking that *every* word be a unit or an acronym. A
+ * `.*\b(?:px|rem|vh|vw|deg)\b` alternative once tried to, and did the opposite of its
+ * docstring (#741): `.*` on both sides exempted any sentence that merely contained a
+ * unit word ("Use rem instead of pixels for spacing"), while the `\bpx\b` boundary it
+ * needed never matched the `12px` it was written for - no boundary sits between a digit
+ * and a letter. It was the same defect as #656 and #678, and dead: deleting it left the
+ * whole-tree sweep clean.
  *
  * The separator joins *two capitalised tokens* - `Model / Provider`, `URL / Endpoint`,
  * `Agent - Settings`. Either token may be an acronym: the acronym alternative used to
@@ -221,7 +237,7 @@ const MACHINE_WORD = /^[A-Z0-9_]+$/;
  * through.
  */
 const NOT_A_SENTENCE =
-  /^(?:(?:[A-Z][a-z]+|[A-Z]{2,})(?:\s[A-Z][a-z]+)*\s?[-/]\s?[A-Z]|[A-Z]{2,}\s+[a-z][A-Za-z-]*$|.*\b(?:px|rem|vh|vw|deg)\b)/;
+  /^(?:(?:[A-Z][a-z]+|[A-Z]{2,})(?:\s[A-Z][a-z]+)*\s?[-/]\s?[A-Z]|[A-Z]{2,}\s+[a-z][A-Za-z-]*$)/;
 
 export interface Offence {
   line: number;
