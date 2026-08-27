@@ -85,10 +85,16 @@ than by what it is about.
 backend/tests/
 ├── conftest.py          # the shared fixtures, and the test database's name
 ├── test_*.py            # unit: one module, its dependencies mocked at the repository boundary
-├── api/                 # the app driven through `client`, one file per route module
+├── api/                 # the app driven through `client`, grouped by the question asked
 └── integration/
     └── conftest.py      # creates a database of its own, and drops it afterwards
 ```
+
+`tests/api/` is grouped by **what is being asked**, not by route module: some files
+take one endpoint (`test_admin_organizations_query.py`), and
+`test_platform_routes.py` walks every registered route at once, which is why
+`agents.py` has no file of its own. Look for the question before looking for the
+path.
 
 | Layer | Where | For |
 |---|---|---|
@@ -99,6 +105,14 @@ backend/tests/
 
 There is no `tests/unit/` directory: a unit test is a `test_*.py` at the top of
 `tests/`.
+
+**One exception, and it is at the top level rather than in `integration/`.**
+`tests/test_migrations.py` cycles the whole Alembic chain against a real database,
+which it creates and drops itself under a name of its own - because
+`downgrade base` drops every table, and inheriting `POSTGRES_DB` once emptied a
+developer's working database. It is collected by an ordinary `pytest tests/`. It
+is not in `integration/` because it does not use that package's `db` fixture at
+all: it runs `alembic` in subprocesses.
 
 ## Async - anyio, not pytest-asyncio
 
@@ -128,12 +142,15 @@ authority it is exercising rather than inheriting one.
 | `mock_redis` | A `MagicMock(spec=RedisClient)` with the async methods stubbed |
 | `api_key_headers` | The service-to-service header, for a route behind `ValidAPIKey` |
 
-`tests/integration/conftest.py` adds one more, and it is the only fixture that
-touches a database:
+`tests/integration/conftest.py` adds the ones that touch a database. The package
+skips itself when none is reachable, refuses any database whose name contains
+neither `test` nor `ci`, and empties every table between tests:
 
 | Fixture | |
 |---|---|
-| `db` | A real `AsyncSession`. The module skips itself when no database is reachable, refuses any database whose name contains neither `test` nor `ci`, and empties every table between tests |
+| `db` | A real `AsyncSession` - what almost every integration test takes |
+| `engine` | The `AsyncEngine` behind it, for a test that needs *more than one* session: a race, a concurrent write, two transactions that have to interleave. One `AsyncSession` shared across concurrent operations is not a second connection, it is a corrupted one - eighteen files take `engine` for exactly this |
+| `database_url`, `schema_url` | Session-scoped, and the reason the two above are safe: they name the throwaway database and create its schema once |
 
 ## Writing Tests
 
@@ -172,20 +189,32 @@ The caller is an override, which is what makes the refusal testable:
 ```python
 import pytest
 from httpx import AsyncClient
+from uuid import uuid4
 
 from app.api import deps
+from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 
 pytestmark = pytest.mark.anyio
 
 
 async def test_creating_an_agent_without_agents_edit_is_refused(client: AsyncClient):
-    app.dependency_overrides[deps.get_auth_context] = lambda: caller_without(Perm.AGENTS_EDIT)
+    # A role, not a permission list: `AuthContext` reads its own permissions out
+    # of `ROLE_PERMS` by name, so the test exercises the catalog rather than a
+    # set it invented.
+    viewer = AuthContext(
+        user_id=uuid4(), organization_id=uuid4(), role=str(OrgRoleName.VIEWER)
+    )
+    app.dependency_overrides[deps.get_auth_context] = lambda: viewer
 
     response = await client.post("/api/v1/agents", json={"name": "Support"})
 
     assert response.status_code == 403
 ```
+
+`tests/api/test_platform_routes.py` does this for **every** registered route at
+once, which is why most routes have no file of their own: the gate a route
+carries is a table, and a table is walked rather than restated.
 
 ### An integration test
 
