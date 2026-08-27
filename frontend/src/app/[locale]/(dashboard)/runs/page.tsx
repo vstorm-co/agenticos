@@ -268,13 +268,18 @@ export default function RunsPage() {
                 // flush to the left edge. Sixteen of those are given back, which
                 // matches the eight above and below.
                 //
-                // The height counts the mobile tab bar below `lg`, where the
-                // list column is hidden and this is the only column: the bar is
-                // `fixed bottom-0`, `min-h-[56px]` plus the safe-area inset, so
-                // a flat `100dvh-1rem` put the panel's last 56px behind it -
-                // measured at 390x780. Above `lg` the bar is `lg:hidden` and the
-                // full height is right.
-                <div className="sticky top-[calc(0.5rem-1rem)] h-[calc(100dvh-1rem-3.5rem-env(safe-area-inset-bottom))] self-start sm:top-[calc(0.5rem-2rem)] lg:-mr-4 lg:h-[calc(100dvh-1rem)]">
+                // The height counts what is *not* the scrollport below `lg`,
+                // where the list column is hidden and this is the only column.
+                // Two things are, and they come off at different breakpoints:
+                // the tab bar (`fixed bottom-0`, `min-h-[56px]` plus the
+                // safe-area inset, `lg:hidden`) and `MobileHeader` (`h-14`,
+                // sticky but **in normal flow** above `main`, `md:hidden`), which
+                // starts the scrollport 56px down. Measured at 390x780: a flat
+                // `100dvh-1rem` left the panel's last 56px behind the bar, and
+                // subtracting the bar alone left the same 56px, because the
+                // header had not been counted. Both off below `md`, the bar only
+                // from `md`, neither from `lg`.
+                <div className="sticky top-[calc(0.5rem-1rem)] h-[calc(100dvh-1rem-3.5rem-3.5rem-env(safe-area-inset-bottom))] self-start sm:top-[calc(0.5rem-2rem)] md:h-[calc(100dvh-1rem-3.5rem-env(safe-area-inset-bottom))] lg:-mr-4 lg:h-[calc(100dvh-1rem)]">
                   <RunDetailPanel runId={focusedRunId} onFocusRun={focusRun} />
                 </div>
               )}
