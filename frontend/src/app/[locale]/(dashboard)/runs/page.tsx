@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { useApprovals, usePermissions, useRuns, useSpend, useUrlState } from "@/hooks";
 import { periodEnd, periodStart } from "@/lib/dashboard/period";
 import { formatPeriodParam, parsePeriodParam, type Period } from "@/lib/dashboard/period";
+import { PAGE_CLEARANCE } from "@/lib/page-clearance";
 import { parseRunFilters, writeRunFilters, type RunFilters } from "@/lib/runs/filter-params";
 import { cn, setUrlParam } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
@@ -192,6 +193,15 @@ export default function RunsPage() {
                   // underneath the detail panel rather than scrolling inside its
                   // own column.
                   "min-w-0 flex-1 overflow-hidden",
+                  // The room under this page, declared here rather than by
+                  // `PageTransition` - which is where every other page gets it.
+                  // Padding on the box *around* this row shortens what the
+                  // sticky panel beside it may pin in, because a sticky box is
+                  // clamped to its containing block: 64px of it put the panel's
+                  // top at -48px at maximum scroll, cutting its own header off
+                  // by 56px. Inside the column it lands under the last row and
+                  // the row still ends at the viewport (#1206).
+                  PAGE_CLEARANCE,
                   focusedRunId !== null && "hidden lg:block",
                 )}
               >
@@ -257,7 +267,14 @@ export default function RunsPage() {
                 // pixels of nothing to the right of the panel while the table ran
                 // flush to the left edge. Sixteen of those are given back, which
                 // matches the eight above and below.
-                <div className="sticky top-[calc(0.5rem-1rem)] h-[calc(100dvh-1rem)] self-start sm:top-[calc(0.5rem-2rem)] lg:-mr-4">
+                //
+                // The height counts the mobile tab bar below `lg`, where the
+                // list column is hidden and this is the only column: the bar is
+                // `fixed bottom-0`, `min-h-[56px]` plus the safe-area inset, so
+                // a flat `100dvh-1rem` put the panel's last 56px behind it -
+                // measured at 390x780. Above `lg` the bar is `lg:hidden` and the
+                // full height is right.
+                <div className="sticky top-[calc(0.5rem-1rem)] h-[calc(100dvh-1rem-3.5rem-env(safe-area-inset-bottom))] self-start sm:top-[calc(0.5rem-2rem)] lg:-mr-4 lg:h-[calc(100dvh-1rem)]">
                   <RunDetailPanel runId={focusedRunId} onFocusRun={focusRun} />
                 </div>
               )}
