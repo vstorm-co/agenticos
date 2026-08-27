@@ -9,6 +9,8 @@ import { useBranding } from "@/components/branding/branding-provider";
 import { MaintenanceScreen } from "@/components/branding/maintenance-screen";
 import { useAuth } from "@/hooks";
 import { useBrandingNotice } from "@/hooks/use-branding-notice";
+import { PAGE_CLEARANCE } from "@/lib/page-clearance";
+import { cn } from "@/lib/utils";
 
 /**
  * What the deployment's own state does to the page under it.
@@ -40,7 +42,17 @@ export function DeploymentGate({ children }: { children: ReactNode }) {
   const closed = notice?.maintenance_mode ?? maintenanceMode;
 
   if (closed && !user?.is_app_admin) {
-    return <MaintenanceScreen />;
+    // The clearance is here rather than on the screen, and it is the gate's
+    // because the gate is what knows this *is* the whole page. Every other page
+    // gets it from `PageTransition`, which this branch returns instead of - so
+    // a long custom maintenance message used to end under the mobile tab bar,
+    // with nothing below it to scroll to (#1241). One token, so the safe-area
+    // inset cannot be forgotten in one of the two places.
+    return (
+      <div className={cn("flex min-h-0 flex-1 flex-col", PAGE_CLEARANCE)}>
+        <MaintenanceScreen />
+      </div>
+    );
   }
 
   return (

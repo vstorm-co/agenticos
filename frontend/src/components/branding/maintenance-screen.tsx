@@ -4,8 +4,6 @@ import { Wrench } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { useBranding } from "@/components/branding/branding-provider";
-import { PAGE_CLEARANCE } from "@/lib/page-clearance";
-import { cn } from "@/lib/utils";
 
 /**
  * What the product shows while a maintenance window is open.
@@ -24,15 +22,7 @@ export function MaintenanceScreen() {
   const { appName, maintenanceMessage } = useBranding();
 
   return (
-    // The clearance is this one's own because `DeploymentGate` returns it
-    // *instead of* rendering `PageTransition`, which is where every other page
-    // gets it. Same token, so there is still one answer (#933).
-    <div
-      className={cn(
-        "flex min-h-[60vh] flex-col items-center justify-center px-6 text-center",
-        PAGE_CLEARANCE,
-      )}
-    >
+    <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center">
       <span className="bg-muted text-foreground mb-6 inline-flex h-14 w-14 items-center justify-center rounded-2xl">
         <Wrench className="h-6 w-6" aria-hidden />
       </span>
