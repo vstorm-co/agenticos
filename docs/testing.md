@@ -98,12 +98,16 @@ Look for the question before looking for the path.
 | Layer | Where | For |
 |---|---|---|
 | Unit | `tests/test_*.py` | One module. Repositories are mocked; the service under test never is |
-| API | `tests/api/` | The route: its gate, its status code, what reaches the service |
+| API | `tests/api/`, and some at the top level | The route: its gate, its status code, what reaches the service |
 | Integration | `tests/integration/` | What only a database answers - an `ORDER BY`, a cascade, a unique constraint, a query that is really tenant-scoped |
 | E2E | `frontend/e2e/` | Journeys crossing the whole system - see [Frontend Tests](#frontend-tests) |
 
 There is no `tests/unit/` directory: a unit test is a `test_*.py` at the top of
-`tests/`.
+`tests/`. The layer is **what a test needs, not where it sits**, and the top level
+holds plenty that drives the app through an `AsyncClient` of its own -
+`test_rag_document_listing.py`, `test_oauth_signin_exchange.py`,
+`test_security_headers.py`. Looking only under `tests/api/` for existing route
+coverage will miss them.
 
 **One exception, and it is at the top level rather than in `integration/`.**
 `tests/test_migrations.py` cycles the whole Alembic chain against a real database,
@@ -121,11 +125,17 @@ import pytest
 pytestmark = pytest.mark.anyio   # at the top of the module
 ```
 
-`@pytest.mark.asyncio` does nothing here, and there is no `asyncio_mode` setting
-to make it work: the suite runs on **anyio**, and a test without that module-level
-mark is collected as a sync function that returns a coroutine and asserts on it -
-which passes while testing nothing. The `anyio_backend` fixture pins `asyncio`,
-because that is what uvicorn runs.
+or `@pytest.mark.anyio` on the test, which `tests/api/test_users.py` does where
+only some of a file is async. Either works; the module-level form is the habit
+here because most files are async throughout.
+
+`@pytest.mark.asyncio` does not, and there is no `asyncio_mode` setting to make
+it work: the suite runs on **anyio**. An unmarked `async def` is not a silent
+pass - pytest 9 fails it at collection with *"async def functions are not
+natively supported"* and lists the plugins that would fix it - but it is a
+failure whose message is about the framework rather than about the test, so it
+reads as a broken environment on the way in. The `anyio_backend` fixture pins
+`asyncio`, because that is what uvicorn runs.
 
 ## Key Fixtures (`tests/conftest.py`)
 
