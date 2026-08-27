@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.284] - 2026-08-27
+
+### Fixed
+
+- **Deleting a user could leave an organization with no owner at all.**
+  `UserService._release_owned_rows` reconciled only organizations the user
+  *created*, but ownership moves without the creator FK - after a transfer, or
+  after the creator is reassigned away - so a user can be the sole Owner of an
+  organization they did not create. The created-organizations listing never returns
+  it, so deleting that user cascaded their last owner membership away and left a
+  silent orphan nobody can manage through the owner-gated APIs. Not a 500 like the
+  #9 cases, which is what made it quiet. A second pass over the organizations where
+  the user holds an Owner membership refuses the delete when they are the sole
+  owner - the same refusal the created-organization path already raises - and does
+  nothing when another owner remains. (#1117, #9)
+
 ## [0.0.283] - 2026-08-27
 
 ### Fixed
