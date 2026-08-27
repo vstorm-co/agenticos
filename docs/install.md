@@ -25,7 +25,12 @@ idempotent - re-run any of them whenever you are not sure it worked.
 git clone https://github.com/vstorm-co/agenticos && cd agenticos
 ```
 
-**There is no `.env` to write first.** Every variable in `docker-compose.yml`
+!!! success "There is no `.env` to write first"
+
+    Every variable in `docker-compose.yml` carries a default, deliberately, so
+    the stack starts on a clean checkout.
+
+Every variable in `docker-compose.yml`
 carries a default, deliberately, so the stack starts on a clean checkout. One
 value is generated rather than defaulted: `make dev` runs `make sandbox-token`
 first, which appends a fresh `SANDBOXD_TOKEN` to `backend/.env` if there is not
@@ -44,6 +49,17 @@ appended to whatever is there.
 
 ```bash
 make dev
+```
+
+```mermaid
+flowchart LR
+    F["frontend<br/>:3000"] --> A["api<br/>:8000"]
+    A --> PG[("postgres<br/>pgvector, :5432")]
+    A --> RD[("redis<br/>:6379")]
+    A --> SD["sandboxd<br/><i>holds the Docker socket</i>"]
+    A --> PF["prefect server<br/>:4200"]
+    PF --> WK["prefect runner"]
+    WK --> PG
 ```
 
 Builds the backend image, starts **Postgres (pgvector), Redis, the API, the
@@ -127,13 +143,16 @@ part is missing rather than that something failed.
 
 ## The database must be pgvector
 
-Not stock Postgres. The retrieval store issues
+!!! danger "Not stock Postgres"
+
+    If document ingestion 500s on a fresh environment, check the image first.
+
+The retrieval store issues
 `CREATE EXTENSION IF NOT EXISTS vector` the first time a collection is written
 to, and stock Postgres answers `extension "vector" is not available` - a 500
 before any row is committed.
 
-Every compose file in this repository pins `pgvector/pgvector:pg16`. If document
-ingestion 500s on a fresh environment, check the image first.
+Every compose file in this repository pins `pgvector/pgvector:pg16`.
 
 ## Day to day
 

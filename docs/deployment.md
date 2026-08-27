@@ -22,7 +22,13 @@ authority that already administers users and tenants across the installation.
 | Footer text | Under the sign-in form |
 | Terms URL, Privacy URL | Every link that otherwise offers the built-in `/legal/*` pages |
 
-**A null column means "the built-in", not "empty".** An operator who has never
+!!! note "A null column means *the built-in*, not *empty*"
+
+    An operator who clears a field is asking for the default back, not for a
+    sign-in header with no name on it. The API answers *overrides* and each
+    renderer resolves a null against its own built-in.
+
+An operator who has never
 opened the page has no row at all, and one who clears a field is asking for the
 default back rather than for a sign-in header with no name on it. So the API
 answers *overrides* and each renderer resolves a null against its own built-in —
@@ -46,8 +52,12 @@ are served from the origin the app's own pages run on and `logo.html` there is a
 script.
 
 JPEG, PNG, WebP and GIF, up to 2MB, which is the one definition of "an image this
-platform accepts". SVG is deliberately absent: it is a document that may carry
-script. ICO buys nothing a PNG favicon does not.
+platform accepts".
+
+!!! danger "SVG is deliberately absent"
+
+    It is a document that may carry script, and these files are served from the
+    origin the app's own pages run on. ICO buys nothing a PNG favicon does not.
 
 The branding response carries a **version**, not a URL. The address is constant
 (`GET /api/v1/branding/{logo,favicon}`) and the bytes are served `immutable` for a
@@ -193,6 +203,12 @@ injection surface.
 
 ## An app admin cannot lock the deployment out through the console
 
+!!! warning "The self-inflicted lockout this prevents"
+
+    On the single-admin install `make platform-bootstrap` produces, a stray click
+    on your own row ended administration until somebody reached a terminal.
+    Recovery is `agenticos cmd create-app-admin` from a shell.
+
 `is_active` is enforced on the next request and `is_app_admin` is what the admin
 pages read, so an app admin acting on **their own** row from `/admin/users` could
 sign themselves out, drop `/admin`, or delete the account — and on the
@@ -335,7 +351,19 @@ audit row outlives the request body it came from.
 
 Worth saying here because closing a deployment is the feature most likely to produce
 one a person has never seen. `app/api/exception_handlers.py` puts **every** refusal in
-`{"error": {"code", "message", "details"}}` — domain exceptions, schema validation,
+`{"error": {"code", "message", "details"}}`:
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Agent not found",
+    "details": { "agent_id": "…" }
+  }
+}
+```
+
+That covers domain exceptions, schema validation,
 and since #917 `HTTPException` too, which covers a 405, an unmatched path and the
 twenty-two routes that raise one directly. Two shapes on the wire means every caller
 either handles both or silently mishandles one.
