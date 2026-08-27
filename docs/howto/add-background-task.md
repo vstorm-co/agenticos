@@ -67,15 +67,19 @@ both log a failure with the `name` you gave them - which is the only context tha
 error will ever carry, so be specific.
 
 ### 3. Add scheduling (optional)
-In `app/worker/prefect_app.py`, register a scheduled deployment in `main()`:
+
+A schedule fires with **fixed** parameters, so the flow it names has to be one
+that needs none — `send_notification_flow` above takes the id of a row somebody
+wrote and there is no such id at nine in the morning. Register the flow that goes
+looking for its own work:
+
 ```python
 from prefect.client.schemas.schedules import CronSchedule
 
-from app.worker.tasks.notifications import send_notification_flow
+from app.worker.tasks.reports import nightly_digest_flow
 
-deployments.append(await send_notification_flow.ato_deployment(
+deployments.append(await nightly_digest_flow.ato_deployment(
     name="daily-digest",
-    parameters={"user_id": "broadcast", "message": "Daily digest"},
     schedules=[CronSchedule(cron="0 9 * * *")],  # Daily at 9 AM
 ))
 ```

@@ -200,10 +200,12 @@ reasoning lives, not in the commit message.
 
 !!! danger "`app/agents/**` is at 100% coverage, enforced in CI"
 
-    A new capability with an untested branch fails the build. Adding a module to
-    the platform layer also means editing **two** lists in
-    `backend/pyproject.toml` — `[tool.coverage.run] include` and
-    `[[tool.ty.overrides]] include` — verbatim and in the same order. See `## Testing` in
+    A new capability with an untested branch fails the build. You do **not** need
+    to widen the gate for it: both lists in `backend/pyproject.toml` already carry
+    the `app/agents/**` glob, and
+    `test_every_file_in_a_platform_package_is_gated` exists to keep that true.
+    Editing those lists is for a new platform *package*, outside the ones already
+    globbed. See `## Testing` in
 `CLAUDE.md`, and `tests/test_capability_registry.py` for the style.
 
 Worth covering specifically:

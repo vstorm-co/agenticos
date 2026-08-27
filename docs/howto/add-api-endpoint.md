@@ -221,10 +221,13 @@ async def list_unread(service: NotificationSvc, user: CurrentUser) -> Any:
     return NotificationList(items=items, total=total)
 ```
 
-!!! note "`-> Any`, on purpose"
+!!! note "`-> Any`, by convention here"
 
-    `response_model` does the serialization. Annotating the real return type
-    makes Pydantic validate the same object twice.
+    `response_model` is what serializes and validates the response, and every
+    route in this codebase leaves the annotation at `Any` so that there is one
+    answer to "where is the response shape declared" rather than two that can
+    disagree. Follow it for consistency with the surrounding code — not because
+    an annotation would cost a second validation pass, which it does not.
 
 Anything org-scoped takes a permission from the catalog on the **collection**
 route — `dependencies=[Depends(require(Perm.X))]` — while a per-resource route
