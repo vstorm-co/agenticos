@@ -1029,6 +1029,27 @@ def _outcome(
     return agent_run.result
 
 
+def _classify_output(
+    result: AgentRunResult[str | DeferredToolRequests], *, parked: dict[str, str]
+) -> tuple[RunStatus, str, PausedRunState | None]:
+    """The terminal status a finished run reaches, and what it carries there.
+
+    The success half of both run surfaces - the batch runner's `_run` and the
+    chat runner - which have to move in lockstep: a `DeferredToolRequests` output
+    is a run parked on an approval, and a new `PausedRunState` field or a change to
+    how a park is recorded belongs in one place rather than two copies. Anything
+    else is the completed answer. The exception paths differ between the two (the
+    chat surface re-raises so the waiting caller is told why) and stay with each.
+    """
+    if isinstance(result.output, DeferredToolRequests):
+        paused = PausedRunState(
+            messages=ModelMessagesTypeAdapter.dump_python(result.all_messages(), mode="json"),
+            tool_call_ids=parked,
+        )
+        return RunStatus.AWAITING_APPROVAL, "", paused
+    return RunStatus.COMPLETED, result.output, None
+
+
 type RunStream = Callable[[AgentIteration[AgentDeps, str | DeferredToolRequests]], Awaitable[None]]
 """How a surface that shows an answer arriving drives the run.
 
@@ -3413,20 +3434,11 @@ class AgentRunnerService:
             # the one call a person reviewed as the one call with no recorded
             # output anywhere (agenticos#506).
             settled = settled_calls_in(new_messages)
-            if isinstance(result.output, DeferredToolRequests):
-                paused = PausedRunState(
-                    messages=ModelMessagesTypeAdapter.dump_python(
-                        result.all_messages(), mode="json"
-                    ),
-                    tool_call_ids=prepared.approvals.parked,
-                )
-                status = RunStatus.AWAITING_APPROVAL
+            status, output, paused = _classify_output(result, parked=prepared.approvals.parked)
+            if paused is not None:
                 logger.info(
                     "Run %s parked on %d approval(s)", prepared.run.id, len(paused.tool_call_ids)
                 )
-            else:
-                output = result.output
-                status = RunStatus.COMPLETED
             finished_cleanly = True
         except asyncio.CancelledError:
             # The caller went away, or a delegation this run sits under was
