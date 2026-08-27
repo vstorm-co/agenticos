@@ -17,6 +17,40 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.311] - 2026-08-27
+
+### Added
+
+- **A conversation can be favourited, into a band at the top of the sidebar.** A
+  thread somebody returns to every day sat in the same list as the one-question
+  thread from three weeks ago, and the only way back was search or scrolling. The
+  favourite is **the reader's**: a row per user and conversation rather than a
+  boolean on the thread, because a thread can be shared and a channel thread has
+  participants rather than an owner - so a column would let one person's star
+  decide where it sits for everybody who can see it. Two people looking at the same
+  shared thread see two sidebars. (#929)
+- **Starring is authorized as a read**, deliberately: a star changes nothing about
+  the thread, it moves it in the starrer's own sidebar, so somebody a conversation
+  was shared with may star it exactly as its owner may - a write check there would
+  refuse the reader the feature exists for. And **the band is an `ORDER BY` rather
+  than a grouping of the page**: the sidebar is paged, so a favourite sorted into
+  page two by recency would sit under fifty threads that are not one, and grouping
+  after the page arrives cannot fix that. Archiving keeps the star and drops the
+  band, because a band inside the archive would be a second place to look for what
+  archiving just moved. (#929)
+- The one place the client patches rather than invalidating, with the boundary
+  stated: whether *this reader* starred it is a fact about the row the client just
+  decided, so patching makes the click instant while the reordering still comes
+  from the server - and a refusal puts the star back, or the row keeps a star the
+  server never recorded. (#929)
+- Five things the feature does not yet hold, filed rather than left implied: the
+  auth context is dropped on the way to the conversation read, so a caller who may
+  see an ownerless trigger run log is refused the star on one they can open;
+  `is_favourite` is emitted `false` on every read but the two that attach it; the
+  read-then-insert is not idempotent under a concurrent or retried POST; a
+  double-click can leave a thread starred; and the optimistic rollback crosses an
+  account change. (#1254)
+
 ## [0.0.310] - 2026-08-27
 
 ### Changed
