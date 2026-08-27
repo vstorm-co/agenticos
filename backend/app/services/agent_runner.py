@@ -1521,10 +1521,13 @@ class AgentRunnerService:
                 row and its unsealed token, and a capability may reach neither -
                 the same reason the workspace backend is opened here rather than
                 inside `sandbox`.
-            exposure: The binding that admitted this run, when one did. It is
-                stamped on the run row and its caps are enforced - so a run that
-                arrived through a place the agent was published to is both
-                attributable to that place and bounded by it.
+            exposure: The binding that admitted this run, when one did. It
+                supplies the prompt appended to the spec, the channel tools it
+                grants, its environment and its session scope, and is stamped on
+                the run row - so a run that arrived through a place the agent was
+                published to is attributable to that place. It carries no cap of
+                its own: the two budgets are the agent's and the organization's
+                (`BudgetScope`), and `agent_exposures` has no cap column.
             model_profile_id: Run on this model instead of the one the spec
                 names. What an agent *does* - its instructions, its tools, its
                 approval gates - is unchanged; only which model executes it is.

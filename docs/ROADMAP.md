@@ -137,9 +137,9 @@ line.
 ### R8 — Organization-scoped MCP connections
 **Why:** `AgentSpec.mcp_server_ids` exists and, until now, nothing read it. A
 published agent cannot depend on whose session runs it, so binding a *personal*
-connection to it is the wrong model — which is why migration `0035_mcp_org`
-already gave `McpConnection` a `scope`, an `organization_id` and a
-`catalog_key`. Nothing writes those columns yet.
+connection to it is the wrong model — which is why `McpConnection` already has a
+`scope`, an `organization_id` and a `catalog_key`, from a migration now inside
+`0001_baseline`. Nothing writes those columns yet.
 
 - Repo and service for org-scoped rows, credential sealed per organization
 - Routes gated on `connections:manage`

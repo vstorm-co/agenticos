@@ -564,7 +564,7 @@ return await service.usage(ctx, scope=scope, ...)
 
 `UserRole`, `User.has_role()`, `RoleChecker`, `CurrentAdmin` and
 `CurrentSuperuser` were the template's model and are gone, along with the
-`users.role` column (migration `0066`). They were a third answer to a question
+`users.role` column, which went with the squash into `0001_baseline`. They were a third answer to a question
 that already had two.
 
 ### IDOR Protection

@@ -24,8 +24,9 @@ per-thread session (`channel_session`).
 ## Tokens go through the vault
 
 Bot tokens are sealed with `app/core/vault.py`, bound to the organization.
-**`CHANNEL_ENCRYPTION_KEY` and the deployment-wide Fernet key are gone** — migration
-`0038`. `channel_bots.secret_key_version` exists because the token is now an envelope
+**`CHANNEL_ENCRYPTION_KEY` and the deployment-wide Fernet key are gone**, removed
+before the chain was squashed into `0001_baseline`.
+`channel_bots.secret_key_version` exists because the token is now an envelope
 and a staged master-key rotation has to know which key sealed it. See the
 `vault-secrets` skill.
 

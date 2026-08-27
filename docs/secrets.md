@@ -8,10 +8,10 @@ That is a decision with history, and it took two rounds to become true. Three
 mechanisms used to hold secrets at rest and only one of them bound a ciphertext to
 its owner: provider keys went through the vault, channel bot tokens through a
 single deployment-wide Fernet key, MCP tokens through another. A Slack token could
-be copied out of one organization's row into another's and it decrypted. Migration
-`0038` removed those two.
+be copied out of one organization's row into another's and it decrypted. One
+migration removed those two, before the chain was squashed into `0001_baseline`.
 
-A fourth survived `0038` and outlived the sentence above it by some months:
+A fourth survived it and outlived the sentence above it by some months:
 `app/core/crypto.py`, one deployment-wide Fernet key over the credential fields of
 `sync_sources.config` — the Google service account JSON and the AWS key pair a RAG
 sync connector authenticates with. It was honest about itself in its own docstring
@@ -20,7 +20,8 @@ mechanism" was wrong about one table. What kept it alive was an ordering problem
 rather than a disagreement: an envelope is derived from its owner's id, and
 `sync_sources.organization_id` was nullable because the CLI created rows without
 one. [#707](https://github.com/vstorm-co/agenticos/issues/707) gave
-`rag-source-add` an organization, `0042` made the column say so, and
+`rag-source-add` an organization, `0042_sync_source_secret_id` made the column say
+so, and
 [#937](https://github.com/vstorm-co/agenticos/issues/937) deleted the module.
 
 **A sync source now references a vault secret by id**, the way

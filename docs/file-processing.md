@@ -783,7 +783,7 @@ serves each lookup from a **hash** index on that metadata key — hash, not btre
 because the lookups are equality-only and a `source_path` is unbounded, so a
 btree would fail its row-size limit and take ingestion down with it. The indexes
 are built with the runtime table and backfilled onto older collections by
-migration `0056`, which makes the check a handful of indexed statements rather
+migration `0058_backfill_rag_lookup_indexes`, which makes the check a handful of indexed statements rather
 than the read of the whole `rag_<collection>` table into worker memory it used to
 be, once per ingested document on a collection that could hold hundreds of
 thousands of chunks

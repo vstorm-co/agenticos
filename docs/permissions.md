@@ -14,7 +14,7 @@ single source of truth; this page explains it.
 
     There used to be a fourth - a `users.role` column of `admin` | `user`,
     inherited from the project template, with `User.has_role()`, `RoleChecker`
-    and a `CurrentAdmin` alias behind it. It was removed in migration `0066`. It
+    and a `CurrentAdmin` alias behind it. It was removed before the migration chain was squashed. It
     was a third answer to a question the two below already answered, and it
     agreed with neither: an account called `admin@example.com` sat at
     `role = 'user'`, which reads as a broken installation and sent people to fix
