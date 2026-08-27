@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import logging
 import shlex
 from binascii import Error as BinasciiError
@@ -58,6 +59,7 @@ from app.db.models.agent_workspace import AgentWorkspace
 from app.repositories import agent as agent_repo
 from app.repositories import agent_workspace as workspace_repo
 from app.repositories import conversation as conversation_repo
+from app.repositories import member as member_repo
 from app.services.sandbox_connection import ResolvedConnection, SandboxConnectionService
 from app.services.sandbox_runtimes import runtime_briefing, runtime_parses_documents
 
@@ -115,6 +117,19 @@ class WorkspaceOverview:
     """How many conversations reach these files. Zero for a run-scoped workspace,
     which is gone before anybody could look."""
     access_label: str
+    owner_name: str | None = None
+    """Whose files these are, named - or `None` where nobody owns them.
+
+    `owner_ref` is the raw string the scope key was built from, and it is only
+    set for a `user`-scoped workspace: a UUID for an account, or a platform id
+    for one whose owner arrived through Slack and has no account here (#131). So
+    an account is resolved to its email and a platform id is passed through
+    verbatim, which is what the table renders as an unlinked label.
+
+    Not `owner_label`, which reads like an identity and is not one: it answers
+    with the *scope* - "This conversation", "Shared by everyone who uses this
+    agent" - so a column drawing it under an Owner heading names nobody (#137).
+    """
 
 
 NOT_BROWSABLE = ("skills/", f"{OVERFLOW_PREFIX}/")
@@ -781,6 +796,7 @@ class SandboxWorkspaceService:
         # Only for the scopes where more than one chat reaches one workspace. A
         # conversation-scoped workspace has exactly one by construction, and
         # counting it would be a query answering a question nobody asked.
+        owners = await self._owner_names(rows, organization_id=ctx.organization_id)
         shared = {row.agent_id for row in rows if row.scope in ("agent", "channel")}
         counts = (
             await conversation_repo.count_by_agent(
@@ -817,9 +833,43 @@ class SandboxWorkspaceService:
                     else 0
                 ),
                 access_label=access_label(row),
+                owner_name=owners.get(row.id),
             )
             for row in rows
         ]
+
+    async def _owner_names(
+        self, rows: list[AgentWorkspace], *, organization_id: UUID
+    ) -> dict[UUID, str]:
+        """Whose each of these workspaces is, by workspace id.
+
+        One grouped query, like the agent names beside it. Only the refs that are
+        UUIDs are looked up: the rest are platform ids for owners with no account
+        here, and they are the answer rather than a failed lookup. A ref that
+        names a UUID nobody in this organization holds resolves to nothing and
+        the row says nothing - naming a stranger's email off an id would be the
+        one read this listing must not do.
+        """
+        refs = {row.id: row.owner_ref for row in rows if row.owner_ref is not None}
+        if not refs:
+            return {}
+        accounts: dict[UUID, UUID] = {}
+        for workspace_id, ref in refs.items():
+            with contextlib.suppress(ValueError):
+                accounts[workspace_id] = UUID(ref)
+        emails = await member_repo.get_emails_for_users(
+            self.db, organization_id=organization_id, user_ids=list(set(accounts.values()))
+        )
+        named: dict[UUID, str] = {}
+        for workspace_id, ref in refs.items():
+            account = accounts.get(workspace_id)
+            if account is None:
+                named[workspace_id] = ref
+                continue
+            email = emails.get(account)
+            if email is not None:
+                named[workspace_id] = email
+        return named
 
     @staticmethod
     def _sees_every_workspace(ctx: AuthContext) -> bool:

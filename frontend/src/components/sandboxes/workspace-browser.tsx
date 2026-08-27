@@ -195,18 +195,25 @@ export function WorkspaceBrowser() {
         key: "owner",
         header: t("owner"),
         sortable: true,
-        sortValue: (workspace) => workspace.owner_label,
+        // Owned last rather than first: the scopes with no owner are the common
+        // ones, and an absence is not a name.
+        sortValue: (workspace) => workspace.owner_name ?? "",
         // **Who, beside who else.** `access_label` one column along describes the
         // *scope* - "everybody who talks to this agent", "one person" - and on an
         // `agent`-scoped workspace shared by six people that is exactly the
         // question this row could not answer (#137).
         //
-        // Plain text, never a link: `owner_ref` is a string and a Slack-sourced
-        // workspace's owner is a platform id rather than an account, so half the
-        // rows would carry a destination that does not exist (#131).
+        // `owner_name`, not `owner_label`: that one is the scope in words ("Your
+        // files for this agent"), so a column drawing it under this heading names
+        // nobody. An em dash for the three scopes that record no owner, which is
+        // the honest answer rather than the scope again.
+        //
+        // Plain text, never a link: an owner who arrived through Slack is a
+        // platform id rather than an account, so half the rows would carry a
+        // destination that does not exist (#131).
         cell: (workspace) => (
           <span className="text-muted-foreground block min-w-0 truncate text-xs">
-            {workspace.owner_label}
+            {workspace.owner_name ?? "—"}
           </span>
         ),
       },

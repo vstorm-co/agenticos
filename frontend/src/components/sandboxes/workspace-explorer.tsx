@@ -158,6 +158,12 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
   // on rendering a file that has been overwritten since.
   const [selected, setSelected] = useState<string | null>(null);
   const [asSource, setAsSource] = useState(false);
+  // Above the search, not inside the tree: searching replaces the tree with a
+  // flat list, so folds kept in the tree would be discarded and reset every time
+  // the box was cleared. `null` until the reader touches a folder, so the first
+  // render already shows what `initiallyOpen` wants rather than opening it a
+  // frame later.
+  const [open, setOpen] = useState<Set<string> | null>(null);
   const source = useMemo<FileSource>(() => ({ kind: "workspace", id: workspaceId }), [workspaceId]);
 
   // Memoised, because it is the dependency of the two memos below: `?? []` builds a
@@ -174,6 +180,7 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
     [all, query],
   );
   const tree = useMemo(() => treeOf(all), [all]);
+  const opened = open ?? initiallyOpen(tree);
 
   if (isLoading) return <Skeleton className="h-40 w-full" />;
 
@@ -277,7 +284,14 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
               label={t("folders")}
               selectedPath={selected}
               onSelect={(node) => setSelected(node.path)}
-              initialOpenPaths={initiallyOpen(tree)}
+              openPaths={opened}
+              onToggleFolder={(path) =>
+                setOpen(() => {
+                  const next = new Set(opened);
+                  if (!next.delete(path)) next.add(path);
+                  return next;
+                })
+              }
               renderFile={(node) => (
                 <>
                   <FileIcon

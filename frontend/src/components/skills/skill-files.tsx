@@ -49,8 +49,16 @@ export function FileTree({
   onOpen: (id: string) => void;
 }) {
   const t = useTranslations("skills");
+  // What is *collapsed*, rather than what is open. Every folder starts open - a
+  // skill holds a handful of files - and derived this way a folder added or
+  // uploaded after a collapse is open too, where a snapshot of open paths would
+  // leave it shut.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const rows = useMemo(() => asPathNodes(nodes), [nodes]);
-  const openPaths = useMemo(() => new Set(folderPaths(nodes)), [nodes]);
+  const openPaths = useMemo(
+    () => new Set(folderPaths(nodes).filter((path) => !collapsed.has(path))),
+    [nodes, collapsed],
+  );
   const selectedPath = useMemo(() => pathOfId(rows, openId), [rows, openId]);
 
   return (
@@ -61,7 +69,14 @@ export function FileTree({
       onSelect={(node) => {
         if (node.id !== null) onOpen(node.id);
       }}
-      initialOpenPaths={openPaths}
+      openPaths={openPaths}
+      onToggleFolder={(path) =>
+        setCollapsed((previous) => {
+          const next = new Set(previous);
+          if (!next.delete(path)) next.add(path);
+          return next;
+        })
+      }
       renderFile={(node) => (
         <>
           <FileText className="text-muted-foreground h-3.5 w-3.5 shrink-0" aria-hidden />

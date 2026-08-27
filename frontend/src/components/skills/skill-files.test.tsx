@@ -94,6 +94,17 @@ describe("the file tree", () => {
     );
   });
 
+  it("draws a file and a folder of the same name as two rows", () => {
+    // A skill may hold `a` and `a/b.md`, and the builder then makes sibling
+    // nodes whose path is both. Keyed on the path alone, React reconciles the two
+    // into one row.
+    const nodes = buildTree([resource("a", "id-a"), resource("a/b.md", "id-b")]);
+    render(<FileTree nodes={nodes} openId={null} onOpen={vi.fn()} />);
+
+    expect(screen.getByText("b.md")).toBeVisible();
+    expect(screen.getAllByRole("treeitem")).toHaveLength(3);
+  });
+
   it("marks nothing when the open id names no file it holds", () => {
     // A stale id - the pane's file was deleted, or the listing has been refetched
     // since - selects nothing rather than the first row.
@@ -129,6 +140,28 @@ describe("the file tree", () => {
 
     expect(screen.queryByText("a.md")).toBeNull();
     expect(screen.getByRole("treeitem", { expanded: false })).toBeInTheDocument();
+  });
+
+  it("leaves a folder added after a collapse open", async () => {
+    // The state is what is *collapsed*, so openness is derived: a folder
+    // uploaded while another is shut is open, where a snapshot of open paths
+    // taken at mount would have left it closed.
+    const nodes = buildTree([resource("references/a.md", "id-a")]);
+    const { rerender } = render(<FileTree nodes={nodes} openId={null} onOpen={vi.fn()} />);
+    await userEvent.click(screen.getByText("references"));
+    expect(screen.queryByText("a.md")).toBeNull();
+
+    rerender(
+      <FileTree
+        nodes={buildTree([resource("references/a.md", "id-a"), resource("scripts/run.sh", "id-b")])}
+        openId={null}
+        onOpen={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("run.sh")).toBeVisible();
+    // And the one that was closed is still closed.
+    expect(screen.queryByText("a.md")).toBeNull();
   });
 
   it("expands it again", async () => {

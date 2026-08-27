@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { ChevronRight, Folder, FolderOpen } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -26,8 +26,19 @@ interface PathTreeProps<N extends PathTreeNode> {
   /** The file that is open, by path. */
   selectedPath: string | null;
   onSelect: (node: N) => void;
-  /** Which folders start open. Every caller has a policy; none of them is this component's. */
-  initialOpenPaths: Set<string>;
+  /**
+   * Which folders are open, by path - and the caller's, not this component's.
+   *
+   * Held above rather than inside, because *when* the state should survive is
+   * the caller's question and the two callers answer it differently. The
+   * workspace explorer replaces this tree with a flat list while a search is
+   * running, so state kept here would be discarded and the reader's folds reset
+   * every time they cleared the box; and a skill computes openness as "every
+   * folder except the ones collapsed", so a folder added after a collapse is
+   * open, which a snapshot taken at mount cannot know.
+   */
+  openPaths: Set<string>;
+  onToggleFolder: (path: string) => void;
   /** What a file's row says, inside the button that opens it: an icon and a name. */
   renderFile: (node: N, isSelected: boolean) => ReactNode;
   /**
@@ -67,22 +78,12 @@ export function PathTree<N extends PathTreeNode>({
   label,
   selectedPath,
   onSelect,
-  initialOpenPaths,
+  openPaths,
+  onToggleFolder,
   renderFile,
   renderFileMeta,
   renderFolderMeta,
 }: PathTreeProps<N>) {
-  // Seeded rather than set by an effect, so the first render of a tree already
-  // shows what the caller wants open instead of opening it a frame later.
-  const [open, setOpen] = useState<Set<string> | null>(null);
-  const opened = open ?? initialOpenPaths;
-  const toggle = (path: string) =>
-    setOpen(() => {
-      const next = new Set(opened);
-      if (!next.delete(path)) next.add(path);
-      return next;
-    });
-
   // Here rather than at each caller: a tree with nothing in it is nothing, and
   // a surface that wants to say something instead - the workspace explorer says
   // whether the folder is empty or the host would not answer - checks before it
@@ -92,11 +93,11 @@ export function PathTree<N extends PathTreeNode>({
     <ul role="tree" aria-label={label} className="min-w-0">
       {nodes.map((node) => (
         <PathTreeRow
-          key={node.path}
+          key={rowKey(node)}
           node={node}
           depth={0}
-          opened={opened}
-          onToggle={toggle}
+          opened={openPaths}
+          onToggle={onToggleFolder}
           selectedPath={selectedPath}
           onSelect={onSelect}
           renderFile={renderFile}
@@ -106,6 +107,17 @@ export function PathTree<N extends PathTreeNode>({
       ))}
     </ul>
   );
+}
+
+/**
+ * A key unique across the tree, which a path alone is not.
+ *
+ * A skill may hold a resource named `a` and another named `a/b.md`, and the
+ * builder then makes sibling nodes - a file and a folder - whose `path` is `a`.
+ * Two rows under one React key reconcile into one, so the kind is part of it.
+ */
+function rowKey(node: PathTreeNode): string {
+  return `${node.isDir ? "d" : "f"}:${node.path}`;
 }
 
 function PathTreeRow<N extends PathTreeNode>({
@@ -184,7 +196,7 @@ function PathTreeRow<N extends PathTreeNode>({
         <ul role="group">
           {node.children.map((child) => (
             <PathTreeRow
-              key={child.path}
+              key={rowKey(child)}
               node={child as N}
               depth={depth + 1}
               opened={opened}
