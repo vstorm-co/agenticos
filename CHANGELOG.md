@@ -17,6 +17,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.295] - 2026-08-27
+
+### Changed
+
+- **Four transport blocks were copied across the three channel adapters**, so a
+  change to any had to be made at six to ten sites by hand and a fourth channel
+  would copy them all again. `split_thread` replaces the partition-and-unpack at
+  three Mattermost and three Slack sites, and `channel_key` calls it too, so "which
+  channel is this" has one implementation. `SlackAdapter._web` holds the lazy
+  client import and construction that nine sites repeated - including a dynamic
+  import in the Socket Mode path - with the import still deferred, so a deployment
+  running no Slack bot does not pay for the SDK. `TelegramAdapter._bot` is an async
+  context manager wrapping the bot and the `try/finally` close that **ten** methods
+  repeated, each of them a TLS session leaked if the close was forgotten. And the
+  Mattermost client and bearer header, repeated at ten sites each, now have one
+  definition apiece, so the timeout and the auth shape do too. (#565, #547)
+
 ## [0.0.294] - 2026-08-27
 
 ### Changed
