@@ -82,6 +82,23 @@ token setup fails. `PATCH` with `auth_token: ""` clears it.
 `401` with a `WWW-Authenticate` header pointing at RFC 9728 protected-resource
 metadata, and the flow runs from there:
 
+```mermaid
+sequenceDiagram
+    participant O as An operator
+    participant P as AgenticOS
+    participant S as The MCP server
+    participant A as Its authorization server
+    P->>S: connect
+    S-->>P: 401 + WWW-Authenticate (RFC 9728)
+    P->>S: fetch protected-resource metadata
+    P->>A: fetch RFC 8414 metadata, then register (RFC 7591)
+    P-->>O: a PKCE consent URL
+    O->>A: consents in a browser
+    A-->>P: callback with the code
+    P->>A: exchange for tokens, refresh later
+    P-->>O: back to the MCP servers page, with the outcome
+```
+
 1. **Discover** — probe the server, resolve its authorization server, fetch RFC
    8414 metadata.
 2. **Register** — RFC 7591 dynamic client registration.
@@ -92,6 +109,14 @@ metadata, and the flow runs from there:
    the only place the outcome can be told: the person is looking at a page they
    did not navigate to themselves.
 5. **Refresh** — when the access token expires.
+
+!!! danger "Every URL reached in that flow is SSRF-checked, not just the one somebody typed"
+
+    Discovery means the *remote server* chooses most of the addresses we call,
+    and connecting a single hostile server used to be enough: a name could answer
+    a public address to the check and a private one to the request that followed
+    ([#860](https://github.com/vstorm-co/agenticos/issues/860)). The address that
+    passed the check is now the address connected to.
 
 Every URL reached in that flow is SSRF-checked, not just the one somebody typed:
 discovery means the *remote server* chooses most of the addresses we call, and
@@ -196,28 +221,29 @@ keeps working until the new consent lands.
 Each server is probed with a short `tools/list` round-trip — 3 seconds — before
 the turn starts, and the probes run concurrently.
 
-**An unreachable server is skipped with a warning, not raised.** Pydantic AI
-enters every toolset when a run starts, so a dead server would otherwise abort the
-whole turn: one expired token on one connection would take down every agent that
-names it, including the ones that never needed it.
+!!! warning "An unreachable server is skipped with a warning, not raised"
 
-That is a deliberate trade. A skipped server means the model answers without those
-tools rather than not answering, which is right for a chat turn and wrong if you
-assumed a tool was always there. The `/test` endpoint and `last_status` are how you
+    Pydantic AI enters every toolset when a run starts, so a dead server would
+    otherwise abort the whole turn: one expired token on one connection would
+    take down every agent that names it, including the ones that never needed it.
+    The model then answers **without** those tools - right for a chat turn, wrong
+    if you assumed a tool was always there.
+
+That is a deliberate trade. The `/test` endpoint and `last_status` are how you
 find out; the [audit trail](governance.md#audit) records what actually ran.
 
 ### Name collisions
 
-Tools are prefixed with the connection name — `github-work` becomes
-`github_work_*` — because two servers exposing the same tool name make Pydantic AI
-raise on duplicate names, which aborts the turn.
+!!! note "Tools are prefixed with the connection name"
+
+    `github-work` becomes `github_work_*`, because two servers exposing the same
+    tool name make Pydantic AI raise on duplicates, which aborts the turn. An
+    allowlist filters *before* prefixing, so it compares against the unprefixed
+    names picked in the UI.
 
 Two connections whose names reduce to the same prefix are deduplicated, first one
 wins, with a warning naming the loser. Deployment-managed servers are ordered
 first, so they win over a user connection that happens to pick the same name.
-
-An allowlist filters *before* prefixing, so it compares against the unprefixed
-names picked in the UI.
 
 ## The catalog
 

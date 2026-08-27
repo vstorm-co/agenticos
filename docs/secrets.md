@@ -1,8 +1,10 @@
 # Secrets and the vault
 
-Every provider key, channel bot token, MCP credential and third-party API key in
-this platform passes through one module, and there is deliberately no second
-mechanism.
+!!! abstract "One module, and deliberately no second mechanism"
+
+    Every provider key, channel bot token, MCP credential and third-party API key
+    in this platform passes through `app/core/vault.py`. Adding a second way to
+    hold a credential at rest is the defect two migrations removed.
 
 That is a decision with history, and it took two rounds to become true. Three
 mechanisms used to hold secrets at rest and only one of them bound a ciphertext to
@@ -38,11 +40,21 @@ Each secret is sealed with its own random data key. That data key is sealed with
 key derived from the master key **and the scope that owns the secret** — an
 organization, or the member a personal connection belongs to.
 
+```mermaid
+flowchart LR
+    M["VAULT_MASTER_KEY<br/><i>version n</i>"] --> K
+    S["the owning scope<br/><i>org id, or member id</i>"] --> K
+    K["derived key"] -->|wraps| D["a random data key<br/><i>one per secret</i>"]
+    D -->|seals| C["the ciphertext<br/><i>+ key_version</i>"]
+```
+
 Two properties follow, and both are the reason for the shape:
 
-**A ciphertext cannot be moved between owners.** Even with full database access, a
-row copied from organization A into organization B fails to unwrap. Tenant
-isolation here is cryptographic, not a `WHERE` clause somebody might forget.
+!!! success "A ciphertext cannot be moved between owners"
+
+    Even with full database access, a row copied from organization A into
+    organization B fails to unwrap. Tenant isolation here is cryptographic, not a
+    `WHERE` clause somebody might forget.
 
 **The master key is rotatable.** It never encrypts a payload directly, only data
 keys, so rotating it re-wraps one small blob per secret instead of re-encrypting
@@ -139,6 +151,11 @@ own key for:
 
 ## What never happens
 
+!!! success "Four guarantees, pinned by tests rather than by convention"
+
+    No plaintext in a response, in a log line, in an audit entry, or in an
+    exported spec - and a capability never learns where its credential came from.
+
 - **No API response returns a plaintext.** There is no endpoint for it. The service
   that owns organization secrets has two readers that yield one, and neither hands it
   to a caller: the runner's, while it builds an agent, and the model catalog's, which
@@ -176,8 +193,12 @@ checkout runs with no extra setup, and the config refuses an unset key anywhere
 except `local`/`development` — staging is a first-class deployment and routinely
 holds real provider keys, so it gets the same refusal production does.
 
-Losing every configured key means every stored credential is unrecoverable and has
-to be re-entered. Rotating is a staged operation, and `VAULT_MASTER_KEYS` is the
+!!! danger "Losing every configured key means every stored credential is gone"
+
+    There is no recovery path and no escrow copy: every secret has to be
+    re-entered by hand. Back the key up somewhere the database backup is not.
+
+Rotating is a staged operation, and `VAULT_MASTER_KEYS` is the
 staged form: a JSON map of every version still in use. The highest version seals
 new secrets; the older ones keep existing rows readable until they are re-wrapped.
 `key_version` on each sealed row records which version wrapped it, and asking for a
@@ -194,6 +215,11 @@ uv run agenticos cmd vault-rotate --dry-run
 uv run agenticos cmd vault-rotate
 # 4. Once it reports zero failures, drop version 1 from VAULT_MASTER_KEYS.
 ```
+
+!!! warning "Do not drop the old key until `vault-rotate` reports zero failures"
+
+    A row that fails is named and left as it was, and the command exits non-zero
+    - dropping version 1 on a partial rotation makes those rows unreadable.
 
 `vault-rotate` walks every table holding envelopes and moves each row's
 ciphertexts together with its version column, or not at all: a row that fails is

@@ -6,8 +6,19 @@ out.
 
 The thing it replaces is an instructions field that grows. Twenty procedures in
 one prompt means every run pays for all twenty, and the twenty-first pushes the
-conversation out of the window. Skills invert that: the agent sees only names and
-one-line descriptions until it decides one is relevant, then loads the body.
+conversation out of the window. Skills invert that:
+
+```mermaid
+flowchart LR
+    A["the agent's context<br/><i>names + one-line descriptions only</i>"] -->|list_skills| B{is one relevant?}
+    B -->|no| Z["nothing loaded, nothing paid for"]
+    B -->|yes| C["load_skill - the body"]
+    C --> D{does the body<br/>point at a file?}
+    D -->|no| Z2[answer]
+    D -->|yes| E["read_skill_resource - one file beside it"]
+    E --> Z2
+```
+
 Twenty skills cost almost nothing; the twenty-first costs nothing either.
 
 The other half of the point is who writes them. A skill is a row in the database,
@@ -32,9 +43,10 @@ those before escalating anything.
 ...
 ```
 
-The frontmatter `description` is the only part the model sees for free, so it is
-the field that decides whether the skill is ever loaded. Write it as *when to
-reach for this*, not as a title.
+!!! tip "`description` is the field that decides whether the skill is ever loaded"
+
+    It is the only part the model sees for free. Write it as *when to reach for
+    this*, not as a title.
 
 A skill may carry **resources** — further files beside it, loaded on demand.
 `refund-policy` ships an `exceptions.md`; the body says when to consult it. That is
@@ -98,7 +110,12 @@ for anyone holding `skills:edit`:
   telling somebody something about the skill, and a deleted row makes that
   invisible.
 
-A decision is final: applying twice would bump a version against a body already
+!!! warning "A decision on a proposal is final"
+
+    Applying twice would bump a version against a body already stored, and
+    discarding something applied would tell a reader it never landed.
+
+Applying twice would bump a version against a body already
 stored, and discarding something applied would tell a reader it never landed. The
 proposal carries the whole body rather than a diff, so a reviewer weeks later is
 comparing two complete versions instead of applying a patch somewhere it was never
@@ -127,9 +144,12 @@ matches the shipped library.
 tops itself up: a bundled skill the organization does not have yet is copied in
 the next time anyone opens the page, matched by name so an edited copy is left
 exactly as it is. An organization created before a deployment gained a new
-bundled skill sees it on its next visit rather than never. The consequence to
-know about: deleting a built-in brings it back on the next listing — **disable**
-one to retire it.
+bundled skill sees it on its next visit rather than never.
+
+!!! warning "Deleting a built-in brings it back on the next listing"
+
+    The top-up treats an absent bundled name as a gap to close. **Disable** one
+    to retire it.
 
 The seed command does the same from a terminal, for scripted setups:
 
@@ -179,9 +199,13 @@ wrong one.
 | Cites | Nothing; it *is* the instruction | The passage and its source |
 | Scale | Tens | Thousands of documents |
 
-"Refunds over £500 need a manager" is a skill. The signed contract that says so is
-knowledge. An agent handling refunds usually wants both, and the two capabilities
-compose — `skills` for the procedure, `knowledge` for the evidence.
+!!! example "Which is which"
+
+    "Refunds over £500 need a manager" is a **skill**. The signed contract that
+    says so is **knowledge**. An agent handling refunds usually wants both.
+
+The two capabilities compose — `skills` for the procedure, `knowledge` for the
+evidence.
 
 ## Access
 
@@ -189,9 +213,12 @@ Skills are organization-scoped resources, governed like agents and collections:
 visibility plus per-row grants on top of the role. See
 [Permissions](permissions.md#layer-3-visibility-and-grants).
 
-**Binding a skill lends it.** Every run of the agent reads the body and the files,
-whoever ran it, so publishing an agent whose `skill_ids` name a skill requires the
-*publisher* to hold `skills:view` on that row — through `resolve_access`, so a grant
+!!! important "Binding a skill lends it"
+
+    Every run of the agent reads the body and the files, whoever ran it - so
+    publishing requires the *publisher* to hold `skills:view` on that row.
+
+That check goes through `resolve_access`, so a grant
 counts and a member who was shared one skill can bind it without being promoted.
 A skill they cannot reach is refused as `Skill not found: <id>`, worded identically
 to an id that does not exist: skills are bound by UUID from the API and from a
