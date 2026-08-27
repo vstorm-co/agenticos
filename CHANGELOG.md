@@ -17,6 +17,33 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.302] - 2026-08-27
+
+### Fixed
+
+- **No dashboard page had any room under it**, though `main` declared the padding.
+  The reason is `DeploymentGate`, which wraps every page in a flex box that does
+  not grow with its content - so a long page overflows it and `main`'s padding
+  edge stays where the shorter box ended, buried mid-content. Measured against the
+  app's own stylesheet on a transcription of the real chain: 0px with the gate
+  wrapper in place, 80px and 64px without it. The room moves onto
+  `PageTransition`'s unconstrained branch, which does grow with its content, and
+  lands after the last element in both engines. The constrained branch keeps none,
+  because chat's composer belongs on the bottom edge and room beneath a fixed
+  control is a gap under it. (#933)
+- **The mobile figure counts the safe-area inset** rather than assuming it away:
+  `viewportFit: "cover"` makes it 34px on a modern iPhone, and the tab bar is 56px
+  plus that, so a flat 80px left the last ten pixels of every page under the bar.
+  Four surfaces carried their own workaround at three different values - which is
+  why nobody noticed the layout's own declaration was inert - and all four are
+  gone. The regression test reads the *pages*, not the wrapper: asserting that
+  `PageTransition` carries the padding would not catch a fifth surface re-adding
+  its own, which is the regression that actually happened. (#933)
+- One screen is left behind and filed rather than folded in: `DeploymentGate`
+  returns the maintenance notice directly and never reaches `PageTransition`, so
+  it has no clearance - as it had none before, since the declaration it would have
+  inherited was the inert one. (#1241)
+
 ## [0.0.301] - 2026-08-27
 
 ### Fixed
