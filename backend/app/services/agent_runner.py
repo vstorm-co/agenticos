@@ -97,6 +97,7 @@ from app.agents.capabilities.planning import (
     dump_plan,
     new_plan_store,
     open_plan_store,
+    still_open,
 )
 from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE, WorkspaceIdentity
 from app.agents.capabilities.sandbox._identity import SessionScope
@@ -1666,7 +1667,14 @@ class AgentRunnerService:
         # itself seeded from the conversation when that run began, and then worked
         # on. Without the conversation's copy the store is empty every turn, which
         # is an agent denying the plan it wrote in the previous message (#1077).
-        plan_store = await open_plan_store(plan_items if plan_items is not None else recorded.plan)
+        #
+        # `still_open` on the conversation's copy only: a finished checklist is
+        # history, and seeding it would have the tail reminder call a task nobody
+        # is doing "your current plan" (#1221). A resume is mid-plan by
+        # construction and goes through untouched.
+        plan_store = await open_plan_store(
+            plan_items if plan_items is not None else still_open(recorded.plan)
+        )
         resources[PLANNING_STORE_RESOURCE] = plan_store
         # Only on a channel run, and bound to the channel the message arrived in
         # before it got here. Absent everywhere else, and `channel_tools` then

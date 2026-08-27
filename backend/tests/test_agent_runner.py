@@ -652,6 +652,48 @@ class TestAPlanThatOutlivesTheTurn:
         ]
 
     @pytest.mark.anyio
+    async def test_a_fresh_turn_does_not_seed_a_finished_one(self):
+        """The other half of #1077, filed as #1221: `keep_plan` stores completed
+        steps too, so a thread whose plan was finished in August opened in
+        November with the tail reminder calling it "your current plan"."""
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Support", model_profile_id=uuid.uuid4())
+        conversation = MagicMock(
+            overhead_tokens=None,
+            reminder_state=None,
+            plan_items=[
+                {"id": "aa11", "content": "Write the fix", "status": "completed"},
+                {"id": "bb22", "content": "Ship it", "status": "cancelled"},
+            ],
+        )
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.conversation_repo.get_conversation_by_id",
+                new=AsyncMock(return_value=conversation),
+            ),
+            patch("app.services.agent_runner.build_agent"),
+        ):
+            prepared = await service.prepare(ctx, agent.id, conversation_id=uuid.uuid4())
+
+        assert await prepared.plan_store.get_items() == []
+
+    @pytest.mark.anyio
     async def test_a_resume_starts_from_the_plan_the_run_parked_with(self):
         """Both copies exist on a resume, and the park's is the newer one: it was
         seeded from the conversation when that run began and then worked on."""

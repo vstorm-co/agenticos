@@ -796,11 +796,24 @@ newer copy, and written back to the conversation when the run stops. A surface w
 no conversation — a bare API call — keeps a plan for the length of its run, which is
 all it has.
 
-A finished checklist is kept rather than cleared. That is what the run which
-finished it saw too: every step ticked in the tail reminder, until `write_plan`
-replaces the plan wholesale — which is what starting new work does. An agent that
-does not bind the capability pays nothing: no tools, no reminder, and nothing stored,
-because an empty checklist against a column that is null is not a change to write.
+**A finished checklist is history, and a new turn does not start from it.** The
+row keeps it — nothing is deleted — but a plan whose every step is `completed` or
+`cancelled` is not seeded into the next turn: the tail reminder would call a task
+nobody is doing "your current plan", and `read_plan` would answer with it
+(agenticos#1221).
+
+The filter is at the *seed*, not at the moment the last step is ticked, and that
+is the whole of the choice. Within the turn that finishes a plan the store still
+holds it, so the agent can summarise what it just did and nothing contradicts the
+transcript. It is the next question that starts clean — and the ticked checklist
+is still in the messages above it, where it reads as what was done rather than as
+what is being done. A `blocked` step is work outstanding, so a plan holding one is
+seeded: something still has to unblock it. A resume seeds from `paused_state` and
+is untouched, being mid-plan by construction.
+
+An agent that does not bind the capability pays nothing: no tools, no reminder, and
+nothing stored, because an empty checklist against a column that is null is not a
+change to write.
 
 **It spends no tokens of its own.** The tools are local checklist edits with no model
 or embedding request behind them, so unlike knowledge or delegation there is no
