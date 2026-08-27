@@ -1,3 +1,6 @@
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+
 import { createTranslator } from "next-intl";
 import { describe, expect, it } from "vitest";
 
@@ -471,5 +474,53 @@ describe("BFF_ERROR_KEYS", () => {
       tPl,
     );
     expect(failure.toast).toBe("Wewnętrzny błąd serwera");
+  });
+});
+
+describe("nothing outside this module shows a refusal's raw message", () => {
+  /**
+   * The rule #603 established and #655 finished applying: a refusal a BFF route
+   * mints carries a `{ code }` and no sentence, and `getErrorMessage` is the
+   * only reader that resolves one against the `errors` namespace. A site that
+   * reads `.message` instead shows the code humanized into English - `Not
+   * authenticated` - under every locale.
+   *
+   * Asserted by reading the source, because the failure is a *missing* call: a
+   * test of the sites that were migrated cannot fail when a twenty-sixth is
+   * added beside them.
+   */
+  const READS_MESSAGE = /instanceof (?:Api)?Error\s*\?\s*[A-Za-z_$][\w$]*\.message\b/;
+
+  function sources(directory: string): string[] {
+    const found: string[] = [];
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) found.push(...sources(path));
+      else if (/\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name)) found.push(path);
+    }
+    return found;
+  }
+
+  it("reads it off a caught error nowhere the product renders", () => {
+    const root = join(process.cwd(), "src");
+    const offenders = ["app", "components", "hooks", "stores"]
+      .flatMap((directory) => sources(join(root, directory)))
+      .filter((path) => READS_MESSAGE.test(readFileSync(path, "utf8")))
+      .map((path) => path.slice(root.length + 1));
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("recognises the shapes that were really there", () => {
+    // The two spellings the twenty-one migrated sites used, against the call
+    // that replaced them.
+    expect(READS_MESSAGE.test('e instanceof Error ? e.message : t("uploadFailed")')).toBe(true);
+    expect(READS_MESSAGE.test('err instanceof ApiError ? err.message : t("saveFailed")')).toBe(
+      true,
+    );
+    expect(READS_MESSAGE.test('getErrorMessage(e, tErrors, t("uploadFailed"))')).toBe(false);
+    // And not the guard `use-auth` and friends do on a status, which reads no
+    // message at all.
+    expect(READS_MESSAGE.test("error instanceof ApiError && error.status === 401")).toBe(false);
   });
 });

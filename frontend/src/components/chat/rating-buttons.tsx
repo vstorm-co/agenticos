@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
+import { getErrorMessage } from "@/lib/api-error";
 
 interface RatingButtonsProps {
   messageId: string;
@@ -36,6 +37,7 @@ export function RatingButtons({
   isAssistant,
 }: RatingButtonsProps) {
   const t = useTranslations("chat");
+  const tErrors = useTranslations("errors");
   const tc = useTranslations("common");
   const [showCommentDialog, setShowCommentDialog] = useState(false);
   const [pendingRating, setPendingRating] = useState<RatingValue>(RatingValue.DISLIKE);
@@ -92,12 +94,12 @@ export function RatingButtons({
         setShowCommentDialog(false);
         setComment("");
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : t("ratingFailed"));
+        toast.error(getErrorMessage(error, tErrors, t("ratingFailed")));
       } finally {
         setInFlight(null);
       }
     },
-    [conversationId, messageId, currentRating, calculateNewCounts, onRatingChange, t],
+    [conversationId, messageId, currentRating, calculateNewCounts, onRatingChange, t, tErrors],
   );
 
   // No guard against a missing conversation id here: both buttons are
@@ -126,7 +128,7 @@ export function RatingButtons({
           onRatingChange?.({ rating: null, rating_count: newCounts });
           toast.success(t("ratingRemoved"));
         } catch (error) {
-          toast.error(error instanceof Error ? error.message : t("failedRemoveRating"));
+          toast.error(getErrorMessage(error, tErrors, t("failedRemoveRating")));
         } finally {
           setInFlight(null);
         }
@@ -139,7 +141,15 @@ export function RatingButtons({
         }
       }
     },
-    [conversationId, messageId, currentRating, calculateNewCounts, onRatingChange, submitRating],
+    [
+      conversationId,
+      messageId,
+      currentRating,
+      calculateNewCounts,
+      onRatingChange,
+      submitRating,
+      tErrors,
+    ],
   );
 
   const handleCloseDialog = useCallback(() => {

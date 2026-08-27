@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 
 import { openFileInNewTab, type FileAccess, type FileText } from "@/lib/file-access";
+import { getErrorMessage } from "@/lib/api-error";
 
 /**
  * Reading one open file, whatever surface it was opened from.
@@ -122,15 +123,16 @@ interface UseFileActionsResult {
  */
 export function useFileActions(access: FileAccess): UseFileActionsResult {
   const t = useTranslations("files");
+  const tErrors = useTranslations("errors");
   const [error, setError] = useState<string | null>(null);
   const run = useCallback(
     (action: () => Promise<void>) => {
       setError(null);
       void action().catch((failure: unknown) =>
-        setError(failure instanceof Error ? failure.message : t("couldNotBeFetched")),
+        setError(getErrorMessage(failure, tErrors, t("couldNotBeFetched"))),
       );
     },
-    [t],
+    [t, tErrors],
   );
 
   return {
