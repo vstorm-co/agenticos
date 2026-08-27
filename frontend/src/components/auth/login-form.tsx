@@ -147,7 +147,7 @@ export function LoginForm() {
         </Button>
       </form>
 
-      <OAuthBlock label={t("orSignInWith")} />
+      <OAuthBlock label={t("orSignInWith")} returnTo={search.get("returnTo")} />
     </div>
   );
 }

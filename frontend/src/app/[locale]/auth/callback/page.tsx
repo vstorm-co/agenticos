@@ -7,6 +7,7 @@ import { Spinner } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { useAdoptSession } from "@/hooks/use-auth";
 import { postSignInDestination } from "@/lib/auth-landing";
+import { takeReturnTo } from "@/lib/oauth-return";
 import type { User } from "@/types";
 import { useTranslations } from "next-intl";
 
@@ -68,11 +69,10 @@ export default function AuthCallbackPage() {
         const data = await exchangeCode(code);
         if (cancelled) return;
         adoptSession(data.user, data.access_token);
-        // No deep link here yet - nothing carries a returnTo through the
-        // provider round trip. It would not need the OAuth `state` parameter:
-        // the trip starts and ends in the same tab on this origin, so
-        // sessionStorage set beside the provider link is enough.
-        router.replace(postSignInDestination());
+        // The deep link the visitor was headed to, written beside the provider
+        // link they clicked and consumed here. Not the OAuth `state` parameter:
+        // the trip starts and ends in the same tab on this origin (#135).
+        router.replace(postSignInDestination(takeReturnTo()));
       } catch {
         if (!cancelled) {
           setExchangeFailed(true);
