@@ -489,7 +489,18 @@ describe("nothing outside this module shows a refusal's raw message", () => {
    * test of the sites that were migrated cannot fail when a twenty-sixth is
    * added beside them.
    */
-  const READS_MESSAGE = /instanceof (?:Api)?Error\s*\?\s*[A-Za-z_$][\w$]*\.message\b/;
+  // Every shape the sweep actually found, and they were not one: the ternary,
+  // the `=== null` inversion of it, and an `if` that returns. What they share is
+  // reading `.message` off a value the code has just decided is an error - which
+  // is the read `getErrorMessage` exists to replace.
+  const READS_MESSAGE = new RegExp(
+    [
+      // `err instanceof Error ? err.message` and `error === null ? null : error.message`
+      String.raw`(?:instanceof (?:Api)?Error|===\s*null)\s*\?[\s\S]{0,40}?\.message\b`,
+      // `if (error instanceof Error) return error.message;`
+      String.raw`instanceof (?:Api)?Error\)\s*return\s+[A-Za-z_$][\w$]*\.message\b`,
+    ].join("|"),
+  );
 
   function sources(directory: string): string[] {
     const found: string[] = [];
@@ -511,16 +522,26 @@ describe("nothing outside this module shows a refusal's raw message", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("recognises the shapes that were really there", () => {
-    // The two spellings the twenty-one migrated sites used, against the call
-    // that replaced them.
-    expect(READS_MESSAGE.test('e instanceof Error ? e.message : t("uploadFailed")')).toBe(true);
-    expect(READS_MESSAGE.test('err instanceof ApiError ? err.message : t("saveFailed")')).toBe(
-      true,
-    );
-    expect(READS_MESSAGE.test('getErrorMessage(e, tErrors, t("uploadFailed"))')).toBe(false);
-    // And not the guard `use-auth` and friends do on a status, which reads no
-    // message at all.
-    expect(READS_MESSAGE.test("error instanceof ApiError && error.status === 401")).toBe(false);
+  it("recognises every shape that was really there", () => {
+    for (const shape of [
+      'e instanceof Error ? e.message : t("uploadFailed")',
+      'err instanceof ApiError ? err.message : t("saveFailed")',
+      "error === null ? null : error.message",
+      "if (error instanceof Error) return error.message;",
+      // Broken over lines, which is how prettier writes most of them.
+      "queryError instanceof Error\n      ? queryError.message\n      : null",
+    ]) {
+      expect(READS_MESSAGE.test(shape), shape).toBe(true);
+    }
+
+    for (const shape of [
+      'getErrorMessage(e, tErrors, t("uploadFailed"))',
+      // The guard `use-auth` and friends do on a status reads no message.
+      "error instanceof ApiError && error.status === 401",
+      // Nor does a refusal's own field, which is not the caught error.
+      "problem.message",
+    ]) {
+      expect(READS_MESSAGE.test(shape), shape).toBe(false);
+    }
   });
 });

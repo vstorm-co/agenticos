@@ -62,6 +62,8 @@ interface UseAllWorkspaceFilesResult {
  * trip per container-backed one - so it is not what a page pays for on load.
  */
 export function useAllWorkspaceFiles(enabled: boolean): UseAllWorkspaceFilesResult {
+  const t = useTranslations("pages.workspaces");
+  const tErrors = useTranslations("errors");
   const {
     data: listing = null,
     isLoading,
@@ -76,7 +78,7 @@ export function useAllWorkspaceFiles(enabled: boolean): UseAllWorkspaceFilesResu
   return {
     listing,
     isLoading: enabled && isLoading,
-    error: error === null ? null : error.message,
+    error: error ? getErrorMessage(error, tErrors, t("failedLoadWorkspaces")) : null,
   };
 }
 

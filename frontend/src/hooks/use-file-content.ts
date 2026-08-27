@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 
 import { openFileInNewTab, type FileAccess, type FileText } from "@/lib/file-access";
+import type { Translate } from "@/lib/agent-step-captions";
 import { getErrorMessage } from "@/lib/api-error";
 
 /**
@@ -30,6 +31,7 @@ interface UseFileTextResult {
 /** One file's characters. */
 export function useFileText(access: FileAccess): UseFileTextResult {
   const t = useTranslations("files");
+  const tErrors = useTranslations("errors");
   const {
     data: file = null,
     isLoading,
@@ -40,7 +42,7 @@ export function useFileText(access: FileAccess): UseFileTextResult {
     retry: false,
   });
 
-  return { file, isLoading, error: readFailure(error, t("couldNotBeRead")) };
+  return { file, isLoading, error: readFailure(error, tErrors, t("couldNotBeRead")) };
 }
 
 interface UseFileBytesResult {
@@ -71,6 +73,7 @@ interface UseFileBytesResult {
  */
 export function useFileBytes(access: FileAccess): UseFileBytesResult {
   const t = useTranslations("files");
+  const tErrors = useTranslations("errors");
   const {
     data: blob = null,
     isLoading,
@@ -98,7 +101,7 @@ export function useFileBytes(access: FileAccess): UseFileBytesResult {
     url,
     mediaType: blob?.type ?? null,
     isLoading,
-    error: readFailure(error, t("couldNotBeRead")),
+    error: readFailure(error, tErrors, t("couldNotBeRead")),
   };
 }
 
@@ -142,8 +145,15 @@ export function useFileActions(access: FileAccess): UseFileActionsResult {
   };
 }
 
-/** `fallback` rather than a message of its own: a module function cannot translate. */
-function readFailure(error: unknown, fallback: string): string | null {
-  if (error instanceof Error) return error.message;
-  return error ? fallback : null;
+/**
+ * What a failed read says, or null where nothing failed.
+ *
+ * `fallback` and the translator rather than a message of its own: a module
+ * function cannot translate. Through `getErrorMessage` so a BFF refusal's code
+ * resolves against the catalog instead of arriving humanized into English
+ * (#655); the `null` branch is this function's own, because "nothing failed" is
+ * not a message.
+ */
+function readFailure(error: unknown, t: Translate, fallback: string): string | null {
+  return error ? getErrorMessage(error, t, fallback) : null;
 }

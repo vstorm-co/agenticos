@@ -467,3 +467,25 @@ describe("rating an answer", () => {
     release({ ok: true, status: 200, json: () => Promise.resolve({}) });
   });
 });
+
+describe("a refusal the proxy minted", () => {
+  it("resolves its code against the catalog rather than showing it humanized", async () => {
+    // The proxy has no locale, so it refuses with a code and no sentence. Read
+    // through a hand-built `new Error(body.message)` the code was thrown away
+    // and the toast said "Backend unavailable" - the humanized code - under
+    // every locale (#655). This file's translator answers with the key, which
+    // is the proof either way: `errors.backendUnavailable` is a catalog lookup
+    // and "Backend unavailable" is a string built from the code.
+    respond({
+      ok: false,
+      status: 503,
+      json: () => Promise.resolve({ code: "BACKEND_UNAVAILABLE" }),
+    });
+    mount();
+
+    await userEvent.click(up());
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("backendUnavailable"));
+    expect(toast.error).not.toHaveBeenCalledWith("Backend unavailable");
+  });
+});

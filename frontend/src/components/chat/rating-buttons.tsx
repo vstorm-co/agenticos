@@ -2,6 +2,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { Loader2, ThumbsUp, ThumbsDown } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { ApiError, getErrorMessage, parseErrorMessage } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { RatingValue, type UserRating } from "@/types";
@@ -14,7 +15,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
-import { getErrorMessage } from "@/lib/api-error";
 
 interface RatingButtonsProps {
   messageId: string;
@@ -84,8 +84,17 @@ export function RatingButtons({
         );
 
         if (!response.ok) {
-          const error = await response.json().catch(() => ({ message: t("unknownError") }));
-          throw new Error(error.message || t("failedSubmitRating"));
+          // An `ApiError`, not a bare `Error`: the code is the only thing
+          // `getErrorMessage` can resolve against the catalog, and a
+          // hand-built `new Error(body.message)` threw it away - so a
+          // code-only refusal from the proxy reached the toast humanized into
+          // English under every locale (#655).
+          const body = await response.json().catch(() => null);
+          throw new ApiError(
+            response.status,
+            body === null ? t("unknownError") : parseErrorMessage(body, t("failedSubmitRating")),
+            body,
+          );
         }
 
         const newCounts = calculateNewCounts(currentRating, rating);
@@ -120,8 +129,17 @@ export function RatingButtons({
           );
 
           if (!response.ok) {
-            const error = await response.json().catch(() => ({ message: t("unknownError") }));
-            throw new Error(error.message || t("failedRemoveRating"));
+            // An `ApiError`, not a bare `Error`: the code is the only thing
+            // `getErrorMessage` can resolve against the catalog, and a
+            // hand-built `new Error(body.message)` threw it away - so a
+            // code-only refusal from the proxy reached the toast humanized into
+            // English under every locale (#655).
+            const body = await response.json().catch(() => null);
+            throw new ApiError(
+              response.status,
+              body === null ? t("unknownError") : parseErrorMessage(body, t("failedRemoveRating")),
+              body,
+            );
           }
 
           const newCounts = calculateNewCounts(currentRating, null);
