@@ -233,7 +233,17 @@ export function useActiveOrganizationRecovery(): void {
   // the path alone would leave the second reading the first one's tenant.
   const arrival = `${pathname}#${adopted ?? ""}`;
   useLayoutEffect(() => {
-    if (adopted === null || arrival === adoptedFor.current) return;
+    // A URL that names no organization forgets the last one that did. The
+    // dashboard layout outlives every navigation inside it, so without this a
+    // reader who opened an alert, switched organization deliberately, went
+    // somewhere else and came back with Back would arrive at the same URL with
+    // the marker still set - reading the alert under the organization they
+    // switched to.
+    if (adopted === null) {
+      adoptedFor.current = null;
+      return;
+    }
+    if (arrival === adoptedFor.current) return;
     adoptedFor.current = arrival;
     if (adopted !== activeOrgId) setActiveOrgId(adopted);
   }, [adopted, activeOrgId, arrival, setActiveOrgId]);

@@ -396,6 +396,32 @@ describe("useActiveOrganizationRecovery", () => {
     expect(useOrgStore.getState().activeOrgId).toBe(SECOND);
   });
 
+  it("adopts the same link again after a page that named nothing", async () => {
+    // The dashboard layout outlives every navigation inside it, so the marker
+    // that stops the adoption fighting the switcher would otherwise outlive the
+    // link too: open an alert, switch deliberately, go elsewhere, come Back -
+    // and the alert reads under the organization switched to.
+    const LINK = "33333333-3333-3333-3333-333333333333";
+    answerWith([{ id: PERSONAL, is_personal: true }], { permissions: [] });
+    useOrgStore.setState({ activeOrgId: PERSONAL });
+    path.mockReturnValue("/agents/a-1");
+    search.mockReturnValue(new URLSearchParams(`org=${LINK}`));
+    const { rerender } = renderHook(() => useActiveOrganizationRecovery(), { wrapper });
+    await waitFor(() => expect(useOrgStore.getState().activeOrgId).toBe(LINK));
+
+    useOrgStore.setState({ activeOrgId: PERSONAL });
+    path.mockReturnValue("/skills");
+    search.mockReturnValue(new URLSearchParams());
+    rerender();
+    expect(useOrgStore.getState().activeOrgId).toBe(PERSONAL);
+
+    path.mockReturnValue("/agents/a-1");
+    search.mockReturnValue(new URLSearchParams(`org=${LINK}`));
+    rerender();
+
+    expect(useOrgStore.getState().activeOrgId).toBe(LINK);
+  });
+
   it("says the link is the reason when the organization it named is refused", async () => {
     // Being moved silently would have them read another organization's page as
     // the answer to the alert - which is the failure the id in the URL exists
