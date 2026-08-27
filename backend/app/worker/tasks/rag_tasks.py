@@ -24,7 +24,12 @@ from app.core.vault import VaultScope
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus
 from app.db.session import get_worker_db_context
-from app.repositories import ingestion_spend_repo, knowledge_base_repo, organization_secret_repo
+from app.repositories import (
+    ingestion_spend_repo,
+    knowledge_base_repo,
+    organization_secret_repo,
+    rag_document_repo,
+)
 from app.repositories import sync_source as sync_source_repo
 from app.services.embedding_resolution import (
     ResolvedEmbeddings,
@@ -236,6 +241,25 @@ async def _config_for_collection(
     )
 
 
+async def _collection_live(collection_name: str) -> bool:
+    """Whether a collection still has a knowledge base - i.e. it was not dropped
+    while a sync ingested into it.
+
+    Fail-safe: any error answers yes, so the guard only ever skips a write into a
+    collection it is certain is gone - never blocks a legitimate sync (#1275). A
+    write into a dropped collection would have `_ensure_collection` recreate the
+    table and leave an untracked one behind.
+    """
+    try:
+        async with get_worker_db_context() as db:
+            return bool(await knowledge_base_repo.list_by_collection_name(db, collection_name))
+    except Exception:
+        logger.warning(
+            "Could not confirm collection %s still exists; indexing anyway", collection_name
+        )
+        return True
+
+
 @flow(name="ingest-document", log_prints=True)
 async def ingest_document_flow(
     rag_document_id: str,
@@ -330,6 +354,22 @@ async def _run_ingestion(
         config = IngestionConfig.model_validate(record.ingestion_config)
         processor = await IngestionConfigService(db).build_processor(organization_id, config)
 
+    async def _still_wanted() -> bool:
+        """Whether this document still exists - i.e. its collection was not
+        dropped while the file parsed. Fail-safe: any error answers yes, so the
+        guard only ever skips a write it is certain is unwanted, never blocks a
+        legitimate ingestion (#1275)."""
+        try:
+            async with get_worker_db_context() as check_db:
+                return (
+                    await rag_document_repo.get_by_id(check_db, UUID(rag_document_id)) is not None
+                )
+        except Exception:
+            logger.warning(
+                "Could not confirm document %s still exists; indexing anyway", rag_document_id
+            )
+            return True
+
     ledger = SpendLedger(organization_id=organization_id)
     file_path = Path(filepath)
     async with _ingestion_service(processor=processor) as ingester:
@@ -340,6 +380,7 @@ async def _run_ingestion(
                     collection_name=collection_name,
                     replace=replace,
                     source_path=source_path,
+                    still_wanted=_still_wanted,
                 )
         except Exception as exc:
             # `ingest_file` reports a failed parse or a failed index by returning
@@ -493,6 +534,7 @@ async def _run_sync(
                         filepath=filepath,
                         collection_name=collection_name,
                         replace=True,
+                        still_wanted=lambda: _collection_live(collection_name),
                         # The address this flow already looks documents up by. It
                         # was omitted, so the stored document identified itself by
                         # filename while the lookup asked for a path - the
@@ -846,6 +888,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                             result = await ingester.ingest_file(
                                 filepath=local_path,
                                 collection_name=collection_name,
+                                still_wanted=lambda: _collection_live(collection_name),
                                 # Unconditional, as in `sync_local_flow`: once this
                                 # has decided to ingest, whatever it matched has to
                                 # go, or the collection grows a copy.
