@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { RatingButtons } from "./rating-buttons";
 import { RatingValue, type UserRating } from "@/types";
+import { ApiError } from "@/lib/api-error";
 
 vi.mock("next-intl", async () => ({
   useTranslations: (await import("@/test-utils/intl")).keyTranslations(),
@@ -357,17 +358,16 @@ describe("rating an answer", () => {
 
 describe("a refusal the proxy minted", () => {
   it("resolves its code against the catalog rather than showing it humanized", async () => {
-    // The proxy has no locale, so it refuses with a code and no sentence. Read
-    // through a hand-built `new Error(body.message)` the code was thrown away
-    // and the toast said "Backend unavailable" - the humanized code - under
-    // every locale (#655). This file's translator answers with the key, which
-    // is the proof either way: `errors.backendUnavailable` is a catalog lookup
-    // and "Backend unavailable" is a string built from the code.
-    respond({
-      ok: false,
-      status: 503,
-      json: () => Promise.resolve({ code: "BACKEND_UNAVAILABLE" }),
-    });
+    // The proxy sits outside `[locale]` and has no translator, so it refuses
+    // with a code and no sentence. Read through `.message` the code was shown
+    // humanized - "Backend unavailable" - under every locale, where the catalog
+    // says something else and Polish says nothing at all (#655). This file's
+    // translator answers with the key, which is the proof either way:
+    // `backendUnavailable` is a catalog lookup, and "Backend unavailable" is a
+    // string built from the code.
+    rateMessage.mockRejectedValueOnce(
+      new ApiError(503, "Backend unavailable", { code: "BACKEND_UNAVAILABLE" }),
+    );
     mount();
 
     await userEvent.click(up());
@@ -376,3 +376,4 @@ describe("a refusal the proxy minted", () => {
     expect(toast.error).not.toHaveBeenCalledWith("Backend unavailable");
   });
 });
+
