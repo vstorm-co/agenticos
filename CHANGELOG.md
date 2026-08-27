@@ -17,6 +17,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.293] - 2026-08-27
+
+### Fixed
+
+- **A unit word anywhere in a string exempted the whole sentence from the i18n
+  sweep.** `NOT_A_SENTENCE`'s unit alternative had `.*` on both sides, so
+  "Use rem instead of pixels for spacing", "Change the deg value before saving"
+  and "This px setting is wrong" all left the sweep untranslated - the same defect
+  as #656 and #678, and the widest of the three. It also never did its stated job:
+  a CSS measurement is written `12px`, and a word boundary before `px` needs one
+  between `2` and `p`, so `"Set the width to 12px"` was reported anyway. The
+  alternative caught the standalone token it was never written for and missed the
+  measurement it was. And it was dead in any case, because a phrase genuinely made
+  of units is already answered by `isFormatter`, which asks that *every* word be a
+  unit or an acronym rather than that one of them be. Deleted, with the docstring
+  now recording why there is no unit alternative so it is not re-added. (#741,
+  #656, #678)
+
 ## [0.0.292] - 2026-08-27
 
 ### Changed
