@@ -176,7 +176,11 @@ class InvitationService:
         )
 
     async def accept(self, token: str, accepting_user_id: UUID):
-        invite = await invitation_repo.get_by_token(self.db, token)
+        # Locked for the rest of the request: the `used_count`/`max_uses` guard
+        # below and the increment in `record_use` are a check-then-act, and two
+        # accepts of a one-use link arriving together would otherwise both pass
+        # (#17).
+        invite = await invitation_repo.get_by_token(self.db, token, for_update=True)
         if not invite:
             raise NotFoundError(message="Invitation not found or already used")
 

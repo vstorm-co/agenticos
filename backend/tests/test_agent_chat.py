@@ -542,6 +542,29 @@ class TestRecordingTheRun:
         assert (turn.output, turn.model_label) == ("42 days", "gpt-4.1")
         assert runner.finish.call_args.kwargs["status"] is RunStatus.COMPLETED
 
+    async def test_the_run_row_is_committed_before_the_stream_starts(self):
+        """The transaction ends before the model is asked anything (#12).
+
+        The row is then visible from another session for the life of the run,
+        and the pooled connection is returned instead of being held `idle in
+        transaction` for however long somebody watches the answer arrive.
+        """
+        db = _db()
+        order: list[str] = []
+
+        async def note_commit() -> None:
+            order.append("commit")
+
+        async def note_stream(_agent_run: MagicMock) -> None:
+            order.append("stream")
+
+        db.commit = AsyncMock(side_effect=note_commit)
+
+        with _runner(_prepared()):
+            await _run(db, stream=AsyncMock(side_effect=note_stream))
+
+        assert order[:2] == ["commit", "stream"]
+
     async def test_a_failed_run_still_records_what_it_spent(self):
         """The tokens were spent before it broke; a budget that ignores that is not one."""
         db = _db()
@@ -551,7 +574,9 @@ class TestRecordingTheRun:
 
         finished = runner.finish.call_args.kwargs
         assert finished["status"] is RunStatus.FAILED
-        db.commit.assert_awaited_once()
+        # Two commits: the one that opened the run row to other sessions before
+        # the stream started, and the one that lands the terminal write.
+        assert db.commit.await_count == 2
 
     async def test_a_failed_chat_run_records_the_refusal_and_not_the_provider(self, caplog):
         """The same rule the chat frame took in #659, on the row rather than the
@@ -590,7 +615,7 @@ class TestRecordingTheRun:
         finished = runner.finish.call_args.kwargs
         assert finished["status"] is RunStatus.CANCELLED
         assert finished["error"] is None
-        db.commit.assert_awaited_once()
+        assert db.commit.await_count == 2
 
     async def test_a_budget_stop_is_recorded_as_a_budget_stop_not_a_failure(self):
         """An operator filtering run history for problems should not wade through it."""
@@ -913,3 +938,70 @@ class TestAttachmentsAreRoutedHereAndNotBySurfaces:
 
         prompt = prepared.built.agent.iter.call_args.args[0]
         assert prompt.startswith("what is thisand this")
+
+
+class TestACommitThatCannotLand:
+    """The terminal commit must not replace the exception that ended the run (#235)."""
+
+    @pytest.mark.anyio
+    async def test_a_failing_commit_does_not_mask_the_cancellation(self):
+        """A stop cancels the turn; a commit that then cannot land - a
+        serialization failure, a dropped connection - must not turn that into a
+        failed turn by replacing the `CancelledError`."""
+
+        async def _cancelled(agent_run: Any) -> None:
+            raise asyncio.CancelledError
+
+        db = _db()
+        # Two commits reach the session now: the opening one before the model
+        # call (#12) and the terminal one. Only the terminal write is under
+        # test, so the first is allowed to land.
+        db.commit = AsyncMock(side_effect=[None, RuntimeError("could not serialize access")])
+        with _runner(_prepared()), pytest.raises(asyncio.CancelledError):
+            await _run(db, stream=_cancelled)
+        assert db.commit.await_count == 2
+
+    @pytest.mark.anyio
+    async def test_a_failing_commit_on_a_clean_run_still_surfaces(self):
+        """When nothing else ended the run, a commit that cannot land is the one
+        thing wrong and does surface."""
+        db = _db()
+        # Two commits reach the session now: the opening one before the model
+        # call (#12) and the terminal one. Only the terminal write is under
+        # test, so the first is allowed to land.
+        db.commit = AsyncMock(side_effect=[None, RuntimeError("could not commit")])
+        with _runner(_prepared()), pytest.raises(RuntimeError, match="could not commit"):
+            await _run(db)
+
+    @pytest.mark.anyio
+    async def test_a_failing_finish_does_not_mask_the_cancellation(self):
+        """The masking window is the whole terminal write, not only the commit:
+        `finish` hits the same connection first and must not replace the
+        `CancelledError` either (#235)."""
+
+        async def _cancelled(agent_run: Any) -> None:
+            raise asyncio.CancelledError
+
+        db = _db()
+        with _runner(_prepared()) as runner:
+            runner.finish = AsyncMock(side_effect=RuntimeError("connection dropped"))
+            with pytest.raises(asyncio.CancelledError):
+                await _run(db, stream=_cancelled)
+        # Only the opening commit; the terminal one is never reached.
+        db.commit.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_a_commit_failure_surfaces_even_inside_a_callers_except(self):
+        """#235 review: a caller's handled exception must not make this run's own
+        commit failure look like the thing being unwound and get swallowed."""
+        db = _db()
+        # Two commits reach the session now: the opening one before the model
+        # call (#12) and the terminal one. Only the terminal write is under
+        # test, so the first is allowed to land.
+        db.commit = AsyncMock(side_effect=[None, RuntimeError("could not commit")])
+        with _runner(_prepared()):
+            try:
+                raise ValueError("boom")  # noqa: TRY301 - a caller already mid-except
+            except ValueError:
+                with pytest.raises(RuntimeError, match="could not commit"):
+                    await _run(db)

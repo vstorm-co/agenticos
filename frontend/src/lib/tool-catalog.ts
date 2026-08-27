@@ -48,8 +48,10 @@ export type StepKind =
  * test, a hook and a server component - the components live in
  * `components/chat/tool-results/` and one of them pulls in Recharts.
  *
- * `"none"` is a call with nothing worth opening: the step says the agent looked, and
- * what it got back is a prompt fragment rather than something a person reads.
+ * There is no "nothing to open" any more. `list_context` and `list_skills` carried
+ * one on the grounds that what comes back is a prompt fragment, and the question
+ * they are the answer to - "does it actually see my glossary" - is answered by the
+ * list and by nothing else.
  */
 export type ToolRenderer =
   | "chart"
@@ -58,9 +60,11 @@ export type ToolRenderer =
   | "rag"
   | "run-python"
   | "load-skill"
+  | "skill-list"
+  | "context-list"
+  | "plan"
   | "workspace"
-  | "generic"
-  | "none";
+  | "generic";
 
 /**
  * The tense pair for a step that names its own subject: *Writing test1.md*.
@@ -219,7 +223,7 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   // reach the model as a tool call, so there is nothing to render for them here.
   list_context: {
     kind: "list",
-    render: "none",
+    render: "context-list",
     captionKey: "lookingThroughContext",
     displayNameKey: "availableContext",
   },
@@ -241,7 +245,7 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   // skills
   list_skills: {
     kind: "skill",
-    render: "none",
+    render: "skill-list",
     captionKey: "lookingThroughSkills",
     displayNameKey: "availableSkills",
   },
@@ -301,54 +305,57 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   },
   delegate: { kind: "delegate", render: "generic", captionKey: "delegating" },
 
-  // planning - the model's own checklist. The tool result is the rendered plan or a
-  // one-line confirmation, so nothing opens underneath these steps.
+  // planning - the model's own checklist. Every one of these answers with the plan
+  // as it now stands or with one line about one step, so they share a renderer that
+  // draws a checklist and falls back to the line. Never the generic one: `write_plan`
+  // is called with the whole ordered list every time, so it opened as forty lines of
+  // pretty-printed arguments above a rendered copy of the same steps.
   write_plan: {
     kind: "write",
-    render: "generic",
+    render: "plan",
     captionKey: "writingPlan",
     displayNameKey: "plan",
   },
-  read_plan: { kind: "read", render: "generic", captionKey: "readingPlan", displayNameKey: "plan" },
+  read_plan: { kind: "read", render: "plan", captionKey: "readingPlan", displayNameKey: "plan" },
   add_task: {
     kind: "write",
-    render: "generic",
+    render: "plan",
     captionKey: "addingStep",
     displayNameKey: "addStep",
   },
   update_task_status: {
     kind: "edit",
-    render: "generic",
+    render: "plan",
     captionKey: "updatingStep",
     displayNameKey: "updateStep",
   },
   update_task_statuses: {
     kind: "edit",
-    render: "generic",
+    render: "plan",
     captionKey: "updatingSteps",
     displayNameKey: "updateSteps",
   },
   remove_task: {
     kind: "edit",
-    render: "generic",
+    render: "plan",
     captionKey: "removingStep",
     displayNameKey: "removeStep",
   },
   add_subtask: {
     kind: "write",
-    render: "generic",
+    render: "plan",
     captionKey: "addingSubtask",
     displayNameKey: "addSubtask",
   },
   set_dependency: {
     kind: "edit",
-    render: "generic",
+    render: "plan",
     captionKey: "settingDependency",
     displayNameKey: "setDependency",
   },
   get_available_tasks: {
     kind: "list",
-    render: "generic",
+    render: "plan",
     captionKey: "checkingAvailableSteps",
     displayNameKey: "availableSteps",
   },

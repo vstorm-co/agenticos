@@ -9,6 +9,19 @@ import jwt
 from app.core.config import settings
 
 
+def encode_untrusted(value: str) -> bytes:
+    """UTF-8 bytes for an attacker-controlled string, never raising on a surrogate.
+
+    A webhook body carries `{"token": "\\ud800"}` through `json.loads` as a lone
+    surrogate, and a bare `str.encode()` on it raises `UnicodeEncodeError` - a 500,
+    and exactly the log-flooding crash a credential check is meant to refuse
+    quietly (#33). `surrogatepass` turns it into bytes that cannot match a real
+    secret, so the check returns a clean non-match. A string with no surrogate
+    encodes byte-for-byte as it did before.
+    """
+    return value.encode("utf-8", "surrogatepass")
+
+
 def create_access_token(
     subject: str | Any,
     expires_delta: timedelta | None = None,

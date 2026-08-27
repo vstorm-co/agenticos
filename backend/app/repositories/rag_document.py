@@ -38,8 +38,14 @@ async def get_all(
     db: AsyncSession,
     *,
     collections: list[str],
-) -> list[RAGDocument]:
-    """Documents tracked in the named collections, newest first.
+    skip: int = 0,
+    limit: int = 50,
+) -> tuple[list[RAGDocument], int]:
+    """A page of documents tracked in the named collections, newest first.
+
+    Returns `(rows, total)`, the same shape as `get_for_kb`: without a bound this
+    selected and serialized every row across the caller's collections, which grows
+    without limit with tenant data (#27).
 
     Filtering on `organization_id` would be the obvious alternative and is not
     equivalent: the column is nullable and a document ingested by a sync task
@@ -48,14 +54,25 @@ async def get_all(
     `knowledge_bases` row authorized, so the collection is what this asks for.
     """
     if not collections:
-        return []
-    query = (
-        select(RAGDocument)
-        .where(RAGDocument.collection_name.in_(collections))
-        .order_by(RAGDocument.created_at.desc())
+        return [], 0
+    base = select(RAGDocument).where(RAGDocument.collection_name.in_(collections))
+    total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
+    rows = (
+        (
+            await db.execute(
+                # `id` breaks ties: a bulk import lands many rows in one
+                # microsecond, and without a unique secondary key their
+                # `created_at DESC` order is not stable across the pages the
+                # caller reads them in (#1103).
+                base.order_by(RAGDocument.created_at.desc(), RAGDocument.id.desc())
+                .offset(skip)
+                .limit(limit)
+            )
+        )
+        .scalars()
+        .all()
     )
-    result = await db.execute(query)
-    return list(result.scalars().all())
+    return list(rows), int(total)
 
 
 async def get_for_kb(
@@ -69,7 +86,15 @@ async def get_for_kb(
     base = select(RAGDocument).where(RAGDocument.knowledge_base_id == kb_id)
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
     rows = (
-        (await db.execute(base.order_by(RAGDocument.created_at.desc()).offset(skip).limit(limit)))
+        (
+            await db.execute(
+                # `id` breaks ties so a page boundary through rows sharing a
+                # `created_at` neither repeats nor skips one (#1103).
+                base.order_by(RAGDocument.created_at.desc(), RAGDocument.id.desc())
+                .offset(skip)
+                .limit(limit)
+            )
+        )
         .scalars()
         .all()
     )

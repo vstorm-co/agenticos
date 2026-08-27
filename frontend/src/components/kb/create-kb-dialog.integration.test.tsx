@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -36,11 +36,41 @@ const SECRETS = {
   total: 2,
 };
 
+/**
+ * The same vault plus a key for the *other* embedding provider.
+ *
+ * Only the provider tests hold it: an OpenAI key in the vault is also what the
+ * image-description form reads, and holding one is exactly when that form stops
+ * offering to store one - so serving it everywhere would answer a question two
+ * tests below are asking.
+ */
+const SECRETS_WITH_OPENAI = {
+  items: [
+    ...SECRETS.items,
+    { id: "s-3", name: "OpenAI prod", hint: "7777", purpose: "openai", kind: "api_key" },
+  ],
+  total: 3,
+};
+
 const EMBEDDING_MODELS = {
   default: "text-embedding-3-large",
-  models: [
-    { model: "text-embedding-3-large", dim: 3072 },
-    { model: "text-embedding-3-small", dim: 1536 },
+  default_provider: "openrouter",
+  providers: [
+    {
+      provider: "openrouter",
+      name: "OpenRouter",
+      deployment_key: true,
+      models: [
+        { model: "text-embedding-3-large", dim: 3072 },
+        { model: "text-embedding-3-small", dim: 1536 },
+      ],
+    },
+    {
+      provider: "openai",
+      name: "OpenAI",
+      deployment_key: false,
+      models: [{ model: "text-embedding-3-small", dim: 1536 }],
+    },
   ],
 };
 
@@ -61,8 +91,8 @@ async function openParsing() {
   await userEvent.click(screen.getByText("How documents are parsed"));
 }
 
-/** What the caller may do, which decides whether either key can be stored here. */
-const state = { permissions: [] as Permission[] };
+/** What the caller may do, and what their vault holds, per test. */
+const state = { permissions: [] as Permission[], secrets: SECRETS };
 
 /**
  * Answer every request the dialog makes.
@@ -73,7 +103,7 @@ const state = { permissions: [] as Permission[] };
  */
 function serve(embeddingModels: typeof EMBEDDING_MODELS | "refused" = EMBEDDING_MODELS) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
-    if (path === "/secrets") return SECRETS;
+    if (path === "/secrets") return state.secrets;
     if (path === "/rag/embedding-models") {
       if (embeddingModels === "refused") throw new Error("502 Bad Gateway");
       return embeddingModels;
@@ -128,6 +158,7 @@ function show() {
 beforeEach(() => {
   vi.clearAllMocks();
   state.permissions = [Perm.connectionsManage, Perm.secretsEdit];
+  state.secrets = SECRETS;
   serve();
 });
 
@@ -213,6 +244,67 @@ describe("the embedding model picker", () => {
 
     const preselected = await screen.findByRole("option", { name: /text-embedding-3-large/ });
     expect(preselected).toHaveTextContent("deployment default");
+  });
+});
+
+/**
+ * Whose endpoint serves the model, which used to be nobody's choice: every
+ * request went to openrouter.ai, hardcoded, whatever key the collection had.
+ */
+describe("choosing the provider", () => {
+  beforeEach(() => {
+    state.secrets = SECRETS_WITH_OPENAI;
+  });
+
+  it("offers only the models the chosen provider serves", async () => {
+    show();
+    await openEmbeddings();
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
+    await userEvent.click(screen.getByLabelText("Model"));
+
+    expect(await screen.findByRole("option", { name: /text-embedding-3-small/ })).toBeVisible();
+    expect(screen.queryByRole("option", { name: /text-embedding-3-large/ })).toBeNull();
+  });
+
+  it("offers only the keys that provider will accept", async () => {
+    show();
+    await openEmbeddings();
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
+    await userEvent.click(screen.getByLabelText("Key"));
+
+    expect(await screen.findByRole("option", { name: /OpenAI prod/ })).toBeVisible();
+    expect(screen.queryByRole("option", { name: /OpenRouter prod/ })).toBeNull();
+  });
+
+  it("does not offer the deployment's key to a provider it does not belong to", async () => {
+    // The deployment has one key and it belongs to one endpoint. Offering it here
+    // would offer a collection that cannot index its first document.
+    show();
+    await openEmbeddings();
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
+    await userEvent.click(screen.getByLabelText("Key"));
+
+    expect(screen.queryByRole("option", { name: "Deployment key" })).toBeNull();
+  });
+
+  it("posts the provider and the model the provider serves", async () => {
+    show();
+    await openEmbeddings();
+    await userEvent.click(await screen.findByLabelText("Embedding provider"));
+    await userEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
+    await userEvent.type(screen.getByLabelText("Name"), "Handbook");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    const body = vi.mocked(apiClient.post).mock.calls.at(-1)?.[1] as Record<string, unknown>;
+    expect(body.embedding_provider).toBe("openai");
+    // The deployment default is 3072-wide and OpenAI's entry here serves only the
+    // 1536 one, so the model has to move with the provider - posting the default
+    // would create a column the provider cannot fill.
+    expect(body.embedding_model).toBe("text-embedding-3-small");
   });
 });
 

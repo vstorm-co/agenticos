@@ -22,17 +22,26 @@ reminder is re-read. `cache_ttl` is how long that prefix may cache.
 
 ## Why the store is the runner's
 
-The library's default `InMemoryPlanStore` is fresh per run. A run that parks on an
-approval mid-plan resumes as a *new* pydantic-ai run, so a fresh store would drop the
-checklist the model had built — the same shape of bug the delegation journal had
-before agenticos#175.
+The library's default `InMemoryPlanStore` is fresh per run, and a run here is one
+turn. That costs the checklist at two boundaries. A run that parks on an approval
+mid-plan resumes as a *new* pydantic-ai run, so a fresh store would drop what the
+model had built — the same shape of bug the delegation journal had before
+agenticos#175. And a chat message is a run, so the next message would drop it too:
+an agent wrote three steps, was asked to start the first, and answered that no plan
+existed and it had never created one (agenticos#1077).
 
-So the runner owns the store, not this capability. It seeds one from `paused_state`
-on resume, injects it through `PLANNING_STORE_RESOURCE`, and reads it back when the
-run stops. The capability only hands that store to the library — which is why
-building it needs no runner change, exactly as the subagent runtime arrives as a
-resource. Absent a runner (a preview, a unit test), the library keeps its own fresh
-in-memory plan, which is the honest behaviour for a build with no run to park.
+So the runner owns the store, not this capability. It seeds one from the
+conversation's `plan_items` — or from `paused_state` on a resume, which is the newer
+copy — injects it through `PLANNING_STORE_RESOURCE`, and writes the checklist back
+to the conversation when the run stops. The capability only hands that store to the
+library — which is why building it needs no runner change, exactly as the subagent
+runtime arrives as a resource. Absent a runner (a preview, a unit test), the library
+keeps its own fresh in-memory plan, which is the honest behaviour for a build with
+no run to park.
+
+A finished checklist is kept rather than cleared: that is what the run which
+finished it saw too — every step ticked in the tail reminder until `write_plan`
+replaces the plan wholesale, which is what starting new work does.
 
 ## Why the tool text lives here
 
@@ -65,10 +74,7 @@ knowledge (embeddings) or delegation (child runs). The round trips the model mak
 call them are its own, already counted by the budget guard.
 
 **It exposes no persistent backend.** The library ships SQLite, Postgres and Redis
-stores; this capability uses only the in-memory one, because the plan's lifetime here
-is a single run (which may park and resume), not a durable record across
-conversations. A plan that outlived its run would be a second store of truth beside
-the transcript.
-
-**It does not render a plan panel.** The checklist is surfaced to the model; a
-first-class plan view in the chat UI is a separate piece of work.
+stores, each of which owns its own queries; this capability uses the in-memory one
+and the runner makes it durable, writing the checklist to `conversations.plan_items`
+through the repository layer like every other row this application keeps. A second
+writer of the same plan is what a library store would be.

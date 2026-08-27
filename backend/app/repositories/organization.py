@@ -83,12 +83,55 @@ async def reassign_creator(
     return org
 
 
-async def list_for_user(db: AsyncSession, user_id: UUID) -> list[Organization]:
+async def list_for_user(db: AsyncSession, user_id: UUID) -> list[tuple[Organization, str]]:
+    """Each organization the user belongs to, with the role their membership carries.
+
+    The role comes off the same membership row the join already filters on, so a
+    caller needs no second per-organization lookup to learn it (#953).
+    """
     result = await db.execute(
-        select(Organization)
+        select(Organization, OrganizationMember.role)
         .join(OrganizationMember, OrganizationMember.organization_id == Organization.id)
         .where(OrganizationMember.user_id == user_id)
         .order_by(Organization.is_personal.desc(), Organization.created_at.asc())
+    )
+    return [(org, role) for org, role in result.all()]
+
+
+async def member_counts_for(db: AsyncSession, org_ids: list[UUID]) -> dict[UUID, int]:
+    """How many members each of the named organizations has, in one grouped query.
+
+    One read for a whole page of organizations rather than a `count(*)` per row
+    (#953). An organization absent from the result has no members; every id the
+    caller passes for a listing has at least the caller, so in practice each is
+    present.
+    """
+    if not org_ids:
+        return {}
+    result = await db.execute(
+        select(OrganizationMember.organization_id, func.count(OrganizationMember.id))
+        .where(OrganizationMember.organization_id.in_(org_ids))
+        .group_by(OrganizationMember.organization_id)
+    )
+    return dict(result.all())
+
+
+async def list_owned_by(db: AsyncSession, user_id: UUID) -> list[Organization]:
+    """Non-personal organizations where the user holds an Owner membership.
+
+    Distinct from `list_created_by`: ownership moves without the creator FK
+    moving, so a user can be the sole Owner of an org they did not create - one
+    `list_created_by` never returns, whose only owner would otherwise cascade
+    away on the user's deletion and leave it ownerless (#1117).
+    """
+    result = await db.execute(
+        select(Organization)
+        .join(OrganizationMember, OrganizationMember.organization_id == Organization.id)
+        .where(
+            OrganizationMember.user_id == user_id,
+            OrganizationMember.role == OrgRoleName.OWNER.value,
+            Organization.is_personal.is_(False),
+        )
     )
     return list(result.scalars().all())
 

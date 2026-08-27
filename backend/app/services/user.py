@@ -332,11 +332,18 @@ class UserService:
         secret; every signup creates a personal org, and `created_by_user_id` is
         `RESTRICT`. Each is resolved here in the request's own transaction, before
         the row goes.
+
+        A fourth case is not a 500 but a silent orphan: a user who is the sole
+        Owner of an org they did *not* create takes its last owner membership with
+        them (`ON DELETE CASCADE`), leaving nobody who can manage it. That is
+        refused here too (#1117).
         """
         await organization_secret_repo.promote_owned_private_to_org(self.db, owner_user_id=user_id)
 
         org_service = OrganizationService(self.db)
+        handled: set[UUID] = set()
         for org in await organization_repo.list_created_by(self.db, user_id):
+            handled.add(org.id)
             if org.is_personal:
                 await org_service.purge(org)
                 continue
@@ -350,6 +357,24 @@ class UserService:
                     details={"user_id": user_id, "organization_id": org.id},
                 )
             await organization_repo.reassign_creator(self.db, org=org, new_creator_id=heir)
+
+        # Ownership moves without the creator FK, so a user can be the sole Owner
+        # of an org they did not create - one `list_created_by` never returns.
+        # Deleting them cascades that last owner membership away and leaves the
+        # org ownerless: no 500, but nobody can manage it through the owner-gated
+        # APIs (#1117). Refuse, unless another owner is there to keep it.
+        for org in await organization_repo.list_owned_by(self.db, user_id):
+            if org.id in handled:
+                continue
+            other_owner = await member_repo.other_owner_id(
+                self.db, organization_id=org.id, exclude_user_id=user_id
+            )
+            if other_owner is None:
+                raise BadRequestError(
+                    message="Cannot delete the sole owner of a shared organization; "
+                    "transfer ownership or delete the organization first",
+                    details={"user_id": user_id, "organization_id": org.id},
+                )
 
     async def admin_update(
         self, user_id: UUID, user_in: UserUpdate, *, acting_admin_id: UUID

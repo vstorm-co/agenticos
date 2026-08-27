@@ -26,6 +26,9 @@ services:
       dockerfile: Dockerfile
     image: agenticos_backend:dev
     container_name: agenticos_backend
+    # Longer than background.drain()'s 30s timeout, or Docker's 10s default
+    # SIGKILLs the container mid-drain and an upload stays `processing` (#11).
+    stop_grace_period: 40s
     ports:
       - "8000:8000"
     volumes:

@@ -110,19 +110,14 @@ class OrganizationService:
         return OrganizationList(items=items, total=len(items))
 
     async def list_for_user(self, user_id: UUID) -> list[dict]:
-        orgs = await organization_repo.list_for_user(self.db, user_id)
-        result = []
-        for org in orgs:
-            membership = await member_repo.get(self.db, organization_id=org.id, user_id=user_id)
-            count = await organization_repo.count_members(self.db, org.id)
-            result.append(
-                {
-                    "org": org,
-                    "role": membership.role if membership else OrgRole.MEMBER.value,
-                    "member_count": count,
-                }
-            )
-        return result
+        # Role and member count in two grouped queries, not two per organization:
+        # the role rides the membership join the listing already makes, and the
+        # counts come back keyed by organization (#953).
+        pairs = await organization_repo.list_for_user(self.db, user_id)
+        counts = await organization_repo.member_counts_for(self.db, [org.id for org, _ in pairs])
+        return [
+            {"org": org, "role": role, "member_count": counts.get(org.id, 0)} for org, role in pairs
+        ]
 
     async def create(self, data: OrganizationCreate, owner_id: UUID) -> Organization:
         """Create a new team organization (non-personal).

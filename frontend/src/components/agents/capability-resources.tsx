@@ -85,7 +85,7 @@ export function CapabilityResources({
     return (
       <ResourceGroup
         detail={t("contextFilesDetail")}
-        warning={enabled || resources.contextIds.length === 0 ? null : t("contextOffButBound")}
+        warning={contextWarning(t, enabled, resources)}
       >
         <ContextGallery
           files={resources.contextFiles}
@@ -134,6 +134,37 @@ export function CapabilityResources({
   }
 
   return null;
+}
+
+/**
+ * The one thing the Context panel cannot say by drawing its controls.
+ *
+ * Two shapes, and both have been asked about. With the capability off, a bound
+ * file reaches nothing - not even an injected one, because the injection happens
+ * here. With it on and nothing bound that the run will actually read on demand,
+ * the *tools* are not attached: the builder hands back instructions and no
+ * toolset (`app/agents/capabilities/context/_capability.py`), so the Tools tab
+ * beside this one promises a `list_context` and a `read_context` the run will
+ * not carry - which is how "the agent cannot see the context tools" gets asked
+ * about an agent that is working as designed. A disabled file counts for
+ * nothing here because `resolve_for_agent` skips it.
+ *
+ * It says nothing about a binding it cannot see: the gallery holds a page of
+ * the organization's files, so a bound id missing from it may be an orphan or
+ * may simply be on another page.
+ */
+function contextWarning(
+  t: (key: string) => string,
+  enabled: boolean,
+  resources: AgentResources,
+): string | null {
+  if (resources.contextIds.length === 0) return null;
+  if (!enabled) return t("contextOffButBound");
+  const known = new Map(resources.contextFiles.map((file) => [file.id, file]));
+  const bound = resources.contextIds.map((id) => known.get(id));
+  if (bound.some((file) => file === undefined)) return null;
+  const reads = bound.some((file) => file?.mode === "link" && file.enabled);
+  return reads ? null : t("contextInjectOnlyNoTools");
 }
 
 /**

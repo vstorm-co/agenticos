@@ -23,6 +23,7 @@ from app.agents.capabilities.channel_tools import (
     ChannelPost,
     ChannelSummary,
 )
+from app.core.security import encode_untrusted
 from app.db.session import get_db_context
 from app.services.channels.base import (
     ChannelAdapter,
@@ -424,10 +425,11 @@ class SlackAdapter(ChannelAdapter):
 
         base_string = f"v0:{timestamp}:{raw_body}"
         computed = (
-            "v0=" + hmac.new(secret.encode(), base_string.encode(), hashlib.sha256).hexdigest()
+            "v0="
+            + hmac.new(secret.encode(), encode_untrusted(base_string), hashlib.sha256).hexdigest()
         )
 
-        return hmac.compare_digest(computed, signature)
+        return hmac.compare_digest(computed.encode(), encode_untrusted(signature))
 
     def parse_incoming(self, raw_payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:
         """Parse a Slack event payload into IncomingMessage.

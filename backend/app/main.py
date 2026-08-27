@@ -3,7 +3,7 @@
 
 import logging
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager
 from typing import TypedDict
 
 from fastapi import FastAPI
@@ -14,7 +14,7 @@ from app import __version__
 from app.api.exception_handlers import register_exception_handlers
 from app.api.router import api_router
 from app.agents.capabilities import load_builtins
-from app.agents.capabilities.knowledge import aclose_retrieval_service
+from app.agents.capabilities.knowledge import reset_retrieval_service
 from app.core.config import settings
 from app.db.session import close_db, get_db_context
 from app.core.logfire_setup import instrument_app, setup_logfire
@@ -24,14 +24,14 @@ from app.core.logfire_setup import instrument_httpx
 from app.core.logfire_setup import instrument_pydantic_ai
 from app.core.logging import setup_logging
 from app.core.body_limit import BodySizeLimitMiddleware
+from app.core import background
 from app.core import maintenance
 from app.core.maintenance import MaintenanceModeMiddleware
-from app.core.middleware import RequestIDMiddleware
+from app.core.middleware import RequestIDMiddleware, SecurityHeadersMiddleware
 from app.core.watchdog import EventLoopWatchdog
 from app.clients.redis import RedisClient
 from app.services.rag.embeddings import EmbeddingService
-from app.services.rag.vectorstore import PgVectorStore
-from app.services.embedding_resolution import embeddings_for_collection
+from app.services.rag.vectorstore import process_vector_store
 from app.services.rag.vectorstore import BaseVectorStore
 from app.repositories.channel_bot import get_active_polling_bots
 from app.services.channel_bot import unseal_bot_token, unseal_slack_app_token
@@ -115,23 +115,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # And the maintenance gate, which runs above the dependency graph on every
     # request and so has no `request.state` to read either.
     maintenance.configure(redis_client)
-    embedder: EmbeddingService | None = None
     try:
         embedder = EmbeddingService(settings=settings.rag)
         embedder.warmup()
         state["embedding_service"] = embedder
+        state["vector_store"] = process_vector_store(settings.rag, embedder)
     except Exception as e:
         logger.error("Embedding service warmup failed: %s. RAG will not be available.", e)
-    if embedder is not None:
-        try:
-            vector_store = PgVectorStore(
-                settings=settings.rag,
-                embedding_service=embedder,
-                resolver=embeddings_for_collection,
-            )
-            state["vector_store"] = vector_store
-        except Exception as e:
-            logger.error("pgvector connection failed: %s. Vector store will not be available.", e)
 
     # Imported here rather than at module top so that importing `app.main` does
     # not pull in the channel SDKs (aiogram, the Slack client) - ~1.2s of import
@@ -171,25 +161,28 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # watched; app/core/watchdog.py says why.
     watchdog.start()
     yield state
-    # The channel consumers stop first, and the stores go after them. Serving is
-    # already drained by the time this runs, but a polling task is work this
-    # process owns: an inbound Telegram or Slack message can start a run, and a
-    # run can search, so disposing a store while one is still turning both races
-    # a search in flight and lets the next one build a replacement pool that
-    # nothing is left to close.
+    # The channel consumers stop first, and the engine goes after them (in
+    # `close_db` below). Serving is already drained by the time this runs, but a
+    # polling task is work this process owns: an inbound Telegram or Slack
+    # message can start a run, and a run can search, so disposing the engine
+    # while one is still turning races a search in flight.
     for _bid in list(_telegram_adapter._polling_tasks.keys()):
         await _telegram_adapter.stop_polling(_bid)
     for _sbid in list(_slack_adapter._socket_tasks.keys()):
         await _slack_adapter.stop_polling(_sbid)
     for _mbid in list(_mattermost_adapter._socket_tasks.keys()):
         await _mattermost_adapter.stop_polling(_mbid)
-    if "vector_store" in state:
-        with suppress(Exception):
-            await state["vector_store"].aclose()
-    # The knowledge capability holds a store of its own, built on the first
-    # search and reachable from no request, so the line above never saw it (#948).
-    with suppress(Exception):
-        await aclose_retrieval_service()
+    # Intake has stopped and serving is already drained, so what is left is
+    # in-flight fire-and-forget work - an ingestion or a sync a request or a
+    # channel message handed off. It reads the stores and the session below, so
+    # it has to finish (or be cancelled) before they are disposed, or a document
+    # is left stuck in `processing` forever (#417 is the same row, from the other
+    # end).
+    await background.drain()
+    # The knowledge capability caches a store of its own, built on the first
+    # search and reachable from no request; a shutdown followed by more work -
+    # a test, a reload - must not search through it once `close_db` has run.
+    reset_retrieval_service()
     channel_dedupe.configure(None)
     rate_limit.configure(None)
     channel_membership.configure(None)
@@ -318,6 +311,21 @@ OS for your agents.
     )
 
     app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
+
+    # Added last, so it is the outermost middleware and wraps CORS: a preflight
+    # OPTIONS is answered by CORSMiddleware without calling inward, so a security
+    # layer beneath it would never see that response and the preflight would go
+    # out bare. The set uses `setdefault`, so a per-response override still wins -
+    # `files.py` opts its one framed endpoint down to SAMEORIGIN this way. The doc
+    # pages are excluded by their real mounted paths (the schema lives under the
+    # API prefix, not at `/openapi.json`), so the CSP cannot break Swagger/ReDoc
+    # loading their CDN assets. A genuinely unhandled exception is the one 500
+    # this cannot reach - ServerErrorMiddleware sits outside every app middleware
+    # - so its handler stamps the headers itself (#18).
+    app.add_middleware(
+        SecurityHeadersMiddleware,
+        exclude_paths={path for path in (docs_url, redoc_url, openapi_url) if path},
+    )
 
     app.include_router(api_router, prefix=settings.API_V1_STR)
 

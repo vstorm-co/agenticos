@@ -11,7 +11,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.repositories.rag_document import CollectionCounts
-from app.schemas.knowledge_base import KnowledgeBaseCreate
+from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
 from app.services.ingestion_config import deployment_defaults
 from app.services.knowledge_base import KnowledgeBaseService, _with_counts
 
@@ -86,6 +86,9 @@ def _readable_kb(collection_name: str) -> KnowledgeBase:
         ingestion_config=deployment_defaults().model_dump(mode="json"),
         embedding_model="text-embedding-3-small",
         embedding_dim=1536,
+        # Stated rather than left to the column default: a server default is
+        # applied by the database, and this row is never inserted.
+        embedding_provider="openrouter",
         embedding_secret_id=None,
         organization_id=uuid.uuid4(),
         owner_user_id=None,
@@ -557,6 +560,187 @@ class TestBindingAnEmbeddingSecret:
             await svc.create(data, ctx=_ctx(role=OrgRoleName.MEMBER.value))
 
         assert created.call_args.kwargs["embedding_secret_id"] == secret.id
+
+
+class TestWhoServesTheEmbeddingModel:
+    """The provider is per collection, and unlike the model it can be changed.
+
+    The model cannot: the vector column was created at its width and every
+    stored vector is in its space. The provider can, because the same model
+    served from somewhere else produces vectors in the same space - which is
+    what makes rotating a key or moving onto an organization's own account
+    something other than re-ingesting the collection.
+    """
+
+    @pytest.fixture
+    def mock_db(self):
+        return MagicMock()
+
+    def _kb_row(self, *, provider: str = "openrouter", secret_id: uuid.UUID | None = None):
+        return MagicMock(
+            id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            embedding_model="text-embedding-3-small",
+            embedding_dim=1536,
+            embedding_provider=provider,
+            embedding_secret_id=secret_id,
+        )
+
+    @pytest.mark.anyio
+    async def test_a_new_collection_records_the_deployments_provider_by_default(
+        self, mock_db, unclaimed_collection_name
+    ):
+        with patch(
+            "app.repositories.knowledge_base_repo.create",
+            new=AsyncMock(return_value=MagicMock()),
+        ) as created:
+            await KnowledgeBaseService(mock_db).create(
+                KnowledgeBaseCreate(name="KB", scope="org", collection_name="kb"), ctx=_ctx()
+            )
+
+        assert created.call_args.kwargs["embedding_provider"] == "openrouter"
+
+    @pytest.mark.anyio
+    async def test_a_provider_that_cannot_serve_the_model_is_refused_at_creation(
+        self, mock_db, unclaimed_collection_name
+    ):
+        """`text-embedding-3-large` is 3072 wide, and a provider offering it at
+        1536 would produce vectors the column cannot hold."""
+        data = KnowledgeBaseCreate(
+            name="KB",
+            scope="org",
+            collection_name="kb",
+            embedding_model="text-embedding-3-large",
+            embedding_provider="not-a-provider",
+        )
+
+        with (
+            patch("app.repositories.knowledge_base_repo.create", new=AsyncMock()) as created,
+            pytest.raises(BadRequestError) as exc,
+        ):
+            await KnowledgeBaseService(mock_db).create(data, ctx=_ctx())
+
+        assert exc.value.details["fields"][0]["field"] == "embedding_provider"
+        created.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_a_key_for_another_provider_is_refused(self, mock_db, unclaimed_collection_name):
+        """The failure this whole choice exists to prevent: an OpenAI key sent to
+        openrouter.ai is refused there, having already arrived."""
+        secret = MagicMock(id=uuid.uuid4(), purpose="openai")
+        data = KnowledgeBaseCreate(
+            name="KB",
+            scope="org",
+            collection_name="kb",
+            embedding_secret_id=secret.id,
+        )
+
+        with (
+            patch(
+                "app.repositories.organization_secret_repo.get",
+                new=AsyncMock(return_value=secret),
+            ),
+            patch("app.services.knowledge_base.resolve_access", new=AsyncMock(return_value=True)),
+            patch("app.repositories.knowledge_base_repo.create", new=AsyncMock()) as created,
+            pytest.raises(BadRequestError) as exc,
+        ):
+            await KnowledgeBaseService(mock_db).create(data, ctx=_ctx())
+
+        assert exc.value.details["fields"][0]["field"] == "embedding_secret_id"
+        created.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_an_existing_collection_moves_provider_and_key_together(self, mock_db):
+        kb = self._kb_row()
+        secret = MagicMock(id=uuid.uuid4(), purpose="openai")
+
+        with (
+            patch.object(KnowledgeBaseService, "get_for_write", new=AsyncMock(return_value=kb)),
+            patch(
+                "app.repositories.organization_secret_repo.get",
+                new=AsyncMock(return_value=secret),
+            ),
+            patch("app.services.knowledge_base.resolve_access", new=AsyncMock(return_value=True)),
+            patch(
+                "app.repositories.knowledge_base_repo.update",
+                new=AsyncMock(return_value=kb),
+            ) as updated,
+        ):
+            await KnowledgeBaseService(mock_db).update(
+                kb.id,
+                KnowledgeBaseUpdate(embedding_provider="openai", embedding_secret_id=secret.id),
+                ctx=_ctx(),
+            )
+
+        assert updated.call_args.kwargs["embedding_provider"] == "openai"
+        assert updated.call_args.kwargs["embedding_secret_id"] == secret.id
+
+    @pytest.mark.anyio
+    async def test_moving_provider_and_leaving_the_old_key_behind_is_refused(self, mock_db):
+        """The key stays unless somebody says otherwise, so this would leave an
+        OpenRouter key pointed at OpenAI - refused, naming the control that moved."""
+        kb = self._kb_row(secret_id=uuid.uuid4())
+        secret = MagicMock(id=kb.embedding_secret_id, purpose="openrouter")
+
+        with (
+            patch.object(KnowledgeBaseService, "get_for_write", new=AsyncMock(return_value=kb)),
+            patch(
+                "app.repositories.organization_secret_repo.get",
+                new=AsyncMock(return_value=secret),
+            ),
+            patch("app.repositories.knowledge_base_repo.update", new=AsyncMock()) as updated,
+            pytest.raises(BadRequestError) as exc,
+        ):
+            await KnowledgeBaseService(mock_db).update(
+                kb.id, KnowledgeBaseUpdate(embedding_provider="openai"), ctx=_ctx()
+            )
+
+        assert exc.value.details["fields"][0]["field"] == "embedding_provider"
+        updated.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_falling_back_to_the_deployments_key_is_its_own_word(self, mock_db):
+        """A null id means "leave it alone" on a partial update, so clearing the
+        key needs a flag of its own - and it is not refused for the old key's
+        purpose, because the old key is what it removes."""
+        kb = self._kb_row(secret_id=uuid.uuid4())
+
+        with (
+            patch.object(KnowledgeBaseService, "get_for_write", new=AsyncMock(return_value=kb)),
+            patch(
+                "app.repositories.knowledge_base_repo.update",
+                new=AsyncMock(return_value=kb),
+            ) as updated,
+        ):
+            await KnowledgeBaseService(mock_db).update(
+                kb.id, KnowledgeBaseUpdate(clear_embedding_secret=True), ctx=_ctx()
+            )
+
+        assert updated.call_args.kwargs["clear_embedding_secret"] is True
+
+    @pytest.mark.anyio
+    async def test_a_provider_that_cannot_serve_this_collections_model_is_refused(self, mock_db):
+        """3072-wide vectors are already in the column; a provider serving that
+        model only at 1536 would write into it as though the widths agreed."""
+        kb = MagicMock(
+            id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            embedding_model="a-model-nobody-serves",
+            embedding_dim=1536,
+            embedding_provider="openrouter",
+            embedding_secret_id=None,
+        )
+
+        with (
+            patch.object(KnowledgeBaseService, "get_for_write", new=AsyncMock(return_value=kb)),
+            patch("app.repositories.knowledge_base_repo.update", new=AsyncMock()) as updated,
+            pytest.raises(BadRequestError),
+        ):
+            await KnowledgeBaseService(mock_db).update(
+                kb.id, KnowledgeBaseUpdate(embedding_provider="openai"), ctx=_ctx()
+            )
+
+        updated.assert_not_called()
 
 
 class TestCollectionCounts:
