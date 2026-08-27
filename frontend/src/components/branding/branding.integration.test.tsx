@@ -115,6 +115,10 @@ describe("a maintenance window", () => {
     );
 
     expect(container.firstElementChild).toHaveClass(...PAGE_CLEARANCE.split(" "));
+    // And the box has to grow with the message for that padding to land after
+    // it. `min-h-0` here capped it at the viewport, which left `main` unable to
+    // scroll to the end of a long message at all (Codex, P1 on this branch).
+    expect(container.firstElementChild).not.toHaveClass("min-h-0");
   });
 
   it("leaves it open for the administrator who has to end it", () => {

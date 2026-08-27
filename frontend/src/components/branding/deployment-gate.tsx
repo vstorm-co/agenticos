@@ -48,8 +48,16 @@ export function DeploymentGate({ children }: { children: ReactNode }) {
     // a long custom maintenance message used to end under the mobile tab bar,
     // with nothing below it to scroll to (#1241). One token, so the safe-area
     // inset cannot be forgotten in one of the two places.
+    //
+    // And no `min-h-0`, for the same reason `PageTransition`'s unconstrained
+    // branch has none: the floor is what lets this box grow with its content, so
+    // the padding paints after the message rather than at a box the message
+    // overflows. With it, a message taller than the viewport left `main` with a
+    // `scrollHeight` of exactly its own height - measured 400px against 900px of
+    // message, scrollTop stuck at 0 in Chromium 151 and WebKit 26.5, so the end
+    // of it could not be reached at all.
     return (
-      <div className={cn("flex min-h-0 flex-1 flex-col", PAGE_CLEARANCE)}>
+      <div className={cn("flex flex-1 flex-col", PAGE_CLEARANCE)}>
         <MaintenanceScreen />
       </div>
     );
