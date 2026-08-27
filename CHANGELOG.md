@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.294] - 2026-08-27
+
+### Changed
+
+- **Both run surfaces turned a finished result into `(status, output, paused)`
+  with the same block, copied verbatim** - a `DeferredToolRequests` output builds
+  a `PausedRunState` and becomes `AWAITING_APPROVAL`, anything else is the
+  completed answer. That is the delicate half: a new `PausedRunState` field, or a
+  change to how a park is recorded, had to move in lockstep across two files. It
+  is `_classify_output` now, beside `_outcome`, which `agent_chat` already imports
+  from there. The **exception paths stay with each surface**, because they
+  genuinely differ - the chat runner re-raises `BudgetExceeded` and
+  `GuardrailBlocked` so the waiting visitor is told why, while the batch runner
+  records and moves on - so extracting those would have been a behaviour change.
+  (#567)
+
 ## [0.0.293] - 2026-08-27
 
 ### Fixed
