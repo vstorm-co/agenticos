@@ -154,13 +154,16 @@ fixture for the file that needs one, not a shared one every file inherits.
 | `api_key_headers` | The service-to-service header, for a route behind `ValidAPIKey` |
 
 `tests/integration/conftest.py` adds the ones that touch a database. The package
-skips itself when none is reachable, refuses any database whose name contains
-neither `test` nor `ci`, and empties every table between tests:
+refuses any database whose name contains neither `test` nor `ci`, and empties
+every table between tests. **It skips itself when none is reachable only outside
+CI**: with `CI` set it raises instead, because a skip and a Postgres service that
+failed to start read identically in pytest's output and only one of them is
+acceptable on a runner.
 
 | Fixture | |
 |---|---|
 | `db` | A real `AsyncSession` - what almost every integration test takes |
-| `engine` | The `AsyncEngine` behind it, for a test that needs *more than one* session: a race, a concurrent write, two transactions that have to interleave. One `AsyncSession` shared across concurrent operations is not a second connection, it is a corrupted one - eighteen files take `engine` for exactly this |
+| `engine` | The `AsyncEngine` behind it, for a test that needs a session `db` cannot be: *more than one* - a race, a concurrent write, two transactions that have to interleave, where one `AsyncSession` shared across them is not a second connection but a corrupted one - or one the code under test makes for itself, which is how the RAG tests hand `PgVectorStore` its own `async_sessionmaker`. Eighteen files take it |
 | `database_url`, `schema_url` | Session-scoped, and the reason the two above are safe: they name the throwaway database and create its schema once |
 
 ## Writing Tests
