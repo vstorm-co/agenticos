@@ -40,6 +40,7 @@ from app.worker.tasks.report_tasks import (
     monthly_usage_report_flow,
     weekly_usage_report_flow,
 )
+from app.worker.tasks.run_tasks import stale_run_sweep_flow
 from app.worker.tasks.trigger_tasks import (
     check_agent_triggers_flow,
     poll_portal_grants_flow,
@@ -120,6 +121,15 @@ async def main() -> None:
     deployments.append(
         await invitation_expiry_sweep_flow.ato_deployment(
             name="invitation-expiry-sweep",
+            schedules=[IntervalSchedule(interval=3600)],
+        )
+    )
+    # Hourly like the sweeps above, and for the same arithmetic: the ceiling is
+    # measured in hours, so a crashed run reaped 40 minutes late costs nothing -
+    # what matters is that it is reaped at all, because nothing else ever will.
+    deployments.append(
+        await stale_run_sweep_flow.ato_deployment(
+            name="stale-run-sweep",
             schedules=[IntervalSchedule(interval=3600)],
         )
     )

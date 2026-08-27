@@ -19,6 +19,9 @@ services:
       dockerfile: Dockerfile
     image: agenticos_backend:dev-server
     container_name: agenticos_backend
+    # Longer than background.drain()'s 30s timeout, or Docker's 10s default
+    # SIGKILLs the container mid-drain and an upload stays `processing` (#11).
+    stop_grace_period: 40s
     volumes:
       - media_data:/app/media
       # email/templates.py reads pre-compiled HTML/text from /app/emails/compiled.

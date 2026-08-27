@@ -323,6 +323,43 @@ describe("one collection's page", () => {
     }
   });
 
+  it("moves a collection's embeddings to another provider", async () => {
+    // The model cannot move - the vector column was created at its width - and the
+    // provider can, which is the whole of what this call is for: a rotated key or
+    // an organization's own account, without re-ingesting the collection.
+    serveDetail();
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    await waitFor(() => expect(result.current.kb).toMatchObject({ name: "Handbook" }));
+
+    await act(async () => {
+      await result.current.updateEmbeddings({
+        embedding_provider: "openai",
+        embedding_secret_id: "s-1",
+      });
+    });
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/kb/kb-1", {
+      embedding_provider: "openai",
+      embedding_secret_id: "s-1",
+    });
+    expect(toast.success).toHaveBeenCalledWith("Embedding provider updated");
+  });
+
+  it("raises a refused move for the dialog to place under its own select", async () => {
+    // A provider that cannot serve this model belongs beside the control that
+    // named it, not in a toast about a collection somebody has to re-find.
+    serveDetail();
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    await waitFor(() => expect(result.current.kb).toMatchObject({ name: "Handbook" }));
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("Cannot serve it at 1536"));
+
+    await expect(result.current.updateEmbeddings({ embedding_provider: "openai" })).rejects.toThrow(
+      "Cannot serve it at 1536",
+    );
+    expect(toast.error).not.toHaveBeenCalled();
+    vi.mocked(apiClient.patch).mockResolvedValue({ id: "kb-1", name: "Handbook" });
+  });
+
   it("keeps a save that finished late off the next organization's page", async () => {
     // Save the ingestion settings, close the dialog, switch before the PATCH
     // returns. The caller still gets its row - it asked, and the save happened
@@ -517,6 +554,16 @@ describe("one collection's page", () => {
     });
     await waitFor(() => expect(result.current.kb).toMatchObject({ ocr: true }));
     expect(toast.success).toHaveBeenCalledWith("Ingestion settings saved");
+  });
+
+  it("refuses to move embeddings with no collection open", async () => {
+    // Rather than PATCHing `/kb/null`, which answers 404 and reads as a bug.
+    const { result } = renderHook(() => useKBDetail(null), { wrapper });
+
+    await expect(result.current.updateEmbeddings({ embedding_provider: "openai" })).rejects.toThrow(
+      "No knowledge base is open",
+    );
+    expect(apiClient.patch).not.toHaveBeenCalled();
   });
 
   it("refuses to save parsing settings with no collection open", async () => {

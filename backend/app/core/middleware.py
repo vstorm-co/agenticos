@@ -27,6 +27,23 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         return response
 
 
+PERMISSIONS_POLICY = (
+    "accelerometer=(), camera=(), geolocation=(), gyroscope=(), "
+    "magnetometer=(), microphone=(), payment=(), usb=()"
+)
+
+# The headers that go on every response regardless of path. X-XSS-Protection is
+# 0, not "1; mode=block": the legacy auditor is deprecated and its blocking mode
+# opens XS-Leak vectors in the browsers that still ship it, so OWASP is to
+# disable it and rely on the CSP.
+_STATIC_SECURITY_HEADERS: dict[str, str] = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "X-XSS-Protection": "0",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+}
+
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Middleware that adds security headers to all responses.
 
@@ -72,28 +89,46 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self.csp_directives = csp_directives or self.DEFAULT_CSP_DIRECTIVES
         self.exclude_paths = exclude_paths or {"/docs", "/redoc", "/openapi.json"}
+        self._csp_value = "; ".join(f"{d} {v}" for d, v in self.csp_directives.items())
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        """Add security headers to the response."""
+        """Add security headers to the response.
+
+        `exclude_paths` drops only the Content-Security-Policy, never the rest of
+        the set: the CSP is what breaks Swagger and ReDoc, which pull assets a
+        strict policy forbids, but those pages still need their framing and MIME
+        protections - excluding them wholesale would leave /docs embeddable by any
+        origin while an operator uses its authenticated controls.
+        """
         response = await call_next(request)
 
-        if request.url.path in self.exclude_paths:
-            return response
+        if request.url.path not in self.exclude_paths:
+            # Respect an already-set header so an endpoint can opt into a looser
+            # policy (e.g. user-content files in the chat preview panel).
+            response.headers.setdefault("Content-Security-Policy", self._csp_value)
 
-        csp_value = "; ".join(
-            f"{directive} {value}" for directive, value in self.csp_directives.items()
-        )
-
-        # Respect any already-set headers so an endpoint can opt into less
-        # restrictive framing (e.g. user-content files in the chat preview panel).
-        response.headers.setdefault("Content-Security-Policy", csp_value)
-        response.headers.setdefault("X-Content-Type-Options", "nosniff")
-        response.headers.setdefault("X-Frame-Options", "DENY")
-        response.headers.setdefault("X-XSS-Protection", "1; mode=block")
-        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-        response.headers["Permissions-Policy"] = (
-            "accelerometer=(), camera=(), geolocation=(), gyroscope=(), "
-            "magnetometer=(), microphone=(), payment=(), usb=()"
-        )
+        for name, value in _STATIC_SECURITY_HEADERS.items():
+            response.headers.setdefault(name, value)
+        response.headers["Permissions-Policy"] = PERMISSIONS_POLICY
 
         return response
+
+
+def security_headers_for_error() -> dict[str, str]:
+    """The security header set for a response the middleware never sees.
+
+    An unhandled exception is turned into a 500 by Starlette's
+    ServerErrorMiddleware, which is installed outside the whole middleware stack,
+    so `SecurityHeadersMiddleware` never runs over that response and the 500
+    handler stamps the headers itself (#18). A 500 is a JSON envelope rather than
+    a docs page, so it carries the CSP too.
+    """
+    csp = "; ".join(
+        f"{directive} {value}"
+        for directive, value in SecurityHeadersMiddleware.DEFAULT_CSP_DIRECTIVES.items()
+    )
+    return {
+        "Content-Security-Policy": csp,
+        **_STATIC_SECURITY_HEADERS,
+        "Permissions-Policy": PERMISSIONS_POLICY,
+    }

@@ -12,6 +12,7 @@ from app.agents.capabilities.tool_output_limits._capability import (
     DEFAULT_MAX_CHARS,
     DEFAULT_SUMMARY_PROMPT,
     DEFAULT_THRESHOLD,
+    READ_TOOL_RESULT_TEXT,
     ActionName,
     MeteredToolOutputLimits,
     StrategyName,
@@ -53,7 +54,8 @@ __all__ = [
     tools=(
         CapabilityToolInfo(
             id=READ_TOOL_NAME,
-            description="Read a slice of a spilled tool result by its handle.",
+            # The summary, not the whole text: this is what the Builder shows.
+            description=READ_TOOL_RESULT_TEXT.summary,
         ),
     ),
     config_schema=ToolOutputLimitsConfig,

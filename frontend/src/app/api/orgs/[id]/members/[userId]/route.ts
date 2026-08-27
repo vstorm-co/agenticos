@@ -11,11 +11,14 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
     const { id, userId } = await params;
     const body = await request.json();
-    const data = await backendFetch(`/api/v1/orgs/${id}/members/${userId}`, {
-      method: "PATCH",
-      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    const data = await backendFetch(
+      `/api/v1/orgs/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    );
     return bffJson(data);
   } catch (error) {
     if (error instanceof BackendApiError)
@@ -29,10 +32,13 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const accessToken = request.cookies.get("access_token")?.value;
     if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
     const { id, userId } = await params;
-    await backendFetch(`/api/v1/orgs/${id}/members/${userId}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    await backendFetch(
+      `/api/v1/orgs/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}`,
+      {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     if (error instanceof BackendApiError)

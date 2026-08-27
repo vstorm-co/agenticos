@@ -9,7 +9,9 @@ retry not a crash, and a binding with nothing usable contributes nothing at all
 from types import SimpleNamespace
 
 import pytest
-from pydantic_ai import ModelRetry
+from pydantic_ai import ModelRetry, RunContext
+from pydantic_ai.models.test import TestModel
+from pydantic_ai.usage import RunUsage
 
 from app.agents.capabilities import build
 from app.agents.capabilities._registry import CapabilityBinding, CapabilityBuildContext
@@ -24,6 +26,13 @@ def _item(name="glossary", *, mode="inject", content="SLA: service level agreeme
 
 def _file(name="glossary", *, mode="inject", content="body", desc="terms"):
     return SimpleNamespace(name=name, description=desc, content=content, mode=mode, format="md")
+
+
+def _tool_ctx(*, retry: int = 0, max_retries: int = 1) -> RunContext[None]:
+    """A context with a retry left, which is what a real call starts with."""
+    return RunContext(
+        deps=None, model=TestModel(), usage=RunUsage(), retry=retry, max_retries=max_retries
+    )
 
 
 def _ctx(files, *, expose_read_tool=True):
@@ -127,17 +136,29 @@ class TestToolset:
 
     def test_read_context_returns_the_body(self):
         toolset = ContextToolset([_item("glossary", mode="link", content="the body")])
-        assert toolset.read_context("glossary") == "the body"
+        assert toolset.read_context(_tool_ctx(), "glossary") == "the body"
 
     def test_reading_an_unknown_file_is_a_retry_naming_what_exists(self):
         toolset = ContextToolset([_item("glossary", mode="link")])
         with pytest.raises(ModelRetry, match="glossary"):
-            toolset.read_context("missing")
+            toolset.read_context(_tool_ctx(), "missing")
 
     def test_reading_when_nothing_is_linked_reports_none_available(self):
         toolset = ContextToolset([])
         with pytest.raises(ModelRetry, match="none"):
-            toolset.read_context("anything")
+            toolset.read_context(_tool_ctx(), "anything")
+
+    def test_the_last_attempt_answers_rather_than_ending_the_run(self):
+        """A `ModelRetry` past the budget takes the conversation with it."""
+        toolset = ContextToolset([_item("glossary", mode="link")])
+
+        answered = toolset.read_context(_tool_ctx(retry=1), "missing")
+
+        assert "glossary" in answered
+
+    def test_an_empty_index_says_so_rather_than_answering_with_nothing(self):
+        """An empty string reads to the model as a broken tool."""
+        assert "No reference files" in ContextToolset([]).list_context()
 
 
 class TestBuilder:

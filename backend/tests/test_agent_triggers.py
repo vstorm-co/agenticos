@@ -68,6 +68,9 @@ def _service(agent: MagicMock | None = None) -> AgentTriggerService:
     # `create` refreshes the row before returning it, so it serializes without a
     # MissingGreenlet on a live session; the mock must await.
     service.db.refresh = AsyncMock()
+    # The fire-recovery path rolls its own half-written state back before it
+    # reads anything; the mock must await.
+    service.db.rollback = AsyncMock()
     # `spawn_after_commit` queues on `Session.info`, a plain dict SQLAlchemy keeps
     # per unit of work. A MagicMock would swallow the append and leave the queued
     # coroutine un-awaited.
@@ -1171,15 +1174,23 @@ class TestFiring:
         assert trigger.last_run_id is None
         assert trigger.is_active is True
 
-    async def test_a_fire_whose_run_never_reached_terminal_is_settled_before_stamping(self):
-        """The error struck after the row was flushed `running` but before the runner
-        recorded it terminal - a workspace backend down, a delegate pin gone. The
-        recovered run is non-terminal, and a `running` `last_run_id` would wedge
-        `claim_due` for ever, so fire settles the orphan `failed` before stamping."""
+    async def test_a_fire_that_failed_before_its_opening_commit_rolls_itself_back(self):
+        """The error struck after `create_run` flushed the row `running` but before
+        `_run`'s opening commit - a workspace backend down, a delegate pin gone.
+        Swallowing the error would let the worker context commit that flush as a
+        phantom run nothing will ever finish, so the recovery rolls the session
+        back *before* it reads anything; what the conversation then answers is
+        durable state only, and this fire's is gone."""
         agent = _agent()
         service = _service(agent)
-        trigger = _trigger(agent_id=agent.id, conversation_id=uuid.uuid4())
-        orphan = MagicMock(id=uuid.uuid4(), status=RunStatus.RUNNING.value)
+        trigger = _trigger(agent_id=agent.id, conversation_id=uuid.uuid4(), last_run_id=None)
+        order: list[str] = []
+        service.db.rollback = AsyncMock(side_effect=lambda: order.append("rollback"))
+
+        async def latest(*_args, **_kwargs):
+            order.append("read")
+            return
+
         with (
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.member_repo") as members,
@@ -1190,15 +1201,70 @@ class TestFiring:
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
             members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
-            runs.latest_run_for_conversation = AsyncMock(return_value=orphan)
+            runs.latest_run_for_conversation = AsyncMock(side_effect=latest)
             runner = runner_cls.return_value
             runner.execute = AsyncMock(side_effect=RuntimeError("workspace backend down"))
             await service.fire(trigger.id)  # must not raise
 
-        assert orphan.status == RunStatus.FAILED.value
-        assert orphan.ended_at is not None
-        assert orphan.error == "fire failed before the runner could record the run"
-        assert trigger.last_run_id == orphan.id
+        assert order == ["rollback", "read"]
+        assert trigger.last_run_id is None
+        assert trigger.is_active is True
+
+    async def test_a_concurrent_fires_live_run_is_left_alone_by_a_failed_fire(self):
+        """The run row is committed `running` before the model is called (#12), so
+        the conversation's tail can be a *concurrent* fire's live run - a `run_now`
+        beside the schedule. A fire that failed before creating a row of its own
+        must not settle that run `failed` mid-flight, and must not stamp it: the
+        fire that owns it will. The rollback above the read is what guarantees the
+        tail is a durable row and not this fire's own flush."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id, conversation_id=uuid.uuid4(), last_run_id=None)
+        live = MagicMock(id=uuid.uuid4(), status=RunStatus.RUNNING.value)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.member_repo") as members,
+            patch("app.services.agent_trigger.conversation_repo"),
+            patch("app.services.agent_trigger.agent_run_repo") as runs,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            runs.latest_run_for_conversation = AsyncMock(return_value=live)
+            runner = runner_cls.return_value
+            runner.execute = AsyncMock(side_effect=RuntimeError("vault sealed"))
+            await service.fire(trigger.id)  # must not raise
+
+        assert live.status == RunStatus.RUNNING.value
+        assert trigger.last_run_id is None
+        assert trigger.is_active is True
+
+    async def test_a_concurrent_fires_settled_run_is_not_stamped_by_a_failed_fire(self):
+        """Same shape, after the concurrent fire finished: its committed terminal
+        run is not this fire's to stamp, and finding it is no reason to fail the
+        flow either - this fire simply made no run, and the next interval tries
+        again."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id, conversation_id=uuid.uuid4(), last_run_id=None)
+        settled = MagicMock(id=uuid.uuid4(), status=RunStatus.COMPLETED.value)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.member_repo") as members,
+            patch("app.services.agent_trigger.conversation_repo"),
+            patch("app.services.agent_trigger.agent_run_repo") as runs,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            runs.latest_run_for_conversation = AsyncMock(return_value=settled)
+            runner = runner_cls.return_value
+            runner.execute = AsyncMock(side_effect=RuntimeError("vault sealed"))
+            await service.fire(trigger.id)  # must not raise
+
+        assert trigger.last_run_id is None
         assert trigger.is_active is True
 
     async def test_the_scheduled_path_clears_the_in_flight_marker_when_the_run_completes(self):
@@ -1329,17 +1395,19 @@ class TestFiring:
         assert trigger.last_run_id == previous.id
         assert trigger.is_active is True
 
-    async def test_a_fire_whose_finalization_fails_after_completion_propagates(self):
-        """The run reached a terminal write but a persistence step after it - the
-        transcript, the conversation state, the run's own commit - failed, so `_run`
-        never committed and the row is only flushed. Recovering it finds a non-failed
-        status: swallowing that would let the worker context commit a completed run
-        with no transcript behind it while Prefect saw success, so `fire` re-raises to
-        roll the half-written state back and fail the flow. It stamps nothing."""
+    async def test_a_fire_whose_finalization_fails_is_rolled_back_and_left_to_the_sweep(self):
+        """The run reached its terminal write but a persistence step after it -
+        the transcript, the conversation state, the run's own terminal commit -
+        failed, so the row is durably `running` (the opening commit landed) with
+        the outcome only flushed in this session. The rollback discards that
+        half-written outcome instead of letting the worker context commit a
+        completed run with no transcript behind it; the durable `running` row is
+        then a durable row this fire cannot claim, so nothing is stamped, and
+        ending it is the stale-run sweep's job."""
         agent = _agent()
         service = _service(agent)
         trigger = _trigger(agent_id=agent.id, conversation_id=uuid.uuid4(), last_run_id=None)
-        uncommitted = MagicMock(id=uuid.uuid4(), status=RunStatus.COMPLETED.value)
+        durable = MagicMock(id=uuid.uuid4(), status=RunStatus.RUNNING.value)
         with (
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.member_repo") as members,
@@ -1350,12 +1418,14 @@ class TestFiring:
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
             members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
-            runs.latest_run_for_conversation = AsyncMock(return_value=uncommitted)
+            # What the conversation answers *after* the rollback: the durable
+            # `running` row the opening commit landed, its flushed outcome gone.
+            runs.latest_run_for_conversation = AsyncMock(return_value=durable)
             runner = runner_cls.return_value
             runner.execute = AsyncMock(side_effect=RuntimeError("transcript write failed"))
-            with pytest.raises(RuntimeError, match="transcript write failed"):
-                await service.fire(trigger.id)
+            await service.fire(trigger.id)  # must not raise
 
+        service.db.rollback.assert_awaited_once()
         assert trigger.last_run_id is None
         assert trigger.is_active is True
 

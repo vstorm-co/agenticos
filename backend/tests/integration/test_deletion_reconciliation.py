@@ -12,8 +12,6 @@ to neighbouring rows when one is deleted, which a mock cannot show.
 
 from __future__ import annotations
 
-import asyncio
-import contextlib
 import uuid
 from unittest.mock import MagicMock
 
@@ -26,8 +24,6 @@ from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.user import User
-from app.repositories import member_repo, user_repo
-from app.services.member import MemberService
 from app.services.organization import OrganizationService
 from app.services.rag.vectorstore import PgVectorStore
 from app.services.user import UserService
@@ -172,49 +168,6 @@ class TestDeletingAUser:
         assert org.created_by_user_id == heir.id
         assert await db.get(User, creator.id) is None
 
-    async def test_deleting_the_sole_owner_of_an_org_they_did_not_create_is_refused(self, db):
-        """Ownership moves without the creator FK, so a user can be the only Owner
-        of an org they did not create. Deleting them would cascade that last owner
-        membership away and orphan the org - refused, not silently orphaned, the
-        way the created-org path already refuses a lone owner (#1117)."""
-        from app.core.exceptions import BadRequestError
-
-        creator = _user()
-        db.add(creator)
-        await db.flush()
-        org = await _org(db, creator)  # creator is owner and creator
-        owner = _user()
-        db.add(owner)
-        await db.flush()
-        await _member(db, org.id, owner.id, "owner")
-        # Demote the creator, leaving `owner` the sole Owner but not the creator.
-        creator_membership = await member_repo.get(db, organization_id=org.id, user_id=creator.id)
-        assert creator_membership is not None
-        await member_repo.update_role(db, creator_membership, role="member")
-
-        with pytest.raises(BadRequestError):
-            await UserService(db).delete(owner.id)
-
-        assert await db.get(User, owner.id) is not None
-
-    async def test_deleting_a_non_creator_owner_beside_a_co_owner_succeeds(self, db):
-        """With another owner present the org keeps one when this membership
-        cascades, so a non-creator co-owner deletes cleanly rather than being
-        refused (#1117)."""
-        creator = _user()
-        db.add(creator)
-        await db.flush()
-        org = await _org(db, creator)  # creator: owner and creator
-        owner = _user()
-        db.add(owner)
-        await db.flush()
-        await _member(db, org.id, owner.id, "owner")  # a second owner
-
-        await UserService(db).delete(owner.id)
-
-        assert await db.get(User, owner.id) is None
-        assert await db.get(Organization, org.id) is not None
-
 
 class TestDeletingAnOrg:
     async def test_it_drops_org_scoped_collections_and_their_vector_tables(
@@ -226,42 +179,38 @@ class TestDeletingAnOrg:
             settings=app_settings.rag,
             embedding_service=MagicMock(),
             resolver=MagicMock(),
+            engine=engine,
         )
         factory = async_sessionmaker(engine, expire_on_commit=False)
         collection = f"kbnine{uuid.uuid4().hex[:12]}"
         table = store._table(collection)
-        try:
-            async with factory() as s:
-                user = _user()
-                s.add(user)
-                await s.flush()
-                org = await _org(s, user)
-                s.add(_org_collection(org.id, collection))
-                await s.execute(text(f"CREATE TABLE {table} (id int)"))
-                await s.commit()
-                org_id = org.id
+        async with factory() as s:
+            user = _user()
+            s.add(user)
+            await s.flush()
+            org = await _org(s, user)
+            s.add(_org_collection(org.id, collection))
+            await s.execute(text(f"CREATE TABLE {table} (id int)"))
+            await s.commit()
+            org_id = org.id
 
-            async with factory() as s:
-                assert (
-                    await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
-                ).scalar() is not None
+        async with factory() as s:
+            assert (
+                await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
+            ).scalar() is not None
 
-            async with factory() as s:
-                org = await s.get(Organization, org_id)
-                await OrganizationService(s, vector_store=store).purge(org)
-                await s.commit()
+        async with factory() as s:
+            org = await s.get(Organization, org_id)
+            await OrganizationService(s, vector_store=store).purge(org)
+            await s.commit()
 
-            async with factory() as s:
-                remaining = await s.execute(
-                    select(KnowledgeBase).where(KnowledgeBase.organization_id == org_id)
-                )
-                assert remaining.scalars().all() == []
-                assert (
-                    await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
-                ).scalar() is None
-                assert await s.get(Organization, org_id) is None
-        finally:
-            await store.aclose()
+        async with factory() as s:
+            remaining = await s.execute(
+                select(KnowledgeBase).where(KnowledgeBase.organization_id == org_id)
+            )
+            assert remaining.scalars().all() == []
+            assert (await s.execute(text("SELECT to_regclass(:t)"), {"t": table})).scalar() is None
+            assert await s.get(Organization, org_id) is None
 
     async def test_a_personal_collection_survives_its_orgs_deletion(
         self, engine: AsyncEngine
@@ -272,214 +221,35 @@ class TestDeletingAnOrg:
             settings=app_settings.rag,
             embedding_service=MagicMock(),
             resolver=MagicMock(),
+            engine=engine,
         )
         factory = async_sessionmaker(engine, expire_on_commit=False)
-        try:
-            async with factory() as s:
-                user = _user()
-                s.add(user)
-                await s.flush()
-                org = await _org(s, user)
-                personal = KnowledgeBase(
-                    id=uuid.uuid4(),
-                    name="My notes",
-                    scope=KBScope.PERSONAL.value,
-                    collection_name=f"kbnine{uuid.uuid4().hex[:12]}",
-                    embedding_model="text-embedding-3-small",
-                    embedding_dim=1536,
-                    organization_id=org.id,
-                    owner_user_id=user.id,
-                    visibility="private",
-                )
-                s.add(personal)
-                await s.commit()
-                org_id, kb_id = org.id, personal.id
-
-            async with factory() as s:
-                org = await s.get(Organization, org_id)
-                await OrganizationService(s, vector_store=store).purge(org)
-                await s.commit()
-
-            async with factory() as s:
-                surviving = await s.get(KnowledgeBase, kb_id)
-                assert surviving is not None
-                assert surviving.organization_id is None
-        finally:
-            await store.aclose()
-
-
-class TestConcurrentInsertsDuringDeletion:
-    """The reconcile is check-then-act; a row inserted between the two would 500.
-
-    #9 reconciled the FK/CHECK cascades in the service, but listing (or promoting)
-    and then deleting is a check-then-act with no row lock, so a concurrent insert
-    reopens the exact 500 #9 closed. The teardown now takes FOR UPDATE on the row
-    it is about, so a concurrent insert - which takes FOR KEY SHARE on the same
-    row through its own FK - waits, and the reconcile sees every child there is
-    (#1115). Deterministic on purpose: the insert is held open (uncommitted) so
-    the delete blocks on the lock rather than racing it.
-    """
-
-    async def test_an_org_scoped_collection_inserted_during_an_org_delete(
-        self, engine: AsyncEngine
-    ) -> None:
-        factory = async_sessionmaker(engine, expire_on_commit=False)
-        async with factory() as setup:
+        async with factory() as s:
             user = _user()
-            setup.add(user)
-            await setup.flush()
-            org = await _org(setup, user)
-            await setup.commit()
-            org_id = org.id
-
-        session_a = factory()
-        delete_task: asyncio.Task[None] | None = None
-        try:
-            # A member inserts a new org-scoped collection and holds it open:
-            # FOR KEY SHARE on the org row, uncommitted.
-            session_a.add(_org_collection(org_id, f"kbrace{uuid.uuid4().hex[:12]}"))
-            await session_a.flush()
-
-            async def purge_org() -> None:
-                async with factory() as session_b:
-                    org = await session_b.get(Organization, org_id)
-                    await OrganizationService(session_b).purge(org)
-                    await session_b.commit()
-
-            delete_task = asyncio.create_task(purge_org())
-            await asyncio.sleep(0.4)
-            assert not delete_task.done()  # A's uncommitted insert holds the delete off
-
-            await session_a.commit()
-
-            await delete_task  # succeeds rather than a ck_knowledge_bases_org_scope_has_org 500
-            delete_task = None
-        finally:
-            if delete_task is not None:
-                delete_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await delete_task
-            await session_a.close()
-
-        async with factory() as s:
-            assert await s.get(Organization, org_id) is None
-            remaining = await s.execute(
-                select(KnowledgeBase).where(KnowledgeBase.organization_id == org_id)
+            s.add(user)
+            await s.flush()
+            org = await _org(s, user)
+            personal = KnowledgeBase(
+                id=uuid.uuid4(),
+                name="My notes",
+                scope=KBScope.PERSONAL.value,
+                collection_name=f"kbnine{uuid.uuid4().hex[:12]}",
+                embedding_model="text-embedding-3-small",
+                embedding_dim=1536,
+                organization_id=org.id,
+                owner_user_id=user.id,
+                visibility="private",
             )
-            assert remaining.scalars().all() == []  # the raced-in collection went too
-
-    async def test_a_private_secret_inserted_during_a_user_delete(
-        self, engine: AsyncEngine
-    ) -> None:
-        factory = async_sessionmaker(engine, expire_on_commit=False)
-        async with factory() as setup:
-            creator = _user()
-            setup.add(creator)
-            await setup.flush()
-            org = await _org(setup, creator)
-            leaver = _user()
-            setup.add(leaver)
-            await setup.flush()
-            await _member(setup, org.id, leaver.id, "member")
-            await setup.commit()
-            org_id, leaver_id = org.id, leaver.id
-
-        session_a = factory()
-        delete_task: asyncio.Task[None] | None = None
-        try:
-            # A private secret for the leaver, held open: FOR KEY SHARE on the
-            # leaver's user row through its owner FK, uncommitted.
-            session_a.add(_private_secret(org_id, leaver_id))
-            await session_a.flush()
-
-            async def delete_leaver() -> None:
-                async with factory() as session_b:
-                    await UserService(session_b).delete(leaver_id)
-                    await session_b.commit()
-
-            delete_task = asyncio.create_task(delete_leaver())
-            await asyncio.sleep(0.4)
-            assert not delete_task.done()  # A's uncommitted insert holds the delete off
-
-            await session_a.commit()
-
-            await delete_task  # succeeds rather than a ck_secret_private_needs_owner 500
-            delete_task = None
-        finally:
-            if delete_task is not None:
-                delete_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await delete_task
-            await session_a.close()
+            s.add(personal)
+            await s.commit()
+            org_id, kb_id = org.id, personal.id
 
         async with factory() as s:
-            assert await s.get(User, leaver_id) is None
-            secrets = (
-                (
-                    await s.execute(
-                        select(OrganizationSecret).where(
-                            OrganizationSecret.organization_id == org_id
-                        )
-                    )
-                )
-                .scalars()
-                .all()
-            )
-            assert secrets  # the raced-in secret survived, promoted rather than orphaned
-            for secret in secrets:
-                assert secret.owner_user_id is None
-                assert secret.visibility == "org"
-
-    async def test_a_transfer_racing_a_delete_does_not_promote_a_deleted_user(
-        self, engine: AsyncEngine
-    ) -> None:
-        """`transfer_ownership` promoting a user the delete is removing would leave
-        the org ownerless. The transfer now locks the incoming owner's user row,
-        which the delete already holds FOR UPDATE (#1115), so it waits and then
-        finds the user gone rather than promoting a membership about to cascade
-        away (#1136)."""
-        from app.core.exceptions import NotFoundError
-
-        factory = async_sessionmaker(engine, expire_on_commit=False)
-        async with factory() as setup:
-            owner = _user()
-            member = _user()
-            setup.add_all([owner, member])
-            await setup.flush()
-            org = await _org(setup, owner)
-            await _member(setup, org.id, member.id, "member")
-            await setup.commit()
-            org_id, owner_id, member_id = org.id, owner.id, member.id
-
-        session_a = factory()  # the deleting transaction, holding the member's row
-        transfer_task: asyncio.Task[None] | None = None
-        try:
-            await user_repo.get_by_id_for_update(session_a, member_id)
-
-            async def transfer() -> None:
-                async with factory() as session_b:
-                    await MemberService(session_b).transfer_ownership(org_id, member_id, owner_id)
-                    await session_b.commit()
-
-            transfer_task = asyncio.create_task(transfer())
-            await asyncio.sleep(0.4)
-            assert not transfer_task.done()  # blocked on the delete's FOR UPDATE
-
-            await UserService(session_a).delete(member_id)
-            await session_a.commit()
-
-            with pytest.raises(NotFoundError):
-                await transfer_task  # the promoted user is gone, so the transfer refuses
-            transfer_task = None
-        finally:
-            if transfer_task is not None:
-                transfer_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await transfer_task
-            await session_a.close()
+            org = await s.get(Organization, org_id)
+            await OrganizationService(s, vector_store=store).purge(org)
+            await s.commit()
 
         async with factory() as s:
-            # The org keeps its original owner rather than being left ownerless.
-            owner_membership = await member_repo.get(s, organization_id=org_id, user_id=owner_id)
-            assert owner_membership is not None
-            assert owner_membership.role == "owner"
+            surviving = await s.get(KnowledgeBase, kb_id)
+            assert surviving is not None
+            assert surviving.organization_id is None

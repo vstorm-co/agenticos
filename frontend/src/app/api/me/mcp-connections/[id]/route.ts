@@ -10,11 +10,14 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   const { id } = await context.params;
   try {
     const body = (await request.json()) as Record<string, unknown>;
-    const data = await backendFetch<unknown>(`/api/v1/me/mcp-connections/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify(body),
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const data = await backendFetch<unknown>(
+      `/api/v1/me/mcp-connections/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(body),
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
     return bffJson(data);
   } catch (error) {
     if (error instanceof BackendApiError) {
@@ -31,7 +34,7 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
   }
   const { id } = await context.params;
   try {
-    await backendFetch<null>(`/api/v1/me/mcp-connections/${id}`, {
+    await backendFetch<null>(`/api/v1/me/mcp-connections/${encodeURIComponent(id)}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${accessToken}` },
     });

@@ -11,6 +11,7 @@ import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+from app.core.blocking import run_blocking, write_bytes_cancel_safe
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -210,14 +211,18 @@ class LocalFileStorage(BaseFileStorage):
         user_dir.mkdir(parents=True, exist_ok=True)
         storage_name = make_storage_filename(filename)
         file_path = user_dir / storage_name
-        file_path.write_bytes(data)
+        # Off the request loop (up to MAX_UPLOAD_SIZE bytes would otherwise stall
+        # every other request on this worker), on the dedicated file pool, and
+        # cancellation-safe: a cancelled upload must not leave a file whose path
+        # the caller never received and so can neither record nor delete (#1108).
+        await write_bytes_cancel_safe(file_path, data)
         return f"{safe_user}/{storage_name}"
 
     async def load(self, storage_path: str) -> bytes:
         file_path = self._resolve_safe_path(storage_path)
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {storage_path}")
-        return file_path.read_bytes()
+        return await run_blocking(file_path.read_bytes)
 
     async def delete(self, storage_path: str) -> None:
         file_path = self._resolve_safe_path(storage_path)

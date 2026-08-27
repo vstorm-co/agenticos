@@ -8,6 +8,8 @@ import { LoadSkillResult, formatSkillName, parseLoadSkillResult } from "./skills
 import { RAGSearchResults, parseRAGResults } from "./rag";
 import { WebSearchResults, parseWebSearch } from "./web-search";
 import { GeneratedImageResult, parseGeneratedImage } from "./generated-image";
+import { ContextListResult, SkillListResult, parseContextList, parseSkillList } from "./catalogs";
+import { PlanToolResult } from "./plan";
 import type { ToolCall } from "@/types";
 
 // The Markdown renderer is loaded dynamically and highlights code; what these
@@ -658,5 +660,99 @@ describe("the raw view behind every tool", () => {
     render(<RawToolView toolCall={toolCall({ args: 7 as never })} resultText="" />);
 
     expect(screen.getByText("7")).toBeInTheDocument();
+  });
+});
+
+/**
+ * What the agent found when it looked, and what it planned.
+ *
+ * Both used to open nothing: `list_skills` and `list_context` were `render: "none"`
+ * on the grounds that a prompt fragment is not something a person reads, and
+ * `write_plan` opened its own arguments - the whole ordered list, in JSON, above a
+ * rendered copy of the same steps.
+ */
+describe("the catalogs a step looked through", () => {
+  it("lists a context file with its description, and one without", () => {
+    expect(parseContextList("- glossary: What the acronyms mean.\n- policy")).toEqual([
+      { name: "glossary", description: "What the acronyms mean." },
+      { name: "policy", description: null },
+    ]);
+  });
+
+  it("says nothing is attached rather than drawing an empty list", () => {
+    // The tool's own answer when the agent has no linked files.
+    render(<ContextListResult resultText="No reference files are attached to this agent." />);
+
+    expect(screen.getByText("No context files are attached to this agent.")).toBeInTheDocument();
+  });
+
+  it("reads the skills mapping whether it arrived as an object or as its JSON", () => {
+    const expected = [{ name: "refunds", description: "How refunds work." }];
+
+    expect(parseSkillList({ refunds: "How refunds work." })).toEqual(expected);
+    expect(parseSkillList(JSON.stringify({ refunds: "How refunds work." }))).toEqual(expected);
+  });
+
+  it("calls a skill with no description a skill, not a blank line", () => {
+    expect(parseSkillList({ refunds: "" })).toEqual([{ name: "refunds", description: null }]);
+  });
+
+  it("treats anything that is not a mapping as no list", () => {
+    // An error sentence, an empty mapping, a list the library never sends.
+    expect(parseSkillList("the tool failed")).toBeNull();
+    expect(parseSkillList({})).toBeNull();
+    expect(parseSkillList([{ name: "refunds" }])).toBeNull();
+  });
+
+  it("says no skills are attached when the mapping came back empty", () => {
+    render(<SkillListResult result={{}} />);
+
+    expect(screen.getByText("No skills are attached to this agent.")).toBeInTheDocument();
+  });
+
+  it("draws the skill list it was given", () => {
+    render(<SkillListResult result={{ refunds: "How refunds work." }} />);
+
+    expect(screen.getByText("refunds")).toBeInTheDocument();
+    expect(screen.getByText("How refunds work.")).toBeInTheDocument();
+  });
+});
+
+describe("what a planning call shows", () => {
+  it("draws the checklist the plan came back as", () => {
+    render(
+      <PlanToolResult
+        toolCall={toolCall({ name: "write_plan" })}
+        resultText={"Plan updated: 2 step(s).\n\n1. [x] Read the diff\n2. [~] Ship it"}
+      />,
+    );
+
+    expect(screen.getByText("Read the diff")).toBeInTheDocument();
+    expect(screen.getByLabelText("In progress")).toBeInTheDocument();
+  });
+
+  it("shows the sentence a granular call answered with", () => {
+    // One status changed answers with a line and no checklist; printing "no plan"
+    // there would deny a plan that exists.
+    render(
+      <PlanToolResult
+        toolCall={toolCall({ name: "update_task_status" })}
+        resultText="Updated step 'Ship it' status to 'completed'."
+      />,
+    );
+
+    expect(screen.getByText("Updated step 'Ship it' status to 'completed'.")).toBeInTheDocument();
+  });
+
+  it("says it is running rather than showing an empty plan", () => {
+    render(<PlanToolResult toolCall={toolCall({ status: "running" })} resultText="" />);
+
+    expect(screen.getByText("Running…")).toBeInTheDocument();
+  });
+
+  it("says a planning call failed", () => {
+    render(<PlanToolResult toolCall={toolCall({ status: "error" })} resultText="" />);
+
+    expect(screen.getByText("Tool failed.")).toBeInTheDocument();
   });
 });
