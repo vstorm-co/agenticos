@@ -48,6 +48,8 @@ class _FakeAdapter:
 
     async def stop_polling(self, _bid: str) -> None: ...
 
+    async def aclose(self) -> None: ...
+
 
 _ADAPTER_CLASSES = {
     "telegram": "TelegramAdapter",
