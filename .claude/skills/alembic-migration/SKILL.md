@@ -92,8 +92,16 @@ The same applies to the agent spec, which is stored as JSON. See the `agent-spec
 Org-scoped tables carry a `NOT NULL organization_id` and tenant-scoped unique
 constraints — isolation is enforced by the schema so a missed `WHERE` is a constraint
 violation rather than a data leak. The pattern for retro-fitting that onto an
-existing table is backfill, then constrain, in that order, in one revision;
-`0042_sync_source_secret_id` does exactly that for `sync_sources.organization_id`.
+existing table is **fill the column, then constrain it, in that order and in one
+revision** - `0023_embed_kinds` is the worked example: two `UPDATE`s give every
+existing row a `kind` and a `config`, and only then do the two
+`alter_column(nullable=False)` calls run.
+
+Where the value cannot be derived, the honest alternative is **refuse**, not
+guess. `0042_sync_source_secret_id` does that: it counts the `sync_sources` rows
+with a null `organization_id`, raises if any exist with what to do about them,
+and constrains the column afterwards. An id invented for a tenant-scoped row is a
+row in the wrong tenant.
 
 Anything encrypted needs a `secret_key_version` column — a staged master-key rotation
 has to know which key sealed an envelope. See the `vault-secrets` skill.
