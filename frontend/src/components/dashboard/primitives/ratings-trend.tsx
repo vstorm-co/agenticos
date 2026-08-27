@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { CHART_MIN_HEIGHT } from "@/lib/dashboard/system";
 import { cn } from "@/lib/utils";
-import type { RatingsPoint } from "./ratings-trend.impl";
+import type { RatingsByDay } from "@/types/stats";
 
 const RatingsTrendImpl = dynamic(
   () => import("./ratings-trend.impl").then((m) => m.RatingsTrendImpl),
@@ -26,7 +26,7 @@ export function RatingsTrend({
 }: {
   positivePercent: number;
   subline: string;
-  data: RatingsPoint[];
+  data: RatingsByDay[];
 }) {
   const t = useTranslations("dashboard");
   return (
@@ -65,5 +65,3 @@ export function RatingsTrend({
     </div>
   );
 }
-
-export type { RatingsPoint };

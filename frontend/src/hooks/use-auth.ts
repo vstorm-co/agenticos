@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { resetSessionState, useAuthStore } from "@/stores";
 import { apiClient, ApiError } from "@/lib/api-client";
 import type { User, LoginRequest, RegisterRequest } from "@/types";
-import { postSignInDestination } from "@/lib/auth-landing";
+import { goToDestination, postSignInDestination } from "@/lib/auth-landing";
 import { ROUTES } from "@/lib/constants";
 
 // Session-level singletons so /auth/me runs ONCE per page load no matter how
@@ -177,19 +177,7 @@ export function useAuth() {
         adoptUser(queryClient, setUser, response.user);
         useAuthStore.getState().setAccessToken(response.access_token);
         authChecked = true; // login already populated user + token; skip /auth/me
-        const destination = postSignInDestination(returnTo);
-        if (destination.includes("#")) {
-          // next@16.2's segment cache appends the fragment a second time on a
-          // soft navigation (/path#x becomes /path#x#x in a production build),
-          // so a destination with a fragment must load the document instead.
-          // The branches are not equivalent: a document load drops the
-          // in-memory access token (re-adopted via /auth/me on arrival), and
-          // anything the caller runs after login() fires into an unloading
-          // page.
-          window.location.assign(destination);
-        } else {
-          router.push(destination);
-        }
+        goToDestination(postSignInDestination(returnTo), (href) => router.push(href));
         return response;
       } finally {
         setLoading(false);

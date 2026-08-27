@@ -269,7 +269,12 @@ export function RegisterForm() {
 
       {/* The token travels with the provider too: an `invite_only` deployment
           otherwise refuses the button beside a form that accepts the same person. */}
-      <OAuthBlock label={t("orSignUpWith")} variant="signup" invitation={invitationToken} />
+      <OAuthBlock
+        label={t("orSignUpWith")}
+        variant="signup"
+        invitation={invitationToken}
+        returnTo={returnTo}
+      />
     </div>
   );
 }

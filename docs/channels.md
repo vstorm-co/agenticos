@@ -927,8 +927,6 @@ it is about to wait.
     it explicitly did not. The header is logged; the claim decides.
 - **Rate limits** per chat, on the bot - who may talk to it and how often is the
   operator's, unlike everything above, which is the agent author's.
-- **Spending limits** per binding, on top of the agent's own and the
-  organization's.
 - **Charts render as images** where the platform supports them, and fall back to
   a text table where it does not.
 - **What a turn cost**, said or only recorded — see below.

@@ -38,7 +38,11 @@ def month_start(now: datetime | None = None) -> datetime:
 
 
 async def organization_spend_since(
-    db: AsyncSession, organization_id: UUID, since: datetime
+    db: AsyncSession,
+    organization_id: UUID,
+    since: datetime,
+    *,
+    exclude_run_id: UUID | None = None,
 ) -> Decimal:
     """Runs plus ingestion in a window - the organization's bill for it.
 
@@ -47,9 +51,14 @@ async def organization_spend_since(
     the calendar month, and the usage email covers the past week or month. Summing
     a per-agent breakdown instead is how that email came to overstate the bill -
     it counted every delegated run a second time and left ingestion out.
+
+    `exclude_run_id` is the budget guard's, and only its: a baseline is what other
+    runs have spent, and the asking run's own spend is in its ledger. See
+    :func:`app.repositories.agent_run.sum_cost_since` for what counting it twice
+    did to a resumed run (#15).
     """
     run_spend = await agent_run_repo.sum_cost_since(
-        db, organization_id=organization_id, since=since
+        db, organization_id=organization_id, since=since, exclude_run_id=exclude_run_id
     )
     ingestion_spend = await ingestion_spend_repo.sum_cost_since(
         db, organization_id=organization_id, since=since
@@ -57,9 +66,13 @@ async def organization_spend_since(
     return run_spend + ingestion_spend
 
 
-async def organization_monthly_spend(db: AsyncSession, organization_id: UUID) -> Decimal:
+async def organization_monthly_spend(
+    db: AsyncSession, organization_id: UUID, *, exclude_run_id: UUID | None = None
+) -> Decimal:
     """Runs plus ingestion since the first of the month - what a cap is checked on."""
-    return await organization_spend_since(db, organization_id, month_start())
+    return await organization_spend_since(
+        db, organization_id, month_start(), exclude_run_id=exclude_run_id
+    )
 
 
 async def assert_organization_within_budget(db: AsyncSession, organization_id: UUID) -> None:

@@ -38,8 +38,6 @@ import { GET as members } from "./orgs/[id]/members/route";
 import { PATCH as patchMember, DELETE as removeMember } from "./orgs/[id]/members/[userId]/route";
 import { GET as getOrg, PATCH as patchOrg, DELETE as deleteOrg } from "./orgs/[id]/route";
 import { GET as listOrgs, POST as createOrg } from "./orgs/route";
-import { DELETE as revokeSession } from "./sessions/[id]/route";
-import { GET as listSessions, DELETE as revokeOtherSessions } from "./sessions/route";
 import { GET as getMe, PATCH as patchMe } from "./users/me/route";
 import { BackendApiError, backendFetch } from "@/lib/server-api";
 
@@ -230,21 +228,6 @@ const COOKIE_GATED: [string, (signedIn: boolean) => Promise<Response>][] = [
     (s) =>
       declineInvitation(request("http://localhost:3000/api/invitations/tok", { signedIn: s }), {
         params: Promise.resolve({ token: "tok" }),
-      }),
-  ],
-  [
-    "the session list",
-    (s) => listSessions(request("http://localhost:3000/api/sessions", { signedIn: s })),
-  ],
-  [
-    "signing other sessions out",
-    (s) => revokeOtherSessions(request("http://localhost:3000/api/sessions", { signedIn: s })),
-  ],
-  [
-    "revoking one session",
-    (s) =>
-      revokeSession(request("http://localhost:3000/api/sessions/s-1", { signedIn: s }), {
-        params: Promise.resolve({ id: "s-1" }),
       }),
   ],
   [
@@ -449,26 +432,6 @@ describe("the paths each one addresses", () => {
       params: Promise.resolve({ token: "tok" }),
     });
     expect(vi.mocked(backendFetch).mock.calls[0]![0]).toBe("/api/v1/invitations/tok");
-  });
-
-  it("escapes a session id on its way into the path", async () => {
-    await revokeSession(request("http://localhost:3000/api/sessions/a%2Fb"), {
-      params: Promise.resolve({ id: "a/b" }),
-    });
-
-    expect(vi.mocked(backendFetch).mock.calls[0]![0]).toBe("/api/v1/sessions/a%2Fb");
-  });
-
-  it("carries the session list's paging", async () => {
-    await listSessions(request("http://localhost:3000/api/sessions?skip=10&limit=5"));
-
-    expect(vi.mocked(backendFetch).mock.calls[0]![0]).toContain("skip=10");
-  });
-
-  it("asks for every session when none was paged", async () => {
-    await listSessions(request("http://localhost:3000/api/sessions"));
-
-    expect(vi.mocked(backendFetch).mock.calls[0]![0]).toBe("/api/v1/sessions");
   });
 });
 

@@ -51,6 +51,7 @@ from app.services.channels.base import (
     IncomingAttachment,
     IncomingMessage,
     OutgoingMessage,
+    split_thread,
 )
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.router import ChannelMessageRouter
@@ -120,6 +121,21 @@ class MattermostAdapter(ChannelAdapter):
         """Record which Mattermost server a bot belongs to."""
         self._base_urls[bot_id] = api_base_url.rstrip("/")
 
+    @staticmethod
+    def _client() -> httpx.AsyncClient:
+        """An HTTP client carrying the shared timeout, for one request cycle.
+
+        Mattermost keeps an idle socket open only so long, so every call opens its
+        own `async with` client rather than holding one on the adapter - the one
+        place the timeout is set, so a new REST call cannot forget it.
+        """
+        return httpx.AsyncClient(timeout=_HTTP_TIMEOUT)
+
+    @staticmethod
+    def _headers(bot_token: str) -> dict[str, str]:
+        """The bearer auth header every REST call to this server carries."""
+        return {"Authorization": f"Bearer {bot_token}"}
+
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Post a reply.
 
@@ -139,10 +155,10 @@ class MattermostAdapter(ChannelAdapter):
         # and only replies failed - which is the confusing half of the bug.
         base_url = msg.api_base_url.rstrip("/")
 
-        channel_id, _, root_id = msg.platform_chat_id.partition(":")
-        headers = {"Authorization": f"Bearer {bot_token}"}
+        channel_id, root_id = split_thread(msg.platform_chat_id)
+        headers = self._headers(bot_token)
 
-        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+        async with self._client() as client:
             uploads: list[tuple[str, tuple[str, bytes, str]]] = []
             if msg.image_png is not None:
                 uploads.append(("files", (msg.image_filename, msg.image_png, "image/png")))
@@ -177,17 +193,17 @@ class MattermostAdapter(ChannelAdapter):
         """Post the message that will become the answer, and return its id."""
         if not msg.api_base_url:
             return None
-        channel_id, _, root_id = msg.platform_chat_id.partition(":")
+        channel_id, root_id = split_thread(msg.platform_chat_id)
         body: dict[str, Any] = {"channel_id": channel_id, "message": msg.text}
         if root_id:
             body["root_id"] = root_id
         elif msg.reply_to_message_id:
             body["root_id"] = msg.reply_to_message_id
 
-        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+        async with self._client() as client:
             response = await client.post(
                 f"{msg.api_base_url.rstrip('/')}/api/v4/posts",
-                headers={"Authorization": f"Bearer {bot_token}"},
+                headers=self._headers(bot_token),
                 json=body,
             )
         response.raise_for_status()
@@ -206,10 +222,10 @@ class MattermostAdapter(ChannelAdapter):
         # only thing that hands out a handle - but the type says otherwise and a
         # crash mid-answer is a worse way to find out.
         base_url = (msg.api_base_url or "").rstrip("/")
-        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+        async with self._client() as client:
             response = await client.put(
                 f"{base_url}/api/v4/posts/{handle}/patch",
-                headers={"Authorization": f"Bearer {bot_token}"},
+                headers=self._headers(bot_token),
                 json={"message": msg.text},
             )
         response.raise_for_status()
@@ -225,7 +241,7 @@ class MattermostAdapter(ChannelAdapter):
         socket = self._sockets.get(bot_id)
         if socket is None:
             return
-        channel_id, _, root_id = msg.platform_chat_id.partition(":")
+        channel_id, root_id = split_thread(msg.platform_chat_id)
         with contextlib.suppress(Exception):
             await socket.send(
                 json.dumps(
@@ -284,8 +300,8 @@ class MattermostAdapter(ChannelAdapter):
     ) -> ChannelDetails:
         """`GET /channels/{id}`, with the member count from `/stats` beside it."""
         base_url = self._server(api_base_url)
-        headers = {"Authorization": f"Bearer {bot_token}"}
-        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+        headers = self._headers(bot_token)
+        async with self._client() as client:
             channel = await client.get(f"{base_url}/api/v4/channels/{channel_id}", headers=headers)
             channel.raise_for_status()
             stats = await client.get(
@@ -339,8 +355,8 @@ class MattermostAdapter(ChannelAdapter):
         waiting for.
         """
         base_url = self._server(api_base_url)
-        headers = {"Authorization": f"Bearer {bot_token}"}
-        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+        headers = self._headers(bot_token)
+        async with self._client() as client:
             members = await client.get(
                 f"{base_url}/api/v4/channels/{channel_id}/members",
                 headers=headers,
@@ -384,10 +400,10 @@ class MattermostAdapter(ChannelAdapter):
         treats a question it could not ask as a refusal.
         """
         base_url = self._server(api_base_url)
-        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+        async with self._client() as client:
             found = await client.get(
                 f"{base_url}/api/v4/channels/{channel_id}/members/{platform_user_id}",
-                headers={"Authorization": f"Bearer {bot_token}"},
+                headers=self._headers(bot_token),
             )
         if found.status_code == 404:
             return False
@@ -405,8 +421,8 @@ class MattermostAdapter(ChannelAdapter):
         one most deployments would refuse outright.
         """
         base_url = self._server(api_base_url)
-        headers = {"Authorization": f"Bearer {bot_token}"}
-        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+        headers = self._headers(bot_token)
+        async with self._client() as client:
             channel = await client.get(f"{base_url}/api/v4/channels/{channel_id}", headers=headers)
             channel.raise_for_status()
             team_id = str(channel.json().get("team_id") or "")
@@ -446,8 +462,8 @@ class MattermostAdapter(ChannelAdapter):
         gets it the way a person would.
         """
         base_url = self._server(api_base_url)
-        headers = {"Authorization": f"Bearer {bot_token}"}
-        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+        headers = self._headers(bot_token)
+        async with self._client() as client:
             response = await client.get(
                 f"{base_url}/api/v4/channels/{channel_id}/posts",
                 headers=headers,
@@ -548,10 +564,10 @@ class MattermostAdapter(ChannelAdapter):
         if not base_url:
             return None
         try:
-            async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+            async with self._client() as client:
                 response = await client.get(
                     f"{base_url}/api/v4/users/me",
-                    headers={"Authorization": f"Bearer {bot_token}"},
+                    headers=self._headers(bot_token),
                 )
             response.raise_for_status()
             return str(response.json().get("id") or "") or None
@@ -790,10 +806,8 @@ class MattermostAdapter(ChannelAdapter):
                 "This Mattermost bot has no server URL recorded, so its files cannot be fetched."
             )
 
-        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
-            response = await client.get(
-                attachment.handle, headers={"Authorization": f"Bearer {bot_token}"}
-            )
+        async with self._client() as client:
+            response = await client.get(attachment.handle, headers=self._headers(bot_token))
         response.raise_for_status()
         return response.content
 

@@ -188,6 +188,14 @@ jobs:
       - name: Spell-check the whole tree
         run: make lint-spelling
 
+      # yamlfmt, zizmor and the pre-commit basics over the whole tree, not the
+      # files a commit touched. Those hooks are per-file by nature, so a rev bump
+      # that brings a new rule breaks every existing file and nothing notices
+      # until an unrelated edit is refused by it (#203). SKIP inside the target
+      # drops the hooks lint-backend/lint-frontend/lint-spelling already gate.
+      - name: Run the tree-scoped pre-commit hooks over the whole tree
+        run: make lint-precommit
+
     # The step that used to sit here ran the entire test suite - with no
     # database, in the lint job - to grep its output for `module-not-imported`.
     # That warning belongs to `[tool.coverage.run] source`, and this config

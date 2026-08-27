@@ -73,7 +73,21 @@ def channel_key(platform_chat_id: str) -> str:
     in with the import - and two implementations of "which channel is this" is
     how one of them ends up asking Mattermost about a thread id.
     """
-    return platform_chat_id.partition(":")[0]
+    return split_thread(platform_chat_id)[0]
+
+
+def split_thread(platform_chat_id: str) -> tuple[str, str]:
+    """The chat and the thread a message's id folds together.
+
+    Slack packs `channel:thread_ts` into `platform_chat_id` and Mattermost packs
+    `channel:root_id` the same way; every other platform's id is the chat with an
+    empty thread. `channel_key` keeps the channel half alone; this keeps both, for
+    a reply that has to be posted back into the thread it came from. The empty
+    string when there is no colon is what an unthreaded reply passes on, which each
+    adapter reads as "top of the channel".
+    """
+    channel, _, thread = platform_chat_id.partition(":")
+    return channel, thread
 
 
 @dataclass(frozen=True)

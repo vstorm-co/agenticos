@@ -184,12 +184,17 @@ class StatsService:
         prev_start, prev_end = window.previous
         org = ctx.organization_id
 
-        total = await agent_run_repo.count_runs(
+        # The window's scalars - count, cost, distinct users, latency percentiles -
+        # share one WHERE, so the window is one query rather than four. The previous
+        # window is only a count and a cost, so it takes the lighter aggregate and
+        # does not sort durations for percentiles nobody reads.
+        current = await agent_run_repo.window_aggregates(
             self.db, organization_id=org, start=window.start, end=window.end, where=where
         )
-        previous_total = await agent_run_repo.count_runs(
+        previous_total, previous_model_usd = await agent_run_repo.window_totals(
             self.db, organization_id=org, start=prev_start, end=prev_end, where=where
         )
+        total = current.total
 
         day_rows = {
             row[0]: row
@@ -247,12 +252,9 @@ class StatsService:
             )
         ]
 
-        p50, p95 = await agent_run_repo.latency_percentiles_ms(
-            self.db, organization_id=org, start=window.start, end=window.end, where=where
-        )
         latency = LatencyMs(
-            p50=round(p50) if p50 is not None else None,
-            p95=round(p95) if p95 is not None else None,
+            p50=round(current.p50_ms) if current.p50_ms is not None else None,
+            p95=round(current.p95_ms) if current.p95_ms is not None else None,
         )
 
         # The whole bill, not the model half of it. `organization_spend_since`
@@ -266,12 +268,7 @@ class StatsService:
         # records neither. So any narrowed window - `scope=own`, a person, an
         # agent - reports model spend alone rather than billing a card for a
         # collection somebody else synced.
-        model_usd = await agent_run_repo.sum_cost_window(
-            self.db, organization_id=org, start=window.start, end=window.end, where=where
-        )
-        previous_model_usd = await agent_run_repo.sum_cost_window(
-            self.db, organization_id=org, start=prev_start, end=prev_end, where=where
-        )
+        model_usd = current.cost_usd
         ingestion_usd = Decimal(0)
         previous_ingestion_usd = Decimal(0)
         if where == RunFilter():
@@ -305,9 +302,7 @@ class StatsService:
         pending_approvals = None
         if where.user_id is None:
             active_users = ActiveUsers(
-                active=await agent_run_repo.count_distinct_users(
-                    self.db, organization_id=org, start=window.start, end=window.end, where=where
-                ),
+                active=current.distinct_users,
                 total_members=await member_repo.count_for_org(self.db, org),
             )
         else:

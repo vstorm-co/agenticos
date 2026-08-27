@@ -28,6 +28,7 @@ Run these from the project root directory.
 | `make lint-backend` / `make lint-frontend` | One half of the above. CI runs them in two different jobs, so either can be run on its own |
 | `make dead-code` | Unused functions and methods — vulture at a lower confidence than the `lint` gate, plus knip's full report on the frontend. A report to read, not a gate: on a registry-driven codebase it comes with false positives (a CLI command, a capability hook), so read each before deleting. The same role `dependency-freshness` plays for dependencies. Its one unambiguous half — a package in `package.json` that nothing imports — gates in `lint-frontend` instead (`bun run lint:deps`), because a dependency that survived being unused for months is what motivated it |
 | `make lint-spelling` | codespell over every tracked file. The pre-commit hook reads only the files a commit touches, so a misspelling that lands with its file waits there to refuse somebody else's unrelated commit |
+| `make lint-precommit` | yamlfmt, zizmor and the `pre-commit-hooks` basics over every tracked file. Same reason as `lint-spelling` — those hooks are per-file, so a `rev:` bump that brings a new rule breaks the tree with nothing noticing. `SKIP` drops the hooks `lint-backend`/`lint-frontend`/`lint-spelling` already gate, so it neither doubles their time nor lets a fixer rewrite a file mid-check |
 | `make build-frontend` | `next build`. Type-checks the route tree and fails on a server component that cannot render — which neither tsc nor vitest sees |
 | `make audit` | Audit the locked dependency set for known vulnerabilities. Needs the network — one request per locked distribution — so its last line says which of four states it ended in rather than leaving a red run ambiguous. See below |
 | `make sandbox-token` | Generate the sandbox service's own `SANDBOXD_TOKEN` into `backend/.env`, once. `make dev` runs it for you; it never regenerates, because a new token orphans every workspace the service is holding. The connection form offers to store the same value in the vault, so it does not have to be pasted anywhere |
@@ -267,7 +268,7 @@ uv run agenticos user list
 **There is no `--role` and no `set-role`.** A user's authority inside an
 organization is a membership row plus the [permission
 catalog](reference/permissions.md), granted from Users & Roles in the UI — the
-`users.role` column was dropped in migration `0066`. The only privilege this group
+`users.role` column was dropped before the migration chain was squashed. The only privilege this group
 can hand out is the global one, and `--superuser` is it. To grant or revoke it
 later:
 

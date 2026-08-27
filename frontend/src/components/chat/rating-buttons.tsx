@@ -2,8 +2,9 @@
 import { useState, useCallback, useMemo } from "react";
 import { Loader2, ThumbsUp, ThumbsDown } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { ApiError, getErrorMessage, parseErrorMessage } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/api-error";
+import { useMessageRating } from "@/hooks/use-message-rating";
 import { toast } from "sonner";
 import { RatingValue, type UserRating } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -37,8 +38,9 @@ export function RatingButtons({
   isAssistant,
 }: RatingButtonsProps) {
   const t = useTranslations("chat");
-  const tErrors = useTranslations("errors");
   const tc = useTranslations("common");
+  const tErrors = useTranslations("errors");
+  const { rateMessage, removeRating } = useMessageRating(conversationId, messageId);
   const [showCommentDialog, setShowCommentDialog] = useState(false);
   const [pendingRating, setPendingRating] = useState<RatingValue>(RatingValue.DISLIKE);
   const [comment, setComment] = useState("");
@@ -70,45 +72,19 @@ export function RatingButtons({
     async (rating: RatingValue, commentText: string | null) => {
       setInFlight(rating);
       try {
-        const response = await fetch(
-          `/api/conversations/${conversationId}/messages/${messageId}/rate`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({
-              rating,
-              comment: commentText,
-            }),
-          },
-        );
-
-        if (!response.ok) {
-          // An `ApiError`, not a bare `Error`: the code is the only thing
-          // `getErrorMessage` can resolve against the catalog, and a
-          // hand-built `new Error(body.message)` threw it away - so a
-          // code-only refusal from the proxy reached the toast humanized into
-          // English under every locale (#655).
-          const body = await response.json().catch(() => null);
-          throw new ApiError(
-            response.status,
-            body === null ? t("unknownError") : parseErrorMessage(body, t("failedSubmitRating")),
-            body,
-          );
-        }
-
+        await rateMessage({ rating, comment: commentText });
         const newCounts = calculateNewCounts(currentRating, rating);
         onRatingChange?.({ rating, rating_count: newCounts });
         toast.success(t("thankYouFeedback"));
         setShowCommentDialog(false);
         setComment("");
       } catch (error) {
-        toast.error(getErrorMessage(error, tErrors, t("ratingFailed")));
+        toast.error(getErrorMessage(error, tErrors));
       } finally {
         setInFlight(null);
       }
     },
-    [conversationId, messageId, currentRating, calculateNewCounts, onRatingChange, t, tErrors],
+    [rateMessage, currentRating, calculateNewCounts, onRatingChange, t, tErrors],
   );
 
   // No guard against a missing conversation id here: both buttons are
@@ -120,33 +96,12 @@ export function RatingButtons({
       if (currentRating === rating) {
         setInFlight(rating);
         try {
-          const response = await fetch(
-            `/api/conversations/${conversationId}/messages/${messageId}/rate`,
-            {
-              method: "DELETE",
-              credentials: "include",
-            },
-          );
-
-          if (!response.ok) {
-            // An `ApiError`, not a bare `Error`: the code is the only thing
-            // `getErrorMessage` can resolve against the catalog, and a
-            // hand-built `new Error(body.message)` threw it away - so a
-            // code-only refusal from the proxy reached the toast humanized into
-            // English under every locale (#655).
-            const body = await response.json().catch(() => null);
-            throw new ApiError(
-              response.status,
-              body === null ? t("unknownError") : parseErrorMessage(body, t("failedRemoveRating")),
-              body,
-            );
-          }
-
+          await removeRating();
           const newCounts = calculateNewCounts(currentRating, null);
           onRatingChange?.({ rating: null, rating_count: newCounts });
           toast.success(t("ratingRemoved"));
         } catch (error) {
-          toast.error(getErrorMessage(error, tErrors, t("failedRemoveRating")));
+          toast.error(getErrorMessage(error, tErrors));
         } finally {
           setInFlight(null);
         }
@@ -159,15 +114,7 @@ export function RatingButtons({
         }
       }
     },
-    [
-      conversationId,
-      messageId,
-      currentRating,
-      calculateNewCounts,
-      onRatingChange,
-      submitRating,
-      tErrors,
-    ],
+    [removeRating, currentRating, calculateNewCounts, onRatingChange, submitRating, t, tErrors],
   );
 
   const handleCloseDialog = useCallback(() => {

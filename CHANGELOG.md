@@ -17,6 +17,458 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.308] - 2026-08-27
+
+### Fixed
+
+- **A resumed run's own prior spend was counted twice, so it was refused with
+  headroom to spare.** A resumed run keeps its row, so by the time it continues
+  `finish_run` has committed what it spent - and two things then read that same
+  number: the budget baseline sums `agent_runs.cost_usd`, and the ledger is
+  re-seeded with it. Both are right on their own. The seeding has to happen, or
+  finishing the continuation overwrites the cost with only what the continuation
+  cost and the per-run budget resets every time somebody approves something -
+  exactly the run a budget is for. The baseline has to sum the column, because that
+  is where a month's spend is. Together, an agent capped at $10 that spent $6 and
+  parked came back to `6 + 6 = 12` on its first model request and was refused with
+  $4 left, while the alert told its owner it had reached a cap it was at 60% of.
+  The organization-wide cap double-counted identically. The baseline now excludes
+  the run asking. (#15)
+- **Not only on resume**, and deliberately so: a baseline is what *other* runs have
+  already spent, and what this one spends is the ledger's. On a fresh run the row
+  is there too, at zero, so the exclusion changes nothing there and needs no
+  branch - one rule instead of a resume-shaped exception. It is off by default,
+  because a figure a person reads is a different question and a report that hid the
+  run somebody was looking at would be wrong. (#15)
+
+## [0.0.307] - 2026-08-27
+
+### Fixed
+
+- **The docs claimed a per-binding spending limit that does not exist.**
+  `docs/channels.md` listed it among what an operator sets on a binding, "on top of
+  the agent's own and the organization's", and the runner's docstring said the
+  exposure's caps are enforced. `agent_exposures` has no cap column and
+  `BudgetScope` has exactly two members. The exposure supplies the prompt, the
+  channel tools, its environment and its session scope, and is stamped on the run
+  row - which is what the docstring says now. An operator reading that page
+  believed a public Slack bot was independently capped. (#29)
+- **The cited migration revisions do not dangle, they resolve to the wrong file.**
+  65 revisions were collapsed into `0001_baseline` and the numbering restarted, so
+  a citation lands on a real migration about something else: `0038` was cited eight
+  times for the vault and is the run manifest, `0066` nine times for `users.role`
+  and is nothing at all, and six more besides. Each is replaced by what the reader
+  needs - "before the chain was squashed", "inside `0001_baseline`" - or by a
+  revision that is still there. `CLAUDE.md` and the `alembic-migration` skill now
+  say the numbering restarted and that a citation names a full file name or
+  nothing. `docs/plans/` is deliberately untouched: a plan records what was true
+  when it was written. (#29)
+- The issue's other two claims have since become true and are left as they stand:
+  rate limiting exists on the public and auth surfaces, and the terminal commit is
+  explicit on every surface rather than only web chat. (#29, #39, #1025)
+- Also fixed with it: `main` had been red on `lint-frontend` since the admin
+  Overview was deleted. #921 added a caption for the organizations page and #922
+  removed the page that read it, each green before the other landed - so the key
+  reached `main` with no reader and the i18n guard failed the whole job on the
+  next branch to merge `main` in. Deleted rather than given a reader, because the
+  caption belonged to a page that no longer exists. (#921, #922)
+
+## [0.0.306] - 2026-08-27
+
+### Changed
+
+- **Three sections of `docs/testing.md` described the generator's suite rather than
+  this one**, and each told a reader to do something that cannot work here: a
+  `tests/unit/` that does not exist, a `db_session` fixture that is called
+  something else, a `client` returning Starlette's `TestClient` where the rules
+  single out that it is not, and `auth_client`/`test_user` fixtures the conftest
+  explains the absence of. The worst was a sync test calling an async client -
+  which returns a coroutine and asserts on it, so it **passes while testing
+  nothing**. The page taught the two patterns the rules exist to prevent, and
+  nothing noticed because no code is generated from it. (#212)
+- The sections now carry the four layers and the actual tree, a new "anyio, not
+  pytest-asyncio" section because a missing `pytestmark` is the failure that looks
+  like a pass, the five fixtures that exist, and three examples each taken from a
+  test in the repository. Every name was checked against the conftests, `deps.py`
+  and the repository it cites. Running Tests, Frontend Tests and Test Database were
+  written for this repository and are left alone. (#212)
+
+## [0.0.305] - 2026-08-27
+
+### Fixed
+
+- **Which sign-in button somebody clicked decided where they ended up.** A visitor
+  at `/login?returnTo=/agents/a-1` who used the password form resumed the deep
+  link; one who clicked a provider button landed on the dashboard - the drift #121
+  removed on the roles axis, still present on the provider axis. Nothing carried
+  the path: the browser leaves this origin for the provider and comes back to
+  `/auth/callback`, and neither hop had room for it, so the callback decided the
+  destination with nothing. It is carried in `sessionStorage` rather than the OAuth
+  `state`, because the whole trip starts and ends in the same tab on this origin -
+  a value written beside the provider link is there to be read when the browser
+  returns, and no server has to hold it. A flow that ends somewhere else finds
+  nothing and lands on the dashboard, which is where it landed before. (#135, #121)
+- The value is **consumed as it is read**, so a deep link somebody abandoned is not
+  resumed by the next sign-in from that tab, and a click with nothing to remember
+  clears rather than skips, for the same reason. Nothing in the carrier validates
+  the path: `postSignInDestination` stays the one place that decides whether a
+  return path is safe to honour, and a second copy of that rule would be a second
+  answer to it. `OAuthButtons` also loses a `next` prop nothing passed and the
+  backend never read. (#135)
+- `/auth/magic-link` has the same defect and cannot take the same fix - the link is
+  followed from an email, so a per-tab store is empty by construction - and is
+  filed rather than folded in. (#135)
+
+## [0.0.304] - 2026-08-27
+
+### Changed
+
+- **`/admin` lands on Users, and the Overview is gone.** The page held six figures
+  and three links, and every one of them was already on screen somewhere the reader
+  had been. The figures came from the same endpoint the `platform` dashboard widget
+  reads, on a dashboard that has been arrangeable since #213 - so the page was a
+  fixed second copy of a card the reader can already place where they want it, and
+  two copies of six numbers disagree the first time one is edited. The three links
+  were three of the five tabs the section's own strip renders directly above them,
+  so a third of the page was navigation to where the reader already was. `/admin`
+  is the section index and redirects, exactly as `/settings` redirects to Profile:
+  a bookmark still works, and the sidebar entry still lights up, because
+  `isRouteActive` matches the section rather than the page. (#922, #213)
+
+## [0.0.303] - 2026-08-27
+
+### Added
+
+- **The deployment's tenant list can be searched, sorted, filtered and paged.**
+  `/admin/organizations` is the only surface that answers *what tenants exist*, and
+  it offered no way to find one: fifty rows, one fixed order, no search, no filter,
+  and nothing said about the rest. The users tab beside it has had all four since
+  #284; this page came out of that sweep with the shell and none of the controls,
+  because the route behind it answered none. `search` covers name, slug and the
+  owner's address - through `contains_ci`, so `100%` finds the tenant called that
+  rather than all of them (#372) - alongside `sort_by`, `sort_dir` and a
+  `personal`/`team`/`all` filter. (#921)
+- All of it applies **before `OFFSET`/`LIMIT`**, with `total` counting what was
+  narrowed to rather than the deployment, and a value outside its type is a **422**
+  rather than a silent fallback: an empty page reads as "this deployment has no
+  tenants", and an `ORDER BY` assembled from a query string is an injection
+  surface. The order breaks ties on the id, so paging a column where rows share a
+  value lists each row once. The query moved out of the service into the
+  repository, where a service's queries belong. (#921)
+
+### Fixed
+
+- **The dashboard's top-organizations card and this page shared a query key** while
+  asking for different things - five rows against fifty of whatever the page is
+  narrowed to - so whichever mounted first filled the cache and the other rendered
+  its answer. The key carries the request now, and one hook serves both. And
+  `contains_ci` was typed to mapped columns only, while the owner's address is a
+  column of an outer-joined subquery: widening the alias is what keeps this search
+  going *through* the one helper that escapes `%` and `_` rather than around it.
+  (#921, #372)
+
+## [0.0.302] - 2026-08-27
+
+### Fixed
+
+- **No dashboard page had any room under it**, though `main` declared the padding.
+  The reason is `DeploymentGate`, which wraps every page in a flex box that does
+  not grow with its content - so a long page overflows it and `main`'s padding
+  edge stays where the shorter box ended, buried mid-content. Measured against the
+  app's own stylesheet on a transcription of the real chain: 0px with the gate
+  wrapper in place, 80px and 64px without it. The room moves onto
+  `PageTransition`'s unconstrained branch, which does grow with its content, and
+  lands after the last element in both engines. The constrained branch keeps none,
+  because chat's composer belongs on the bottom edge and room beneath a fixed
+  control is a gap under it. (#933)
+- **The mobile figure counts the safe-area inset** rather than assuming it away:
+  `viewportFit: "cover"` makes it 34px on a modern iPhone, and the tab bar is 56px
+  plus that, so a flat 80px left the last ten pixels of every page under the bar.
+  Four surfaces carried their own workaround at three different values - which is
+  why nobody noticed the layout's own declaration was inert - and all four are
+  gone. The regression test reads the *pages*, not the wrapper: asserting that
+  `PageTransition` carries the padding would not catch a fifth surface re-adding
+  its own, which is the regression that actually happened. (#933)
+- One screen is left behind and filed rather than folded in: `DeploymentGate`
+  returns the maintenance notice directly and never reaches `PageTransition`, so
+  it has no clearance - as it had none before, since the declaration it would have
+  inherited was the inert one. (#1241)
+
+## [0.0.301] - 2026-08-27
+
+### Fixed
+
+- **A frontend spec issued a real HTTP request, so its result depended on what was
+  listening on port 8000.** `RootLayout` awaits `readBranding()`, which fetches
+  against the backend, and `layout.test.tsx` mocked the translator, the font and
+  the stylesheet but not that read. With nothing listening the connection is
+  refused and the branding falls back, so the spec passed - which is CI, and why
+  the suite had been green. With a healthy backend it also passed. But against a
+  port that accepts and never answers, the fetch never settles and both cases die
+  on the 15-second deadline - and a crash-looping backend container does exactly
+  that, because Docker publishes the port and its proxy accepts the connection
+  while nothing inside is listening. One more mock, alongside the three already
+  there: 30.5s and two failures becomes 0.63s and two passes. (#1075)
+- Not fixed, and noted on the issue: `readBranding` swallows every failure into
+  the built-in branding plus a warning, so a page rendered with defaults because
+  the backend was unreachable is indistinguishable from one told to use defaults.
+  (#1075)
+
+## [0.0.300] - 2026-08-27
+
+### Fixed
+
+- **Six of a usage window's scalars were six serial round trips for numbers one
+  SELECT answers.** `StatsService.usage` ran fifteen aggregates one after another,
+  and six of them are scalars over one window with the same WHERE - the count and
+  cost of the window and of the window before it, the distinct-user count, and the
+  two latency percentiles. `window_aggregates` reads all five in one query and
+  `usage` calls it once per window, so six scalar round trips become two. The
+  percentiles need no `ended_at IS NOT NULL` of their own there: an unfinished
+  run's duration is null, and `percentile_cont` ignores a null exactly as the
+  standalone filter did. (#949)
+- The GROUP BY aggregates stay their own queries. Each groups differently, so they
+  cannot fold into one SELECT, and running them concurrently would need a
+  connection each - an `AsyncSession` is one connection and serialises. (#949)
+
+## [0.0.299] - 2026-08-27
+
+### Fixed
+
+- **The BFF proxy read every request and response body fully into memory before
+  forwarding either.** `MAX_UPLOAD_SIZE_MB` is 50 and the knowledge-base path
+  allows it, so a 50 MB document was held whole in the Node process before one
+  byte reached the backend - ten concurrent uploads is 500 MB of heap, and the
+  container's memory limit decides what happens next. In the other direction a
+  workspace file, a document or a run export gave the browser nothing until the
+  last byte had reached the proxy, so time-to-first-byte was the whole transfer
+  and a large export read as a hung page. Both directions stream now, with
+  `duplex: "half"` for the outbound body as undici requires. Bytes stay bytes, so
+  a multipart boundary and a PDF survive the hop, a 204 still carries a null body,
+  and an error body still reaches the client verbatim. (#951)
+
+## [0.0.298] - 2026-08-27
+
+### Fixed
+
+- **Every agent run began with one query per bound collection.**
+  `_collection_names` runs inside `prepare`, so an agent bound to five knowledge
+  bases added five serial round trips to the front of every turn - before the
+  model was called, to read rows very likely already in the session's identity
+  map. `get_by_ids` reads them in one `WHERE id IN (...)`, and the resolution
+  iterates the returned map. The tenant check and the degradation it exists for -
+  a collection gone or foreign narrows the agent's reach rather than failing the
+  run - are unchanged: they read from a dict instead of awaiting a query each, and
+  an id with no row is simply absent from the map. (#954)
+- The finding names six id-resolving loops as one habit; this is the only one on a
+  per-run path. The other five are publish-time or admin-path, where N is small
+  and the cost is invisible, and their line references predate a since-moved file,
+  so they want re-locating rather than a blind change. (#954)
+
+## [0.0.297] - 2026-08-27
+
+### Added
+
+- **The Builder speaks Polish.** `pl.json` held no `agents` namespace at all - 0 of
+  563 keys - so the whole Builder rendered in English under `/pl`, the largest
+  single gap in the catalog. All 563 are translated as one namespace rather than
+  piecemeal, because a namespace is the unit a person reads and seventy Polish
+  strings among four hundred English ones reads worse than a consistently English
+  panel. The product's own nouns stay English and are inflected into Polish
+  grammar - agent, spec, capability, skill, embed, budget, run, prompt, provider,
+  token, vault, workspace, sandbox, MCP - so a Polish reader meets the same words
+  the docs, the API and an exported YAML use; `secret` follows the convention
+  already in the file and becomes `sekret`. Counts are ICU `plural` with Polish's
+  `few` and `many` arms rather than ternaries, with any noun the number agrees
+  with inside the plural, and every interpolation and `t.rich` tag is preserved.
+  (#643)
+
+## [0.0.296] - 2026-08-27
+
+### Changed
+
+- **The two sessions BFF routes hand-rolled the forwarder block** - read the
+  cookie or 401, set the bearer, map the error, answer JSON - which is what
+  `platformProxy()` already does, *plus* the active-organization header, byte-
+  accurate bodies and the `no-store` those hand-rolled copies drop (#546, #553,
+  #106). Both are a `sessions/[[...path]]` mount now, the same shape `kb` and
+  `rag` use, and the query handling and id escaping they did by hand are the
+  proxy's passthrough. No endpoint behaviour changed. (#564)
+- The remaining clusters are deliberately left, each with a blocker on the issue
+  rather than a mechanical swap: `orgs/**` keeps a binary avatar route that cannot
+  coexist with an optional catch-all, and the header the proxy adds is a behaviour
+  change wanting an end-to-end check; `admin/**` carries a frontend admin gate
+  rather than a plain cookie read; and the MCP OAuth callback redirects rather than
+  forwards. (#564)
+
+## [0.0.295] - 2026-08-27
+
+### Changed
+
+- **Four transport blocks were copied across the three channel adapters**, so a
+  change to any had to be made at six to ten sites by hand and a fourth channel
+  would copy them all again. `split_thread` replaces the partition-and-unpack at
+  three Mattermost and three Slack sites, and `channel_key` calls it too, so "which
+  channel is this" has one implementation. `SlackAdapter._web` holds the lazy
+  client import and construction that nine sites repeated - including a dynamic
+  import in the Socket Mode path - with the import still deferred, so a deployment
+  running no Slack bot does not pay for the SDK. `TelegramAdapter._bot` is an async
+  context manager wrapping the bot and the `try/finally` close that **ten** methods
+  repeated, each of them a TLS session leaked if the close was forgotten. And the
+  Mattermost client and bearer header, repeated at ten sites each, now have one
+  definition apiece, so the timeout and the auth shape do too. (#565, #547)
+
+## [0.0.294] - 2026-08-27
+
+### Changed
+
+- **Both run surfaces turned a finished result into `(status, output, paused)`
+  with the same block, copied verbatim** - a `DeferredToolRequests` output builds
+  a `PausedRunState` and becomes `AWAITING_APPROVAL`, anything else is the
+  completed answer. That is the delicate half: a new `PausedRunState` field, or a
+  change to how a park is recorded, had to move in lockstep across two files. It
+  is `_classify_output` now, beside `_outcome`, which `agent_chat` already imports
+  from there. The **exception paths stay with each surface**, because they
+  genuinely differ - the chat runner re-raises `BudgetExceeded` and
+  `GuardrailBlocked` so the waiting visitor is told why, while the batch runner
+  records and moves on - so extracting those would have been a behaviour change.
+  (#567)
+
+## [0.0.293] - 2026-08-27
+
+### Fixed
+
+- **A unit word anywhere in a string exempted the whole sentence from the i18n
+  sweep.** `NOT_A_SENTENCE`'s unit alternative had `.*` on both sides, so
+  "Use rem instead of pixels for spacing", "Change the deg value before saving"
+  and "This px setting is wrong" all left the sweep untranslated - the same defect
+  as #656 and #678, and the widest of the three. It also never did its stated job:
+  a CSS measurement is written `12px`, and a word boundary before `px` needs one
+  between `2` and `p`, so `"Set the width to 12px"` was reported anyway. The
+  alternative caught the standalone token it was never written for and missed the
+  measurement it was. And it was dead in any case, because a phrase genuinely made
+  of units is already answered by `isFormatter`, which asks that *every* word be a
+  unit or an acronym rather than that one of them be. Deleted, with the docstring
+  now recording why there is no unit alternative so it is not re-added. (#741,
+  #656, #678)
+
+## [0.0.292] - 2026-08-27
+
+### Changed
+
+- **`parked_calls` compared statuses against raw strings** where every sibling in
+  the file uses `RunStatus` and `ApprovalStatus`. A raw literal is invisible to a
+  rename: change the enum member and the string silently stops matching, which on
+  this path means a parked run that no longer reads as parked. Both now go through
+  the enum, matching the resume path a few methods down; behaviour is identical,
+  since both are `StrEnum`. The skill repository's `update` and `update_resource`
+  take `dict[str, Any]` like every other repository's, rather than a bare `dict`.
+  (#545)
+- One item of the bag was **misdiagnosed and dropped rather than done**:
+  `InvitationCreate.email` was said to need the `max_length=255` its siblings
+  carry, against an over-length address reaching the column. It does not
+  reproduce - `EmailStr` enforces the RFC total length of 254, which is below the
+  column's 255, so a format-valid address can never exceed it and an over-length
+  one is refused with a clean 422 at the schema. Adding the constraint would have
+  been an untestable one, because no input reaches it. (#545)
+
+## [0.0.291] - 2026-08-27
+
+### Fixed
+
+- **The e2e job kept a screenshot of a flake and nothing else.**
+  `playwright.config.ts` set `trace` and `video` to `on-first-retry` while
+  `retries` is 0 - deliberately, so a real failure cannot go green on a second
+  attempt - and with no retry those never fire. The trace is the one artifact that
+  answers which locator it was waiting on and why, because it carries the DOM
+  timeline, the network log and the console, and it was missing from exactly the
+  runs that needed it. Both are `retain-on-failure` now, captured on the first and
+  only failure and kept for the failed test alone. The job already uploads the
+  report and the report embeds the trace, so no workflow change was needed. This
+  does not fix the flake - its cause is unknown until a failure is captured, which
+  is what this makes possible. (#162)
+
+## [0.0.290] - 2026-08-27
+
+### Added
+
+- **`make lint-precommit` reads the whole tree with the hooks that only ever read
+  a diff.** `yamlfmt`, `zizmor` and the `pre-commit-hooks` basics saw only the
+  files a commit touched, and no gate ever ran them over everything. That is fine
+  while the rules are fixed and stops being fine the moment Dependabot bumps a
+  `rev:`: a new `zizmor` rule makes every workflow in the tree violate it, nothing
+  notices because no commit has touched a workflow, and weeks later an unrelated
+  one-line edit is refused by a finding that has nothing to do with it - the shape
+  of #188, one tool over. `make lint-spelling` already solved exactly this for
+  codespell; this gives the rest the same treatment. (#203)
+- `SKIP` drops the hooks another target already gates over the tree, plus
+  `no-commit-to-branch`, which fails by design when CI checks out `main` - so
+  nothing is gated twice and no fixer rewrites a file mid-check. A fixer that does
+  run reports rather than commits, because pre-commit exits non-zero on a
+  modification, which is the failure CI needs. Wired into `lint` so `make check`
+  reaches it, and into CI's `lint` job, with `test_ci_parity.py` holding both
+  directions the way it already does for `lint-spelling`. (#203)
+
+## [0.0.289] - 2026-08-27
+
+### Fixed
+
+- **A rating cast in chat left the dashboard's summaries stale.** `rating-buttons`
+  hand-rolled two `fetch` calls with their own headers, `response.ok` handling and
+  error parsing - the shape `frontend.md` forbids - so the endpoints were invisible
+  to the query layer and nothing was invalidated until the next mount. Both go
+  through `src/lib/message-rating-api.ts` and `use-message-rating` now, whose
+  `onSuccess` invalidates the ratings and admin-ratings summary roots, and the two
+  duplicated error-parse blocks are one `getErrorMessage`. The chat's own thumb
+  counts still reconcile locally, because they live in the message store. Three
+  i18n keys the hand-rolled catches used are deleted with them. (#563)
+
+## [0.0.288] - 2026-08-27
+
+### Changed
+
+- **One `{date, likes, dislikes}` day-point instead of four declarations feeding
+  one chart.** `RatingsByDay`, an inline array inside the conversation summary and
+  the chart's own `RatingsPoint` all described the same shape, so adding a field to
+  one left the others silently unchanged. `RatingsByDay` is the single day-point
+  now - the chart prop, its wrapper and the admin summary all reference it - and
+  `RatingsPoint` is deleted. The admin summary response is renamed to
+  `AdminRatingsSummary`, so it no longer differs from `RatingsSummary` by a single
+  trailing `s`, which is trivially confused on import. Pure type consolidation, no
+  behaviour change. (#559)
+
+## [0.0.287] - 2026-08-27
+
+### Fixed
+
+- **A bot activated moments before shutdown reopened intake at exit.** It leaves a
+  committed, tracked `open_inbound_stream` task that may not have run yet: the
+  lifespan stops the adapter tasks that exist, then drains - and that task's final
+  step creates a new, *untracked* polling or socket task after the stop loops have
+  passed. The supervisor carries a shutting-down flag now; `open_inbound_stream`
+  declines to open when it is set, re-checked after `stop_polling` so a task
+  suspended there when shutdown begins cannot slip a reopen through either. The
+  lifespan sets it as the first shutdown statement, before the stop loops and the
+  drain, and clears it at startup so a following lifespan - a test, a reload -
+  serves again. The flag is the lifespan's alone, so the in-process drain the RAG
+  sync command issues while the server keeps serving never touches it and a
+  legitimate reopen still opens. (#1119, #1095)
+
+## [0.0.286] - 2026-08-27
+
+### Fixed
+
+- **`seed --clear` never worked on a seeded database.** It called a bulk
+  `DELETE FROM users WHERE is_app_admin = false`, and every seeded account has a
+  personal organization whose `created_by_user_id` is `ON DELETE RESTRICT` - so the
+  delete raised `ForeignKeyViolation` on the first row and the command 500'd. The
+  bulk path bypassed the reconciliation only the single-row delete runs.
+  `delete_non_admins` lists the non-admins and removes each through `delete` now, so
+  each personal organization is purged and each owned row reconciled first, on the
+  same path `DELETE /users/{id}` uses. One transaction, so a refusal - a non-admin
+  who solely owns a shared organization - rolls the whole clear back rather than
+  half-clearing. (#1124, #1117)
+
 ## [0.0.285] - 2026-08-27
 
 ### Fixed
