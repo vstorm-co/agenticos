@@ -17,6 +17,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.292] - 2026-08-27
+
+### Changed
+
+- **`parked_calls` compared statuses against raw strings** where every sibling in
+  the file uses `RunStatus` and `ApprovalStatus`. A raw literal is invisible to a
+  rename: change the enum member and the string silently stops matching, which on
+  this path means a parked run that no longer reads as parked. Both now go through
+  the enum, matching the resume path a few methods down; behaviour is identical,
+  since both are `StrEnum`. The skill repository's `update` and `update_resource`
+  take `dict[str, Any]` like every other repository's, rather than a bare `dict`.
+  (#545)
+- One item of the bag was **misdiagnosed and dropped rather than done**:
+  `InvitationCreate.email` was said to need the `max_length=255` its siblings
+  carry, against an over-length address reaching the column. It does not
+  reproduce - `EmailStr` enforces the RFC total length of 254, which is below the
+  column's 255, so a format-valid address can never exceed it and an over-length
+  one is refused with a clean 422 at the schema. Adding the constraint would have
+  been an untestable one, because no input reaches it. (#545)
+
 ## [0.0.291] - 2026-08-27
 
 ### Fixed
