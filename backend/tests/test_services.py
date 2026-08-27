@@ -286,7 +286,11 @@ class TestUserServicePostgresql:
     @pytest.mark.anyio
     async def test_delete_success(self, user_service: UserService, mock_user: MockUser):
         """Test deleting user."""
-        with patch("app.services.user.user_repo") as mock_repo:
+        with (
+            patch("app.services.user.user_repo") as mock_repo,
+            patch.object(user_service, "_release_owned_rows", new=AsyncMock()),
+        ):
+            mock_repo.get_by_id_for_update = AsyncMock(return_value=mock_user)
             mock_repo.delete = AsyncMock(return_value=mock_user)
 
             result = await user_service.delete(mock_user.id)
@@ -295,9 +299,9 @@ class TestUserServicePostgresql:
 
     @pytest.mark.anyio
     async def test_delete_not_found(self, user_service: UserService):
-        """Test deleting non-existent user."""
+        """A missing user is refused up front, before any teardown is attempted."""
         with patch("app.services.user.user_repo") as mock_repo:
-            mock_repo.delete = AsyncMock(return_value=None)
+            mock_repo.get_by_id_for_update = AsyncMock(return_value=None)
 
             with pytest.raises(NotFoundError):
                 await user_service.delete(uuid4())
@@ -379,7 +383,11 @@ class TestUserServicePostgresql:
     async def test_an_admin_may_delete_another_user(
         self, user_service: UserService, mock_user: MockUser
     ):
-        with patch("app.services.user.user_repo") as mock_repo:
+        with (
+            patch("app.services.user.user_repo") as mock_repo,
+            patch.object(user_service, "_release_owned_rows", new=AsyncMock()),
+        ):
+            mock_repo.get_by_id_for_update = AsyncMock(return_value=mock_user)
             mock_repo.delete = AsyncMock(return_value=mock_user)
 
             await user_service.admin_delete(mock_user.id, acting_admin_id=uuid4())

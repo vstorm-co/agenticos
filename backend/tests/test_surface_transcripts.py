@@ -620,6 +620,7 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
         ):
             service.return_value.keep_summary = AsyncMock()
             service.return_value.keep_overhead = AsyncMock()
+            service.return_value.keep_plan = AsyncMock()
 
             def summarise(*_args: Any, **_kwargs: Any) -> Any:
                 captured["prepared"].built.context.summarized = True
@@ -642,6 +643,7 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
         ):
             service.return_value.keep_summary = AsyncMock()
             service.return_value.keep_overhead = AsyncMock()
+            service.return_value.keep_plan = AsyncMock()
             await session._answer("What's your refund window?")
 
         service.return_value.keep_summary.assert_not_awaited()
@@ -659,6 +661,7 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
         ):
             service.return_value.keep_summary = AsyncMock()
             service.return_value.keep_overhead = AsyncMock()
+            service.return_value.keep_plan = AsyncMock()
 
             def measure(*_args: Any, **_kwargs: Any) -> Any:
                 captured["prepared"].built.context.overhead = 3_865
@@ -681,6 +684,7 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
         ):
             service.return_value.keep_summary = AsyncMock()
             service.return_value.keep_overhead = AsyncMock()
+            service.return_value.keep_plan = AsyncMock()
             service.return_value.keep_reminder_state = AsyncMock()
 
             def advance(*_args: Any, **_kwargs: Any) -> Any:
@@ -706,6 +710,7 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
         ):
             service.return_value.keep_summary = AsyncMock()
             service.return_value.keep_overhead = AsyncMock()
+            service.return_value.keep_plan = AsyncMock()
             service.return_value.keep_reminder_state = AsyncMock()
             await session._answer("What's your refund window?")
 

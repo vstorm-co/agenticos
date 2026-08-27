@@ -2,22 +2,17 @@
 
 import { BACKEND_URL } from "@/lib/constants";
 
-import { BrandIcon } from "@/components/icons/brand-icon";
+import { GlyphIcon } from "@/components/icons/glyph";
+import { AUTH_GLYPHS, type AuthProvider } from "@/lib/auth-glyphs.generated";
 
 import { useTranslations } from "next-intl";
-type Provider = "google" | "github" | "microsoft";
+type Provider = AuthProvider;
 
 /** Catalog keys, per provider and per variant. */
 const PROVIDER_WORDS: Record<Provider, string> = {
   google: "Google",
   github: "Github",
   microsoft: "Microsoft",
-};
-
-const ICON: Record<Provider, "google" | "github" | "microsoft"> = {
-  google: "google",
-  github: "github",
-  microsoft: "microsoft",
 };
 
 function readProviders(): Provider[] {
@@ -69,7 +64,7 @@ function OAuthButtons({ next, variant = "signin", invitation }: OAuthButtonsProp
             href={url}
             className="border-foreground/15 hover:border-foreground/40 hover:bg-foreground/[0.03] text-foreground inline-flex h-11 w-full items-center justify-center gap-3 rounded-full border px-5 text-sm font-medium transition-colors"
           >
-            <BrandIcon name={ICON[provider]} className="h-4 w-4" aria-hidden />
+            <GlyphIcon glyph={AUTH_GLYPHS[provider]} className="h-4 w-4" aria-hidden />
             {label}
           </a>
         );

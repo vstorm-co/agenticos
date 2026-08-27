@@ -7,6 +7,7 @@ from app.agents.capabilities._registry import (
 )
 from app.agents.capabilities.skills._capability import (
     SAFE_SKILL_TOOLS,
+    SKILL_TEXTS,
     Skills,
     to_toolkit_skill,
 )
@@ -19,21 +20,14 @@ __all__ = ["SAFE_SKILL_TOOLS", "Skills", "to_toolkit_skill"]
     name="Skills",
     category="knowledge",
     description="Load the organization's written know-how on demand, one skill at a time.",
-    # These three come from `pydantic-ai-skills`, so their names and wording are
-    # somebody else's to change. The drift test is what tells us when they did.
-    tools=(
-        CapabilityToolInfo(
-            id="list_skills",
-            description="Get an overview of all available skills and what they do.",
-        ),
-        CapabilityToolInfo(
-            id="load_skill",
-            description="Load complete instructions and capabilities for a specific skill.",
-        ),
-        CapabilityToolInfo(
-            id="read_skill_resource",
-            description="Access supplementary documentation, templates, or data from a skill.",
-        ),
+    # The three names come from `pydantic-ai-skills` and are somebody else's to
+    # change; the drift test is what tells us when they did. What each tool
+    # *returns* is this repository's text - see `SKILL_TEXTS`.
+    tools=tuple(
+        # The summary each tool's text opens with, so the Builder shows the
+        # sentence the model reads first rather than a fourth copy of it.
+        CapabilityToolInfo(id=tool_id, description=text.summary)
+        for tool_id, text in SKILL_TEXTS.items()
     ),
     scopes=("knowledge:read",),
 )

@@ -38,8 +38,14 @@ async def get_all(
     db: AsyncSession,
     *,
     collections: list[str],
-) -> list[RAGDocument]:
-    """Documents tracked in the named collections, newest first.
+    skip: int = 0,
+    limit: int = 50,
+) -> tuple[list[RAGDocument], int]:
+    """A page of documents tracked in the named collections, newest first.
+
+    Returns `(rows, total)`, the same shape as `get_for_kb`: without a bound this
+    selected and serialized every row across the caller's collections, which grows
+    without limit with tenant data (#27).
 
     Filtering on `organization_id` would be the obvious alternative and is not
     equivalent: the column is nullable and a document ingested by a sync task
@@ -48,14 +54,25 @@ async def get_all(
     `knowledge_bases` row authorized, so the collection is what this asks for.
     """
     if not collections:
-        return []
-    query = (
-        select(RAGDocument)
-        .where(RAGDocument.collection_name.in_(collections))
-        .order_by(RAGDocument.created_at.desc())
+        return [], 0
+    base = select(RAGDocument).where(RAGDocument.collection_name.in_(collections))
+    total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
+    rows = (
+        (
+            await db.execute(
+                # `id` breaks ties: a bulk import lands many rows in one
+                # microsecond, and without a unique secondary key their
+                # `created_at DESC` order is not stable across the pages the
+                # caller reads them in (#1103).
+                base.order_by(RAGDocument.created_at.desc(), RAGDocument.id.desc())
+                .offset(skip)
+                .limit(limit)
+            )
+        )
+        .scalars()
+        .all()
     )
-    result = await db.execute(query)
-    return list(result.scalars().all())
+    return list(rows), int(total)
 
 
 async def get_for_kb(
@@ -69,7 +86,15 @@ async def get_for_kb(
     base = select(RAGDocument).where(RAGDocument.knowledge_base_id == kb_id)
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
     rows = (
-        (await db.execute(base.order_by(RAGDocument.created_at.desc()).offset(skip).limit(limit)))
+        (
+            await db.execute(
+                # `id` breaks ties so a page boundary through rows sharing a
+                # `created_at` neither repeats nor skips one (#1103).
+                base.order_by(RAGDocument.created_at.desc(), RAGDocument.id.desc())
+                .offset(skip)
+                .limit(limit)
+            )
+        )
         .scalars()
         .all()
     )
@@ -253,3 +278,22 @@ async def delete_by_collection(db: AsyncSession, collection_name: str) -> int:
     )
     await db.flush()
     return result.rowcount  # ty: ignore[unresolved-attribute]
+
+
+async def delete_by_knowledge_base(db: AsyncSession, kb_id: UUID) -> list[str]:
+    """Delete a knowledge base's document rows, returning the stored file paths.
+
+    Keyed on `knowledge_base_id`, not `collection_name`: when two tenants back
+    onto one physical collection (collection_name is not tenant-unique, #913),
+    this removes only the rows belonging to the KB being torn down and leaves the
+    other tenant's alone. The returned `storage_path`s are the uploads the caller
+    still has to delete from storage - a `NULL` one (nothing was stored) is
+    dropped from the list (#1116).
+    """
+    result = await db.execute(
+        sql_delete(RAGDocument)
+        .where(RAGDocument.knowledge_base_id == kb_id)
+        .returning(RAGDocument.storage_path)
+    )
+    await db.flush()
+    return [path for path in result.scalars().all() if path]

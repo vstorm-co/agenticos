@@ -785,11 +785,22 @@ declares `side_effecting=False`. The three subtask tools are declared even when 
 checklist does not offer them, because a tool absent from the declaration can be
 neither gated by the approval policy nor renamed by a binding.
 
-**The plan survives an approval park.** The checklist is state, and a run that parks
-on an approval mid-plan resumes as a fresh run — so the store is owned by the runner,
-not the capability: it is seeded from `paused_state` on resume and read back when the
-run stops. An agent that does not bind the capability pays nothing — no tools, no
-reminder, no stored plan.
+**The plan belongs to the conversation, not to one turn of it.** The checklist is
+state, and every boundary a run has would otherwise lose it. A run that parks on an
+approval mid-plan resumes as a fresh run; and a chat message *is* a run here, so the
+next message started from an empty store — an agent wrote three steps, was asked to
+begin the first, and answered that no plan existed and it had never created one
+(agenticos#1077). So the store is the runner's, not the capability's: it is seeded
+from the conversation's stored plan, or from `paused_state` on a resume, which is the
+newer copy, and written back to the conversation when the run stops. A surface with
+no conversation — a bare API call — keeps a plan for the length of its run, which is
+all it has.
+
+A finished checklist is kept rather than cleared. That is what the run which
+finished it saw too: every step ticked in the tail reminder, until `write_plan`
+replaces the plan wholesale — which is what starting new work does. An agent that
+does not bind the capability pays nothing: no tools, no reminder, and nothing stored,
+because an empty checklist against a column that is null is not a change to write.
 
 **It spends no tokens of its own.** The tools are local checklist edits with no model
 or embedding request behind them, so unlike knowledge or delegation there is no
@@ -1193,6 +1204,67 @@ each delegate's row. This scope answers a question no permission can: whether th
 delegation off everywhere in one edit, which is what an operator who does not want
 nested runs or fan-out billing needs, and every spec that delegates then says so at
 publish rather than at 3am.
+
+## What a tool tells the model
+
+A tool definition is a prompt. The model picks a tool, and fills in its
+arguments, from nothing but the text attached to it — so every tool here carries
+four things, and the fourth is the one usually left out:
+
+1. **What it does**, in a sentence. This is also what the Builder shows beside
+   the approval checkbox, so it is written once and read by both.
+2. **When to use it, and when to use something else.** `create_chart` says it is
+   for numbers you already have and `generate_image` for something to be drawn;
+   `glob` says it searches recursively where `ls` does not.
+3. **What every argument means**, including its default and its ceiling.
+4. **What comes back** — the shape of the answer, what a failure looks like, and
+   where the result is a truncated slice rather than the whole set. A model that
+   does not know `grep` answers in three different shapes depending on
+   `output_mode`, or that `glob` stops at 100 paths, reasons from a slice as
+   though it were everything.
+
+All four reach the model in one shape, and it is pydantic-ai's own: the prose
+inside `<summary>`, the return description inside `<returns>`. A tool written
+here gets that for free — the framework builds it from the docstring's
+`Returns:` section. A tool that comes from a library is registered with an
+explicit description, which takes that path away, so its text goes through
+`ToolText` in `app/agents/capabilities/_tool_text.py`, which renders what the
+framework would have. Two conventions in one tool list is one more thing for the
+model to reconcile, and `tests/test_tool_text_shape.py` is what keeps there
+being one — it pins `ToolText` against a tool pydantic-ai builds itself, and
+checks that every capability's tools carry a return shape.
+
+That covers the tools this deployment did not write, either: `planning` and the
+delegation tools are handed this repository's text, `web_fetch` and
+`search_tools` are re-described where they are built, and `read_tool_result` and
+the three `skills` tools are re-described in place on the library's own toolset.
+Two of those were worth the trouble beyond consistency — the library's sentence
+for `read_tool_result` said nothing about what a handle answers with, which is
+the one thing a model holding a handle needs, and `list_skills` documented the
+Python return (a dictionary) rather than the text the model is handed.
+
+A tool from a library that this repository has no text for keeps the library's,
+which is the right default: `run_skill_script` is excluded rather than described,
+and if it ever arrives it arrives saying whatever its author wrote.
+
+### A mistake, a result, and a refusal
+
+How a tool reports trouble decides what the model does next, and the three are
+not interchangeable.
+
+| The failure | What the tool does | Why |
+|---|---|---|
+| The model's own arguments — a chart series with the wrong number of values, a context file that does not exist, a `NameError` in Python it wrote | Retry prompt | Calling again differently is a plausible fix, and the message says what a correct call looks like |
+| A transient failure of what is behind the tool — a search provider down, a knowledge base timing out | Retry prompt | An error in the shape of a result reads as "nothing found", and the model then answers from memory, confidently, without saying that it had to |
+| A result that is simply bad news — a command that exited non-zero, a search with no hits, a channel this bot cannot see | Returned as text | It is the answer. The model reasons about it and moves on |
+| A refusal — a permission rule, a capability the deployment does not offer | Returned as text | A retry prompt invites the model to look for a way around it |
+
+Retries are budgeted: a tool call gets one attempt to correct itself, and a
+retry raised *past* that budget ends the whole run rather than the call. So the
+last attempt returns its message instead of raising — steered while there is
+budget for it, and never worse than the answer it would have given anyway. The
+one helper that decides this is `app/agents/capabilities/_failures.py`;
+`pydantic-ai-backend` holds the same rule for the workspace tools.
 
 ## Adding to this list
 

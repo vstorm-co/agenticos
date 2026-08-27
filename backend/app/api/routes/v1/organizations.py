@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 
-from app.api.deps import CurrentUser, OrganizationSvc
+from app.api.deps import CurrentUser, OrganizationSvc, OrganizationTeardownSvc
 from app.schemas.organization import (
     OrganizationCreate,
     OrganizationList,
@@ -64,7 +64,7 @@ async def update_organization(
 @router.delete("/{org_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_organization(
     org_id: UUID,
-    service: OrganizationSvc,
+    service: OrganizationTeardownSvc,
     user: CurrentUser,
 ) -> None:
     """Delete an organization. Requires Owner role. Personal orgs cannot be deleted."""

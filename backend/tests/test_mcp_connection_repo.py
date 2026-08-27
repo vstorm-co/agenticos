@@ -178,6 +178,24 @@ class TestGetOrgScopedById:
         )
 
         assert set(_filters(session).values()) == {connection_id, organization_id, "org", "mcp"}
+        assert "FOR UPDATE" not in _sql(session)
+
+    async def test_for_update_locks_drops_the_join_and_re_reads(self):
+        """The locked variant a credential writer uses: sealing at the row's
+        recorded key version is only safe while the row is held, or a rotation
+        committing in between tags the new envelope with a version it was not
+        sealed under. Same three options as `get_by_id_for_update`, for the
+        same Postgres reasons."""
+        session = _RecordingSession(_Result(scalar=None))
+
+        await mcp_connection_repo.get_org_scoped_by_id(
+            session, connection_id=uuid.uuid4(), organization_id=uuid.uuid4(), for_update=True
+        )
+
+        sql = _sql(session)
+        assert "FOR UPDATE" in sql
+        assert "JOIN" not in sql
+        assert session.statements[-1].get_execution_options()["populate_existing"] is True
 
 
 class TestGetByCatalogKey:
