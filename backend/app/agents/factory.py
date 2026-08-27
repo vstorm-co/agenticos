@@ -132,6 +132,7 @@ def build_agent(
     org_period_spend: PeriodSpendLookup | None = None,
     org_monthly_budget_usd: Decimal | None = None,
     request_approval: ApprovalCallback | None = None,
+    gate_every_tool: bool = False,
     shared_budget: BudgetGuard | None = None,
     recorded_overhead: int | None = None,
     recorded_reminder_state: dict[str, Any] | None = None,
@@ -143,6 +144,10 @@ def build_agent(
         model_spec: Already-resolved model and credentials.
         granted_scopes: Scopes the organization allows. Passing `None` skips
             the check and is for internal runs only.
+        gate_every_tool: Ask about every tool the agent can reach, not only the
+            ones the spec gated - `ApprovalMode.ASK_ALL` on a chat session
+            (#925). It only ever tightens, so nothing checks a permission for
+            it; the spec's own gates stay where they are underneath.
         resources: Values resolved from the database for this run - collection
             names, skills - which capabilities need but must never fetch
             themselves.
@@ -270,7 +275,7 @@ def build_agent(
         # instructions.
         ReinjectSystemPrompt(),
         budget,
-        ApprovalGate(required_tool_names=approval_required),
+        ApprovalGate(required_tool_names=approval_required, gate_every_tool=gate_every_tool),
         *configured,
         # Every agent, not only one that compacts. The warning is most useful to
         # exactly the agent that will not: it is the one that reaches the ceiling

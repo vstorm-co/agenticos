@@ -268,6 +268,16 @@ class ApprovalRead(BaseSchema):
     status: str
     decided_by_user_id: UUID | None = None
     decided_at: datetime | None = None
+    decided_via: str = Field(
+        default="click",
+        description=(
+            "How it was decided, which is not the same question as what was "
+            "decided. `click` is somebody reading the arguments and pressing a "
+            "button; `standing` is a conversation that had waived approvals in "
+            "advance, by the account `decided_by_user_id` names. Both are "
+            "`approved`, and the record is only a record if it says which"
+        ),
+    )
     note: str | None = None
     created_at: datetime | None = None
 

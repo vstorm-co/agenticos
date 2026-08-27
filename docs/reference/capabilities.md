@@ -387,7 +387,10 @@ that mattered. `execute` runs arbitrary commands on somebody's host.
 
 A binding that wants the stricter behaviour sets it per tool:
 `tool_approval: {"write_file": "required"}`. See [Governance](../governance.md) for
-how an approval is put to a person.
+how an approval is put to a person — and for the two things one *chat session* can
+say on top of the spec: waive every gated call for this conversation, or ask about
+every tool the agent has, including the MCP tools the spec-driven gate deliberately
+leaves alone (agenticos#925).
 
 **Some paths are refused whatever the approval policy says.** Credentials
 (`**/.env`, `**/*.pem`, `**/*.key`, `**/credentials*`, `**/.ssh/**`, `**/.aws/**`)

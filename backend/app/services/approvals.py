@@ -62,8 +62,9 @@ class ApprovalService:
         tool_args: dict[str, Any],
         subagent_name: str | None = None,
         subagent_agent_id: UUID | None = None,
+        standing_consent_by: UUID | None = None,
     ) -> ToolApproval:
-        """Park a tool call until a human decides.
+        """Park a tool call until a human decides - or record one already decided.
 
         Called from the run's terminal write rather than from inside a tool call,
         so it takes ids rather than an auth context - the agent, not a member, is
@@ -83,6 +84,12 @@ class ApprovalService:
                 them is a reviewer approving blind.
             subagent_agent_id: That delegate's own agent, or `None` for an inline
                 specialist, which has no agent of its own to name.
+            standing_consent_by: Who granted this call in advance, for a chat
+                session running under `ApprovalMode.APPROVE_ALL`. The row is
+                written `approved` and names them, because a waived run has to be
+                distinguishable from an agent that was never gated - that
+                distinction is the audit trail (#925). `None` is every other
+                approval: pending, waiting for somebody.
         """
         approval = await agent_run_repo.create_approval(
             self.db,
@@ -94,6 +101,7 @@ class ApprovalService:
             tool_args=tool_args,
             subagent_name=subagent_name,
             subagent_agent_id=subagent_agent_id,
+            standing_consent_by=standing_consent_by,
         )
         logger.info(
             "Approval %s requested for tool %s on run %s (delegate: %s)",

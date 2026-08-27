@@ -21,6 +21,16 @@ export interface Organization {
    * agent's own: an agent can tighten it, never loosen it.
    */
   monthly_budget_usd: number | null;
+  /**
+   * Whether a chat session here may grant standing consent to gated tool calls -
+   * `approve_all` in the composer's approval control. Off unless somebody who
+   * holds `approvals:decide` turned it on: without a ceiling a Builder's
+   * deliberate gate is one click from nothing in every conversation.
+   *
+   * The chat reads it to decide whether to offer the option at all. Who may then
+   * take it is `approvals:decide`, which is a different question.
+   */
+  chat_may_waive_approvals: boolean;
   created_at: string;
   updated_at: string | null;
 }

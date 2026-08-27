@@ -134,6 +134,7 @@ export function ChatContainer() {
     cancelQueued,
     clearQueued,
     setModelProfile,
+    setApprovalMode,
     pendingApproval,
     sendResumeDecisions,
     pendingQuestions,
@@ -311,6 +312,9 @@ export function ChatContainer() {
         setModelProfile(profileId);
         setModelProfileId(profileId);
       }}
+      // Only into the hook: nothing on screen is a share of it, unlike the
+      // context gauge the model switch has to move.
+      onApprovalModeChange={setApprovalMode}
       onRegenerate={handleRegenerate}
       slashContext={slashContext}
       slashCommands={slashCommands}
@@ -370,6 +374,7 @@ interface ChatUIProps {
     files?: import("@/types").ChatMessageFile[],
   ) => void;
   onModelProfileChange?: (profileId: string | null) => void;
+  onApprovalModeChange?: (mode: import("./chat-controls").ApprovalMode) => void;
   onRegenerate?: (messageId: string) => void;
   slashContext?: import("./slash-commands").SlashCommandContext;
   slashCommands?: import("./slash-commands").SlashCommand[];
@@ -402,6 +407,7 @@ function ChatUI({
   isArchived,
   sendMessage,
   onModelProfileChange,
+  onApprovalModeChange,
   onRegenerate,
   slashContext,
   slashCommands,
@@ -567,6 +573,7 @@ function ChatUI({
                   <div data-tour="chat-model-picker">
                     <ChatControls
                       onModelProfileChange={onModelProfileChange}
+                      onApprovalModeChange={onApprovalModeChange}
                       agentModel={agentModel}
                     />
                   </div>

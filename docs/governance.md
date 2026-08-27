@@ -848,6 +848,61 @@ Four properties worth knowing:
   concurrently and the run's database session is not concurrency-safe
   ([#169](https://github.com/vstorm-co/agenticos/issues/169)).
 
+### How much one conversation wants to be asked
+
+The rule above is the agent's, decided at publish time and per tool, and that is
+the right place for it: it is a statement about what the agent *is*. What it
+cannot express is the mood of one session — somebody working through twenty turns
+with an agent that gates three tools answers the same three questions every turn,
+and their only way out was to republish the agent and change it for everybody,
+permanently, to fix an afternoon
+([#925](https://github.com/vstorm-co/agenticos/issues/925)).
+
+So a chat session carries an **approval mode**, on the send frame beside the model
+override and read into the run:
+
+| Mode | What it does |
+|---|---|
+| **Follow the agent** (default) | The spec decides. Exactly the behaviour that existed before the control did, and what a client that sends nothing gets |
+| **Approve everything** | Standing consent for this conversation: every gated call is granted without parking — and each one still writes its row |
+| **Ask about everything** | Gate every tool the agent can reach, including the ones the spec left ungated and the ones no capability owns |
+
+Four things make it a session setting rather than a hole in the model:
+
+- **It is refused, never downgraded.** A caller who may not waive is told so; the
+  turn does not quietly run following the spec, because somebody who believes they
+  turned the questions off and then finds a parked run has been told the opposite
+  of what happened. The check lives in `AgentRunnerService.prepare`, the one funnel
+  a fresh run and a resumed one share, rather than at the socket a caller could
+  forget.
+- **Waiving needs `approvals:decide`, and the organization's leave.** A standing
+  consent *is* the decision the approval queue exists to record, and `member` and
+  `builder` run agents without holding it — so without the permission check the
+  everyday chat user grants themselves, in one click, the authority the API
+  refuses them one endpoint over. The organization's own switch
+  (`chat_may_waive_approvals`, off by default, changed by somebody holding
+  `approvals:decide`) is the ceiling: without one, a Builder's deliberate gate on
+  `send_email` is one click from nothing in every conversation and the per-tool
+  model is advisory.
+- **No channel still means no.** Only a web chat session may waive. A schedule, a
+  webhook, an embed and a channel are all refused, because `ApprovalGate` already
+  refuses a run with nobody to ask and standing consent must not become the way
+  round that.
+- **Every waived call is still recorded.** The row is written `approved`, naming
+  the account that consented, with `decided_via = "standing"` — and the approvals
+  record says so in words beside the name. Skipping the row would make a waived
+  run indistinguishable from an agent that was never gated, which is this whole
+  trail quietly ceasing to be one. Nobody read those arguments before they ran;
+  the row is where somebody reads them afterwards.
+
+**Asking about everything is the cheap half and needs none of that.** It only ever
+tightens, so it takes no permission, no ceiling and no surface check — and it
+reaches further than the spec's gate on purpose, to the tools no capability owns.
+An MCP tool's approval is a property of its connection, which is why the
+spec-driven gate leaves it alone; a person who does not trust an agent yet is
+asking about everything it can do, and being asked about a read is a nuisance
+where not being asked about a write is the failure the queue exists for.
+
 ### A decision nobody makes
 
 An approval waits on a person, and some of them wait for ever: the reviewer left,
