@@ -617,7 +617,11 @@ Four consequences worth knowing:
   It reached two responses out of eight while each route had to remember, so a
   `GET` or a PATCH told somebody who had starred a thread that they had not
   (#1254). A read with no reader — the admin listing, the run path resolving a
-  thread — asks for nobody's stars and pays no query to say so.
+  thread — asks for nobody's stars and pays no query to say so, and a read that
+  only *authorizes* turns it off explicitly: `GET /conversations/{id}/messages`
+  resolves the conversation twice, through `list_messages` and
+  `conversation_cost`, and serializes neither it nor its star. On by default is
+  what keeps a route from forgetting; off is a deliberate act inside a service.
 - **Starring is idempotent under contention**, because the insert is
   `ON CONFLICT DO NOTHING` rather than a read followed by an insert. Two
   overlapping POSTs for the same pair both saw no row and the second violated

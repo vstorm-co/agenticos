@@ -23,8 +23,8 @@ import type {
 } from "@/types";
 
 /**
- * One chain of pending stars per conversation, so two clicks on the same star
- * cannot land out of order.
+ * One chain of pending stars per reader, tenant and conversation, so two clicks
+ * on the same star cannot land out of order.
  *
  * The POST and the DELETE are separate requests and nothing made the second wait
  * for the first, so a double click could have the DELETE answered first and the
@@ -38,8 +38,18 @@ import type {
  * components reading this hook are two refs, and navigating away from the chat
  * and back is a third - each of which would send its click without waiting for
  * a pending one it cannot see. An entry is removed when its chain drains.
+ *
+ * The account and the organization are in the key because ordering is only owed
+ * *within* one reader's view of one thread. A request that hangs is a request
+ * that never drains, so a shared key would leave the next account - or the same
+ * person after a switch - queued behind a promise that will not settle, on a
+ * conversation they can genuinely see.
  */
 const favouriteChains = new Map<string, Promise<void>>();
+
+/** Who, where, and which thread - see `favouriteChains`. */
+const chainKey = (id: string, account: string | undefined, organization: string | null) =>
+  `${account ?? "-"}:${organization ?? "-"}:${id}`;
 
 interface CreateConversationResponse {
   id: string;
@@ -453,6 +463,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       const startedIn = useOrgStore.getState().activeOrgId;
       patchFavourite(id, favourite);
       const chains = favouriteChains;
+      const key = chainKey(id, startedAs, startedIn);
       let sent = false;
       const stillHere = () =>
         stillSameAccount(startedAs) && useOrgStore.getState().activeOrgId === startedIn;
@@ -471,21 +482,21 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
           if (!stillHere()) return;
           // Only the newest click owns the row's displayed state; rolling back
           // from an older one would undo a star the reader has since set.
-          if (chains.get(id) === mine) patchFavourite(id, !favourite);
+          if (chains.get(key) === mine) patchFavourite(id, !favourite);
           const message = getErrorMessage(err, tErrors, t("failedFavouriteConversation"));
           setError(message);
           toast.error(message);
         }
       };
-      const mine = (chains.get(id) ?? Promise.resolve()).then(send);
-      chains.set(id, mine);
+      const mine = (chains.get(key) ?? Promise.resolve()).then(send);
+      chains.set(key, mine);
       await mine;
       // Only the newest click refetches. A superseded one would answer with the
       // state its own request left behind - the server's star, while the reader
       // has since unstarred it - and patch that over the newer optimistic row.
       // The click that supersedes it invalidates when its own write lands.
-      const newest = chains.get(id) === mine;
-      if (newest) chains.delete(id);
+      const newest = chains.get(key) === mine;
+      if (newest) chains.delete(key);
       // Outside the chain: what has to be serialized is the write, and holding
       // the next click behind a refetch of the lists means a slow GET can leave
       // an unstar optimistic while the server keeps the star indefinitely.

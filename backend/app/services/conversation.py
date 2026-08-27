@@ -207,6 +207,7 @@ class ConversationService:
         include_messages: bool = False,
         user_id: UUID | None = None,
         for_write: bool = False,
+        include_favourite: bool = True,
         ctx: AuthContext | None = None,
     ) -> Conversation:
         """One conversation, checked against the tenant first and the reader second.
@@ -218,6 +219,13 @@ class ConversationService:
         `for_write` picks which of the two questions is asked. Reading and
         writing stopped being one question when participation became a way in:
         see `_may_read` and `_may_write`.
+
+        `include_favourite` is on by default so that a route cannot forget it -
+        that is the whole of #1254, and the flag reached two responses out of
+        eight while each route had to remember. It is turned **off** by the
+        callers that use this only to authorize and then discard the row:
+        `GET /conversations/{id}/messages` resolves it twice, through
+        `list_messages` and `conversation_cost`, and neither serializes a star.
         """
         conversation = await conversation_repo.get_conversation_by_id(
             self.db, conversation_id, include_messages=include_messages
@@ -265,7 +273,8 @@ class ConversationService:
         # caller who really had starred the thread (#1254). Skipped entirely for a
         # call with no reader: an internal read pays no query, and a star belongs
         # to nobody in particular there.
-        await self._attach_favourites([conversation], user_id=user_id)
+        if include_favourite:
+            await self._attach_favourites([conversation], user_id=user_id)
         return conversation
 
     async def _may_read(
@@ -528,7 +537,11 @@ class ConversationService:
         caller may read through `runs:view` is one they could not star.
         """
         conversation = await self.get_conversation(
-            conversation_id, organization_id=organization_id, user_id=user_id, ctx=ctx
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            include_favourite=False,
+            ctx=ctx,
         )
         await conversation_repo.set_favourite(
             self.db, user_id=user_id, conversation_id=conversation.id, favourite=favourite
@@ -649,6 +662,7 @@ class ConversationService:
             organization_id=organization_id,
             user_id=user_id,
             for_write=True,
+            include_favourite=False,
         )
         await conversation_repo.delete_conversation(self.db, db_conversation=conversation)
         return True
@@ -686,7 +700,11 @@ class ConversationService:
         authorizing half was missed for so long.
         """
         await self.get_conversation(
-            conversation_id, organization_id=organization_id, user_id=user_id, ctx=ctx
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            include_favourite=False,
+            ctx=ctx,
         )
         items = await conversation_repo.get_messages_by_conversation(
             self.db,
@@ -740,7 +758,11 @@ class ConversationService:
         turns" while the label says "this conversation".
         """
         await self.get_conversation(
-            conversation_id, organization_id=organization_id, user_id=user_id, ctx=ctx
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            include_favourite=False,
+            ctx=ctx,
         )
         totals = await conversation_repo.conversation_cost(self.db, conversation_id)
         if totals is None:
@@ -793,7 +815,11 @@ class ConversationService:
         would silently reopen it.
         """
         conversation = await self.get_conversation(
-            conversation_id, organization_id=organization_id, user_id=user_id, for_write=True
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            for_write=True,
+            include_favourite=False,
         )
         if conversation.is_archived:
             raise BadRequestError(

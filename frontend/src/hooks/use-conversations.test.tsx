@@ -1100,6 +1100,39 @@ describe("starring a conversation", () => {
     });
   });
 
+  it("does not queue the next account behind a hung request", async () => {
+    // A request that hangs never drains its chain, so a key shared across
+    // accounts would leave whoever signs in next waiting on a promise that will
+    // not settle - on a thread they can genuinely see.
+    useAuthStore.getState().setUser({ id: "u-a", email: "a@example.com" } as never);
+    const first = await hook();
+    let settle: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+    vi.mocked(apiClient.delete).mockResolvedValue({});
+
+    act(() => {
+      void first.current.setFavourite("c-1", true);
+    });
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+
+    act(() => {
+      useAuthStore.getState().setUser({ id: "u-b", email: "b@example.com" } as never);
+    });
+    const second = await hook();
+    act(() => {
+      void second.current.setFavourite("c-1", false);
+    });
+
+    await waitFor(() =>
+      expect(apiClient.delete).toHaveBeenCalledWith("/conversations/c-1/favourite"),
+    );
+    act(() => settle({}));
+  });
+
   it("puts the star back when the request is refused", async () => {
     // The cost of patching first: a refusal has to undo it, or the row keeps a
     // star the server never recorded and a reload takes it away without a word.

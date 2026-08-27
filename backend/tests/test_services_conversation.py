@@ -2130,6 +2130,32 @@ class TestAFavouriteBelongsToTheReader:
 
         assert read.is_favourite is True
 
+    async def test_a_read_that_only_authorizes_asks_for_no_stars(self, monkeypatch):
+        """`GET /conversations/{id}/messages` resolves the conversation twice -
+        through `list_messages` and `conversation_cost` - and serializes neither
+        it nor its star, so the flag being on by default would cost two queries
+        per transcript opened."""
+        conversation = MockConversation()
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(
+            conversation_repo, "agents_in_conversations", AsyncMock(return_value={})
+        )
+        asked = AsyncMock(return_value=set())
+        monkeypatch.setattr(conversation_repo, "favourite_ids", asked)
+        service = ConversationService(AsyncMock())
+        monkeypatch.setattr(service, "_may_read", AsyncMock(return_value=True))
+
+        await service.get_conversation(
+            conversation.id,
+            organization_id=TEST_ORG_ID,
+            user_id=uuid4(),
+            include_favourite=False,
+        )
+
+        asked.assert_not_awaited()
+
     async def test_a_read_with_no_reader_asks_for_nobodys_stars(self, monkeypatch):
         """An internal read - the run path resolving a thread - has no reader to
         answer for, and must not pay a query to say so."""
