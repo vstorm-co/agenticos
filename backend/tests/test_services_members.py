@@ -363,6 +363,22 @@ class TestMemberService:
         ):
             await service.transfer_ownership(uuid.uuid4(), uid, requester_id=uid)
 
+    @pytest.mark.anyio
+    async def test_transfer_ownership_refuses_a_personal_org(self, service):
+        """A personal org is 1:1 with its creator; handing it to another member
+        leaves a non-creator owner that account deletion cannot see and would
+        orphan (#1136)."""
+        requester = MagicMock(role="owner")
+        with (
+            patch("app.services.member.member_repo.get", new=AsyncMock(return_value=requester)),
+            patch(
+                "app.services.member.organization_repo.get_by_id",
+                new=AsyncMock(return_value=MagicMock(is_personal=True)),
+            ),
+            pytest.raises(BadRequestError),
+        ):
+            await service.transfer_ownership(uuid.uuid4(), uuid.uuid4(), requester_id=uuid.uuid4())
+
 
 class TestRoleAssigned:
     """The request schema refuses a role a role change may not grant (#672).

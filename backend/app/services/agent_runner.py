@@ -3009,7 +3009,7 @@ class AgentRunnerService:
         was parked before that map was stored, which is a step a surface cannot mark
         rather than a call it cannot decide.
         """
-        if run.status != "awaiting_approval":
+        if run.status != RunStatus.AWAITING_APPROVAL.value:
             return []
         approvals = await agent_run_repo.list_approvals_for_run(
             self.db, run_id=run.id, organization_id=ctx.organization_id
@@ -3024,7 +3024,7 @@ class AgentRunnerService:
                 tool_args=approval.tool_args or {},
             )
             for approval in approvals
-            if approval.status == "pending"
+            if approval.status == ApprovalStatus.PENDING.value
         ]
 
     async def resume(self, ctx: AuthContext, run_id: UUID) -> RunSegment:
@@ -3400,6 +3400,13 @@ class AgentRunnerService:
         called: list[RecordedToolCall] = []
         settled: dict[str, str] = {}
         summarized: list[dict[str, Any]] | None = None
+        # True once this run reaches a terminal state here rather than unwinding -
+        # a completion, a park, or a caught budget/guardrail stop. It is what the
+        # terminal write below reads to decide whether a persistence failure
+        # should surface or be logged under the exception already propagating out
+        # of this run (#235). `sys.exc_info()` cannot answer that: it also reports
+        # a caller's handled exception when `execute` is awaited from inside one.
+        finished_cleanly = False
         # The opening commit: the row is visible mid-run and no connection is
         # held across the model call - the docstring carries the whole of it
         # (#12, #3).
@@ -3432,6 +3439,7 @@ class AgentRunnerService:
                 logger.info(
                     "Run %s parked on %d approval(s)", prepared.run.id, len(paused.tool_call_ids)
                 )
+            finished_cleanly = True
         except asyncio.CancelledError:
             # The caller went away, or a delegation this run sits under was
             # stopped. Cancelled is not failed, and the tokens spent up to here
@@ -3446,6 +3454,7 @@ class AgentRunnerService:
             error = str(exc)
             budget_scope = exc.scope
             logger.info("Run %s stopped by budget: %s", prepared.run.id, exc)
+            finished_cleanly = True
         except GuardrailBlocked as exc:
             # A refusal, not a malfunction - its own status for the same reason
             # `BUDGET_EXCEEDED` is. The message names the edge and the refusal, not
@@ -3453,75 +3462,88 @@ class AgentRunnerService:
             status = RunStatus.GUARDRAIL_BLOCKED
             error = str(exc)
             logger.info("Run %s blocked by a %s guardrail", prepared.run.id, exc.edge)
+            finished_cleanly = True
         except Exception as exc:
             error = run_failure_summary(exc)
             logger.exception("Agent run %s failed", prepared.run.id)
             raise
         finally:
-            await self.finish(
-                prepared,
-                status=status,
-                error=error,
-                paused_state=paused,
-                budget_scope=budget_scope,
-            )
-            # In the `finally`, so a run that failed, parked or was stopped still
-            # says what was asked and what it managed to do. Those are the runs
-            # somebody opens.
-            await self.transcript.record(
-                prepared.run,
-                prompt=said,
-                answer=output,
-                attachments=attachments,
-                tool_calls=called,
-                settled=settled,
-                # So the step the run stopped on reads "awaiting approval" when
-                # the conversation is read back, not as a call that ran (#601).
-                parked=frozenset(paused.tool_call_ids.values()) if paused else frozenset(),
-                model_label=prepared.built.model_label,
-                # The last request's own size, for the anchor a replayed history
-                # is measured against - see `build_message_history`.
-                context_used_tokens=prepared.built.context.latest,
-            )
-            # After the rows, because what is stored beside a summary is how far
-            # it reaches: recorded before them it would stop short of this turn
-            # and replay it twice. A channel thread is long-lived and never rolls
-            # over, so without this every message past the window buys its own
-            # summary of a history one turn longer (#49).
-            if prepared.run.conversation_id is not None:
-                conversations = ConversationService(self.db)
-                if summarized is not None:
-                    await conversations.keep_summary(prepared.run.conversation_id, summarized)
-                # On every turn, not only a summarising one: it is what the *next*
-                # turn needs before it has a response of its own to measure.
-                if prepared.built.context.overhead is not None:
-                    await conversations.keep_overhead(
-                        prepared.run.conversation_id, prepared.built.context.overhead
-                    )
-                # How far the reminder cadence advanced this turn, so the next one
-                # resumes it. Only when the counter has moved off zero, which it
-                # does exactly when a reminders capability ran this turn or a
-                # previous one recorded it - so an agent that has none never writes
-                # an empty blob, and `keep_reminder_state` skips a value unchanged
-                # since it was seeded.
-                if prepared.built.reminder_state.request_count:
-                    await conversations.keep_reminder_state(
-                        prepared.run.conversation_id, prepared.built.reminder_state.snapshot()
-                    )
-                # The checklist the turn ended on, so the next turn starts from it
-                # rather than from nothing. Unconditional: `keep_plan` treats an
-                # empty list as no plan, so an agent that binds no planning
-                # capability writes nothing, and a run that emptied a stored plan
-                # records that it did.
-                await conversations.keep_plan(
-                    prepared.run.conversation_id, await dump_plan(prepared.plan_store)
+            # None of this terminal-persistence sequence may replace the
+            # exception that ended the run. A `stop` cancels the turn, and any of
+            # these writes raising - a serialization failure, a constraint the
+            # delegation savepoints did not catch, a connection dropped mid-turn -
+            # would otherwise surface as a failed turn instead of a cancelled one
+            # (#235); the commit is only the last of them, and `finish`/`record`
+            # hit the same connection first. If the run ended cleanly there is
+            # nothing else wrong, so a persistence failure does surface. Committed
+            # here rather than left to the session context: that exit rolls back
+            # on any exception and is skipped entirely by a cancellation, so a run
+            # that failed, was stopped or ran out of budget would otherwise vanish
+            # from the history somebody opens.
+            try:
+                await self.finish(
+                    prepared,
+                    status=status,
+                    error=error,
+                    paused_state=paused,
+                    budget_scope=budget_scope,
                 )
-            # Committed here rather than left to the session context: that exit
-            # rolls back on any exception, and cancellation never reaches it at
-            # all, since `CancelledError` is not an `Exception`. A run that
-            # failed, was stopped or ran out of budget still spent money, and a
-            # run missing from history is a run nobody is accountable for.
-            await self.db.commit()
+                # So a run that failed, parked or was stopped still says what was
+                # asked and what it managed to do.
+                await self.transcript.record(
+                    prepared.run,
+                    prompt=said,
+                    answer=output,
+                    attachments=attachments,
+                    tool_calls=called,
+                    settled=settled,
+                    # So the step the run stopped on reads "awaiting approval" when
+                    # the conversation is read back, not as a call that ran (#601).
+                    parked=frozenset(paused.tool_call_ids.values()) if paused else frozenset(),
+                    model_label=prepared.built.model_label,
+                    # The last request's own size, for the anchor a replayed history
+                    # is measured against - see `build_message_history`.
+                    context_used_tokens=prepared.built.context.latest,
+                )
+                # After the rows, because what is stored beside a summary is how
+                # far it reaches: recorded before them it would stop short of this
+                # turn and replay it twice. A channel thread is long-lived and
+                # never rolls over, so without this every message past the window
+                # buys its own summary of a history one turn longer (#49).
+                if prepared.run.conversation_id is not None:
+                    conversations = ConversationService(self.db)
+                    if summarized is not None:
+                        await conversations.keep_summary(prepared.run.conversation_id, summarized)
+                    # On every turn, not only a summarising one: it is what the
+                    # *next* turn needs before it has a response of its own.
+                    if prepared.built.context.overhead is not None:
+                        await conversations.keep_overhead(
+                            prepared.run.conversation_id, prepared.built.context.overhead
+                        )
+                    # How far the reminder cadence advanced this turn, so the next
+                    # one resumes it. Only when the counter has moved off zero,
+                    # which it does exactly when a reminders capability ran this
+                    # turn or a previous one recorded it - so an agent that has
+                    # none never writes an empty blob, and `keep_reminder_state`
+                    # skips a value unchanged since it was seeded.
+                    if prepared.built.reminder_state.request_count:
+                        await conversations.keep_reminder_state(
+                            prepared.run.conversation_id,
+                            prepared.built.reminder_state.snapshot(),
+                        )
+                    # The checklist the turn ended on, so the next turn starts
+                    # from it rather than from nothing. Unconditional: `keep_plan`
+                    # treats an empty list as no plan, so an agent that binds no
+                    # planning capability writes nothing, and a run that emptied a
+                    # stored plan records that it did.
+                    await conversations.keep_plan(
+                        prepared.run.conversation_id, await dump_plan(prepared.plan_store)
+                    )
+                await self.db.commit()
+            except Exception:
+                if finished_cleanly:
+                    raise
+                logger.exception("Could not persist the terminal state of run %s", prepared.run.id)
 
         return RunSegment(output=output, run=prepared.run, tool_calls=called, settled=settled)
 

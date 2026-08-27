@@ -383,6 +383,14 @@ class ChatAgentRunner:
         budget_scope: BudgetScope | None = None
         output = ""
         summarized: list[dict[str, Any]] | None = None
+        # Set as the last statement of the `try`, so it is True only when this run
+        # completed or parked without raising. It is what the terminal write below
+        # reads to decide whether a persistence failure should surface or be
+        # logged under the exception already unwinding this run (#235).
+        # `sys.exc_info()` cannot answer that: it also reports a *caller's* handled
+        # exception when `run` is awaited from inside one, which would suppress a
+        # real persistence failure on a run that itself succeeded.
+        finished_cleanly = False
         # The transaction ends before the model is asked anything - the same
         # boundary `AgentRunnerService._run` sets, and for its reasons (#12).
         await self.db.commit()
@@ -402,6 +410,7 @@ class ChatAgentRunner:
                     result.all_messages(), mode="json"
                 )
             status, output, paused = _classify_output(result, parked=prepared.approvals.parked)
+            finished_cleanly = True
         except asyncio.CancelledError:
             # The user pressed stop, or the socket went away mid-run. Cancelled
             # is not failed, and the tokens spent up to here were still spent.
@@ -431,19 +440,29 @@ class ChatAgentRunner:
             logger.exception("Chat run %s failed", prepared.run.id)
             raise
         finally:
-            await self.runner.finish(
-                prepared,
-                status=status,
-                error=error,
-                paused_state=paused,
-                budget_scope=budget_scope,
-            )
-            # Committed here rather than left to the session context: that exit
-            # rolls back on any exception, and cancellation never reaches it at
-            # all, since `CancelledError` is not an `Exception`. A run that
-            # failed, was stopped or ran out of budget still spent money, and a
-            # run missing from history is a run nobody is accountable for.
-            await self.db.commit()
+            # Neither the terminal write nor its commit may replace the exception
+            # that ended the run. A `stop` cancels the turn, and `finish` or the
+            # commit raising here - a serialization failure, a constraint the
+            # delegation savepoints did not catch, a connection dropped mid-turn -
+            # would otherwise surface as a failed turn instead of a cancelled one
+            # (#235). If the run ended cleanly there is nothing else wrong, so a
+            # persistence failure does surface. Committed here rather than left to
+            # the session context: that exit rolls back on any exception and is
+            # skipped entirely by a cancellation, so a run that failed, was stopped
+            # or ran out of budget would otherwise vanish from history.
+            try:
+                await self.runner.finish(
+                    prepared,
+                    status=status,
+                    error=error,
+                    paused_state=paused,
+                    budget_scope=budget_scope,
+                )
+                await self.db.commit()
+            except Exception:
+                if finished_cleanly:
+                    raise
+                logger.exception("Could not persist the terminal state of run %s", prepared.run.id)
 
         return ChatTurn(
             output=output,

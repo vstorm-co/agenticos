@@ -27,6 +27,27 @@ from app.services.channels import get_adapter
 
 logger = logging.getLogger(__name__)
 
+# Set while the lifespan is tearing the server down. A polling bot activated just
+# before shutdown leaves a committed, tracked `open_inbound_stream` task that may
+# not have run yet; `drain()` then awaits it after the lifespan's stop loops have
+# passed, and its `start_polling` would create a fresh adapter task the teardown
+# never stops - reopening intake at exit (#1119). This makes that late open a
+# no-op. The lifespan alone sets it: the in-process `drain()` the RAG sync command
+# issues runs while the server keeps serving, and must not stop a real reopen.
+_shutting_down = False
+
+
+def begin_shutdown() -> None:
+    """Decline any further intake. Called from the lifespan shutdown path only."""
+    global _shutting_down
+    _shutting_down = True
+
+
+def allow_intake() -> None:
+    """Re-permit intake, for a lifespan that follows one that stopped (a test, a reload)."""
+    global _shutting_down
+    _shutting_down = False
+
 
 async def open_inbound_stream(
     *,
@@ -56,6 +77,10 @@ async def open_inbound_stream(
             singleton and the address is per bot.
         app_token: Slack's app-level `xapp-` token, for the same reason.
     """
+    if _shutting_down:
+        logger.info("Not opening inbound stream for bot %s: the server is shutting down", bot_id)
+        return
+
     adapter = get_adapter(platform)
 
     remember_server = getattr(adapter, "remember_server", None)
@@ -67,6 +92,11 @@ async def open_inbound_stream(
         remember_app_token(bot_id, app_token)
 
     await adapter.stop_polling(bot_id)
+    if _shutting_down:
+        # Shutdown began while this was suspended at stop_polling above; do not
+        # reopen after the lifespan's stop loops have already run (#1119).
+        logger.info("Not reopening inbound stream for bot %s: the server is shutting down", bot_id)
+        return
     await adapter.start_polling(bot_id, token)
 
 

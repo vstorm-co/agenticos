@@ -17,6 +17,366 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.293] - 2026-08-27
+
+### Fixed
+
+- **A unit word anywhere in a string exempted the whole sentence from the i18n
+  sweep.** `NOT_A_SENTENCE`'s unit alternative had `.*` on both sides, so
+  "Use rem instead of pixels for spacing", "Change the deg value before saving"
+  and "This px setting is wrong" all left the sweep untranslated - the same defect
+  as #656 and #678, and the widest of the three. It also never did its stated job:
+  a CSS measurement is written `12px`, and a word boundary before `px` needs one
+  between `2` and `p`, so `"Set the width to 12px"` was reported anyway. The
+  alternative caught the standalone token it was never written for and missed the
+  measurement it was. And it was dead in any case, because a phrase genuinely made
+  of units is already answered by `isFormatter`, which asks that *every* word be a
+  unit or an acronym rather than that one of them be. Deleted, with the docstring
+  now recording why there is no unit alternative so it is not re-added. (#741,
+  #656, #678)
+
+## [0.0.292] - 2026-08-27
+
+### Changed
+
+- **`parked_calls` compared statuses against raw strings** where every sibling in
+  the file uses `RunStatus` and `ApprovalStatus`. A raw literal is invisible to a
+  rename: change the enum member and the string silently stops matching, which on
+  this path means a parked run that no longer reads as parked. Both now go through
+  the enum, matching the resume path a few methods down; behaviour is identical,
+  since both are `StrEnum`. The skill repository's `update` and `update_resource`
+  take `dict[str, Any]` like every other repository's, rather than a bare `dict`.
+  (#545)
+- One item of the bag was **misdiagnosed and dropped rather than done**:
+  `InvitationCreate.email` was said to need the `max_length=255` its siblings
+  carry, against an over-length address reaching the column. It does not
+  reproduce - `EmailStr` enforces the RFC total length of 254, which is below the
+  column's 255, so a format-valid address can never exceed it and an over-length
+  one is refused with a clean 422 at the schema. Adding the constraint would have
+  been an untestable one, because no input reaches it. (#545)
+
+## [0.0.291] - 2026-08-27
+
+### Fixed
+
+- **The e2e job kept a screenshot of a flake and nothing else.**
+  `playwright.config.ts` set `trace` and `video` to `on-first-retry` while
+  `retries` is 0 - deliberately, so a real failure cannot go green on a second
+  attempt - and with no retry those never fire. The trace is the one artifact that
+  answers which locator it was waiting on and why, because it carries the DOM
+  timeline, the network log and the console, and it was missing from exactly the
+  runs that needed it. Both are `retain-on-failure` now, captured on the first and
+  only failure and kept for the failed test alone. The job already uploads the
+  report and the report embeds the trace, so no workflow change was needed. This
+  does not fix the flake - its cause is unknown until a failure is captured, which
+  is what this makes possible. (#162)
+
+## [0.0.290] - 2026-08-27
+
+### Added
+
+- **`make lint-precommit` reads the whole tree with the hooks that only ever read
+  a diff.** `yamlfmt`, `zizmor` and the `pre-commit-hooks` basics saw only the
+  files a commit touched, and no gate ever ran them over everything. That is fine
+  while the rules are fixed and stops being fine the moment Dependabot bumps a
+  `rev:`: a new `zizmor` rule makes every workflow in the tree violate it, nothing
+  notices because no commit has touched a workflow, and weeks later an unrelated
+  one-line edit is refused by a finding that has nothing to do with it - the shape
+  of #188, one tool over. `make lint-spelling` already solved exactly this for
+  codespell; this gives the rest the same treatment. (#203)
+- `SKIP` drops the hooks another target already gates over the tree, plus
+  `no-commit-to-branch`, which fails by design when CI checks out `main` - so
+  nothing is gated twice and no fixer rewrites a file mid-check. A fixer that does
+  run reports rather than commits, because pre-commit exits non-zero on a
+  modification, which is the failure CI needs. Wired into `lint` so `make check`
+  reaches it, and into CI's `lint` job, with `test_ci_parity.py` holding both
+  directions the way it already does for `lint-spelling`. (#203)
+
+## [0.0.289] - 2026-08-27
+
+### Fixed
+
+- **A rating cast in chat left the dashboard's summaries stale.** `rating-buttons`
+  hand-rolled two `fetch` calls with their own headers, `response.ok` handling and
+  error parsing - the shape `frontend.md` forbids - so the endpoints were invisible
+  to the query layer and nothing was invalidated until the next mount. Both go
+  through `src/lib/message-rating-api.ts` and `use-message-rating` now, whose
+  `onSuccess` invalidates the ratings and admin-ratings summary roots, and the two
+  duplicated error-parse blocks are one `getErrorMessage`. The chat's own thumb
+  counts still reconcile locally, because they live in the message store. Three
+  i18n keys the hand-rolled catches used are deleted with them. (#563)
+
+## [0.0.288] - 2026-08-27
+
+### Changed
+
+- **One `{date, likes, dislikes}` day-point instead of four declarations feeding
+  one chart.** `RatingsByDay`, an inline array inside the conversation summary and
+  the chart's own `RatingsPoint` all described the same shape, so adding a field to
+  one left the others silently unchanged. `RatingsByDay` is the single day-point
+  now - the chart prop, its wrapper and the admin summary all reference it - and
+  `RatingsPoint` is deleted. The admin summary response is renamed to
+  `AdminRatingsSummary`, so it no longer differs from `RatingsSummary` by a single
+  trailing `s`, which is trivially confused on import. Pure type consolidation, no
+  behaviour change. (#559)
+
+## [0.0.287] - 2026-08-27
+
+### Fixed
+
+- **A bot activated moments before shutdown reopened intake at exit.** It leaves a
+  committed, tracked `open_inbound_stream` task that may not have run yet: the
+  lifespan stops the adapter tasks that exist, then drains - and that task's final
+  step creates a new, *untracked* polling or socket task after the stop loops have
+  passed. The supervisor carries a shutting-down flag now; `open_inbound_stream`
+  declines to open when it is set, re-checked after `stop_polling` so a task
+  suspended there when shutdown begins cannot slip a reopen through either. The
+  lifespan sets it as the first shutdown statement, before the stop loops and the
+  drain, and clears it at startup so a following lifespan - a test, a reload -
+  serves again. The flag is the lifespan's alone, so the in-process drain the RAG
+  sync command issues while the server keeps serving never touches it and a
+  legitimate reopen still opens. (#1119, #1095)
+
+## [0.0.286] - 2026-08-27
+
+### Fixed
+
+- **`seed --clear` never worked on a seeded database.** It called a bulk
+  `DELETE FROM users WHERE is_app_admin = false`, and every seeded account has a
+  personal organization whose `created_by_user_id` is `ON DELETE RESTRICT` - so the
+  delete raised `ForeignKeyViolation` on the first row and the command 500'd. The
+  bulk path bypassed the reconciliation only the single-row delete runs.
+  `delete_non_admins` lists the non-admins and removes each through `delete` now, so
+  each personal organization is purged and each owned row reconciled first, on the
+  same path `DELETE /users/{id}` uses. One transaction, so a refusal - a non-admin
+  who solely owns a shared organization - rolls the whole clear back rather than
+  half-clearing. (#1124, #1117)
+
+## [0.0.285] - 2026-08-27
+
+### Fixed
+
+- **Deleting one organization dropped another tenant's vectors.**
+  `collection_name` is not tenant-unique (#913), so two organizations can back onto
+  one `rag_<name>` table, and the teardown dropped it unconditionally. The physical
+  table is dropped only when no other collection still references it, and last -
+  after the relational deletes flush, so a failure among them aborts before any
+  table is gone. (#1116, #9)
+- **Tracked documents outlived their collection and stayed reachable by name.**
+  `rag_documents` authorizes on `collection_name`, so a row outliving its knowledge
+  base was listable and downloadable by a later collection permitted the same name.
+  Each collection's document rows and their stored uploads are deleted before its
+  identifiers go, keyed on `knowledge_base_id` so a shared collection's co-tenant
+  rows are untouched. (#1116)
+- The residuals are documented on `purge` rather than left implied: the drop and
+  the file unlinks still commit outside the request transaction, and three
+  reachability residuals remain - a document with a null knowledge base sharing the
+  name, the deleted tenant's vectors inside a kept shared table, and a TOCTOU on the
+  reference check. All of them are rooted in the `collection_name` tenant-scoping of
+  #913. (#1137, #913)
+
+## [0.0.284] - 2026-08-27
+
+### Fixed
+
+- **Deleting a user could leave an organization with no owner at all.**
+  `UserService._release_owned_rows` reconciled only organizations the user
+  *created*, but ownership moves without the creator FK - after a transfer, or
+  after the creator is reassigned away - so a user can be the sole Owner of an
+  organization they did not create. The created-organizations listing never returns
+  it, so deleting that user cascaded their last owner membership away and left a
+  silent orphan nobody can manage through the owner-gated APIs. Not a 500 like the
+  #9 cases, which is what made it quiet. A second pass over the organizations where
+  the user holds an Owner membership refuses the delete when they are the sole
+  owner - the same refusal the created-organization path already raises - and does
+  nothing when another owner remains. (#1117, #9)
+
+## [0.0.283] - 2026-08-27
+
+### Fixed
+
+- **A concurrent insert reopened the exact 500 the delete reconciliation closed.**
+  Reconcile-then-delete is check-then-act, and with no row lock an org-scoped
+  collection inserted between the purge's collection list and its
+  `DELETE organizations` is SET NULL-ed into a
+  `ck_knowledge_bases_org_scope_has_org` violation - and a private secret or
+  personal organization inserted between a user delete's reconcile and its
+  `DELETE users` lands the same CHECK or RESTRICT blocker.
+  `OrganizationService.purge` and `UserService.delete` take
+  `SELECT ... FOR UPDATE` on the row they are about before enumerating: a
+  concurrent child insert takes `FOR KEY SHARE` on that parent through its FK,
+  which `FOR UPDATE` conflicts with, so the insert waits and the reconcile sees
+  every child on a fresh read under READ COMMITTED. (#1115, #9)
+- A rare deadlock when two users who co-own each other's shared organizations
+  self-delete simultaneously was found while reviewing this and filed rather than
+  folded in - Postgres aborts one with a 500. (#1134)
+
+## [0.0.282] - 2026-08-27
+
+### Fixed
+
+- **The BFF proxy-path guard did not see a composite segment.**
+  `unencodedSegments` matched a `${...}` only immediately after a `/`, so
+  `/api/v1/resources/prefix-${id}` slipped through - and an `id` such as
+  `x/../../admin/users` interpolated bare there normalises into another backend
+  path exactly as a segment-leading one does. So the invariant the sweep exists to
+  hold, that every interpolated path segment is encoded, was not enforced for
+  prefixed segments. No current route has that shape; this is hardening against the
+  next one. A small `pathInterpolations` parser replaces the inner regex: it scans
+  the path from `/api/v1`, skipping the host prefix, brace-matches each
+  interpolation so a query ternary's own inner `${...}` is consumed with it rather
+  than read as a bare segment, and stops at the query - the first literal `?`, or an
+  interpolation that attaches one. A query signal skips that interpolation and keeps
+  scanning rather than stopping, and optional chaining is excluded from the ternary
+  check, so a real segment after a query-looking or optional-chained one is still
+  checked. (#1118, #13, #30)
+- Four further holes in the same sweep, found by the reviewer on the branch and
+  closed before merge - each one a way for a security guard to report clean on a
+  route it had never actually read. **An apostrophe in a comment blinded it to a
+  whole file**: every `'` was treated as a string opener, so the scan ran from
+  the apostrophe in prose to the next one and swallowed what lay between, which
+  is why `admin/conversations/route.ts` - "drawer's", line 11 - had its template
+  skipped entirely. A **partly encoded** expression passed, so
+  `encodeURIComponent(id) + rawSuffix` and a look-alike
+  `encodeURIComponentAlias(rawId)` were both accepted. **Any `.search` access
+  ended the path**, so `/api/v1/x/${params.search}/${rawId}` reported neither
+  interpolation. And a template whose prefix carried no literal following slash -
+  `/api/v1${rawPath}` - was never read at all. (#1133)
+
+## [0.0.281] - 2026-08-27
+
+### Fixed
+
+- **`/link` confirm could 500 on a message arriving at the same moment.**
+  `ChannelLinkService.confirm` did an unguarded get-then-create on
+  `(platform, platform_user_id)` - the same check-then-act #17 closed in the
+  router's identity resolution - so a user who sends a message while clicking a
+  confirm could make the confirm's INSERT collide on
+  `uq_channel_identity_platform_user`. It resolves through
+  `channel_identity_repo.get_or_create` now: SELECT first,
+  `INSERT ... ON CONFLICT DO NOTHING`, re-SELECT. The upsert deliberately leaves an
+  existing row's `user_id` untouched, so linking it to the confirming user is an
+  explicit update after it, skipped on the miss path where the inserted row already
+  carries that user. (#1113, #17)
+
+## [0.0.280] - 2026-08-27
+
+### Fixed
+
+- **Two list endpoints ran a query per row** where the code beside them already
+  batched. The vault listing resolved emails and grant counts in one grouped query
+  each, then asked which agents bind each secret one secret at a time - a
+  thirty-secret vault loaded in thirty-one queries. `agents_using_for_secrets`
+  answers a whole page in one: it unnests each agent's draft-spec capabilities and
+  matches the bound `secret_id` against the requested set, grouped back per secret,
+  with a `CASE` guarding `jsonb_array_elements` off a spec whose `capabilities` is
+  not an array - the rows the old containment skipped - and keeping the tenant scope
+  and name ordering. (#953)
+- The organization listing ran two queries per organization: one to re-read the
+  caller's membership for its role, one to count members. The role rides the
+  membership join the listing already makes, and `member_counts_for` counts a whole
+  page in one grouped read. The per-row membership read was redundant anyway - the
+  organization came from that very join. `count_members` stays for the single
+  organization read. (#953)
+
+## [0.0.279] - 2026-08-27
+
+### Fixed
+
+- **A terminal write could mask the cancellation that ended the run.** Both run
+  surfaces end in a `finally` that records the run and commits it, and any of those
+  raising - a serialization failure, a constraint the delegation savepoints did not
+  catch, a connection dropped mid-turn - replaces the exception that ended the run.
+  When that exception is the `CancelledError` from a stop, the turn was recorded and
+  surfaced as FAILED and the cancellation never reached the task that asked for it.
+  The whole terminal-persistence sequence runs under one guard now: the in-flight
+  exception is captured before it, and a write or commit that raises while the run
+  is already unwinding is logged while the original exception propagates. A clean
+  run still surfaces a persistence failure, and the guard catches `Exception` rather
+  than `BaseException`, so a second cancellation raised by the commit itself still
+  propagates. (#235)
+- The issue names the commit, but `finish` and the record hit the same connection
+  first, so guarding only the commit left the same masking one line earlier - which
+  is why `finish` already wraps its notify call for exactly this reason. The guard
+  covers all of it. (#235)
+
+## [0.0.278] - 2026-08-26
+
+### Fixed
+
+- **The dev reload supervisor killed healthy workers.** `SupervisedReload` replaces
+  a worker whose event loop has stopped turning, and the worker reports liveness
+  through uvicorn's `Config.callback_notify` - which `Server.on_tick` calls only
+  once `time.time() - last_notified > timeout_notify`, so the beat's *cadence* is
+  gated on the wall clock. The beat stamped `time.monotonic()` and the supervisor
+  judged with `time.monotonic() - beat`: a different clock from the one the cadence
+  runs on. On Docker Desktop's VM the wall clock can stall for tens of seconds
+  relative to monotonic while the loop keeps serving, so the cadence froze while
+  the monotonic verdict climbed, and a healthy serving worker was read as wedged
+  and killed - the replacement beating once and being killed again on the next
+  poll, which is the "container Up, nothing serving" the issue also reports. Both
+  ends read `time.time()` now, so a stalled wall clock stalls the cadence and the
+  reading together. (#1080)
+- `app/core/watchdog.py`, the in-process watchdog on the other two stacks, is left
+  untouched: it beats via `loop.call_later` and judges with `time.monotonic()`,
+  both the event loop's own clock, so it is internally consistent and never used
+  uvicorn's notify hook. The trade is stated: a real wedge coinciding with a
+  backward NTP step reads negative and defers the verdict, bounded by
+  `POLLS_BEFORE_WEDGED`, self-healing, and local-dev only - and since uvicorn gates
+  the cadence on wall time, a wall-clock verdict is the only self-consistent
+  choice. (#1080)
+
+## [0.0.277] - 2026-08-26
+
+### Fixed
+
+- **A cancelled save orphaned its file.**
+  `asyncio.to_thread(path.write_bytes, data)` cannot interrupt the running write,
+  so a task cancelled mid-write unwound with the file created *after* `save()` had
+  raised - the caller never got `storage_path`, so it could neither record the file
+  nor delete it. `write_bytes_cancel_safe` shields the write and, on cancellation,
+  waits it out and removes the file before the cancellation propagates. (#1108,
+  #25)
+- **Parses shared the executor with `bcrypt` and DNS.** A burst of uploads could
+  occupy every worker on the loop's default pool and queue sign-in and outbound
+  requests behind them. Parsing and the storage byte operations run on a dedicated
+  `ThreadPoolExecutor` in `app/core/blocking.py` now, bounded by
+  `FILE_IO_MAX_WORKERS` (default 8), so a parse storm saturates its own pool and
+  nothing else. The new module is registered in the coverage `include`, the ty
+  override and `PLATFORM_MODULES` - new platform code held to the 100% gate rather
+  than the template's downgraded rules. (#1108, #25)
+- Two defects in the new pool, found by the reviewer on the branch and fixed
+  before merge, both defeating the guarantee it was added for. The gate released
+  its admission slot when the *caller* unwound, and an executor cannot interrupt a
+  running job - so a cancelled caller handed its permit on while its own worker
+  stayed occupied, and a wave of cancellations admitted arbitrarily many jobs into
+  the pool's unbounded pending queue. The release rides the future's own
+  completion now. And `await asyncio.shield(_discard(...))` shielded the cleanup
+  task but not the frame awaiting it, so a second cancellation raised straight out
+  and left the cleanup to be cancelled with everything else - leaving exactly the
+  orphaned file it exists to prevent. Cancellations arriving while it runs are
+  absorbed until it finishes. (#1108)
+
+## [0.0.276] - 2026-08-26
+
+### Fixed
+
+- **A user who had ever invited anybody could not be deleted.** Three foreign keys
+  into `users.id` - `OrganizationMember.invited_by_user_id`,
+  `Invitation.invited_by_user_id` and `Invitation.accepted_by_user_id` - carried no
+  `ondelete`, so PostgreSQL's NO ACTION made each an absolute bar on deleting the
+  referenced user: `DELETE /users/{id}` failed with a foreign-key violation
+  surfaced as a 500, which is common in any real deployment. All three are
+  `ON DELETE SET NULL` now - who invited a member and who accepted an invitation
+  are audit context that should outlive the user, the way the secret and collection
+  attribution FKs already null. `Invitation.invited_by_user_id` was NOT NULL, so
+  the migration makes it nullable in the same step: set on every create, null only
+  once the inviter is gone. (#1110, #9)
+- `seed --clear`'s bulk `delete_non_admins` still 500s on
+  `organizations.created_by_user_id` RESTRICT for a user who owns a personal
+  organization - that path bypasses the reconciliation and hits a different FK, so
+  it was filed rather than folded in. (#1124)
+
 ## [0.0.275] - 2026-08-26
 
 ### Fixed

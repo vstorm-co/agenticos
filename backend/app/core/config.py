@@ -5,7 +5,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 
-from pydantic import computed_field, field_validator, model_validator, ValidationInfo
+from pydantic import Field, computed_field, field_validator, model_validator, ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -59,6 +59,17 @@ class Settings(BaseSettings):
     # the chat path's own ceiling, never a way past either.
     EMBED_MAX_UPLOAD_SIZE_MB: int = 5
     STORAGE_SOFT_LIMIT_BYTES: int = 5 * 1024 * 1024 * 1024
+
+    # Size of the dedicated thread pool that runs blocking file work - parsing an
+    # upload (pymupdf/openpyxl/docx) and reading or writing its bytes. Kept off
+    # `asyncio`'s shared default executor, which the same loop also uses for
+    # `bcrypt` password hashing and pinned-host DNS: a burst of uploads must not
+    # occupy every worker there and leave sign-in and outbound requests queued
+    # behind them (#1108). Tunable per deployment; the bound is what contains the
+    # blast radius of a parse storm to this pool. `gt=0` so a misconfigured `0`
+    # or negative is refused at startup rather than raising `ValueError` from
+    # `ThreadPoolExecutor` on the first file operation.
+    FILE_IO_MAX_WORKERS: int = Field(default=8, gt=0)
 
     # The monthly spend ceiling a brand-new organization starts with, in USD. A
     # new org one runaway agent away from a surprise bill is the posture this

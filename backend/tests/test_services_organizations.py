@@ -338,6 +338,10 @@ class TestOrganizationService:
                 service, "get_for_user", new=AsyncMock(return_value=(mock_org, mock_membership))
             ),
             patch(
+                "app.services.organization.organization_repo.get_by_id_for_update",
+                new=AsyncMock(),
+            ),
+            patch(
                 "app.services.organization.knowledge_base_repo.list_org_scoped",
                 new=AsyncMock(return_value=[]),
             ),
@@ -637,6 +641,40 @@ class TestOrganizationResponses:
 
         assert listing.items == []
         assert listing.total == 0
+
+    @pytest.mark.anyio
+    async def test_the_listing_takes_the_role_and_the_count_in_grouped_queries(self, service):
+        """#953: the role rides the membership join the listing already makes,
+        and the sizes come back keyed by organization - so neither is a query
+        per row. The old per-organization `member_repo.get` and `count_members`
+        are gone."""
+        first, second = _org_row(name="Vstorm"), _org_row(name="Personal")
+        with (
+            patch(
+                "app.services.organization.organization_repo.list_for_user",
+                new=AsyncMock(
+                    return_value=[
+                        (first, OrgRole.MEMBER.value),
+                        (second, OrgRole.OWNER.value),
+                    ]
+                ),
+            ),
+            patch(
+                "app.services.organization.organization_repo.member_counts_for",
+                new=AsyncMock(return_value={first.id: 12, second.id: 1}),
+            ) as counts,
+            patch("app.services.organization.member_repo.get", new=AsyncMock()) as member_get,
+            patch(
+                "app.services.organization.organization_repo.count_members", new=AsyncMock()
+            ) as count_members,
+        ):
+            rows = await service.list_for_user(uuid.uuid4())
+
+        assert [row["role"] for row in rows] == [OrgRole.MEMBER.value, OrgRole.OWNER.value]
+        assert [row["member_count"] for row in rows] == [12, 1]
+        counts.assert_awaited_once()
+        member_get.assert_not_awaited()
+        count_members.assert_not_awaited()
 
 
 class TestUserServiceRegistrationWithOrg:
