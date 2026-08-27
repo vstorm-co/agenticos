@@ -738,6 +738,7 @@
     "title": "Billing"
   },
   "chat": {
+    "accessLevel": "Access level",
     "accessRevoked": "Access revoked",
     "agentPicker": {
       "appliesNext": "Applies from your next message — earlier answers keep their agent.",
@@ -764,6 +765,7 @@
     "attachedFile": "Attached file",
     "backAgentAposS": "Back to the agent's own model",
     "cancel": "Cancel",
+    "choosePerson": "Choose someone",
     "chunkNumber": "chunk {number}",
     "close": "Close",
     "closeSourcesPanel": "Close sources panel",
@@ -822,6 +824,7 @@
     "download": "Download",
     "dropFilesAttach": "Drop files to attach",
     "edit": "Edit",
+    "editMeans": "Edit lets them rename, archive and delete this conversation, and add turns to it.",
     "empty": {
       "brainstormPrompt": "Give me 5 ideas for an onboarding email sequence for a developer tool.",
       "brainstormTitle": "Brainstorm",
@@ -841,6 +844,7 @@
     "failedArchiveConversation": "Failed to archive conversation",
     "failedCreateConversation": "Failed to create conversation",
     "failedDeleteConversation": "Failed to delete conversation",
+    "failedFavouriteConversation": "Could not change the favourite",
     "failedFetchMessages": "Failed to fetch messages",
     "failedLoadCommands": "Failed to load commands",
     "failedRenameConversation": "Failed to rename conversation",
@@ -848,6 +852,8 @@
     "failedToGenerateLink": "Failed to generate link",
     "failedToRevoke": "Failed to revoke access",
     "failedToShare": "Failed to share conversation",
+    "favourite": "Favourite",
+    "favourites": "Favourites",
     "feedbackHelp": "Help us improve by optionally letting us know what wasn't helpful.",
     "fileCount": "{count, plural, =1 {1 file} other {# files}}",
     "files": {
@@ -886,8 +892,6 @@
     "link": "Link",
     "linkGenerated": "Share link generated",
     "loading": "Loading…",
-    "memberEmail": "Email address",
-    "memberSuggestions": "Matching members",
     "modelPicker": {
       "agentModel": "Agent's model",
       "chooseProvider": "Choose a provider",
@@ -1103,6 +1107,7 @@
       "wrote": "{named, select, no {Wrote…} other {Wrote {subject}}}"
     },
     "turnWasStopped": "stopped",
+    "unfavourite": "Remove from favourites",
     "unknownError": "Unknown error",
     "usage": {
       "agentShare": "· {percent}% of this agent's month",
@@ -1124,12 +1129,9 @@
       "workspaceUsedAmount": "workspace {used} stored"
     },
     "view": "View",
+    "viewMeans": "View lets them read this conversation and nothing else.",
     "web": "Web",
-    "whatWentWrong": "What went wrong?",
-    "favourite": "Favourite",
-    "unfavourite": "Remove from favourites",
-    "favourites": "Favourites",
-    "failedFavouriteConversation": "Could not change the favourite"
+    "whatWentWrong": "What went wrong?"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",

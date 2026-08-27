@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getErrorMessage } from "@/lib/api-error";
-import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
-import { Copy, Link2, Loader2, Trash2, UserPlus } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Copy, Eye, Link2, Loader2, Pencil, Trash2, UserPlus } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+
+import { MemberIdentity, displayName } from "@/components/orgs/member-identity";
+import type { IdentifiedMember } from "@/components/orgs/member-identity";
+import { MemberPicker } from "@/components/orgs/member-picker";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,7 +17,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -21,12 +24,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { useTranslations } from "next-intl";
 import { useConversationShares, useMembers } from "@/hooks";
+import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
+import { getErrorMessage } from "@/lib/api-error";
+import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { cn } from "@/lib/utils";
 import { useOrgStore } from "@/stores";
-import type { ConversationShare, OrganizationMember } from "@/types";
-import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
+import type { ConversationShare } from "@/types";
 
 interface ShareDialogProps {
   conversationId: string;
@@ -34,29 +38,80 @@ interface ShareDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+type Permission = "view" | "edit";
+
 /**
- * The members whose email or name contains the query, for the typeahead.
+ * What each level looks like, and the order they are offered in.
  *
- * An exact match is not a suggestion - the field already says it - and the cap
- * keeps the list a shortlist rather than the members page in a dropdown.
+ * An icon per level in both places it is read - the picker and each row of the
+ * access list - because "edit" on a conversation is not self-evident: it carries
+ * renaming, archiving, deleting the thread and appending turns, which
+ * `ConversationService._may_write` decides and nothing on this dialog used to
+ * say. The word is the permission's own catalog key.
  */
-export function matchingMembers(
-  members: readonly OrganizationMember[],
-  query: string,
-  limit = 6,
-): OrganizationMember[] {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return [];
-  return members
-    .filter(
-      (member) =>
-        member.email.toLowerCase() !== needle &&
-        (member.email.toLowerCase().includes(needle) ||
-          (member.full_name?.toLowerCase().includes(needle) ?? false)),
-    )
-    .slice(0, limit);
+const LEVELS: readonly Permission[] = ["view", "edit"];
+const LEVEL_ICONS: Record<Permission, typeof Eye> = { view: Eye, edit: Pencil };
+
+/** Radix hands back a plain string; a level the catalog does not know is a bug. */
+export function toPermission(value: string): Permission {
+  // i18n-exempt: a bug in the caller, never shown to a reader
+  if (value !== "view" && value !== "edit") {
+    // i18n-exempt: the same
+    throw new Error(`Unknown conversation permission: ${value}`);
+  }
+  return value;
 }
 
+/**
+ * The person a share names, drawn as this application draws a person.
+ *
+ * Resolved against the organization's members first, so the row carries the face
+ * and the name rather than only the address. A share whose member is gone still
+ * has to be revocable, so it falls back to whatever the row itself holds - which
+ * is the address for a share made by email, and the id otherwise.
+ */
+export function sharedPerson(
+  share: ConversationShare,
+  members: readonly IdentifiedMember[],
+): IdentifiedMember | null {
+  if (share.share_token) return null;
+  const known = members.find((member) => member.user_id === share.shared_with);
+  if (known) return known;
+  const email = share.shared_with_email ?? share.shared_with;
+  return email === undefined ? null : { user_id: share.shared_with ?? share.id, email };
+}
+
+function LevelBadge({ permission }: { permission: Permission }) {
+  const t = useTranslations("chat");
+  const Icon = LEVEL_ICONS[permission];
+  return (
+    <Badge variant="secondary" className="gap-1">
+      <Icon className="h-3 w-3" aria-hidden />
+      {t(permission)}
+    </Badge>
+  );
+}
+
+/**
+ * Sharing one conversation: with a person, or by link.
+ *
+ * Who it is shared with is **picked**, never typed. The product's member picker
+ * is a popover over a `cmdk` list - open it and the organization is there, each
+ * row a face and a name over the address - where this dialog had an email field
+ * with a hand-rolled suggestion list that appeared only once something had been
+ * typed. So the default state of the control was a blank box you had to already
+ * know the answer to fill, and every mistyped address was a 404 (#931).
+ *
+ * The API takes the id the picker holds: `shared_with` has always been accepted
+ * beside `shared_with_email`, so this is a client change rather than a contract
+ * one - and it removes the whole class of "no user with that email" refusals,
+ * along with sharing outside the organization by construction (#930's client
+ * half).
+ *
+ * The link half stays its own row, below a separator. A share token is not a
+ * person: it has no face, no level to read against a name, and putting it in the
+ * same row as one made both harder to read.
+ */
 export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat");
@@ -64,15 +119,20 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
     useConversationShares();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { members } = useMembers(activeOrgId ?? "");
-  const [email, setEmail] = useState("");
-  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
-  const [permission, setPermission] = useState<"view" | "edit">("view");
+  const [picked, setPicked] = useState<string | null>(null);
+  const [permission, setPermission] = useState<Permission>("view");
   const [shareLink, setShareLink] = useState<string | null>(null);
   const { copy, copied } = useCopyToClipboard();
   const [isSharing, setIsSharing] = useState(false);
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
-  const suggestions = matchingMembers(members, email);
+
+  // Somebody who already has access is not a candidate: offering them again is a
+  // row that answers "already shared" after the click rather than before it.
+  const candidates = useMemo(() => {
+    const already = new Set(shares.map((share) => share.shared_with));
+    return members.filter((member) => !already.has(member.user_id));
+  }, [members, shares]);
 
   useEffect(() => {
     if (open && conversationId) {
@@ -80,15 +140,11 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
     }
   }, [open, conversationId, fetchShares]);
 
-  const handleShare = async () => {
-    if (!email.trim()) return;
+  const handleShare = async (userId: string) => {
     setIsSharing(true);
     try {
-      await shareConversation(conversationId, {
-        shared_with_email: email.trim(),
-        permission,
-      });
-      setEmail("");
+      await shareConversation(conversationId, { shared_with: userId, permission });
+      setPicked(null);
       toast.success(t("conversationShared"));
     } catch (err) {
       toast.error(getErrorMessage(err, tErrors, t("failedToShare")));
@@ -135,149 +191,139 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
     }
   };
 
+  const chosen = candidates.find((member) => member.user_id === picked);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={DIALOG_CONFIRM}>
+      <DialogContent className={cn(DIALOG_FORM, DIALOG_SCROLL)}>
         <DialogHeader>
           <DialogTitle>{t("shareConversationTitle")}</DialogTitle>
           <DialogDescription>{t("shareDescription")}</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="flex gap-2">
-            <div className="relative min-w-0 flex-1">
-              <Input
-                type="email"
-                placeholder={t("memberEmail")}
-                aria-label={t("memberEmail")}
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  setSuggestionsOpen(true);
-                }}
-                onFocus={() => setSuggestionsOpen(true)}
-                onBlur={() => setSuggestionsOpen(false)}
-                onKeyDown={(e) => e.key === "Enter" && handleShare()}
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <MemberPicker
+                members={candidates}
+                selected={picked === null ? [] : [picked]}
+                onToggle={(userId) => setPicked((current) => (current === userId ? null : userId))}
+                label={() => (chosen ? displayName(chosen) : t("choosePerson"))}
+                scope={t("shareConversationTitle")}
+                disabled={candidates.length === 0}
               />
-              {suggestionsOpen && suggestions.length > 0 && (
-                <div
-                  role="listbox"
-                  aria-label={t("memberSuggestions")}
-                  className="border-border bg-popover absolute top-full right-0 left-0 z-50 mt-1 overflow-hidden rounded-md border shadow-md"
-                >
-                  {suggestions.map((member) => (
-                    <button
-                      key={member.user_id}
-                      type="button"
-                      role="option"
-                      aria-selected={false}
-                      // onMouseDown, so the pick lands before the input's blur
-                      // closes the list.
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        setEmail(member.email);
-                        setSuggestionsOpen(false);
-                      }}
-                      className="hover:bg-accent w-full px-3 py-2 text-left"
-                    >
-                      <span className="block truncate text-sm">{member.email}</span>
-                      {member.full_name && (
-                        <span className="text-muted-foreground block truncate text-xs">
-                          {member.full_name}
+              <Select value={permission} onValueChange={(v) => setPermission(toPermission(v))}>
+                <SelectTrigger className="w-32" aria-label={t("accessLevel")}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LEVELS.map((level) => {
+                    const Icon = LEVEL_ICONS[level];
+                    return (
+                      <SelectItem key={level} value={level}>
+                        <span className="flex items-center gap-2">
+                          <Icon className="h-3.5 w-3.5" aria-hidden />
+                          {t(level)}
                         </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <Select value={permission} onValueChange={(v) => setPermission(v as "view" | "edit")}>
-              <SelectTrigger className="w-24">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="view">{t("view")}</SelectItem>
-                <SelectItem value="edit">{t("edit")}</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button
-              onClick={handleShare}
-              disabled={isLoading || isSharing}
-              size="icon"
-              aria-label={t("shareConversationTitle")}
-            >
-              {isSharing ? (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-              ) : (
-                <UserPlus className="h-4 w-4" aria-hidden />
-              )}
-            </Button>
-          </div>
-
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={handleGenerateLink}
-              disabled={isLoading || isGeneratingLink}
-              className="flex-1"
-            >
-              {isGeneratingLink ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Link2 className="mr-2 h-4 w-4" />
-              )}
-              {t("generateShareLink")}
-            </Button>
-            {shareLink && (
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
               <Button
-                variant="secondary"
+                // The narrowing *is* the guard: the button is disabled with
+                // nobody picked, so a handler that re-checked would hold a
+                // branch nothing can reach.
+                onClick={picked === null ? undefined : () => void handleShare(picked)}
+                disabled={isLoading || isSharing || picked === null}
                 size="icon"
-                onClick={handleCopyLink}
-                aria-label={t("copyShareLink")}
+                aria-label={t("shareConversationTitle")}
               >
-                <Copy className="h-4 w-4" aria-hidden />
+                {isSharing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                ) : (
+                  <UserPlus className="h-4 w-4" aria-hidden />
+                )}
               </Button>
-            )}
-          </div>
-          {shareLink && (
-            <p className="text-muted-foreground text-xs break-all">
-              {copied ? t("copied") : shareLink}
+            </div>
+            {/* What the level actually permits, because "edit" on a thread is not
+                obvious: it is rename, archive, delete and append. */}
+            <p className="text-muted-foreground text-xs">
+              {permission === "edit" ? t("editMeans") : t("viewMeans")}
             </p>
-          )}
+          </div>
 
           {shares.length > 0 && (
-            <div className="space-y-2">
+            <div className="space-y-2 border-t pt-4">
               <p className="text-sm font-medium">{t("sharedWith")}</p>
-              {shares.map((share) => (
-                <div
-                  key={share.id}
-                  className="flex items-center justify-between rounded-md border p-2"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm">
-                      {share.shared_with_email || share.shared_with || t("link")}
-                    </span>
-                    <Badge variant="secondary">{share.permission}</Badge>
-                    {share.share_token && <Badge variant="outline">{t("link")}</Badge>}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleRevoke(share)}
-                    disabled={revokingId === share.id}
-                    className="h-8 w-8"
-                    aria-label={t("revokeAccess")}
+              {shares.map((share) => {
+                const person = sharedPerson(share, members);
+                return (
+                  <div
+                    key={share.id}
+                    className="flex items-center gap-3 rounded-md border p-2 pl-3"
                   >
-                    {revokingId === share.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                    {person ? (
+                      <MemberIdentity member={person} className="min-w-0 flex-1" />
                     ) : (
-                      <Trash2 className="h-4 w-4" />
+                      <span className="flex min-w-0 flex-1 items-center gap-2.5 text-sm">
+                        <Link2 className="h-4 w-4 shrink-0" aria-hidden />
+                        {t("link")}
+                      </span>
                     )}
-                  </Button>
-                </div>
-              ))}
+                    <LevelBadge permission={share.permission} />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleRevoke(share)}
+                      disabled={revokingId === share.id}
+                      className="h-8 w-8 shrink-0"
+                      aria-label={t("revokeAccess")}
+                    >
+                      {revokingId === share.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                      ) : (
+                        <Trash2 className="h-4 w-4" aria-hidden />
+                      )}
+                    </Button>
+                  </div>
+                );
+              })}
             </div>
           )}
+
+          <div className="space-y-2 border-t pt-4">
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={handleGenerateLink}
+                disabled={isLoading || isGeneratingLink}
+                className="flex-1"
+              >
+                {isGeneratingLink ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                ) : (
+                  <Link2 className="mr-2 h-4 w-4" aria-hidden />
+                )}
+                {t("generateShareLink")}
+              </Button>
+              {shareLink && (
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  onClick={handleCopyLink}
+                  aria-label={t("copyShareLink")}
+                >
+                  <Copy className="h-4 w-4" aria-hidden />
+                </Button>
+              )}
+            </div>
+            {shareLink && (
+              <p className="text-muted-foreground text-xs break-all">
+                {copied ? t("copied") : shareLink}
+              </p>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>
