@@ -216,8 +216,10 @@ class TestPrepare:
         agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
         spec = AgentSpec(name="Support", collection_ids=[live_id, deleted_id, foreign_id])
 
-        async def get_collection(_db, collection_id):
-            return collections[collection_id]
+        async def get_collections(_db, ids):
+            # A batched read: an id with no row is absent from the map, the way
+            # `deleted_id` is here, rather than returning a None value.
+            return {cid: collections[cid] for cid in ids if collections.get(cid) is not None}
 
         with (
             patch.object(
@@ -230,8 +232,8 @@ class TestPrepare:
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
-                "app.services.agent_runner.knowledge_base_repo.get_by_id",
-                new=AsyncMock(side_effect=get_collection),
+                "app.services.agent_runner.knowledge_base_repo.get_by_ids",
+                new=AsyncMock(side_effect=get_collections),
             ),
             patch(
                 "app.services.agent_runner.agent_run_repo.create_run",

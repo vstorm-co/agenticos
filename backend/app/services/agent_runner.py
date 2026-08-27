@@ -1451,9 +1451,10 @@ class AgentRunnerService:
         Resolved server-side and passed through deps: the model asks *what* to
         search, never *where*.
         """
+        found = await knowledge_base_repo.get_by_ids(self.db, spec.collection_ids)
         names: list[str] = []
         for collection_id in spec.collection_ids:
-            collection = await knowledge_base_repo.get_by_id(self.db, collection_id)
+            collection = found.get(collection_id)
             if collection is None or collection.organization_id != ctx.organization_id:
                 # A collection deleted after publish degrades the agent's reach
                 # rather than failing the run - the answer is worse, not absent.
