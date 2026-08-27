@@ -22,6 +22,17 @@ Sync connectors are pluggable adapters that fetch files from external systems
 
 ### Flow
 
+```mermaid
+flowchart TD
+    A[a SyncSource: connector type, config, collection, secret id] --> B[a sync is triggered - API, CLI or schedule]
+    B --> C["the caller unseals the vault secret and hands it in"]
+    C --> D["list_files() -> list[RemoteFile]"]
+    D --> E["download_file() resolves the name and confirms containment"]
+    E --> F["_fetch(dest_path) writes the bytes"]
+    F --> G[the ingestion pipeline parses, chunks, embeds, stores]
+    G --> H[a SyncLog row records the result]
+```
+
 1. User creates a **SyncSource** (connector type + config + collection name +
    the id of the vault secret that authenticates it)
 2. User triggers a **sync** (via API, CLI, or scheduled task)
@@ -34,13 +45,16 @@ Sync connectors are pluggable adapters that fetch files from external systems
 
 ### A connector does not choose the destination
 
+!!! danger "A remote name is attacker-controlled"
+
+    Anyone who can share a file into a synced folder chooses it, and
+    `../../../etc/…` is a legal name on Google Drive. **Write to the `dest_path`
+    you are given, and nothing else** - a connector that picked its own path
+    would be one refusal per connector to remember.
+
 `download_file()` is concrete and is not overridden. It resolves
 `RemoteFile.name` against the sync directory and confirms containment before a
-byte is written, then hands `_fetch()` a `dest_path` to write to. A remote name
-is attacker-controlled from this system's point of view — anyone who can share a
-file into a synced folder chooses it, and `../../../etc/…` is a legal name on
-Google Drive — so a connector that picked its own path would be one refusal per
-connector to remember. Write to the path you are given, and nothing else.
+byte is written, then hands `_fetch()` a `dest_path` to write to.
 
 The same applies to any caller-supplied value a connector puts into a **query**:
 check it where the query is built, against what the remote system can actually
@@ -54,11 +68,13 @@ runs the sync and handed in as `credential` — so a connector declares what kin
 of secret it needs (`SECRET_KIND`) and reads nothing from `config` to
 authenticate with.
 
-A field for a token in `CONFIG_SCHEMA` is a credential in a JSONB column, which
-is what migration `0042` and #937 removed. There is no deployment-wide fallback
-to reach for either: a source runs on the credential it names or it does not run,
-because a fallback means one tenant's `folder_id` chooses what is read under the
-*operator's* identity.
+!!! danger "A field for a token in `CONFIG_SCHEMA` is a credential in a JSONB column"
+
+    That is what `0042_sync_source_secret_id` and
+    [#937](https://github.com/vstorm-co/agenticos/issues/937) removed. There is
+    no deployment-wide fallback to reach for either: a source runs on the
+    credential it names or it does not run, because a fallback means one tenant's
+    `folder_id` chooses what is read under the *operator's* identity.
 
 ## Step-by-Step: Notion Connector
 
