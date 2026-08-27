@@ -52,6 +52,14 @@ describe("drawing a person", () => {
 
   it("prefers the name somebody gave over their address", () => {
     expect(displayName({ user_id: "u", full_name: "Ada", email: "ada@acme.test" })).toBe("Ada");
-    expect(displayName({ user_id: "u", full_name: null, email: "bob@acme.test" })).toBe("bob");
+  });
+
+  it("falls back to the whole address, not its local part", () => {
+    // `alex@corp.example` and `alex@vendor.example` both drew as `alex`, and the
+    // row omits the address beneath a nameless account precisely because the
+    // line above it is supposed to be the address (#931).
+    expect(displayName({ user_id: "u", full_name: null, email: "bob@acme.test" })).toBe(
+      "bob@acme.test",
+    );
   });
 });

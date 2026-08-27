@@ -29,7 +29,7 @@ import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { getErrorMessage } from "@/lib/api-error";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
-import { useOrgStore } from "@/stores";
+import { useAuthStore, useOrgStore } from "@/stores";
 import type { ConversationShare } from "@/types";
 
 interface ShareDialogProps {
@@ -118,6 +118,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
   const { shares, isLoading, shareConversation, fetchShares, revokeShare } =
     useConversationShares();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
+  const currentUserId = useAuthStore((state) => state.user?.id);
   const { members } = useMembers(activeOrgId ?? "");
   const [picked, setPicked] = useState<string | null>(null);
   const [permission, setPermission] = useState<Permission>("view");
@@ -127,12 +128,16 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
-  // Somebody who already has access is not a candidate: offering them again is a
-  // row that answers "already shared" after the click rather than before it.
+  // Somebody who already has access is not a candidate, and neither is the
+  // reader: offering either is a row that answers "already shared" or "cannot
+  // share with yourself" after the click rather than before it. Every option the
+  // picker offers can succeed.
   const candidates = useMemo(() => {
     const already = new Set(shares.map((share) => share.shared_with));
-    return members.filter((member) => !already.has(member.user_id));
-  }, [members, shares]);
+    return members.filter(
+      (member) => member.user_id !== currentUserId && !already.has(member.user_id),
+    );
+  }, [members, shares, currentUserId]);
 
   useEffect(() => {
     if (open && conversationId) {
@@ -191,6 +196,10 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
     }
   };
 
+  // The chosen member rather than the id, and the difference matters while the
+  // shares are being refetched: an answer that says somebody already has access
+  // takes them out of `candidates`, and a button enabled on the id alone would
+  // then submit a share the server refuses.
   const chosen = candidates.find((member) => member.user_id === picked);
 
   return (
@@ -234,8 +243,8 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
                 // The narrowing *is* the guard: the button is disabled with
                 // nobody picked, so a handler that re-checked would hold a
                 // branch nothing can reach.
-                onClick={picked === null ? undefined : () => void handleShare(picked)}
-                disabled={isLoading || isSharing || picked === null}
+                onClick={chosen === undefined ? undefined : () => void handleShare(chosen.user_id)}
+                disabled={isLoading || isSharing || chosen === undefined}
                 size="icon"
                 aria-label={t("shareConversationTitle")}
               >

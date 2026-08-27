@@ -29,6 +29,9 @@ vi.mock("@/hooks/use-copy-to-clipboard", () => ({
 }));
 vi.mock("@/stores", () => ({
   useOrgStore: (pick: (state: unknown) => unknown) => pick({ activeOrgId: "org-1" }),
+  // The reader is never a candidate - sharing with yourself is refused - so the
+  // dialog has to know who they are.
+  useAuthStore: (pick: (state: unknown) => unknown) => pick({ user: { id: "u-me" } }),
 }));
 
 const member = (userId: string, email: string, fullName: string | null = null) =>
@@ -164,6 +167,51 @@ describe("choosing who to share with", () => {
 
     expect(screen.queryByRole("option", { name: /Sam Fisher/ })).not.toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Nina Vale/ })).toBeVisible();
+  });
+
+  it("does not offer the reader themselves", async () => {
+    // The server refuses `shared_with == shared_by`, so offering the row is a
+    // refusal after the click rather than an option that cannot be taken.
+    listedMembers.mockReturnValue([...MEMBERS, member("u-me", "me@example.com", "Me")]);
+    renderDialog();
+
+    await openPicker();
+
+    expect(screen.queryByRole("option", { name: /me@example.com/ })).not.toBeInTheDocument();
+  });
+
+  it("names a member with no name by their whole address", async () => {
+    // Two colleagues called `alex` in different domains were the same row: the
+    // fallback used to strip the domain, and the row omits the address beneath a
+    // nameless account precisely because the line above it is the address.
+    listedMembers.mockReturnValue([
+      member("u3", "alex@corp.example"),
+      member("u4", "alex@vendor.example"),
+    ]);
+    renderDialog();
+
+    await openPicker();
+
+    expect(screen.getByRole("option", { name: /alex@corp.example/ })).toBeVisible();
+    expect(screen.getByRole("option", { name: /alex@vendor.example/ })).toBeVisible();
+  });
+
+  it("will not submit a pick the refreshed shares took away", async () => {
+    // The picker stays usable while the shares are refetched, so somebody can
+    // choose a person the answer then reveals already has access. The button is
+    // enabled on the *chosen member*, not on the id, so there is nothing left to
+    // submit when they leave the list.
+    renderDialog();
+    await pick(/Sam Fisher/);
+    expect(screen.getByRole("button", { name: "Share conversation" })).toBeEnabled();
+
+    // The refetch lands - Sam already has access, so he leaves `candidates` - and
+    // the next thing the reader touches renders the dialog with him gone.
+    listedShares.mockReturnValue([{ id: "s-1", shared_with: "u1", permission: "view" }]);
+    await userEvent.click(screen.getByRole("combobox", { name: "Access level" }));
+    await userEvent.click(screen.getByRole("option", { name: "Edit" }));
+
+    expect(screen.getByRole("button", { name: "Share conversation" })).toBeDisabled();
   });
 
   it("shares with the id the picker holds, not an address", async () => {

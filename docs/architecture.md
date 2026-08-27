@@ -579,6 +579,13 @@ bounds a read; the user is what narrows it further.**
   or somebody it was shared with. The tenant check alone is not enough: without
   this, every member of an organization can read and append to every other
   member's conversation.
+- **A share carries the write only at `edit`.** Reading and writing are two
+  questions — `_may_read` and `_may_write` — and a share used to answer both
+  whatever level it held, so the two levels the sharing dialog offers meant the
+  same thing: a conversation shared to *view* could be renamed, archived,
+  deleted, or given a `role: "assistant"` turn that everybody reads in `/chat`
+  and the model is handed back as its own words. The level is stated to whoever
+  grants it, so it is the level that is enforced (#931).
 - On `list_messages` that one argument does two jobs — it authorizes, *and* it
   enriches each message with the caller's own rating. That overload is why its
   authorizing half went missing for so long: the route passed it, the argument
