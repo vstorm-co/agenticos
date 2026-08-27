@@ -1773,6 +1773,59 @@ class TestParking:
         assert [item["content"] for item in kept.await_args.args[1]] == ["Write the fix"]
 
     @pytest.mark.anyio
+    async def test_a_turn_that_was_not_seeded_a_finished_plan_does_not_delete_it(self):
+        """A finished checklist is not seeded, so the store is empty - and writing
+        an empty store back would delete the row #1221 promises to keep, on the
+        very next ordinary turn."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        prepared.finished_plan_withheld = True
+        result = MagicMock(output="done")
+        result.all_messages = MagicMock(return_value=[])
+        result.new_messages = MagicMock(return_value=[])
+        prepared.built.agent.run = AsyncMock(return_value=result)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.transcript, "record", new=AsyncMock()),
+            patch("app.services.agent_runner.ConversationService") as conversations,
+        ):
+            conversations.return_value.keep_overhead = AsyncMock()
+            conversations.return_value.keep_reminder_state = AsyncMock()
+            conversations.return_value.keep_plan = AsyncMock()
+            await service.execute(_ctx(), uuid.uuid4(), "something else entirely")
+
+        conversations.return_value.keep_plan.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_new_plan_written_over_a_withheld_one_still_replaces_the_row(self):
+        """The withholding is only about an empty store. An agent that starts new
+        work writes a plan, and that is what the conversation should hold."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        prepared.finished_plan_withheld = True
+        await prepared.plan_store.set_items([PlanItem(content="Write the next fix")])
+        result = MagicMock(output="done")
+        result.all_messages = MagicMock(return_value=[])
+        result.new_messages = MagicMock(return_value=[])
+        prepared.built.agent.run = AsyncMock(return_value=result)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.transcript, "record", new=AsyncMock()),
+            patch("app.services.agent_runner.ConversationService") as conversations,
+        ):
+            conversations.return_value.keep_overhead = AsyncMock()
+            conversations.return_value.keep_reminder_state = AsyncMock()
+            conversations.return_value.keep_plan = AsyncMock()
+            await service.execute(_ctx(), uuid.uuid4(), "start the next thing")
+
+        kept = conversations.return_value.keep_plan
+        assert [item["content"] for item in kept.await_args.args[1]] == ["Write the next fix"]
+
+    @pytest.mark.anyio
     async def test_a_parked_runs_transcript_marks_the_call_that_is_waiting(self):
         """The transcript rows are the only account of the turn a reload has, and
         they used to say `running` for the very call somebody has to decide about -

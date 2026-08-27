@@ -802,6 +802,12 @@ row keeps it — nothing is deleted — but a plan whose every step is `complete
 nobody is doing "your current plan", and `read_plan` would answer with it
 (agenticos#1221).
 
+Keeping the row takes one more rule, because a turn writes its store back when it
+ends: the turn whose store was opened empty *over* a finished plan writes nothing.
+It did nothing to the checklist, and an empty dump would delete the row on the
+very next ordinary message. An agent that starts new work dumps a plan and
+replaces it as usual.
+
 The filter is at the *seed*, not at the moment the last step is ticked, and that
 is the whole of the choice. Within the turn that finishes a plan the store still
 holds it, so the agent can summarise what it just did and nothing contradicts the
