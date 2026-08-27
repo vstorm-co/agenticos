@@ -129,6 +129,25 @@ async def test_last_seen_is_the_newest_activity_and_the_count_is_what_is_open() 
     assert body["newest_session_at"].startswith("2026-08-19T09:00")
 
 
+async def test_the_two_figures_are_two_scopes_and_the_history_read_is_bounded() -> None:
+    """Last-seen is every session; open is the usable ones. And the history read
+    takes one row: nothing prunes `sessions` - every refresh deactivates a row
+    and inserts another - so reading a year of them to look at the head grows
+    without bound."""
+    service = UserService(AsyncMock())
+    reads = AsyncMock(return_value=[_session(last_used=NOW, created=NOW)])
+    with (
+        patch.object(service, "get_by_id", new=AsyncMock()),
+        patch(f"{MODULE}.organization_repo.list_for_user", new=AsyncMock(return_value=[])),
+        patch(f"{MODULE}.session_repo.get_user_sessions", new=reads),
+    ):
+        async with _client(service=service) as client:
+            await client.get(ENDPOINT)
+
+    scopes = [call.kwargs for call in reads.await_args_list]
+    assert scopes == [{"open_only": False, "limit": 1}, {"open_only": True}]
+
+
 async def test_an_account_that_has_never_signed_in_says_so_rather_than_nothing() -> None:
     """`null` is not zero. A dormant account and one that was created and never
     used are different decisions, and the drawer has to be able to tell them

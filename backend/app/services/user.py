@@ -128,7 +128,12 @@ class UserService:
         """
         await self.get_by_id(user_id)
         memberships = await organization_repo.list_for_user(self.db, user_id)
-        sessions = await session_repo.get_user_sessions(self.db, user_id, open_only=False)
+        # `limit=1` because the query is ordered most-recently-used first and the
+        # head is the whole answer. Nothing prunes this table - every refresh
+        # deactivates a row and inserts another - so a year-old account has
+        # thousands of rows and reading them all to look at one grows without
+        # bound.
+        last_used = await session_repo.get_user_sessions(self.db, user_id, open_only=False, limit=1)
         open_sessions = await session_repo.get_user_sessions(self.db, user_id, open_only=True)
         return AdminUserDetail(
             memberships=[
@@ -141,9 +146,7 @@ class UserService:
                 )
                 for organization, role in memberships
             ],
-            # Most-recently-used first, so the head is when they were last
-            # here - signed out or not.
-            last_seen_at=sessions[0].last_used_at if sessions else None,
+            last_seen_at=last_used[0].last_used_at if last_used else None,
             active_sessions=len(open_sessions),
             # Of the open ones: it is read beside their count, and "newest
             # session August" under "0 open sessions" is a sentence about
