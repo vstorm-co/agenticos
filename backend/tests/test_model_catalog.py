@@ -7,12 +7,15 @@ they do not*: a dropdown of ids the provider does not serve is worse than an
 empty one, because each is a run that fails with an authentication-shaped error.
 """
 
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
 
+from app.agents.model_resolver import PROVIDERS
 from app.services import model_catalog
+from app.services.image_models import CATALOG as IMAGE_CATALOG
 from app.services.model_catalog import CURATED, LISTINGS, curated_models, models_for
 
 MODULE = "app.services.model_catalog"
@@ -129,12 +132,17 @@ class TestWhenTheProviderWillNotSay:
         assert models
 
     @pytest.mark.anyio
-    async def test_a_provider_with_no_listing_and_no_curation_answers_empty(self):
+    async def test_a_provider_with_no_listing_and_no_curation_says_it_is_unlisted(self):
         """Not an error: the field is free text, and a self-hosted endpoint
-        nobody has a list for is the case it was built for."""
+        nobody has a list for is the case it was built for.
+
+        `unlisted` rather than `curated`, because seven providers land here and
+        `curated` about an empty list claims a shortlist that does not exist
+        (#923). It is the difference between "the provider could not be asked"
+        and "this platform cannot enumerate this one at all"."""
         models, source = await models_for("some-self-hosted-thing")
 
-        assert (models, source) == ([], "curated")
+        assert (models, source) == ([], "unlisted")
 
 
 class TestCaching:
@@ -262,3 +270,41 @@ class TestCuratedFallbacksAreData:
         from app.services.model_catalog import LISTINGS
 
         assert LISTINGS["together"].array_path == ""
+
+
+class TestOneAnswerPerQuestion:
+    """Which list answers what, and that the derived copies still agree (#923).
+
+    "What models and providers exist" is answered in six places. `PROVIDERS` is
+    the one the platform runs on - it holds the part `infer_provider_class`
+    cannot know, the credential shape - and every other list is derived from it:
+    the listings, the curated shortlist, the image catalog, and the tables in
+    `docs/models.md`. A derived copy that drifts fails nothing at run time; it
+    shows a picker for a provider that does not exist, or leaves out one that
+    does, which is how the tool catalog rendered two tools as raw JSON for five
+    weeks (#144).
+    """
+
+    def test_every_listing_names_a_provider_the_platform_has(self):
+        assert [provider for provider in LISTINGS if provider not in PROVIDERS] == []
+
+    def test_every_curated_entry_names_a_provider_the_platform_has(self):
+        assert [provider for provider in CURATED if provider not in PROVIDERS] == []
+
+    def test_every_image_provider_names_one_too(self):
+        # A third vocabulary - `image_models.json` carries its own `provider` and
+        # `prefix` pair - and the crossing is a lookup that answers `None` for a
+        # provider spelled differently.
+        assert [entry.provider for entry in IMAGE_CATALOG if entry.provider not in PROVIDERS] == []
+
+    def test_every_provider_is_in_the_page_that_documents_them(self):
+        """`docs/models.md` is a hand-written copy of `PROVIDERS`, and the repo's
+        rule is one copy on purpose. Until it is generated, this is what makes
+        adding the twenty-eighth provider a change that fails until the page
+        knows about it."""
+        page = Path(__file__).resolve().parents[2] / "docs" / "models.md"
+        undocumented = [
+            provider for provider in PROVIDERS if f"`{provider}`" not in page.read_text()
+        ]
+
+        assert undocumented == []

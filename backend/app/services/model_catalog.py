@@ -41,7 +41,17 @@ logger = logging.getLogger(__name__)
 CACHE_TTL_SECONDS = 60 * 60
 LISTING_TIMEOUT_SECONDS = 6.0
 
-CatalogSource = Literal["live", "curated"]
+CatalogSource = Literal["live", "curated", "unlisted"]
+"""Where a picker's suggestions came from, and it is three answers rather than two.
+
+`live` is the provider's own listing; `curated` is this deployment's short
+list, served when the provider cannot be asked. `unlisted` is neither, and it
+exists because the difference matters on screen: seven providers publish no
+listing this platform can read *and* have no curated entry, so they answered
+`([], "curated")` - a dropdown saying the provider offers nothing, about a
+provider that offers plenty. `unlisted` says the platform cannot enumerate
+this one and the id has to be typed, which is true (#923).
+"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,7 +138,7 @@ class FallbackModel:
 # the snapshot has never heard of - which is how a typo or a retired model is
 # caught rather than shipped as a dropdown the provider refuses.
 CURATED: dict[str, tuple[FallbackModel, ...]] = catalog.load(
-    "model_fallbacks.json", TypeAdapter(dict[str, tuple[FallbackModel, ...]])
+    "curated_models.json", TypeAdapter(dict[str, tuple[FallbackModel, ...]])
 )
 
 
@@ -265,7 +275,11 @@ async def models_for(
     curated = list(curated_models(provider))
 
     if spec is None or (spec.auth_header is not None and api_key is None):
-        return curated, "curated"
+        # Nothing to show and nothing to fall back on is not "this provider has
+        # no models" - it is this platform not being able to enumerate them. A
+        # picker that says the first about Bedrock is wrong; one that says the
+        # second asks for the id (#923).
+        return (curated, "curated") if curated else ([], "unlisted")
 
     # Keyed on the provider alone, not on the key: two keys for one provider see
     # the same catalog, and keying on the key would put a secret in a cache key.
