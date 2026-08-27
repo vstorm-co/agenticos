@@ -17,6 +17,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.300] - 2026-08-27
+
+### Fixed
+
+- **Six of a usage window's scalars were six serial round trips for numbers one
+  SELECT answers.** `StatsService.usage` ran fifteen aggregates one after another,
+  and six of them are scalars over one window with the same WHERE - the count and
+  cost of the window and of the window before it, the distinct-user count, and the
+  two latency percentiles. `window_aggregates` reads all five in one query and
+  `usage` calls it once per window, so six scalar round trips become two. The
+  percentiles need no `ended_at IS NOT NULL` of their own there: an unfinished
+  run's duration is null, and `percentile_cont` ignores a null exactly as the
+  standalone filter did. (#949)
+- The GROUP BY aggregates stay their own queries. Each groups differently, so they
+  cannot fold into one SELECT, and running them concurrently would need a
+  connection each - an `AsyncSession` is one connection and serialises. (#949)
+
 ## [0.0.299] - 2026-08-27
 
 ### Fixed
