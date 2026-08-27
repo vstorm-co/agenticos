@@ -3021,6 +3021,8 @@
   "organizations": {
     "accessLost": "You no longer have access to that organization.",
     "accessLostSwitched": "You no longer have access to that organization. Switched to {name}.",
+    "accessLostLink": "That link is for an organization you no longer have access to.",
+    "accessLostLinkSwitched": "That link is for an organization you no longer have access to. Showing {name} instead.",
     "created": "Organization created",
     "creating": "Creating...",
     "deleted": "Organization deleted",

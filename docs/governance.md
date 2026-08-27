@@ -993,6 +993,32 @@ reorganisation, and it means them in whichever organization the spec is imported
 into. A named member who has left contributes nothing rather than raising - an
 approval queue must not go silent because one id no longer resolves.
 
+### Every link says which organization it is about
+
+The console acts on whichever organization the reader last used: `apiClient`
+stamps `X-Organization-Id` from a selection persisted per browser. Every alert
+URL used to carry none, so somebody in two organizations who was last working in
+Globex opened the approval alert for a run in Acme and read **Globex's** queue —
+very likely empty, and reading as *nothing is waiting* about a run that is parked
+and ageing towards `ApprovalService.expire_stale`. The agent links were wrong
+more quietly: `/agents/{id}` under the wrong organization is a refusal for an
+agent the reader can genuinely see, one switch away.
+
+So every link carries `?org=<id>`, built in one place — `NotificationService._link`
+— rather than at each of the four call sites, and the console adopts it exactly
+as it adopts the id in `/orgs/{id}`: a page that names an organization *is* that
+organization. The adoption is a layout effect in `ActiveOrgGuard`, before the
+tenant cache reset and before the page's own queries, so the first request the
+page makes already carries the right tenant. The path outranks the parameter — a
+link says which organization an alert was about, and cannot move somebody off the
+page they are standing on.
+
+A reader who has since left that organization is told so, rather than moved
+quietly: the refusal names the link as the reason, because being switched in
+silence is how another organization's page becomes the answer to the alert. It
+cannot name the organization — they are not a member, so it is not in their
+list.
+
 ### Two rules that are not negotiable
 
 **A per-person opt-out only ever subtracts.** Each recipient's own switches at

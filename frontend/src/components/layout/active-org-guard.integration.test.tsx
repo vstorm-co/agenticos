@@ -11,6 +11,9 @@ import { useOrgStore } from "@/stores";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard",
+  // An alert link names its organization in `?org=`, which the recovery adopts
+  // the way it adopts the id in `/orgs/{id}` (#1204). Nothing here carries one.
+  useSearchParams: () => new URLSearchParams(),
   // next-intl's createNavigation wraps these at module scope; see `vitest.setup.ts`.
   redirect: vi.fn(),
   permanentRedirect: vi.fn(),

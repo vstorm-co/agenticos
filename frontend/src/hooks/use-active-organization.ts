@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -73,6 +73,27 @@ export function organizationInPath(pathname: string): string | null {
   if (segments[start] !== "orgs") return null;
   const id = segments[start + 1];
   return id !== undefined && UUID.test(id) ? id.toLowerCase() : null;
+}
+
+/**
+ * The organization a link *carries*, for a page whose path names none.
+ *
+ * Every alert email opens a page that acts on whichever organization the reader
+ * last used - `apiClient` stamps `X-Organization-Id` from a selection persisted
+ * per browser - and none of those URLs said which organization the alert was
+ * about. So somebody in two organizations who was last working in Globex opened
+ * the approval alert for a run in Acme and read Globex's queue: very likely
+ * empty, and reading as "nothing is waiting" about a run that is parked and
+ * ageing out (#1204).
+ *
+ * The same rule as the path's, for the same reasons: a UUID only, so a future
+ * `?org=new` is not adopted as a tenant id and refused on every request; and
+ * lower-cased, because the value is *stored* and found by `===` against ids the
+ * server serialises in canonical lower case.
+ */
+export function organizationInQuery(search: URLSearchParams): string | null {
+  const id = search.get("org");
+  return id !== null && UUID.test(id) ? id.toLowerCase() : null;
 }
 
 /**
@@ -179,7 +200,11 @@ export function useActiveOrganizationRecovery(): void {
   const { error } = usePermissions();
   const { data: orgs } = useOrganizationList();
   const pathname = usePathname();
-  const named = organizationInPath(pathname);
+  const search = useSearchParams();
+  // The path wins. `/orgs/{id}` *is* that organization, where `?org=` is a link
+  // saying which one it was about - so a query parameter cannot override the
+  // page a reader is standing on.
+  const named = organizationInPath(pathname) ?? organizationInQuery(search);
   // A refused organization is not adopted from a URL either, or opening its
   // page would hand the selection straight back to the one the recovery below
   // has just moved off - the shape an infinite switch loop takes.
@@ -203,11 +228,15 @@ export function useActiveOrganizationRecovery(): void {
    * `OrgSwitcher` handles the other direction by taking the scoped route with it.
    */
   const adoptedFor = useRef<string | null>(null);
+  // The path *and* what was adopted from it, because `?org=` does not change the
+  // path: two alerts about two organizations open the same page, and keying on
+  // the path alone would leave the second reading the first one's tenant.
+  const arrival = `${pathname}#${adopted ?? ""}`;
   useLayoutEffect(() => {
-    if (adopted === null || pathname === adoptedFor.current) return;
-    adoptedFor.current = pathname;
+    if (adopted === null || arrival === adoptedFor.current) return;
+    adoptedFor.current = arrival;
     if (adopted !== activeOrgId) setActiveOrgId(adopted);
-  }, [adopted, activeOrgId, pathname, setActiveOrgId]);
+  }, [adopted, activeOrgId, arrival, setActiveOrgId]);
 
   // Whatever moved the selection - the switcher, the URL above, or the recovery
   // below - the cache follows it. The URL's organization is passed rather than
@@ -224,8 +253,30 @@ export function useActiveOrganizationRecovery(): void {
     const replacement = preferredOrg(orgs, [...refusedOrgIds, activeOrgId]);
     setActiveOrgId(replacement?.id ?? null);
 
+    // Which organization it was about, when a link named one. Somebody following
+    // an alert into a tenant they have since left would otherwise be moved
+    // silently and read another organization's page as the answer to it - the
+    // reason the id is in the URL in the first place (#1204). The name is not
+    // available: they are not a member, so it is not in their list.
+    const fromLink = adopted === activeOrgId;
     toast.error(
-      replacement ? t("accessLostSwitched", { name: replacement.name }) : t("accessLost"),
+      fromLink
+        ? replacement
+          ? t("accessLostLinkSwitched", { name: replacement.name })
+          : t("accessLostLink")
+        : replacement
+          ? t("accessLostSwitched", { name: replacement.name })
+          : t("accessLost"),
     );
-  }, [error, activeOrgId, orgs, refusedOrgIds, markOrgRefused, setActiveOrgId, queryClient, t]);
+  }, [
+    error,
+    activeOrgId,
+    adopted,
+    orgs,
+    refusedOrgIds,
+    markOrgRefused,
+    setActiveOrgId,
+    queryClient,
+    t,
+  ]);
 }

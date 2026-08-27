@@ -112,7 +112,7 @@ class NotificationService:
             "org_name": organization.name if organization else "your organization",
             "reason": reason,
             "spent": f"{run.cost_usd:.2f}" if run.cost_usd is not None else "0.00",
-            "run_url": f"{self._frontend}/agents/{agent.id}",
+            "run_url": self._link(f"/agents/{agent.id}", run.organization_id),
             "app_name": settings.PROJECT_NAME,
         }
         self._send(EmailKey.BUDGET_EXCEEDED, recipients, context)
@@ -141,7 +141,7 @@ class NotificationService:
         context = {
             "agent_name": agent.name,
             "tools": ", ".join(tools) if tools else "a tool call",
-            "approvals_url": f"{self._frontend}/agents/{agent.id}",
+            "approvals_url": self._link(f"/agents/{agent.id}", run.organization_id),
             "app_name": settings.PROJECT_NAME,
         }
         self._send(EmailKey.APPROVAL_REQUESTED, recipients, context)
@@ -184,7 +184,7 @@ class NotificationService:
             "total": f"{total:.2f}",
             "runs": str(sum(row[3] for row in rows)),
             "agents": str(len({row[0] for row in rows})),
-            "dashboard_url": f"{self._frontend}/agents",
+            "dashboard_url": self._link("/agents", organization_id),
             "app_name": settings.PROJECT_NAME,
         }
         self._send(EmailKey.USAGE_REPORT, recipients, context)
@@ -249,7 +249,7 @@ class NotificationService:
             "total": f"{sum((row[2] for row in mine), Decimal(0)):.2f}",
             "runs": str(sum(row[3] for row in mine)),
             "agents": agent.name,
-            "dashboard_url": f"{self._frontend}/agents/{agent.id}",
+            "dashboard_url": self._link(f"/agents/{agent.id}", agent.organization_id),
             "app_name": settings.PROJECT_NAME,
         }
         self._send(EmailKey.USAGE_REPORT, recipients, context)
@@ -258,6 +258,23 @@ class NotificationService:
     @property
     def _frontend(self) -> str:
         return settings.FRONTEND_URL.rstrip("/")
+
+    def _link(self, path: str, organization_id: UUID) -> str:
+        """A console link that says which organization it is about.
+
+        Every alert URL used to be organization-agnostic, and the page it opens
+        acts on whichever organization the reader last used - `apiClient` stamps
+        `X-Organization-Id` from a selection persisted per browser. So somebody in
+        two organizations who was last working in Globex opened the approval alert
+        for a run in Acme and read *Globex's* queue: very likely empty, and
+        reading as "nothing is waiting" about a run that is parked and ageing
+        towards `ApprovalService.expire_stale` (#1204).
+
+        `?org=` is the parameter, decided here rather than at four call sites, and
+        the console adopts it the way it already adopts the id in `/orgs/{id}` -
+        a page that names an organization *is* that organization (#1032).
+        """
+        return f"{self._frontend}{path}?org={organization_id}"
 
     async def _administrators(
         self, organization_id: UUID, preference: NotificationPreference

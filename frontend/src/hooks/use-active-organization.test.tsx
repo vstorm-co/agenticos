@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import {
   organizationInPath,
+  organizationInQuery,
   refusesOrganization,
   useActiveOrganizationRecovery,
 } from "./use-active-organization";
@@ -22,9 +23,10 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 // exports are the ones `vitest.setup.ts` provides for the same reason it does:
 // next-intl's `createNavigation` reads them at module scope.
 const path = vi.fn(() => "/");
+const search = vi.fn(() => new URLSearchParams());
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => search(),
   usePathname: () => path(),
   useParams: () => ({}),
   redirect: vi.fn(),
@@ -147,11 +149,35 @@ describe("organizationInPath", () => {
   });
 });
 
+describe("organizationInQuery", () => {
+  const ORG = "44444444-4444-4444-4444-444444444444";
+
+  it("reads the organization an alert link carries", () => {
+    // Every notification email opens a page whose path names no organization,
+    // and the page then acts on whichever one the reader last used (#1204).
+    expect(organizationInQuery(new URLSearchParams(`org=${ORG}`))).toBe(ORG);
+  });
+
+  it("names none when the link carries none", () => {
+    expect(organizationInQuery(new URLSearchParams())).toBeNull();
+    expect(organizationInQuery(new URLSearchParams("tab=approvals"))).toBeNull();
+  });
+
+  it("takes a UUID and nothing else, lower-cased", () => {
+    // The same two rules the path's reader has, and for the same reasons: a
+    // non-UUID would be adopted as a tenant id and refused on every request,
+    // and an upper-case spelling would be stored and match nothing.
+    expect(organizationInQuery(new URLSearchParams("org=new"))).toBeNull();
+    expect(organizationInQuery(new URLSearchParams(`org=${ORG.toUpperCase()}`))).toBe(ORG);
+  });
+});
+
 describe("useActiveOrganizationRecovery", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useOrgStore.setState({ activeOrgId: null, refusedOrgIds: [] });
     path.mockReturnValue("/");
+    search.mockReturnValue(new URLSearchParams());
     client = new QueryClient({
       // Matching `app/providers.tsx`. At the library default of 0 a switch
       // refetches whether or not anything dropped the cache, which is the
@@ -319,6 +345,72 @@ describe("useActiveOrganizationRecovery", () => {
     renderHook(() => useActiveOrganizationRecovery(), { wrapper });
 
     await waitFor(() => expect(useOrgStore.getState().activeOrgId).toBe(OTHER));
+  });
+
+  it("adopts the organization an alert link carries", async () => {
+    // The whole of #1204: every notification email opens a page whose path
+    // names no organization, so the reader saw whichever tenant they last used
+    // - most often the wrong one's empty approvals queue.
+    const OTHER = "33333333-3333-3333-3333-333333333333";
+    answerWith([{ id: PERSONAL, is_personal: true }], { permissions: [] });
+    useOrgStore.setState({ activeOrgId: PERSONAL });
+    path.mockReturnValue("/agents/a-1");
+    search.mockReturnValue(new URLSearchParams(`org=${OTHER}`));
+
+    renderHook(() => useActiveOrganizationRecovery(), { wrapper });
+
+    await waitFor(() => expect(useOrgStore.getState().activeOrgId).toBe(OTHER));
+  });
+
+  it("lets the path outrank a link", async () => {
+    // `/orgs/{id}` *is* that organization; `?org=` only says which one an alert
+    // was about. A parameter cannot move the page somebody is standing on.
+    const PAGE = "33333333-3333-3333-3333-333333333333";
+    const LINK = "44444444-4444-4444-4444-444444444444";
+    answerWith([{ id: PERSONAL, is_personal: true }], { permissions: [] });
+    useOrgStore.setState({ activeOrgId: PERSONAL });
+    path.mockReturnValue(`/orgs/${PAGE}/members`);
+    search.mockReturnValue(new URLSearchParams(`org=${LINK}`));
+
+    renderHook(() => useActiveOrganizationRecovery(), { wrapper });
+
+    await waitFor(() => expect(useOrgStore.getState().activeOrgId).toBe(PAGE));
+  });
+
+  it("adopts a second link to the same page", async () => {
+    // `?org=` does not change the path, so two alerts about two organizations
+    // arrive at the same one - and an adoption keyed on the path alone would
+    // leave the second reading the first one's tenant.
+    const FIRST = "33333333-3333-3333-3333-333333333333";
+    const SECOND = "44444444-4444-4444-4444-444444444444";
+    answerWith([{ id: PERSONAL, is_personal: true }], { permissions: [] });
+    useOrgStore.setState({ activeOrgId: PERSONAL });
+    path.mockReturnValue("/agents/a-1");
+    search.mockReturnValue(new URLSearchParams(`org=${FIRST}`));
+    const { rerender } = renderHook(() => useActiveOrganizationRecovery(), { wrapper });
+    await waitFor(() => expect(useOrgStore.getState().activeOrgId).toBe(FIRST));
+
+    search.mockReturnValue(new URLSearchParams(`org=${SECOND}`));
+    rerender();
+
+    expect(useOrgStore.getState().activeOrgId).toBe(SECOND);
+  });
+
+  it("says the link is the reason when the organization it named is refused", async () => {
+    // Being moved silently would have them read another organization's page as
+    // the answer to the alert - which is the failure the id in the URL exists
+    // to prevent, arriving one step later.
+    answerWith([{ id: PERSONAL, is_personal: true }], organizationRefused(STALE));
+    useOrgStore.setState({ activeOrgId: PERSONAL });
+    path.mockReturnValue("/agents/a-1");
+    search.mockReturnValue(new URLSearchParams(`org=${STALE}`));
+
+    renderHook(() => useActiveOrganizationRecovery(), { wrapper });
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("That link is for")),
+    );
+    expect(useOrgStore.getState().activeOrgId).toBe(PERSONAL);
   });
 
   it("leaves the selection alone on a page that names no organization", async () => {

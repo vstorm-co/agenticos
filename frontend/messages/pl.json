@@ -313,6 +313,8 @@
     "deleted": "Organizacja usunięta",
     "accessLost": "Nie masz już dostępu do tej organizacji.",
     "accessLostSwitched": "Nie masz już dostępu do tej organizacji. Przełączono na {name}.",
+    "accessLostLink": "Ten link dotyczy organizacji, do której nie masz już dostępu.",
+    "accessLostLinkSwitched": "Ten link dotyczy organizacji, do której nie masz już dostępu. Pokazujemy {name}.",
     "failedDelete": "Nie udało się usunąć organizacji",
     "failedUpdate": "Nie udało się zaktualizować organizacji"
   },

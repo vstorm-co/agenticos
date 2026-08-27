@@ -633,6 +633,99 @@ class TestPerAgentUsageReport:
         assert sent.calls == []
 
 
+class TestEveryLinkNamesItsOrganization:
+    """An alert opens the tenant it is about, not the one the reader last used.
+
+    `apiClient` stamps `X-Organization-Id` from a selection persisted per
+    browser, and every alert URL was organization-agnostic - so somebody in two
+    organizations who was last working in Globex opened the approval alert for a
+    run in Acme and read Globex's queue: very likely empty, and reading as
+    "nothing is waiting" about a run that is parked and ageing towards
+    `ApprovalService.expire_stale` (#1204). The agent links were worse in a
+    quieter way: `/agents/{id}` under the wrong organization is a refusal for an
+    agent the reader can genuinely see, one switch away.
+
+    One parameter name, decided in `_link` rather than at four call sites.
+    """
+
+    @pytest.mark.anyio
+    async def test_the_budget_alert_names_the_runs_organization(self, sent):
+        run = _run()
+        with (
+            patch(f"{MODULE}.member_repo.list_emails_by_role", new=_roles("admin@acme.test")),
+            patch(f"{MODULE}.member_repo.list_emails_for_members", new=_members()),
+            patch(f"{MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
+        ):
+            await NotificationService(MagicMock()).budget_exceeded(
+                run,
+                agent=_agent(),
+                spec=_spec(),
+                reason="cap",
+                scope=BudgetScope.AGENT,
+            )
+
+        _, _, context = sent.calls[0]
+        assert context["run_url"].endswith(f"?org={run.organization_id}")
+
+    @pytest.mark.anyio
+    async def test_the_approval_alert_names_the_runs_organization(self, sent):
+        """The run's, not the agent's: they are the same today and the run is what
+        the alert is about, so a delegated run in another tenant would still open
+        the queue holding it."""
+        run = _run(org_id=uuid.uuid4())
+        with (
+            patch(f"{MODULE}.member_repo.list_emails_by_role", new=_roles("boss@acme.test")),
+            patch(f"{MODULE}.member_repo.list_emails_for_members", new=_members("boss@acme.test")),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                run, agent=_agent(), spec=_spec(), tools=["send_email"]
+            )
+
+        _, _, context = sent.calls[0]
+        assert context["approvals_url"].endswith(f"?org={run.organization_id}")
+
+    @pytest.mark.anyio
+    async def test_the_organization_report_names_the_organization_it_reports_on(self, sent):
+        organization_id = uuid.uuid4()
+        rows = [(uuid.uuid4(), "gpt-5", Decimal("2.00"), 3)]
+        with (
+            patch(f"{MODULE}.agent_run_repo.cost_breakdown", new=AsyncMock(return_value=rows)),
+            patch(f"{MODULE}.organization_spend_since", new=_bill("2.00")),
+            patch(f"{MODULE}.member_repo.list_emails_by_role", new=_roles("admin@acme.test")),
+            patch(f"{MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
+        ):
+            await NotificationService(MagicMock()).usage_report(organization_id, period="weekly")
+
+        _, _, context = sent.calls[0]
+        assert context["dashboard_url"].endswith(f"?org={organization_id}")
+
+    @pytest.mark.anyio
+    async def test_the_agent_report_names_the_agents_organization(self, sent):
+        agent = _agent(org_id=uuid.uuid4(), owner_user_id=uuid.uuid4())
+        rows = [(agent.id, "gpt-5", Decimal("1.00"), 2)]
+        with (
+            patch(f"{MODULE}.agent_run_repo.cost_breakdown", new=AsyncMock(return_value=rows)),
+            patch(f"{MODULE}.member_repo.list_emails_by_role", new=_roles("admin@acme.test")),
+            patch(f"{MODULE}.member_repo.list_emails_for_members", new=_members()),
+            patch(f"{MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
+        ):
+            await NotificationService(MagicMock()).agent_usage_report(
+                agent,
+                _spec(usage=AlertSpec(enabled=True, to=[AlertAudience.ADMINS])),
+                period="weekly",
+            )
+
+        _, _, context = sent.calls[0]
+        assert context["dashboard_url"].endswith(f"?org={agent.organization_id}")
+
+    def test_the_parameter_name_is_decided_in_one_place(self):
+        """Four call sites inventing one is what the issue is about, one level up."""
+        service = NotificationService(MagicMock())
+        organization_id = uuid.uuid4()
+
+        assert service._link("/agents", organization_id).endswith(f"/agents?org={organization_id}")
+
+
 class TestPreferences:
     """The opt-outs from `/settings/notifications`, honoured at the send site.
 
