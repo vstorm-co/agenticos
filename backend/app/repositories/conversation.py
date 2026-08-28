@@ -7,7 +7,9 @@ from typing import Any, NamedTuple
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, distinct, func, or_, select
+from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -407,18 +409,38 @@ async def set_favourite(
 ) -> None:
     """Star or unstar one conversation for one reader.
 
-    Idempotent in both directions: starring what is already starred is not an
-    error, and neither is unstarring what was never starred. A star is a
-    preference rather than a transaction, and a toast saying "already a
-    favourite" would be the interface apologising for agreeing.
+    Idempotent in both directions, and under contention as well as on a retry.
+    A star is a preference rather than a transaction, and a toast saying
+    "already a favourite" would be the interface apologising for agreeing.
+
+    **A read-then-insert is not enough.** Two overlapping POSTs for the same
+    pair both saw `existing is None` and the second `flush()` raised on the
+    primary key - an integrity error out of an endpoint that promises success,
+    which a double-click or a retried request reaches (#1254). `ON CONFLICT DO
+    NOTHING` is the shape `channel_identity_repo.get_or_create` already uses for
+    this: `DO NOTHING` waits on a concurrent *uncommitted* insert of the same
+    key, because it cannot decide until that transaction ends, and then writes
+    nothing.
+
+    The delete is a statement rather than a fetch-then-delete for the same
+    reason: `DELETE ... WHERE` on a row another transaction is removing affects
+    zero rows instead of raising, and "it was already gone" is the outcome the
+    caller asked for.
     """
-    existing = await db.get(ConversationFavourite, (user_id, conversation_id))
-    if favourite and existing is None:
-        db.add(ConversationFavourite(user_id=user_id, conversation_id=conversation_id))
-        await db.flush()
-    elif not favourite and existing is not None:
-        await db.delete(existing)
-        await db.flush()
+    if favourite:
+        await db.execute(
+            pg_insert(ConversationFavourite)
+            .values(user_id=user_id, conversation_id=conversation_id)
+            .on_conflict_do_nothing(index_elements=["user_id", "conversation_id"])
+        )
+    else:
+        await db.execute(
+            sql_delete(ConversationFavourite).where(
+                ConversationFavourite.user_id == user_id,
+                ConversationFavourite.conversation_id == conversation_id,
+            )
+        )
+    await db.flush()
 
 
 async def get_conversations_by_user(

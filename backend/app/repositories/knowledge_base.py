@@ -208,6 +208,26 @@ async def list_org_scoped(db: AsyncSession, organization_id: UUID) -> list[Knowl
     return list(result.scalars().all())
 
 
+async def list_personal_by_owner(db: AsyncSession, owner_user_id: UUID) -> list[KnowledgeBase]:
+    """The personal-scoped knowledge bases a user owns - the ones their deletion
+    must remove.
+
+    `list_org_scoped` covers only the org-scoped rows an org teardown handles; a
+    personal collection's `owner_user_id` and `organization_id` are both
+    `ON DELETE SET NULL`, so deleting the user (and purging their personal org)
+    would otherwise leave the row, its documents, its files and its vector table
+    orphaned and unreachable, with the collection name still blocking reuse
+    (#1131). These are removed explicitly before the user row goes.
+    """
+    result = await db.execute(
+        select(KnowledgeBase).where(
+            KnowledgeBase.owner_user_id == owner_user_id,
+            KnowledgeBase.scope == KBScope.PERSONAL.value,
+        )
+    )
+    return list(result.scalars().all())
+
+
 async def list_by_collection_name(db: AsyncSession, collection_name: str) -> list[KnowledgeBase]:
     """Every knowledge base claiming this collection name, oldest first.
 

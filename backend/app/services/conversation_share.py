@@ -134,11 +134,22 @@ class ConversationShareService:
     async def list_shared_with_me(
         self, user_id: UUID, *, skip: int = 0, limit: int = 50
     ) -> tuple[list, int]:
-        """List conversations shared with the current user."""
+        """List conversations shared with the current user.
+
+        The star is stamped here too. A thread somebody was *shared* is exactly
+        the kind they favourite - a shared conversation may be starred by anyone
+        who can read it - so a list that answered `false` for every row was
+        wrong on the surface where it matters most (#1254).
+        """
         items = await conversation_share_repo.get_conversations_shared_with_user(
             self.db, user_id, skip=skip, limit=limit
         )
         total = await conversation_share_repo.count_conversations_shared_with_user(self.db, user_id)
+        starred = await conversation_repo.favourite_ids(
+            self.db, user_id=user_id, conversation_ids=[item.id for item in items]
+        )
+        for item in items:
+            item.is_favourite = item.id in starred  # ty: ignore[unresolved-attribute]
         return items, total
 
     async def get_by_token(self, token: str) -> dict:
