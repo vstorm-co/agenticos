@@ -2,9 +2,11 @@ import asyncio
 import contextlib
 import logging
 import secrets
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -25,9 +27,11 @@ from app.core.security import (
 from app.db.models.user import User
 from app.db.updates import writable
 from app.repositories import (
+    knowledge_base_repo,
     member_repo,
     organization_repo,
     organization_secret_repo,
+    rag_document_repo,
     session_repo,
     user_repo,
 )
@@ -44,6 +48,9 @@ from app.services.file_storage import avatar_filename, get_file_storage
 from app.services.organization import OrganizationService
 from app.services.signup_policy import check_may_register
 
+if TYPE_CHECKING:
+    from app.services.rag.vectorstore import BaseVectorStore
+
 logger = logging.getLogger(__name__)
 
 # A real bcrypt hash of a value nobody holds, computed once at import. An
@@ -54,8 +61,14 @@ _DUMMY_HASH = get_password_hash(secrets.token_urlsafe(32))
 
 
 class UserService:
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession, vector_store: "BaseVectorStore | None" = None):
         self.db = db
+        # Only the account-teardown path drops a departing user's vector tables.
+        # A caller may inject the store (the delete route, a test on its own
+        # engine); when none is given the teardown builds one on the process's
+        # shared vector pool, so every delete path cleans up and no other route
+        # pays for a store it never touches (#1131).
+        self._vector_store = vector_store
 
     async def _is_first_user(self) -> bool:
         count = (await self.db.execute(select(func.count()).select_from(User))).scalar_one()
@@ -428,15 +441,29 @@ class UserService:
         Owner of an org they did *not* create takes its last owner membership with
         them (`ON DELETE CASCADE`), leaving nobody who can manage it. That is
         refused here too (#1117).
-        """
-        await organization_secret_repo.promote_owned_private_to_org(self.db, owner_user_id=user_id)
 
-        org_service = OrganizationService(self.db)
-        handled: set[UUID] = set()
-        for org in await organization_repo.list_created_by(self.db, user_id):
-            handled.add(org.id)
+        A fifth is another silent orphan: the user's personal-scoped knowledge
+        bases. `owner_user_id` and `organization_id` are both `SET NULL`, so the
+        org purge below (which handles only org-scoped collections) never reaches
+        them, and their documents, files and vector table would be retained and
+        unreachable while the collection name kept blocking reuse. They are torn
+        down explicitly, with the same store the org purge needs (#1131).
+        """
+        from app.services.rag.embeddings import EmbeddingService
+        from app.services.rag.vectorstore import process_vector_store
+
+        # Every refusal is decided first, before any irreversible cleanup. The
+        # personal-KB and personal-org teardown below drop vector tables and
+        # unlink files through sessions of their own, and a BadRequestError raised
+        # afterwards cannot undo them: the request session rolls the relational
+        # deletes back, and the restored rows then point at data already gone
+        # (#1131). So the sole-owner checks run in a side-effect-free pass, and
+        # the heir each shared org is handed to is captured here and reused below
+        # rather than re-read after the cleanup.
+        created = await organization_repo.list_created_by(self.db, user_id)
+        heirs: dict[UUID, UUID] = {}
+        for org in created:
             if org.is_personal:
-                await org_service.purge(org)
                 continue
             heir = await member_repo.other_owner_id(
                 self.db, organization_id=org.id, exclude_user_id=user_id
@@ -447,15 +474,16 @@ class UserService:
                     "transfer ownership or delete the organization first",
                     details={"user_id": user_id, "organization_id": org.id},
                 )
-            await organization_repo.reassign_creator(self.db, org=org, new_creator_id=heir)
+            heirs[org.id] = heir
 
         # Ownership moves without the creator FK, so a user can be the sole Owner
         # of an org they did not create - one `list_created_by` never returns.
         # Deleting them cascades that last owner membership away and leaves the
         # org ownerless: no 500, but nobody can manage it through the owner-gated
         # APIs (#1117). Refuse, unless another owner is there to keep it.
+        created_ids = {org.id for org in created}
         for org in await organization_repo.list_owned_by(self.db, user_id):
-            if org.id in handled:
+            if org.id in created_ids:
                 continue
             other_owner = await member_repo.other_owner_id(
                 self.db, organization_id=org.id, exclude_user_id=user_id
@@ -466,6 +494,52 @@ class UserService:
                     "transfer ownership or delete the organization first",
                     details={"user_id": user_id, "organization_id": org.id},
                 )
+
+        await organization_secret_repo.promote_owned_private_to_org(self.db, owner_user_id=user_id)
+
+        vector_store = self._vector_store or process_vector_store(
+            settings.rag, EmbeddingService(settings=settings.rag)
+        )
+        await self._purge_personal_collections(vector_store, user_id)
+
+        org_service = OrganizationService(self.db, vector_store=vector_store)
+        for org in created:
+            if org.is_personal:
+                await org_service.purge(org)
+            else:
+                await organization_repo.reassign_creator(
+                    self.db, org=org, new_creator_id=heirs[org.id]
+                )
+
+    async def _purge_personal_collections(
+        self, vector_store: "BaseVectorStore", user_id: UUID
+    ) -> None:
+        """Remove the user's personal-scoped knowledge bases whole (#1131).
+
+        Mirrors `OrganizationService.purge`'s collection teardown for the rows the
+        org purge cannot see. Each base's document rows and stored files go first,
+        then the base row; the physical `rag_<collection>` table is dropped only
+        when no other base still references the name - it is not tenant-unique
+        (#913), so two of them can share one table. The document rows are keyed on
+        `knowledge_base_id`, so a shared collection's other rows are untouched; a
+        shared table is left in place, with only this base's uploads unlinked.
+        """
+        storage = get_file_storage()
+        for kb in await knowledge_base_repo.list_personal_by_owner(self.db, user_id):
+            collection = kb.collection_name
+            storage_paths = await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
+            await knowledge_base_repo.delete(self.db, kb.id)
+            for storage_path in storage_paths:
+                with contextlib.suppress(Exception):
+                    await storage.delete(storage_path)
+            still_shared = await knowledge_base_repo.list_by_collection_name(self.db, collection)
+            if still_shared:
+                continue
+            # Best-effort, and only against the database: a zero-document
+            # collection has no table yet (`DROP TABLE IF EXISTS` no-ops), and any
+            # other database failure is not a reason to abandon the rest.
+            with contextlib.suppress(SQLAlchemyError):
+                await vector_store.delete_collection(collection)
 
     async def admin_update(
         self, user_id: UUID, user_in: UserUpdate, *, acting_admin_id: UUID
