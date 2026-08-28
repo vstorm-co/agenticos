@@ -4,11 +4,16 @@ Six decisions shape this codebase. Each one has consequences you will meet on
 your first day, so they are worth reading before you conclude something is
 missing.
 
-## 1. An agent is data, not code
+## 1. An agent is a file, not a service
 
 There is no `@agent.tool`, no `RunContext[Deps]`, no `app/agents/assistant.py`.
 Every tool reaches a model through the **capability registry**, and agent
 behaviour is changed by editing a spec rather than by editing Python.
+
+In an operating system a program is a file. So is an agent here: a document you
+can read, copy, diff and commit. The wording inside the codebase is "an agent is
+data, not code" — same decision, stated for a reader who is about to look for a
+decorator.
 
 **What this buys.** A non-engineer can change what an agent says. A spec is
 versioned on publish, exportable as YAML, and reviewable in a pull request in

@@ -2,10 +2,11 @@
 
 AgenticOS gives you the following.
 
-## An agent is data
+## An agent is a file
 
-Not a class, not a decorator, not a file somebody has to deploy. An agent is a
-document: instructions, a model, a set of capabilities, a budget.
+Not a class and not a decorator. In an operating system a program is a file —
+something you can read, copy, version and commit — and an agent here is the same
+thing: instructions, a model, a set of capabilities, a budget.
 
 ```yaml
 name: Support Copilot
@@ -25,11 +26,18 @@ budget:
 
 Everything else on this page follows from that one decision.
 
+!!! info "Why this is called an operating system"
+
+    Because the word is a specification rather than a label: processes,
+    resource limits, access control, drivers, a filesystem, one shell for many
+    interfaces, and an audit log. Each has a mechanism on this page.
+    [The seven, and how to test any other product against them →](about/index.md#what-makes-something-an-operating-system-for-agents)
+
 !!! tip
 
     The person who knows what the agent should say is rarely the person with
-    commit access. When behaviour lives in a document rather than in Python, they
-    do not need it.
+    commit access. When behaviour lives in a file rather than in Python, they do
+    not need it.
 
 ## Built in a UI, versioned on publish
 

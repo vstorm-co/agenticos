@@ -6,6 +6,7 @@
 </picture>
 
 **The operating system for your company's AI agents.**
+Processes, permissions, resource limits, drivers and an audit log.
 Self-hosted, open source, and yours.
 
 [![CI](https://github.com/vstorm-co/agenticos/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vstorm-co/agenticos/actions/workflows/ci.yml)
@@ -34,11 +35,12 @@ Self-hosted, open source, and yours.
 
 ---
 
-**An agent here is data, not code.** Instructions, a model, a set of
-capabilities, a budget. You build it in a UI, publish a version, and it runs the
-same way everywhere: web chat, HTTP API, Slack, Telegram. Budgets, approvals and
-audit apply identically to all of them, because every surface goes through one
-runner.
+**An agent here is a file, not a service.** In an operating system a program is a
+file - something you can read, copy, version and commit. So is an agent here:
+instructions, a model, a set of capabilities, a budget. You build it in a UI,
+publish a version, and it runs the same way everywhere: web chat, HTTP API,
+Slack, Telegram. Budgets, approvals and audit apply identically to all of them,
+because every surface goes through one runner.
 
 ```yaml
 # What an agent actually is - exportable, reviewable, committable to your repo.
@@ -112,6 +114,27 @@ run on and whether every sandbox connection answers - and says which one is
 missing. [Install](docs/install.md) has the step-by-step version of all of this,
 the prerequisites table, the host-Python workflow and a table of what each
 failure means.
+
+## What makes it an operating system
+
+Plenty of things in this category are called an OS. Here the word is a
+specification rather than a label: an operating system does seven things, and
+each row below is a mechanism you can read in the source.
+
+| What an operating system does | What AgenticOS does |
+|---|---|
+| **Runs and isolates processes** | Runs agents, stops one at its budget, isolates tenants in the schema rather than in service code, and keeps every run with what it cost |
+| **Enforces resource limits** - quota, cgroups | Monthly budgets per agent, checked *before* each model request rather than tallied afterwards. A run that fails still records what it spent |
+| **Controls access** - users, permissions, `sudo` | A [permission catalog](docs/permissions.md) in code, roles composed from it, per-resource grants that widen and never narrow. `approval: required` is the `sudo`: a tool that acts on the outside world waits for a person |
+| **Reaches hardware through drivers** | One interface to [27 model providers](docs/models.md) and to [any MCP server by URL](docs/mcp.md). Change a model profile and every agent using it moves, without one of them being republished |
+| **Keeps a filesystem** | [Collections, skills and attached context](docs/file-processing.md) in your own Postgres, with embeddings keyed per organization |
+| **Gives many interfaces one shell** | One runner behind web chat, the HTTP API, Slack, Telegram, a widget, a hosted page and a schedule. Same budget, same approval gate, same audit trail |
+| **Writes an audit log** - syslog, auditd | Who ran what, when, what it cost and who approved it. Written even when the run failed |
+
+Apply the same seven to anything else in the category. That is the test we would
+like to be judged on, and
+[When to use something else](docs/about/comparison.md) is where we run it against
+the alternatives - including the row where the honest answer here is "not yet".
 
 ## Why
 
@@ -229,8 +252,8 @@ named above, and a test keeps that true.
 
 Three things that trip up a first change here:
 
-- **An agent is data.** There is no `@agent.tool` and no agent module to decorate;
-  a new tool reaches a model through the capability registry. See
+- **An agent is a file.** There is no `@agent.tool` and no agent module to
+  decorate; a new tool reaches a model through the capability registry. See
   [Add a capability](docs/howto/add-capability.md).
 - **`require(...)` gates go on collection routes only.** A permission gate on a
   per-resource route cannot see that row's grants, so it refuses a Viewer who was

@@ -5,8 +5,8 @@
 <p class="agenticos-hero__name">AgenticOS</p>
 
 <p class="agenticos-hero__tagline">
-The operating system for your company's AI agents. Self-hosted, open source, and
-yours.
+The operating system for your company's AI agents. Processes, permissions,
+resource limits, drivers and an audit log. Self-hosted, open source, and yours.
 </p>
 
 <p class="agenticos-hero__badges">
@@ -30,15 +30,30 @@ running a company's AI agents.
 
 The key point is this:
 
-!!! quote "An agent is data, not code"
+!!! quote "An agent is a file, not a service"
 
-    Instructions, a model, a set of capabilities, a budget. Somebody builds it in
-    a UI, publishes a version, and it runs the same way everywhere — web chat,
-    HTTP API, Slack, Telegram, an embedded widget.
+    In an operating system a program is a file — something you can read, copy,
+    version and commit. So is an agent here: instructions, a model, a set of
+    capabilities, a budget. Somebody builds it in a UI, publishes a version, and
+    it runs the same way everywhere — web chat, HTTP API, Slack, Telegram, an
+    embedded widget.
 
 Everything else on this site follows from that one sentence.
 
-## Why
+## Why it is called an operating system
+
+Because the word is doing work. An operating system runs and isolates processes,
+enforces resource limits, controls access, reaches hardware through drivers,
+keeps a filesystem, gives many interfaces one shell, and writes an audit log.
+
+AgenticOS does each of those for agents: runs, budgets checked before the model
+request, a permission catalog with approvals as its `sudo`, MCP and model
+profiles as its drivers, collections in your own Postgres, one runner behind
+every surface, and an audit trail written even when a run fails.
+
+[The seven, one by one, with what to check in any other product →](about/index.md#what-makes-something-an-operating-system-for-agents)
+
+## Why it exists
 
 Most agent frameworks give you a library. You write Python, you deploy it, and
 every change to an agent's behaviour is a pull request, a review and a release.
@@ -137,8 +152,8 @@ budget:
   monthly_usd: 50 # (6)!
 ```
 
-1. Instructions are **data**. Changing them is not a deploy — it is an edit and a
-   publish, and the previous version stays readable.
+1. Instructions are **content**, not code. Changing them is not a deploy — it is
+   an edit and a publish, and the previous version stays readable.
 2. A **model profile**, not a model name. Change the profile and every agent
    pointing at it moves, without one of them being republished.
 3. A **capability** the agent may use. This one searches your knowledge
@@ -183,8 +198,8 @@ came from.
 
 ## Recap
 
-- An agent is **a document**, not a module. Instructions, a model, capabilities,
-  a budget.
+- An agent is **a file**, not a module. Instructions, a model, capabilities, a
+  budget.
 - It is **published as a version**, and that version is what runs.
 - It is **exportable as YAML** into your repository, reviewable in a pull
   request.
