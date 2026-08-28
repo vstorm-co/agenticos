@@ -106,17 +106,22 @@ Invoked directly, `scripts/audit_dependencies.py` does carry it: `0` for `CLEAN`
 audit that did not happen is never reported green, because an unaudited dependency
 set called clean is the same defect facing the other way.
 
-**Every incomplete run is retried, whatever it said.** `AUDIT_ATTEMPTS` (default
-3) with a 5s/10s backoff, and `AUDIT_TIMEOUT` (default 30s) as the per-request
-socket timeout, raised from pip-audit's own 15. Matching a phrase in the output
-decides only whether the verdict reads `NETWORK` or `FAILED` — never whether to
-try again. The two mistakes are not symmetric: re-running a deterministic failure
-costs seconds and the same answer, while not re-running a transient one is the
-false red on a required check that this exists to prevent. So a failure phrased in
-words the list does not hold still gets its retries; it just gets a vaguer name.
-Two vocabularies are in that list, because two programs reach for the network —
-`uv`, fetching `pip-audit` itself on a cold tool cache, and then `pip-audit`,
-fetching the advisories.
+**Every incomplete run is retried, whatever it said.**
+
+`AUDIT_ATTEMPTS` (default 3) with a 5s/10s backoff, and `AUDIT_TIMEOUT` (default 30s)
+as the per-request socket timeout, raised from pip-audit's own 15.
+
+Matching a phrase in the output decides only whether the verdict reads `NETWORK` or
+`FAILED` — never whether to try again. The two mistakes are not symmetric: re-running
+a deterministic failure costs seconds and the same answer, while *not* re-running a
+transient one is the false red on a required check that this exists to prevent.
+
+So a failure phrased in words the list does not hold still gets its retries. It just
+gets a vaguer name.
+
+Two vocabularies are in that list, because two programs reach for the network: `uv`,
+fetching `pip-audit` itself on a cold tool cache, and then `pip-audit`, fetching the
+advisories.
 
 ### Database
 
@@ -210,16 +215,20 @@ watching while no port is listening. Under the supervisor a worker killed by a
 signal is replaced within about five seconds, and one that exited on its own
 still waits for the edit that fixes it, which is what `--reload` is for.
 
-It also replaces a worker that is **wedged** — alive, but with an event loop
-that has stopped turning, which has no exit code and so looks healthy to every
-other recovery path. The worker reports its loop through uvicorn's
-`callback_notify` hook once a second, and a worker silent for fifteen seconds
-across two consecutive polls is killed and replaced — about twenty-five seconds
-from deadlock to serving again. Two polls rather than one because `docker pause`
-and a laptop waking from sleep stop the supervisor as well as the worker, and the
-first poll afterwards reads a stale beat that says nothing.
-That is liveness and not readiness on purpose: the beat is a timer callback, not
-a request, so a slow database cannot make a healthy server look wedged.
+It also replaces a worker that is **wedged** — alive, but with an event loop that has
+stopped turning, which has no exit code and so looks healthy to every other recovery
+path.
+
+The worker reports its loop through uvicorn's `callback_notify` hook once a second,
+and a worker silent for fifteen seconds across two consecutive polls is killed and
+replaced. About twenty-five seconds from deadlock to serving again.
+
+Two polls rather than one, because `docker pause` and a laptop waking from sleep stop
+the supervisor as well as the worker, and the first poll afterwards reads a stale beat
+that says nothing.
+
+That is **liveness and not readiness**, on purpose: the beat is a timer callback
+rather than a request, so a slow database cannot make a healthy server look wedged.
 
 | | |
 |---|---|

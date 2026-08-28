@@ -1034,15 +1034,19 @@ the row's own organization.
 
 ### A run whose process died
 
-The other state nothing in-process will ever resolve. A run's row is committed
-`running` before its model is called ([#12][12-issue]), so a worker killed
-mid-run — OOM, a deploy that does not drain — leaves a durable row with nothing
-left to finish it: in Activity for ever, and blocking any schedule whose
-trigger it was the linked run of. An hourly sweep ends anything still `running`
-past `STALE_RUN_REAPED_AFTER_HOURS` (six hours by default; zero switches it
-off), as `failed` — nobody stopped this run, the infrastructure did, and an
-operator filtering run history for problems is exactly who should see it. The
-error on the row is the sweep's own sentence; the process that knew more died.
+The other state nothing in-process will ever resolve.
+
+A run's row is committed `running` before its model is called ([#12][12-issue]), so a
+worker killed mid-run — OOM, a deploy that does not drain — leaves a durable row with
+nothing left to finish it: in Activity for ever, and blocking any schedule whose
+trigger it was the linked run of.
+
+An hourly sweep ends anything still `running` past `STALE_RUN_REAPED_AFTER_HOURS` —
+six hours by default, zero switches it off — as **`failed`**. Nobody stopped this
+run, the infrastructure did, and an operator filtering run history for problems is
+exactly who should see it.
+
+The error on the row is the sweep's own sentence. The process that knew more died.
 
 A run's age here is its **last transition**, not its first start. A resume keeps the
 original `started_at` — the run spans both segments — so a run approved days after
@@ -1064,14 +1068,16 @@ and its spec in hand; a sweep has neither.
 ### An approval inside a delegation
 
 A delegate's tools are gated by the delegate's own spec, and it reaches the same
-queue the parent's caller is already waiting on - a specialist that needs a person
-needs the person who is standing there. The entry names the **delegate's** tool and
-the arguments it proposed, because the delegate's own gate is what wrote it, **and
-which delegate is calling it**. Without that last part the queue says `send_email`
-without saying whether the agent somebody is talking to or a specialist called
-`researcher` is sending it, which is a queue people approve blind - and in a
-delegation the thing being approved is often more consequential than the agent the
-reviewer thinks they are dealing with.
+queue the parent's caller is already waiting on — a specialist that needs a person
+needs the person who is standing there.
+
+The entry names the **delegate's** tool and the arguments it proposed, because the
+delegate's own gate is what wrote it. And it names **which delegate is calling it**.
+
+Without that last part the queue says `send_email` without saying whether the agent
+somebody is talking to, or a specialist called `researcher`, is sending it. That is a
+queue people approve blind — and in a delegation the thing being approved is often
+more consequential than the agent the reviewer thinks they are dealing with.
 
 Deleting that delegate does not erase the record of what it was authorised to do:
 the row keeps the delegate's name and drops only the link to its now-gone agent.

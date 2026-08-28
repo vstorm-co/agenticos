@@ -61,16 +61,20 @@ That is why the gate is a job-level `if:` and **not** a
 all, so the ruleset waits for six contexts that will never arrive and the merge
 button stays grey forever.
 
-The classifier is written the timid way round — **a job is skipped only when every
-changed path is provably irrelevant to it**, so an unrecognised path runs
-everything. The permissive spelling of the same idea would let a new directory
-silently stop a suite from running, which is not a red build but a green one with a
-gate missing from it, and this repository has already paid for that twice (#143,
-#165). Only two exemptions exist, both checked rather than assumed: `docs/**`,
-`mkdocs.yml` and a top-level `*.md` (no test reads any of them), and the opposite
-half of the tree for each of the two unit suites. `e2e` is exempted from neither
-half. `lint` is never gated at all, because `make lint-spelling` and
-`make lint-precommit` read every tracked file.
+The classifier is written the timid way round: **a job is skipped only when every
+changed path is provably irrelevant to it**, so an unrecognised path runs everything.
+
+The permissive spelling of the same idea would let a new directory silently stop a
+suite from running — which is not a red build but a green one with a gate missing
+from it, and this repository has already paid for that twice (#143, #165).
+
+Only two exemptions exist, both checked rather than assumed:
+
+- `docs/**`, `mkdocs.yml` and a top-level `*.md`, because no test reads any of them;
+- the opposite half of the tree, for each of the two unit suites.
+
+`e2e` is exempted from neither half, and `lint` is never gated at all — because
+`make lint-spelling` and `make lint-precommit` read every tracked file.
 
 The second exemption stops short of one directory. `frontend/src/app/api/**` is
 the BFF, and `backend/tests/api/test_bff_forwarded_paths.py` checks the
@@ -164,13 +168,16 @@ first six days of August were superseded while still in flight — about 1,800 b
 minutes answering questions about commits nobody was waiting on.
 
 **A push to `main` is exempt, and the way it is exempted is the interesting part.**
+
 The merge's own run is what makes the history and the badge mean anything, so a
-`main` run must neither be cancelled nor queued. `cancel-in-progress: false` gives
-only the first of those: `false` means *queue*, and GitHub cancels any previously
-**pending** run in a group when a newer one is queued. With a single group for
-`main`, merge A running and B pending, C landing would cancel B outright and B's
-commit would get no CI at all — at fourteen releases in six days against a ~10
-minute `main` run, two merges inside one window is not a rare shape.
+`main` run must neither be cancelled nor queued.
+
+`cancel-in-progress: false` gives only the first of those. `false` means *queue*, and
+GitHub cancels any previously **pending** run in a group when a newer one is queued.
+
+With a single group for `main` — merge A running, B pending — C landing would cancel
+B outright, and B's commit would get no CI at all. At fourteen releases in six days
+against a ~10 minute `main` run, two merges inside one window is not a rare shape.
 
 So the group carries `github.run_id` on a push, which is unique per run: every
 merge gets a group of its own and collides with nothing. Pull requests all resolve

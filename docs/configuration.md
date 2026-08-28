@@ -364,13 +364,16 @@ shipped compose file for the same reason: it asks a human to paste this value in
 a browser.
 
 `SANDBOXD_TOKEN` in `backend/.env` is the *service's* own — what the daemon in the
-compose file will accept. `make sandbox-token` generates it, and the connection
-form stores the same value in the vault for you: the API reads this setting for
-exactly one purpose, offering it to the vault, and asking somebody to copy a secret
-out of a file their own stack is already reading is friction with nothing behind
-it. It is never used to reach a host — resolving a connection unseals the vault
-entry that connection names, and that stays the only path — so a deployment that
-leaves it unset loses one button and nothing else, and pastes the token instead.
+compose file will accept.
+
+`make sandbox-token` generates it, and the connection form stores the same value in
+the vault for you. The API reads this setting for exactly one purpose: offering it to
+the vault. Asking somebody to copy a secret out of a file their own stack is already
+reading is friction with nothing behind it.
+
+It is **never** used to reach a host — resolving a connection unseals the vault entry
+that connection names, and that stays the only path. So a deployment that leaves it
+unset loses one button and nothing else, and pastes the token instead.
 
 The same form asks whether a service is already answering, rather than making an
 operator know that a `make dev` sandbox service lives at `http://sandboxd:8080`.
@@ -479,17 +482,23 @@ allows any runtime at all. No connection registered is a warning, not a failure 
 the `state` workspace needs none.
 
 **Browsing what the agents kept.** Workspaces is its own screen — not part of
-Sandboxes, which is about *hosts*. Each row names the agent, the conversation the
-files belong to (or how many chats reach them, for a workspace no single
-conversation owns), who can see them, how big it is and when it was last used.
-**Open** goes to that workspace's own page, in the shape the skills editor uses:
-the tree on the left — folders walked one at a time, a search box over the whole
-tree rather than the folder on screen — and the file itself rendered beside it, so
-reading three files is three clicks and the list never closes. Downloading is on
-the row rather than beside the reader, because selecting a file reads it and a
-large archive is one somebody wants a copy of without paying for that. A second view on the listing flattens every file the reader
-can see into one grid — the "who is holding a copy of that CSV" question the
-per-workspace page cannot answer.
+Sandboxes, which is about *hosts*.
+
+Each row names the agent, the conversation the files belong to (or how many chats
+reach them, for a workspace no single conversation owns), who can see them, how big
+it is and when it was last used.
+
+**Open** goes to that workspace's own page, in the shape the skills editor uses: the
+tree on the left — folders walked one at a time, with a search box over the whole
+tree rather than the folder on screen — and the file itself rendered beside it. So
+reading three files is three clicks, and the list never closes.
+
+Downloading is on the row rather than beside the reader, because selecting a file
+reads it and a large archive is one somebody wants a copy of without paying for that.
+
+A second view on the listing flattens every file the reader can see into one grid —
+the "who is holding a copy of that CSV" question the per-workspace page cannot
+answer.
 
 **Clicking a file opens it in a viewer, and it is the same viewer in the chat panel.**
 An image is a picture, a PDF is the browser's own PDF view, markdown offers *Preview*
@@ -499,21 +508,28 @@ as markdown — and anything else is its text. Download is always there, includi
 what cannot be shown at all. One component, because "open this file" meaning two
 different things on two screens is how the second one ends up missing a case.
 
-Bytes come from `GET /sandbox-workspaces/{id}/raw?path=…`, or from `GET
-/conversations/{id}/workspace/raw?path=…` for the panel beside a chat. Two routes
-rather than one because they authorise different callers — the conversation route is
-reached by fetching the conversation, so somebody a chat was *shared with* keeps
-access — and one module deciding what may be displayed, so the answer cannot differ
-by surface. Almost everything is served as an attachment; **raster images and PDFs**
-are served for display, a raster because it cannot execute and a PDF because the
-browser renders it in its own viewer, which never gets the page's DOM. **SVG and HTML
-are downloadable and never displayable** — an SVG served inline from this origin is
-stored cross-site scripting written by whatever the agent decided to save, and "the
-agent wrote it" is not a trust boundary. Everything else is typed
-`application/octet-stream` with `X-Content-Type-Options: nosniff`, so a browser
-cannot decide such a body is HTML after all. The filename travels as `filename*`
-only, because a workspace path can hold any UTF-8 and the bare form has no way to
-say so.
+Bytes come from `GET /sandbox-workspaces/{id}/raw?path=…`, or from
+`GET /conversations/{id}/workspace/raw?path=…` for the panel beside a chat.
+
+Two routes rather than one because they authorise different callers — the
+conversation route is reached by fetching the conversation, so somebody a chat was
+*shared with* keeps access — and one module deciding what may be displayed, so the
+answer cannot differ by surface.
+
+Almost everything is served as an attachment. **Raster images and PDFs** are served
+for display: a raster because it cannot execute, a PDF because the browser renders it
+in its own viewer, which never gets the page's DOM.
+
+!!! danger "SVG and HTML are downloadable and never displayable"
+
+    An SVG served inline from this origin is stored cross-site scripting written by
+    whatever the agent decided to save, and "the agent wrote it" is not a trust
+    boundary.
+
+Everything else is typed `application/octet-stream` with
+`X-Content-Type-Options: nosniff`, so a browser cannot decide such a body is HTML
+after all. The filename travels as `filename*` only, because a workspace path can
+hold any UTF-8 and the bare form has no way to say so.
 
 Only a **stored** workspace can serve arbitrary bytes. A container-backed one is read
 through the workspace archive, whose only reader is textual, so a text file is served
@@ -554,56 +570,78 @@ on disk, so its files exist only while a sandbox is running and cannot be read
 without starting one: the Files panel could then only say so, for a file the agent
 had demonstrably just written.
 
-Every compose file therefore sets one, overridable with `SANDBOX_WORKSPACE_ROOT` (an
-environment variable where compose interpolates it — the project root, not
-`backend/.env`, except on the `dev` and `prod` targets which pass that file
-explicitly) — one host path,
-bind-mounted at the same location on both sides, because the service creates the
-directory and then asks the *daemon* to mount it and the daemon resolves the path on
-the host. A named volume, or any path existing only inside the service's container,
-is refused with "mounts denied". Local dev defaults to
-`/tmp/agenticos-sandbox-workspaces`, which Docker Desktop shares and anybody can
-write to, so a laptop needs no setup; the server files default to
-`/var/lib/agenticos/sandbox-workspaces`, which has to exist and be writable by uid
-10001 (`install -d -o 10001` once) and belongs on storage somebody backs up. A
-reboot sweeps `/tmp`, which is the one reason not to point a real deployment there.
+Every compose file therefore sets one, overridable with `SANDBOX_WORKSPACE_ROOT` —
+an environment variable where compose interpolates it, so the project root rather
+than `backend/.env`, except on the `dev` and `prod` targets which pass that file
+explicitly.
 
-That is reported rather than raised. Every listing carries `unreadable_reason`, and
-a client shows it as an explanation instead of an error, because neither cause is a
+One host path, bind-mounted at the same location on both sides, because the service
+creates the directory and then asks the *daemon* to mount it — and the daemon
+resolves the path on the host. A named volume, or any path existing only inside the
+service's container, is refused with `mounts denied`.
+
+| | Default | |
+|---|---|---|
+| Local dev | `/tmp/agenticos-sandbox-workspaces` | Docker Desktop shares it and anybody can write to it, so a laptop needs no setup |
+| The server files | `/var/lib/agenticos/sandbox-workspaces` | Has to exist and be writable by uid 10001 (`install -d -o 10001`, once), and belongs on storage somebody backs up |
+
+A reboot sweeps `/tmp`, which is the one reason not to point a real deployment
+there.
+
+That is reported rather than raised. Every listing carries `unreadable_reason`, and a
+client shows it as an explanation instead of an error — because neither cause is a
 fault: a service keeping nothing on disk is a configuration with a one-line fix the
-message names, and a host that is down will be up later. Raising made it a 500,
-which a browser could only render as "something went wrong" — beside an empty list,
-which reads as "there are no files". Two wrong answers at once. Reading *one file*
-from such a host is refused with the same sentence rather than reported as "no such
-file", which would say the file is missing when it is not.
+message names, and a host that is down will be up later.
 
-**What is running is read from the service too.** The Sandboxes screen keeps it on
-its own tab, apart from the connections table, and lists this organization's open
-sandboxes on the host it names — the default connection until the operator picks
-another — sortable by idle time and memory: runtime, what shares each one, idle
-time, and memory against its own ceiling when asked — plus the activity log
-per sandbox: which paths were read, which commands ran, and how each went. Neither
-file contents nor command output is recorded by the service, which is what keeps
-an audit trail from becoming a way to read another agent's work. The dashboard
-answers the same three questions in its own section, for a caller holding
-`connections:manage`; memory is behind a switch there for the same reason it is on
-the screen, because the service samples each sandbox individually for it.
+Raising made it a 500, which a browser could only render as "something went wrong",
+beside an empty list, which reads as "there are no files". Two wrong answers at once.
 
-**All three ceilings now divide.** The session listing is filtered to the caller's
-organization but carries `SANDBOXD_MAX_SESSIONS` and `SANDBOXD_MAX_OPEN_SESSIONS`
-through from the service untouched, so those two count every tenant on the host while
-the rows count one - `len(sessions)` divides only against `SANDBOXD_MAX_SESSIONS_PER_TENANT`.
-The response carries two host-wide numerators for the other pair, taken from the
-unfiltered list before the filter narrows it: `host_session_count`, the resident
-sandboxes the service marks `state == "running"`, against `limit`; and
-`host_open_count`, every session that exists resident or hibernated, against
-`open_limit`. Now the capacity card can say why a session was refused while this
-organization is short of its own ceiling: the host itself is full of somebody else's
-work. That the two are host-wide is a deliberate, narrow disclosure - two aggregate
-integers naming nothing, a long way from the session rows the filter withholds, and
+Reading *one file* from such a host is refused with the same sentence rather than
+reported as "no such file", which would say the file is missing when it is not.
+
+**What is running is read from the service too.**
+
+The Sandboxes screen keeps it on its own tab, apart from the connections table, and
+lists this organization's open sandboxes on the host it names — the default
+connection until the operator picks another.
+
+Each row carries the runtime, what shares that sandbox, its idle time, and its memory
+against its own ceiling when asked. Sortable by idle time and memory. Beside them is
+the activity log per sandbox: which paths were read, which commands ran, and how each
+went.
+
+Neither file contents nor command output is recorded by the service, which is what
+keeps an audit trail from becoming a way to read another agent's work.
+
+The dashboard answers the same three questions in its own section, for a caller
+holding `connections:manage`. Memory is behind a switch there for the same reason it
+is on the screen: the service samples each sandbox individually for it.
+
+**All three ceilings now divide.**
+
+The session listing is filtered to the caller's organization, but it carries
+`SANDBOXD_MAX_SESSIONS` and `SANDBOXD_MAX_OPEN_SESSIONS` through from the service
+untouched — so those two count every tenant on the host while the rows count one.
+`len(sessions)` divides only against `SANDBOXD_MAX_SESSIONS_PER_TENANT`.
+
+So the response carries two host-wide numerators for the other pair, taken from the
+unfiltered list before the filter narrows it:
+
+- `host_session_count` — the resident sandboxes the service marks
+  `state == "running"`, against `limit`;
+- `host_open_count` — every session that exists, resident or hibernated, against
+  `open_limit`.
+
+Now the capacity card can say why a session was refused while this organization is
+short of its own ceiling: the host itself is full of somebody else's work.
+
+That the two are host-wide is a deliberate, narrow disclosure — two aggregate
+integers naming nothing, a long way from the session rows the filter withholds — and
 the listing is gated on `connections:view`, the authority to watch a host rather than
-any member's. They are `None` on a Daytona connection, which enforces no ceilings of
-ours to divide.
+any member's.
+
+They are `None` on a Daytona connection, which enforces no ceilings of ours to
+divide.
 
 That listing is **filtered, not forwarded**. One `sandboxd` answers for every
 organization that registered a connection at its address, so passing its response
@@ -677,15 +715,18 @@ header — which is the one a fetch wrapper or a CDN actually backs off on. The
 socket handshake is the exception, because a WebSocket has no status to answer
 with: it closes with `4029` (see [channels](channels.md#the-raw-websocket)).
 
-**Two counters, not one, and the reason is arithmetic.** Loading a page with a
-widget on it costs three requests to this API: the script, the config, and the
-socket. Counted together, `20` bought about seven page loads for a cold browser
-rather than twenty admissions, and a limit wrong by a factor of three is worse
-than no limit because it reads as the number you set. So `widget.js` has its own
-bucket — it is cacheable, and a refusal there breaks the widget outright instead
-of delaying one message. The config and the handshake stay together, because
-together they *are* one admission: a browser that read a config and opened no
-socket did not get in.
+**Two counters, not one, and the reason is arithmetic.**
+
+Loading a page with a widget on it costs three requests to this API: the script, the
+config, and the socket. Counted together, `20` bought about seven page loads for a
+cold browser rather than twenty admissions — and a limit wrong by a factor of three
+is worse than no limit, because it reads as the number you set.
+
+So `widget.js` has its own bucket. It is cacheable, and a refusal there breaks the
+widget outright instead of delaying one message.
+
+The config and the handshake stay together, because together they *are* one
+admission: a browser that read a config and opened no socket did not get in.
 
 The counts live in the deployment's Redis, so they hold across workers —
 production runs four, and a count kept per process would let through four times
@@ -721,13 +762,16 @@ different attacks: the IP bounds a flood from one source, the address bounds a
 brute force against one account.
 
 It is separate from, and lower than, the run allowance because the cost of a
-single attempt is what it defends. `verify_password` is bcrypt, ~170ms with no
-suspension point, so an unmetered `/login` flood for any address that has an
-account saturates a worker's event loop with no credentials at all. Two more
-things close the rest of that surface, and need no configuration: bcrypt runs in
-a thread so it never blocks the loop, and an address with no account is verified
-against a dummy hash rather than skipped, so a known and an unknown address take
-the same time to refuse and the timing no longer says which addresses exist.
+**single attempt** is what it defends. `verify_password` is bcrypt, ~170ms with no
+suspension point, so an unmetered `/login` flood for any address that has an account
+saturates a worker's event loop with no credentials at all.
+
+Two more things close the rest of that surface, and need no configuration:
+
+- bcrypt runs in a thread, so it never blocks the loop;
+- an address with **no** account is verified against a dummy hash rather than
+  skipped, so a known and an unknown address take the same time to refuse and the
+  timing no longer says which addresses exist.
 
 ### `RATE_LIMIT_TRUST_FORWARDED_FOR`, and why it is off
 
@@ -737,16 +781,21 @@ a busy site behind Cloudflare exhausts the widget's twenty admissions a minute
 for everybody at once. Turning this on reads the **rightmost** `X-Forwarded-For`
 hop instead — the address the trusted proxy itself appended.
 
-It is off by default because the header is set by whoever is calling: trusted
-unconditionally, a per-address limit becomes a per-header limit that anybody
-bypasses by varying one string. The rightmost hop is read rather than the
-leftmost for the same reason — `X-Forwarded-For` is a list the client starts and
-each proxy appends to, so the head is what the client typed and only the tail is
-what a proxy you control wrote. **Turn it on only when a single proxy you control
-is the only thing that can reach the API** — if the container's port is published
-as well, a caller can set the header themselves and the limit stops meaning
-anything; and with two proxies in front, collapse the header to one hop at your
-edge, because only the last hop is trustworthy.
+It is off by default because the header is set by whoever is calling. Trusted
+unconditionally, a per-address limit becomes a per-header limit that anybody bypasses
+by varying one string.
+
+The **rightmost** hop is read rather than the leftmost for the same reason:
+`X-Forwarded-For` is a list the client starts and each proxy appends to, so the head
+is what the client typed and only the tail is what a proxy you control wrote.
+
+!!! danger "Turn it on only when a single proxy you control is the only thing that can reach the API"
+
+    If the container's port is published as well, a caller can set the header
+    themselves and the limit stops meaning anything.
+
+    With two proxies in front, collapse the header to one hop at your edge — only
+    the last hop is trustworthy.
 
 ## A worker whose event loop has stopped turning
 

@@ -451,43 +451,60 @@ fixture from `tests/integration/conftest.py` rather than building an engine of i
 own — that fixture is what puts the schema in place.
 
 **The schema is built once for the whole process, and the data reset between tests.**
-The `schema_url` fixture runs `create_all` a single time; the function-scoped `engine`
-fixture then hands each test an empty database by `TRUNCATE`-ing every model table
-(and dropping any table a test created outside the models — a runtime
-`rag_<collection>`, an ordering probe) rather than rebuilding the schema. It used to
-`drop_all` + `create_all` before *every* test, ~0.4s of DDL that was very nearly the
-entire runtime of a suite whose assertions are microseconds of Postgres work; building
-it once cut `tests/integration` from ~125s to ~50s
-([#215](https://github.com/vstorm-co/agenticos/issues/215)). `TRUNCATE` rather than a
-transaction rollback because the API-flow tests commit through the real
-`get_db_session`, so their rows outlive a rollback.
+
+The `schema_url` fixture runs `create_all` a single time. The function-scoped
+`engine` fixture then hands each test an empty database by `TRUNCATE`-ing every model
+table — and dropping any table a test created outside the models, a runtime
+`rag_<collection>` or an ordering probe — rather than rebuilding the schema.
+
+It used to `drop_all` + `create_all` before *every* test: ~0.4s of DDL that was very
+nearly the entire runtime of a suite whose assertions are microseconds of Postgres
+work. Building it once cut `tests/integration` from ~125s to ~50s
+([#215](https://github.com/vstorm-co/agenticos/issues/215)).
+
+`TRUNCATE` rather than a transaction rollback, because the API-flow tests commit
+through the real `get_db_session` and their rows outlive a rollback.
 
 **The database it uses belongs to the pytest process that asked for it**:
 `<POSTGRES_DB>_p<pid>`, created when the session starts and dropped when it ends,
-failure included. That is what makes two runs at once safe — two worktrees, or a
-worktree and a `make test`, against the one Postgres container — and it needs nothing
-passed on the command line. The name was constant until [#189](https://github.com/vstorm-co/agenticos/issues/189),
-and because each test dropped and recreated the schema on that shared database, two
-runs spent their time dropping each other's tables and reporting failures that belonged
-to neither branch. The suite still refuses any database whose name does not contain
-`test` or `ci`: it drops tables unconditionally, so the guard is the only thing between
-it and a development database.
+failure included.
+
+That is what makes two runs at once safe — two worktrees, or a worktree and a
+`make test`, against the one Postgres container — and it needs nothing passed on the
+command line.
+
+The name was constant until
+[#189](https://github.com/vstorm-co/agenticos/issues/189). Because each test dropped
+and recreated the schema on that shared database, two runs spent their time dropping
+each other's tables and reporting failures that belonged to neither branch.
+
+!!! danger "The suite refuses any database whose name does not contain `test` or `ci`"
+
+    It drops tables unconditionally, so that guard is the only thing between it and a
+    development database.
 
 **The credential is resolved once, in `tests/conftest.py`, and everything reads it
-back off the settings object.** Two engines reach that database — the fixture's, and
-the application's, built at import time in `app/db/session.py` — and a test asking
-whether a write is visible needs both. They used to resolve the password separately,
-the fixture defaulting to `postgres` where `app/core/config.py` defaults to empty, and
-nothing could see it while every test connected through the fixture. The first one to
-drive the application's engine failed to authenticate on a checkout with no
-`backend/.env` — which is **every git worktree**, the file being untracked — two
-failures against a full green everywhere else, reading exactly like a branch
-regression ([#485](https://github.com/vstorm-co/agenticos/issues/485)). The suite now
-seeds `POSTGRES_PASSWORD=postgres` before the settings object is built, and only when
-neither the environment nor a `.env` supplies one, so a real password is never
-replaced by the default. `app/core/config.py` still defaults it to empty, which is
-what makes a missing `.env` announce itself in `alembic check` rather than reaching a
-database with a guess.
+back off the settings object.**
+
+Two engines reach that database — the fixture's, and the application's, built at
+import time in `app/db/session.py` — and a test asking whether a write is visible
+needs both.
+
+They used to resolve the password separately, the fixture defaulting to `postgres`
+where `app/core/config.py` defaults to empty, and nothing could see it while every
+test connected through the fixture.
+
+The first test to drive the application's engine failed to authenticate on a checkout
+with no `backend/.env` — which is **every git worktree**, the file being untracked.
+Two failures against a full green everywhere else, reading exactly like a branch
+regression ([#485](https://github.com/vstorm-co/agenticos/issues/485)).
+
+The suite now seeds `POSTGRES_PASSWORD=postgres` before the settings object is built,
+and only when neither the environment nor a `.env` supplies one, so a real password
+is never replaced by the default.
+
+`app/core/config.py` still defaults it to empty, which is what makes a missing `.env`
+announce itself in `alembic check` rather than reaching a database with a guess.
 
 ### The migration suite has a third one
 
@@ -526,13 +543,17 @@ URL, so what a laptop ran was never what CI ran
 
 `tests/conftest.py` therefore assigns `PREFECT_API_URL` **empty** before Prefect is
 imported, next to the database name and password above and for the same reason.
+
 Deleting the variable would not do: an unset variable leaves the dotenv source to
-answer, and the dotenv source is what holds the URL. An empty assignment outranks it
-because Prefect's settings model carries `env_ignore_empty=False` — which is Prefect's
-rule and not ours, `app/core/config.py` setting it the other way, so the same line
-against one of our own settings would be discarded and the `.env` would answer anyway.
+answer, and the dotenv source is what holds the URL.
+
+An empty assignment outranks it because Prefect's settings model carries
+`env_ignore_empty=False` — which is Prefect's rule and not ours. `app/core/config.py`
+sets it the other way, so the same line against one of *our* settings would be
+discarded and the `.env` would answer anyway.
+
 Prefect reads an empty URL as no URL and starts a temporary server of its own for the
-call — which is what CI has always done — so the run no longer depends on whether a
+call, which is what CI has always done. So the run no longer depends on whether a
 Prefect server happens to be up, in either direction.
 
 **That server's state is a SQLite database under `PREFECT_HOME`, and the suite gives it

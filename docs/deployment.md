@@ -140,18 +140,24 @@ token back out of that `returnTo` so "create an account" points at
 `/register?invitation=<token>`. Before that, the only route onward was a plain link
 to `/register`, and the form then refused somebody holding a valid invitation.
 
-**A link with a `max_uses` bounds accounts, not only joins.** `used_count` counts
-acceptances and acceptance needs a session, so a ceiling read off it alone bounded
-nothing a registration did: one one-use link posted in a channel admitted as many
-accounts as anybody cared to create, on the deployment that had just closed sign-up.
-So a use is **reserved** for the registering address first — `reserved_emails` on the
+**A link with a `max_uses` bounds accounts, not only joins.**
+
+`used_count` counts acceptances, and acceptance needs a session — so a ceiling read
+off it alone bounded nothing a registration did. One one-use link posted in a channel
+admitted as many accounts as anybody cared to create, on the deployment that had just
+closed sign-up.
+
+So a use is **reserved** for the registering address first: `reserved_emails` on the
 row, and `used_count + reserved_emails` is what "used up" means. The reservation is a
 single conditional `UPDATE`, because two registrations racing on the last use would
-both read the same count otherwise. Accepting moves the address out of the list as it
-increments the count, which conserves it: somebody who registered through a one-use
-link can still join. A reservation nobody accepts stays spent — `max_uses` is how
-many people a link admits, and an account created with it was admitted — and it dies
-with the invitation.
+both read the same count otherwise.
+
+Accepting moves the address out of the list as it increments the count, which
+conserves it — somebody who registered through a one-use link can still join.
+
+A reservation nobody accepts stays spent (`max_uses` is how many people a link
+admits, and an account created with it was admitted), and it dies with the
+invitation.
 
 **Signing in with a provider carries the invitation too.** The token is put on
 `/oauth/google/login?invitation=…` and held in the session across the round trip,
@@ -229,16 +235,19 @@ keeps the audit trail readable. Recovery, if it is ever needed, is still
 `create-app-admin` from a shell on the deployment.
 
 That argument is about the *set*, and for a while the code was about one row.
-Two admins deleting each other were each not deleting themselves, locked
+
+Two admins deleting each other were each not deleting themselves. They locked
 different target rows, never contended, and both committed — zero app admins,
-recoverable only by writing to the database (#1208). So an admin deletion takes
-`SELECT ... FOR UPDATE` over the app-admin set, ordered by id, before it decides:
-the second request waits, re-reads the set once the first has committed, and is
-refused for emptying it. Ordered because two requests taking the same rows in
-different orders is a deadlock rather than a queue, and taken on every admin
-deletion rather than only on an admin's — deleting a user is an administrator's
-action, not a hot path, and a total order is worth more than the contention it
-costs.
+recoverable only by writing to the database (#1208).
+
+So an admin deletion takes `SELECT ... FOR UPDATE` over the app-admin set, ordered by
+id, before it decides. The second request waits, re-reads the set once the first has
+committed, and is refused for emptying it.
+
+Ordered, because two requests taking the same rows in different orders is a deadlock
+rather than a queue. And taken on every admin deletion rather than only on an
+admin's: deleting a user is an administrator's action, not a hot path, and a total
+order is worth more than the contention it costs.
 
 ## Notices, and closing the deployment
 

@@ -317,18 +317,22 @@ also excludes personal rows (the caller's by construction) and app-scope rows
 
     `tests/api/test_platform_routes.py` enforces both halves.
 
-There is a third placement, for a route whose *parameter* decides the question.
-`GET /stats/usage` and `GET /ratings/summary` serve two askers behind one path:
-`scope=org` reads everybody's rows and demands `runs:view`, while `scope=own`
-reads only the caller's own and demands nothing beyond a signed-in membership. A
-route-level `require(runs:view)` would refuse a member's `scope=own` before the
-parameter was ever read, so the route carries no gate and `StatsService` makes
-the decision - the same principle as per-resource routes (the layer that can
-see the deciding fact decides), where the fact is the scope parameter rather
-than a grant on a row. The route sweep recognizes such a service the same way
-it recognizes the grant-aware ones, and
-`tests/api/test_platform_routes.py::TestStatsScopeIsDecidedInTheService` proves
-the refusals.
+There is a third placement, for a route whose **parameter** decides the question.
+
+`GET /stats/usage` and `GET /ratings/summary` serve two askers behind one path.
+`scope=org` reads everybody's rows and demands `runs:view`; `scope=own` reads only
+the caller's own and demands nothing beyond a signed-in membership.
+
+A route-level `require(runs:view)` would refuse a member's `scope=own` before the
+parameter was ever read. So the route carries no gate and `StatsService` makes the
+decision — the same principle as per-resource routes, that the layer which can see
+the deciding fact decides, where the fact is the scope parameter rather than a grant
+on a row.
+
+The route sweep recognizes such a service the same way it recognizes the grant-aware
+ones, and
+`tests/api/test_platform_routes.py::TestStatsScopeIsDecidedInTheService` proves the
+refusals.
 
 !!! warning "`?group_by=user` answers with names, emails and what each person's runs cost"
 
