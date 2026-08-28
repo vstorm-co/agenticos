@@ -351,7 +351,7 @@ def _documented_rows() -> dict[str, dict[str, str]]:
 
 
 def _providers_documented_as_not_api_key() -> set[str]:
-    """The ids under "Credential is not an API key".
+    """The ids under "When the credential is not an API key".
 
     Which of the three tables a provider sits in is itself a claim about its
     credential shape - the heading says so - and it is the only claim those
@@ -360,7 +360,7 @@ def _providers_documented_as_not_api_key() -> set[str]:
     the guard entirely (#1252).
     """
     page = (Path(__file__).resolve().parents[2] / "docs" / "models.md").read_text()
-    section = page.split("### Credential is not an API key", 1)
+    section = page.split("### When the credential is not an API key", 1)
     if len(section) == 1:
         return set()
     ids: set[str] = set()
@@ -478,8 +478,8 @@ class TestOneAnswerPerQuestion:
         assert len(four_column) + len(three_column) == len(_documented_ids())
 
     def test_which_table_a_provider_is_in_matches_its_credential(self):
-        """The heading is the claim: a provider under "Credential is not an API
-        key" must not take one, and one in the other two must. Moving a row
+        """The heading is the claim: a provider under "When the credential is not
+        an API key" must not take one, and one in the other two must. Moving a row
         between tables without changing `secret_kind` - or the reverse - is the
         drift this catches."""
         misfiled = [
