@@ -652,6 +652,48 @@ class TestAPlanThatOutlivesTheTurn:
         ]
 
     @pytest.mark.anyio
+    async def test_a_fresh_turn_does_not_seed_a_finished_one(self):
+        """The other half of #1077, filed as #1221: `keep_plan` stores completed
+        steps too, so a thread whose plan was finished in August opened in
+        November with the tail reminder calling it "your current plan"."""
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Support", model_profile_id=uuid.uuid4())
+        conversation = MagicMock(
+            overhead_tokens=None,
+            reminder_state=None,
+            plan_items=[
+                {"id": "aa11", "content": "Write the fix", "status": "completed"},
+                {"id": "bb22", "content": "Ship it", "status": "cancelled"},
+            ],
+        )
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.conversation_repo.get_conversation_by_id",
+                new=AsyncMock(return_value=conversation),
+            ),
+            patch("app.services.agent_runner.build_agent"),
+        ):
+            prepared = await service.prepare(ctx, agent.id, conversation_id=uuid.uuid4())
+
+        assert await prepared.plan_store.get_items() == []
+
+    @pytest.mark.anyio
     async def test_a_resume_starts_from_the_plan_the_run_parked_with(self):
         """Both copies exist on a resume, and the park's is the newer one: it was
         seeded from the conversation when that run began and then worked on."""
@@ -1729,6 +1771,59 @@ class TestParking:
         kept = conversations.return_value.keep_plan
         assert kept.await_args.args[0] == prepared.run.conversation_id
         assert [item["content"] for item in kept.await_args.args[1]] == ["Write the fix"]
+
+    @pytest.mark.anyio
+    async def test_a_turn_that_was_not_seeded_a_finished_plan_does_not_delete_it(self):
+        """A finished checklist is not seeded, so the store is empty - and writing
+        an empty store back would delete the row #1221 promises to keep, on the
+        very next ordinary turn."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        prepared.finished_plan_withheld = True
+        result = MagicMock(output="done")
+        result.all_messages = MagicMock(return_value=[])
+        result.new_messages = MagicMock(return_value=[])
+        prepared.built.agent.run = AsyncMock(return_value=result)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.transcript, "record", new=AsyncMock()),
+            patch("app.services.agent_runner.ConversationService") as conversations,
+        ):
+            conversations.return_value.keep_overhead = AsyncMock()
+            conversations.return_value.keep_reminder_state = AsyncMock()
+            conversations.return_value.keep_plan = AsyncMock()
+            await service.execute(_ctx(), uuid.uuid4(), "something else entirely")
+
+        conversations.return_value.keep_plan.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_new_plan_written_over_a_withheld_one_still_replaces_the_row(self):
+        """The withholding is only about an empty store. An agent that starts new
+        work writes a plan, and that is what the conversation should hold."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        prepared.finished_plan_withheld = True
+        await prepared.plan_store.set_items([PlanItem(content="Write the next fix")])
+        result = MagicMock(output="done")
+        result.all_messages = MagicMock(return_value=[])
+        result.new_messages = MagicMock(return_value=[])
+        prepared.built.agent.run = AsyncMock(return_value=result)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.transcript, "record", new=AsyncMock()),
+            patch("app.services.agent_runner.ConversationService") as conversations,
+        ):
+            conversations.return_value.keep_overhead = AsyncMock()
+            conversations.return_value.keep_reminder_state = AsyncMock()
+            conversations.return_value.keep_plan = AsyncMock()
+            await service.execute(_ctx(), uuid.uuid4(), "start the next thing")
+
+        kept = conversations.return_value.keep_plan
+        assert [item["content"] for item in kept.await_args.args[1]] == ["Write the next fix"]
 
     @pytest.mark.anyio
     async def test_a_parked_runs_transcript_marks_the_call_that_is_waiting(self):
