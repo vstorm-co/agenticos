@@ -1833,6 +1833,7 @@
     "fileCount": "{count, plural, =0 {Brak plików} one {1 plik} few {# pliki} many {# plików} other {# pliku}}",
     "fileRemoved": "Plik usunięty",
     "fileSaved": "Plik zapisany",
+    "fileTree": "Pliki skilla",
     "files": "Pliki",
     "files2": "Pliki",
     "files3": "Pliki",
