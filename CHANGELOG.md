@@ -17,6 +17,33 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.323] - 2026-08-28
+
+### Fixed
+
+- **`is_favourite` was false on six conversation responses out of eight.** Only
+  `list_conversations` and `set_favourite` passed rows through `_attach_favourites`,
+  so `GET /conversations/{id}`, the PATCH, the archive response and
+  `/shared-with-me` serialized ORM objects that never carried the flag - the schema
+  default answered `false` to a caller who really had starred the thread, and the
+  sidebar un-starred it on the next render. It is stamped in `get_conversation`
+  instead, the one read every reader-scoped route goes through, so a route cannot
+  forget; `list_shared_with_me` has its own repository call and its own stamp. A read
+  with no reader - the admin listing, the run path resolving a thread - still asks for
+  nobody's stars and pays no query to say so. (#1254)
+- **Starring the same thread twice at once raised.** `set_favourite` read the row and
+  inserted when it saw none, so two overlapping POSTs both saw nothing and the second
+  `flush()` violated the primary key: a 500 on an endpoint that promises idempotent
+  success, and a retried request did it too. Now `INSERT ... ON CONFLICT DO NOTHING`,
+  the shape `channel_identity_repo.get_or_create` already uses (#17), and the unstar
+  is an unconditional `DELETE`. (#1254)
+- **A double click could leave a thread starred with nothing on screen saying so.**
+  The POST and the DELETE were separate requests with nothing making the second wait,
+  so the DELETE could be answered first and the POST commit after it. One promise
+  chain per conversation now, so the requests land in click order; the optimistic
+  patch still happens at once, and a refusal rolls the row back only if its click is
+  still the newest. (#1254)
+
 ## [0.0.322] - 2026-08-28
 
 ### Added
