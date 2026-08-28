@@ -17,6 +17,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.318] - 2026-08-28
+
+### Fixed
+
+- **Two users who co-own each other's shared organizations could deadlock by
+  deleting their own accounts at the same moment.** `UserService.delete` took
+  `FOR UPDATE` on its own user row - the #1115 reconcile lock - and then, reassigning
+  a solely-created shared organization to an heir, took `FOR KEY SHARE` on the heir's
+  row through the foreign key. Each request held its own row and waited for the
+  other's, so Postgres broke the cycle by aborting one with `40P01`: a 500 rather
+  than a result. `UserService._lock_for_delete` now discovers the heirs a delete will
+  reassign to and locks every user row it needs - self and every heir - **in ascending
+  id order**, before the reconcile. Two concurrent self-deletes queue on the lower id,
+  so one completes and the other, now sole owner of its organization, gets the
+  existing clean domain refusal. (#1134)
+- The self `FOR UPDATE` still precedes the reconcile's authoritative reads and is held
+  through the `DELETE`, so #1115's guarantee is unchanged: a concurrent child insert
+  waits, and the reconcile sees every child. (#1134)
+
 ## [0.0.317] - 2026-08-28
 
 ### Fixed
