@@ -17,6 +17,29 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.317] - 2026-08-28
+
+### Fixed
+
+- **The email that says a run is parked now sends the reader to the queue.**
+  `approvals_url` was `{frontend}/agents/{agent.id}` - the Builder page, which holds
+  one sentence of prose about tool calls reaching a queue and no queue at all. So the
+  one alert whose whole purpose is *somebody has to decide, now* landed a search away
+  from the decision, behind a button reading "Review the request", while the run aged
+  towards `ApprovalService.expire_stale`. It addresses `/runs?tab=approvals` now -
+  Activity's Approvals tab, the only surface carrying Approve and Reject, and a
+  surface with no URL at all until #934. (#935)
+- It deliberately does **not** name the run with `?run=`, though the notification
+  holds it: the decide controls are on the queue *row*, and below `lg` a focused run
+  replaces the list - so naming the run would hide the buttons from the reader most
+  likely to be on a phone. Budget mail still opens the agent, which is correct: the
+  cap it reports is edited there. (#935)
+
+### Added
+
+- `docs/governance.md` gains **An alert links to where the decision is** - where
+  approvals mail points, why it does not name the run, and why budget mail differs.
+
 ## [0.0.316] - 2026-08-28
 
 ### Fixed
