@@ -17,6 +17,52 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.338] - 2026-08-28
+
+### Changed
+
+- **A presentation and correctness pass over every page of the site** - 25 concept and
+  reference pages, the 8 guides, the 3 reference stubs. The site was accurate and
+  almost unreadable: 27 pages of unbroken prose, one mermaid diagram between them, no
+  content tabs anywhere, ~20 pages with no callouts at all, and three flows drawn in
+  ASCII that only line up in a monospace font. The words are mostly unchanged; what
+  changes is what a reader sees before they start reading. **17 mermaid diagrams**
+  where prose or ASCII described a flow - the request path and the transaction's
+  ordering, both ingestion pipelines, the three permission layers, park -> decide ->
+  resume, the sandbox's three processes, envelope encryption, MCP's OAuth 2.1
+  handshake, a sync's six stages. **~130 callouts**, each promoting a rule the page
+  already stated and whose violation costs something: a 2xx means the write is
+  readable, a budget is checked before the request, an empty origin list allows
+  nothing, the sandbox token is root-equivalent. Content tabs where alternatives were
+  stacked vertically, and prose restructured where it was a table or a list in
+  disguise. (#784)
+
+### Fixed
+
+- **Four pages were teaching things that are not true here.** `patterns.md`'s three
+  worked examples had all drifted off the code - a DI example injecting
+  `Depends(get_db)` and `Depends(get_current_user)`, neither of which exists, where the
+  aliases do and `DBSession`'s `scope="function"` is load-bearing (#353); a repository
+  written as a `ConversationRepository` class, the one shape the architecture rule
+  rules out; and a service holding `self.repo`, which no service in the codebase does.
+  `howto/customize-agent-prompt.md` taught editing `app/agents/prompts.py` and
+  overriding `DEFAULT_SYSTEM_PROMPT`, with a `get_system_prompt_with_rag()` and an
+  `AI_TEMPERATURE` that do not exist - contradicting the sentence CLAUDE.md calls the
+  whole design; it is rewritten around the spec and `default_instructions.py`.
+  `howto/add-background-task.md` step 2 was `asyncio.create_task(...)`, which is
+  exactly the shape #417 was: the task starts before the request commits, so a flow
+  reading its own row finds nothing, and the exception is dropped too - now
+  `spawn_after_commit` / `spawn`. And `howto/add-api-endpoint.md` was a second,
+  already-diverging copy of `adding_features.md`'s walkthrough; it is the single copy
+  now, with `adding_features.md` pointing at it. (#784)
+- Smaller corrections: `configure-sync-sources.md` named `app/rag/connectors/` twice
+  for a package that is `app/services/rag/connectors/`, and had a sentence ending in a
+  colon with nothing after it; `ROADMAP.md` was dated 2026-07-27 and contradicted
+  itself about the 100% gate, with three items describing features that have shipped;
+  `index.md` promised "four nouns" where `concepts.md` has five; and a dead anchor in
+  `configuration.md`, which mkdocs reports at INFO so `--strict` never caught it.
+  (#784)
+
 ## [0.0.337] - 2026-08-28
 
 ### Added
