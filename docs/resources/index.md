@@ -34,7 +34,7 @@ contributors read.
 
 | Working on | Read |
 |---|---|
-| Anything at all, first | [Architecture](../architecture.md) — routes → services → repositories, and the request's transaction |
+| Anything at all, first | [Architecture](../architecture.md) · [The console's code](../frontend.md) — routes → services → repositories, and the request's transaction |
 | A shape you have seen before | [Patterns](../patterns.md) |
 | A feature, end to end | [Adding features](../adding_features.md) |
 | A test, or a red coverage gate | [Testing](../testing.md) |

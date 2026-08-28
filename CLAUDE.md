@@ -394,6 +394,8 @@ say so and move on. Run it yourself any time with
 | The console: dashboard widgets, chat, slash commands, the map | `docs/console.md` |
 | The sandbox: sessions, runtimes, isolation, lifetimes | `docs/sandbox.md` |
 | Routes → services → repositories | `docs/architecture.md` |
+| The Next.js console, for a contributor | `docs/frontend.md` |
+| Authenticating and calling the HTTP API | `docs/api.md` |
 | Adding a feature end to end | `docs/adding_features.md` |
 | Test layers and what belongs in each | `docs/testing.md` |
 | The automated pull request reviewer | `docs/code-review.md` |

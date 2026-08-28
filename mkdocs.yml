@@ -197,6 +197,7 @@ nav:
           - howto/configure-sync-sources.md
           - howto/use-ratings.md
   - Reference:
+      - api.md
       - configuration.md
       - commands.md
       - reference/spec.md
@@ -206,6 +207,7 @@ nav:
       - resources/index.md
       - Development - contributing:
           - architecture.md
+          - frontend.md
           - patterns.md
           - adding_features.md
           - testing.md

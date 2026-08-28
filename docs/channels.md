@@ -68,6 +68,13 @@ counted per address like the widget's.
 
 ---
 
+
+!!! tip "Integrating rather than configuring?"
+
+    [The HTTP API](api.md) covers authenticating, the organization header,
+    running an agent over HTTP, the two WebSocket endpoints and the error
+    envelope.
+
 ## The website widget
 
 The shortest path. Publish the agent, create an embed, paste two lines.
