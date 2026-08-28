@@ -17,6 +17,40 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.336] - 2026-08-28
+
+### Added
+
+- **An Owner column on the workspaces table.** It said who *else* could see a
+  workspace and never who it belongs to: `access_label` describes the **scope** -
+  "everybody who talks to this agent", "one person" - which is a different fact, and on
+  an agent-scoped workspace shared by six people it is not the one an operator is
+  asking. `owner_label` was already on the row and already rendered by the chat panel,
+  used here only as a fallback heading. Plain text and never a link, because
+  `owner_ref` is a string and a Slack-sourced workspace's owner is a platform id
+  rather than an account (#131), so a linked cell would be broken on half the rows.
+  Sortable, because grouping a deployment by holder is what somebody opens this to do.
+  (#137)
+
+### Changed
+
+- **One folder tree, not two.** `/skills` and `/workspaces/{id}` had written the same
+  tree twice - the same recursion, the same expand-collapse set keyed on a folder's
+  path, the same chevron and two folder icons, the same `role="tree"` with
+  `aria-expanded` - over two node shapes and **two polarities of open state**, one
+  holding what was collapsed and the other what was open. `PathTree` in
+  `components/files` is now the mechanics and the semantics: indentation by depth, the
+  roles, one selected file, the open set. What a row *says* stays with the caller,
+  because a skill's file is a name and a workspace's is a name, a size and a download -
+  which is why there are two render props: `renderFile` inside the button that opens
+  the file, so that is all a screen reader announces, and `renderFileMeta` beside it,
+  because the workspace's download must not need the file opened first and a button
+  inside a button is invalid. `workspace-explorer.tsx` is 110 lines lighter,
+  `skill-files.tsx` 80, against one 203-line component. One deliberate visual change: a
+  skill's *file* rows were indented twelve pixels further than its folders and the
+  workspace's were not, so the two trees disagreed about the same question. They indent
+  alike now. (#137)
+
 ## [0.0.335] - 2026-08-28
 
 ### Changed
