@@ -17,6 +17,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.316] - 2026-08-28
+
+### Fixed
+
+- **Which of Activity's three tabs is open is now in the address bar.** `Tabs` was
+  uncontrolled, so there was no URL for the approvals queue at all - which is why the
+  dashboard card's "See all" opened the run history, where nothing can be decided.
+  `?tab=approvals` and `?tab=spend` are written; `runs` is the default and, like every
+  other unset narrowing on this page, writes nothing. `parseRunsTab` joins
+  `parseRunFilters`, and `runsHref` takes a `tab`. (#934)
+- **A tab named by a link is resolved against what the reader may open.**
+  `approvals` is gated on `approvals:decide`, so a link carrying it that reaches
+  somebody without the permission opens the run history rather than a strip whose
+  selected value has no trigger and no content - a blank page under a live set of
+  tabs. An unrecognised name falls back the same way. (#934)
+- **A focused run is cleared when the tab changes**, and `?run=` goes with it. It
+  already was, incidentally and untested, since #537; left behind, a reload reopened
+  a detail panel on a tab that never had one - and below `lg` the panel *replaces*
+  the list, so the strip was live while every tab's content stayed hidden and
+  clicking Approvals appeared to do nothing. (#934)
+- The approvals widget's `seeAll` points at the queue rather than the history - the
+  same wrong destination as the parked-run email, enabled by the same missing
+  parameter. (#934)
+
 ## [0.0.315] - 2026-08-27
 
 ### Fixed
