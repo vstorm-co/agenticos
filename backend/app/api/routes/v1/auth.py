@@ -27,7 +27,7 @@ from app.schemas.password_reset import (
     PasswordResetRequest,
     PasswordResetResponse,
 )
-from app.schemas.token import RefreshTokenRequest, Token
+from app.schemas.token import MagicLinkToken, RefreshTokenRequest, Token
 from app.schemas.user import UserCreate, UserRead
 from app.services.email.service import get_email_service
 
@@ -174,7 +174,7 @@ async def request_magic_link(
     Symmetric response to request_password_reset to avoid email enumeration.
     """
     await enforce_auth_limit(request, surface="auth_magic_link", identifier=body.email)
-    issued = await user_service.issue_magic_link_token(body.email)
+    issued = await user_service.issue_magic_link_token(body.email, return_to=body.return_to)
     if issued is not None:
         link_user, token = issued
         try:
@@ -190,16 +190,21 @@ async def request_magic_link(
     return PasswordResetResponse(message="Check your email for a sign-in link.")
 
 
-@router.post("/magic-link/verify", response_model=Token)
+@router.post("/magic-link/verify", response_model=MagicLinkToken)
 async def verify_magic_link(
     request: Request,
     body: MagicLinkVerifyRequest,
     user_service: UserSvc,
     session_service: SessionSvc,
 ) -> Any:
-    """Exchange a magic-link token for an access + refresh token pair."""
+    """Exchange a magic-link token for an access + refresh token pair.
+
+    Answers with the return path the link was minted for, unapplied: the client
+    navigates, and `postSignInDestination` there is the one place that decides
+    whether a path is safe to honour - the same judgement for every door in.
+    """
     await enforce_auth_limit(request, surface="auth_magic_link_verify")
-    user = await user_service.consume_magic_link_token(body.token)
+    user, return_to = await user_service.consume_magic_link_token(body.token)
     access_token = create_access_token(subject=str(user.id))
     refresh_token = create_refresh_token(subject=str(user.id))
     await session_service.create_session(
@@ -208,4 +213,6 @@ async def verify_magic_link(
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("User-Agent"),
     )
-    return Token(access_token=access_token, refresh_token=refresh_token)
+    return MagicLinkToken(
+        access_token=access_token, refresh_token=refresh_token, return_to=return_to
+    )

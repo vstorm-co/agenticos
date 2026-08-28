@@ -97,6 +97,7 @@ from app.agents.capabilities.planning import (
     dump_plan,
     new_plan_store,
     open_plan_store,
+    still_open,
 )
 from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE, WorkspaceIdentity
 from app.agents.capabilities.sandbox._identity import SessionScope
@@ -955,6 +956,26 @@ class PreparedRun:
     rather than `None`; `_assemble` replaces it with the run's seeded one.
     """
 
+    finished_plan_withheld: bool = False
+    """Whether this run's store was opened empty over a *finished* stored plan.
+
+    A finished checklist is history and is not seeded (#1221), which leaves the
+    store empty - and `finish` writes the store back to the conversation, so the
+    next ordinary turn would dump `[]` over the row and delete the plan the fix
+    promises to keep. So the write is skipped while the store is still empty:
+    there is nothing this turn did to the checklist to record. An agent that
+    writes a new plan dumps a non-empty one and replaces the row as usual.
+
+    This tracks *what was seeded*, not whether the store was touched, and the
+    difference is one case: a turn that writes a plan and then empties it leaves
+    the withheld checklist in the row rather than clearing it. Nothing observes
+    that - `plan_items` has one reader, the seed, and the seed withholds a
+    finished plan either way - so the row differs only in holding a list nobody
+    will be seeded with. Tracking the store's dirtiness instead would need a
+    delegating `PlanStore`: `write_plan` goes through `set_items`, which the
+    library emits no event for.
+    """
+
     @property
     def deps(self) -> AgentDeps:
         return self.built.deps
@@ -1666,7 +1687,14 @@ class AgentRunnerService:
         # itself seeded from the conversation when that run began, and then worked
         # on. Without the conversation's copy the store is empty every turn, which
         # is an agent denying the plan it wrote in the previous message (#1077).
-        plan_store = await open_plan_store(plan_items if plan_items is not None else recorded.plan)
+        #
+        # `still_open` on the conversation's copy only: a finished checklist is
+        # history, and seeding it would have the tail reminder call a task nobody
+        # is doing "your current plan" (#1221). A resume is mid-plan by
+        # construction and goes through untouched.
+        seeded_from = plan_items if plan_items is not None else still_open(recorded.plan)
+        finished_plan_withheld = seeded_from is None and bool(recorded.plan)
+        plan_store = await open_plan_store(seeded_from)
         resources[PLANNING_STORE_RESOURCE] = plan_store
         # Only on a channel run, and bound to the channel the message arrived in
         # before it got here. Absent everywhere else, and `channel_tools` then
@@ -1888,6 +1916,7 @@ class AgentRunnerService:
             stash=stash,
             ctx=ctx,
             plan_store=plan_store,
+            finished_plan_withheld=finished_plan_withheld,
         )
 
     async def _delegation_runtime(
@@ -3548,13 +3577,17 @@ class AgentRunnerService:
                             prepared.built.reminder_state.snapshot(),
                         )
                     # The checklist the turn ended on, so the next turn starts
-                    # from it rather than from nothing. Unconditional: `keep_plan`
-                    # treats an empty list as no plan, so an agent that binds no
-                    # planning capability writes nothing, and a run that emptied a
-                    # stored plan records that it did.
-                    await conversations.keep_plan(
-                        prepared.run.conversation_id, await dump_plan(prepared.plan_store)
-                    )
+                    # from it rather than from nothing. `keep_plan` treats an empty
+                    # list as no plan, so an agent that binds no planning
+                    # capability writes nothing, and a run that emptied a stored
+                    # plan records that it did.
+                    #
+                    # The one turn that writes nothing is the one whose store was
+                    # opened empty over a finished plan: it did nothing to the
+                    # checklist, and `[]` would delete the row #1221 keeps.
+                    checklist = await dump_plan(prepared.plan_store)
+                    if checklist or not prepared.finished_plan_withheld:
+                        await conversations.keep_plan(prepared.run.conversation_id, checklist)
                 await self.db.commit()
             except Exception:
                 if finished_cleanly:

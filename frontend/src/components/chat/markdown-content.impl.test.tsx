@@ -130,6 +130,12 @@ describe("rendering an answer", () => {
     expect(short.container.querySelector("ol")).toHaveClass("pl-6");
     short.unmount();
 
+    // The two-digit band: covered here deterministically so it does not depend on
+    // some other suite happening to render a 10-99 item list (#1264).
+    const tens = markdown(Array.from({ length: 15 }, (_, i) => `${i + 1}. item`).join("\n"));
+    expect(tens.container.querySelector("ol")).toHaveClass("pl-8");
+    tens.unmount();
+
     const long = markdown(Array.from({ length: 120 }, (_, i) => `${i + 1}. item`).join("\n"));
     expect(long.container.querySelector("ol")).toHaveClass("pl-10");
     long.unmount();

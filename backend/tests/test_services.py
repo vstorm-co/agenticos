@@ -288,8 +288,10 @@ class TestUserServicePostgresql:
         """Test deleting user."""
         with (
             patch("app.services.user.user_repo") as mock_repo,
+            patch("app.services.user.organization_repo") as mock_org_repo,
             patch.object(user_service, "_release_owned_rows", new=AsyncMock()),
         ):
+            mock_org_repo.list_created_by = AsyncMock(return_value=[])
             mock_repo.get_by_id_for_update = AsyncMock(return_value=mock_user)
             mock_repo.delete = AsyncMock(return_value=mock_user)
 
@@ -300,7 +302,11 @@ class TestUserServicePostgresql:
     @pytest.mark.anyio
     async def test_delete_not_found(self, user_service: UserService):
         """A missing user is refused up front, before any teardown is attempted."""
-        with patch("app.services.user.user_repo") as mock_repo:
+        with (
+            patch("app.services.user.user_repo") as mock_repo,
+            patch("app.services.user.organization_repo") as mock_org_repo,
+        ):
+            mock_org_repo.list_created_by = AsyncMock(return_value=[])
             mock_repo.get_by_id_for_update = AsyncMock(return_value=None)
 
             with pytest.raises(NotFoundError):
@@ -385,11 +391,55 @@ class TestUserServicePostgresql:
     ):
         with (
             patch("app.services.user.user_repo") as mock_repo,
+            patch("app.services.user.organization_repo") as mock_org_repo,
             patch.object(user_service, "_release_owned_rows", new=AsyncMock()),
         ):
+            mock_org_repo.list_created_by = AsyncMock(return_value=[])
             mock_repo.get_by_id_for_update = AsyncMock(return_value=mock_user)
+            mock_repo.app_admin_ids_for_update = AsyncMock(return_value=[uuid4(), uuid4()])
             mock_repo.delete = AsyncMock(return_value=mock_user)
 
             await user_service.admin_delete(mock_user.id, acting_admin_id=uuid4())
+
+            mock_repo.delete.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_the_last_app_admin_cannot_be_deleted_by_another_one(
+        self, user_service: UserService, mock_user: MockUser
+    ):
+        """The not-self check states a lockout invariant and only held for one
+        request at a time: A and B deleting each other both passed it, locked
+        different rows and both committed (#1208). The check is on the set now, so
+        whichever request re-reads it after the other commits is refused."""
+        with (
+            patch("app.services.user.user_repo") as mock_repo,
+            patch.object(user_service, "_release_owned_rows", new=AsyncMock()),
+        ):
+            mock_repo.app_admin_ids_for_update = AsyncMock(return_value=[mock_user.id])
+            mock_repo.delete = AsyncMock()
+
+            with pytest.raises(AuthorizationError):
+                await user_service.admin_delete(mock_user.id, acting_admin_id=uuid4())
+
+            mock_repo.delete.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_an_ordinary_user_is_deletable_when_one_admin_is_left(
+        self, user_service: UserService, mock_user: MockUser
+    ):
+        """The refusal is about the *set*, not about how small it is: a lone
+        administrator deleting somebody else is the ordinary case."""
+        lone_admin = uuid4()
+        with (
+            patch("app.services.user.user_repo") as mock_repo,
+            patch("app.services.user.organization_repo") as mock_org_repo,
+            patch.object(user_service, "_release_owned_rows", new=AsyncMock()),
+        ):
+            mock_org_repo.list_created_by = AsyncMock(return_value=[])
+            mock_repo.get_by_id_for_update = AsyncMock(return_value=mock_user)
+            mock_repo.app_admin_ids_for_update = AsyncMock(return_value=[lone_admin])
+            mock_repo.delete = AsyncMock(return_value=mock_user)
+
+            await user_service.admin_delete(mock_user.id, acting_admin_id=lone_admin)
 
             mock_repo.delete.assert_awaited_once()

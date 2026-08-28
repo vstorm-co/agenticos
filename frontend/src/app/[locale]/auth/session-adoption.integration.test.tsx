@@ -174,6 +174,47 @@ describe("the magic link", () => {
     expect(client.getQueryData(["sessions", "list", 0])).toBeUndefined();
     expect(useConversationStore.getState().currentConversationId).toBeNull();
   });
+
+  it("lands where the link was minted for", async () => {
+    // The path travels in the token, which is why this page reads it off the
+    // verify response rather than out of `sessionStorage`: a magic link is
+    // followed from an email, in another tab and often another application,
+    // where the store the OAuth round trip uses is empty (#1214).
+    searchParams.set("token", "m-1");
+    vi.mocked(apiClient.post).mockResolvedValue({
+      access_token: "t-new",
+      return_to: "/agents/a-1",
+    });
+    vi.mocked(apiClient.get).mockResolvedValue(arriving);
+    mountOver(<MagicLinkPage />);
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/agents/a-1"));
+  });
+
+  it("lands on the dashboard when the link named nowhere", async () => {
+    searchParams.set("token", "m-1");
+    vi.mocked(apiClient.post).mockResolvedValue({ access_token: "t-new", return_to: null });
+    vi.mocked(apiClient.get).mockResolvedValue(arriving);
+    mountOver(<MagicLinkPage />);
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
+  });
+
+  it("refuses a path the token should never have carried", async () => {
+    // Belt and braces: the request refuses these before signing one, so this is
+    // about the landing making its own judgement rather than trusting the
+    // token - the same `postSignInDestination` every other door resolves
+    // through.
+    searchParams.set("token", "m-1");
+    vi.mocked(apiClient.post).mockResolvedValue({
+      access_token: "t-new",
+      return_to: "https://evil.example",
+    });
+    vi.mocked(apiClient.get).mockResolvedValue(arriving);
+    mountOver(<MagicLinkPage />);
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
+  });
 });
 
 describe("the dashboard guard", () => {

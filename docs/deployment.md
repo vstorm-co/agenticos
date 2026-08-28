@@ -210,6 +210,18 @@ Removing an admin genuinely leaving is another admin's action, which is also wha
 keeps the audit trail readable. Recovery, if it is ever needed, is still
 `create-app-admin` from a shell on the deployment.
 
+That argument is about the *set*, and for a while the code was about one row.
+Two admins deleting each other were each not deleting themselves, locked
+different target rows, never contended, and both committed — zero app admins,
+recoverable only by writing to the database (#1208). So an admin deletion takes
+`SELECT ... FOR UPDATE` over the app-admin set, ordered by id, before it decides:
+the second request waits, re-reads the set once the first has committed, and is
+refused for emptying it. Ordered because two requests taking the same rows in
+different orders is a deadlock rather than a queue, and taken on every admin
+deletion rather than only on an admin's — deleting a user is an administrator's
+action, not a hot path, and a total order is worth more than the contention it
+costs.
+
 ## Notices, and closing the deployment
 
 **The announcement** is one sentence with one of three styles, shown above every

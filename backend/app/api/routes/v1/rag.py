@@ -345,6 +345,10 @@ async def ingest_file(
         vector_store=vector_store,
         override=parse_override(ingestion),
         organization_id=ctx.organization_id,
+        # Link the document to the KB whose collection this is, the same way the
+        # per-KB upload route does. Without it these rows carry no KB id, so a KB
+        # delete keyed on it cannot reach them and leaves them orphaned (#1266).
+        knowledge_base_id=collection.id,
     )
 
 
