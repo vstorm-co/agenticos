@@ -867,3 +867,15 @@ secret that authenticates it, and declares a `CONFIG_SCHEMA` of
 `ConnectorConfigField`s saying how to find the documents. `download_file()` is
 concrete and decides where a file may land. See `docs/patterns.md` for how to
 add one, and `docs/howto/add-sync-connector.md` for a worked example.
+
+## Recap
+
+- **Routes → services → repositories.** A route never imports a repository.
+- A repository uses `db.flush()` and `db.refresh()`, **never** `db.commit()`. The
+  request's session commits once, before the response is written.
+- The agent run path is the one sanctioned exception: it commits before the model
+  call and again in the terminal `finally`.
+- Background work that reads a row this request wrote is handed over with
+  **`spawn_after_commit`**, never `spawn`.
+- A thin domain is a module; a thick one is a subpackage with a facade, and nothing
+  outside it imports its sub-modules.

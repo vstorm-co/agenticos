@@ -1,5 +1,8 @@
 # Code patterns
 
+The shapes that repeat in this codebase. If a change you are writing does not look
+like one of them, that is worth a second look before it is worth a new pattern.
+
 ## Dependency injection
 
 Everything a route needs arrives as an `Annotated` alias from `app/api/deps.py` -

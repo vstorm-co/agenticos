@@ -1,5 +1,11 @@
 # Testing
 
+Four layers, one runner, and a coverage gate that fails the build below 100% on the
+platform layer.
+
+The short version of what to run: the tests that cover the change while you are
+writing, and the suites once before you push.
+
 ## Running tests
 
 !!! tip "While writing, run what covers the change; the suite is the pre-push gate"
@@ -572,3 +578,14 @@ been red on the default. What the raised allowance buys is that the one step who
 nothing here bounds — a migration on a contended machine, or a temporary directory that
 has been swept — waits rather than failing a suite that a second run would pass.
 `tests/test_prefect_test_environment.py` pins all four properties.
+
+## Recap
+
+- **Four layers**: unit, integration, API, E2E. Pick by what the test needs to be
+  true, not by what it is about.
+- Async tests use **anyio**. `@pytest.mark.asyncio` does nothing here.
+- **Cover the refusal.** Most of this platform's value is in what it refuses.
+- The platform layer is at **100%**, and adding a module to it means editing two
+  lists in `backend/pyproject.toml`.
+- The order is shuffled every run; replay a failure with its printed seed before
+  concluding anything about the change.

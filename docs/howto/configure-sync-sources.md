@@ -329,7 +329,7 @@ curl http://localhost:8000/api/v1/rag/sync/logs?collection_name=legal&limit=5 \
 ## Adding custom connectors
 
 To add a new connector type (e.g. Notion, Confluence, Dropbox), see
-[How to: Add a New Sync Connector](./add-sync-connector.md).
+[Add a sync connector](./add-sync-connector.md).
 
 The short version:
 

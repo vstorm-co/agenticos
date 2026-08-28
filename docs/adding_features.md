@@ -1,10 +1,14 @@
 # Adding a feature
 
+Four shapes of change, and each one has a worked example somewhere else. This page
+is the map: what a change of that shape has to touch, and where the long version
+lives.
+
 ## Adding a new API endpoint
 
 !!! abstract "One walkthrough, in the Guides"
 
-    [How to: Add a New API Endpoint](howto/add-api-endpoint.md) is the worked
+    [Add an API endpoint](howto/add-api-endpoint.md) is the worked
     example — schema, model, repository, service, dependency, route, router,
     migration, tests. There is deliberately no second copy of it here: two
     copies written for the same reader are two copies that disagree.

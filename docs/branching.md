@@ -290,3 +290,13 @@ switch is off, for a whole language, which is not a trade worth making —
 so [code-review.md](code-review.md#codeql-and-the-findings-that-block-a-merge)
 lists the findings already adjudicated instead, and resolving one of those costs a
 click rather than an essay.
+
+## Recap
+
+- **One long-lived branch.** Branch, pull request, squash on merge.
+- A push cancels the run in flight, so pushing again is also a decision to stop
+  caring about the previous answer.
+- CI runs **fewer jobs than `make check`** — a skipped required check is a pass, not
+  a problem.
+- `main` is exempt from cancellation, and the way it is exempt is a concurrency
+  group carrying `github.run_id` — unique per run, so no `main` run cancels another.
