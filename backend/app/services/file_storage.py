@@ -225,6 +225,17 @@ class LocalFileStorage(BaseFileStorage):
         return await run_blocking(file_path.read_bytes)
 
     async def delete(self, storage_path: str) -> None:
+        await run_blocking(self._delete_blocking, storage_path)
+
+    def _delete_blocking(self, storage_path: str) -> None:
+        """The blocking half of :meth:`delete`, run on the file pool.
+
+        `realpath`, `exists` and `unlink` are each blocking syscalls with no
+        yield point, so a bulk teardown that unlinked a whole collection ran
+        them all in one loop turn, stalling every other request on the worker
+        (#1294). Off the loop, the per-file await also lets the teardown loops
+        interleave.
+        """
         file_path = self._resolve_safe_path(storage_path)
         if file_path.exists():
             file_path.unlink()
