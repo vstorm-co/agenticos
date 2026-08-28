@@ -35,7 +35,6 @@ The other half of the point is **who writes them**. A skill is a row in the
 database, editable in the UI, so a support lead can fix the refund policy on a
 Tuesday afternoon. No deploy, no pull request, no engineer.
 
-
 !!! info "Skill, context file or knowledge collection?"
 
     A **skill** is a procedure the model loads when it decides the task has

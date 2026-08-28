@@ -171,6 +171,7 @@ nav:
           - install.md
           - first-agent.md
           - concepts.md
+          - console.md
       - Build the agent:
           - choosing-models.md
           - models.md
@@ -191,6 +192,7 @@ nav:
           - governance.md
           - secrets.md
       - How-to - recipes:
+          - howto/set-up-knowledge-base.md
           - howto/customize-agent-prompt.md
           - howto/configure-sync-sources.md
           - howto/use-ratings.md

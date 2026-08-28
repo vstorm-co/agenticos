@@ -391,6 +391,7 @@ say so and move on. Run it yourself any time with
 | Named environments, promotion, per-environment tracing | `docs/environments.md` |
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |
 | Upload, parsing, ingestion | `docs/file-processing.md` |
+| The console: dashboard widgets, chat, slash commands, the map | `docs/console.md` |
 | The sandbox: sessions, runtimes, isolation, lifetimes | `docs/sandbox.md` |
 | Routes → services → repositories | `docs/architecture.md` |
 | Adding a feature end to end | `docs/adding_features.md` |

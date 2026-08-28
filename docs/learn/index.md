@@ -32,6 +32,11 @@ You need a running stack and one agent that answers you. About twenty minutes.
     platform is one of those five nouns being taken for another — a *spec* for a
     *version*, an *exposure* for a *trigger*.
 
+!!! tip "Lost in the console?"
+
+    [The console](../console.md) is the map of every area — what each one is
+    for, and which page explains it.
+
 ## Build the agent
 
 Now make it good. Each page here is one thing you give the agent, and they are
