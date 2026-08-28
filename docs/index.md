@@ -131,38 +131,48 @@ Sign in with `admin@example.com` / `admin123`.
     uv run agenticos cmd doctor
     ```
 
-## What an agent looks like
+## What an agent is made of
 
-Not a class. A document — the one the UI edits, and the one that exports into
-your own git repository:
+Six decisions, and none of them is code. Somebody who knows what the agent
+should say makes all six in a browser; publishing freezes the combination as a
+version, and that version is what answers.
 
-```yaml
-name: Support Copilot
-instructions: | # (1)!
-  Answer from the product wiki and cite the document you used.
-  If the wiki does not cover it, say so rather than guessing.
-model_profile_id: 8f1c... # (2)!
-capabilities:
-  - id: knowledge # (3)!
-    config: { default_top_k: 8 }
-  - id: web_research
-    approval: required # (4)!
-collection_ids: [b2a9...] # (5)!
-budget:
-  monthly_usd: 50 # (6)!
-```
+| | What it decides |
+|---|---|
+| **Instructions** | What the agent does, in plain language — and what it should refuse to do |
+| **A model profile** | Which model answers, with which parameters, and what it falls back to during an outage |
+| **Capabilities** | What it may do at all: search your knowledge, read a page, run Python, draw a chart |
+| **Knowledge** | Which collections it may search, and nothing outside them |
+| **Approval** | Which of those actions wait for a person before they touch the outside world |
+| **A budget** | What it may spend in a month, checked *before* each request rather than counted after |
 
-1. Instructions are **content**, not code. Changing them is not a deploy — it is
-   an edit and a publish, and the previous version stays readable.
-2. A **model profile**, not a model name. Change the profile and every agent
-   pointing at it moves, without one of them being republished.
-3. A **capability** the agent may use. This one searches your knowledge
-   collections; each carries its own config and its own permission scope.
-4. `approval: required` parks the run and waits for a person before this
-   capability's tools act on the outside world.
-5. Which knowledge collections this agent may search.
-6. Checked **before** each model request. A failed run still records what it
-   spent.
+Change any of them and nothing ships until you publish. The version that was
+live stays readable, so *what did this agent look like in March* has an answer.
+
+=== "What somebody edits"
+
+    ![The agent builder — instructions, model, capabilities and limits, with the published version pinned](assets/builder.png)
+
+=== "What it becomes"
+
+    A frozen version, and a file you can export into your own git repository,
+    review in a pull request and restore from:
+
+    ```yaml
+    name: Support Copilot
+    instructions: |
+      Answer from the product wiki and cite the document you used.
+      If the wiki does not cover it, say so rather than guessing.
+    model_profile_id: 8f1c...
+    capabilities:
+      - id: knowledge
+        config: { default_top_k: 8 }
+      - id: web_research
+        approval: required
+    collection_ids: [b2a9...]
+    budget:
+      monthly_usd: 50
+    ```
 
 ## Check it
 

@@ -167,6 +167,7 @@ dev = [
 # needs the runtime installed, and CI's lint job does not need mkdocs.
 docs = [
     "mkdocs>=1.6.0",
+    "mkdocs-glightbox>=0.5.2",
     "mkdocs-material>=9.5.0",
     "mkdocstrings[python]>=1.0.6",
 ]

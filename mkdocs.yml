@@ -74,6 +74,10 @@ theme:
     - content.code.annotate
     - content.tooltips
     - content.action.edit
+    # The tabs on the home page and in the guides pair "what somebody edits"
+    # with "what it becomes". Linking them means a reader who picks the file
+    # view once keeps it on every page that offers the same pair.
+    - content.tabs.link
   icon:
     repo: fontawesome/brands/github
 
@@ -124,6 +128,16 @@ watch:
 
 plugins:
   - search
+  # Screenshots of the console are the only thing on this site a reader cannot
+  # zoom into, and they carry small text - a model picker, a budget field. This
+  # makes them click-to-enlarge rather than asking somebody to open the image in
+  # a new tab and hunt for it.
+  - glightbox:
+      effect: zoom
+      touchNavigation: true
+      draggable: true
+      auto_caption: true
+      caption_position: bottom
   # The API reference is generated from the docstrings rather than written twice.
   # This codebase puts its reasoning in docstrings - why a scope comparison
   # raises, why an audience resolves the way it does - so a hand-written

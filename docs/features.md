@@ -56,22 +56,26 @@ does not need AgenticOS to read.
 
 Import goes the other way, so a spec written by hand is a first-class agent.
 
-## Capabilities, not code
+## What an agent can actually do
 
-What an agent can *do* is a list of ids you switch on:
+You decide by switching things on, one at a time, in the Builder. None of it is
+a plugin somebody installs, a Python file somebody deploys, or a prompt somebody
+hopes the model obeys — an agent cannot reach a capability that is switched off,
+whatever its instructions say.
 
-| | |
+| The agent can… | Switch on |
 |---|---|
-| **Knowledge** | `knowledge` searches your collections, `skills` loads written know-how on demand, `context` reads what you attached |
-| **Research** | `web_research` searches, `web_fetch` reads one page, `browser_use` drives a real browser |
-| **Analysis** | `code_execution` runs Python, `sandbox` gives it files and a shell, `charts` draws, `image_generation` renders |
-| **Reasoning** | `subagents` delegates, `planning` keeps a task list, `thinking` buys deliberation, `compaction` keeps a long run inside the window |
-| **Utility** | `clock`, `tool_search`, `guardrails`, `tool_output_limits` |
+| **Answer from what your company knows** — your documents, your written procedures, and whatever was attached to this conversation | Knowledge search · Skills · Context |
+| **Go and find out** — search the web, read one page properly, or drive a real browser through a site that needs clicking | Web search · Web fetch · Browser automation |
+| **Do the work, not describe it** — run Python over a file, keep a workspace with a shell, draw a chart, generate an image | Run Python · Files & shell · Charts · Image generation |
+| **Handle work too big for one answer** — delegate to specialists, keep a task list, think longer before replying, carry a long conversation without losing the start of it | Delegation · Planning · Thinking · Context management |
+| **Stay inside the lines** — redact or block what must not pass, cap what one tool may return, know what today's date is | Guardrails · Tool output limits · Date and time |
 
-Each one carries its own config, its own permission scope and, where it acts on
-the outside world, its own approval setting.
+Each one carries its own settings, its own permission scope and — where it acts
+on the outside world — its own approval setting. Switching one on is a decision
+somebody makes about *this* agent, not a change to the platform.
 
-[The full catalog →](reference/capabilities.md)
+[Every capability, its tools and its config →](reference/capabilities.md)
 
 ## Any model, from 27 providers
 

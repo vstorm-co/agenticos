@@ -71,16 +71,16 @@ file: something you can read, copy, version and commit. So is an agent.
 Somebody who knows what the agent should say edits this, publishes a version, and
 every surface serves that version.
 
-<img src=".github/assets/builder.png" alt="The agent builder: instructions, model, capabilities and limits, with a published version pinned" width="100%">
+<img src="docs/assets/builder.png" alt="The agent builder: instructions, model, capabilities and limits, with a published version pinned" width="100%">
 
 Published agents, each with the version that is live and who may reach it.
 
-<img src=".github/assets/agents.png" alt="The agent catalog, four published agents with their slugs and visibility" width="100%">
+<img src="docs/assets/agents.png" alt="The agent catalog, four published agents with their slugs and visibility" width="100%">
 
 The same runner answers in the dashboard's chat, and in Slack, and behind an API
 key — with the same budget, the same approval gate and the same audit trail.
 
-<img src=".github/assets/chat.png" alt="Web chat: the agent picker, the composer, and the prompt cards a new conversation opens with" width="100%">
+<img src="docs/assets/chat.png" alt="Web chat: the agent picker, the composer, and the prompt cards a new conversation opens with" width="100%">
 
 ## ⚡ Get to a running agent
 
