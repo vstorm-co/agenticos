@@ -17,6 +17,45 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.334] - 2026-08-28
+
+### Fixed
+
+- **Every notification link was organization-agnostic, and the page it opens acts on
+  whichever organization the reader last used.** `apiClient` stamps
+  `X-Organization-Id` from a selection persisted per browser, so somebody in two
+  organizations who was last working in Globex opened the approval alert for a run in
+  Acme and read **Globex's** queue: very likely empty, and reading as *nothing is
+  waiting* about a run that is parked and ageing towards
+  `ApprovalService.expire_stale`. The agent links were wrong more quietly -
+  `/agents/{id}` under the wrong organization is a refusal for an agent the reader can
+  genuinely see, one switch away. `run.organization_id` and `agent.organization_id`
+  were in scope at all four call sites and discarded. Every link now carries
+  `org=<id>`, built in one place - `NotificationService._link`, which picks the
+  separator from the path because the approvals link already carries
+  `?tab=approvals`. (#1204)
+- **The console adopts it the way it adopts `/orgs/{id}`.** `organizationInQuery`
+  reads it under the same two rules as the path's reader and for the same reasons
+  #1032 gives: a UUID only, so a future `?org=new` is not adopted as a tenant id and
+  refused on every request, and lower-cased, because the value is stored and found by
+  `===` against ids the server serialises in canonical lower case. The adoption is the
+  existing layout effect in the recovery hook, before the tenant cache reset and
+  before the page's own queries, so the first request the page makes already carries
+  the right tenant. Two rules follow from what the parameter is: **the path outranks
+  it**, since `/orgs/{id}` *is* that organization while `?org=` only says which one an
+  alert was about; and adoption is keyed on the path and the adopted id together,
+  because two alerts about two organizations arrive at the same path and keying on the
+  path alone would read the first one's tenant. (#1204)
+- A reader who has since left that organization is told the link is the reason, rather
+  than being moved in silence and reading another organization's page as the answer to
+  the alert. It cannot name the organization: they are not a member, so it is not in
+  their list. (#1204)
+
+### Added
+
+- `docs/governance.md` gains **Every link says which organization it is about** under
+  Alerts.
+
 ## [0.0.333] - 2026-08-28
 
 ### Fixed
