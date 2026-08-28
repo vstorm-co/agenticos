@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { useApprovals, usePermissions, useRuns, useSpend, useUrlState } from "@/hooks";
 import { periodEnd, periodStart } from "@/lib/dashboard/period";
 import { formatPeriodParam, parsePeriodParam, type Period } from "@/lib/dashboard/period";
+import { PAGE_CLEARANCE } from "@/lib/page-clearance";
 import {
   parseRunFilters,
   parseRunsTab,
@@ -214,6 +215,15 @@ export default function RunsPage() {
                   // underneath the detail panel rather than scrolling inside its
                   // own column.
                   "min-w-0 flex-1 overflow-hidden",
+                  // The room under this page, declared here rather than by
+                  // `PageTransition` - which is where every other page gets it.
+                  // Padding on the box *around* this row shortens what the
+                  // sticky panel beside it may pin in, because a sticky box is
+                  // clamped to its containing block: 64px of it put the panel's
+                  // top at -48px at maximum scroll, cutting its own header off
+                  // by 56px. Inside the column it lands under the last row and
+                  // the row still ends at the viewport (#1206).
+                  PAGE_CLEARANCE,
                   focusedRunId !== null && "hidden lg:block",
                 )}
               >
@@ -251,35 +261,46 @@ export default function RunsPage() {
                   and an approval row are both doors to the same view. `?run=`
                   still deep-links here - the page opens with it already out. */}
               {focusedRunId !== null && (
-                // Sticky *and* bounded to the scrollport, which has to be both:
-                // sticky alone left a panel taller than the window hanging past
-                // it, so its own header - the agent, the status, the cost - was
-                // scrolled off above and the timeline had to be scrolled back up
-                // to read. A sticky element taller than the viewport pins at its
-                // top edge and no more.
+                // Sticky *and* bounded to the scrollport, from `lg` only - which
+                // is where there is a second column for it to stay beside. Below
+                // `lg` the list is `hidden` and this is the only column, so
+                // sticky buys nothing and a viewport-height box costs: what is
+                // *not* the scrollport there is the mobile tab bar (`fixed
+                // bottom-0`, 56px plus the safe-area inset) and `MobileHeader`
+                // (`h-14`, in normal flow above `main`), and subtracting both
+                // still left the panel's last 8px behind the bar - measured at
+                // 390x780. So below `lg` it is an ordinary block that scrolls
+                // with the page, carrying the page's own clearance, and there is
+                // no `dvh` arithmetic to get wrong.
                 //
-                // A definite height rather than a cap, because `RunDetailPanel`
-                // is `h-full` over `FocusedRun`'s one scrolling column: with only
-                // a `max-height` the percentage resolves against auto, the chain
-                // grows past the cap and `overflow-hidden` clips the timeline
-                // instead of scrolling it. `dvh` so mobile browser chrome is not
-                // counted twice.
+                // From `lg`: a definite height rather than a cap, because
+                // `RunDetailPanel` is `h-full` over `FocusedRun`'s one scrolling
+                // column - with only a `max-height` the percentage resolves
+                // against auto, the chain grows past the cap and
+                // `overflow-hidden` clips the timeline instead of scrolling it.
+                // `dvh` so browser chrome is not counted twice. A sticky element
+                // taller than the viewport pins at its top edge and no more,
+                // which is what keeps its own header - the agent, the status,
+                // the cost - readable at maximum scroll.
                 //
                 // The offset is negative, and the arithmetic is the point: a
                 // sticky top is measured from the scroll container's *padding*
                 // edge, and `main` carries `pt-4 sm:pt-8`. So a plain `top-4`
                 // pinned the panel 48px down the window while the table's rows
-                // scrolled past above it - the panel read as hanging in the
-                // middle of a moving column. Cancelling that padding and adding
-                // 8px back puts its top edge 8px from the window at either
-                // breakpoint, with nothing scrolling above it.
+                // scrolled past above it. Cancelling that padding and adding 8px
+                // back puts its top edge 8px from the window.
                 //
                 // `-mr-4` is the same trick sideways, and only where there are two
                 // columns: `main`'s `sm:px-6` plus its scrollbar left about forty
                 // pixels of nothing to the right of the panel while the table ran
                 // flush to the left edge. Sixteen of those are given back, which
                 // matches the eight above and below.
-                <div className="sticky top-[calc(0.5rem-1rem)] h-[calc(100dvh-1rem)] self-start sm:top-[calc(0.5rem-2rem)] lg:-mr-4">
+                <div
+                  className={cn(
+                    PAGE_CLEARANCE,
+                    "lg:sticky lg:top-[calc(0.5rem-2rem)] lg:-mr-4 lg:h-[calc(100dvh-1rem)] lg:self-start lg:pb-0",
+                  )}
+                >
                   <RunDetailPanel runId={focusedRunId} onFocusRun={focusRun} />
                 </div>
               )}
