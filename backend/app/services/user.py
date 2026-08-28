@@ -587,10 +587,26 @@ class UserService:
         only ever shrinks by deletion - so refusing self-deletion is what keeps the
         last admin from being the one removed: any other admin deleting the *last*
         one would have to be deleting themselves.
+
+        **That held for one request at a time and not for two.** A and B deleting
+        each other both passed the not-self check, locked different target rows,
+        never contended, and both committed - nobody left who could sign in to
+        administer the deployment (#1208). So the second check is on the app-admin
+        *set*, taken under a lock in a fixed order: the later request waits, re-reads
+        after the first commits, and is refused because it would empty the set. The
+        set is locked on every admin deletion, target in it or not: taking it
+        first and always is what makes the order total, and deleting a user is an
+        administrator's action rather than a hot path.
         """
         if user_id == acting_admin_id:
             raise AuthorizationError(
                 message="You cannot delete your own account; ask another app admin to."
+            )
+        administrators = await user_repo.app_admin_ids_for_update(self.db)
+        if user_id in administrators and len(administrators) < 2:
+            raise AuthorizationError(
+                message="This is the deployment's last app admin; promote another one first.",
+                details={"app_admins": len(administrators)},
             )
         return await self.delete(user_id)
 
