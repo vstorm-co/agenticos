@@ -28,7 +28,7 @@ import pytest
 from app.agents.capabilities.budget import BudgetScope
 from app.agents.spec import AgentSpec, AlertAudience, AlertSpec, NotificationSpec
 from app.services.email.service import EmailKey
-from app.services.notifications import NotificationService
+from app.services.notifications import _DECIDING_ROLES, NotificationService
 
 MODULE = "app.services.notifications"
 
@@ -369,8 +369,40 @@ class TestEveryPersonIsResolvedInsideTheOrganization:
 
 
 class TestApprovalRequested:
+    """Two emails, because the audience holds two positions.
+
+    `approvals:decide` is `owner`, `admin` and `operator`. A builder starting
+    their own agent from the chat is the ordinary initiator and holds none of it,
+    and they were sent "waiting on your approval" with a Review button opening a
+    page whose queue the server refuses them - the refusal arriving as an absent
+    tab rather than a sentence (#1203). So the deciders get the request and the
+    rest get the fact.
+    """
+
     @pytest.mark.anyio
-    async def test_the_person_who_started_the_run_is_told(self, sent):
+    async def test_a_decider_gets_the_request(self, sent):
+        with (
+            patch(f"{MODULE}.member_repo.list_emails_by_role", new=_roles("boss@acme.test")),
+            patch(f"{MODULE}.member_repo.list_emails_for_members", new=_members("boss@acme.test")),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                _run(user_id=uuid.uuid4()),
+                agent=_agent(),
+                spec=_spec(),
+                tools=["send_email"],
+            )
+
+        key, recipients, context = sent.calls[0]
+        assert key is EmailKey.APPROVAL_REQUESTED
+        assert recipients == ["boss@acme.test"]
+        assert context["tools"] == "send_email"
+        assert [call[0] for call in sent.calls] == [EmailKey.APPROVAL_REQUESTED]
+
+    @pytest.mark.anyio
+    async def test_the_person_who_started_the_run_is_told_even_if_they_cannot_decide(self, sent):
+        """The case #1203 is about, and the one the initiator audience exists
+        for: they are the person definitely waiting on the run, so they are told
+        it is held - without a button the platform would refuse them."""
         with (
             patch(f"{MODULE}.member_repo.list_emails_by_role", new=_roles()),
             patch(f"{MODULE}.member_repo.list_emails_for_members", new=_members("asker@acme.test")),
@@ -383,9 +415,68 @@ class TestApprovalRequested:
             )
 
         key, recipients, context = sent.calls[0]
-        assert key is EmailKey.APPROVAL_REQUESTED
+        assert key is EmailKey.APPROVAL_PENDING
         assert recipients == ["asker@acme.test"]
         assert context["tools"] == "send_email"
+        # No destination at all. `agents:view` being a role permission does not
+        # make one agent reachable - access is resolved per resource - so any
+        # link here is a second call to action the platform might refuse.
+        assert not [key for key in context if key.endswith("_url")]
+
+    @pytest.mark.anyio
+    async def test_one_audience_can_be_both_and_each_gets_its_own_mail(self, sent):
+        with (
+            patch(f"{MODULE}.member_repo.list_emails_by_role", new=_roles("boss@acme.test")),
+            patch(
+                f"{MODULE}.member_repo.list_emails_for_members",
+                new=_members("asker@acme.test"),
+            ),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                _run(user_id=uuid.uuid4()),
+                agent=_agent(),
+                spec=_spec(),
+                tools=["send_email"],
+            )
+
+        assert {key: recipients for key, recipients, _ in sent.calls} == {
+            EmailKey.APPROVAL_REQUESTED: ["boss@acme.test"],
+            EmailKey.APPROVAL_PENDING: ["asker@acme.test"],
+        }
+
+    @pytest.mark.anyio
+    async def test_an_app_admin_counts_as_a_decider(self, sent):
+        """They hold no membership row and `AuthContext` gives them every
+        permission, so a request is a mail they can act on."""
+        with (
+            patch(f"{MODULE}.member_repo.list_emails_by_role", new=_roles()),
+            patch(
+                f"{MODULE}.member_repo.list_app_admin_emails",
+                new=AsyncMock(return_value=["root@platform.test"]),
+            ),
+            patch(f"{MODULE}.member_repo.list_emails_for_members", new=_members()),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                _run(user_id=None), agent=_agent(), spec=_spec(), tools=["x"]
+            )
+
+        assert [(key, recipients) for key, recipients, _ in sent.calls] == [
+            (EmailKey.APPROVAL_REQUESTED, ["root@platform.test"])
+        ]
+
+    @pytest.mark.anyio
+    async def test_the_deciding_roles_come_from_the_catalog(self):
+        """Not a list beside it. A role gaining or losing `approvals:decide`
+        would otherwise leave this routing behind - which is the same defect one
+        level up."""
+        from app.core.permissions import ROLE_PERMS, Perm
+        from app.services.notifications import _DECIDING_ROLES
+
+        assert sorted(_DECIDING_ROLES) == sorted(
+            str(role) for role, perms in ROLE_PERMS.items() if Perm.APPROVALS_DECIDE in perms
+        )
+        assert "builder" not in _DECIDING_ROLES
+        assert "member" not in _DECIDING_ROLES
 
     @pytest.mark.anyio
     async def test_a_run_with_no_user_still_reaches_the_admins(self, sent):
@@ -433,9 +524,10 @@ class TestApprovalRequested:
 
         _, recipients, _ = sent.calls[0]
         assert recipients == ["asker@acme.test"]
-        # Not merely absent from the result - never asked for. An audience that
-        # is not named must not cost a query.
-        roles.assert_not_awaited()
+        # Asked once, and only about who may decide. The `admins` audience was
+        # not named, and an audience that is not named must not cost a query -
+        # the routing query is a different question and asks a different list.
+        assert [call.kwargs["roles"] for call in roles.await_args_list] == [_DECIDING_ROLES]
 
 
 class TestUsageReport:
