@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.322] - 2026-08-28
+
+### Added
+
+- **Azure, Bedrock and Vertex AI are inside the model-catalog drift guard.**
+  `_documented_rows` reads the two four-column tables, so the three providers with
+  the most involved credential shapes were in no assertion but the id one. Their
+  credential is prose and maps to no field - but *which of the three tables a
+  provider sits in* is itself a claim about its credential, since the heading says
+  "Credential is not an API key", and that is comparable. Two assertions follow: the
+  three tables partition `PROVIDERS`, so a provider documented twice or in none of
+  them fails; and which table a row is in matches `secret_kind`, so moving a row
+  without changing the spec, or the reverse, fails. (#1252)
+
 ## [0.0.321] - 2026-08-28
 
 ### Fixed
