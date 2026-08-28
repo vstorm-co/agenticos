@@ -17,6 +17,37 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.325] - 2026-08-28
+
+### Fixed
+
+- **The parked-run alert routinely told somebody to approve a call the platform will
+  refuse them.** `approvals:decide` belongs to `owner`, `admin` and `operator`, and
+  the default audience for a parked tool call is the run's initiator plus the
+  administrators - a builder starting their own agent from the chat is the ordinary
+  initiator, not an edge case. They got "waiting on your approval", a **Review the
+  request** button, and then an Activity page with no Approvals tab at all: the
+  refusal arriving as an absent tab rather than a sentence. The audience is now split
+  by the permission rather than trimmed to it - a decider gets the request and its
+  link to the queue, and anybody else gets a new `approval_pending` mail saying the
+  run is held not failed, that approving it belongs to an owner, admin or operator,
+  and that nothing is asked of them. Trimming instead would have dropped the one
+  person definitely waiting on the run, which is the whole reason `initiator` is in
+  the default audience. (#1203)
+- The second mail carries **no link**, deliberately: `agents:view` being a role
+  permission does not make one agent reachable, since agent access is resolved per
+  resource, so a `chosen` recipient with no grant to a private agent would get a
+  second call to action the platform refuses. (#1203)
+- Which roles decide is read off `ROLE_PERMS` rather than listed beside it, so a role
+  gaining or losing `approvals:decide` cannot leave the routing behind - the same
+  defect one level up. App admins count as deciders: they hold no membership row and
+  `AuthContext.permissions` gives them everything. A test pins the derivation,
+  including that `builder` and `member` are not in it. (#1203)
+
+### Added
+
+- `docs/governance.md` gains **The approval alert is two emails** under Alerts.
+
 ## [0.0.324] - 2026-08-28
 
 ### Fixed
