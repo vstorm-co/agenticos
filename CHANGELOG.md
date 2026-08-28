@@ -17,6 +17,33 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.326] - 2026-08-28
+
+### Fixed
+
+- **Two app admins deleting each other could leave the deployment with none.** The
+  not-self refusal in `admin_delete` states a lockout invariant - a deployment keeps
+  at least one administrator - and it held only against one request at a time. #1115's
+  `SELECT ... FOR UPDATE` covers the *target* row, so admin A deleting B and admin B
+  deleting A locked different rows, touched different personal organizations and never
+  contended: both committed, and `count(*) FROM users WHERE is_app_admin` was 0, with
+  a direct database write as the only recovery. New
+  `user_repo.app_admin_ids_for_update` locks the set the decision was always about,
+  and `admin_delete` takes it before deciding, so the later of two mutual deletes
+  waits, re-reads a set of one once the first commits, and is refused. (#1208)
+- Two choices worth naming. **`ORDER BY id` is load-bearing**: rows are locked in the
+  order they are returned, so two requests taking the same set take it in the same
+  order and one waits, where an unordered pair each holding half of it is #1134 in a
+  new place. And the lock is taken on **every** admin deletion, not only when the
+  target is an admin - reading the target's flag first to decide whether to lock puts
+  a window between the read and the lock, and deleting a user is an administrator's
+  action rather than a hot path. (#1208)
+
+### Changed
+
+- `docs/deployment.md` already argued this invariant from the set; it now says what
+  makes it true across two requests.
+
 ## [0.0.325] - 2026-08-28
 
 ### Fixed
