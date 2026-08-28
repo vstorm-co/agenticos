@@ -17,6 +17,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.327] - 2026-08-28
+
+### Changed
+
+- **One HTTP client per module for web search and model listings**, rather than one per
+  call. These are the two per-call `httpx.AsyncClient` sites the #952 audit left
+  outside its channel-adapter scope: the HTTP-based search providers (Brave, Exa) and
+  the model-catalog listing fetch. Each opened a fresh client per call, so a search
+  tool invoked several times in one run - or a catalog refresh asking provider after
+  provider - paid a new TCP and TLS handshake against a host it had just talked to.
+  Both are module-level functions with no adapter lifecycle to hang a client on, so
+  #1262's shape does not fit: the client is built lazily, rebuilt if it was closed,
+  and carries the timeout per request so one client serves every provider. The app
+  lifespan closes both at shutdown, after background work has drained, where it
+  already closes the channel adapters' clients. `ddgs` and Tavily go through their own
+  SDKs rather than httpx and are untouched. (#1263)
+
 ## [0.0.326] - 2026-08-28
 
 ### Fixed
