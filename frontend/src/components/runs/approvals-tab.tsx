@@ -129,8 +129,18 @@ export function ApprovalsTab({
     {
       key: "decidedBy",
       header: t("decidedBy"),
+      // Who, and how. A call granted by a conversation that had waived approvals
+      // is `approved` like any other, and nobody read these arguments before they
+      // ran - so the row says so, or the record is a list of green ticks (#925).
       cell: (approval) => (
-        <span className="text-muted-foreground text-xs">{approval.decided_by_email ?? "-"}</span>
+        <span className="text-muted-foreground block text-xs">
+          {approval.decided_by_email ?? "-"}
+          {approval.decided_via === "standing" && (
+            <span className="text-muted-foreground/70 block text-[11px]">
+              {t("decidedByStandingConsent")}
+            </span>
+          )}
+        </span>
       ),
     },
     {

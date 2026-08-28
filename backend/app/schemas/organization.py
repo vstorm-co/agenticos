@@ -62,6 +62,15 @@ class OrganizationUpdate(BaseSchema):
             "or null for no limit. Omit to leave the current setting alone."
         ),
     )
+    chat_may_waive_approvals: bool | None = Field(
+        default=None,
+        description=(
+            "Whether a chat session here may grant standing consent to gated tool "
+            "calls. Omit to leave it alone. Changing it needs 'approvals:decide' - "
+            "it is a decision about the approval queue, not about the organization's "
+            "name."
+        ),
+    )
 
 
 class OrganizationRead(BaseSchema, TimestampSchema):
@@ -74,6 +83,14 @@ class OrganizationRead(BaseSchema, TimestampSchema):
     member_count: int = 0
     role: str  # current user's role in this org
     monthly_budget_usd: Decimal | None = None
+    chat_may_waive_approvals: bool = Field(
+        default=False,
+        description=(
+            "Whether a chat session here may grant standing consent to gated tool "
+            "calls. The chat reads it to decide whether to offer the control at "
+            "all; who may then use it is `approvals:decide`."
+        ),
+    )
 
 
 class OrganizationList(BaseSchema):

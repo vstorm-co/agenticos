@@ -74,6 +74,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities.approval import (
     ApprovalDecision,
     ApprovalGranted,
+    ApprovalMode,
     ApprovalPending,
     ApprovalRejected,
     ApprovalRequest,
@@ -156,6 +157,7 @@ from app.repositories import (
     conversation_repo,
     knowledge_base_repo,
     message_rating_repo,
+    organization_repo,
     run_manifest_repo,
 )
 from app.repositories.agent_run import AgentSpendRow, RunFilters
@@ -530,6 +532,16 @@ class ParkedApproval:
     subagent: str | None = None
     """Which delegate asked, or `None` for the run's own agent."""
 
+    standing: bool = False
+    """Whether this was granted by standing consent rather than parked.
+
+    `ApprovalMode.APPROVE_ALL` grants the call and records it anyway, so the row
+    exists and says who consented: skipping it would make a waived run
+    indistinguishable from an agent that was never gated, and the audit trail
+    `docs/governance.md` describes would quietly become untrue (#925). The row is
+    written `approved` rather than `pending`, and nothing about it is resumable -
+    the run never stopped."""
+
     subagent_agent_id: UUID | None = None
     """That delegate's own agent, or `None` for the run's own agent or an inline
     specialist, which has no agent of its own. Read from the delegation in flight
@@ -578,6 +590,19 @@ class ApprovalChannel:
     decided: dict[str, ApprovalDecision] = field(default_factory=dict)
     parked: dict[str, str] = field(default_factory=dict)
 
+    standing_consent_by: UUID | None = None
+    """Who granted every gated call on this run in advance, or `None`.
+
+    Set only for a web chat turn whose session asked for
+    `ApprovalMode.APPROVE_ALL`, and only after `prepare` has checked that this
+    caller may waive and that the organization allows it. A gated call then
+    resolves to a grant rather than a park - and still appends to `requested`, so
+    the row is written naming the consenting account (#925).
+
+    Never set anywhere unattended: `ApprovalGate` already refuses a run with no
+    approval channel, and standing consent must not become the way a schedule
+    approves itself."""
+
     requested: list[ParkedApproval] = field(default_factory=list)
     """What was parked, in enough detail for a surface to put it to somebody and
     for :meth:`AgentRunnerService._write_approvals` to write the row.
@@ -605,13 +630,19 @@ class ApprovalChannel:
         # list append, each atomic under the GIL - so with no `await` in the body
         # two concurrent gated calls cannot interleave and race the shared session.
         approval_id = uuid4()
-        self.parked[str(approval_id)] = request.tool_call_id
+        # Standing consent is recorded, not skipped: the row is the difference
+        # between a run somebody waived and an agent nobody ever gated. It is not
+        # added to `parked`, because nothing is waiting - `paused_state` names the
+        # calls a resume has to answer, and this one already ran (#925).
+        if self.standing_consent_by is None:
+            self.parked[str(approval_id)] = request.tool_call_id
         self.requested.append(
             ParkedApproval(
                 approval_id=approval_id,
                 tool_call_id=request.tool_call_id,
                 tool_name=request.tool_name,
                 tool_args=request.tool_args,
+                standing=self.standing_consent_by is not None,
                 subagent=None if delegate is None else delegate.name,
                 # The delegate's own agent, which is *not* `self.agent_id`: that one
                 # is the agent whose run this is and what the row is scoped by. Null
@@ -620,6 +651,8 @@ class ApprovalChannel:
                 task_id=None if delegate is None else delegate.task_id,
             )
         )
+        if self.standing_consent_by is not None:
+            return ApprovalGranted(request.tool_args)
         return ApprovalPending()
 
 
@@ -1532,10 +1565,17 @@ class AgentRunnerService:
         exposure: AgentExposure | None = None,
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
+        approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
     ) -> PreparedRun:
         """Assemble everything a run needs and open its row.
 
         Args:
+            approval_mode: How much this session wants to be asked, whatever the
+                spec says (#925). `FOLLOW_AGENT` is every run that does not name
+                one and is exactly the behaviour that existed before. The other
+                two are checked here rather than at the surface: `prepare` is the
+                one funnel a fresh run and a resumed one share, so a check at the
+                socket would be a check one caller could forget.
             channel_directory: The one channel this run is answering in, ready
                 to be asked about, or `None` on every surface that is not a
                 channel. Bound by the caller because binding one needs the bot
@@ -1594,7 +1634,57 @@ class AgentRunnerService:
             already_started={},
             version_id=version_id,
             environment_id=effective_environment_id,
+            approval_mode=await self._allowed_approval_mode(ctx, approval_mode, surface=surface),
         )
+
+    async def _allowed_approval_mode(
+        self, ctx: AuthContext, requested: ApprovalMode, *, surface: RunSurface
+    ) -> ApprovalMode:
+        """The mode this caller may actually run, or a refusal.
+
+        **Refused, never downgraded.** Answering a request to waive approvals by
+        quietly following the spec instead would leave somebody believing they had
+        turned the questions off, and the next gated call parks a run they think
+        is running - so a mode this caller may not set is an error with a reason,
+        not a silent fallback (#925).
+
+        Three things have to hold for `APPROVE_ALL`, and each is a different
+        failure if it does not:
+
+        - the caller holds `approvals:decide`. A standing consent *is* the
+          decision the approval queue exists to record, and `member` and `builder`
+          hold `agents:run` without it - so without this gate the everyday chat
+          user grants themselves, in one click, the authority the API refuses them
+          one endpoint over;
+        - the organization allows waiving at all. Without a ceiling a Builder's
+          deliberate gate is one click from nothing in every conversation, which
+          makes the per-tool model advisory;
+        - the surface is the web chat. `ApprovalGate` already refuses a run with
+          no approval channel, and standing consent must not become the way a
+          schedule or a webhook approves itself.
+
+        `ASK_ALL` passes all three by construction: it only ever tightens, so it
+        needs no permission, no ceiling and no surface check.
+        """
+        if requested is not ApprovalMode.APPROVE_ALL:
+            return requested
+        if surface is not RunSurface.WEB:
+            raise AuthorizationError(
+                message="Approvals can only be waived from a chat session.",
+                details={"surface": surface.value},
+            )
+        if not ctx.has(Perm.APPROVALS_DECIDE):
+            raise AuthorizationError(
+                message="You may not waive approvals; ask somebody who can decide them.",
+                details={"permission": Perm.APPROVALS_DECIDE.value},
+            )
+        organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
+        if organization is None or not organization.chat_may_waive_approvals:
+            raise AuthorizationError(
+                message="This organization does not allow conversations to waive approvals.",
+                details={"organization_id": ctx.organization_id},
+            )
+        return requested
 
     async def _assemble(
         self,
@@ -1614,6 +1704,7 @@ class AgentRunnerService:
         resuming: dict[str, ResumedDelegation],
         already_spent: dict[str, DelegationSpend],
         already_started: dict[str, datetime | None],
+        approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
         specialists: Mapping[str | None, Sequence[RegisteredSpecialist]] | None = None,
         model_profile_id: UUID | None = None,
         version_id: UUID | None = None,
@@ -1832,6 +1923,12 @@ class AgentRunnerService:
             agent_id=agent.id,
             run_id=run.id,
             decided=decided,
+            # Only ever set by a checked `APPROVE_ALL` - `_allowed_approval_mode`
+            # has already refused a caller who may not waive, an organization that
+            # does not allow it, and every surface but the web chat.
+            standing_consent_by=(
+                ctx.user_id if approval_mode is ApprovalMode.APPROVE_ALL else None
+            ),
         )
 
         # Everything a delegation needs, resolved while there is still a session
@@ -1884,6 +1981,7 @@ class AgentRunnerService:
             org_period_spend=org_period_spend,
             org_monthly_budget_usd=organization.monthly_budget_usd,
             request_approval=channel,
+            gate_every_tool=approval_mode is ApprovalMode.ASK_ALL,
             # Both from one read of the conversation (see
             # `_recorded_conversation_state`): the request overhead, without which
             # a one-request turn cannot tell a window with no room for a summary
@@ -2663,6 +2761,10 @@ class AgentRunnerService:
                 subagent_agent_id=(
                     parked.subagent_agent_id if parked.subagent_agent_id in present else None
                 ),
+                # Who consented in advance, for a call granted by standing consent
+                # rather than parked. `None` leaves the row pending, which is every
+                # other approval there has ever been.
+                standing_consent_by=(channel.standing_consent_by if parked.standing else None),
             )
 
     @staticmethod

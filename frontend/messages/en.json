@@ -782,10 +782,23 @@
     "compactingCount": "{count, plural, =1 {Summarising 1 earlier message} other {Summarising # earlier messages}} to keep the conversation inside the model's limit…",
     "compactionImpossible": "Context management cannot run: this agent's instructions and tools take {overhead, number} tokens of the {window, number}-token window it was given, which is already past the point it would compact at. Raise the window or the fraction in the Toolbox.",
     "controls": {
+      "approvalMode": "Approval mode",
       "backAgentAposS": "Back to the agent's own model",
+      "cannotWaive": "Waiving approvals needs permission to decide them, and this organization has to allow it.",
       "controls": "Controls",
       "escToClose": "esc to close",
+      "howMuchToBeAsked": "How much do you want to be asked before a tool runs?",
       "label": "Chat controls",
+      "mode": {
+        "follow_agent": "Follow the agent",
+        "approve_all": "Approve everything",
+        "ask_all": "Ask about everything"
+      },
+      "modeHint": {
+        "follow_agent": "The agent's own settings decide which tools need a person.",
+        "approve_all": "Every gated call runs without asking, for this conversation. Each one is still recorded against your account.",
+        "ask_all": "Ask before every tool this agent can use, including the ones it does not normally gate."
+      },
       "savedForChat": "Saved for this chat",
       "savesOnSend": "Saves on send",
       "whichModelRunsHere": "Which model this conversation runs on. Everything else about the agent stays as it is."
@@ -2608,6 +2621,126 @@
       }
     },
     "steps": {
+      "activity-approvals": {
+        "title": "What's waiting on you",
+        "body": "Runs that paused for a human decision queue here. Approve or reject each one and the run picks up from where it stopped — this tab only appears if you're allowed to decide them."
+      },
+      "activity-overview": {
+        "title": "Watch activity",
+        "body": "Every run is recorded with its cost and outcome, so you can see what your agents did and step in when one is waiting on a decision. These figures summarise the lot."
+      },
+      "activity-runs": {
+        "title": "Every run",
+        "body": "The full history: who ran which agent, what it cost and how it ended. Filter it, or open a run to see the whole conversation and the tools it called."
+      },
+      "activity-spend": {
+        "title": "Where the money went",
+        "body": "Spend over time and by agent, against the budgets you've set — so an agent quietly getting expensive shows up here before the bill does."
+      },
+      "agent-availability": {
+        "title": "Put it to work",
+        "body": "Availability is where a published agent goes live — a web chat, an embed on your site, Slack or Telegram — and where you decide who to share it with."
+      },
+      "agent-history": {
+        "title": "Every version, kept",
+        "body": "Each publish freezes the spec as a version you can promote to an environment, roll back to, or read the run history against."
+      },
+      "agent-instructions": {
+        "title": "Instructions are the behaviour",
+        "body": "Open an agent and you land in the Builder, where it's assembled tab by tab. Build comes first: the instructions are its behaviour, written in plain Markdown rather than code."
+      },
+      "agent-knowledge": {
+        "title": "Point it at your docs",
+        "body": "Knowledge lets the agent search the collections you pick, so it answers from your own material instead of guessing from training alone."
+      },
+      "agent-limits": {
+        "title": "Keep it in bounds",
+        "body": "Cap the monthly spend and the steps a single run may take, and choose who gets told when the agent hits a limit or fails."
+      },
+      "agent-mcp": {
+        "title": "And whole tool sets",
+        "body": "Below the capabilities, attach MCP servers — ready-made tool sets like GitHub or Slack, connected once for the organization and reused across agents."
+      },
+      "agent-model": {
+        "title": "Choose the brain",
+        "body": "The model underneath does the reasoning. Swap it, dial how hard it thinks, or turn on step-by-step reasoning — all without touching the instructions above."
+      },
+      "agent-publish": {
+        "title": "Publish to ship it",
+        "body": "Nothing runs until you publish. Publishing freezes the current draft as a version, and that version is what answers everywhere the agent is available."
+      },
+      "agent-skills": {
+        "title": "Hand it a playbook",
+        "body": "Skills are written know-how the agent reads before it acts — a procedure, a house style, a checklist — and the same one can be shared across agents."
+      },
+      "agent-toolbox": {
+        "title": "Give it tools",
+        "body": "The Toolbox is what an agent can actually do. Switch on built-in capabilities like web search, code or files, and each becomes a tool the model may call mid-answer."
+      },
+      "agents-filters": {
+        "title": "Find one fast",
+        "body": "Filter by status or search by name once the roster grows past a screenful."
+      },
+      "agents-new": {
+        "title": "Build an agent",
+        "body": "An agent is its instructions, a model, and the tools, MCP servers and skills you give it. Create one here, then publish a version so it runs the same way everywhere — chat, API, Slack or a widget."
+      },
+      "channels-list": {
+        "title": "Connected channels",
+        "body": "The platforms this organization is reachable on. A channel belongs to the organization, not one agent, so the same bot can serve every agent bound to it."
+      },
+      "channels-new": {
+        "title": "Reach agents where people are",
+        "body": "Register a chat platform — Slack, Telegram, Mattermost — and any agent can be bound to answer there. The bot's token is sealed in the vault. Add one here."
+      },
+      "chat-agent-picker": {
+        "title": "Choose who answers",
+        "body": "Switch between your agents right here. Each brings its own instructions, tools and knowledge, so the same question can get a very different answer."
+      },
+      "chat-approval-mode": {
+        "title": "Decide how much you are asked",
+        "body": "Follow the agent's own settings, ask about every tool it can use, or - if you may decide approvals - let this conversation run without stopping. Every waived call is still recorded against your account."
+      },
+      "chat-composer": {
+        "title": "Ask anything",
+        "body": "Type a message, drop in a file, or start with a slash-command. Enter sends; Shift+Enter adds a line."
+      },
+      "chat-model-picker": {
+        "title": "Tune the model",
+        "body": "Pick which of the organization's models answers — just for this conversation, without changing the agent."
+      },
+      "chat-plan": {
+        "title": "What it is working to",
+        "body": "An agent that plans keeps a checklist here, above the composer - the step in flight, and how much is left. Open it for the whole plan; it stays current as the run works through it."
+      },
+      "chat-start": {
+        "title": "Chat with your agents",
+        "body": "New chat opens a fresh thread, and your past conversations stack up in this rail. It's the quickest way to try an agent out and watch how it works, step by step."
+      },
+      "context-list": {
+        "title": "Shared context",
+        "body": "The context files this organization holds. One file can feed every agent, so a fact you fix here is fixed for all of them at once."
+      },
+      "context-new": {
+        "title": "Add standing context",
+        "body": "Context files are the background every agent carries — company facts, tone, terms — injected into each prompt without you pasting them in every time. Add one here."
+      },
+      "dashboard-actions": {
+        "title": "Start here",
+        "body": "These shortcuts are the quickest way in: open a chat, create your first agent, review anything waiting on a decision, or invite a teammate."
+      },
+      "dashboard-customize": {
+        "title": "Make it your own",
+        "body": "Customize opens an editor: drag a card to move it between sections, drag its edge to resize it from a quarter of the row to the whole width, hide the ones you never read, and Add a widget for the rest of the catalog - the same card more than once if you want it per agent. Sections can be renamed, coloured, collapsed and added to. Save keeps it, Cancel discards it, and Reset to default puts back the arrangement you started with. Layouts holds several of these arrangements and switches between them, so the one you read on a Monday need not be the one you read while something is on fire. All of it is per person - nobody else sees your arrangement."
+      },
+      "dashboard-filters": {
+        "title": "Slice the dashboard",
+        "body": "Every number on this page follows the period you pick here, and you can hide sections you don't need. The view lives in the URL, so it survives a reload and travels in a link."
+      },
+      "finish": {
+        "title": "You're all set",
+        "body": "That's the tour. Replay any page's tips anytime from the help button at the top — head to your dashboard whenever you're ready to start building."
+      },
       "flow-agent-create": {
         "title": "Name your agent",
         "body": "Choose New agent, give it a name and a short description, and create it. That opens the builder, where the rest of this happens. We'll move on as soon as it's created."
@@ -2615,18 +2748,6 @@
       "flow-agent-instructions": {
         "title": "Write its instructions",
         "body": "Tell the agent who it is and what it should do — this is its system prompt. Write a line or two, then choose Next."
-      },
-      "flow-agent-model-add": {
-        "title": "Add a model",
-        "body": "Your organization has no model yet. Pick a provider, name a model, and paste a key — it's stored in the vault and the model is ready. We'll move on once it's added."
-      },
-      "flow-agent-model-pick": {
-        "title": "Choose its model",
-        "body": "Pick the model this agent should run on from the list — an agent needs one to run, so we'll move on once it's set."
-      },
-      "flow-agent-model-none": {
-        "title": "No model in this organization yet",
-        "body": "An agent needs a model to run, and this organization has none. Adding one needs the connections permission you don't have — ask an admin to add a model, then this agent can use it. Choose Next to look at the rest for now."
       },
       "flow-agent-knowledge": {
         "title": "Give it documents to read (optional)",
@@ -2636,49 +2757,25 @@
         "title": "No knowledge base yet — create one?",
         "body": "A knowledge base lets this agent search your documents and cite them, and you don't have one yet. Want to create one now and attach it? We'll guide you there and all the way back."
       },
+      "flow-agent-knowledge-attach": {
+        "title": "Attach what you made",
+        "body": "Open the Knowledge tab and attach the knowledge base you just created, then choose Next."
+      },
       "flow-agent-knowledge-create": {
         "title": "Create the knowledge base",
         "body": "Choose New knowledge base — the form opens and we'll walk it together, field by field. Afterwards we'll walk you back to your agent."
-      },
-      "flow-agent-knowledge-return-nav": {
-        "title": "Back to your agents",
-        "body": "Choose Agents in the sidebar to head back to the agent you were building."
       },
       "flow-agent-knowledge-return-edit": {
         "title": "Open your agent again",
         "body": "Choose the edit pencil on the agent you just built to reopen its builder."
       },
-      "flow-agent-knowledge-attach": {
-        "title": "Attach what you made",
-        "body": "Open the Knowledge tab and attach the knowledge base you just created, then choose Next."
-      },
-      "flow-agent-skills": {
-        "title": "Give it skills (optional)",
-        "body": "A skill is written know-how the agent loads when it's relevant — a refund policy, a house style. Attach any, or choose Next to move on."
-      },
-      "flow-agent-skills-ask": {
-        "title": "No skills yet — create one?",
-        "body": "A skill is written know-how the agent loads when it's relevant, and you don't have one yet. Want to create one now and attach it? We'll guide you there and all the way back."
-      },
-      "flow-agent-skills-create": {
-        "title": "Create the skill",
-        "body": "Choose New skill — the form opens and we'll walk it together, field by field. Afterwards we'll walk you back to your agent."
-      },
-      "flow-agent-skills-return-nav": {
+      "flow-agent-knowledge-return-nav": {
         "title": "Back to your agents",
         "body": "Choose Agents in the sidebar to head back to the agent you were building."
       },
-      "flow-agent-skills-return-edit": {
-        "title": "Open your agent again",
-        "body": "Choose the edit pencil on the agent you just built to reopen its builder."
-      },
-      "flow-agent-skills-attach": {
-        "title": "Attach your skill",
-        "body": "Open the Skills tab and attach the skill you just created, then choose Next."
-      },
-      "flow-agent-tools": {
-        "title": "Give it tools (optional)",
-        "body": "Capabilities let the agent do things — search the web, run code, call another system. Switch on what it needs, or choose Next to move on."
+      "flow-agent-limits": {
+        "title": "Set a budget (optional)",
+        "body": "Cap what this agent can spend in a month and how many steps one run may take, and choose who's told when it reaches a limit. It's how an agent that loops or runs away stops itself. Choose Next to move on."
       },
       "flow-agent-mcp": {
         "title": "Add MCP servers (optional)",
@@ -2688,17 +2785,25 @@
         "title": "No MCP server connected — connect one?",
         "body": "An MCP server gives this agent tools from another system, and you haven't connected one yet. Want to connect one now? It's a quick dialog right here — no leaving the builder, and we'll pick up the moment it's connected."
       },
-      "flow-agent-mcp-connect": {
-        "title": "Open the catalog",
-        "body": "Choose Connect a server — the catalog opens right here in the builder, and we'll pick one together."
-      },
       "flow-agent-mcp-attach": {
         "title": "Give it the server",
         "body": "Connecting a server doesn't hand it to this agent. Tick the one you just connected so the agent can use its tools, then choose Next."
       },
-      "flow-agent-limits": {
-        "title": "Set a budget (optional)",
-        "body": "Cap what this agent can spend in a month and how many steps one run may take, and choose who's told when it reaches a limit. It's how an agent that loops or runs away stops itself. Choose Next to move on."
+      "flow-agent-mcp-connect": {
+        "title": "Open the catalog",
+        "body": "Choose Connect a server — the catalog opens right here in the builder, and we'll pick one together."
+      },
+      "flow-agent-model-add": {
+        "title": "Add a model",
+        "body": "Your organization has no model yet. Pick a provider, name a model, and paste a key — it's stored in the vault and the model is ready. We'll move on once it's added."
+      },
+      "flow-agent-model-none": {
+        "title": "No model in this organization yet",
+        "body": "An agent needs a model to run, and this organization has none. Adding one needs the connections permission you don't have — ask an admin to add a model, then this agent can use it. Choose Next to look at the rest for now."
+      },
+      "flow-agent-model-pick": {
+        "title": "Choose its model",
+        "body": "Pick the model this agent should run on from the list — an agent needs one to run, so we'll move on once it's set."
       },
       "flow-agent-publish": {
         "title": "Publish it",
@@ -2712,65 +2817,45 @@
         "title": "Send it a message",
         "body": "Type a prompt and send it — your agent's first run, and the end of the tour. We'll close the moment it's on its way."
       },
-      "flow-skill-create": {
-        "title": "Add your skill",
-        "body": "Choose New skill — the form opens and we'll walk it together, field by field."
+      "flow-agent-skills": {
+        "title": "Give it skills (optional)",
+        "body": "A skill is written know-how the agent loads when it's relevant — a refund policy, a house style. Attach any, or choose Next to move on."
       },
-      "flow-kb-create": {
-        "title": "Create the knowledge base",
-        "body": "Choose New knowledge base — the form opens and we'll walk it together, field by field."
+      "flow-agent-skills-ask": {
+        "title": "No skills yet — create one?",
+        "body": "A skill is written know-how the agent loads when it's relevant, and you don't have one yet. Want to create one now and attach it? We'll guide you there and all the way back."
       },
-      "flow-skill-field-name": {
-        "title": "Name it",
-        "body": "Short and specific, like refund-policy — it's how the model refers to this skill, and it can't be changed later. Then choose Next."
+      "flow-agent-skills-attach": {
+        "title": "Attach your skill",
+        "body": "Open the Skills tab and attach the skill you just created, then choose Next."
       },
-      "flow-skill-field-description": {
-        "title": "Say when it applies",
-        "body": "This is the only part the model reads when deciding whether to open the skill at all — write when to reach for it, not what's inside. Then choose Next."
+      "flow-agent-skills-create": {
+        "title": "Create the skill",
+        "body": "Choose New skill — the form opens and we'll walk it together, field by field. Afterwards we'll walk you back to your agent."
       },
-      "flow-skill-field-source": {
-        "title": "Write the skill",
-        "body": "Switch to Source and write the know-how itself in Markdown — the steps, the rules, the exceptions. You can refine it anytime after. Then choose Next."
+      "flow-agent-skills-return-edit": {
+        "title": "Open your agent again",
+        "body": "Choose the edit pencil on the agent you just built to reopen its builder."
       },
-      "flow-skill-field-create": {
-        "title": "Create it",
-        "body": "Choose Create. We'll move on the moment it's saved."
+      "flow-agent-skills-return-nav": {
+        "title": "Back to your agents",
+        "body": "Choose Agents in the sidebar to head back to the agent you were building."
       },
-      "flow-kb-field-name": {
-        "title": "Name it",
-        "body": "Name it after what it will hold — Product docs, Support wiki — so anyone attaching it to an agent knows what they're giving it. Then choose Next."
+      "flow-agent-tools": {
+        "title": "Give it tools (optional)",
+        "body": "Capabilities let the agent do things — search the web, run code, call another system. Switch on what it needs, or choose Next to move on."
       },
-      "flow-kb-field-scope": {
-        "title": "Choose who it belongs to",
-        "body": "Personal is yours alone; Organization makes it available to every member and agent. For a base your agents will search, pick Organization. Then choose Next."
+      "flow-chat-agent": {
+        "title": "Choose who answers",
+        "body": "This picks which of your published agents replies. Open it to switch agents — you can even change partway through a conversation. Choose Next."
       },
-      "flow-kb-field-embeddings": {
-        "title": "Embeddings (leave the default)",
-        "body": "How documents are indexed for search. It's frozen at creation, but the deployment default is right for almost everyone — expand it only if you know you need a different model. Choose Next."
+      "flow-chat-composer": {
+        "title": "Type and send",
+        "body": "Write your message here and send it — that's your first conversation. Choose Finish when you're ready."
       },
-      "flow-kb-field-create": {
-        "title": "Create it",
-        "body": "Choose Create. We'll move on the moment it exists — you'll add documents to it right after."
-      },
-      "flow-mcp-field-pick": {
-        "title": "Pick a server",
-        "body": "This is the catalog of systems your agents can get tools from. Find the one you want and choose Connect on it."
-      },
-      "flow-mcp-field-form": {
-        "title": "Fill in the connection",
-        "body": "Name it — the name prefixes its tool names — keep Organization so your agents can use it, and paste a token if this server asks for one. Then choose Next."
-      },
-      "flow-mcp-field-connect": {
-        "title": "Connect it",
-        "body": "Choose Connect. We check the server answers and move on the moment it's connected — a server that signs in through the provider will hand off to their consent screen instead."
-      },
-      "flow-routine-run-now": {
-        "title": "Fire it once, now",
-        "body": "Run now runs the routine immediately - same agent, same prompt, same run log - without waiting for its schedule. It is how you find out whether the prompt says what you meant before the clock does."
-      },
-      "flow-org-create": {
-        "title": "Create the organization",
-        "body": "Choose New organization, give it a name, and create it. We'll move on as soon as it exists."
+      "flow-chat-controls": {
+        "title": "Tune this conversation",
+        "body": "Open Controls to run this chat on a different model, or change how hard it thinks — just for this conversation, without touching the agent itself. Choose Next."
       },
       "flow-chat-needs-agent": {
         "title": "No published agent to chat with yet",
@@ -2780,169 +2865,73 @@
         "title": "Start a conversation",
         "body": "Choose New conversation to begin a fresh thread. Each one keeps its own history and settings. Choose Next when you've had a look."
       },
-      "flow-chat-agent": {
-        "title": "Choose who answers",
-        "body": "This picks which of your published agents replies. Open it to switch agents — you can even change partway through a conversation. Choose Next."
+      "flow-kb-create": {
+        "title": "Create the knowledge base",
+        "body": "Choose New knowledge base — the form opens and we'll walk it together, field by field."
       },
-      "flow-chat-controls": {
-        "title": "Tune this conversation",
-        "body": "Open Controls to run this chat on a different model, or change how hard it thinks — just for this conversation, without touching the agent itself. Choose Next."
+      "flow-kb-field-create": {
+        "title": "Create it",
+        "body": "Choose Create. We'll move on the moment it exists — you'll add documents to it right after."
       },
-      "flow-chat-composer": {
-        "title": "Type and send",
-        "body": "Write your message here and send it — that's your first conversation. Choose Finish when you're ready."
+      "flow-kb-field-embeddings": {
+        "title": "Embeddings (leave the default)",
+        "body": "How documents are indexed for search. It's frozen at creation, but the deployment default is right for almost everyone — expand it only if you know you need a different model. Choose Next."
       },
-      "welcome": {
-        "title": "Welcome to AgenticOS",
-        "body": "This is where your team builds, runs and governs its AI agents. We'll step through each section and point out what's worth noticing — about a minute, and you can close it whenever you like."
+      "flow-kb-field-name": {
+        "title": "Name it",
+        "body": "Name it after what it will hold — Product docs, Support wiki — so anyone attaching it to an agent knows what they're giving it. Then choose Next."
       },
-      "dashboard-actions": {
-        "title": "Start here",
-        "body": "These shortcuts are the quickest way in: open a chat, create your first agent, review anything waiting on a decision, or invite a teammate."
+      "flow-kb-field-scope": {
+        "title": "Choose who it belongs to",
+        "body": "Personal is yours alone; Organization makes it available to every member and agent. For a base your agents will search, pick Organization. Then choose Next."
       },
-      "dashboard-filters": {
-        "title": "Slice the dashboard",
-        "body": "Every number on this page follows the period you pick here, and you can hide sections you don't need. The view lives in the URL, so it survives a reload and travels in a link."
+      "flow-mcp-field-connect": {
+        "title": "Connect it",
+        "body": "Choose Connect. We check the server answers and move on the moment it's connected — a server that signs in through the provider will hand off to their consent screen instead."
       },
-      "dashboard-customize": {
-        "title": "Make it your own",
-        "body": "Customize opens an editor: drag a card to move it between sections, drag its edge to resize it from a quarter of the row to the whole width, hide the ones you never read, and Add a widget for the rest of the catalog - the same card more than once if you want it per agent. Sections can be renamed, coloured, collapsed and added to. Save keeps it, Cancel discards it, and Reset to default puts back the arrangement you started with. Layouts holds several of these arrangements and switches between them, so the one you read on a Monday need not be the one you read while something is on fire. All of it is per person - nobody else sees your arrangement."
+      "flow-mcp-field-form": {
+        "title": "Fill in the connection",
+        "body": "Name it — the name prefixes its tool names — keep Organization so your agents can use it, and paste a token if this server asks for one. Then choose Next."
       },
-      "chat-start": {
-        "title": "Chat with your agents",
-        "body": "New chat opens a fresh thread, and your past conversations stack up in this rail. It's the quickest way to try an agent out and watch how it works, step by step."
+      "flow-mcp-field-pick": {
+        "title": "Pick a server",
+        "body": "This is the catalog of systems your agents can get tools from. Find the one you want and choose Connect on it."
       },
-      "chat-agent-picker": {
-        "title": "Choose who answers",
-        "body": "Switch between your agents right here. Each brings its own instructions, tools and knowledge, so the same question can get a very different answer."
+      "flow-org-create": {
+        "title": "Create the organization",
+        "body": "Choose New organization, give it a name, and create it. We'll move on as soon as it exists."
       },
-      "chat-composer": {
-        "title": "Ask anything",
-        "body": "Type a message, drop in a file, or start with a slash-command. Enter sends; Shift+Enter adds a line."
+      "flow-routine-run-now": {
+        "title": "Fire it once, now",
+        "body": "Run now runs the routine immediately - same agent, same prompt, same run log - without waiting for its schedule. It is how you find out whether the prompt says what you meant before the clock does."
       },
-      "chat-plan": {
-        "title": "What it is working to",
-        "body": "An agent that plans keeps a checklist here, above the composer - the step in flight, and how much is left. Open it for the whole plan; it stays current as the run works through it."
+      "flow-skill-create": {
+        "title": "Add your skill",
+        "body": "Choose New skill — the form opens and we'll walk it together, field by field."
       },
-      "chat-model-picker": {
-        "title": "Tune the model",
-        "body": "Pick which of the organization's models answers — just for this conversation, without changing the agent."
+      "flow-skill-field-create": {
+        "title": "Create it",
+        "body": "Choose Create. We'll move on the moment it's saved."
       },
-      "agents-new": {
-        "title": "Build an agent",
-        "body": "An agent is its instructions, a model, and the tools, MCP servers and skills you give it. Create one here, then publish a version so it runs the same way everywhere — chat, API, Slack or a widget."
+      "flow-skill-field-description": {
+        "title": "Say when it applies",
+        "body": "This is the only part the model reads when deciding whether to open the skill at all — write when to reach for it, not what's inside. Then choose Next."
       },
-      "agents-filters": {
-        "title": "Find one fast",
-        "body": "Filter by status or search by name once the roster grows past a screenful."
+      "flow-skill-field-name": {
+        "title": "Name it",
+        "body": "Short and specific, like refund-policy — it's how the model refers to this skill, and it can't be changed later. Then choose Next."
       },
-      "agent-instructions": {
-        "title": "Instructions are the behaviour",
-        "body": "Open an agent and you land in the Builder, where it's assembled tab by tab. Build comes first: the instructions are its behaviour, written in plain Markdown rather than code."
-      },
-      "agent-model": {
-        "title": "Choose the brain",
-        "body": "The model underneath does the reasoning. Swap it, dial how hard it thinks, or turn on step-by-step reasoning — all without touching the instructions above."
-      },
-      "agent-toolbox": {
-        "title": "Give it tools",
-        "body": "The Toolbox is what an agent can actually do. Switch on built-in capabilities like web search, code or files, and each becomes a tool the model may call mid-answer."
-      },
-      "agent-mcp": {
-        "title": "And whole tool sets",
-        "body": "Below the capabilities, attach MCP servers — ready-made tool sets like GitHub or Slack, connected once for the organization and reused across agents."
-      },
-      "agent-knowledge": {
-        "title": "Point it at your docs",
-        "body": "Knowledge lets the agent search the collections you pick, so it answers from your own material instead of guessing from training alone."
-      },
-      "agent-skills": {
-        "title": "Hand it a playbook",
-        "body": "Skills are written know-how the agent reads before it acts — a procedure, a house style, a checklist — and the same one can be shared across agents."
-      },
-      "agent-limits": {
-        "title": "Keep it in bounds",
-        "body": "Cap the monthly spend and the steps a single run may take, and choose who gets told when the agent hits a limit or fails."
-      },
-      "agent-availability": {
-        "title": "Put it to work",
-        "body": "Availability is where a published agent goes live — a web chat, an embed on your site, Slack or Telegram — and where you decide who to share it with."
-      },
-      "agent-history": {
-        "title": "Every version, kept",
-        "body": "Each publish freezes the spec as a version you can promote to an environment, roll back to, or read the run history against."
-      },
-      "agent-publish": {
-        "title": "Publish to ship it",
-        "body": "Nothing runs until you publish. Publishing freezes the current draft as a version, and that version is what answers everywhere the agent is available."
-      },
-      "skills-new": {
-        "title": "Reusable skills",
-        "body": "A skill is a packaged set of instructions an agent can draw on for a task. Write one once here and share it across the agents that need it."
-      },
-      "skills-list": {
-        "title": "Your skills",
-        "body": "The skills you've written or installed. An agent picks the ones it needs from its Skills tab, and the same skill can serve several agents at once."
-      },
-      "context-new": {
-        "title": "Add standing context",
-        "body": "Context files are the background every agent carries — company facts, tone, terms — injected into each prompt without you pasting them in every time. Add one here."
-      },
-      "context-list": {
-        "title": "Shared context",
-        "body": "The context files this organization holds. One file can feed every agent, so a fact you fix here is fixed for all of them at once."
-      },
-      "channels-new": {
-        "title": "Reach agents where people are",
-        "body": "Register a chat platform — Slack, Telegram, Mattermost — and any agent can be bound to answer there. The bot's token is sealed in the vault. Add one here."
-      },
-      "channels-list": {
-        "title": "Connected channels",
-        "body": "The platforms this organization is reachable on. A channel belongs to the organization, not one agent, so the same bot can serve every agent bound to it."
-      },
-      "activity-overview": {
-        "title": "Watch activity",
-        "body": "Every run is recorded with its cost and outcome, so you can see what your agents did and step in when one is waiting on a decision. These figures summarise the lot."
-      },
-      "activity-approvals": {
-        "title": "What's waiting on you",
-        "body": "Runs that paused for a human decision queue here. Approve or reject each one and the run picks up from where it stopped — this tab only appears if you're allowed to decide them."
-      },
-      "activity-runs": {
-        "title": "Every run",
-        "body": "The full history: who ran which agent, what it cost and how it ended. Filter it, or open a run to see the whole conversation and the tools it called."
-      },
-      "activity-spend": {
-        "title": "Where the money went",
-        "body": "Spend over time and by agent, against the budgets you've set — so an agent quietly getting expensive shows up here before the bill does."
-      },
-      "run-detail-input": {
-        "title": "What the model was actually given",
-        "body": "The prompt as it was composed and sent, every tool with the description the model reads, the settings, and one bar per request — recorded from the wire, so it is what was sent rather than what the spec says."
-      },
-      "knowledge-new": {
-        "title": "Knowledge bases",
-        "body": "Upload documents so your agents can answer from them. Each collection is searchable and stays private to your organization — create your first one here."
-      },
-      "knowledge-tabs": {
-        "title": "Browse or search",
-        "body": "Two views of the same knowledge: the collections you've built, and a search that runs across all of them at once."
-      },
-      "knowledge-integrations": {
-        "title": "Reusable connections",
-        "body": "Connections shared across the organization: set up an S3 bucket, a drive, a site or a repo once here, and clone it into any collection instead of re-configuring it each time."
-      },
-      "knowledge-add-integration": {
-        "title": "Add a connection",
-        "body": "Start a new one here — pick a connector like S3 or Google Drive, give it credentials, and it becomes available to clone into any collection that needs it."
-      },
-      "kb-header": {
-        "title": "Inside a collection",
-        "body": "The collection's name, scope and controls sit up top — refresh it, drop in files, change how they're read, or remove it."
+      "flow-skill-field-source": {
+        "title": "Write the skill",
+        "body": "Switch to Source and write the know-how itself in Markdown — the steps, the rules, the exceptions. You can refine it anytime after. Then choose Next."
       },
       "kb-documents": {
         "title": "What's in it",
         "body": "Every document the collection holds, with the status of each as it's parsed and indexed. Add more here, or preview and remove what's already there."
+      },
+      "kb-header": {
+        "title": "Inside a collection",
+        "body": "The collection's name, scope and controls sit up top — refresh it, drop in files, change how they're read, or remove it."
       },
       "kb-ingestion": {
         "title": "How documents are read",
@@ -2952,73 +2941,101 @@
         "title": "Keep it in step",
         "body": "Connect a drive, a site or a repo, and the collection refreshes itself from the source instead of waiting on a manual re-upload."
       },
-      "orgs-new": {
-        "title": "Your organizations",
-        "body": "Everything is scoped to an organization. Create one, or switch between the ones you belong to — each keeps its own agents, keys and knowledge apart."
+      "knowledge-add-integration": {
+        "title": "Add a connection",
+        "body": "Start a new one here — pick a connector like S3 or Google Drive, give it credentials, and it becomes available to clone into any collection that needs it."
       },
-      "org-profile": {
-        "title": "Name and face",
-        "body": "The organization's name and avatar, shown wherever it appears. Owners and admins can change them here."
+      "knowledge-integrations": {
+        "title": "Reusable connections",
+        "body": "Connections shared across the organization: set up an S3 bucket, a drive, a site or a repo once here, and clone it into any collection instead of re-configuring it each time."
       },
-      "org-members": {
-        "title": "Who's in it",
-        "body": "Everyone in the organization and the role each holds. Invite teammates, change a role, or remove someone — all from this list."
+      "knowledge-new": {
+        "title": "Knowledge bases",
+        "body": "Upload documents so your agents can answer from them. Each collection is searchable and stays private to your organization — create your first one here."
       },
-      "org-roles": {
-        "title": "What each role may do",
-        "body": "The permission matrix, role by role: what each may touch and how far it reaches. Sharing a single resource can widen access beyond the role, never narrow it."
-      },
-      "vault-new": {
-        "title": "The vault",
-        "body": "API keys and other credentials live here, encrypted at rest. Agents use them to reach the tools they need, and nobody sees a stored secret again."
-      },
-      "vault-keys": {
-        "title": "What's stored",
-        "body": "Every credential in this organization, listed by name and kind. An agent references a key by its name; the value itself is shown to no one once it's saved."
-      },
-      "mcp-catalog": {
-        "title": "Plug in tools",
-        "body": "MCP servers are ready-made tool sets your agents can call. Connect one here, then add it to an agent from its Toolbox."
-      },
-      "mcp-filter": {
-        "title": "Find a server",
-        "body": "Search the catalog, or narrow it by category and by whether you've already connected it."
+      "knowledge-tabs": {
+        "title": "Browse or search",
+        "body": "Two views of the same knowledge: the collections you've built, and a search that runs across all of them at once."
       },
       "mcp-add": {
         "title": "Bring your own",
         "body": "Not in the catalog? Add a custom server by pasting its URL — for the whole organization, or just for yourself."
       },
+      "mcp-catalog": {
+        "title": "Plug in tools",
+        "body": "MCP servers are ready-made tool sets your agents can call. Connect one here, then add it to an agent from its Toolbox."
+      },
       "mcp-connect": {
         "title": "Connect, then pick tools",
         "body": "Connecting a server asks how to sign in, then lets you choose exactly which of its tools your agents are allowed to call."
       },
-      "sandboxes-connections": {
-        "title": "Where agents run code",
-        "body": "Agents that write and run code do it on these hosts. Watch the live sessions and set the ceilings from here."
+      "mcp-filter": {
+        "title": "Find a server",
+        "body": "Search the catalog, or narrow it by category and by whether you've already connected it."
       },
-      "routines-list": {
-        "title": "What runs without you",
-        "body": "Every schedule and trigger across the organization, with what it last did. An agent working while nobody is at the keyboard shows up here first."
+      "org-members": {
+        "title": "Who's in it",
+        "body": "Everyone in the organization and the role each holds. Invite teammates, change a role, or remove someone — all from this list."
+      },
+      "org-profile": {
+        "title": "Name and face",
+        "body": "The organization's name and avatar, shown wherever it appears. Owners and admins can change them here."
+      },
+      "org-roles": {
+        "title": "What each role may do",
+        "body": "The permission matrix, role by role: what each may touch and how far it reaches. Sharing a single resource can widen access beyond the role, never narrow it."
+      },
+      "orgs-new": {
+        "title": "Your organizations",
+        "body": "Everything is scoped to an organization. Create one, or switch between the ones you belong to — each keeps its own agents, keys and knowledge apart."
       },
       "routines-create": {
         "title": "Two ways to start one",
         "body": "A schedule runs on the clock - every hour, weekday mornings, the first of the month. A trigger runs when something happens: a GitHub issue, an email arriving, or a signed POST from your own code."
       },
-      "workspaces-browser": {
-        "title": "Files agents kept for you",
-        "body": "When an agent saves a file, it lands here — browse, preview and download whatever your conversations produced."
+      "routines-list": {
+        "title": "What runs without you",
+        "body": "Every schedule and trigger across the organization, with what it last did. An agent working while nobody is at the keyboard shows up here first."
       },
-      "finish": {
-        "title": "You're all set",
-        "body": "That's the tour. Replay any page's tips anytime from the help button at the top — head to your dashboard whenever you're ready to start building."
+      "run-detail-input": {
+        "title": "What the model was actually given",
+        "body": "The prompt as it was composed and sent, every tool with the description the model reads, the settings, and one bar per request — recorded from the wire, so it is what was sent rather than what the spec says."
       },
-      "workspaces-detail": {
-        "title": "Inside a workspace",
-        "body": "The files from one workspace. Browse the folders, preview a file, or download whatever an agent produced for you."
+      "sandboxes-connections": {
+        "title": "Where agents run code",
+        "body": "Agents that write and run code do it on these hosts. Watch the live sessions and set the ceilings from here."
       },
       "settings-tabs": {
         "title": "Your settings",
         "body": "Your profile, sign-in and security, notifications, and slash-commands all live behind these tabs — switch between them here."
+      },
+      "skills-list": {
+        "title": "Your skills",
+        "body": "The skills you've written or installed. An agent picks the ones it needs from its Skills tab, and the same skill can serve several agents at once."
+      },
+      "skills-new": {
+        "title": "Reusable skills",
+        "body": "A skill is a packaged set of instructions an agent can draw on for a task. Write one once here and share it across the agents that need it."
+      },
+      "vault-keys": {
+        "title": "What's stored",
+        "body": "Every credential in this organization, listed by name and kind. An agent references a key by its name; the value itself is shown to no one once it's saved."
+      },
+      "vault-new": {
+        "title": "The vault",
+        "body": "API keys and other credentials live here, encrypted at rest. Agents use them to reach the tools they need, and nobody sees a stored secret again."
+      },
+      "welcome": {
+        "title": "Welcome to AgenticOS",
+        "body": "This is where your team builds, runs and governs its AI agents. We'll step through each section and point out what's worth noticing — about a minute, and you can close it whenever you like."
+      },
+      "workspaces-browser": {
+        "title": "Files agents kept for you",
+        "body": "When an agent saves a file, it lands here — browse, preview and download whatever your conversations produced."
+      },
+      "workspaces-detail": {
+        "title": "Inside a workspace",
+        "body": "The files from one workspace. Browse the folders, preview a file, or download whatever an agent produced for you."
       }
     }
   },
@@ -3801,7 +3818,8 @@
       "runResumed": "Run resumed - the agent picked up where it parked.",
       "resumeFailed": "The run could not be resumed.",
       "modelFilter": "Filter by model",
-      "anyModel": "Any model"
+      "anyModel": "Any model",
+      "decidedByStandingConsent": "waived in advance for the conversation"
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -4463,6 +4481,9 @@
   },
   "teams": {
     "acmeCom": "acme.com",
+    "approvalWaiver": "Waiving approvals in chat",
+    "approvalWaiverDescription": "Whether a conversation may run without stopping for approvals.",
+    "approvalWaiverHint": "When this is on, somebody who may decide approvals can let one conversation run every gated tool call without being asked. Each waived call is still recorded against their account.",
     "cancel": "Cancel",
     "cancel2": "Cancel",
     "cancel3": "Cancel",
@@ -4511,6 +4532,9 @@
     "spentNoLimit": "${spent} spent this month, against no limit.",
     "spentOfLimit": "${spent} of ${limit} spent this month.",
     "unlimited": "Unlimited",
+    "waiverAllowed": "Conversations may now waive approvals",
+    "waiverFailed": "Could not change whether chats may waive approvals",
+    "waiverForbidden": "Conversations may no longer waive approvals",
     "you": "(you)"
   },
   "theme": {
