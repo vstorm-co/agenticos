@@ -17,6 +17,33 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.324] - 2026-08-28
+
+### Fixed
+
+- **The admin drawer said "Never signed in" for anybody who had signed out.** Both of
+  its session figures came off the same read - the user's *active* sessions - and a
+  user who signs out, or whose sessions were revoked, has no active row at all, so
+  `last_seen_at` came back null. That is most accounts most of the time, and it is the
+  opposite of the truth on the one field the drawer exists to answer. Where somebody
+  was last seen is a fact about every session they have ever had, so the read takes
+  the whole history (`open_only=False`) and the head of it, most-recently-used first,
+  is the answer. (#1256)
+- **An expired session counted as open.** Nothing sweeps a session that simply
+  lapses: the row stays `is_active` until the next refresh finds it past `expires_at`
+  and declines it, so a session nobody can use was reported as open. "Open" now means
+  `is_active AND expires_at > now()`, and it lives in `app/repositories/session.py`
+  rather than at one call site - which is why the flag is `open_only` and not
+  `active_only`: the old name described the column, not the question. The user's own
+  devices list goes through the same two functions, so it stops offering an expired
+  row to revoke. `newest_session_at` stays scoped to the open ones, because "newest
+  session August" under "0 open sessions" is a sentence about nothing. (#1256)
+
+### Changed
+
+- New index on `(user_id, last_used_at, id)` for the sessions table, so reading the
+  head of an unpruned history is bounded rather than a per-user scan and top-N sort.
+
 ## [0.0.323] - 2026-08-28
 
 ### Fixed
