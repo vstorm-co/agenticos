@@ -17,6 +17,41 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.340] - 2026-08-28
+
+### Added
+
+- **A README front page: hero, pitch, badges, nav, then the spec sample and what the
+  product looks like.** The content was already strong; what it lacked was the visual
+  first impression. The graphics are authored in this repository - no icon package, no
+  external asset host, no hand-copied path data:
+  `.github/assets/hero-{light,dark}.svg`, one per theme and served through a
+  `<picture>`, drawing the sentence the README opens with rather than decorating it -
+  one spec, one runner, the surfaces that reach it and the four refusals underneath,
+  in the app's own palette read out of `globals.css` and converted rather than
+  eyeballed; and `docs/assets/mark.svg`, the same mark alone, which is now the docs
+  site's logo and favicon, which the site did not have. One file, not two: an earlier
+  draft had a copy in `.github/assets/`, which is the second-source defect this
+  repository keeps citing. (#783)
+- **Release and stars badges** - the two the header lacked - plus a star-history image
+  before the footer. Image paths are relative, so they render in a pull request as
+  well as on `main`; absolute `raw.githubusercontent` URLs would show broken images to
+  whoever reviews a change about graphics. (#783)
+- Three screenshots - the builder, the catalog, the chat surface - at 1600px,
+  palette-reduced to 220 colours, 392KB for all three. Taken from a `make dev` run
+  against a **throwaway database** rather than a developer's own, which held eleven E2E
+  fixtures and four scratch agents; the fresh one was dropped afterwards and the
+  developer's eleven agents verified still there. No shot shows a live model answer,
+  deliberately: the alternatives were to spend somebody's tokens or to fake a
+  transcript, so the chat shot is the composer with a real question typed and the agent
+  picker showing which agent will answer. (#783)
+
+### Fixed
+
+- The docs table promised "Spec, version, exposure, run - the four nouns" where
+  `concepts.md` has five: the trigger was added and one of the two pages updated.
+  (#783)
+
 ## [0.0.339] - 2026-08-28
 
 ### Fixed
