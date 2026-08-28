@@ -43,7 +43,7 @@ export function MyAgentsWidget({ title, hint, period, seeAll, options }: Dashboa
       ) : rows.length === 0 ? (
         <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
       ) : (
-        <ul className="grid gap-2 sm:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {rows.map((agent) => {
             const tag = agentTag(agent, userId);
             return (
