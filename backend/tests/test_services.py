@@ -432,8 +432,10 @@ class TestUserServicePostgresql:
         lone_admin = uuid4()
         with (
             patch("app.services.user.user_repo") as mock_repo,
+            patch("app.services.user.organization_repo") as mock_org_repo,
             patch.object(user_service, "_release_owned_rows", new=AsyncMock()),
         ):
+            mock_org_repo.list_created_by = AsyncMock(return_value=[])
             mock_repo.get_by_id_for_update = AsyncMock(return_value=mock_user)
             mock_repo.app_admin_ids_for_update = AsyncMock(return_value=[lone_admin])
             mock_repo.delete = AsyncMock(return_value=mock_user)
