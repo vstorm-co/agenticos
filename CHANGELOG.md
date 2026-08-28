@@ -17,6 +17,46 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.341] - 2026-08-28
+
+### Fixed
+
+- **The card grids clipped by 34px on a 390px viewport.**
+  `grid gap-3 md:grid-cols-2 xl:grid-cols-3` declares no column count *below* `md`, so
+  the single implicit track is `auto` and sizes to its items' content: the grid box
+  measured 324px while its own `grid-template-columns` computed **391.094px**.
+  `min-width: 0` injected at every level of the ancestor chain changes nothing - the
+  track is what is too wide, not the item - where `grid-cols-1`, that is
+  `repeat(1, minmax(0, 1fr))`, makes the track the container's 324px and the card's own
+  `truncate` finally has something to truncate against. Applied to fourteen grids
+  across nine files: the ones whose cards carry user-supplied unbreakable text - a
+  slug, an email, a URL, an id - because those are the ones whose min-content is
+  unbounded. The sweep found 71 grids with the same shape and deliberately leaves the
+  other 57: the pattern is only a defect when something inside cannot be broken, and a
+  no-op class on 57 files is a diff nobody can review. (#120)
+- **The chat control bar ran 27px past the composer at 390px.** Three controls, 358px
+  of them, in a `justify-between` row with the connection pill. The pill is `shrink-0`
+  now - two words, nothing to give - and the control group `min-w-0`, which
+  `AgentPicker`'s trigger needed too: its `max-w-[160px]` on the name is a cap, not
+  permission for a flex item to shrink. (#120)
+- **A dashboard widget's info button was a 14x14 tap target**, a third of the 44px both
+  mobile platforms ask for. A `before:absolute before:-inset-[15px]` pseudo-element
+  takes it to 44x44 without moving anything on screen. (#120)
+
+### Changed
+
+- #120 had "describe it later" in every field, so **the issue body is now the audit**:
+  measured at 390x780 and 768x1024 in Chromium against the running app, fourteen pages,
+  each scrolled to the end, recording overflow, tap-target size, text size and anything
+  intersecting the fixed tab bar. Good news up front - the document never scrolls
+  horizontally, at either width, on any of the fourteen pages. Three things are
+  deliberately left and scoped on the issue rather than fixed here: the three data
+  tables, which each sit in their own `overflow-x-auto` scroller so no column is lost
+  but which want to be cards below `md` (Activity is 1155px in a 364px column); 45
+  sub-40px tap targets, most of them the repository's own `icon-sm`, which want one
+  hit-area token below `md` rather than bigger buttons; and the 10-11px mono label
+  register, which is a design decision about a phone. (#120)
+
 ## [0.0.340] - 2026-08-28
 
 ### Added
