@@ -1,26 +1,34 @@
 # Setting up an event trigger
 
-An **event trigger** fires an agent when something happens somewhere else. There are
-two ways that reaches us, and which one a source uses is the source's own business
-rather than yours:
+An **event trigger** fires an agent when something happens somewhere else.
 
-- **Pushed.** A provider POSTs a signed payload - a GitHub issue, or anything that
+There are two ways that reaches us, and which one a source uses is the source's own
+business rather than yours:
+
+- **Pushed.** A provider POSTs a signed payload — a GitHub issue, or anything that
   can send signed JSON (the **API** source).
 - **Polled.** The platform reads a connected account on a schedule. **Gmail** is
   this: nothing is posted to us, so there is no URL to configure and no secret to
   keep. You connect the mailbox and that is the whole setup.
-[Concepts](concepts.md#trigger) covers what a trigger *is* and how a fired run behaves;
-[Governance](governance.md) covers what it spends and how a refusal is handled. This
-page is what you do next: how to point a real provider at the webhook, what the
-delivery has to contain, and how to test the whole thing from a laptop.
 
-If you only need the agent to run on the clock, you want a **schedule**, not an event
-trigger - no webhook, no secret, no provider to configure. Either kind can start from a
-seeded **template** (`GET /trigger-templates`): a schedule template - "summarise my open
-pull requests every weekday morning" - pre-fills the prompt and a sane cadence, and an
-event template - "triage the new issue", "draft a reply to the email" - pre-fills the
-prompt on its own source's message step, so neither starts from a blank box. Everything
-below is for the event case.
+[Concepts](concepts.md#trigger) covers what a trigger *is* and how a fired run
+behaves; [Governance](governance.md) covers what it spends and how a refusal is
+handled.
+
+This page is what you do next: how to point a real provider at the webhook, what
+the delivery has to contain, and how to test the whole thing from a laptop.
+
+!!! tip "If you only need the clock, you want a schedule"
+
+    No webhook, no secret, no provider to configure.
+
+    Either kind can start from a seeded **template** (`GET /trigger-templates`). A
+    schedule template — "summarise my open pull requests every weekday morning" —
+    pre-fills the prompt and a sane cadence. An event template — "triage the new
+    issue", "draft a reply to the email" — pre-fills the prompt on its own source's
+    message step. Neither starts from a blank box.
+
+Everything below is for the event case.
 
 ## Where they live in the product, and what to call them
 
@@ -119,23 +127,32 @@ tells you nothing about which triggers exist. A body that is not a JSON object i
 
 ## Rotating the secret, and editing the filter
 
-The URL is the trigger's identity and never changes; the secret is a credential, and
-like every other key in this product it can be **rotated** - a re-seal and a fresh
-plaintext shown exactly once. `POST /agents/{agent_id}/triggers/{trigger_id}/rotate-secret`
-mints a new secret, seals it, and returns the trigger with `reveal_secret` set once (the
-same field create uses). Rotate the moment a secret might have leaked; the old one stops
-verifying immediately. For a hook the platform registered itself (`auto_webhook`), the
-rotation re-registers it with the new secret so its deliveries keep verifying and there
-is nothing to reveal - unless the account can no longer register it, in which case the
-trigger falls back to `manual` and the revealed secret is what you re-paste. A schedule
-has no secret, so rotating one is refused.
+The URL is the trigger's **identity** and never changes. The secret is a
+**credential**, and like every other key in this product it can be rotated — a
+re-seal and a fresh plaintext shown exactly once.
 
-Which issue actions fire is a **filter**, not a different trigger, so it is editable in
-place: `PATCH` the trigger with a new `event_config` and it is re-validated against the
-source's rules exactly as create validates it - an unknown key is refused rather than
-stored to match nothing. The source and the secret are not editable this way; repointing
-an event trigger at a different source is a new trigger, made by deleting this one and
-creating that.
+```
+POST /agents/{agent_id}/triggers/{trigger_id}/rotate-secret
+```
+
+It mints a new secret, seals it, and returns the trigger with `reveal_secret` set
+once — the same field create uses. Rotate the moment a secret might have leaked;
+the old one stops verifying immediately.
+
+For a hook the platform registered itself (`auto_webhook`) the rotation
+re-registers it with the new secret, so its deliveries keep verifying and there is
+nothing to reveal. Unless the account can no longer register it, in which case the
+trigger falls back to `manual` and the revealed secret is what you re-paste.
+
+A schedule has no secret, so rotating one is refused.
+
+**Which issue actions fire is a filter, not a different trigger**, so it is
+editable in place. `PATCH` the trigger with a new `event_config` and it is
+re-validated against the source's rules exactly as create validates it — an unknown
+key is refused rather than stored to match nothing.
+
+The source and the secret are not editable this way. Repointing an event trigger at
+a different source is a new trigger: delete this one, create that.
 
 ## Gmail (~1 minute, and no secret anywhere)
 
@@ -332,3 +349,14 @@ Two ways through it:
 
   Point the provider (or your signing script) at the tunnel URL and the delivery reaches
   your machine like any hosted one.
+
+## Recap
+
+- A trigger hands you a **URL** and a **signing secret**. The URL is its identity
+  and never changes; the secret is a credential and can be rotated.
+- The signature is `HMAC-SHA256` over the **exact raw bytes**, and it is what makes
+  a delivery authentic rather than merely addressed correctly.
+- A `202` means **accepted**, not finished. Read the run in Activity.
+- **Gmail is polled**, so it has no URL and no secret at all — connect the mailbox
+  and that is the setup.
+- On a laptop, reach for **Run now** before you reach for a tunnel.

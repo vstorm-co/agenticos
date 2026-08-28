@@ -1,14 +1,21 @@
 # The sandbox
 
-A container an agent can write files in and run commands in. It is how a run
-reads the spreadsheet somebody attached, plots something, clones a repository, or
-keeps notes between messages — and it is the one part of this platform that runs
-code nobody in this repository wrote.
+A container an agent can write files in and run commands in.
+
+It is how a run reads the spreadsheet somebody attached, plots something, clones a
+repository, or keeps notes between messages.
+
+!!! danger "This is the one part of the platform that runs code nobody here wrote"
+
+    Which is why this page spends as much time on what *contains* a sandbox as on
+    what is in one.
 
 This page is the whole picture: what runs where, what a session is, which
 environments an agent may ask for and how to change them, what isolates one
 organization from another, and how long any of it survives.
-`configuration.md#the-sandbox-service` is the variable-by-variable reference.
+
+[Configuration](configuration.md#the-services-own-settings) is the
+variable-by-variable reference.
 
 ## What runs where
 
@@ -56,22 +63,23 @@ asks a human to paste the token into a browser.
     What a session's key folds in — scope, organization, backend kind and host —
     is exactly what decides which runs share a container and a directory.
 
-A session is identified
-by a key the backend derives, and the key is what decides what is shared:
+A session is identified by a key the backend derives, and that key is what decides
+what is shared:
 
 ```
 xc-4f2a91c8-7b3e5d10-9c1f…      backend · scope · organization · host · subject
 ^^                              `x` a container service, `d` a document; `c` the conversation scope
 ```
 
-The scope is a field of the agent's spec — `run`, `conversation`, `channel`,
-`user` or `agent` — so `conversation` (the usual choice) means one container and
-one directory per chat, and `agent` means every run of that agent shares one.
+The **scope** is a field of the agent's spec — `run`, `conversation`, `channel`,
+`user` or `agent`. So `conversation`, the usual choice, means one container and one
+directory per chat; `agent` means every run of that agent shares one.
+
 Folded into the key as well: which **backend kind** and which **host** the
-workspace lives on, because a `state` document and a container's volume are not
-the same thing wearing different names, and neither are two `sandboxd`
-installations. Registering a second host and marking it the organization's
-default used to move every existing workspace without anybody editing a spec.
+workspace lives on. A `state` document and a container's volume are not the same
+thing wearing different names, and neither are two `sandboxd` installations —
+registering a second host and marking it the organization's default used to move
+every existing workspace without anybody editing a spec.
 
 What separates one tenant from another:
 
@@ -176,34 +184,40 @@ Measured on `python:3.12-slim` (205 MB), arm64:
 
 ### The model is told all of this
 
-A container is useless to an agent that does not know what is in it. Before
-#1040 an agent asked for a chart would `import plotly`, and one handed a PDF
+A container is useless to an agent that does not know what is in it.
+
+Before #1040 an agent asked for a chart would `import plotly`, and one handed a PDF
 would write its own extractor beside the `lit` that reads it — each learning
 otherwise by failing inside somebody's request.
 
-**And it is told how to work, not only what is installed.** The instruction that
-earns its place is the one nothing else can teach: *do not read a large file to
-look through it*. Extract it once to a text file, `rg -n` for the places that
-matter, `sed -n '400,460p'` to read one. A book is thousands of lines and an
-answer needs tens of them, and a model that pulls the whole thing into its own
-context spends the run's budget on pages nobody asked about. The same paragraph
-carries the two OCR traps above, because a scanned book is where both of them
-land at once.
+**And it is told how to work, not only what is installed.**
+
+The instruction that earns its place is the one nothing else can teach: *do not
+read a large file to look through it*. Extract it once to a text file, `rg -n` for
+the places that matter, `sed -n '400,460p'` to read one.
+
+A book is thousands of lines and an answer needs tens of them. A model that pulls
+the whole thing into its own context spends the run's budget on pages nobody asked
+about. The same paragraph carries the two OCR traps above, because a scanned book
+is where both of them land at once.
 
 So every run on a runtime this deployment ships has a paragraph appended to its
 instructions: which runtime it got, the package list, the `lit` line, what
-`soffice` converts, the one gap (no C compiler), and whether it has a network. It is
-**composed from the catalogue**, not written beside it — `runtime_briefing` reads
-the package list off the definition, so a package added to the file reaches the
-prompt in the same edit that reaches the image. Only what cannot be derived is
+`soffice` converts, the one gap (no C compiler), and whether it has a network.
+
+It is **composed from the catalogue**, not written beside it. `runtime_briefing`
+reads the package list off the definition, so a package added to the file reaches
+the prompt in the same edit that reaches the image. Only what cannot be derived is
 prose, in the entry's `briefing` list.
 
-Two consequences worth knowing. It is appended **per run**, the way a channel
-binding's prompt is, because which runtime a run gets is resolved from the spec,
-the connection and the host as the run starts — the published spec is left
-alone. And an alias this deployment does not ship gets **no** paragraph: a host
-started with an allowlist of its own is not one whose images we can honestly
-describe, and a prompt that guesses is worse than a prompt that is silent.
+Two consequences worth knowing:
+
+- It is appended **per run**, the way a channel binding's prompt is, because which
+  runtime a run gets is resolved from the spec, the connection and the host as the
+  run starts. The published spec is left alone.
+- An alias this deployment does **not** ship gets no paragraph. A host started with
+  an allowlist of its own is not one whose images we can honestly describe, and a
+  prompt that guesses is worse than a prompt that is silent.
 
 ### Changing it
 
@@ -307,38 +321,48 @@ nothing but writes is one nothing asked for yet.
 
 ## What was done in one, and where that record lives
 
-**In this platform's own table, `sandbox_operations` — not in the service.** The
-service keeps an activity log of its own and it is a 200-entry ring buffer in that
-process's memory, so what it dropped could not be asked for, a conversation worked
-in all day had lost its morning, and restarting `sandboxd` lost every log on the
-host. Nothing outside that process ever saw the entries (#1061).
+**In this platform's own table, `sandbox_operations` — not in the service.**
+
+The service keeps an activity log of its own, and it is a 200-entry ring buffer in
+that process's memory. What it dropped could not be asked for, a conversation
+worked in all day had lost its morning, and restarting `sandboxd` lost every log on
+the host. Nothing outside that process ever saw the entries (#1061).
 
 Every workspace call already passes through this application — the run calls us, we
-call the service — so the record is ours to make. `RecordingBackend` wraps the
-backend the capability's tools reach, which is why adding a ninth tool cannot
-forget to record: the wrapper records eight named operations (`write`, `edit`,
-`read`, `read_bytes`, `ls_info`, `glob_info`, `grep_raw`, `execute`) and delegates
-everything else untouched. `exists` and `is_alive` are questions rather than
-operations, and a log full of them would bury the writes somebody came to read.
+call the service — so the record is ours to make.
 
-Two facts the service could never carry, and the two an audit actually asks for:
-**which agent, and which run**. Both are `SET NULL` on delete, because the record
-of what happened has to outlive the agent that was deleted afterwards.
+`RecordingBackend` wraps the backend the capability's tools reach, which is why
+adding a ninth tool cannot forget to record. The wrapper records eight named
+operations (`write`, `edit`, `read`, `read_bytes`, `ls_info`, `glob_info`,
+`grep_raw`, `execute`) and delegates everything else untouched. `exists` and
+`is_alive` are questions rather than operations, and a log full of them would bury
+the writes somebody came to read.
 
-**A path, never a payload.** `write` records the path and that it succeeded;
-`execute` records the command and never its output - a nonzero exit is recorded
-as a failure with its numeric status (`exit 2`), the one safe fact about a failed
-command; `read` records the path and a byte count. These rows are readable by everyone who can see the sandbox, so a log
-carrying contents would be a way to read an agent's work rather than an audit of
-it — the same line the service draws, drawn again here. The one line about the
-outcome is written by us, never quoted from below: a shell's message *is* the
-command's output (#423).
+It carries two facts the service never could, and they are the two an audit
+actually asks for: **which agent, and which run**. Both are `SET NULL` on delete,
+because the record of what happened has to outlive the agent that was deleted
+afterwards.
+
+!!! warning "A path, never a payload"
+
+    `write` records the path and that it succeeded. `execute` records the command
+    and never its output — a nonzero exit is recorded as a failure with its numeric
+    status (`exit 2`), the one safe fact about a failed command. `read` records the
+    path and a byte count.
+
+    These rows are readable by everyone who can see the sandbox, so a log carrying
+    contents would be a way to *read* an agent's work rather than an audit of it —
+    the same line the service draws, drawn again here.
+
+    The one line about the outcome is written by us, never quoted from below: a
+    shell's message *is* the command's output (#423).
 
 Rows land when the run's transaction commits, because they are written into the
 run's own session rather than a connection per tool call. So a turn's operations
-appear together, a second or so after the turn ends. The dashboard row's live
-ticker still reads the service's buffer for exactly that reason — it answers
-mid-turn, where the record answers a week later.
+appear together, a second or so after the turn ends.
+
+The dashboard row's live ticker still reads the service's buffer for exactly that
+reason: it answers mid-turn, where the record answers a week later.
 
 `GET /api/v1/sandbox-connections/operations` pages it, and its filters narrow the
 **query**: the dialog's search, its operation filter and its failed-only switch are
@@ -406,37 +430,51 @@ the file counts:
 A count has to drop them too, or a workspace reporting four files where one is
 visible is a count nobody can check.
 
-**Whose it is and who else can see it are two answers, and the table carries
-both.** `access_label` is the *scope* in words — "everybody who talks to this
-agent", "whoever is in that conversation" — and it names nobody, which is the
-question an operator has about an agent-scoped workspace six people share. So the
-row also carries `owner_name`: an account's email, or the platform id of an owner
-who arrived through a channel and has no account here. It is drawn as words and
-never as a link, because half of them are not accounts to link to; and it is null
-for every scope but `user`, which is the only one that records an owner at all —
-three of the four honestly have none, and the column says so rather than repeating
-the scope.
+### Whose workspace it is, and who else can see it
 
-**A file says who put it there.** `uploads/` is where an attachment lands, so a
-path under it is a file a person attached and anything else is the agent's own
-work — offered as a filter and said on the tile. It is the only signal available:
-a host records no author and neither does the state document. Its limit follows
-from that: an agent writing into `uploads/` itself is indistinguishable from a
-person, and nothing stops it.
+Two answers, and the table carries both.
 
-**Listing a container costs round trips, so two things are bounded.** The archive's
-`ls` reads one directory, so the listing walks — breadth-first, six levels deep at
-most and stopping at 2,000 entries, because a host holding a `node_modules` must
-not turn one workspace into ten thousand rows. **Both bounds are reported**: a
-workspace's page says plainly that this is not every file, because a tree that
-stops without saying so is one somebody reads as everything the agent is keeping.
-A directory that will not answer is logged and skipped; only the root refusing
-makes the workspace unreadable, because one folder the agent chmod'ed away is not
-a host nobody can read. And an image's thumbnail is a `read_bytes` for
-that file: the suffix and the size are checked off the listing entry before
-anything is fetched, and one request draws at most 24. Past that a tile keeps the
-glyph. A *stored* workspace pays neither - its files and their bytes are a column
-of the row the listing already read.
+`access_label` is the **scope** in words — "everybody who talks to this agent",
+"whoever is in that conversation". It names nobody, which is exactly the question
+an operator has about an agent-scoped workspace six people share.
+
+So the row also carries `owner_name`: an account's email, or the platform id of an
+owner who arrived through a channel and has no account here. It is drawn as words
+and never as a link, because half of them are not accounts to link to. And it is
+null for every scope but `user`, which is the only one that records an owner at all
+— three of the four honestly have none, and the column says so rather than
+repeating the scope.
+
+### A file says who put it there
+
+`uploads/` is where an attachment lands, so a path under it is a file **a person
+attached**, and anything else is the agent's own work. It is offered as a filter
+and said on the tile.
+
+It is the only signal available: a host records no author, and neither does the
+state document. Its limit follows from that — an agent writing into `uploads/`
+itself is indistinguishable from a person, and nothing stops it.
+
+### Listing a container costs round trips, so two things are bounded
+
+The archive's `ls` reads one directory, so the listing walks: breadth-first, six
+levels deep at most, stopping at 2,000 entries — because a host holding a
+`node_modules` must not turn one workspace into ten thousand rows.
+
+**Both bounds are reported.** A workspace's page says plainly that this is not
+every file, because a tree that stops without saying so is one somebody reads as
+everything the agent is keeping.
+
+A directory that will not answer is logged and skipped. Only the *root* refusing
+makes the workspace unreadable, because one folder the agent chmod'ed away is not a
+host nobody can read.
+
+And an image's thumbnail is a `read_bytes` for that file: the suffix and the size
+are checked off the listing entry before anything is fetched, and one request draws
+at most 24. Past that a tile keeps the glyph.
+
+A *stored* workspace pays neither — its files and their bytes are a column of the
+row the listing already read.
 
 ## How long anything survives
 
@@ -465,3 +503,16 @@ are the work, and an agent's user expects them next week.
 
 Deleting a conversation purges its workspace through the product, so this is about
 what nobody deletes rather than about what they do.
+
+## Recap
+
+- The API container **holds no Docker socket**. `sandboxd` does, and a sandbox is
+  its sibling rather than a container inside it.
+- A **session key** folds in scope, organization, backend kind and host — which is
+  precisely what decides who shares a container.
+- **One runtime ships**, `workbench`, and the model is told what is in it, composed
+  from the same catalogue that built it.
+- The record of what an agent did lives in **this platform's table**, holds a path
+  and never a payload, and outlives the agent.
+- **Files are kept indefinitely** unless you set `SANDBOXD_WORKSPACE_TTL`. Disk use
+  only grows.
