@@ -14,6 +14,22 @@ async def get_by_id(db: AsyncSession, kb_id: UUID) -> KnowledgeBase | None:
     return await db.get(KnowledgeBase, kb_id)
 
 
+async def lock(db: AsyncSession, kb_id: UUID) -> KnowledgeBase | None:
+    """The knowledge base row, locked `FOR UPDATE`.
+
+    A teardown enumerates a base's documents and then deletes the base. A
+    concurrent upload or sync inserting a `rag_documents` row takes `FOR KEY
+    SHARE` on this parent for its foreign-key check, and `FOR UPDATE` conflicts
+    with that - so locking the base first makes such an insert wait until the
+    deletion commits and then fail its check, rather than surviving detached
+    under the base's `ON DELETE SET NULL` (#1266).
+    """
+    result = await db.execute(
+        select(KnowledgeBase).where(KnowledgeBase.id == kb_id).with_for_update()
+    )
+    return result.scalars().first()
+
+
 async def get_by_ids(db: AsyncSession, ids: Sequence[UUID]) -> dict[UUID, KnowledgeBase]:
     """The collections for a set of ids, keyed by id, in one query.
 
