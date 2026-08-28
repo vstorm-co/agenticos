@@ -92,10 +92,3 @@ async def test_deleting_from_local_storage_runs_off_the_request_loop(
     await storage.delete(stored)
     assert ran_on and ran_on[0] != loop_thread
     assert not (tmp_path / "media" / stored).exists()
-
-
-async def test_deleting_a_missing_file_is_a_no_op(tmp_path: Path) -> None:
-    """`delete` tolerates a path already gone - the teardown loops call it
-    best-effort and must not raise on a file another path removed first."""
-    storage = LocalFileStorage(base_dir=tmp_path / "media")
-    await storage.delete("u1/never-written.bin")

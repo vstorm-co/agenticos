@@ -143,3 +143,35 @@ async def _discard(future: asyncio.Future[Any], path: Path) -> None:
         await future
     with contextlib.suppress(FileNotFoundError, OSError):
         await run_blocking(path.unlink)
+
+
+async def delete_cancel_safe(fn: Callable[..., None], *args: object) -> None:
+    """Run a blocking delete on the file pool, letting it finish if cancelled.
+
+    An executor cannot interrupt a running unlink, so a task cancelled mid-delete
+    would unwind while the file is still being removed - and the caller's
+    follow-up (save the replacement, update the row) is skipped, leaving the old
+    file gone and the record pointing at it. The delete is shielded so it runs to
+    completion before the cancellation propagates: the mirror of
+    `write_bytes_cancel_safe`, which restores the atomicity a plain sync unlink on
+    the loop had before the offload (#1108, #1294).
+    """
+    future = asyncio.wrap_future(await _submit(fn, *args))
+    try:
+        await asyncio.shield(future)
+    except asyncio.CancelledError:
+        # A second cancellation - a cancelled request whose loop then begins
+        # shutting down - would raise straight out and detach the drain, unwinding
+        # before the unlink finishes. So the drain is a task, and cancellations
+        # arriving while it runs are absorbed until it has completed.
+        drain = asyncio.ensure_future(_drain(future))
+        while not drain.done():
+            with contextlib.suppress(asyncio.CancelledError):
+                await asyncio.shield(drain)
+        raise
+
+
+async def _drain(future: asyncio.Future[Any]) -> None:
+    """Let the uninterruptible unlink finish; its own error is not the caller's."""
+    with contextlib.suppress(Exception):
+        await future
