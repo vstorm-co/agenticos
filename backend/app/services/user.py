@@ -644,15 +644,24 @@ class UserService:
         await session_repo.deactivate_all_user_sessions(self.db, user.id)
         return user
 
-    async def issue_magic_link_token(self, email: str) -> tuple[User, str] | None:
+    async def issue_magic_link_token(
+        self, email: str, *, return_to: str | None = None
+    ) -> tuple[User, str] | None:
         user = await user_repo.get_by_email(self.db, email)
         if user is None or not user.is_active:
             return None
-        token = create_magic_link_token(subject=str(user.id))
+        token = create_magic_link_token(subject=str(user.id), return_to=return_to)
         return user, token
 
-    async def consume_magic_link_token(self, token: str) -> User:
-        """Caller is responsible for minting access/refresh tokens for the returned user."""
+    async def consume_magic_link_token(self, token: str) -> tuple[User, str | None]:
+        """The account the link is for, and where it was headed.
+
+        Caller is responsible for minting access/refresh tokens for the returned
+        user. The return path comes back rather than being applied here: it is
+        the client that navigates, and `postSignInDestination` on that side is
+        the one place deciding whether a path is safe to honour - the same
+        judgement for a password login, an OAuth callback and this (#1214).
+        """
         payload = verify_special_token(token, expected_type="magic_link")
         if payload is None or "sub" not in payload:
             raise AuthenticationError(message="Magic link is invalid or has expired")
@@ -664,4 +673,5 @@ class UserService:
         user = await self.get_by_id(user_id)
         if not user.is_active:
             raise AuthenticationError(message="Account is disabled")
-        return user
+        claimed = payload.get("rt")
+        return user, claimed if isinstance(claimed, str) else None
