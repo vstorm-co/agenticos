@@ -21,12 +21,15 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from app.core.background import discard_deferred, drain, start_deferred
 from app.core.config import settings as app_settings
 from app.core.exceptions import BadRequestError
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.rag_document import RAGDocument
 from app.db.models.user import User
+from app.services.file_storage import get_file_storage
 from app.services.organization import OrganizationService
 from app.services.rag.vectorstore import PgVectorStore
 from app.services.user import UserService
@@ -72,6 +75,24 @@ def _org_collection(org_id: uuid.UUID, collection_name: str) -> KnowledgeBase:
         embedding_dim=1536,
         organization_id=org_id,
         visibility="org",
+    )
+
+
+def _org_document(
+    collection_name: str, kb_id: uuid.UUID, org_id: uuid.UUID, storage_path: str
+) -> RAGDocument:
+    return RAGDocument(
+        id=uuid.uuid4(),
+        collection_name=collection_name,
+        filename="doc.txt",
+        filesize=7,
+        filetype="txt",
+        storage_path=storage_path,
+        status="completed",
+        chunk_count=0,
+        ingestion_config={},
+        knowledge_base_id=kb_id,
+        organization_id=org_id,
     )
 
 
@@ -204,6 +225,11 @@ class TestDeletingAnOrg:
             org = await s.get(Organization, org_id)
             await OrganizationService(s, vector_store=store).purge(org)
             await s.commit()
+            # The table drop and file unlinks defer to after commit (#1137); a
+            # real request runs this from `_managed_session`, a raw session runs
+            # it here.
+            start_deferred(s)
+        await drain()
 
         async with factory() as s:
             remaining = await s.execute(
@@ -212,6 +238,167 @@ class TestDeletingAnOrg:
             assert remaining.scalars().all() == []
             assert (await s.execute(text("SELECT to_regclass(:t)"), {"t": table})).scalar() is None
             assert await s.get(Organization, org_id) is None
+
+    async def test_a_failed_teardown_commit_leaves_the_vector_table(
+        self, engine: AsyncEngine
+    ) -> None:
+        """The drop and the unlinks defer past the request commit (#1137).
+
+        Before this, `purge` dropped the table and unlinked files inside the
+        request, so a final commit that rolled back left the org, KB and doc rows
+        alive but their vectors and uploads already gone. Deferring the external
+        side effects means a rolled-back teardown discards them: the table, the
+        rows and the org all survive together.
+        """
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbnine{uuid.uuid4().hex[:12]}"
+        table = store._table(collection)
+        async with factory() as s:
+            user = _user()
+            s.add(user)
+            await s.flush()
+            org = await _org(s, user)
+            s.add(_org_collection(org.id, collection))
+            await s.execute(text(f"CREATE TABLE {table} (id int)"))
+            await s.commit()
+            org_id = org.id
+
+        async with factory() as s:
+            org = await s.get(Organization, org_id)
+            await OrganizationService(s, vector_store=store).purge(org)
+            # The request's final commit fails: mirror `_managed_session`'s
+            # failure path - roll back, then discard the deferred cleanup unrun.
+            await s.rollback()
+            discard_deferred(s)
+        await drain()
+
+        async with factory() as s:
+            assert (
+                await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
+            ).scalar() is not None
+            assert await s.get(Organization, org_id) is not None
+
+    async def test_a_committed_teardown_unlinks_the_stored_files(self, engine: AsyncEngine) -> None:
+        """A document row goes in the transaction; its stored upload is unlinked
+        by the post-commit cleanup once the teardown commits (#1137)."""
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        storage = get_file_storage()
+        stored_path = await storage.save("teardown-user", "doc.txt", b"payload")
+        collection = f"kbnine{uuid.uuid4().hex[:12]}"
+        async with factory() as s:
+            user = _user()
+            s.add(user)
+            await s.flush()
+            org = await _org(s, user)
+            kb = _org_collection(org.id, collection)
+            s.add(kb)
+            await s.flush()
+            s.add(_org_document(collection, kb.id, org.id, stored_path))
+            await s.commit()
+            org_id = org.id
+
+        assert storage.get_full_path(stored_path) is not None
+
+        async with factory() as s:
+            org = await s.get(Organization, org_id)
+            await OrganizationService(s, vector_store=store).purge(org)
+            await s.commit()
+            start_deferred(s)
+        await drain()
+
+        assert storage.get_full_path(stored_path) is None
+
+    async def test_a_rolled_back_teardown_keeps_the_stored_files(self, engine: AsyncEngine) -> None:
+        """The file unlink defers past the commit too, so a teardown that rolls
+        back leaves the stored upload in place (#1137)."""
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        storage = get_file_storage()
+        stored_path = await storage.save("teardown-user", "doc.txt", b"payload")
+        collection = f"kbnine{uuid.uuid4().hex[:12]}"
+        async with factory() as s:
+            user = _user()
+            s.add(user)
+            await s.flush()
+            org = await _org(s, user)
+            kb = _org_collection(org.id, collection)
+            s.add(kb)
+            await s.flush()
+            s.add(_org_document(collection, kb.id, org.id, stored_path))
+            await s.commit()
+            org_id = org.id
+
+        async with factory() as s:
+            org = await s.get(Organization, org_id)
+            await OrganizationService(s, vector_store=store).purge(org)
+            await s.rollback()
+            discard_deferred(s)
+        await drain()
+
+        assert storage.get_full_path(stored_path) is not None
+        await storage.delete(stored_path)
+
+    async def test_a_recreated_collection_survives_the_deferred_drop(
+        self, engine: AsyncEngine
+    ) -> None:
+        """The drop runs after the commit that frees the collection name, so a
+        second org can reclaim it before the cleanup fires; the deferred cleanup
+        re-checks references and leaves the new tenant's table in place (#1137)."""
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbnine{uuid.uuid4().hex[:12]}"
+        table = store._table(collection)
+        async with factory() as s:
+            user = _user()
+            s.add(user)
+            await s.flush()
+            org = await _org(s, user)
+            s.add(_org_collection(org.id, collection))
+            await s.execute(text(f"CREATE TABLE {table} (id int)"))
+            await s.commit()
+            org_id = org.id
+
+        async with factory() as s:
+            org = await s.get(Organization, org_id)
+            await OrganizationService(s, vector_store=store).purge(org)
+            await s.commit()
+            # A second org claims the freed name before the deferred cleanup runs.
+            async with factory() as claimant:
+                other = _user()
+                claimant.add(other)
+                await claimant.flush()
+                other_org = await _org(claimant, other)
+                claimant.add(_org_collection(other_org.id, collection))
+                await claimant.commit()
+            start_deferred(s)
+        await drain()
+
+        async with factory() as s:
+            assert (
+                await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
+            ).scalar() is not None
 
     async def test_a_personal_collection_survives_its_orgs_deletion(
         self, engine: AsyncEngine
