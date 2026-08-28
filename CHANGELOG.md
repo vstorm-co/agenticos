@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.328] - 2026-08-28
+
+### Fixed
+
+- **`make test-frontend-cov` intermittently failed the 100% statement gate at 99.98%
+  on a clean tree.** The one miss was `markdown-content.impl.tsx:37`, the `pl-8`
+  return in `orderedIndent` - the indent band for a 10-99 item ordered list. Nothing
+  in the markdown-content suite renders a list that size, so the statement was covered
+  only when some *other* suite happened to render one, and under parallel scheduling
+  that render is not guaranteed. The indent test already pinned the 1-9, 100+ and
+  1000+ bands; the two-digit case is pinned now too, deterministically rather than by
+  accident. The branch is live - a 10-99 item list is reachable - so it is covered,
+  not removed. (#1264)
+
 ## [0.0.327] - 2026-08-28
 
 ### Changed
