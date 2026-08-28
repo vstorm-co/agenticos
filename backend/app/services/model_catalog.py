@@ -244,16 +244,40 @@ def _modalities(row: dict[str, Any], path: str | None) -> tuple[str, ...]:
     return tuple(entry for entry in node if isinstance(entry, str) and entry)
 
 
+_listing_client: httpx.AsyncClient | None = None
+
+
+def _client() -> httpx.AsyncClient:
+    """The shared client for provider listing fetches, built once and reused.
+
+    A catalog refresh asks several providers in turn, and a client per call threw
+    the connection pool away before it was reused (#1263). Built lazily and
+    rebuilt if it was closed; `close_listing_client` closes it at shutdown. The
+    timeout rides each request, so one client serves every listing.
+    """
+    global _listing_client
+    if _listing_client is None or _listing_client.is_closed:
+        _listing_client = httpx.AsyncClient()
+    return _listing_client
+
+
+async def close_listing_client() -> None:
+    """Close the shared listing client at shutdown."""
+    global _listing_client
+    if _listing_client is not None and not _listing_client.is_closed:
+        await _listing_client.aclose()
+    _listing_client = None
+
+
 async def _fetch(spec: ListingSpec, api_key: str | None) -> list[CatalogModel]:
     headers = dict(spec.extra_headers)
     if spec.auth_header is not None:
         if api_key is None:
             raise ValueError("This provider's listing needs a key")
         headers[spec.auth_header] = spec.auth_template.format(key=api_key)
-    async with httpx.AsyncClient(timeout=LISTING_TIMEOUT_SECONDS) as client:
-        response = await client.get(spec.url, headers=headers)
-        response.raise_for_status()
-        return _read_listing(response.json(), spec)
+    response = await _client().get(spec.url, headers=headers, timeout=LISTING_TIMEOUT_SECONDS)
+    response.raise_for_status()
+    return _read_listing(response.json(), spec)
 
 
 def _fallback(curated: list[CatalogModel]) -> tuple[list[CatalogModel], CatalogSource]:
