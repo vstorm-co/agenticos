@@ -3,10 +3,8 @@ import logging
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -38,47 +36,6 @@ if TYPE_CHECKING:
     from app.services.rag.vectorstore import BaseVectorStore
 
 logger = logging.getLogger(__name__)
-
-
-async def _purge_external_state(
-    storage_paths: list[str],
-    collections: list[str],
-    vector_store: "BaseVectorStore | None",
-) -> None:
-    """Unlink stored uploads and drop vector tables, after an org purge commits.
-
-    Deferred with `spawn_after_commit` (see `OrganizationService.purge`), so it
-    runs only once the relational teardown has committed: a commit that fails
-    rolls the rows back and this never runs, leaving nothing pointing at a
-    dropped table or a missing file (#1137). A module function taking primitives
-    and the process-lived store - not a method - so the queued coroutine holds
-    nothing belonging to the request session, which is gone by the time it runs.
-
-    Because it runs after the commit that frees the collection name, a second
-    org can claim that name and back a table onto it before this drop fires -
-    `CollectionAccessService.claim` checks only `knowledge_bases` rows. So each
-    table is re-checked here, in its own session, and dropped only when no base
-    references the name again; deferral would otherwise widen the #913 TOCTOU
-    from a sub-request window to the whole gap before this runs, and drop the new
-    tenant's table.
-    """
-    from app.db.session import get_db_context
-
-    storage = get_file_storage()
-    for storage_path in storage_paths:
-        with contextlib.suppress(Exception):
-            await storage.delete(storage_path)
-    if vector_store is not None and collections:
-        async with get_db_context() as db:
-            for collection in collections:
-                if await knowledge_base_repo.list_by_collection_name(db, collection):
-                    continue
-                # Best-effort, and only against the database: `delete_collection`
-                # issues `DROP TABLE IF EXISTS`, so a collection whose table was
-                # never created is not an error, and any other database failure is
-                # not a reason to abandon the rest of the cleanup.
-                with contextlib.suppress(SQLAlchemyError):
-                    await vector_store.delete_collection(collection)
 
 
 def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRead:
@@ -397,17 +354,19 @@ class OrganizationService:
         without a tenant column to filter on.
 
         The external side effects - dropping each physical vector table and
-        unlinking the stored uploads - are deferred to after the request commits,
-        via `spawn_after_commit`. They run only if the relational teardown
-        committed, so a final commit that fails rolls back the org, KB and doc
-        rows and leaves none of them pointing at a table or a file already gone
-        (#1137). A table is dropped only when no other knowledge base still backs
-        onto it: `collection_name` is not tenant-unique (#913), so two
-        organizations can share one table and dropping it for one would destroy
-        the other's vectors. That reference check reads under READ COMMITTED
-        against the org lock, not the collection name, so a same-named table a
-        second org creates between the check and the drop is a TOCTOU residual
-        (#913) this does not close either.
+        unlinking the stored uploads - are handed to a durable Prefect flow after
+        the request commits, via `spawn_after_commit`. Deferral means they run
+        only if the relational teardown committed, so a final commit that fails
+        rolls back the org, KB and doc rows and leaves none of them pointing at a
+        table or a file already gone (#1137). A Prefect deployment run rather than
+        an in-process task means a process that dies after the commit no longer
+        takes the cleanup with it - the run is recorded on the server and retried
+        by a worker (#1274). The flow re-checks each collection against the KB
+        table before dropping it, because `collection_name` is not tenant-unique
+        (#913): a name a second org has claimed between this commit and the drop
+        keeps its table. The gap this does not close is commit-to-dispatch - a
+        crash before `spawn_after_commit` fires still loses the cleanup, which
+        only a record committed with the delete (an outbox) would close.
         """
         await organization_repo.get_by_id_for_update(self.db, org.id)
         collections: list[str] = []
@@ -418,28 +377,19 @@ class OrganizationService:
             await knowledge_base_repo.delete(self.db, kb.id)
         await organization_repo.delete(self.db, org)
 
-        to_drop: list[str] = []
-        if self._vector_store is not None:
-            for collection in dict.fromkeys(collections):
-                if not await self._collection_still_referenced(collection):
-                    to_drop.append(collection)
-
+        # A store is wired only on the teardown path, and it is the signal to
+        # clean up the vector tables; the flow re-checks each name and drops only
+        # the unreferenced ones. Files are unlinked whether or not one was wired.
+        to_drop = list(dict.fromkeys(collections)) if self._vector_store is not None else []
         if storage_paths or to_drop:
+            from app.core.background import spawn_after_commit
+            from app.worker.tasks.teardown_tasks import dispatch_org_purge_cleanup
+
             spawn_after_commit(
                 self.db,
-                _purge_external_state(storage_paths, to_drop, self._vector_store),
+                dispatch_org_purge_cleanup(storage_paths, to_drop),
                 name="org_purge_cleanup",
             )
-
-    async def _collection_still_referenced(self, collection_name: str) -> bool:
-        """Whether another knowledge base still backs onto this collection's table.
-
-        Read after the org's own rows are deleted (and flushed), so it counts only
-        knowledge bases outside this teardown - a table one of them shares must
-        not be dropped (#1116, #913).
-        """
-        others = await knowledge_base_repo.list_by_collection_name(self.db, collection_name)
-        return len(others) > 0
 
     async def upload_avatar(
         self,

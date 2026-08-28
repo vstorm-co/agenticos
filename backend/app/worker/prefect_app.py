@@ -41,6 +41,7 @@ from app.worker.tasks.report_tasks import (
     weekly_usage_report_flow,
 )
 from app.worker.tasks.run_tasks import stale_run_sweep_flow
+from app.worker.tasks.teardown_tasks import org_purge_cleanup_flow
 from app.worker.tasks.trigger_tasks import (
     check_agent_triggers_flow,
     poll_portal_grants_flow,
@@ -71,6 +72,9 @@ async def main() -> None:
     deployments.append(
         await run_scheduled_trigger_flow.ato_deployment(name="run-scheduled-trigger")
     )
+    # On-demand: the external cleanup of a deleted org, submitted after its purge
+    # commits so it survives the request process dying mid-cleanup (#1274).
+    deployments.append(await org_purge_cleanup_flow.ato_deployment(name="org-purge-cleanup"))
     # Every minute: fire the agent triggers that have come due.
     deployments.append(
         await check_agent_triggers_flow.ato_deployment(
