@@ -6,34 +6,6 @@
     in this platform passes through `app/core/vault.py`. Adding a second way to
     hold a credential at rest is the defect two migrations removed.
 
-That is a decision with history, and it took two rounds to become true. Three
-mechanisms used to hold secrets at rest and only one of them bound a ciphertext to
-its owner: provider keys went through the vault, channel bot tokens through a
-single deployment-wide Fernet key, MCP tokens through another. A Slack token could
-be copied out of one organization's row into another's and it decrypted. One
-migration removed those two, before the chain was squashed into `0001_baseline`.
-
-A fourth survived it and outlived the sentence above it by some months:
-`app/core/crypto.py`, one deployment-wide Fernet key over the credential fields of
-`sync_sources.config` — the Google service account JSON and the AWS key pair a RAG
-sync connector authenticates with. It was honest about itself in its own docstring
-and it was still a second mechanism, so a reader who believed "there is no second
-mechanism" was wrong about one table. What kept it alive was an ordering problem
-rather than a disagreement: an envelope is derived from its owner's id, and
-`sync_sources.organization_id` was nullable because the CLI created rows without
-one. [#707](https://github.com/vstorm-co/agenticos/issues/707) gave
-`rag-source-add` an organization, `0042_sync_source_secret_id` made the column say
-so, and
-[#937](https://github.com/vstorm-co/agenticos/issues/937) deleted the module.
-
-**A sync source now references a vault secret by id**, the way
-`ModelProfile.secret_id` and `CapabilityBindingSpec.secret_id` do, and its `config`
-holds only what a connector needs to *find* the documents. Two consequences beyond
-the crypto, and they are the ones an operator notices: a credential is added once
-and reused by every source that needs it, rather than pasted per source and rotated
-in as many places; and it appears on the Vault page like everything else, so "does
-this organization hold a Google credential" has an answer.
-
 ## Envelope encryption
 
 Each secret is sealed with its own random data key. That data key is sealed with a
@@ -65,6 +37,43 @@ The vault decides nothing about *who* may read a secret — that is the
 [permission layer](permissions.md). It guarantees only that a secret at rest is
 unreadable without the master key and unusable outside the scope it was sealed
 for.
+
+## How it became one mechanism
+
+That sentence at the top took two rounds to become true, and the story is worth a
+minute because it is the shape of the mistake.
+
+**Three mechanisms used to hold secrets at rest, and only one bound a ciphertext to
+its owner.** Provider keys went through the vault, channel bot tokens through a
+single deployment-wide Fernet key, MCP tokens through another. A Slack token could
+be copied out of one organization's row into another's and it decrypted. One
+migration removed those two, before the chain was squashed into `0001_baseline`.
+
+**A fourth survived it, and outlived the sentence above it by some months.**
+`app/core/crypto.py` held one deployment-wide Fernet key over the credential fields
+of `sync_sources.config` — the Google service account JSON and the AWS key pair a
+RAG sync connector authenticates with.
+
+It was honest about itself in its own docstring, and it was still a second
+mechanism, so a reader who believed "there is no second mechanism" was wrong about
+one table.
+
+What kept it alive was an ordering problem rather than a disagreement: an envelope
+is derived from its owner's id, and `sync_sources.organization_id` was nullable
+because the CLI created rows without one.
+[#707](https://github.com/vstorm-co/agenticos/issues/707) gave `rag-source-add` an
+organization, `0042_sync_source_secret_id` made the column say so, and
+[#937](https://github.com/vstorm-co/agenticos/issues/937) deleted the module.
+
+**A sync source now references a vault secret by id**, the way
+`ModelProfile.secret_id` and `CapabilityBindingSpec.secret_id` do, and its `config`
+holds only what a connector needs to *find* the documents.
+
+Two consequences beyond the crypto, and they are the ones an operator notices: a
+credential is added once and reused by every source that needs it, rather than
+pasted per source and rotated in as many places; and it appears on the Vault page
+like everything else, so "does this organization hold a Google credential" has an
+answer.
 
 ## Kinds
 
@@ -236,3 +245,16 @@ uv run agenticos cmd doctor    # reports whether a vault key is configured at al
 for you. See [Configuration](configuration.md) for the environment, and
 the [production checklist](configuration.md#production-checklist) before going live
 with a generated default.
+
+## Recap
+
+- **One module**, `app/core/vault.py`. There is no second mechanism, and adding one
+  is the defect two migrations removed.
+- A secret is sealed with its own data key, wrapped by a key derived from the
+  master key **and the owning scope** — so a ciphertext cannot move between owners.
+- A secret has a **kind**, because `aws_credentials` is four fields and one of them
+  is not secret.
+- Four guarantees, pinned by tests: no plaintext in a response, a log, an audit
+  entry or an exported spec.
+- Rotation is **staged** — configure both versions, `vault-rotate --dry-run`,
+  rotate, then drop the old key once it reports zero failures.

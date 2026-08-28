@@ -1,11 +1,14 @@
 # Permissions
 
-The rule the whole codebase follows: **permissions are defined in code, roles are
-composed from them.** Call sites check permissions, never role names, so adding
-or re-shaping a role never means editing an endpoint.
+One rule, which the whole codebase follows:
+
+!!! quote "Permissions are defined in code. Roles are composed from them."
+
+    Call sites check **permissions**, never role names — so adding or re-shaping a
+    role never means editing an endpoint.
 
 The catalog is [`app/core/permissions.py`](reference/permissions.md). It is the
-single source of truth; this page explains it.
+single source of truth, and this page explains it.
 
 !!! warning "There are three layers, and they are independent"
 
@@ -83,15 +86,18 @@ Two kinds of permission, and they behave differently.
 `connections:view`, `connections:manage`, `mcp:manage`, `channels:manage`,
 `runs:view`, `audit:read`.
 
-`connections:view` and `connections:manage` are deliberately two permissions,
-not one with an implied read. Watching a sandbox host - its session list, its
-activity log, the memory and CPU ceilings its service enforces - is what answers
-"why did that agent just get a 429", a question an operator is paged about.
-Registering a host, pointing it at an address and attaching the vault secret that
-can start containers there is a different authority. Folding both into
-`connections:manage` meant an operator could only get the read by being granted
-create, edit and delete as well. Nothing here implies one permission from
-another, so a role that manages connections holds both.
+!!! example "Why `connections:view` and `connections:manage` are two"
+
+    Watching a sandbox host — its session list, its activity log, the memory and
+    CPU ceilings its service enforces — is what answers "why did that agent just
+    get a 429", a question an operator is paged about.
+
+    Registering a host, pointing it at an address and attaching the vault secret
+    that can start containers there is a different authority.
+
+    Folded into one, an operator could only get the read by being granted create,
+    edit and delete as well. Nothing here implies one permission from another, so a
+    role that manages connections holds both.
 
 **Resource** permissions carry a `Scope`, because they answer the second question
 a role cannot: not "may this role touch agents?" but *which* agents.
@@ -165,25 +171,30 @@ paths as well as on `change_role`, which is what #696 closed.
 
 !!! warning "A page's organization is the one in its URL"
 
-    `X-Organization-Id` travels on every request from the *active* selection, so
-    a page acting on the organization in its path while reading permissions for
-    the active one decides Acme's members by the caller's role in Globex.
+    `X-Organization-Id` travels on every request from the *active* selection, so a
+    page acting on the organization in its path while reading permissions for the
+    active one decides Acme's members by the caller's role in Globex.
 
 The organizations list opens `/orgs/{id}/members` without switching, so that page
-used to hold two notions of "which tenant". They are one now: the dashboard's `ActiveOrgGuard` adopts the organization a path
+used to hold two notions of "which tenant".
+
+They are one now. The dashboard's `ActiveOrgGuard` adopts the organization a path
 names, before the page asks anything, so what a caller may do there is what they
 may do *there* (#1032).
 
-**The console computes the same relation rather than being told it.** Every role
-picker - the two invite dialogs and the members table - offers what
-`assignableRoles` in `frontend/src/lib/assignable-roles.ts` answers, over the
-role catalog `GET /roles/catalog` already returns with each role's permissions.
+**The console computes the same relation rather than being told it.**
+
+Every role picker — the two invite dialogs and the members table — offers what
+`assignableRoles` in `frontend/src/lib/assignable-roles.ts` answers, over the role
+catalog `GET /roles/catalog` already returns with each role's permissions.
+
 It is arithmetic on the client for the same reason it is on the server: a picker
-holding a *list* offered every role bar `owner` whoever was asking, so an Admin
-was offered Admin and refused after typing the email address (#1028). A role the
-caller cannot assign is also a role the members table will not draw a picker for,
-because the trigger shows the chosen item's text and a value absent from the list
-renders blank.
+holding a *list* offered every role bar `owner` whoever was asking, so an Admin was
+offered Admin and refused after typing the email address (#1028).
+
+A role the caller cannot assign is also a role the members table will not draw a
+picker for, because the trigger shows the chosen item's text and a value absent
+from the list renders blank.
 
 Custom roles are Phase 2 and may only ever recombine the permissions above;
 clients cannot invent new ones.
@@ -319,14 +330,16 @@ it recognizes the grant-aware ones, and
 `tests/api/test_platform_routes.py::TestStatsScopeIsDecidedInTheService` proves
 the refusals.
 
-The shape that makes this worth spelling out is `?group_by=user`, which answers
-with names, emails and what each person's runs cost. It is the same scope rule
-and no additional permission: `runs:view` is what reveals it, which means
-builder and operator see it as well as owner and admin. That is a deliberate
-call rather than an oversight - the dashboard card carrying these rows says so
-in its own copy, because a permission that is wider than its subjects expect is
-only defensible if they can find that out. A narrower answer would be a
-permission of its own, not a quieter route.
+!!! warning "`?group_by=user` answers with names, emails and what each person's runs cost"
+
+    It is the same scope rule and no additional permission: `runs:view` is what
+    reveals it, which means **builder and operator see it** as well as owner and
+    admin.
+
+    That is a deliberate call rather than an oversight. The dashboard card carrying
+    these rows says so in its own copy, because a permission wider than its
+    subjects expect is only defensible if they can find that out. A narrower answer
+    would be a permission of its own, not a quieter route.
 
 ## Delegation is not a privilege boundary
 
@@ -417,6 +430,19 @@ created by somebody who did have a role.
 Both are **a convenience for the UI and nothing more**. The server re-checks every
 permission on the endpoint that performs the action, so a client that ignores
 these APIs gains nothing.
+
+## Recap
+
+- **Three layers, independent.** A deployment superadmin flag, an organization
+  role, and a grant on one row. None implies another.
+- A role is a **string on a membership row**, and what it means is `ROLE_PERMS` in
+  code. Adding a role is an edit, not a migration.
+- Effective access to one row is `max(role scope, grant)`. **A grant widens; it
+  never narrows.**
+- `require(...)` goes on **collection** routes. Anything acting on one row hands
+  the decision to a service that calls `resolve_access`.
+- A surface with nobody in front of it runs as **whoever published it**, falling
+  back to `viewer` when that person left or was deactivated.
 
 ## Reference
 

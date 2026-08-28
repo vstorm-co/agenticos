@@ -1,14 +1,19 @@
 # The deployment itself
 
 Most of this product is about agents. This page is about the thing they run
-inside: **one installation, with a name, a mark, a rule about who may join it, and
-a switch that closes it.** All of it lives in a single database row and is edited
-from `/admin/settings` by whoever holds `is_app_admin` — no redeploy, no
-environment variable, no rebuild.
+inside.
 
-That authority is deliberate and it is not a permission from the catalog. A
-permission is scoped to an organization; this row is not in one. It is the same
-authority that already administers users and tenants across the installation.
+**One installation, with a name, a mark, a rule about who may join it, and a switch
+that closes it.** All of it lives in a single database row and is edited from
+`/admin/settings` by whoever holds `is_app_admin` — no redeploy, no environment
+variable, no rebuild.
+
+!!! info "Why that authority, and not a permission"
+
+    A permission is scoped to an organization. This row is not in one.
+
+    It is the same authority that already administers users and tenants across the
+    installation.
 
 ## Identity
 
@@ -385,3 +390,12 @@ that list and they have none. `app/core/otel_compat.py` supplies, for that branc
 the same fallback upstream already uses in the branch it did guard. Still unfixed
 upstream as of 0.65b0, and `tests/test_otel_route_details.py` fails when it is fixed,
 which is when the module goes away.
+
+## Recap
+
+- The deployment's identity is **one row**, edited from `/admin/settings`, and a
+  null column means *the built-in* rather than *empty*.
+- `signup_mode` is applied in **one place** and gates both paths that mint an
+  account. An invitation overrides a domain list; nothing overrides `closed`.
+- An app admin **cannot lock themselves out** through the console.
+- Every refusal from this deployment looks the same, whichever layer produced it.
