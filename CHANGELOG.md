@@ -17,6 +17,41 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.330] - 2026-08-28
+
+### Fixed
+
+- **A magic link ignored where the visitor was headed.** `/auth/magic-link` called
+  `postSignInDestination()` with nothing, so somebody who arrived at
+  `?returnTo=/agents/a-1` landed on `/dashboard` - which door somebody came through
+  still deciding where they end up. #121 removed that drift on the roles axis and #135
+  on the provider axis; this was the last door with it. The path travels **in the
+  token**, as a signed `rt` claim: #135's `sessionStorage` is allowed because the OAuth
+  round trip starts and ends in the same tab, where a magic link is followed from an
+  email - another tab, often another application, sometimes another browser - and that
+  store is empty by construction. No schema change, and nothing between the mint and
+  the landing can edit it. (#1214)
+- **Refused before it is signed, and judged again at the landing.**
+  `MagicLinkRequest.return_to` accepts a path on this deployment and nothing with a
+  scheme, a second leading slash, a backslash or a control character - the same five
+  shapes `frontend/src/lib/auth-landing.ts` refuses - so a token holding an arbitrary
+  string never exists rather than existing and being filtered on read.
+  `postSignInDestination` judges it again anyway: a check that ran once, on the server,
+  on a value that then travelled through an email is not a check the client can rely
+  on having happened. (#1214)
+- `POST /auth/magic-link/verify` answers with `MagicLinkToken` - the pair plus
+  `return_to`, unapplied, because the client navigates and the landing owns that
+  judgement. Its own schema rather than a nullable field on `Token`: the login and
+  refresh responses have no return path to carry, and a field that is always null on
+  most responses is one a client learns to ignore. The page also goes through
+  `goToDestination` now, so a destination carrying a fragment is no longer
+  double-appended by `next@16.2`'s segment cache. (#1214)
+
+### Added
+
+- `docs/architecture.md` gains **Where a fresh session lands** - the one decision, and
+  the three transports that carry it.
+
 ## [0.0.329] - 2026-08-28
 
 ### Fixed
