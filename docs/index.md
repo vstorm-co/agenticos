@@ -40,6 +40,32 @@ The key point is this:
 
 Everything else on this site follows from that one sentence.
 
+## Start where you are
+
+<div class="grid cards" markdown>
+
+- :material-rocket-launch:{ .lg .middle } **I want to try it**
+
+    [Install](install.md) takes four commands, then
+    [your first agent](first-agent.md) is a working one in about ten minutes.
+
+- :material-account-tie:{ .lg .middle } **I am deciding whether we adopt it**
+
+    [Rolling it out](rollout.md) — who does what, what it costs, and the
+    questions your security review will ask. No terminal on it.
+
+- :material-code-braces:{ .lg .middle } **I want to integrate with it**
+
+    [The HTTP API](api.md) for calling it, [MCP](mcp.md) for giving agents your
+    tools, and [the console's code](frontend.md) if you are changing the UI.
+
+- :material-cog:{ .lg .middle } **I already run it and something is wrong**
+
+    [The console](console.md) maps every screen, and each page's *Recap* is the
+    short version. [Configuration](configuration.md) is every setting.
+
+</div>
+
 ## Why it is called an operating system
 
 Because the word is doing work. An operating system runs and isolates processes,
