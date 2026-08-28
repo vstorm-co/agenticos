@@ -17,6 +17,29 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.333] - 2026-08-28
+
+### Fixed
+
+- **An ingestion that had already read its file kept writing when the collection was
+  deleted underneath it.** `insert_document` reaches `_ensure_collection`, whose
+  `CREATE TABLE IF NOT EXISTS` recreated the just-dropped `rag_<collection>` table and
+  inserted the chunks - leaving an untracked table of stale vectors reachable by a
+  later same-named collection, and then failing to record completion because the
+  document row was gone. `IngestionService.ingest_file` takes an optional
+  `still_wanted` check, run **after the parse and before the write**: the upload flow
+  checks its own `rag_documents` row, which the delete removes, and the two sync flows
+  check that the collection still has a knowledge base. When it reports the collection
+  gone the write is skipped and a failure returned rather than the table resurrected.
+  (#1275)
+- Both checks are **fail-safe**: any error answers "still wanted", so the guard can
+  only ever skip a write it is certain is unwanted and never blocks a legitimate
+  ingestion. It closes the parse-duration window, which is the wide one - parsing a
+  large file is seconds where the insert is fast. Two residuals stay, both narrow and
+  pre-existing: a collection dropped in the instant between the check and the insert,
+  and the sync check being collection-level rather than tenant-precise while
+  collection names are not tenant-unique (#913). (#1275)
+
 ## [0.0.332] - 2026-08-28
 
 ### Fixed
