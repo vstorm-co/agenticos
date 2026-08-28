@@ -35,6 +35,15 @@ The other half of the point is **who writes them**. A skill is a row in the
 database, editable in the UI, so a support lead can fix the refund policy on a
 Tuesday afternoon. No deploy, no pull request, no engineer.
 
+
+!!! info "Skill, context file or knowledge collection?"
+
+    A **skill** is a procedure the model loads when it decides the task has
+    arrived. A [context file](context.md) is standing knowledge — short, always
+    relevant, injected or read on demand. A
+    [knowledge collection](file-processing.md) is a corpus too large to read,
+    reached by search.
+
 ## The shape
 
 ```markdown

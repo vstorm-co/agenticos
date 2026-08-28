@@ -83,6 +83,12 @@ A channel bot bound to an environment serves its version.
 surface naming no environment resolves through — so it moves when that environment
 moves.
 
+!!! tip "Versions do not have to go live all at once"
+
+    An [environment](environments.md) is a name pinned to a version, so
+    `staging` can serve version 7 while `production` stays on 6. Publishing
+    mints the version; putting it somewhere is a separate decision.
+
 ## Exposure
 
 **Where an agent is reachable, and by whom.**

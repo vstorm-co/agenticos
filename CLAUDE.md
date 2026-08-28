@@ -387,6 +387,8 @@ say so and move on. Run it yourself any time with
 | Adoption, roles, cost, the security review | `docs/rollout.md` |
 | The vault, secret kinds, what never leaks | `docs/secrets.md` |
 | Skills — format, library, skills vs knowledge | `docs/skills.md` |
+| Context files — standing knowledge bound to agents | `docs/context.md` |
+| Named environments, promotion, per-environment tracing | `docs/environments.md` |
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |
 | Upload, parsing, ingestion | `docs/file-processing.md` |
 | The sandbox: sessions, runtimes, isolation, lifetimes | `docs/sandbox.md` |

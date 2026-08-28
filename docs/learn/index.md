@@ -52,6 +52,11 @@ independent — take the ones your agent needs.
 
     Written know-how the agent loads only when it decides it is relevant.
 
+- :material-text-box-outline:{ .lg .middle } **[Context files](../context.md)**
+
+    Standing knowledge written once and bound to many agents — a glossary, a
+    tone guide, an escalation matrix.
+
 - :material-file-document-multiple:{ .lg .middle } **[Knowledge](../file-processing.md)**
 
     Upload, parse, chunk, embed. Collections, and syncing a Drive folder or a
@@ -76,6 +81,11 @@ independent — take the ones your agent needs.
 An agent nobody can reach is a draft. This is how it leaves the console.
 
 <div class="grid cards" markdown>
+
+- :material-source-branch:{ .lg .middle } **[Environments](../environments.md)**
+
+    `staging` and `production` as names pinned to versions, so publishing and
+    releasing are two decisions.
 
 - :material-forum:{ .lg .middle } **[Surfaces](../channels.md)**
 

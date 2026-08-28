@@ -175,11 +175,13 @@ nav:
           - choosing-models.md
           - models.md
           - skills.md
+          - context.md
           - file-processing.md
           - mcp.md
           - sandbox.md
           - triggers.md
       - Put it in front of people:
+          - environments.md
           - channels.md
           - rollout.md
           - deployment.md
