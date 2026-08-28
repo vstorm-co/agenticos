@@ -17,6 +17,39 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.339] - 2026-08-28
+
+### Fixed
+
+- **`/runs` had 0px under its last run row where every other list page gets 64px.** It
+  was in `FULL_HEIGHT_ROUTES`, so `PageTransition` gave it `min-h-0` and withheld
+  `PAGE_CLEARANCE` - and it stopped being a full-height route in #914: the page's root
+  is an ordinary scrolling `flex flex-col` and the run detail is `sticky` inside the
+  page's own scroll rather than a pane with a scrollbar of its own. One regex was
+  answering two different questions on the page's behalf, so it is two now:
+  `OWN_SCROLL_PANE` (`/chat` alone, which needs the constrained chain so the transcript
+  scrolls instead of the page) and `OWN_BOTTOM_ROOM` (`/chat` and `/runs`, both having
+  something that must reach the bottom edge). Activity then declares `PAGE_CLEARANCE`
+  one level in, on its **list column** - and that placement is the whole point, because
+  padding on the box *around* the two-column row shortens the containing block the
+  sticky panel is clamped to. Measured at 1440x800 against a transcription of the
+  page's own chain: room on the outer box gives 64px of clearance and a panel top of
+  **-48px** with its header cut off by 56px, which is the figure in the issue; room on
+  the list column gives 64px and a panel pinned 8px from the window top, header
+  visible. (#1206)
+- **Below `lg`, the run detail panel's last 56px sat behind the mobile tab bar.** The
+  list column is `hidden` there and the panel is the only column, so its flat
+  `h-[calc(100dvh-1rem)]` ran under a bar that is `fixed bottom-0`, `min-h-[56px]` plus
+  the safe-area inset. Measured at 390x780: 56px hidden before, 8px clear after, which
+  matches the 8px it already keeps at the top. The full height stays above `lg`, where
+  the bar is hidden. Same element, two lines, so it is here rather than in a second
+  change. (#1206)
+- `page-transition.test.tsx` was asserting the old reason - "constrains Activity too,
+  where the list and the run detail scroll apart", true before the page was rebuilt and
+  false since. It asserts both halves of what is true now: no `min-h-0`, and no `pb-`
+  either, with the prefix-match case still checking that `/runsomething` *gets* the
+  room. (#1206)
+
 ## [0.0.338] - 2026-08-28
 
 ### Changed
