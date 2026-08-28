@@ -40,8 +40,8 @@ Two things are versioned separately from this file and worth knowing about:
   `AgentPicker`'s trigger needed too: its `max-w-[160px]` on the name is a cap, not
   permission for a flex item to shrink. (#120)
 - **A dashboard widget's info button was a 14x14 tap target**, a third of the 44px both
-  mobile platforms ask for. `-m-2 p-2` moves the hit area into the padding without
-  moving anything on screen. (#120)
+  mobile platforms ask for. A `before:absolute before:-inset-[15px]` pseudo-element
+  takes it to 44x44 without moving anything on screen. (#120)
 
 ### Changed
 
