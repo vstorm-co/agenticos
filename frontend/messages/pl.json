@@ -243,8 +243,6 @@
       "patternInFile": "{pattern} w {file}"
     },
     "unfavourite": "Usuń z ulubionych",
-    "favourites": "Ulubione",
-    "failedFavouriteConversation": "Nie udało się zmienić ulubionych",
     "controls": {
       "approvalMode": "Tryb zatwierdzania",
       "cannotWaive": "Pomijanie zatwierdzeń wymaga uprawnienia do ich podejmowania, a organizacja musi na to pozwolić.",
