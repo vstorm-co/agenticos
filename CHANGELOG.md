@@ -17,6 +17,31 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.332] - 2026-08-28
+
+### Fixed
+
+- **A new turn no longer starts from a checklist that is already finished.**
+  `keep_plan` records whatever the store held when the run ended, completed steps
+  included, and the next turn seeded from it - so a thread whose three steps were all
+  ticked off in August opened in November with the tail reminder calling them "your
+  current plan" and `read_plan` answering with them, and the agent worked to a
+  checklist about a task nobody is doing. The filter is at the **seed** rather than at
+  the moment the last step is ticked: within the turn that finishes a plan the store
+  still holds it, so `read_plan`, the reminder and the transcript agree and the agent
+  can summarise what it just did - and it is the *next* question that starts clean,
+  with the ticked checklist still in the messages above it where it reads as what was
+  done. Nothing is deleted; the row keeps the finished plan and `still_open` decides
+  only what a fresh turn is seeded with. **Finished** means at least one step and every
+  step `completed` or `cancelled` - `blocked` is work outstanding and keeps the plan.
+  (#1221)
+
+### Changed
+
+- The rule is written down in both places: the seeding rule's docstring in
+  `planning/_capability.py`, and `docs/reference/capabilities.md`, whose paragraph said
+  the opposite ("A finished checklist is kept rather than cleared").
+
 ## [0.0.331] - 2026-08-28
 
 ### Fixed
