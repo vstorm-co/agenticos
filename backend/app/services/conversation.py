@@ -363,11 +363,19 @@ class ConversationService:
         `role: "assistant"` turn to it. There is no owner to defer to, so the
         people who were in the room are who tidies it up; participation carries
         the write only while there is nobody it would be taken from.
+
+        **A share carries the write only at `edit`.** Any share at all used to,
+        so the two levels the sharing dialog offers meant the same thing: a
+        conversation shared to *view* could be renamed, archived, deleted, or
+        given a `role: "assistant"` turn that everybody reads in `/chat` and the
+        model is handed back as its own words. The level is stated to whoever
+        grants it, so it has to be the level that is enforced (#931).
         """
         owner = getattr(conversation, "user_id", None)
         if owner is not None and str(owner) == str(user_id):
             return True
-        if await conversation_share_repo.get_share(self.db, conversation.id, user_id):
+        share = await conversation_share_repo.get_share(self.db, conversation.id, user_id)
+        if share is not None and share.permission == "edit":
             return True
         if owner is None:
             return await channel_membership.confirms_participation(

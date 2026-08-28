@@ -627,7 +627,7 @@ class TestParticipationDoesNotCarryTheWrite:
             mock_repo.create_message.assert_not_called()
 
     @pytest.mark.anyio
-    async def test_a_share_still_carries_the_write(self, service: ConversationService):
+    async def test_an_edit_share_still_carries_the_write(self, service: ConversationService):
         """Sharing is the deliberate act participation is not."""
         reader = uuid4()
         conversation = self._room(uuid4())
@@ -639,13 +639,61 @@ class TestParticipationDoesNotCarryTheWrite:
             mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
             mock_repo.favourite_ids = AsyncMock(return_value=set())
             mock_repo.archive_conversation = AsyncMock(return_value=conversation)
-            mock_share_repo.get_share = AsyncMock(return_value=MagicMock())
+            mock_share_repo.get_share = AsyncMock(return_value=MagicMock(permission="edit"))
 
             archived = await service.archive_conversation(
                 conversation.id, user_id=reader, organization_id=TEST_ORG_ID
             )
 
             assert archived.id == conversation.id
+
+    @pytest.mark.anyio
+    async def test_a_view_share_does_not(self, service: ConversationService):
+        """The two levels the sharing dialog offers meant the same thing: any
+        share at all carried the write, so a conversation shared to *view* could
+        be renamed, archived, deleted, or given a `role: "assistant"` turn the
+        model is handed back as its own words (#931)."""
+        reader = uuid4()
+        conversation = self._room(uuid4())
+
+        with (
+            patch("app.services.conversation.conversation_repo") as mock_repo,
+            patch("app.services.conversation.conversation_share_repo") as mock_share_repo,
+            patch("app.services.conversation.channel_membership") as membership,
+        ):
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
+            mock_repo.archive_conversation = AsyncMock(return_value=conversation)
+            mock_share_repo.get_share = AsyncMock(return_value=MagicMock(permission="view"))
+            membership.confirms_participation = AsyncMock(return_value=False)
+
+            with pytest.raises(NotFoundError):
+                await service.archive_conversation(
+                    conversation.id, user_id=reader, organization_id=TEST_ORG_ID
+                )
+
+            mock_repo.archive_conversation.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_view_share_still_opens_the_thread(self, service: ConversationService):
+        """The level is about writing. Reading is the whole point of a view share
+        and the read path is untouched."""
+        reader = uuid4()
+        conversation = self._room(uuid4())
+
+        with (
+            patch("app.services.conversation.conversation_repo") as mock_repo,
+            patch("app.services.conversation.conversation_share_repo") as mock_share_repo,
+        ):
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
+            mock_repo.agents_in_conversations = AsyncMock(return_value={})
+            mock_repo.favourite_ids = AsyncMock(return_value=set())
+            mock_share_repo.get_share = AsyncMock(return_value=MagicMock(permission="view"))
+
+            read = await service.get_conversation(
+                conversation.id, user_id=reader, organization_id=TEST_ORG_ID
+            )
+
+            assert read.id == conversation.id
 
     @pytest.mark.anyio
     async def test_the_owner_still_changes_their_own_thread(self, service: ConversationService):
