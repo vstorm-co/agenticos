@@ -202,3 +202,42 @@ class TestSending:
         )
 
         assert posted["url"] == "https://mattermost.acme.com/api/v4/posts"
+
+    @pytest.mark.anyio
+    async def test_two_sends_reuse_one_http_client(self, monkeypatch):
+        """One client per adapter, not one per call: a streamed turn is dozens of
+        REST calls to one host, and a fresh client each time throws the pool away
+        before it is reused, paying a handshake every time (#952)."""
+        made = 0
+        posts: list[str] = []
+
+        class _Response:
+            def raise_for_status(self) -> None:
+                return None
+
+        class _Client:
+            async def post(self, url: str, **_kwargs: object) -> _Response:
+                posts.append(url)
+                return _Response()
+
+        def _make(**_kwargs: object) -> _Client:
+            nonlocal made
+            made += 1
+            return _Client()
+
+        monkeypatch.setattr(httpx, "AsyncClient", _make)
+
+        adapter = MattermostAdapter()
+        for _ in range(2):
+            await adapter.send_message(
+                "token",
+                OutgoingMessage(
+                    platform_chat_id="c1", text="hi", api_base_url="https://mattermost.acme.com"
+                ),
+            )
+
+        assert made == 1  # built once, in __init__, not per send
+        assert posts == [
+            "https://mattermost.acme.com/api/v4/posts",
+            "https://mattermost.acme.com/api/v4/posts",
+        ]

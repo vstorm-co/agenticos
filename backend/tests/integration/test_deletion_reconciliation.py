@@ -12,14 +12,18 @@ to neighbouring rows when one is deleted, which a mock cannot show.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from unittest.mock import MagicMock
 
 import pytest
 from sqlalchemy import select, text
+from sqlalchemy.exc import DBAPIError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from app.core.background import discard_deferred, drain, start_deferred
 from app.core.config import settings as app_settings
+from app.core.exceptions import BadRequestError
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
@@ -176,8 +180,6 @@ class TestDeletingAUser:
     async def test_the_sole_owner_of_a_shared_org_is_refused_not_500ed(self, db):
         """A shared org with no other owner has nobody to hand the creator FK to,
         so the delete is a clean refusal rather than a foreign-key 500."""
-        from app.core.exceptions import BadRequestError
-
         owner = _user()
         db.add(owner)
         await db.flush()
@@ -370,6 +372,11 @@ class TestDeletingAnOrg:
             org = await s.get(Organization, org_id)
             await OrganizationService(s, vector_store=store).purge(org)
             await s.commit()
+            # The table drop and file unlinks defer to after commit (#1137); a
+            # real request runs this from `_managed_session`, a raw session runs
+            # it here.
+            start_deferred(s)
+        await drain()
 
         async with factory() as s:
             remaining = await s.execute(
@@ -378,6 +385,167 @@ class TestDeletingAnOrg:
             assert remaining.scalars().all() == []
             assert (await s.execute(text("SELECT to_regclass(:t)"), {"t": table})).scalar() is None
             assert await s.get(Organization, org_id) is None
+
+    async def test_a_failed_teardown_commit_leaves_the_vector_table(
+        self, engine: AsyncEngine
+    ) -> None:
+        """The drop and the unlinks defer past the request commit (#1137).
+
+        Before this, `purge` dropped the table and unlinked files inside the
+        request, so a final commit that rolled back left the org, KB and doc rows
+        alive but their vectors and uploads already gone. Deferring the external
+        side effects means a rolled-back teardown discards them: the table, the
+        rows and the org all survive together.
+        """
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbnine{uuid.uuid4().hex[:12]}"
+        table = store._table(collection)
+        async with factory() as s:
+            user = _user()
+            s.add(user)
+            await s.flush()
+            org = await _org(s, user)
+            s.add(_org_collection(org.id, collection))
+            await s.execute(text(f"CREATE TABLE {table} (id int)"))
+            await s.commit()
+            org_id = org.id
+
+        async with factory() as s:
+            org = await s.get(Organization, org_id)
+            await OrganizationService(s, vector_store=store).purge(org)
+            # The request's final commit fails: mirror `_managed_session`'s
+            # failure path - roll back, then discard the deferred cleanup unrun.
+            await s.rollback()
+            discard_deferred(s)
+        await drain()
+
+        async with factory() as s:
+            assert (
+                await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
+            ).scalar() is not None
+            assert await s.get(Organization, org_id) is not None
+
+    async def test_a_committed_teardown_unlinks_the_stored_files(self, engine: AsyncEngine) -> None:
+        """A document row goes in the transaction; its stored upload is unlinked
+        by the post-commit cleanup once the teardown commits (#1137)."""
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        storage = get_file_storage()
+        stored_path = await storage.save("teardown-user", "doc.txt", b"payload")
+        collection = f"kbnine{uuid.uuid4().hex[:12]}"
+        async with factory() as s:
+            user = _user()
+            s.add(user)
+            await s.flush()
+            org = await _org(s, user)
+            kb = _org_collection(org.id, collection)
+            s.add(kb)
+            await s.flush()
+            s.add(_kb_document(collection, kb.id, org.id, stored_path))
+            await s.commit()
+            org_id = org.id
+
+        assert storage.get_full_path(stored_path) is not None
+
+        async with factory() as s:
+            org = await s.get(Organization, org_id)
+            await OrganizationService(s, vector_store=store).purge(org)
+            await s.commit()
+            start_deferred(s)
+        await drain()
+
+        assert storage.get_full_path(stored_path) is None
+
+    async def test_a_rolled_back_teardown_keeps_the_stored_files(self, engine: AsyncEngine) -> None:
+        """The file unlink defers past the commit too, so a teardown that rolls
+        back leaves the stored upload in place (#1137)."""
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        storage = get_file_storage()
+        stored_path = await storage.save("teardown-user", "doc.txt", b"payload")
+        collection = f"kbnine{uuid.uuid4().hex[:12]}"
+        async with factory() as s:
+            user = _user()
+            s.add(user)
+            await s.flush()
+            org = await _org(s, user)
+            kb = _org_collection(org.id, collection)
+            s.add(kb)
+            await s.flush()
+            s.add(_kb_document(collection, kb.id, org.id, stored_path))
+            await s.commit()
+            org_id = org.id
+
+        async with factory() as s:
+            org = await s.get(Organization, org_id)
+            await OrganizationService(s, vector_store=store).purge(org)
+            await s.rollback()
+            discard_deferred(s)
+        await drain()
+
+        assert storage.get_full_path(stored_path) is not None
+        await storage.delete(stored_path)
+
+    async def test_a_recreated_collection_survives_the_deferred_drop(
+        self, engine: AsyncEngine
+    ) -> None:
+        """The drop runs after the commit that frees the collection name, so a
+        second org can reclaim it before the cleanup fires; the deferred cleanup
+        re-checks references and leaves the new tenant's table in place (#1137)."""
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbnine{uuid.uuid4().hex[:12]}"
+        table = store._table(collection)
+        async with factory() as s:
+            user = _user()
+            s.add(user)
+            await s.flush()
+            org = await _org(s, user)
+            s.add(_org_collection(org.id, collection))
+            await s.execute(text(f"CREATE TABLE {table} (id int)"))
+            await s.commit()
+            org_id = org.id
+
+        async with factory() as s:
+            org = await s.get(Organization, org_id)
+            await OrganizationService(s, vector_store=store).purge(org)
+            await s.commit()
+            # A second org claims the freed name before the deferred cleanup runs.
+            async with factory() as claimant:
+                other = _user()
+                claimant.add(other)
+                await claimant.flush()
+                other_org = await _org(claimant, other)
+                claimant.add(_org_collection(other_org.id, collection))
+                await claimant.commit()
+            start_deferred(s)
+        await drain()
+
+        async with factory() as s:
+            assert (
+                await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
+            ).scalar() is not None
 
     async def test_a_personal_collection_survives_its_orgs_deletion(
         self, engine: AsyncEngine
@@ -420,3 +588,57 @@ class TestDeletingAnOrg:
             surviving = await s.get(KnowledgeBase, kb_id)
             assert surviving is not None
             assert surviving.organization_id is None
+
+
+class TestConcurrentSelfDeletes:
+    async def test_mutual_co_owners_deleting_at_once_never_deadlock(
+        self, engine: AsyncEngine
+    ) -> None:
+        """Two users who each solely own a shared org the other co-owns, deleting
+        their own accounts at the same moment.
+
+        `delete` reassigns each solely-created shared org to its heir, taking FOR
+        KEY SHARE on the heir's user row through the FK while holding FOR UPDATE on
+        its own. Before #1134 the two requests took those locks in opposite orders
+        - each holding its own row and waiting for the other's - so Postgres broke
+        the cycle by aborting one with a 40P01, surfacing as a 500. Locking every
+        user row in ascending id order serialises the two on the lower id, so one
+        completes and the other, now the sole owner of its org, gets a clean domain
+        refusal - never a DeadlockDetected. Integration because the deadlock is a
+        property of two transactions the database arbitrates, which a mock cannot
+        show.
+        """
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async with factory() as setup:
+            a = _user()
+            b = _user()
+            setup.add_all([a, b])
+            await setup.flush()
+            org_a = await _org(setup, a)
+            await _member(setup, org_a.id, b.id, "owner")
+            org_b = await _org(setup, b)
+            await _member(setup, org_b.id, a.id, "owner")
+            await setup.commit()
+            a_id, b_id = a.id, b.id
+
+        async def run_delete(user_id: uuid.UUID) -> object:
+            async with factory() as session:
+                user = await UserService(session).delete(user_id)
+                await session.commit()
+                return user
+
+        results = await asyncio.gather(run_delete(a_id), run_delete(b_id), return_exceptions=True)
+
+        for result in results:
+            assert not isinstance(result, (OperationalError, DBAPIError)), result
+
+        deleted = [r for r in results if isinstance(r, User)]
+        refused = [r for r in results if isinstance(r, BadRequestError)]
+        assert len(deleted) == 1
+        assert len(refused) == 1
+
+        async with factory() as check:
+            assert await check.get(User, deleted[0].id) is None
+            survivor = a_id if deleted[0].id == b_id else b_id
+            assert await check.get(User, survivor) is not None

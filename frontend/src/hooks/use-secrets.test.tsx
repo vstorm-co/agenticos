@@ -61,6 +61,34 @@ describe("useSecrets", () => {
     expect(message).not.toContain("sk-notarealtoken4Q2X");
   });
 
+  it("cancels the in-flight list read before invalidating, so a stale refetch cannot win (#130)", async () => {
+    // invalidateQueries dedupes onto a fetch already running; a list read that
+    // began before the rotate committed would otherwise resolve with the
+    // pre-write list and the table would show the old value until a reload.
+    vi.mocked(apiClient.patch).mockResolvedValue({ name: "Zendesk", hint: "8B1P" });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const cancelSpy = vi.spyOn(client, "cancelQueries");
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+    const scoped = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => useSecrets(), { wrapper: scoped });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.rotate.mutateAsync({
+      id: "s1",
+      value: { kind: "api_key", api_key: "sk-thenewone8B1P" },
+    });
+
+    expect(cancelSpy).toHaveBeenCalledWith({ queryKey: ["secrets", "list"] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["secrets", "list"] });
+    const cancelOrder = cancelSpy.mock.invocationCallOrder[0] ?? 0;
+    const invalidateOrder = invalidateSpy.mock.invocationCallOrder[0] ?? 0;
+    expect(cancelOrder).toBeGreaterThan(0);
+    expect(cancelOrder).toBeLessThan(invalidateOrder);
+  });
+
   it("rotates in place, keeping the id every agent binding names", async () => {
     // The whole reason rotation is a PATCH and not a delete-and-recreate: a
     // spec references a secret by id, so a new row would leave every agent

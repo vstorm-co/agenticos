@@ -17,6 +17,157 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.319] - 2026-08-28
+
+### Fixed
+
+- **An organization teardown dropped vector tables and unlinked stored uploads before
+  the transaction that deleted their rows had committed.**
+  `OrganizationService.purge` did both inside the request, on the vector store's own
+  session, so a final commit that failed rolled the organization, knowledge base and
+  document rows back into existence pointing at vectors and files that were already
+  gone - residual 1 of #1116's review. The relational deletes still run in the request
+  transaction; the storage paths and the collections whose tables are no longer
+  referenced are collected and handed to `spawn_after_commit`, so a failed commit
+  discards the cleanup unrun and leaves nothing dangling. #1116's ordering - document
+  rows before identifiers, a table dropped only once unreferenced - is unchanged.
+  (#1137)
+- The cleanup is a module function taking the paths, the collections and the vector
+  store rather than a method, so the queued coroutine holds primitives and the
+  process-lived store and never the request session, which is gone by the time it
+  runs. (#1137)
+
+### Changed
+
+- Residuals 2-4 of #1137 - a `NULL`-`knowledge_base_id` document sharing a collection
+  name, a deleted tenant's vectors kept in a shared table, and the TOCTOU on the
+  reference check - all depend on tenant-unique collection names (#913) and are
+  recorded on the `purge` docstring instead.
+
+## [0.0.318] - 2026-08-28
+
+### Fixed
+
+- **Two users who co-own each other's shared organizations could deadlock by
+  deleting their own accounts at the same moment.** `UserService.delete` took
+  `FOR UPDATE` on its own user row - the #1115 reconcile lock - and then, reassigning
+  a solely-created shared organization to an heir, took `FOR KEY SHARE` on the heir's
+  row through the foreign key. Each request held its own row and waited for the
+  other's, so Postgres broke the cycle by aborting one with `40P01`: a 500 rather
+  than a result. `UserService._lock_for_delete` now discovers the heirs a delete will
+  reassign to and locks every user row it needs - self and every heir - **in ascending
+  id order**, before the reconcile. Two concurrent self-deletes queue on the lower id,
+  so one completes and the other, now sole owner of its organization, gets the
+  existing clean domain refusal. (#1134)
+- The self `FOR UPDATE` still precedes the reconcile's authoritative reads and is held
+  through the `DELETE`, so #1115's guarantee is unchanged: a concurrent child insert
+  waits, and the reconcile sees every child. (#1134)
+
+## [0.0.317] - 2026-08-28
+
+### Fixed
+
+- **The email that says a run is parked now sends the reader to the queue.**
+  `approvals_url` was `{frontend}/agents/{agent.id}` - the Builder page, which holds
+  one sentence of prose about tool calls reaching a queue and no queue at all. So the
+  one alert whose whole purpose is *somebody has to decide, now* landed a search away
+  from the decision, behind a button reading "Review the request", while the run aged
+  towards `ApprovalService.expire_stale`. It addresses `/runs?tab=approvals` now -
+  Activity's Approvals tab, the only surface carrying Approve and Reject, and a
+  surface with no URL at all until #934. (#935)
+- It deliberately does **not** name the run with `?run=`, though the notification
+  holds it: the decide controls are on the queue *row*, and below `lg` a focused run
+  replaces the list - so naming the run would hide the buttons from the reader most
+  likely to be on a phone. Budget mail still opens the agent, which is correct: the
+  cap it reports is edited there. (#935)
+
+### Added
+
+- `docs/governance.md` gains **An alert links to where the decision is** - where
+  approvals mail points, why it does not name the run, and why budget mail differs.
+
+## [0.0.316] - 2026-08-28
+
+### Fixed
+
+- **Which of Activity's three tabs is open is now in the address bar.** `Tabs` was
+  uncontrolled, so there was no URL for the approvals queue at all - which is why the
+  dashboard card's "See all" opened the run history, where nothing can be decided.
+  `?tab=approvals` and `?tab=spend` are written; `runs` is the default and, like every
+  other unset narrowing on this page, writes nothing. `parseRunsTab` joins
+  `parseRunFilters`, and `runsHref` takes a `tab`. (#934)
+- **A tab named by a link is resolved against what the reader may open.**
+  `approvals` is gated on `approvals:decide`, so a link carrying it that reaches
+  somebody without the permission opens the run history rather than a strip whose
+  selected value has no trigger and no content - a blank page under a live set of
+  tabs. An unrecognised name falls back the same way. (#934)
+- **A focused run is cleared when the tab changes**, and `?run=` goes with it. It
+  already was, incidentally and untested, since #537; left behind, a reload reopened
+  a detail panel on a tab that never had one - and below `lg` the panel *replaces*
+  the list, so the strip was live while every tab's content stayed hidden and
+  clicking Approvals appeared to do nothing. (#934)
+- The approvals widget's `seeAll` points at the queue rather than the history - the
+  same wrong destination as the parked-run email, enabled by the same missing
+  parameter. (#934)
+
+## [0.0.315] - 2026-08-27
+
+### Fixed
+
+- **Every REST helper in the Mattermost adapter opened its own HTTP client**, and
+  Slack's attachment download did too, so each call paid a fresh TCP connection and
+  TLS handshake against a host it had just talked to. A streamed channel turn is not
+  one call - the live reply pushes an edit roughly every second, plus typing, the
+  opening, the final edit and a download per attachment - so a minute-long answer
+  spent seconds of wall clock re-establishing connections it already had, and the
+  bot host saw the socket churn of a client that never keeps one open. One client
+  per adapter now, built in `__init__` and closed at shutdown: Mattermost's ten
+  call sites borrow it through a `nullcontext` so none of them closes it and the
+  pool stays warm, and no call site changed. (#952)
+- `ChannelAdapter` grows a no-op close, and the lifespan calls it on every adapter
+  **after** polling has stopped and background work has drained - so a turn still
+  finishing an edit is never cut off from its client. The two non-channel per-call
+  clients the issue also lists have no adapter lifecycle to hang a reused client
+  on, and are filed separately. (#952)
+
+## [0.0.314] - 2026-08-27
+
+### Fixed
+
+- **The vault list kept the pre-write rows after a store or rotate**, roughly one
+  run in eight, so a new row never appeared and the spec timed out. The create
+  itself worked - the artifact showed the keys stored with an empty error alert, so
+  the write succeeded and the render was stale. Same dedup race as #154: the
+  mutation invalidated the list and relied on the refetch, and the vault page
+  issues its list read on load, so a read that began before the write committed
+  resolved with the pre-write body and marked the query fresh. The secrets hook's
+  one `invalidate` helper cancels the list query before invalidating. (#130, #154)
+- **Three `page.reload()` workarounds are retired with it** - the row appears on
+  its own now, which is the verification that it no longer flakes. On the issue's
+  two acceptance criteria: `submitDialog` already asserts the write's response
+  status and prints its body on a non-2xx, so a refused store fails at its source
+  before the row is awaited; and the create never failed - it answered 201, and the
+  list render was the stale half. (#130)
+
+## [0.0.313] - 2026-08-27
+
+### Fixed
+
+- **A mutation's invalidation could be answered with pre-write data**, which is
+  what made `sharing.spec.ts` and `skills.spec.ts` flake. A mutation's `onSuccess`
+  invalidated and relied on the refetch - but `invalidateQueries` **dedupes its
+  refetch onto a fetch already in flight**, and both the sharing panel and the
+  skills gallery fan out several reads on mount. A read that began before the
+  mutation committed resolved with the pre-write body, marked the query fresh, and
+  the panel kept the old value until a reload. It hit the *second* mutation in a
+  sequence and never the first, which is exactly the shape the issue describes.
+  Each hook's one `invalidate` helper cancels the query before invalidating now, so
+  the invalidation dispatches a genuinely new post-commit fetch rather than
+  awaiting the stale one it meant to replace. (#154)
+- Worth being clear about what this was not: the read is ordered after the commit
+  and reaches Postgres, and `no-store` has been in effect since #405 - the client
+  simply dropped the fresh answer. (#154, #405, #230)
+
 ## [0.0.312] - 2026-08-27
 
 ### Added
