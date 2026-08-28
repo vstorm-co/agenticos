@@ -71,7 +71,16 @@ async def list_for_org(
     skip: int = 0,
     limit: int = 100,
 ) -> list[tuple[OrganizationMember, str, str | None, str | None, int | None]]:
-    """Return (member, email, full_name, avatar_url, avatar_color) tuples by join date."""
+    """Return (member, email, full_name, avatar_url, avatar_color) tuples by join date.
+
+    `id` breaks the tie, and it is what makes paging through this safe. Two people
+    invited in one request share a `joined_at`, Postgres is free to return tied
+    rows in either order, and a page boundary falling inside a tie then shows one
+    member twice and another never - the same defect the sessions listing has its
+    own tie-breaker for. `useMembers` reads every page to fill the conversation
+    share picker, so an unstable order there is a colleague who cannot be shared
+    with (#931).
+    """
     result = await db.execute(
         select(
             OrganizationMember,
@@ -82,7 +91,7 @@ async def list_for_org(
         )
         .join(User, User.id == OrganizationMember.user_id)
         .where(OrganizationMember.organization_id == organization_id)
-        .order_by(OrganizationMember.joined_at.asc())
+        .order_by(OrganizationMember.joined_at.asc(), OrganizationMember.id)
         .offset(skip)
         .limit(limit)
     )

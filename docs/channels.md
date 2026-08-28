@@ -16,20 +16,23 @@ checks — the surface changes, the agent does not.
 | **Telegram** | a bot token | a Telegram account, optionally linked |
 | **Mattermost** | a bot token and your server URL | a Mattermost account, optionally linked |
 
-Three rules hold everywhere, and all three are enforced in the runner rather
-than per surface: **a run always belongs to exactly one organization**, **a
-spending limit is checked before each model request, never after**, and **a run
-that failed is still in history with what it spent** — the tokens were spent
-before it broke, and a budget that ignores that is not a budget.
+!!! abstract "Three rules hold on every surface, enforced in the runner"
 
-**Three of those eight are one table, and its rows differ by a `kind`.** A
-widget, a raw socket and a hosted page are each an *embed*: one public key, one
-rate bucket, one budget, one pause switch, and one set of refusals. What differs
-is what there is to configure and what admits a visitor — which is why the
-Builder asks which one you want before it asks anything else, and why a page has
-no allowed-origins list rather than an ignored one. A kind is fixed at creation:
-a tag already pasted, a client already written and a link already sent all name
-the same row.
+    - **A run always belongs to exactly one organization.**
+    - **A spending limit is checked before each model request, never after.**
+    - **A run that failed is still in history with what it spent** — the tokens
+      were spent before it broke, and a budget that ignores that is not a budget.
+
+!!! info "Three of those eight are one table, and its rows differ by a `kind`"
+
+    A widget, a raw socket and a hosted page are each an *embed* — and a kind is
+    fixed at creation, because a tag already pasted, a client already written and
+    a link already sent all name the same row.
+
+One public key, one rate bucket, one budget, one pause switch, and one set of
+refusals. What differs is what there is to configure and what admits a visitor —
+which is why the Builder asks which one you want before it asks anything else,
+and why a page has no allowed-origins list rather than an ignored one.
 
 Every run records the surface that admitted it — `web`, `embed`, `api`, `slack`,
 `telegram` or `mattermost` — which is what the dashboard's by-surface chart
@@ -82,6 +85,13 @@ In the Builder, open the agent → **Availability** → *Website widget*. You ch
   pricing page"*, *"Answer in German"*. It never replaces the agent's own
   instructions, which belong to the published version.
 - **Rate limit** — messages per visitor per minute.
+
+!!! danger "An empty origin list allows nothing, and that is on purpose"
+
+    The key in the script tag is public by construction, so the origin list is
+    the only thing stopping somebody else running your agent on your bill.
+    Publishing without one is refused rather than producing a widget that
+    answers nowhere.
 
 ### 2. Paste the snippet
 
@@ -156,7 +166,12 @@ token = jwt.encode(
   that leaks out of a browser cannot work forever. An `exp` you set is honoured
   too, but only to **shorten** that window (an expired token is rejected); it
   cannot extend a token past the 12-hour ceiling.
-- Mint it per page load, server-side. Never ship the signing secret to a browser.
+- Mint it per page load, server-side.
+
+!!! danger "Never ship the signing secret to a browser"
+
+    It signs *any* visitor. The token it mints is the thing the browser is
+    allowed to hold, and only for the twelve hours `iat` gives it.
 
 ---
 
@@ -179,11 +194,30 @@ there: in `jwt` mode the token is minted per visitor by your backend, and a real
 one on a dashboard screen is a working credential somebody can read over a
 shoulder.
 
-The handshake must carry an `Origin` on the embed's allow-list. **A browser sends
-it for you; a client of your own sends nothing unless you set it** - a mobile app,
-a kiosk, a server-side relay. That is the first thing that goes wrong, and what
-it looks like when it does is `4003` in the table below rather than an error
-message.
+!!! bug "The first thing that goes wrong: a missing `Origin`"
+
+    The handshake must carry one on the embed's allow-list. **A browser sends it
+    for you; a client of your own sends nothing unless you set it** - a mobile
+    app, a kiosk, a server-side relay. What it looks like when it does not is
+    `4003` in the table below, not an error message.
+
+```mermaid
+sequenceDiagram
+    participant C as Your client
+    participant E as /embed/{key}/ws
+    participant R as run_stream
+    C->>E: handshake (Origin, optional ?token=)
+    alt origin not allowed, token bad, embed paused
+        E-->>C: close 4003 - do not retry
+    else admitted
+        E-->>C: ready { visitor }
+        C->>E: message { text }
+        E->>R: the same loop /chat drives
+        R-->>C: model_request_start
+        R-->>C: text_delta … (a word at a time)
+        R-->>C: final_result, then complete
+    end
+```
 
 **Frames you send**
 
@@ -203,11 +237,14 @@ over it would take the conversation with it.
 
 **Frames you receive**
 
-**This is the dashboard's own frame vocabulary, not a second one.** The chat in
-`/chat` and this socket drive one loop (`app/services/run_stream.py`), so an
-answer arrives here a word at a time the same way it does there — a hosted page
-used to show one lump of text after thirty seconds of nothing, and that was the
-loop rather than the transport. Every frame carries `{ "type": …, "data": { … } }`.
+!!! note "This is the dashboard's own frame vocabulary, not a second one"
+
+    `/chat` and this socket drive one loop (`app/services/run_stream.py`), so an
+    answer arrives here a word at a time the same way it does there. A hosted
+    page used to show one lump of text after thirty seconds of nothing, and that
+    was the loop rather than the transport.
+
+Every frame carries `{ "type": …, "data": { … } }`.
 
 | `type` | `data` | Meaning |
 |---|---|---|
@@ -1415,6 +1452,19 @@ pasted into the instructions, is a prompt injection with a public edit button.
 
 ## Choosing
 
+```mermaid
+flowchart TD
+    A{a site of your own?} -->|no| L{a link will do?}
+    L -->|yes| H[a hosted page]
+    L -->|no| T[Slack, Telegram or Mattermost]
+    A -->|yes| U{your own interface?}
+    U -->|yes| WS[the raw WebSocket]
+    U -->|no| P{visitors signed in to your product?}
+    P -->|yes| J["the widget, <code>jwt</code> mode"]
+    P -->|no| PB["the widget, <code>public</code> mode"]
+    A -->|another system entirely| API["the REST API"]
+```
+
 - Your own site, no accounts → **widget, `public` mode**.
 - Inside your product, per-user → **widget, `jwt` mode**.
 - Your own interface entirely → **WebSocket**.
@@ -1422,7 +1472,9 @@ pasted into the instructions, is a prompt injection with a public edit button.
 - Where the team already talks → **Slack, Telegram or Mattermost**.
 - Another system entirely → the REST API (`POST /api/v1/agents/{id}/run`).
 
-The first four are one object. A widget, a socket client and a hosted page are
-three ways of reaching the same embed, with one set of refusals between them —
-so "who may talk to this agent" has exactly one answer whichever of the three
-somebody arrives through.
+!!! success "The first four are one object"
+
+    A widget, a socket client and a hosted page are three ways of reaching the
+    same embed, with one set of refusals between them — so "who may talk to this
+    agent" has exactly one answer whichever of the three somebody arrives
+    through.

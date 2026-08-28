@@ -13,6 +13,18 @@ class Token(BaseSchema):
     token_type: str = "bearer"
 
 
+class MagicLinkToken(Token):
+    """A token pair, and where the link that produced it was headed.
+
+    Its own schema rather than a nullable field on :class:`Token`: every other
+    token response - the password login, the refresh - has no return path to
+    carry, and a field that is always null on three of four responses is one a
+    client learns to ignore (#1214).
+    """
+
+    return_to: str | None = None
+
+
 class TokenPayload(BaseSchema):
     """JWT token payload."""
 

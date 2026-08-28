@@ -271,13 +271,22 @@ async def counts_by_collection(
     }
 
 
-async def delete_by_collection(db: AsyncSession, collection_name: str) -> int:
-    """Delete all RAG document records for a collection. Returns affected row count."""
+async def delete_by_collection(db: AsyncSession, collection_name: str) -> list[str]:
+    """Delete a collection's document rows, returning their stored file paths.
+
+    Keyed on `collection_name`, so it removes every knowledge base's rows for
+    that physical collection - which is what the collection-drop route means. The
+    returned `storage_path`s are the uploads the caller still has to unlink; a
+    `NULL` one (nothing was stored) is dropped. The bulk delete used to return
+    only a rowcount, so the files were orphaned on disk (#1265).
+    """
     result = await db.execute(
-        sql_delete(RAGDocument).where(RAGDocument.collection_name == collection_name)
+        sql_delete(RAGDocument)
+        .where(RAGDocument.collection_name == collection_name)
+        .returning(RAGDocument.storage_path)
     )
     await db.flush()
-    return result.rowcount  # ty: ignore[unresolved-attribute]
+    return [path for path in result.scalars().all() if path]
 
 
 async def delete_by_knowledge_base(db: AsyncSession, kb_id: UUID) -> list[str]:

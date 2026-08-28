@@ -208,6 +208,38 @@ describe("useOrganizations", () => {
     await waitFor(() => expect(result.current.orgs[0]?.name).toBe("Capped"));
   });
 
+  it("sends the approval waiver as the boolean it is", async () => {
+    // A boolean somebody deliberately set to false is not an omitted field, and
+    // the ceiling on standing consent is exactly the setting where the two must
+    // not be confused (#925).
+    const result = await hook();
+    vi.mocked(apiClient.patch).mockResolvedValue(org());
+
+    await result.current.setChatApprovalWaiver("org-1", true);
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/orgs/org-1", {
+      chat_may_waive_approvals: true,
+    });
+  });
+
+  it("lets a refused waiver through, so the switch can say why", async () => {
+    const result = await hook();
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("Needs approvals:decide"));
+
+    await expect(result.current.setChatApprovalWaiver("org-1", true)).rejects.toThrow(
+      "Needs approvals:decide",
+    );
+  });
+
+  it("keeps the answered waiver in the list it just wrote", async () => {
+    const result = await hook();
+    vi.mocked(apiClient.patch).mockResolvedValue(org({ chat_may_waive_approvals: true }));
+
+    await result.current.setChatApprovalWaiver("org-1", true);
+
+    await waitFor(() => expect(result.current.orgs[0]?.chat_may_waive_approvals).toBe(true));
+  });
+
   it("drops a deleted organization and clears the selection if it was the one", async () => {
     useOrgStore.setState({ activeOrgId: "org-1" });
     const result = await hook();

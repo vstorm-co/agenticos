@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -39,6 +40,47 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+async def _purge_external_state(
+    storage_paths: list[str],
+    collections: list[str],
+    vector_store: "BaseVectorStore | None",
+) -> None:
+    """Unlink stored uploads and drop vector tables, after an org purge commits.
+
+    Deferred with `spawn_after_commit` (see `OrganizationService.purge`), so it
+    runs only once the relational teardown has committed: a commit that fails
+    rolls the rows back and this never runs, leaving nothing pointing at a
+    dropped table or a missing file (#1137). A module function taking primitives
+    and the process-lived store - not a method - so the queued coroutine holds
+    nothing belonging to the request session, which is gone by the time it runs.
+
+    Because it runs after the commit that frees the collection name, a second
+    org can claim that name and back a table onto it before this drop fires -
+    `CollectionAccessService.claim` checks only `knowledge_bases` rows. So each
+    table is re-checked here, in its own session, and dropped only when no base
+    references the name again; deferral would otherwise widen the #913 TOCTOU
+    from a sub-request window to the whole gap before this runs, and drop the new
+    tenant's table.
+    """
+    from app.db.session import get_db_context
+
+    storage = get_file_storage()
+    for storage_path in storage_paths:
+        with contextlib.suppress(Exception):
+            await storage.delete(storage_path)
+    if vector_store is not None and collections:
+        async with get_db_context() as db:
+            for collection in collections:
+                if await knowledge_base_repo.list_by_collection_name(db, collection):
+                    continue
+                # Best-effort, and only against the database: `delete_collection`
+                # issues `DROP TABLE IF EXISTS`, so a collection whose table was
+                # never created is not an error, and any other database failure is
+                # not a reason to abandon the rest of the cleanup.
+                with contextlib.suppress(SQLAlchemyError):
+                    await vector_store.delete_collection(collection)
+
+
 def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRead:
     """One organization as a member of it sees it.
 
@@ -56,6 +98,7 @@ def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRe
         member_count=member_count,
         role=role,
         monthly_budget_usd=org.monthly_budget_usd,
+        chat_may_waive_approvals=org.chat_may_waive_approvals,
         created_at=org.created_at,
         updated_at=org.updated_at,
     )
@@ -260,22 +303,36 @@ class OrganizationService:
     ) -> Organization:
         """Update org metadata and settings.
 
-        Two permissions decide this PATCH, each covering the fields it names:
+        Three permissions decide this PATCH, each covering the fields it names:
         `org:settings` for the metadata (name, avatar), `budgets:manage` for
-        the monthly spending cap. The built-in Owner and Admin hold both, so
-        nothing changes for them - but the catalog advertises `budgets:manage`
-        as its own entitlement, and a permission the matrix shows and no
-        endpoint consults is a row that means nothing.
+        the monthly spending cap, `approvals:decide` for whether chat sessions
+        may waive approvals. The built-in Owner and Admin hold all three, so
+        nothing changes for them - but the catalog advertises each as its own
+        entitlement, and a permission the matrix shows and no endpoint consults
+        is a row that means nothing.
+
+        The waiver is gated on `approvals:decide` rather than on `org:settings`
+        because of what it is: raising the ceiling on standing consent is a
+        decision about the approval queue, and somebody who may not decide one
+        approval should not be able to switch the queue off for every
+        conversation (#925).
         """
         org, membership = await self.get_for_user(org_id, requester_id)
         wants_budget = "monthly_budget_usd" in data.model_fields_set
         wants_color = "avatar_color" in data.model_fields_set
-        wants_metadata = bool(data.model_fields_set - {"monthly_budget_usd"})
+        wants_waiver = "chat_may_waive_approvals" in data.model_fields_set
+        wants_metadata = bool(
+            data.model_fields_set - {"monthly_budget_usd", "chat_may_waive_approvals"}
+        )
         if wants_metadata and not role_has(membership.role, Perm.ORG_SETTINGS):
             raise AuthorizationError(message="Only Owner or Admin can update the organization")
         if wants_budget and not role_has(membership.role, Perm.BUDGETS_MANAGE):
             raise AuthorizationError(
                 message="Changing the spending limit requires 'budgets:manage'"
+            )
+        if wants_waiver and not role_has(membership.role, Perm.APPROVALS_DECIDE):
+            raise AuthorizationError(
+                message="Changing whether chats may waive approvals requires 'approvals:decide'"
             )
 
         if wants_budget:
@@ -289,6 +346,11 @@ class OrganizationService:
         if wants_color:
             # Same field-named-not-valued rule: `null` resets the colour to auto.
             org = await organization_repo.set_avatar_color(self.db, org, color=data.avatar_color)
+
+        if wants_waiver and data.chat_may_waive_approvals is not None:
+            org = await organization_repo.set_chat_approval_waiver(
+                self.db, org, allowed=data.chat_may_waive_approvals
+            )
 
         return await organization_repo.update(
             self.db,
@@ -326,49 +388,48 @@ class OrganizationService:
         makes that insert wait, so the list sees every collection there is - a
         fresh read under READ COMMITTED (#1115).
 
-        Each collection's documents (rows and stored uploads) go before its
-        identifiers do: `rag_documents` authorization keys on `collection_name`,
-        so a row left behind is readable by a later collection permitted the same
-        name (#1116). Deleting by `knowledge_base_id` scopes this to the KB being
-        torn down; a doc row that shares the name but carries no KB link, and the
-        vectors that stay in a shared table kept below, are #913 residuals this
-        cannot reach without a tenant column to filter on.
+        Each collection's document rows go before its identifiers do:
+        `rag_documents` authorization keys on `collection_name`, so a row left
+        behind is readable by a later collection permitted the same name (#1116).
+        Deleting by `knowledge_base_id` scopes this to the KB being torn down; a
+        doc row that shares the name but carries no KB link, and the vectors that
+        stay in a shared table kept below, are #913 residuals this cannot reach
+        without a tenant column to filter on.
 
-        The physical vector table is dropped last, and only when no other
-        knowledge base still backs onto it - `collection_name` is not
-        tenant-unique (#913), so two organizations can share one table and
-        dropping it for one would destroy the other's vectors. Dropping last means
-        a failure among the relational deletes aborts before any table is gone.
-        The drops and the file unlinks are the residual this does not close: they
-        commit / unlink outside the request transaction, so if the final request
-        commit fails after them, the rows come back pointing at vectors and
-        uploads already gone. A retry-safe post-commit cleanup would close that
-        window (#1137).
+        The external side effects - dropping each physical vector table and
+        unlinking the stored uploads - are deferred to after the request commits,
+        via `spawn_after_commit`. They run only if the relational teardown
+        committed, so a final commit that fails rolls back the org, KB and doc
+        rows and leaves none of them pointing at a table or a file already gone
+        (#1137). A table is dropped only when no other knowledge base still backs
+        onto it: `collection_name` is not tenant-unique (#913), so two
+        organizations can share one table and dropping it for one would destroy
+        the other's vectors. That reference check reads under READ COMMITTED
+        against the org lock, not the collection name, so a same-named table a
+        second org creates between the check and the drop is a TOCTOU residual
+        (#913) this does not close either.
         """
         await organization_repo.get_by_id_for_update(self.db, org.id)
         collections: list[str] = []
+        storage_paths: list[str] = []
         for kb in await knowledge_base_repo.list_org_scoped(self.db, org.id):
-            await self._purge_documents(kb.id)
+            storage_paths.extend(await rag_document_repo.delete_by_knowledge_base(self.db, kb.id))
             collections.append(kb.collection_name)
             await knowledge_base_repo.delete(self.db, kb.id)
         await organization_repo.delete(self.db, org)
 
+        to_drop: list[str] = []
         if self._vector_store is not None:
             for collection in dict.fromkeys(collections):
-                if await self._collection_still_referenced(collection):
-                    continue
-                # Best-effort, and only against the database: a zero-document
-                # collection has no table yet, which is a `SQLAlchemyError`, not a
-                # reason to abandon the deletion. Mirrors the `drop_collection` route.
-                with contextlib.suppress(SQLAlchemyError):
-                    await self._vector_store.delete_collection(collection)
+                if not await self._collection_still_referenced(collection):
+                    to_drop.append(collection)
 
-    async def _purge_documents(self, kb_id: UUID) -> None:
-        """Delete a knowledge base's tracked documents and their stored files."""
-        storage = get_file_storage()
-        for storage_path in await rag_document_repo.delete_by_knowledge_base(self.db, kb_id):
-            with contextlib.suppress(Exception):
-                await storage.delete(storage_path)
+        if storage_paths or to_drop:
+            spawn_after_commit(
+                self.db,
+                _purge_external_state(storage_paths, to_drop, self._vector_store),
+                name="org_purge_cleanup",
+            )
 
     async def _collection_still_referenced(self, collection_name: str) -> bool:
         """Whether another knowledge base still backs onto this collection's table.

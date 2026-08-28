@@ -27,11 +27,14 @@ openssl rand -hex 32   # SECRET_KEY — signs every access token
 openssl rand -hex 32   # VAULT_MASTER_KEY — unwraps every credential stored at rest
 ```
 
-`SECRET_KEY` ships as a published string, and an empty `VAULT_MASTER_KEY` falls
-back to it so a fresh checkout runs at all. Both are fine on a laptop and are the
-whole security of a deployment anywhere else — which is why the config refuses an
-unset `VAULT_MASTER_KEY` outside `local`/`development`. Setting it explicitly is
-also what lets stored secrets survive a `SECRET_KEY` rotation.
+!!! danger "`SECRET_KEY` ships as a published string"
+
+    An empty `VAULT_MASTER_KEY` falls back to it so a fresh checkout runs at all.
+    Both are fine on a laptop and are the whole security of a deployment anywhere
+    else. Setting `VAULT_MASTER_KEY` explicitly is also what lets stored secrets
+    survive a `SECRET_KEY` rotation.
+
+The config refuses an unset `VAULT_MASTER_KEY` outside `local`/`development`.
 
 ## Project Settings
 
@@ -257,7 +260,7 @@ is needed.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OPENROUTER_API_KEY` | (empty) | The fallback embeddings credential, for collections that chose no vault key of their own — and the one a degraded choice falls back to. Not "every collection embeds on it": see [File processing](file-processing.md#embeddings-the-model-and-whose-key-pays) |
+| `OPENROUTER_API_KEY` | (empty) | The fallback embeddings credential, for collections that chose no vault key of their own — and the one a degraded choice falls back to. Not "every collection embeds on it": see [File processing](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays) |
 | `EMBEDDING_MODEL` | `text-embedding-3-large` | What a **new** collection is built with. The width is recorded on the row and never changes afterwards, so changing this does not invalidate existing collections — they keep embedding with the model they were created with |
 
 ### Document Parsing — configured per collection, not here
@@ -783,9 +786,12 @@ changing the number:
   after one reads a stale stamp that says nothing.
 
 The local stack's reload supervisor reads the same variable for the judgement it
-makes from *outside* the worker, so one number covers both. Set it to `0` while
-debugging: a breakpoint blocks the event loop and nothing can tell that from a
-deadlock, so a worker sitting on one is otherwise killed under you.
+makes from *outside* the worker, so one number covers both.
+
+!!! tip "Set it to `0` while debugging"
+
+    A breakpoint blocks the event loop and nothing can tell that from a deadlock,
+    so a worker sitting on one is otherwise killed under you.
 
 It cannot see a process that is not running at all — `kill -STOP`, a frozen
 cgroup — because a watchdog inside a stopped process is stopped too. That case
@@ -802,14 +808,17 @@ stale and production's pipe ping goes unanswered.
 
 ## Production Checklist
 
-Before deploying to production, ensure these variables are properly set:
-1. `SECRET_KEY` -- Generate a unique 64-character hex key: `openssl rand -hex 32`
-2. `API_KEY` -- Generate a unique key: `openssl rand -hex 32`
-3. `VAULT_MASTER_KEY` -- Generate a unique key: `openssl rand -hex 32`. The config
-   refuses an empty one outside `local`/`development`
-4. `ENVIRONMENT` -- Set to `production`
-5. `DEBUG` -- Set to `false`
-6. `POSTGRES_PASSWORD` -- Use a strong, unique password
-7. `CORS_ORIGINS` -- List only your actual frontend domain(s)
-8. `REDIS_PASSWORD` -- Set a strong password
-9. `OPENROUTER_API_KEY` -- Your production API key
+!!! danger "Every one of these ships with a default that is wrong in production"
+
+    A deployment reachable from anywhere else has all nine set deliberately.
+
+- [ ] `SECRET_KEY` — a unique 64-character hex key: `openssl rand -hex 32`
+- [ ] `API_KEY` — a unique key: `openssl rand -hex 32`
+- [ ] `VAULT_MASTER_KEY` — a unique key: `openssl rand -hex 32`. The config
+      refuses an empty one outside `local`/`development`
+- [ ] `ENVIRONMENT` — `production`
+- [ ] `DEBUG` — `false`
+- [ ] `POSTGRES_PASSWORD` — a strong, unique password
+- [ ] `REDIS_PASSWORD` — a strong password
+- [ ] `CORS_ORIGINS` — only your actual frontend domain(s)
+- [ ] `OPENROUTER_API_KEY` — your production API key

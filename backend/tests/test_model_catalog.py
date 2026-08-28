@@ -14,6 +14,7 @@ import httpx
 import pytest
 
 from app.agents.model_resolver import PROVIDERS
+from app.core.secret_kinds import SecretKind
 from app.services import model_catalog
 from app.services.image_models import CATALOG as IMAGE_CATALOG
 from app.services.model_catalog import CURATED, LISTINGS, curated_models, models_for
@@ -24,8 +25,10 @@ MODULE = "app.services.model_catalog"
 @pytest.fixture(autouse=True)
 def _empty_cache():
     model_catalog._cache.clear()
+    model_catalog._listing_client = None
     yield
     model_catalog._cache.clear()
+    model_catalog._listing_client = None
 
 
 def _responds(payload: object) -> MagicMock:
@@ -292,15 +295,20 @@ class TestCuratedFallbacksAreData:
         assert LISTINGS["together"].array_path == ""
 
 
-def _documented_providers() -> set[str]:
-    """The ids in the `| Provider | id | Credential | Custom URL |` tables.
+def _documented_ids() -> list[str]:
+    """Every id in the three `| Provider | id | ...` tables, in page order.
 
     Read off the second cell of every row under one of those headers, so a row
     added or removed is the thing being compared - and prose elsewhere on the
     page is not.
+
+    A **list**, not a set: a provider documented twice is a row somebody added
+    without noticing the one already there, and the tables' own claim is one row
+    each. Collapsing to a set answers "is it mentioned" and lets the duplicate
+    through every comparison below.
     """
     page = (Path(__file__).resolve().parents[2] / "docs" / "models.md").read_text()
-    ids: set[str] = set()
+    ids: list[str] = []
     in_table = False
     for line in page.splitlines():
         if line.startswith("| Provider | id |"):
@@ -312,7 +320,7 @@ def _documented_providers() -> set[str]:
             continue
         cells = [cell.strip() for cell in line.strip("|").split("|")]
         if len(cells) > 1 and cells[1].startswith("`"):
-            ids.add(cells[1].strip("`"))
+            ids.append(cells[1].strip("`"))
     return ids
 
 
@@ -321,7 +329,9 @@ def _documented_rows() -> dict[str, dict[str, str]]:
 
     The hosted and self-hosted tables. The third one - the providers whose
     credential is genuinely not an API key - has three columns and describes its
-    credential in prose, so there is nothing there to compare a field against.
+    credential in prose, so there is nothing there to compare a *field* against;
+    which table it is in is the assertion instead, in
+    :func:`_providers_documented_as_not_api_key`.
     """
     page = (Path(__file__).resolve().parents[2] / "docs" / "models.md").read_text()
     rows: dict[str, dict[str, str]] = {}
@@ -338,6 +348,31 @@ def _documented_rows() -> dict[str, dict[str, str]]:
         if len(cells) == 4 and cells[1].startswith("`"):
             rows[cells[1].strip("`")] = {"credential": cells[2], "custom_url": cells[3]}
     return rows
+
+
+def _providers_documented_as_not_api_key() -> set[str]:
+    """The ids under "Credential is not an API key".
+
+    Which of the three tables a provider sits in is itself a claim about its
+    credential shape - the heading says so - and it is the only claim those
+    three rows make that a field can be compared against. Before this they were
+    the three providers with the most involved credentials and the three outside
+    the guard entirely (#1252).
+    """
+    page = (Path(__file__).resolve().parents[2] / "docs" / "models.md").read_text()
+    section = page.split("### Credential is not an API key", 1)
+    if len(section) == 1:
+        return set()
+    ids: set[str] = set()
+    for line in section[1].splitlines():
+        if not line.startswith("|"):
+            if ids:
+                break
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) == 3 and cells[1].startswith("`"):
+            ids.add(cells[1].strip("`"))
+    return ids
 
 
 class TestOneAnswerPerQuestion:
@@ -393,9 +428,11 @@ class TestOneAnswerPerQuestion:
         The **id column of the tables**, not a search of the page for the token:
         a search passes on a removed provider whose row is still there, and on
         an id the prose happens to mention for another reason - the page names
-        one it deliberately does not support. Two directions, one comparison.
+        one it deliberately does not support. Two directions, one comparison -
+        and sorted sequences rather than sets, so a provider documented twice
+        fails here too.
         """
-        assert _documented_providers() == set(PROVIDERS)
+        assert sorted(_documented_ids()) == sorted(PROVIDERS)
 
     def test_the_page_says_which_providers_take_an_endpoint(self):
         """`PROVIDERS` is authoritative for the *credential shape*, and the two
@@ -422,6 +459,37 @@ class TestOneAnswerPerQuestion:
         ]
 
         assert wrong == []
+
+    def test_the_three_tables_partition_the_providers(self):
+        """Each provider is documented once, and the guard reaches all of them.
+
+        `_documented_rows` covers the two four-column tables; without this the
+        Azure, Bedrock and Vertex rows were in no assertion but the id one -
+        the three most involved credential shapes, outside the check (#1252).
+        """
+        four_column = _documented_rows()
+        three_column = _providers_documented_as_not_api_key()
+
+        assert set(four_column) & three_column == set()
+        assert set(four_column) | three_column == set(PROVIDERS)
+        # Both helpers key on the id, so a row duplicated inside one table
+        # collapses and the two comparisons above still pass. The count is what
+        # notices; `sorted(_documented_ids())` above is what names it.
+        assert len(four_column) + len(three_column) == len(_documented_ids())
+
+    def test_which_table_a_provider_is_in_matches_its_credential(self):
+        """The heading is the claim: a provider under "Credential is not an API
+        key" must not take one, and one in the other two must. Moving a row
+        between tables without changing `secret_kind` - or the reverse - is the
+        drift this catches."""
+        misfiled = [
+            provider
+            for provider in PROVIDERS
+            if (PROVIDERS[provider].secret_kind is SecretKind.API_KEY)
+            is (provider in _providers_documented_as_not_api_key())
+        ]
+
+        assert misfiled == []
 
     def test_the_page_says_which_providers_need_no_key(self):
         """`keyless` decides whether the key field may be left empty, and the

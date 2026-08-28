@@ -36,6 +36,10 @@ def _org_row(*, name: str) -> Organization:
         is_personal=False,
         avatar_url=None,
         monthly_budget_usd=None,
+        # Set explicitly: a column default is applied on flush, and this row was
+        # never flushed - so an unset boolean reaches the response schema as None
+        # and fails it, which is the honest failure rather than one to coerce away.
+        chat_may_waive_approvals=False,
         created_at=datetime(2026, 7, 31, tzinfo=UTC),
         updated_at=None,
     )

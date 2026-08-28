@@ -1939,6 +1939,34 @@ describe("useChat - what goes out with a turn", () => {
 
     expect(frame(1)).toMatchObject({ model_profile_id: "p-1" });
   });
+
+  it("carries the approval mode, and only when it is not the agent's", () => {
+    // A client that never touched the control sends nothing, and the server
+    // follows the spec - which is the behaviour that existed before it (#925).
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    act(() => result.current.sendMessage("first"));
+    expect(frame(0)).not.toHaveProperty("approval_mode");
+
+    act(() => result.current.setApprovalMode("ask_all"));
+    receive("complete", {});
+    act(() => result.current.sendMessage("second"));
+
+    expect(frame(1)).toMatchObject({ approval_mode: "ask_all" });
+  });
+
+  it("stops carrying it when the mode goes back to the agent's", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.setApprovalMode("approve_all"));
+    act(() => result.current.sendMessage("first"));
+    expect(frame(0)).toMatchObject({ approval_mode: "approve_all" });
+
+    act(() => result.current.setApprovalMode("follow_agent"));
+    receive("complete", {});
+    act(() => result.current.sendMessage("second"));
+
+    expect(frame(1)).not.toHaveProperty("approval_mode");
+  });
 });
 
 describe("useChat - the outbound queue", () => {

@@ -8,6 +8,36 @@ import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import type { OrganizationMember, OrganizationMemberList, OrgRole } from "@/types";
 
+/** The largest page the route serves - `limit` is capped at 100. */
+const PAGE = 100;
+
+/**
+ * Every member, not the first page of them.
+ *
+ * `GET /orgs/{id}/members` defaults to fifty and caps at a hundred, and this hook
+ * asked for neither - so every caller was handed the first fifty and told the
+ * total. On the members table that is a table missing rows; on the conversation
+ * share dialog, whose picker is the only way to name somebody, it is a colleague
+ * who cannot be shared with at all (#931).
+ *
+ * Paged rather than asked for in one request because the ceiling is the server's.
+ * A **short page** is what ends it, rather than the count: `total` is the server's
+ * claim about how many there are, and a loop that trusts it asks forever if it is
+ * ever wrong. Fewer than a full page can only be the last one.
+ */
+async function everyMember(orgId: string): Promise<OrganizationMemberList> {
+  const items: OrganizationMember[] = [];
+  let total = 0;
+  for (let skip = 0; ; skip += PAGE) {
+    const page = await apiClient.get<OrganizationMemberList>(
+      `/orgs/${orgId}/members?skip=${skip}&limit=${PAGE}`,
+    );
+    total = page.total;
+    items.push(...page.items);
+    if (page.items.length < PAGE) return { items, total };
+  }
+}
+
 export function useMembers(orgId: string) {
   const queryClient = useQueryClient();
   // A toast is as user-facing as anything on screen, and the catalog already
@@ -20,7 +50,7 @@ export function useMembers(orgId: string) {
   // and mutations patch the cache directly to keep the UI instant.
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.organizations.members(orgId),
-    queryFn: () => apiClient.get<OrganizationMemberList>(`/orgs/${orgId}/members`),
+    queryFn: () => everyMember(orgId),
     enabled: !!orgId,
   });
 

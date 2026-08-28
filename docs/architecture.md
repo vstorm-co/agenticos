@@ -6,21 +6,29 @@ the same pattern: **Models → Schemas → Repositories → Services → Endpoin
 
 ## Request Flow
 
-```
-HTTP Request → API Route → Service → Repository → Database
-                  ↓
-              Response ← Service ← Repository ←
+```mermaid
+flowchart LR
+    Q([HTTP request]) --> R[API route]
+    R --> S[Service]
+    S --> P[Repository]
+    P --> D[(PostgreSQL)]
+    D -.-> P
+    P -.-> S
+    S -.-> R
+    R -.-> A([Response])
 ```
 
 Routes never contain direct database calls. All data access goes through
 services, which in turn delegate to repositories.
 
-**That is a test rather than a convention.**
-`backend/tests/test_route_layering.py` fails if any module under
-`app/api/routes/` imports from `app.repositories`, and fails just as loudly if its
-allowlist keeps an exemption that no longer applies. The rule had drifted in five
-modules before anything read for it — none of them a leak, because each handler
-passed the scope it happened to know. That is the cost: a scope a route owns is a
+!!! info "It is a test, not a convention"
+
+    `backend/tests/test_route_layering.py` fails if a route imports a
+    repository - and fails just as loudly if its allowlist keeps an exemption
+    that no longer applies.
+
+The rule had drifted in five modules before anything read for it — none of them a
+leak, because each handler passed the scope it happened to know. That is the cost: a scope a route owns is a
 scope no service test can see, and the next reader of the entity has to know to pass
 the same thing. The single exemption is a `Literal` of sort orders, imported as a
 type rather than as data access.
@@ -137,8 +145,29 @@ code on the exit stack FastAPI unwinds between the path operation returning and
 4. the response is written to the socket;
 5. the session is closed.
 
-That ordering is the whole contract, and it is what lets a client act on its own
-answer: **a 2xx means the write is readable, not merely accepted.** FastAPI's
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client
+    participant R as Route
+    participant S as Session
+    C->>R: request
+    R->>S: flush (ids, constraints)
+    R-->>R: return, response_model serializes
+    R->>S: COMMIT
+    S-->>R: committed
+    R->>R: start deferred background work
+    R-->>C: 2xx written
+    R->>S: close
+```
+
+!!! danger "A 2xx means the write is readable, not merely accepted"
+
+    That ordering is the whole contract. A bare `Depends(get_db_session)`
+    anywhere reintroduces FastAPI's default and swaps steps 2 and 4 -
+    `tests/api/test_db_session_scope.py` fails on one.
+
+That ordering is what lets a client act on its own answer. FastAPI's
 default for a dependency with `yield` is `scope="request"`, which puts steps 2
 and 4 the other way round — and did here until [#353][353], where an acceptance
 answered 204 while the membership row it created stayed invisible to the very
@@ -494,6 +523,38 @@ The project supports two authentication methods, both always available:
    - A single shared key set via the `API_KEY` environment variable.
    - Uses constant-time comparison (`secrets.compare_digest`) to prevent timing attacks.
 
+### Where a fresh session lands
+
+Three doors establish a session by three routes - the password form, the OAuth
+callback, and a magic link - and exactly one of them decides where the visitor
+ends up: `postSignInDestination` in `frontend/src/lib/auth-landing.ts`, which
+honours a deep link only when it is a same-origin path and answers the dashboard
+otherwise. Three answers in three places is drift, and the drift has been real
+twice: on the roles axis, where the landing forked by role, and on the provider
+axis, where the OAuth round trip lost `?returnTo=`.
+
+What differs per door is only how the path *travels*:
+
+| Door | How the path reaches the landing |
+|---|---|
+| Password form | it never left the tab - read straight off `?returnTo=` |
+| OAuth callback | `sessionStorage`, which is allowed because the round trip starts and ends in the same tab on this origin |
+| Magic link | a signed claim in the token, because the link is followed from an email - another tab, often another application, where `sessionStorage` is empty by construction |
+
+The magic link's path is refused at the **request** rather than filtered at the
+landing: `MagicLinkRequest.return_to` accepts a path on this deployment and
+nothing with a scheme, a second leading slash, a backslash or a control
+character, so a token that could be made to hold an arbitrary string never
+exists. The landing judges it again anyway - a check that runs once, on the
+server, on a value that then travels through an email, is a check the client
+cannot rely on having happened.
+
+`POST /auth/magic-link/verify` therefore answers with `MagicLinkToken` - the
+token pair plus `return_to`, unapplied. Its own schema rather than a nullable
+field on `Token`, because the other three token responses have no return path to
+carry and a field that is always null on most of them is one a client learns to
+ignore.
+
 ### Authorization
 
 There is no role column on the user and no role-based route dependency. What a
@@ -579,6 +640,13 @@ bounds a read; the user is what narrows it further.**
   or somebody it was shared with. The tenant check alone is not enough: without
   this, every member of an organization can read and append to every other
   member's conversation.
+- **A share carries the write only at `edit`.** Reading and writing are two
+  questions — `_may_read` and `_may_write` — and a share used to answer both
+  whatever level it held, so the two levels the sharing dialog offers meant the
+  same thing: a conversation shared to *view* could be renamed, archived,
+  deleted, or given a `role: "assistant"` turn that everybody reads in `/chat`
+  and the model is handed back as its own words. The level is stated to whoever
+  grants it, so it is the level that is enforced (#931).
 - On `list_messages` that one argument does two jobs — it authorizes, *and* it
   enriches each message with the caller's own rating. That overload is why its
   authorizing half went missing for so long: the route passed it, the argument
@@ -602,16 +670,36 @@ boolean on `conversations`, because a conversation can be shared and a channel
 thread has participants rather than an owner: a column would let one person's
 star decide where the thread sits for everybody who can see it.
 
-Three consequences worth knowing:
+Four consequences worth knowing:
 
 - **`POST`/`DELETE /conversations/{id}/favourite` are authorized as a *read*.**
   A star says where a thread sits in the starrer's own sidebar and changes
   nothing about the thread, so somebody a conversation was shared with may star
   it exactly as its owner may. `for_write` there would refuse the reader the
-  feature exists for.
-- **`is_favourite` on a listed row is the caller's**, filled in one query per
-  page — so the admin listing, which has no reader, answers `false` throughout
-  rather than a different person's stars each request.
+  feature exists for. Both routes carry `Auth` for the same reason every other
+  read of one does: without a context `_may_read_trigger_log` answers false, and
+  a trigger's run-log the caller may open through `runs:view` would be one they
+  could not star (#1254).
+- **`is_favourite` is the caller's, and it is stamped in `get_conversation`** —
+  the one read every reader-scoped one goes through, rather than at each route.
+  It reached two responses out of eight while each route had to remember, so a
+  `GET` or a PATCH told somebody who had starred a thread that they had not
+  (#1254). A read with no reader — the admin listing, the run path resolving a
+  thread — asks for nobody's stars and pays no query to say so, and a read that
+  only *authorizes* turns it off explicitly with `include_favourite=False`. Those
+  are the reads whose result is discarded or is not a conversation:
+  `GET /conversations/{id}/messages`, which resolves the thread twice through
+  `list_messages` and `conversation_cost`; the three workspace routes; every turn
+  of an existing chat, through `agent._resolve_in_org`; and the writes —
+  `add_message`, `delete_conversation`, and `set_favourite`, which overwrites the
+  flag itself. On by default is what keeps a route that *does* serialize a
+  conversation from forgetting; off is a deliberate act at the call site.
+- **Starring is idempotent under contention**, because the insert is
+  `ON CONFLICT DO NOTHING` rather than a read followed by an insert. Two
+  overlapping POSTs for the same pair both saw no row and the second violated
+  the primary key; the client also serializes its own pending star per
+  conversation, so a double click cannot have the DELETE answered before the
+  POST it followed.
 - **The band is an `ORDER BY`, not a grouping of the page.** The sidebar is
   paged, so a favourite sorted into page two by recency would sit under fifty
   threads that are not one. Within each band the chosen sort still applies, and

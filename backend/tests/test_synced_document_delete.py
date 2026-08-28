@@ -272,3 +272,36 @@ class TestTheCLISync:
         # And the stored document identifies itself the same way, so the row and
         # the vector agree on which file this is.
         assert ingestion.ingest_file.await_args.kwargs["source_path"] == expected
+
+
+class TestDroppingACollection:
+    async def test_it_unlinks_the_stored_uploads(self, monkeypatch):
+        """The bulk row delete returns the storage paths now, so each upload is
+        unlinked rather than orphaned on disk when a collection is dropped (#1265)."""
+        monkeypatch.setattr(
+            rag_document_repo,
+            "delete_by_collection",
+            AsyncMock(return_value=["rag/docs/a.pdf", "rag/docs/b.md"]),
+        )
+        storage = MagicMock(delete=AsyncMock())
+        monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
+
+        await RAGDocumentService(MagicMock()).delete_by_collection("docs")
+
+        assert storage.delete.await_count == 2
+        storage.delete.assert_any_await("rag/docs/a.pdf")
+        storage.delete.assert_any_await("rag/docs/b.md")
+
+    async def test_a_failed_unlink_does_not_fail_the_drop(self, monkeypatch):
+        """A file already gone is not a reason to leave the collection half-dropped."""
+        monkeypatch.setattr(
+            rag_document_repo,
+            "delete_by_collection",
+            AsyncMock(return_value=["rag/docs/gone.pdf"]),
+        )
+        storage = MagicMock(delete=AsyncMock(side_effect=FileNotFoundError()))
+        monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
+
+        await RAGDocumentService(MagicMock()).delete_by_collection("docs")
+
+        storage.delete.assert_awaited_once()

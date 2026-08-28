@@ -225,6 +225,20 @@ async def set_avatar_color(
     return org
 
 
+async def set_chat_approval_waiver(
+    db: AsyncSession, org: Organization, *, allowed: bool
+) -> Organization:
+    """Allow or forbid chat sessions here granting standing consent (#925).
+
+    Its own function rather than a field on :func:`update`, which skips a `None`
+    argument and so cannot express a boolean somebody deliberately set to false.
+    """
+    org.chat_may_waive_approvals = allowed
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
 async def delete(db: AsyncSession, org: Organization) -> None:
     await db.delete(org)
     await db.flush()

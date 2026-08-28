@@ -58,9 +58,19 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     even if one happens to share a name with a gated tool. Their approval is a
     property of the connection, decided where the connection is configured, and
     inventing an answer for them here would be a guess.
+
+    `gate_every_tool` is the one thing that overrides both of those, and it comes
+    from a person rather than from a spec: `ApprovalMode.ASK_ALL` on a chat
+    session asks about everything the agent can reach, MCP tools included (#925).
+    It only ever tightens - a tool the spec gated stays gated - so it needs no
+    permission and no ceiling, and it is the honest answer to "I do not trust this
+    agent yet". Guessing is not the risk in that direction: being asked about a
+    read is a nuisance, where not being asked about a write is the failure the
+    queue exists for.
     """
 
     required_tool_names: frozenset[str] = frozenset()
+    gate_every_tool: bool = False
 
     async def wrap_tool_execute(
         self,
@@ -73,7 +83,10 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     ) -> Any:
         """Ask before executing, and execute only what was asked about."""
         capability_id = tool_def.capability_id
-        if capability_id is None or tool_def.name not in self.required_tool_names:
+        gated = self.gate_every_tool or (
+            capability_id is not None and tool_def.name in self.required_tool_names
+        )
+        if not gated:
             return await handler(args)
 
         ask = ctx.deps.request_approval

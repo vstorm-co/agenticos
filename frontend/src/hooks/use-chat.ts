@@ -1,5 +1,7 @@
 "use client";
 
+import type { ApprovalMode } from "@/components/chat/chat-controls";
+
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useWebSocket } from "./use-websocket";
@@ -118,6 +120,10 @@ export function useChat(options: UseChatOptions = {}) {
   const messageQueueRef = useRef<QueuedMessage[]>([]);
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
   const modelProfileRef = useRef<string | null>(null);
+  // Read at send time like the model profile, and for the same reason: the queue
+  // drainer sends a turn up to a minute later, and the frame must carry whatever
+  // the control says when it actually leaves.
+  const approvalModeRef = useRef<ApprovalMode>("follow_agent");
   // The agent the in-flight turn was addressed to, captured when the frame goes
   // out. A ref for the same reason `currentMessageIdRef` is one - the WS handler
   // reads it while stamping the assistant message - and captured rather than
@@ -653,6 +659,13 @@ export function useChat(options: UseChatOptions = {}) {
       // A model profile from the vault - the agent runs on it for this turn
       // instead of the model its spec names, and the run records which.
       if (modelProfileRef.current) payload.model_profile_id = modelProfileRef.current;
+      // How much this session wants to be asked before a gated tool runs. Sent
+      // only when it is not the default, so a client that never touched the
+      // control sends nothing and the server follows the agent - and refused
+      // rather than downgraded if this caller may not waive (#925).
+      if (approvalModeRef.current !== "follow_agent") {
+        payload.approval_mode = approvalModeRef.current;
+      }
       // Read at send time, not captured in the closure: the queue drainer calls
       // this up to a turn later, and the frame must name whatever is selected
       // when it actually leaves. The picker keeps a published agent selected
@@ -1113,6 +1126,9 @@ export function useChat(options: UseChatOptions = {}) {
     clearQueued,
     setModelProfile: (profileId: string | null) => {
       modelProfileRef.current = profileId;
+    },
+    setApprovalMode: (mode: ApprovalMode) => {
+      approvalModeRef.current = mode;
     },
     pendingApproval,
     sendResumeDecisions,

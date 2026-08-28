@@ -50,6 +50,10 @@ from app.agents.capabilities._tool_text import ToolText
 if TYPE_CHECKING:
     from pydantic_ai_harness.planning import PlanStore
 
+# What "this step needs no more work" looks like in a stored `PlanItem` dump. A
+# `blocked` step is not one of them: something still has to unblock it.
+_FINISHED_STATUSES = frozenset({"completed", "cancelled"})
+
 PLANNING_STORE_RESOURCE = "planning_store"
 """Resource key under which the runner injects the run's :class:`PlanStore`.
 
@@ -61,6 +65,10 @@ run (its own default), which is the honest behaviour for a build with no run to 
 The store the runner injects is seeded from the conversation's `plan_items`, or from
 `PausedRunState.plan` on a resume, and written back to the conversation when the run
 ends - so the plan belongs to the thread rather than to one turn of it (#1077).
+
+A **finished** checklist is not seeded: see :func:`still_open`. The row keeps it;
+a new turn starts without it, because a plan whose every step is ticked is history
+rather than working state (#1221).
 """
 
 WRITE_PLAN_TEXT = ToolText(
@@ -302,6 +310,39 @@ async def open_plan_store(items: list[dict[str, Any]] | None) -> InMemoryPlanSto
     store = InMemoryPlanStore()
     await store.set_items([PlanItem.model_validate(item) for item in items or []])
     return store
+
+
+def still_open(items: list[dict[str, Any]] | None) -> list[dict[str, Any]] | None:
+    """The stored checklist, unless it is finished - in which case nothing.
+
+    **A finished plan is history, not working state.** `keep_plan` records whatever
+    the store held when the run ended, completed steps included, so a thread whose
+    three steps were all ticked off in August would open in November with the tail
+    reminder calling them "your current plan" and `read_plan` answering with them:
+    an agent working to a checklist about a task nobody is doing (#1221).
+
+    Filtered at the *seed* rather than cleared when the last step is ticked, and
+    that is the whole of the choice. Within the turn that finishes a plan the store
+    still holds it, so `read_plan` and the reminder agree with the transcript and
+    the agent can summarise what it just did. It is the **next** turn - a new
+    question - that starts with no plan, which is what a reader expects and what
+    the messages above it already say: the ticked checklist is still in the
+    transcript, as history.
+
+    Nothing is dropped from the row either. The conversation keeps the finished
+    plan; this decides only what a fresh turn is seeded with. A resume seeds from
+    `PausedRunState.plan` and does not come through here, so a run parked mid-plan
+    is untouched.
+
+    Finished means at least one step and every step `completed` or `cancelled`.
+    `pending`, `in_progress` and `blocked` are all work outstanding - a blocked
+    step most of all, since something has to unblock it.
+    """
+    if not items:
+        return items
+    if all(item.get("status") in _FINISHED_STATUSES for item in items):
+        return None
+    return items
 
 
 async def dump_plan(store: PlanStore) -> list[dict[str, Any]]:

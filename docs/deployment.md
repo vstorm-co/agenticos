@@ -22,12 +22,15 @@ authority that already administers users and tenants across the installation.
 | Footer text | Under the sign-in form |
 | Terms URL, Privacy URL | Every link that otherwise offers the built-in `/legal/*` pages |
 
-**A null column means "the built-in", not "empty".** An operator who has never
-opened the page has no row at all, and one who clears a field is asking for the
-default back rather than for a sign-in header with no name on it. So the API
-answers *overrides* and each renderer resolves a null against its own built-in —
-the console against `APP_NAME` and `SITE` in `frontend/src/lib/`, the backend
-against `settings.PROJECT_NAME` for the mail it sends itself.
+!!! note "A null column means *the built-in*, not *empty*"
+
+    An operator who clears a field is asking for the default back, not for a
+    sign-in header with no name on it. The API answers *overrides* and each
+    renderer resolves a null against its own built-in.
+
+An operator who has never opened the page has no row at all. The console resolves
+a null against `APP_NAME` and `SITE` in `frontend/src/lib/`; the backend resolves
+it against `settings.PROJECT_NAME` for the mail it sends itself.
 
 Two constants for one product name can drift, so
 `backend/tests/test_deployment_settings.py` pins them equal. It reads the
@@ -46,8 +49,12 @@ are served from the origin the app's own pages run on and `logo.html` there is a
 script.
 
 JPEG, PNG, WebP and GIF, up to 2MB, which is the one definition of "an image this
-platform accepts". SVG is deliberately absent: it is a document that may carry
-script. ICO buys nothing a PNG favicon does not.
+platform accepts".
+
+!!! danger "SVG is deliberately absent"
+
+    It is a document that may carry script, and these files are served from the
+    origin the app's own pages run on. ICO buys nothing a PNG favicon does not.
 
 The branding response carries a **version**, not a URL. The address is constant
 (`GET /api/v1/branding/{logo,favicon}`) and the bytes are served `immutable` for a
@@ -193,11 +200,17 @@ injection surface.
 
 ## An app admin cannot lock the deployment out through the console
 
+!!! warning "The self-inflicted lockout this prevents"
+
+    On the single-admin install `make platform-bootstrap` produces, a stray click
+    on your own row ended administration until somebody reached a terminal.
+    Recovery is `agenticos cmd create-app-admin <email>` from a shell — the
+    email is a required argument.
+
 `is_active` is enforced on the next request and `is_app_admin` is what the admin
 pages read, so an app admin acting on **their own** row from `/admin/users` could
-sign themselves out, drop `/admin`, or delete the account — and on the
-single-admin install `make platform-bootstrap` produces, a stray click ended
-administration until somebody reached a terminal. `UserService.admin_update` and
+sign themselves out, drop `/admin`, or delete the account.
+`UserService.admin_update` and
 `admin_delete` refuse the self-suspend and the self-delete, and the drawer does
 not offer Suspend, Demote or Impersonate on your own row (Delete stays, visible
 and refused, because "why can I not delete myself" has an answer worth showing).
@@ -209,6 +222,18 @@ deletion — and deleting the *last* one is deleting yourself, which is refused.
 Removing an admin genuinely leaving is another admin's action, which is also what
 keeps the audit trail readable. Recovery, if it is ever needed, is still
 `create-app-admin` from a shell on the deployment.
+
+That argument is about the *set*, and for a while the code was about one row.
+Two admins deleting each other were each not deleting themselves, locked
+different target rows, never contended, and both committed — zero app admins,
+recoverable only by writing to the database (#1208). So an admin deletion takes
+`SELECT ... FOR UPDATE` over the app-admin set, ordered by id, before it decides:
+the second request waits, re-reads the set once the first has committed, and is
+refused for emptying it. Ordered because two requests taking the same rows in
+different orders is a deadlock rather than a queue, and taken on every admin
+deletion rather than only on an admin's — deleting a user is an administrator's
+action, not a hot path, and a total order is worth more than the contention it
+costs.
 
 ## Notices, and closing the deployment
 
@@ -335,7 +360,19 @@ audit row outlives the request body it came from.
 
 Worth saying here because closing a deployment is the feature most likely to produce
 one a person has never seen. `app/api/exception_handlers.py` puts **every** refusal in
-`{"error": {"code", "message", "details"}}` — domain exceptions, schema validation,
+`{"error": {"code", "message", "details"}}`:
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Agent not found",
+    "details": { "agent_id": "…" }
+  }
+}
+```
+
+That covers domain exceptions, schema validation,
 and since #917 `HTTPException` too, which covers a 405, an unmatched path and the
 twenty-two routes that raise one directly. Two shapes on the wire means every caller
 either handles both or silently mishandles one.

@@ -29,7 +29,11 @@ reaches the runner at all.
 
 ## Budgets
 
-Two levels, and they are not variations on one number.
+!!! abstract "Two levels, and they are not variations on one number"
+
+    An agent's cap measured against the organization's total is exhausted by its
+    neighbours' runs; the organization's measured against one agent is no ceiling
+    at all. See [why they cannot be collapsed](#why-they-cannot-be-collapsed).
 
 | Level | Set in | Meters | Raised by |
 |---|---|---|---|
@@ -70,9 +74,10 @@ card joins these against `GET /spend`, so a cap can be seen approaching before
 
 ### Enforcement is before the request
 
-Checked *before* each model request, not after. Checking afterwards means the
-request that broke the budget was already paid for, and a loop can overshoot by
-one expensive call every time.
+!!! danger "Before, not after"
+
+    Checking afterwards means the request that broke the budget was already paid
+    for - and a loop can overshoot by one expensive call every time.
 
 !!! important "A failed run still records what it spent"
 
@@ -610,6 +615,19 @@ it. They were local state until #768, so the p95 figure was the only number on
 the dashboard that could reach the runs behind it and three cards carried no link
 at all — there was nothing honest to point them at.
 
+**Including which tab is open.** `?tab=approvals` and `?tab=spend` open the queue
+and the cost screen; the run history is the default and is never written. That is
+the address a link to a *decision* needs, and the reason the parameter exists: the
+approvals card's "See all" and the alert that says a run is parked both had to
+point at the run history, where nothing can be decided (#934). A tab named by a
+link is resolved against what the reader may open — `approvals` is gated on
+`approvals:decide`, so a link carrying it that reaches somebody without the
+permission opens the run history rather than a strip whose selected tab has no
+content. Switching tabs closes an open run detail and takes `?run=` with it: a
+panel that outlives the tab that opened it sits beside a queue it has nothing to
+do with, and below `lg` it replaces the list, so the strip stayed live while every
+tab's content was hidden.
+
 **Duration is computed in SQL, over the whole narrowed set.** That is what gets
 from *"p95 is 14.8s"* on the dashboard to **those runs** — sorting one page of
 twenty-five sorts the wrong set, because the slowest run of a month is not in
@@ -774,6 +792,28 @@ Resolution is most-specific-first:
 The Builder states the outcome in words rather than describing the rule, because a
 rule the reader has to run in their head is a setting nobody dares touch.
 
+```mermaid
+sequenceDiagram
+    autonumber
+    participant M as Model
+    participant G as ApprovalGate
+    participant Q as Approvals queue
+    participant P as A person
+    M->>G: call a gated tool
+    G->>Q: park it, with the arguments
+    G-->>M: run ends `awaiting_approval`
+    P->>Q: reads the arguments, decides
+    alt approved
+        Q->>G: resume with the arguments that were read
+        G->>M: execute those, not what it proposes now
+    else rejected
+        Q->>G: resume, replaying the denial
+        G->>M: a refusal it can relay, not a crash
+    else expired
+        Q--xM: the run ends `cancelled`. No further model request
+    end
+```
+
 Four properties worth knowing:
 
 - **A parked run is resumable.** Its message history is stored, so the decision is
@@ -848,6 +888,61 @@ Four properties worth knowing:
   concurrently and the run's database session is not concurrency-safe
   ([#169](https://github.com/vstorm-co/agenticos/issues/169)).
 
+### How much one conversation wants to be asked
+
+The rule above is the agent's, decided at publish time and per tool, and that is
+the right place for it: it is a statement about what the agent *is*. What it
+cannot express is the mood of one session — somebody working through twenty turns
+with an agent that gates three tools answers the same three questions every turn,
+and their only way out was to republish the agent and change it for everybody,
+permanently, to fix an afternoon
+([#925](https://github.com/vstorm-co/agenticos/issues/925)).
+
+So a chat session carries an **approval mode**, on the send frame beside the model
+override and read into the run:
+
+| Mode | What it does |
+|---|---|
+| **Follow the agent** (default) | The spec decides. Exactly the behaviour that existed before the control did, and what a client that sends nothing gets |
+| **Approve everything** | Standing consent for this conversation: every gated call is granted without parking — and each one still writes its row |
+| **Ask about everything** | Gate every tool the agent can reach, including the ones the spec left ungated and the ones no capability owns |
+
+Four things make it a session setting rather than a hole in the model:
+
+- **It is refused, never downgraded.** A caller who may not waive is told so; the
+  turn does not quietly run following the spec, because somebody who believes they
+  turned the questions off and then finds a parked run has been told the opposite
+  of what happened. The check lives in `AgentRunnerService.prepare`, the one funnel
+  a fresh run and a resumed one share, rather than at the socket a caller could
+  forget.
+- **Waiving needs `approvals:decide`, and the organization's leave.** A standing
+  consent *is* the decision the approval queue exists to record, and `member` and
+  `builder` run agents without holding it — so without the permission check the
+  everyday chat user grants themselves, in one click, the authority the API
+  refuses them one endpoint over. The organization's own switch
+  (`chat_may_waive_approvals`, off by default, changed by somebody holding
+  `approvals:decide`) is the ceiling: without one, a Builder's deliberate gate on
+  `send_email` is one click from nothing in every conversation and the per-tool
+  model is advisory.
+- **No channel still means no.** Only a web chat session may waive. A schedule, a
+  webhook, an embed and a channel are all refused, because `ApprovalGate` already
+  refuses a run with nobody to ask and standing consent must not become the way
+  round that.
+- **Every waived call is still recorded.** The row is written `approved`, naming
+  the account that consented, with `decided_via = "standing"` — and the approvals
+  record says so in words beside the name. Skipping the row would make a waived
+  run indistinguishable from an agent that was never gated, which is this whole
+  trail quietly ceasing to be one. Nobody read those arguments before they ran;
+  the row is where somebody reads them afterwards.
+
+**Asking about everything is the cheap half and needs none of that.** It only ever
+tightens, so it takes no permission, no ceiling and no surface check — and it
+reaches further than the spec's gate on purpose, to the tools no capability owns.
+An MCP tool's approval is a property of its connection, which is why the
+spec-driven gate leaves it alone; a person who does not trust an agent yet is
+asking about everything it can do, and being asked about a read is a nuisance
+where not being asked about a write is the failure the queue exists for.
+
 ### A decision nobody makes
 
 An approval waits on a person, and some of them wait for ever: the reviewer left,
@@ -856,10 +951,13 @@ a request path can end one — the whole premise is that no request is coming �
 hourly sweep denies by timeout anything still pending past `APPROVAL_EXPIRY_HOURS`
 (three days by default, which spans a weekend).
 
-**It is the run that matters, not the row.** An approval left pending keeps its run
-in `awaiting_approval` indefinitely: work that is neither finished nor going to be,
-sitting in run history and in the oldest-waiting age on the dashboard. So the sweep
-follows each expired call down to the run behind it and ends it, `cancelled` —
+!!! warning "It is the run that matters, not the row"
+
+    A pending approval keeps its run in `awaiting_approval` indefinitely:
+    work that is neither finished nor going to be.
+
+Such a run sits in history and in the oldest-waiting age on the dashboard, so the
+sweep follows each expired call down to the run behind it and ends it, `cancelled` —
 nobody came back, and what it spent before it parked stands.
 
 Three things it deliberately does not do:
@@ -992,6 +1090,84 @@ and outlives the people in it: `admins` still means the right people after a
 reorganisation, and it means them in whichever organization the spec is imported
 into. A named member who has left contributes nothing rather than raising - an
 approval queue must not go silent because one id no longer resolves.
+
+### An alert links to where the decision is
+
+**Approvals mail opens the queue** — `/runs?tab=approvals`, Activity's Approvals
+tab, which is the only surface carrying Approve and Reject. It used to open
+`/agents/{id}`, the Builder: one sentence of prose about tool calls reaching a
+queue, and no queue. So the one email whose whole purpose is *somebody has to
+decide, now* landed a search away from the decision, while the parked run aged
+towards `ApprovalService.expire_stale` (#935). There was no URL for the tab
+until #934 put it in `?tab=`.
+
+It deliberately does **not** name the run with `&run=`, though the alert holds
+one: the decide controls are on the queue row, and below `lg` a focused run
+replaces the list — which would hide them from the reader most likely to be on a
+phone.
+
+Budget mail opens the agent, and that is the right destination for it: the cap
+it reports is edited there.
+
+### The approval alert is two emails
+
+`approvals:decide` belongs to `owner`, `admin` and `operator`. The default
+audience for a parked call includes whoever started the run, and a builder
+starting their own agent from the chat is the ordinary initiator - so the alert
+routinely reached somebody the platform would refuse. They got **"waiting on
+your approval"** with a **Review the request** button, followed it, and Activity
+drew no Approvals tab at all: the refusal arriving as an absent tab rather than a
+sentence.
+
+So the audience is split by the permission rather than trimmed to it:
+
+| Recipient holds | Gets |
+|---|---|
+| `approvals:decide` | the request, with the link to the queue |
+| anything less | the *fact*: the run is held not failed, approving it belongs to an owner, admin or operator, and nothing is asked of them |
+
+Trimming instead would leave the one person definitely waiting on the run - the
+person who started it - hearing nothing about why it stopped.
+
+The second email carries **no link**, and that is deliberate rather than
+unfinished. `agents:view` being a role permission does not make one agent
+reachable: agent access is resolved per resource, so a `chosen` recipient with no
+grant to a private agent would get a second call to action the platform refuses -
+the same defect in a new place. Nothing is asked of that reader, so nothing is
+offered. Nor does it claim anybody else has been told: an audience of one
+non-decider means nobody who can decide was mailed at all, and a sentence
+promising otherwise would leave them waiting on somebody who never heard.
+
+Which roles decide is read off the permission catalog, not listed beside it: a
+role gaining or losing `approvals:decide` must not leave the routing behind,
+which is the same defect one level up.
+
+### Every link says which organization it is about
+
+The console acts on whichever organization the reader last used: `apiClient`
+stamps `X-Organization-Id` from a selection persisted per browser. Every alert
+URL used to carry none, so somebody in two organizations who was last working in
+Globex opened the approval alert for a run in Acme and read **Globex's** queue —
+very likely empty, and reading as *nothing is waiting* about a run that is parked
+and ageing towards `ApprovalService.expire_stale`. The agent links were wrong
+more quietly: `/agents/{id}` under the wrong organization is a refusal for an
+agent the reader can genuinely see, one switch away.
+
+So every link carries `org=<id>`, built in one place — `NotificationService._link`,
+which picks the separator from the path because the approvals link already
+carries `?tab=approvals` — rather than at each of the four call sites, and the console adopts it exactly
+as it adopts the id in `/orgs/{id}`: a page that names an organization *is* that
+organization. The adoption is a layout effect in `ActiveOrgGuard`, before the
+tenant cache reset and before the page's own queries, so the first request the
+page makes already carries the right tenant. The path outranks the parameter — a
+link says which organization an alert was about, and cannot move somebody off the
+page they are standing on.
+
+A reader who has since left that organization is told so, rather than moved
+quietly: the refusal names the link as the reason, because being switched in
+silence is how another organization's page becomes the answer to the alert. It
+cannot name the organization — they are not a member, so it is not in their
+list.
 
 ### Two rules that are not negotiable
 

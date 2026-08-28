@@ -8,9 +8,16 @@ You need a running stack - see [Install](install.md).
 
 ## The guided way
 
-The steps below are the manual path, and worth reading once. But a new user does
-not start here: the first time anyone signs in, a walkthrough opens on the
-dashboard and points out each section in turn. It shows **once** - finishing,
+!!! tip "A new user does not start with the steps below"
+
+    The first time anyone signs in, a walkthrough opens on the dashboard and
+    points out each section in turn - and finishing it offers to build the first
+    agent *together*, operating the real dialogs. The manual path is still worth
+    reading once, which is what the rest of this page is.
+
+### It shows once, and the **?** replays it
+
+It shows **once** - finishing,
 skipping or closing it is remembered against the account, not the browser, so it
 does not return on the next device - and the **?** in the header of any walked page
 replays that page's tips whenever they are wanted. It is offered only where there
@@ -19,7 +26,9 @@ deployment-admin pages - simply has no **?** rather than one that does nothing.
 Leaving the walkthrough, finished or skipped, says exactly that, so nobody
 discovers the "?" by accident or not at all.
 
-Finishing the walkthrough offers to build the first agent *together*. That is an
+### Finishing it offers to build the first agent together
+
+That is an
 interactive flow, not a spotlight: it points at the real controls, the reader
 operates the real dialogs, and it advances the moment the thing is actually
 created. While it runs the page is **frozen** - everything dims but the one
@@ -31,6 +40,8 @@ only stops where something is missing, teaching a workspace with no model how to
 add one - or, for a builder who lacks the permission to add one, saying so rather
 than walking them in silence to a publish that will refuse an agent with no model
 - and skipping straight past a prerequisite already in place.
+
+### Where it does the most: knowledge, skills and MCP
 
 Knowledge, skills and MCP servers are where it does the most. With one already,
 the flow just points at where it attaches. With none, it crosses to that
@@ -50,10 +61,14 @@ server connects with an inline dialog right there in the Toolbox, so a "yes"
 points at that button and the flow picks up the moment the connection lands -
 no trip to another page, and none back.
 
-And building is not where it ends. After Publish lands, the flow carries the
+### It does not end at Publish
+
+After Publish lands, the flow carries the
 reader into the chat, has them pick the agent they just built, and closes only
 once they have sent it a first message - because a first agent nobody has run
 is a tour that stopped one step short of the point.
+
+### Every other section has its own
 
 Declining guides nobody; the offer returns at the end of the Agents **?** walk.
 Every other section's **?** ends the same way, offering to create that section's

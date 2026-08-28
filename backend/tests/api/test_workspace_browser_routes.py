@@ -63,6 +63,7 @@ def _overview(**overrides: Any) -> SimpleNamespace:
         "conversation_is_callers": True,
         "conversations": 1,
         "access_label": "Whoever is in that conversation",
+        "owner_name": None,
     }
     return SimpleNamespace(**{**fields, **overrides})
 

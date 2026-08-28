@@ -97,7 +97,8 @@ database row cannot be decrypted for another, and no API response ever returns o
 
 - :material-lightbulb:{ .lg .middle } **[Concepts](concepts.md)**
 
-    Spec, version, exposure, run. The four nouns everything else is built from.
+    Spec, version, exposure, trigger, run. The five nouns everything else is
+    built from.
 
 - :material-book-open-variant:{ .lg .middle } **[Reference](configuration.md)**
 

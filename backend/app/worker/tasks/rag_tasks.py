@@ -24,7 +24,12 @@ from app.core.vault import VaultScope
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus
 from app.db.session import get_worker_db_context
-from app.repositories import ingestion_spend_repo, knowledge_base_repo, organization_secret_repo
+from app.repositories import (
+    ingestion_spend_repo,
+    knowledge_base_repo,
+    organization_secret_repo,
+    rag_document_repo,
+)
 from app.repositories import sync_source as sync_source_repo
 from app.services.embedding_resolution import (
     ResolvedEmbeddings,
@@ -236,6 +241,25 @@ async def _config_for_collection(
     )
 
 
+async def _document_row_exists(document_id: str) -> bool:
+    """Whether a document's tracking row still exists - i.e. its collection was
+    not dropped while the file parsed.
+
+    The row, not the collection's knowledge base: a collection drop deletes every
+    `rag_documents` row for the name, even for a default KB whose row it keeps, so
+    checking the row is what tells a sync into a default collection to stop rather
+    than recreate the table the drop just emptied. Fail-safe: any error answers
+    yes, so the guard only ever skips a write it is certain is unwanted, never
+    blocks a legitimate ingestion (#1275).
+    """
+    try:
+        async with get_worker_db_context() as db:
+            return await rag_document_repo.get_by_id(db, UUID(document_id)) is not None
+    except Exception:
+        logger.warning("Could not confirm document %s still exists; indexing anyway", document_id)
+        return True
+
+
 @flow(name="ingest-document", log_prints=True)
 async def ingest_document_flow(
     rag_document_id: str,
@@ -340,6 +364,7 @@ async def _run_ingestion(
                     collection_name=collection_name,
                     replace=replace,
                     source_path=source_path,
+                    still_wanted=lambda: _document_row_exists(rag_document_id),
                 )
         except Exception as exc:
             # `ingest_file` reports a failed parse or a failed index by returning
@@ -493,6 +518,7 @@ async def _run_sync(
                         filepath=filepath,
                         collection_name=collection_name,
                         replace=True,
+                        still_wanted=lambda rid=row_id: _document_row_exists(rid),
                         # The address this flow already looks documents up by. It
                         # was omitted, so the stored document identified itself by
                         # filename while the lookup asked for a path - the
@@ -846,6 +872,7 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
                             result = await ingester.ingest_file(
                                 filepath=local_path,
                                 collection_name=collection_name,
+                                still_wanted=lambda rid=row_id: _document_row_exists(rid),
                                 # Unconditional, as in `sync_local_flow`: once this
                                 # has decided to ingest, whatever it matched has to
                                 # go, or the collection grows a copy.
@@ -855,13 +882,13 @@ async def _run_source_sync(source_id: str, sync_log_id: str | None = None) -> di
 
                         await _settle_document_row(row_id, result)
 
-                        # On `replaced_document_id`, not on the result's sentence:
-                        # `sync_local_flow` reads its own message for the word
-                        # "replaced", which is a string it has to keep agreeing with.
-                        if result.replaced_document_id:
-                            updated += 1
+                        if result.status is IngestionStatus.DONE:
+                            if result.replaced_document_id:
+                                updated += 1
+                            else:
+                                ingested += 1
                         else:
-                            ingested += 1
+                            failed += 1
                     except Exception as e:
                         logger.warning("Failed to sync %s: %s", remote_file.name, e)
                         failed += 1

@@ -50,6 +50,26 @@ const PARAM: Record<keyof RunFilters, string> = {
 
 const RATINGS = new Set(["up", "down"]);
 
+/** Activity's three tabs, in the order the strip draws them. */
+export const RUNS_TABS = ["runs", "approvals", "spend"] as const;
+
+export type RunsTab = (typeof RUNS_TABS)[number];
+
+/**
+ * Read `?tab=` back, against what the caller may actually open.
+ *
+ * `approvals` is gated on `approvals:decide`, so a link carrying it that reaches
+ * somebody without the permission resolves to the run history rather than to a
+ * strip whose selected value has no trigger and no content - which draws as a
+ * blank page below the tabs. Anything unrecognised falls back the same way, for
+ * the reason {@link parseRunFilters} does: a pasted link naming a tab this build
+ * renamed should still open the page.
+ */
+export function parseRunsTab(param: string | null, canDecide: boolean): RunsTab {
+  const tab = RUNS_TABS.find((name) => name === param?.trim()) ?? "runs";
+  return tab === "approvals" && !canDecide ? "runs" : tab;
+}
+
 /**
  * Read a URL back into filters, forgivingly.
  *
@@ -113,8 +133,11 @@ export function runsHref(options: {
   /** `duration` is the p95 figure's hand-off: the slow runs, slowest first. */
   sort?: "duration";
   agentId?: string;
+  /** Which tab to open on. `runs` is the default and is never written. */
+  tab?: RunsTab;
 }): string {
   const params = new URLSearchParams(runFilterParams(options.filters ?? {}));
+  if (options.tab && options.tab !== "runs") params.set("tab", options.tab);
   if (options.agentId) params.set("agent", options.agentId);
   if (options.sort) params.set("sort", options.sort);
   if (options.period) params.set("period", formatPeriodParam(options.period));

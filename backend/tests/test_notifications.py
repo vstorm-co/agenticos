@@ -28,7 +28,7 @@ import pytest
 from app.agents.capabilities.budget import BudgetScope
 from app.agents.spec import AgentSpec, AlertAudience, AlertSpec, NotificationSpec
 from app.services.email.service import EmailKey
-from app.services.notifications import NotificationService
+from app.services.notifications import _DECIDING_ROLES, NotificationService
 
 MODULE = "app.services.notifications"
 
@@ -369,8 +369,40 @@ class TestEveryPersonIsResolvedInsideTheOrganization:
 
 
 class TestApprovalRequested:
+    """Two emails, because the audience holds two positions.
+
+    `approvals:decide` is `owner`, `admin` and `operator`. A builder starting
+    their own agent from the chat is the ordinary initiator and holds none of it,
+    and they were sent "waiting on your approval" with a Review button opening a
+    page whose queue the server refuses them - the refusal arriving as an absent
+    tab rather than a sentence (#1203). So the deciders get the request and the
+    rest get the fact.
+    """
+
     @pytest.mark.anyio
-    async def test_the_person_who_started_the_run_is_told(self, sent):
+    async def test_a_decider_gets_the_request(self, sent):
+        with (
+            patch(f"{MODULE}.member_repo.list_emails_by_role", new=_roles("boss@acme.test")),
+            patch(f"{MODULE}.member_repo.list_emails_for_members", new=_members("boss@acme.test")),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                _run(user_id=uuid.uuid4()),
+                agent=_agent(),
+                spec=_spec(),
+                tools=["send_email"],
+            )
+
+        key, recipients, context = sent.calls[0]
+        assert key is EmailKey.APPROVAL_REQUESTED
+        assert recipients == ["boss@acme.test"]
+        assert context["tools"] == "send_email"
+        assert [call[0] for call in sent.calls] == [EmailKey.APPROVAL_REQUESTED]
+
+    @pytest.mark.anyio
+    async def test_the_person_who_started_the_run_is_told_even_if_they_cannot_decide(self, sent):
+        """The case #1203 is about, and the one the initiator audience exists
+        for: they are the person definitely waiting on the run, so they are told
+        it is held - without a button the platform would refuse them."""
         with (
             patch(f"{MODULE}.member_repo.list_emails_by_role", new=_roles()),
             patch(f"{MODULE}.member_repo.list_emails_for_members", new=_members("asker@acme.test")),
@@ -383,9 +415,68 @@ class TestApprovalRequested:
             )
 
         key, recipients, context = sent.calls[0]
-        assert key is EmailKey.APPROVAL_REQUESTED
+        assert key is EmailKey.APPROVAL_PENDING
         assert recipients == ["asker@acme.test"]
         assert context["tools"] == "send_email"
+        # No destination at all. `agents:view` being a role permission does not
+        # make one agent reachable - access is resolved per resource - so any
+        # link here is a second call to action the platform might refuse.
+        assert not [key for key in context if key.endswith("_url")]
+
+    @pytest.mark.anyio
+    async def test_one_audience_can_be_both_and_each_gets_its_own_mail(self, sent):
+        with (
+            patch(f"{MODULE}.member_repo.list_emails_by_role", new=_roles("boss@acme.test")),
+            patch(
+                f"{MODULE}.member_repo.list_emails_for_members",
+                new=_members("asker@acme.test"),
+            ),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                _run(user_id=uuid.uuid4()),
+                agent=_agent(),
+                spec=_spec(),
+                tools=["send_email"],
+            )
+
+        assert {key: recipients for key, recipients, _ in sent.calls} == {
+            EmailKey.APPROVAL_REQUESTED: ["boss@acme.test"],
+            EmailKey.APPROVAL_PENDING: ["asker@acme.test"],
+        }
+
+    @pytest.mark.anyio
+    async def test_an_app_admin_counts_as_a_decider(self, sent):
+        """They hold no membership row and `AuthContext` gives them every
+        permission, so a request is a mail they can act on."""
+        with (
+            patch(f"{MODULE}.member_repo.list_emails_by_role", new=_roles()),
+            patch(
+                f"{MODULE}.member_repo.list_app_admin_emails",
+                new=AsyncMock(return_value=["root@platform.test"]),
+            ),
+            patch(f"{MODULE}.member_repo.list_emails_for_members", new=_members()),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                _run(user_id=None), agent=_agent(), spec=_spec(), tools=["x"]
+            )
+
+        assert [(key, recipients) for key, recipients, _ in sent.calls] == [
+            (EmailKey.APPROVAL_REQUESTED, ["root@platform.test"])
+        ]
+
+    @pytest.mark.anyio
+    async def test_the_deciding_roles_come_from_the_catalog(self):
+        """Not a list beside it. A role gaining or losing `approvals:decide`
+        would otherwise leave this routing behind - which is the same defect one
+        level up."""
+        from app.core.permissions import ROLE_PERMS, Perm
+        from app.services.notifications import _DECIDING_ROLES
+
+        assert sorted(_DECIDING_ROLES) == sorted(
+            str(role) for role, perms in ROLE_PERMS.items() if Perm.APPROVALS_DECIDE in perms
+        )
+        assert "builder" not in _DECIDING_ROLES
+        assert "member" not in _DECIDING_ROLES
 
     @pytest.mark.anyio
     async def test_a_run_with_no_user_still_reaches_the_admins(self, sent):
@@ -433,9 +524,10 @@ class TestApprovalRequested:
 
         _, recipients, _ = sent.calls[0]
         assert recipients == ["asker@acme.test"]
-        # Not merely absent from the result - never asked for. An audience that
-        # is not named must not cost a query.
-        roles.assert_not_awaited()
+        # Asked once, and only about who may decide. The `admins` audience was
+        # not named, and an audience that is not named must not cost a query -
+        # the routing query is a different question and asks a different list.
+        assert [call.kwargs["roles"] for call in roles.await_args_list] == [_DECIDING_ROLES]
 
 
 class TestUsageReport:
@@ -633,6 +725,104 @@ class TestPerAgentUsageReport:
         assert sent.calls == []
 
 
+class TestEveryLinkNamesItsOrganization:
+    """An alert opens the tenant it is about, not the one the reader last used.
+
+    `apiClient` stamps `X-Organization-Id` from a selection persisted per
+    browser, and every alert URL was organization-agnostic - so somebody in two
+    organizations who was last working in Globex opened the approval alert for a
+    run in Acme and read Globex's queue: very likely empty, and reading as
+    "nothing is waiting" about a run that is parked and ageing towards
+    `ApprovalService.expire_stale` (#1204). The agent links were worse in a
+    quieter way: `/agents/{id}` under the wrong organization is a refusal for an
+    agent the reader can genuinely see, one switch away.
+
+    One parameter name, decided in `_link` rather than at four call sites.
+    """
+
+    @pytest.mark.anyio
+    async def test_the_budget_alert_names_the_runs_organization(self, sent):
+        run = _run()
+        with (
+            patch(f"{MODULE}.member_repo.list_emails_by_role", new=_roles("admin@acme.test")),
+            patch(f"{MODULE}.member_repo.list_emails_for_members", new=_members()),
+            patch(f"{MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
+        ):
+            await NotificationService(MagicMock()).budget_exceeded(
+                run,
+                agent=_agent(),
+                spec=_spec(),
+                reason="cap",
+                scope=BudgetScope.AGENT,
+            )
+
+        _, _, context = sent.calls[0]
+        assert context["run_url"].endswith(f"?org={run.organization_id}")
+
+    @pytest.mark.anyio
+    async def test_the_approval_alert_names_the_runs_organization(self, sent):
+        """The run's, not the agent's: they are the same today and the run is what
+        the alert is about, so a delegated run in another tenant would still open
+        the queue holding it."""
+        run = _run(org_id=uuid.uuid4())
+        with (
+            patch(f"{MODULE}.member_repo.list_emails_by_role", new=_roles("boss@acme.test")),
+            patch(f"{MODULE}.member_repo.list_emails_for_members", new=_members("boss@acme.test")),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                run, agent=_agent(), spec=_spec(), tools=["send_email"]
+            )
+
+        _, _, context = sent.calls[0]
+        assert context["approvals_url"].endswith(f"&org={run.organization_id}")
+
+    @pytest.mark.anyio
+    async def test_the_organization_report_names_the_organization_it_reports_on(self, sent):
+        organization_id = uuid.uuid4()
+        rows = [(uuid.uuid4(), "gpt-5", Decimal("2.00"), 3)]
+        with (
+            patch(f"{MODULE}.agent_run_repo.cost_breakdown", new=AsyncMock(return_value=rows)),
+            patch(f"{MODULE}.organization_spend_since", new=_bill("2.00")),
+            patch(f"{MODULE}.member_repo.list_emails_by_role", new=_roles("admin@acme.test")),
+            patch(f"{MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
+        ):
+            await NotificationService(MagicMock()).usage_report(organization_id, period="weekly")
+
+        _, _, context = sent.calls[0]
+        assert context["dashboard_url"].endswith(f"?org={organization_id}")
+
+    @pytest.mark.anyio
+    async def test_the_agent_report_names_the_agents_organization(self, sent):
+        agent = _agent(org_id=uuid.uuid4(), owner_user_id=uuid.uuid4())
+        rows = [(agent.id, "gpt-5", Decimal("1.00"), 2)]
+        with (
+            patch(f"{MODULE}.agent_run_repo.cost_breakdown", new=AsyncMock(return_value=rows)),
+            patch(f"{MODULE}.member_repo.list_emails_by_role", new=_roles("admin@acme.test")),
+            patch(f"{MODULE}.member_repo.list_emails_for_members", new=_members()),
+            patch(f"{MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
+        ):
+            await NotificationService(MagicMock()).agent_usage_report(
+                agent,
+                _spec(usage=AlertSpec(enabled=True, to=[AlertAudience.ADMINS])),
+                period="weekly",
+            )
+
+        _, _, context = sent.calls[0]
+        assert context["dashboard_url"].endswith(f"?org={agent.organization_id}")
+
+    def test_the_parameter_name_is_decided_in_one_place(self):
+        """Four call sites inventing one is what the issue is about, one level up."""
+        service = NotificationService(MagicMock())
+        organization_id = uuid.uuid4()
+
+        assert service._link("/agents", organization_id).endswith(f"/agents?org={organization_id}")
+        # The approvals link already carries `?tab=`, and a second `?` would name
+        # no organization at all - the console would read the whole tail as the tab.
+        assert service._link("/runs?tab=approvals", organization_id).endswith(
+            f"/runs?tab=approvals&org={organization_id}"
+        )
+
+
 class TestPreferences:
     """The opt-outs from `/settings/notifications`, honoured at the send site.
 
@@ -703,6 +893,37 @@ class TestPreferences:
 
         assert sent.calls == []
         roles.assert_not_awaited()
+
+
+class TestWhereAnAlertSends:
+    """The link is the whole point of an alert, and nothing else checks it.
+
+    An email that says a run is parked is read by somebody who has to decide, and
+    the only thing they can do with it is click. Every one of these URLs is a
+    hand-built f-string that no route table, no type and no other test looks at -
+    so a page that moves, or a surface built somewhere other than where the string
+    guessed, is found by a person following the link and not finding the control.
+    """
+
+    @pytest.mark.anyio
+    async def test_the_approval_alert_addresses_the_queue_not_the_builder(self, sent):
+        """The regression. `/agents/{id}` is the Builder: it holds one sentence of
+        prose about tool calls reaching a queue, and no queue. So the click landed
+        on a page whose own subject is editing the agent, while the parked run
+        aged towards `ApprovalService.expire_stale` (#935)."""
+        with (
+            patch(f"{MODULE}.member_repo.list_emails_by_role", new=_roles("ops@acme.test")),
+            patch(f"{MODULE}.member_repo.list_emails_for_members", new=_members()),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                _run(), agent=_agent(), spec=_spec(), tools=["send_email"]
+            )
+
+        _, _, context = sent.calls[0]
+        assert "/runs?tab=approvals&" in context["approvals_url"]
+        # Named because it is what the link used to be, and the agent id is still
+        # in scope at the call site.
+        assert "/agents/" not in context["approvals_url"]
 
 
 class TestDelivery:

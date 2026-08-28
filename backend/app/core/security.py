@@ -91,10 +91,21 @@ def create_password_reset_token(
 def create_magic_link_token(
     subject: str | Any,
     expires_delta: timedelta | None = None,
+    return_to: str | None = None,
 ) -> str:
-    """Sign-in-by-email JWT. Short-lived (15 min default)."""
+    """Sign-in-by-email JWT. Short-lived (15 min default).
+
+    `return_to` rides in the token because a magic link is followed from an
+    email - a different tab, often a different application, sometimes a
+    different browser - so the tab-local store the OAuth round trip uses is
+    empty by construction there (#1214). Signed, so the path cannot be edited
+    between the mint and the landing; validated before it gets here, by
+    `MagicLinkRequest`, so nothing unchecked is ever put in a token.
+    """
     expire = datetime.now(UTC) + (expires_delta or timedelta(minutes=15))
-    to_encode = {"exp": expire, "sub": str(subject), "type": "magic_link"}
+    to_encode: dict[str, Any] = {"exp": expire, "sub": str(subject), "type": "magic_link"}
+    if return_to is not None:
+        to_encode["rt"] = return_to
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 

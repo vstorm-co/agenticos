@@ -290,9 +290,10 @@ memory are the only limits worth setting.
 | `timeout_secs` | 10 | > 0, ≤ 120 |
 | `max_memory_mb` | 256 | 16–4096 |
 
-Capped rather than open-ended, and per agent rather than per deployment: an author
-raising a limit for one data-heavy agent should not need an operator or a
-redeploy.
+!!! info "Per agent, not per deployment"
+
+    An author raising a limit for one data-heavy agent should not need an
+    operator or a redeploy — and the ceilings are capped rather than open-ended.
 
 ## Files & shell
 
@@ -387,7 +388,10 @@ that mattered. `execute` runs arbitrary commands on somebody's host.
 
 A binding that wants the stricter behaviour sets it per tool:
 `tool_approval: {"write_file": "required"}`. See [Governance](../governance.md) for
-how an approval is put to a person.
+how an approval is put to a person — and for the two things one *chat session* can
+say on top of the spec: waive every gated call for this conversation, or ask about
+every tool the agent has, including the MCP tools the spec-driven gate deliberately
+leaves alone (agenticos#925).
 
 **Some paths are refused whatever the approval policy says.** Credentials
 (`**/.env`, `**/*.pem`, `**/*.key`, `**/credentials*`, `**/.ssh/**`, `**/.aws/**`)
@@ -796,11 +800,30 @@ newer copy, and written back to the conversation when the run stops. A surface w
 no conversation — a bare API call — keeps a plan for the length of its run, which is
 all it has.
 
-A finished checklist is kept rather than cleared. That is what the run which
-finished it saw too: every step ticked in the tail reminder, until `write_plan`
-replaces the plan wholesale — which is what starting new work does. An agent that
-does not bind the capability pays nothing: no tools, no reminder, and nothing stored,
-because an empty checklist against a column that is null is not a change to write.
+**A finished checklist is history, and a new turn does not start from it.** The
+row keeps it — nothing is deleted — but a plan whose every step is `completed` or
+`cancelled` is not seeded into the next turn: the tail reminder would call a task
+nobody is doing "your current plan", and `read_plan` would answer with it
+(agenticos#1221).
+
+Keeping the row takes one more rule, because a turn writes its store back when it
+ends: the turn whose store was opened empty *over* a finished plan writes nothing.
+It did nothing to the checklist, and an empty dump would delete the row on the
+very next ordinary message. An agent that starts new work dumps a plan and
+replaces it as usual.
+
+The filter is at the *seed*, not at the moment the last step is ticked, and that
+is the whole of the choice. Within the turn that finishes a plan the store still
+holds it, so the agent can summarise what it just did and nothing contradicts the
+transcript. It is the next question that starts clean — and the ticked checklist
+is still in the messages above it, where it reads as what was done rather than as
+what is being done. A `blocked` step is work outstanding, so a plan holding one is
+seeded: something still has to unblock it. A resume seeds from `paused_state` and
+is untouched, being mid-plan by construction.
+
+An agent that does not bind the capability pays nothing: no tools, no reminder, and
+nothing stored, because an empty checklist against a column that is null is not a
+change to write.
 
 **It spends no tokens of its own.** The tools are local checklist edits with no model
 or embedding request behind them, so unlike knowledge or delegation there is no
@@ -1165,16 +1188,18 @@ files" and "may it read them" are two decisions even though one capability answe
 both, so enabling stays per capability while approving happens per tool. `default`
 follows the capability's own `side_effecting` flag.
 
-`tool_overrides` exists because a tool's description is the highest-leverage
-prompt in the product — it is what the model reads before deciding to call —
-and its name steers just as hard: `search_refund_policy` is not
-`search_documents`. An agent that needs different behaviour from the same tool
-usually needs these reworded, not a second capability written.
+!!! tip "A tool's description is the highest-leverage prompt in the product"
 
-Both are keyed on the tool's **stable id**, never on the name the model sees. That
-is what keeps an approval gate attached to a renamed tool; keying it on the
-visible name would mean a rename silently removes the gate and a side-effecting
-call goes unattended with nothing reporting it. An id no such capability exposes
+    It is what the model reads before deciding to call, and its name steers just
+    as hard: `search_refund_policy` is not `search_documents`. An agent that
+    needs different behaviour from the same tool usually needs these reworded,
+    not a second capability written.
+
+!!! danger "Keyed on the tool's stable id, never on the name the model sees"
+
+    That is what keeps an approval gate attached to a renamed tool. Keying it on
+    the visible name would mean a rename silently removes the gate, and a
+    side-effecting call then goes unattended with nothing reporting it. An id no such capability exposes
 is refused at publish, and so is a name no model could call.
 
 ## Scopes
@@ -1192,18 +1217,21 @@ the agent is assembled:
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
 
-All seven are granted by default today (`DEFAULT_GRANTED_SCOPES` in
-`app/services/agent_registry.py`). Per-organization scope management is
-[roadmap](../ROADMAP.md) work; the check is live and honest in the meantime rather
-than disabled and forgotten.
+!!! note "All seven are granted by default today"
 
-`agents:delegate` is the one worth understanding, because it is *not* the gate on
-who may be delegated to — that is `agents:run`, checked on the publisher against
-each delegate's row. This scope answers a question no permission can: whether this
-**deployment** allows agents to call agents at all. Removing it from that set turns
-delegation off everywhere in one edit, which is what an operator who does not want
-nested runs or fan-out billing needs, and every spec that delegates then says so at
-publish rather than at 3am.
+    `DEFAULT_GRANTED_SCOPES` in `app/services/agent_registry.py`.
+    Per-organization scope management is [roadmap](../ROADMAP.md) work; the check
+    is live and honest in the meantime rather than disabled and forgotten.
+
+!!! warning "`agents:delegate` is not the gate on *who* may be delegated to"
+
+    That is `agents:run`, checked on the publisher against each delegate's row.
+    This scope answers a question no permission can: whether this **deployment**
+    allows agents to call agents at all. Remove it from that set and delegation
+    is off everywhere in one edit.
+
+An operator who does not want nested runs or fan-out billing removes it, and
+every spec that delegates then says so at publish rather than at 3am.
 
 ## What a tool tells the model
 

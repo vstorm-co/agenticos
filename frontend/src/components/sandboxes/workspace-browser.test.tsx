@@ -102,6 +102,7 @@ function workspace(overrides: Partial<WorkspaceSummary> = {}): WorkspaceSummary 
     scope: "conversation",
     backend: "state",
     owner_label: "This conversation",
+    owner_name: null,
     access_label: "Whoever is in that conversation",
     bytes_total: 1_048_576,
     file_count: 4,
@@ -173,6 +174,62 @@ describe("WorkspaceBrowser", () => {
     expect(screen.getByText("Analyst")).toBeVisible();
     expect(screen.getByText("Refund policy")).toBeVisible();
     expect(screen.getByText("Whoever is in that conversation")).toBeVisible();
+  });
+
+  it("names the owner beside who else can see the files", async () => {
+    // Two different facts, and the table used to carry only the second:
+    // `access_label` describes the *scope* - "everybody who talks to this
+    // agent" - and never names the person. On an agent-scoped workspace shared
+    // by six people that is the question an operator has (#137).
+    state.workspaces = [
+      workspace({
+        owner_name: "nina@example.com",
+        access_label: "Everybody who talks to Analyst",
+      }),
+    ];
+
+    await showTable();
+
+    expect(screen.getByRole("columnheader", { name: "Owner" })).toBeVisible();
+    expect(screen.getByText("nina@example.com")).toBeVisible();
+    expect(screen.getByText("Everybody who talks to Analyst")).toBeVisible();
+  });
+
+  it("sorts by owner, which is how somebody groups a deployment by holder", async () => {
+    state.workspaces = [
+      workspace({ owner_name: "zoe@example.com", conversation_title: "Refund policy" }),
+      workspace({
+        id: "w-2",
+        owner_name: "ada@example.com",
+        conversation_title: "Webhook wiring",
+      }),
+    ];
+    await showTable();
+
+    const firstRow = () => {
+      const cell = screen.getAllByRole("rowgroup")[1]!.querySelector("tr > td")!;
+      cell.querySelector('[aria-hidden="true"]')?.remove();
+      return cell.textContent;
+    };
+
+    // Descending first, like every other column here.
+    await userEvent.click(screen.getByRole("button", { name: "Owner" }));
+    expect(firstRow()).toContain("Refund policy");
+
+    await userEvent.click(screen.getByRole("button", { name: "Owner" }));
+    expect(firstRow()).toContain("Webhook wiring");
+  });
+
+  it("draws a platform-sourced owner as words, not a destination", async () => {
+    // `owner_ref` is a string and a Slack-sourced workspace's owner is a
+    // platform id rather than an account, so a linked cell would be broken on
+    // half the rows (#131).
+    state.workspaces = [workspace({ owner_name: "slack:U024BE7LH" })];
+
+    await showTable();
+
+    expect(screen.getByText("slack:U024BE7LH")).toBeVisible();
+    expect(screen.queryByRole("link", { name: "slack:U024BE7LH" })).toBeNull();
   });
 
   it("counts the chats behind a workspace no single conversation owns", async () => {
@@ -282,7 +339,9 @@ describe("WorkspaceBrowser", () => {
     expect(screen.getByText("4")).toBeVisible();
     expect(screen.getByText("1.0 MB")).toBeVisible();
     // Nobody counted the container's: `—` and not `0`, which would be a claim.
-    expect(screen.getAllByText("—")).toHaveLength(2);
+    // Four dashes, not two: the Owner column draws one per row here as well,
+    // because a conversation-scoped workspace records no owner.
+    expect(screen.getAllByText("—")).toHaveLength(4);
   });
 
   it("says when a workspace was last touched", async () => {
@@ -315,7 +374,8 @@ describe("WorkspaceBrowser", () => {
     state.workspaces = [workspace({ backend: "service", file_count: null, measured_bytes: null })];
     await showTable();
 
-    expect(screen.getAllByText("—")).toHaveLength(2);
+    // Three: the count, the size, and the owner this scope does not record.
+    expect(screen.getAllByText("—")).toHaveLength(3);
   });
 
   it("says an organization is keeping nothing rather than showing an empty table", async () => {

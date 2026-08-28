@@ -200,47 +200,66 @@
     "deleteAccount": "Usuń konto"
   },
   "chat": {
-    "title": "Czat",
-    "newChat": "Nowy czat",
-    "thinking": "Myślę...",
-    "noConversations": "Brak konwersacji",
-    "startNewChat": "Zacznij nowy czat",
-    "conversations": "Konwersacje",
-    "rename": "Zmień nazwę",
-    "share": "Udostępnij",
-    "archive": "Archiwizuj",
-    "delete": "Usuń",
-    "newConversation": "Nowa konwersacja",
-    "analyzeFiles": "Przeanalizuj załączone pliki",
-    "helpful": "Pomocne",
-    "notHelpful": "Nieprzydatne",
-    "saveConversationToRate": "Najpierw zapisz konwersację, aby ocenić",
-    "ratingRemoved": "Ocena usunięta",
-    "thankYouFeedback": "Dziękujemy za opinię!",
-    "whatWentWrong": "Co poszło nie tak?",
-    "feedbackHelp": "Pomóż nam się poprawić - opcjonalnie opisz, co było nieprzydatne.",
-    "describeIssue": "Opisz problem... (opcjonalnie)",
-    "skipComment": "Pomiń komentarz",
-    "shareDescription": "Udostępnij tę konwersację innym użytkownikom lub wygeneruj publiczny link.",
-    "memberEmail": "Adres email",
-    "memberSuggestions": "Pasujący członkowie",
-    "generateShareLink": "Wygeneruj link do udostępnienia",
-    "sharedWith": "Udostępniono dla",
-    "conversationShared": "Konwersacja udostępniona",
-    "linkGenerated": "Link do udostępnienia wygenerowany",
+    "accessLevel": "Poziom dostępu",
     "accessRevoked": "Dostęp cofnięty",
-    "revokeAccess": "Cofnij dostęp",
+    "analyzeFiles": "Przeanalizuj załączone pliki",
+    "archive": "Archiwizuj",
+    "choosePerson": "Wybierz osobę",
+    "conversationShared": "Konwersacja udostępniona",
+    "conversations": "Konwersacje",
     "copyLink": "Link skopiowany do schowka",
-    "failedToShare": "Nie udało się udostępnić konwersacji",
+    "delete": "Usuń",
+    "describeIssue": "Opisz problem... (opcjonalnie)",
+    "editMeans": "Edit pozwala zmienić nazwę, zarchiwizować i usunąć tę konwersację oraz dopisywać do niej tury.",
+    "failedFavouriteConversation": "Nie udało się zmienić ulubionych",
     "failedToGenerateLink": "Nie udało się wygenerować linku",
     "failedToRevoke": "Nie udało się cofnąć dostępu",
+    "failedToShare": "Nie udało się udostępnić konwersacji",
+    "favourite": "Dodaj do ulubionych",
+    "favourites": "Ulubione",
+    "feedbackHelp": "Pomóż nam się poprawić - opcjonalnie opisz, co było nieprzydatne.",
+    "generateShareLink": "Wygeneruj link do udostępnienia",
+    "helpful": "Pomocne",
+    "linkGenerated": "Link do udostępnienia wygenerowany",
+    "linkIsViewOnly": "Każdy z linkiem może czytać tę konwersację. Link zawsze jest tylko do czytania.",
+    "membersCouldNotBeRead": "Nie udało się odczytać osób w tej organizacji.",
+    "newChat": "Nowy czat",
+    "newConversation": "Nowa konwersacja",
+    "noConversations": "Brak konwersacji",
+    "notHelpful": "Nieprzydatne",
+    "ratingRemoved": "Ocena usunięta",
+    "rename": "Zmień nazwę",
+    "revokeAccess": "Cofnij dostęp",
+    "saveConversationToRate": "Najpierw zapisz konwersację, aby ocenić",
+    "share": "Udostępnij",
+    "shareDescription": "Udostępnij tę konwersację innym użytkownikom lub wygeneruj publiczny link.",
+    "sharedWith": "Udostępniono dla",
+    "skipComment": "Pomiń komentarz",
+    "startNewChat": "Zacznij nowy czat",
+    "thankYouFeedback": "Dziękujemy za opinię!",
+    "thinking": "Myślę...",
+    "title": "Czat",
     "tools": {
       "patternInFile": "{pattern} w {file}"
     },
-    "favourite": "Dodaj do ulubionych",
     "unfavourite": "Usuń z ulubionych",
-    "favourites": "Ulubione",
-    "failedFavouriteConversation": "Nie udało się zmienić ulubionych"
+    "controls": {
+      "approvalMode": "Tryb zatwierdzania",
+      "cannotWaive": "Pomijanie zatwierdzeń wymaga uprawnienia do ich podejmowania, a organizacja musi na to pozwolić.",
+      "howMuchToBeAsked": "Ile pytań przed uruchomieniem narzędzia?",
+      "mode": {
+        "follow_agent": "Zgodnie z agentem",
+        "approve_all": "Zatwierdzaj wszystko",
+        "ask_all": "Pytaj o wszystko"
+      },
+      "modeHint": {
+        "follow_agent": "Ustawienia agenta decydują, które narzędzia wymagają człowieka.",
+        "approve_all": "Każde wywołanie z bramką rusza bez pytania, w tej konwersacji. Każde nadal jest zapisane na Twoje konto.",
+        "ask_all": "Pytaj przed każdym narzędziem tego agenta, także tym, którego zwykle nie pilnuje."
+      }
+    },
+    "viewMeans": "View pozwala tylko czytać tę konwersację.",
+    "whatWentWrong": "Co poszło nie tak?"
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",
@@ -313,6 +332,8 @@
     "deleted": "Organizacja usunięta",
     "accessLost": "Nie masz już dostępu do tej organizacji.",
     "accessLostSwitched": "Nie masz już dostępu do tej organizacji. Przełączono na {name}.",
+    "accessLostLink": "Ten link dotyczy organizacji, do której nie masz już dostępu.",
+    "accessLostLinkSwitched": "Ten link dotyczy organizacji, do której nie masz już dostępu. Pokazujemy {name}.",
     "failedDelete": "Nie udało się usunąć organizacji",
     "failedUpdate": "Nie udało się zaktualizować organizacji"
   },
@@ -454,6 +475,9 @@
     "routines": {
       "title": "Rutyny",
       "description": "Wszystko, co Twoi agenci robią sami — według harmonogramu lub w reakcji na zdarzenie."
+    },
+    "runs": {
+      "decidedByStandingConsent": "pominięte z góry dla konwersacji"
     }
   },
   "rag": {
@@ -1301,6 +1325,122 @@
       }
     },
     "steps": {
+      "activity-approvals": {
+        "title": "Co czeka na Ciebie",
+        "body": "Uruchomienia wstrzymane na ludzką decyzję czekają tutaj. Zatwierdź lub odrzuć każde, a uruchomienie ruszy stamtąd, gdzie stanęło — ta zakładka pojawia się tylko, jeśli wolno Ci o nich decydować."
+      },
+      "activity-overview": {
+        "title": "Obserwuj aktywność",
+        "body": "Każde uruchomienie jest zapisane z kosztem i wynikiem, więc widzisz, co zrobili Twoi agenci, i wkraczasz, gdy któryś czeka na decyzję. Te liczby podsumowują całość."
+      },
+      "activity-runs": {
+        "title": "Każde uruchomienie",
+        "body": "Pełna historia: kto uruchomił którego agenta, ile to kosztowało i jak się skończyło. Filtruj albo otwórz uruchomienie, żeby zobaczyć całą rozmowę i wywołane narzędzia."
+      },
+      "activity-spend": {
+        "title": "Gdzie poszły pieniądze",
+        "body": "Wydatki w czasie i według agenta, względem ustawionych budżetów — więc agent, który po cichu drożeje, pojawi się tutaj, zanim zrobi to rachunek."
+      },
+      "agent-availability": {
+        "title": "Zaprzęgnij go do pracy",
+        "body": "Dostępność to miejsce, gdzie opublikowany agent wchodzi na żywo — czat na stronie, osadzenie w Twojej witrynie, Slack czy Telegram — i gdzie decydujesz, komu go udostępnić."
+      },
+      "agent-history": {
+        "title": "Każda wersja zachowana",
+        "body": "Każda publikacja zamraża specyfikację jako wersję, którą możesz wypromować do środowiska, cofnąć się do niej albo odczytać względem niej historię uruchomień."
+      },
+      "agent-instructions": {
+        "title": "Instrukcje to zachowanie",
+        "body": "Otwórz agenta, a trafisz do kreatora, gdzie składa się go zakładka po zakładce. Build jest pierwsza: instrukcje to jego zachowanie, pisane zwykłym Markdown, nie kodem."
+      },
+      "agent-knowledge": {
+        "title": "Skieruj go na swoje dokumenty",
+        "body": "Wiedza pozwala agentowi przeszukiwać wybrane przez Ciebie kolekcje, więc odpowiada z Twojego własnego materiału, a nie zgaduje z samego treningu."
+      },
+      "agent-limits": {
+        "title": "Trzymaj go w ryzach",
+        "body": "Ogranicz miesięczny wydatek i to, z ilu kroków może się składać jedno uruchomienie, i wybierz, kto zostanie powiadomiony, gdy agent osiągnie limit albo zawiedzie."
+      },
+      "agent-mcp": {
+        "title": "I całe zestawy narzędzi",
+        "body": "Pod możliwościami podepnij serwery MCP — gotowe zestawy narzędzi jak GitHub czy Slack, podłączone raz dla organizacji i używane przez wielu agentów."
+      },
+      "agent-model": {
+        "title": "Wybierz mózg",
+        "body": "Model pod spodem robi rozumowanie. Podmień go, ustaw, jak mocno myśli, albo włącz rozumowanie krok po kroku — wszystko bez ruszania instrukcji powyżej."
+      },
+      "agent-publish": {
+        "title": "Opublikuj, żeby go wypuścić",
+        "body": "Nic nie działa, dopóki nie opublikujesz. Publikacja zamraża bieżący szkic jako wersję, i to ta wersja odpowiada wszędzie tam, gdzie agent jest dostępny."
+      },
+      "agent-skills": {
+        "title": "Daj mu instrukcję działania",
+        "body": "Umiejętności to spisana wiedza, którą agent czyta przed działaniem — procedura, styl firmy, lista kontrolna — i tę samą można współdzielić między agentami."
+      },
+      "agent-toolbox": {
+        "title": "Daj mu narzędzia",
+        "body": "Toolbox to to, co agent naprawdę potrafi. Włącz wbudowane możliwości, jak wyszukiwanie w sieci, kod czy pliki, a każda staje się narzędziem, które model może wywołać w trakcie odpowiedzi."
+      },
+      "agents-filters": {
+        "title": "Znajdź szybko",
+        "body": "Filtruj po statusie albo szukaj po nazwie, gdy lista urośnie ponad ekran."
+      },
+      "agents-new": {
+        "title": "Zbuduj agenta",
+        "body": "Agent to jego instrukcje, model oraz narzędzia, serwery MCP i umiejętności, które mu dasz. Utwórz jednego tutaj, potem opublikuj wersję, żeby działał tak samo wszędzie — czat, API, Slack czy widżet."
+      },
+      "channels-list": {
+        "title": "Podłączone kanały",
+        "body": "Platformy, na których osiągalna jest ta organizacja. Kanał należy do organizacji, nie do jednego agenta, więc ten sam bot obsługuje każdego przypisanego do niego agenta."
+      },
+      "channels-new": {
+        "title": "Docieraj tam, gdzie są ludzie",
+        "body": "Zarejestruj platformę czatu — Slack, Telegram, Mattermost — i każdy agent może odpowiadać w niej. Token bota jest zapieczętowany w vault. Dodaj kanał tutaj."
+      },
+      "chat-agent-picker": {
+        "title": "Wybierz, kto odpowiada",
+        "body": "Przełączaj się między agentami tutaj. Każdy wnosi własne instrukcje, narzędzia i wiedzę, więc to samo pytanie może dostać zupełnie inną odpowiedź."
+      },
+      "chat-approval-mode": {
+        "title": "Zdecyduj, o ile masz być pytany",
+        "body": "Trzymaj się ustawień agenta, pytaj o każde narzędzie, albo - jeśli możesz podejmować zatwierdzenia - pozwól tej konwersacji biec bez zatrzymań. Każde pominięte wywołanie i tak jest zapisane na Twoje konto."
+      },
+      "chat-composer": {
+        "title": "Zapytaj o cokolwiek",
+        "body": "Wpisz wiadomość, upuść plik albo zacznij od polecenia ukośnika. Enter wysyła; Shift+Enter dodaje wiersz."
+      },
+      "chat-model-picker": {
+        "title": "Dostrój model",
+        "body": "Wybierz, który z modeli organizacji odpowiada — tylko dla tej rozmowy, bez zmiany agenta."
+      },
+      "chat-start": {
+        "title": "Rozmawiaj ze swoimi agentami",
+        "body": "Nowy czat otwiera świeży wątek, a Twoje wcześniejsze rozmowy układają się w tym panelu. To najszybszy sposób, żeby wypróbować agenta i zobaczyć, jak działa, krok po kroku."
+      },
+      "context-list": {
+        "title": "Wspólny kontekst",
+        "body": "Pliki kontekstu, które ma ta organizacja. Jeden plik może zasilać każdego agenta, więc fakt poprawiony tutaj jest poprawiony dla wszystkich naraz."
+      },
+      "context-new": {
+        "title": "Dodaj stały kontekst",
+        "body": "Pliki kontekstu to tło, które nosi każdy agent — fakty o firmie, ton, terminy — wstrzykiwane do każdego prompta bez wklejania ich za każdym razem. Dodaj plik tutaj."
+      },
+      "dashboard-actions": {
+        "title": "Zacznij tutaj",
+        "body": "Te skróty to najszybsze wejście: otwórz czat, utwórz pierwszego agenta, przejrzyj to, co czeka na decyzję, albo zaproś współpracownika."
+      },
+      "dashboard-customize": {
+        "title": "Dostosuj po swojemu",
+        "body": "Customize otwiera edytor: przeciągnij kartę, żeby przenieść ją między sekcjami, pociągnij jej krawędź, żeby zmienić szerokość - od czwartej części rzędu do całej, ukryj te, których nigdy nie czytasz, a Add a widget daje resztę katalogu, tę samą kartę nawet kilka razy, jeśli chcesz ją mieć per agent. Sekcje można nazwać, pokolorować, zwinąć i dodać nowe. Save zapisuje, Cancel odrzuca, a Reset to default przywraca układ, od którego zaczynałeś. Layouts trzyma kilka takich układów i przełącza między nimi, więc ten czytany w poniedziałek nie musi być tym czytanym, kiedy się pali. Wszystko to jest per osoba - nikt inny nie widzi Twojego układu."
+      },
+      "dashboard-filters": {
+        "title": "Filtruj pulpit",
+        "body": "Każda liczba na tej stronie podąża za okresem, który tu wybierzesz, a sekcje, których nie potrzebujesz, możesz ukryć. Widok żyje w adresie URL, więc przetrwa odświeżenie i wędruje w linku."
+      },
+      "finish": {
+        "title": "Wszystko gotowe",
+        "body": "To koniec przewodnika. Wskazówki każdej strony odtworzysz w każdej chwili przyciskiem pomocy na górze — przejdź na pulpit, gdy będziesz gotów zacząć budować."
+      },
       "flow-agent-create": {
         "title": "Nazwij agenta",
         "body": "Wybierz New agent — nadaj mu nazwę i krótki opis, i utwórz go. Otworzy się kreator, gdzie dzieje się reszta. Przejdziemy dalej, gdy tylko powstanie."
@@ -1308,18 +1448,6 @@
       "flow-agent-instructions": {
         "title": "Napisz jego instrukcje",
         "body": "Powiedz agentowi, kim jest i co ma robić — to jego prompt systemowy. Napisz linijkę lub dwie, potem wybierz Dalej."
-      },
-      "flow-agent-model-add": {
-        "title": "Dodaj model",
-        "body": "Twoja organizacja nie ma jeszcze modelu. Wybierz dostawcę, nazwij model i wklej klucz — trafi do Sejfu i model jest gotowy. Przejdziemy dalej, gdy zostanie dodany."
-      },
-      "flow-agent-model-pick": {
-        "title": "Wybierz jego model",
-        "body": "Wybierz z listy model, na którym ma działać ten agent — agent potrzebuje go, żeby działać, więc przejdziemy dalej, gdy zostanie ustawiony."
-      },
-      "flow-agent-model-none": {
-        "title": "W tej organizacji nie ma jeszcze modelu",
-        "body": "Agent potrzebuje modelu, żeby działać, a ta organizacja żadnego nie ma. Dodanie wymaga uprawnienia do połączeń, którego nie masz — poproś administratora o dodanie modelu, wtedy ten agent będzie mógł go użyć. Wybierz Dalej, żeby na razie obejrzeć resztę."
       },
       "flow-agent-knowledge": {
         "title": "Daj mu dokumenty do czytania (opcjonalnie)",
@@ -1329,49 +1457,25 @@
         "title": "Nie ma jeszcze bazy wiedzy — utworzyć?",
         "body": "Baza wiedzy pozwala temu agentowi przeszukiwać Twoje dokumenty i się na nie powoływać, a jeszcze żadnej nie masz. Utworzyć jedną teraz i ją podpiąć? Poprowadzimy Cię tam i z powrotem."
       },
+      "flow-agent-knowledge-attach": {
+        "title": "Podepnij nowo utworzoną bazę wiedzy",
+        "body": "Otwórz zakładkę Knowledge i podepnij nowo utworzoną bazę wiedzy, potem wybierz Dalej."
+      },
       "flow-agent-knowledge-create": {
         "title": "Utwórz bazę wiedzy",
         "body": "Wybierz New knowledge base — otworzy się formularz, a my przejdziemy go razem, pole po polu. Potem odprowadzimy Cię z powrotem do agenta."
-      },
-      "flow-agent-knowledge-return-nav": {
-        "title": "Wróć do swoich agentów",
-        "body": "Wybierz Agenci na pasku bocznym, żeby wrócić do agenta, którego budujesz."
       },
       "flow-agent-knowledge-return-edit": {
         "title": "Otwórz agenta ponownie",
         "body": "Kliknij ołówek edycji na agencie, którego właśnie zbudowano, żeby ponownie otworzyć jego kreator."
       },
-      "flow-agent-knowledge-attach": {
-        "title": "Podepnij nowo utworzoną bazę wiedzy",
-        "body": "Otwórz zakładkę Knowledge i podepnij nowo utworzoną bazę wiedzy, potem wybierz Dalej."
-      },
-      "flow-agent-skills": {
-        "title": "Daj mu umiejętności (opcjonalnie)",
-        "body": "Umiejętność to spisana wiedza, którą agent wczytuje, gdy jest potrzebna — polityka zwrotów, styl firmy. Podepnij dowolne albo wybierz Dalej, żeby przejść dalej."
-      },
-      "flow-agent-skills-ask": {
-        "title": "Nie ma jeszcze umiejętności — utworzyć?",
-        "body": "Umiejętność to spisana wiedza, którą agent wczytuje, gdy jest potrzebna, a jeszcze żadnej nie masz. Utworzyć jedną teraz i ją podpiąć? Poprowadzimy Cię tam i z powrotem."
-      },
-      "flow-agent-skills-create": {
-        "title": "Utwórz umiejętność",
-        "body": "Wybierz New skill — otworzy się formularz, a my przejdziemy go razem, pole po polu. Potem odprowadzimy Cię z powrotem do agenta."
-      },
-      "flow-agent-skills-return-nav": {
+      "flow-agent-knowledge-return-nav": {
         "title": "Wróć do swoich agentów",
         "body": "Wybierz Agenci na pasku bocznym, żeby wrócić do agenta, którego budujesz."
       },
-      "flow-agent-skills-return-edit": {
-        "title": "Otwórz agenta ponownie",
-        "body": "Kliknij ołówek edycji na agencie, którego właśnie zbudowano, żeby ponownie otworzyć jego kreator."
-      },
-      "flow-agent-skills-attach": {
-        "title": "Podepnij swoją umiejętność",
-        "body": "Otwórz zakładkę Skills i podepnij nowo utworzoną umiejętność, potem wybierz Dalej."
-      },
-      "flow-agent-tools": {
-        "title": "Daj mu narzędzia (opcjonalnie)",
-        "body": "Możliwości pozwalają agentowi działać — przeszukać sieć, uruchomić kod, wywołać inny system. Włącz to, czego potrzebuje, albo wybierz Dalej, żeby przejść dalej."
+      "flow-agent-limits": {
+        "title": "Ustaw budżet (opcjonalnie)",
+        "body": "Ogranicz, ile ten agent może wydać w miesiącu i z ilu kroków może się składać jedno uruchomienie, i wybierz, kto zostanie powiadomiony przy limicie. Tak agent, który się zapętli albo wymknie spod kontroli, zatrzyma się sam. Wybierz Dalej, żeby przejść dalej."
       },
       "flow-agent-mcp": {
         "title": "Dodaj serwery MCP (opcjonalnie)",
@@ -1381,17 +1485,25 @@
         "title": "Nie podłączono serwera MCP — podłączyć?",
         "body": "Serwer MCP daje temu agentowi narzędzia z innego systemu, a jeszcze żadnego nie podłączono. Podłączyć jeden teraz? To szybkie okno tutaj — bez wychodzenia z kreatora, i ruszymy dalej w chwili, gdy się połączy."
       },
-      "flow-agent-mcp-connect": {
-        "title": "Otwórz katalog",
-        "body": "Wybierz Connect server — katalog otworzy się tutaj, w kreatorze, i wybierzemy jeden razem."
-      },
       "flow-agent-mcp-attach": {
         "title": "Daj mu ten serwer",
         "body": "Połączenie serwera nie oddaje go jeszcze temu agentowi. Zaznacz ten, który przed chwilą podłączyłeś, żeby agent mógł korzystać z jego narzędzi, potem wybierz Dalej."
       },
-      "flow-agent-limits": {
-        "title": "Ustaw budżet (opcjonalnie)",
-        "body": "Ogranicz, ile ten agent może wydać w miesiącu i z ilu kroków może się składać jedno uruchomienie, i wybierz, kto zostanie powiadomiony przy limicie. Tak agent, który się zapętli albo wymknie spod kontroli, zatrzyma się sam. Wybierz Dalej, żeby przejść dalej."
+      "flow-agent-mcp-connect": {
+        "title": "Otwórz katalog",
+        "body": "Wybierz Connect server — katalog otworzy się tutaj, w kreatorze, i wybierzemy jeden razem."
+      },
+      "flow-agent-model-add": {
+        "title": "Dodaj model",
+        "body": "Twoja organizacja nie ma jeszcze modelu. Wybierz dostawcę, nazwij model i wklej klucz — trafi do Sejfu i model jest gotowy. Przejdziemy dalej, gdy zostanie dodany."
+      },
+      "flow-agent-model-none": {
+        "title": "W tej organizacji nie ma jeszcze modelu",
+        "body": "Agent potrzebuje modelu, żeby działać, a ta organizacja żadnego nie ma. Dodanie wymaga uprawnienia do połączeń, którego nie masz — poproś administratora o dodanie modelu, wtedy ten agent będzie mógł go użyć. Wybierz Dalej, żeby na razie obejrzeć resztę."
+      },
+      "flow-agent-model-pick": {
+        "title": "Wybierz jego model",
+        "body": "Wybierz z listy model, na którym ma działać ten agent — agent potrzebuje go, żeby działać, więc przejdziemy dalej, gdy zostanie ustawiony."
       },
       "flow-agent-publish": {
         "title": "Opublikuj go",
@@ -1405,61 +1517,45 @@
         "title": "Wyślij mu wiadomość",
         "body": "Wpisz prompt i wyślij — pierwsze uruchomienie Twojego agenta i koniec przewodnika. Zamkniemy w chwili, gdy wiadomość poleci."
       },
-      "flow-skill-create": {
-        "title": "Dodaj swoją umiejętność",
-        "body": "Wybierz New skill — otworzy się formularz, a my przejdziemy go razem, pole po polu."
+      "flow-agent-skills": {
+        "title": "Daj mu umiejętności (opcjonalnie)",
+        "body": "Umiejętność to spisana wiedza, którą agent wczytuje, gdy jest potrzebna — polityka zwrotów, styl firmy. Podepnij dowolne albo wybierz Dalej, żeby przejść dalej."
       },
-      "flow-kb-create": {
-        "title": "Utwórz bazę wiedzy",
-        "body": "Wybierz New knowledge base — otworzy się formularz, a my przejdziemy go razem, pole po polu."
+      "flow-agent-skills-ask": {
+        "title": "Nie ma jeszcze umiejętności — utworzyć?",
+        "body": "Umiejętność to spisana wiedza, którą agent wczytuje, gdy jest potrzebna, a jeszcze żadnej nie masz. Utworzyć jedną teraz i ją podpiąć? Poprowadzimy Cię tam i z powrotem."
       },
-      "flow-skill-field-name": {
-        "title": "Nazwij ją",
-        "body": "Krótko i konkretnie, np. refund-policy — tak model odwołuje się do tej umiejętności i nie da się tego później zmienić. Potem wybierz Dalej."
+      "flow-agent-skills-attach": {
+        "title": "Podepnij swoją umiejętność",
+        "body": "Otwórz zakładkę Skills i podepnij nowo utworzoną umiejętność, potem wybierz Dalej."
       },
-      "flow-skill-field-description": {
-        "title": "Napisz, kiedy jej używać",
-        "body": "To jedyna część, którą model czyta, decydując, czy w ogóle otworzyć umiejętność — napisz, kiedy po nią sięgnąć, nie co jest w środku. Potem wybierz Dalej."
+      "flow-agent-skills-create": {
+        "title": "Utwórz umiejętność",
+        "body": "Wybierz New skill — otworzy się formularz, a my przejdziemy go razem, pole po polu. Potem odprowadzimy Cię z powrotem do agenta."
       },
-      "flow-skill-field-source": {
-        "title": "Napisz umiejętność",
-        "body": "Przełącz na Source i napisz samą wiedzę w Markdown — kroki, reguły, wyjątki. Możesz ją dopracować później w każdej chwili. Potem wybierz Dalej."
+      "flow-agent-skills-return-edit": {
+        "title": "Otwórz agenta ponownie",
+        "body": "Kliknij ołówek edycji na agencie, którego właśnie zbudowano, żeby ponownie otworzyć jego kreator."
       },
-      "flow-skill-field-create": {
-        "title": "Utwórz ją",
-        "body": "Kliknij Create. Przejdziemy dalej w chwili, gdy się zapisze."
+      "flow-agent-skills-return-nav": {
+        "title": "Wróć do swoich agentów",
+        "body": "Wybierz Agenci na pasku bocznym, żeby wrócić do agenta, którego budujesz."
       },
-      "flow-kb-field-name": {
-        "title": "Nazwij ją",
-        "body": "Nazwij ją od tego, co będzie zawierać — Dokumentacja produktu, Wiki wsparcia — żeby każdy, kto podpina ją do agenta, wiedział, co daje. Potem wybierz Dalej."
+      "flow-agent-tools": {
+        "title": "Daj mu narzędzia (opcjonalnie)",
+        "body": "Możliwości pozwalają agentowi działać — przeszukać sieć, uruchomić kod, wywołać inny system. Włącz to, czego potrzebuje, albo wybierz Dalej, żeby przejść dalej."
       },
-      "flow-kb-field-scope": {
-        "title": "Wybierz, do kogo należy",
-        "body": "Osobista należy tylko do Ciebie; organizacyjna udostępnia ją każdemu członkowi i agentowi. Dla bazy, którą będą przeszukiwać Twoi agenci, wybierz zakres organizacyjny. Potem wybierz Dalej."
+      "flow-chat-agent": {
+        "title": "Wybierz, kto odpowiada",
+        "body": "To wybiera, który z Twoich opublikowanych agentów odpowiada. Otwórz, żeby przełączać agentów — możesz zmienić nawet w trakcie rozmowy. Wybierz Dalej."
       },
-      "flow-kb-field-embeddings": {
-        "title": "Embeddingi (zostaw domyślne)",
-        "body": "Jak dokumenty są indeksowane do wyszukiwania. Zamraża się przy tworzeniu, ale domyślne ustawienie wdrożenia jest dobre dla niemal każdego — rozwiń je tylko, jeśli wiesz, że potrzebujesz innego modelu. Wybierz Dalej."
+      "flow-chat-composer": {
+        "title": "Wpisz i wyślij",
+        "body": "Napisz tu swoją wiadomość i wyślij — to Twoja pierwsza rozmowa. Wybierz Zakończ, gdy zechcesz."
       },
-      "flow-kb-field-create": {
-        "title": "Utwórz ją",
-        "body": "Kliknij Create. Przejdziemy dalej w chwili, gdy powstanie — dokumenty dodasz do niej zaraz potem."
-      },
-      "flow-mcp-field-pick": {
-        "title": "Wybierz serwer",
-        "body": "To katalog systemów, z których Twoi agenci mogą czerpać narzędzia. Znajdź ten, który chcesz, i kliknij na nim Connect."
-      },
-      "flow-mcp-field-form": {
-        "title": "Wypełnij połączenie",
-        "body": "Nazwij je — nazwa poprzedza nazwy jego narzędzi — zostaw zakres organizacyjny, żeby Twoi agenci mogli z niego korzystać, i wklej token, jeśli ten serwer o niego prosi. Potem wybierz Dalej."
-      },
-      "flow-mcp-field-connect": {
-        "title": "Połącz",
-        "body": "Kliknij Connect. Sprawdzamy, czy serwer odpowiada, i ruszamy dalej w chwili połączenia — serwer, który loguje się przez dostawcę, przekieruje zamiast tego na jego ekran zgody."
-      },
-      "flow-org-create": {
-        "title": "Utwórz organizację",
-        "body": "Wybierz New organization — nadaj jej nazwę i utwórz. Przejdziemy dalej, gdy tylko powstanie."
+      "flow-chat-controls": {
+        "title": "Dostrój tę rozmowę",
+        "body": "Otwórz Controls, żeby uruchomić ten czat na innym modelu albo zmienić, jak mocno myśli — tylko dla tej rozmowy, bez ruszania samego agenta. Wybierz Dalej."
       },
       "flow-chat-needs-agent": {
         "title": "Nie ma jeszcze opublikowanego agenta do rozmowy",
@@ -1469,161 +1565,69 @@
         "title": "Zacznij rozmowę",
         "body": "Wybierz Nowa konwersacja, żeby zacząć świeży wątek. Każdy trzyma własną historię i ustawienia. Wybierz Dalej, gdy się rozejrzysz."
       },
-      "flow-chat-agent": {
-        "title": "Wybierz, kto odpowiada",
-        "body": "To wybiera, który z Twoich opublikowanych agentów odpowiada. Otwórz, żeby przełączać agentów — możesz zmienić nawet w trakcie rozmowy. Wybierz Dalej."
+      "flow-kb-create": {
+        "title": "Utwórz bazę wiedzy",
+        "body": "Wybierz New knowledge base — otworzy się formularz, a my przejdziemy go razem, pole po polu."
       },
-      "flow-chat-controls": {
-        "title": "Dostrój tę rozmowę",
-        "body": "Otwórz Controls, żeby uruchomić ten czat na innym modelu albo zmienić, jak mocno myśli — tylko dla tej rozmowy, bez ruszania samego agenta. Wybierz Dalej."
+      "flow-kb-field-create": {
+        "title": "Utwórz ją",
+        "body": "Kliknij Create. Przejdziemy dalej w chwili, gdy powstanie — dokumenty dodasz do niej zaraz potem."
       },
-      "flow-chat-composer": {
-        "title": "Wpisz i wyślij",
-        "body": "Napisz tu swoją wiadomość i wyślij — to Twoja pierwsza rozmowa. Wybierz Zakończ, gdy zechcesz."
+      "flow-kb-field-embeddings": {
+        "title": "Embeddingi (zostaw domyślne)",
+        "body": "Jak dokumenty są indeksowane do wyszukiwania. Zamraża się przy tworzeniu, ale domyślne ustawienie wdrożenia jest dobre dla niemal każdego — rozwiń je tylko, jeśli wiesz, że potrzebujesz innego modelu. Wybierz Dalej."
       },
-      "welcome": {
-        "title": "Witaj w AgenticOS",
-        "body": "To tutaj Twój zespół buduje, uruchamia i nadzoruje swoich agentów AI. Przejdziemy przez każdą sekcję i wskażemy, na co warto zwrócić uwagę — jakaś minuta, a zamkniesz to, kiedy chcesz."
+      "flow-kb-field-name": {
+        "title": "Nazwij ją",
+        "body": "Nazwij ją od tego, co będzie zawierać — Dokumentacja produktu, Wiki wsparcia — żeby każdy, kto podpina ją do agenta, wiedział, co daje. Potem wybierz Dalej."
       },
-      "dashboard-actions": {
-        "title": "Zacznij tutaj",
-        "body": "Te skróty to najszybsze wejście: otwórz czat, utwórz pierwszego agenta, przejrzyj to, co czeka na decyzję, albo zaproś współpracownika."
+      "flow-kb-field-scope": {
+        "title": "Wybierz, do kogo należy",
+        "body": "Osobista należy tylko do Ciebie; organizacyjna udostępnia ją każdemu członkowi i agentowi. Dla bazy, którą będą przeszukiwać Twoi agenci, wybierz zakres organizacyjny. Potem wybierz Dalej."
       },
-      "dashboard-filters": {
-        "title": "Filtruj pulpit",
-        "body": "Każda liczba na tej stronie podąża za okresem, który tu wybierzesz, a sekcje, których nie potrzebujesz, możesz ukryć. Widok żyje w adresie URL, więc przetrwa odświeżenie i wędruje w linku."
+      "flow-mcp-field-connect": {
+        "title": "Połącz",
+        "body": "Kliknij Connect. Sprawdzamy, czy serwer odpowiada, i ruszamy dalej w chwili połączenia — serwer, który loguje się przez dostawcę, przekieruje zamiast tego na jego ekran zgody."
       },
-      "dashboard-customize": {
-        "title": "Dostosuj po swojemu",
-        "body": "Customize otwiera edytor: przeciągnij kartę, żeby przenieść ją między sekcjami, pociągnij jej krawędź, żeby zmienić szerokość - od czwartej części rzędu do całej, ukryj te, których nigdy nie czytasz, a Add a widget daje resztę katalogu, tę samą kartę nawet kilka razy, jeśli chcesz ją mieć per agent. Sekcje można nazwać, pokolorować, zwinąć i dodać nowe. Save zapisuje, Cancel odrzuca, a Reset to default przywraca układ, od którego zaczynałeś. Layouts trzyma kilka takich układów i przełącza między nimi, więc ten czytany w poniedziałek nie musi być tym czytanym, kiedy się pali. Wszystko to jest per osoba - nikt inny nie widzi Twojego układu."
+      "flow-mcp-field-form": {
+        "title": "Wypełnij połączenie",
+        "body": "Nazwij je — nazwa poprzedza nazwy jego narzędzi — zostaw zakres organizacyjny, żeby Twoi agenci mogli z niego korzystać, i wklej token, jeśli ten serwer o niego prosi. Potem wybierz Dalej."
       },
-      "chat-start": {
-        "title": "Rozmawiaj ze swoimi agentami",
-        "body": "Nowy czat otwiera świeży wątek, a Twoje wcześniejsze rozmowy układają się w tym panelu. To najszybszy sposób, żeby wypróbować agenta i zobaczyć, jak działa, krok po kroku."
+      "flow-mcp-field-pick": {
+        "title": "Wybierz serwer",
+        "body": "To katalog systemów, z których Twoi agenci mogą czerpać narzędzia. Znajdź ten, który chcesz, i kliknij na nim Connect."
       },
-      "chat-agent-picker": {
-        "title": "Wybierz, kto odpowiada",
-        "body": "Przełączaj się między agentami tutaj. Każdy wnosi własne instrukcje, narzędzia i wiedzę, więc to samo pytanie może dostać zupełnie inną odpowiedź."
+      "flow-org-create": {
+        "title": "Utwórz organizację",
+        "body": "Wybierz New organization — nadaj jej nazwę i utwórz. Przejdziemy dalej, gdy tylko powstanie."
       },
-      "chat-composer": {
-        "title": "Zapytaj o cokolwiek",
-        "body": "Wpisz wiadomość, upuść plik albo zacznij od polecenia ukośnika. Enter wysyła; Shift+Enter dodaje wiersz."
+      "flow-skill-create": {
+        "title": "Dodaj swoją umiejętność",
+        "body": "Wybierz New skill — otworzy się formularz, a my przejdziemy go razem, pole po polu."
       },
-      "chat-model-picker": {
-        "title": "Dostrój model",
-        "body": "Wybierz, który z modeli organizacji odpowiada — tylko dla tej rozmowy, bez zmiany agenta."
+      "flow-skill-field-create": {
+        "title": "Utwórz ją",
+        "body": "Kliknij Create. Przejdziemy dalej w chwili, gdy się zapisze."
       },
-      "agents-new": {
-        "title": "Zbuduj agenta",
-        "body": "Agent to jego instrukcje, model oraz narzędzia, serwery MCP i umiejętności, które mu dasz. Utwórz jednego tutaj, potem opublikuj wersję, żeby działał tak samo wszędzie — czat, API, Slack czy widżet."
+      "flow-skill-field-description": {
+        "title": "Napisz, kiedy jej używać",
+        "body": "To jedyna część, którą model czyta, decydując, czy w ogóle otworzyć umiejętność — napisz, kiedy po nią sięgnąć, nie co jest w środku. Potem wybierz Dalej."
       },
-      "agents-filters": {
-        "title": "Znajdź szybko",
-        "body": "Filtruj po statusie albo szukaj po nazwie, gdy lista urośnie ponad ekran."
+      "flow-skill-field-name": {
+        "title": "Nazwij ją",
+        "body": "Krótko i konkretnie, np. refund-policy — tak model odwołuje się do tej umiejętności i nie da się tego później zmienić. Potem wybierz Dalej."
       },
-      "agent-instructions": {
-        "title": "Instrukcje to zachowanie",
-        "body": "Otwórz agenta, a trafisz do kreatora, gdzie składa się go zakładka po zakładce. Build jest pierwsza: instrukcje to jego zachowanie, pisane zwykłym Markdown, nie kodem."
-      },
-      "agent-model": {
-        "title": "Wybierz mózg",
-        "body": "Model pod spodem robi rozumowanie. Podmień go, ustaw, jak mocno myśli, albo włącz rozumowanie krok po kroku — wszystko bez ruszania instrukcji powyżej."
-      },
-      "agent-toolbox": {
-        "title": "Daj mu narzędzia",
-        "body": "Toolbox to to, co agent naprawdę potrafi. Włącz wbudowane możliwości, jak wyszukiwanie w sieci, kod czy pliki, a każda staje się narzędziem, które model może wywołać w trakcie odpowiedzi."
-      },
-      "agent-mcp": {
-        "title": "I całe zestawy narzędzi",
-        "body": "Pod możliwościami podepnij serwery MCP — gotowe zestawy narzędzi jak GitHub czy Slack, podłączone raz dla organizacji i używane przez wielu agentów."
-      },
-      "agent-knowledge": {
-        "title": "Skieruj go na swoje dokumenty",
-        "body": "Wiedza pozwala agentowi przeszukiwać wybrane przez Ciebie kolekcje, więc odpowiada z Twojego własnego materiału, a nie zgaduje z samego treningu."
-      },
-      "agent-skills": {
-        "title": "Daj mu instrukcję działania",
-        "body": "Umiejętności to spisana wiedza, którą agent czyta przed działaniem — procedura, styl firmy, lista kontrolna — i tę samą można współdzielić między agentami."
-      },
-      "agent-limits": {
-        "title": "Trzymaj go w ryzach",
-        "body": "Ogranicz miesięczny wydatek i to, z ilu kroków może się składać jedno uruchomienie, i wybierz, kto zostanie powiadomiony, gdy agent osiągnie limit albo zawiedzie."
-      },
-      "agent-availability": {
-        "title": "Zaprzęgnij go do pracy",
-        "body": "Dostępność to miejsce, gdzie opublikowany agent wchodzi na żywo — czat na stronie, osadzenie w Twojej witrynie, Slack czy Telegram — i gdzie decydujesz, komu go udostępnić."
-      },
-      "agent-history": {
-        "title": "Każda wersja zachowana",
-        "body": "Każda publikacja zamraża specyfikację jako wersję, którą możesz wypromować do środowiska, cofnąć się do niej albo odczytać względem niej historię uruchomień."
-      },
-      "agent-publish": {
-        "title": "Opublikuj, żeby go wypuścić",
-        "body": "Nic nie działa, dopóki nie opublikujesz. Publikacja zamraża bieżący szkic jako wersję, i to ta wersja odpowiada wszędzie tam, gdzie agent jest dostępny."
-      },
-      "skills-new": {
-        "title": "Umiejętności wielokrotnego użytku",
-        "body": "Umiejętność to spakowany zestaw instrukcji, po który agent sięga do zadania. Napisz ją raz tutaj i współdziel między agentami, które jej potrzebują."
-      },
-      "skills-list": {
-        "title": "Twoje umiejętności",
-        "body": "Umiejętności, które napisano lub zainstalowano. Agent wybiera te, których potrzebuje, w swojej zakładce Skills, a ta sama umiejętność może służyć kilku agentom naraz."
-      },
-      "context-new": {
-        "title": "Dodaj stały kontekst",
-        "body": "Pliki kontekstu to tło, które nosi każdy agent — fakty o firmie, ton, terminy — wstrzykiwane do każdego prompta bez wklejania ich za każdym razem. Dodaj plik tutaj."
-      },
-      "context-list": {
-        "title": "Wspólny kontekst",
-        "body": "Pliki kontekstu, które ma ta organizacja. Jeden plik może zasilać każdego agenta, więc fakt poprawiony tutaj jest poprawiony dla wszystkich naraz."
-      },
-      "channels-new": {
-        "title": "Docieraj tam, gdzie są ludzie",
-        "body": "Zarejestruj platformę czatu — Slack, Telegram, Mattermost — i każdy agent może odpowiadać w niej. Token bota jest zapieczętowany w vault. Dodaj kanał tutaj."
-      },
-      "channels-list": {
-        "title": "Podłączone kanały",
-        "body": "Platformy, na których osiągalna jest ta organizacja. Kanał należy do organizacji, nie do jednego agenta, więc ten sam bot obsługuje każdego przypisanego do niego agenta."
-      },
-      "activity-overview": {
-        "title": "Obserwuj aktywność",
-        "body": "Każde uruchomienie jest zapisane z kosztem i wynikiem, więc widzisz, co zrobili Twoi agenci, i wkraczasz, gdy któryś czeka na decyzję. Te liczby podsumowują całość."
-      },
-      "activity-approvals": {
-        "title": "Co czeka na Ciebie",
-        "body": "Uruchomienia wstrzymane na ludzką decyzję czekają tutaj. Zatwierdź lub odrzuć każde, a uruchomienie ruszy stamtąd, gdzie stanęło — ta zakładka pojawia się tylko, jeśli wolno Ci o nich decydować."
-      },
-      "activity-runs": {
-        "title": "Każde uruchomienie",
-        "body": "Pełna historia: kto uruchomił którego agenta, ile to kosztowało i jak się skończyło. Filtruj albo otwórz uruchomienie, żeby zobaczyć całą rozmowę i wywołane narzędzia."
-      },
-      "activity-spend": {
-        "title": "Gdzie poszły pieniądze",
-        "body": "Wydatki w czasie i według agenta, względem ustawionych budżetów — więc agent, który po cichu drożeje, pojawi się tutaj, zanim zrobi to rachunek."
-      },
-      "knowledge-new": {
-        "title": "Bazy wiedzy",
-        "body": "Wgraj dokumenty, żeby Twoi agenci mogli z nich odpowiadać. Każda kolekcja jest przeszukiwalna i pozostaje prywatna dla Twojej organizacji — utwórz pierwszą tutaj."
-      },
-      "knowledge-tabs": {
-        "title": "Przeglądaj lub szukaj",
-        "body": "Dwa widoki tej samej wiedzy: kolekcje, które zbudowano, i wyszukiwanie, które przebiega przez wszystkie naraz."
-      },
-      "knowledge-integrations": {
-        "title": "Połączenia wielokrotnego użytku",
-        "body": "Połączenia współdzielone w organizacji: skonfiguruj tutaj raz bucket S3, dysk, stronę czy repozytorium i klonuj je do dowolnej kolekcji, zamiast konfigurować za każdym razem od nowa."
-      },
-      "knowledge-add-integration": {
-        "title": "Dodaj połączenie",
-        "body": "Zacznij nowe tutaj — wybierz konektor jak S3 czy Google Drive, podaj dane logowania, a stanie się dostępne do sklonowania do każdej kolekcji, która go potrzebuje."
-      },
-      "kb-header": {
-        "title": "Wnętrze kolekcji",
-        "body": "Nazwa kolekcji, zakres i sterowanie są na górze — odśwież ją, wrzuć pliki, zmień sposób ich czytania albo usuń ją."
+      "flow-skill-field-source": {
+        "title": "Napisz umiejętność",
+        "body": "Przełącz na Source i napisz samą wiedzę w Markdown — kroki, reguły, wyjątki. Możesz ją dopracować później w każdej chwili. Potem wybierz Dalej."
       },
       "kb-documents": {
         "title": "Co jest w środku",
         "body": "Każdy dokument w kolekcji, ze statusem każdego w trakcie przetwarzania i indeksowania. Dodaj więcej tutaj albo podejrzyj i usuń to, co już jest."
+      },
+      "kb-header": {
+        "title": "Wnętrze kolekcji",
+        "body": "Nazwa kolekcji, zakres i sterowanie są na górze — odśwież ją, wrzuć pliki, zmień sposób ich czytania albo usuń ją."
       },
       "kb-ingestion": {
         "title": "Jak czytane są dokumenty",
@@ -1633,65 +1637,89 @@
         "title": "Trzymaj w synchronizacji",
         "body": "Podłącz dysk, stronę czy repozytorium, a kolekcja odświeża się ze źródła zamiast czekać na ręczne ponowne wgranie."
       },
-      "orgs-new": {
-        "title": "Twoje organizacje",
-        "body": "Wszystko jest przypisane do organizacji. Utwórz jedną albo przełączaj się między tymi, do których należysz — każda trzyma swoich agentów, klucze i wiedzę osobno."
+      "knowledge-add-integration": {
+        "title": "Dodaj połączenie",
+        "body": "Zacznij nowe tutaj — wybierz konektor jak S3 czy Google Drive, podaj dane logowania, a stanie się dostępne do sklonowania do każdej kolekcji, która go potrzebuje."
       },
-      "org-profile": {
-        "title": "Nazwa i twarz",
-        "body": "Nazwa i awatar organizacji, pokazywane wszędzie, gdzie się pojawia. Właściciele i administratorzy mogą je tu zmienić."
+      "knowledge-integrations": {
+        "title": "Połączenia wielokrotnego użytku",
+        "body": "Połączenia współdzielone w organizacji: skonfiguruj tutaj raz bucket S3, dysk, stronę czy repozytorium i klonuj je do dowolnej kolekcji, zamiast konfigurować za każdym razem od nowa."
       },
-      "org-members": {
-        "title": "Kto w niej jest",
-        "body": "Wszyscy w organizacji i rola każdego z nich. Zaproś współpracowników, zmień rolę albo usuń kogoś — wszystko z tej listy."
+      "knowledge-new": {
+        "title": "Bazy wiedzy",
+        "body": "Wgraj dokumenty, żeby Twoi agenci mogli z nich odpowiadać. Każda kolekcja jest przeszukiwalna i pozostaje prywatna dla Twojej organizacji — utwórz pierwszą tutaj."
       },
-      "org-roles": {
-        "title": "Co może każda rola",
-        "body": "Macierz uprawnień, rola po roli: czego każda może dotknąć i jak daleko sięga. Udostępnienie pojedynczego zasobu może poszerzyć dostęp ponad rolę, nigdy go nie zawęzi."
-      },
-      "vault-new": {
-        "title": "Sejf",
-        "body": "Klucze API i inne poświadczenia żyją tutaj, zaszyfrowane w spoczynku. Agenci używają ich, żeby sięgnąć po potrzebne narzędzia, a zapisanego sekretu nikt już nie zobaczy."
-      },
-      "vault-keys": {
-        "title": "Co jest przechowywane",
-        "body": "Wszystkie poświadczenia w tej organizacji, wypisane według nazwy i rodzaju. Agent odwołuje się do klucza po nazwie; samej wartości po zapisaniu nikt już nie zobaczy."
-      },
-      "mcp-catalog": {
-        "title": "Podłącz narzędzia",
-        "body": "Serwery MCP to gotowe zestawy narzędzi, które Twoi agenci mogą wywoływać. Podłącz jeden tutaj, potem dodaj go do agenta z jego Toolboxa."
-      },
-      "mcp-filter": {
-        "title": "Znajdź serwer",
-        "body": "Przeszukaj katalog albo zawęź go po kategorii i po tym, czy jest już podłączony."
+      "knowledge-tabs": {
+        "title": "Przeglądaj lub szukaj",
+        "body": "Dwa widoki tej samej wiedzy: kolekcje, które zbudowano, i wyszukiwanie, które przebiega przez wszystkie naraz."
       },
       "mcp-add": {
         "title": "Dodaj własny",
         "body": "Nie ma go w katalogu? Dodaj własny serwer, wklejając jego URL — dla całej organizacji albo tylko dla siebie."
       },
+      "mcp-catalog": {
+        "title": "Podłącz narzędzia",
+        "body": "Serwery MCP to gotowe zestawy narzędzi, które Twoi agenci mogą wywoływać. Podłącz jeden tutaj, potem dodaj go do agenta z jego Toolboxa."
+      },
       "mcp-connect": {
         "title": "Połącz, potem wybierz narzędzia",
         "body": "Podłączenie serwera pyta, jak się zalogować, a potem pozwala wybrać dokładnie, które z jego narzędzi mogą wywoływać Twoi agenci."
+      },
+      "mcp-filter": {
+        "title": "Znajdź serwer",
+        "body": "Przeszukaj katalog albo zawęź go po kategorii i po tym, czy jest już podłączony."
+      },
+      "org-members": {
+        "title": "Kto w niej jest",
+        "body": "Wszyscy w organizacji i rola każdego z nich. Zaproś współpracowników, zmień rolę albo usuń kogoś — wszystko z tej listy."
+      },
+      "org-profile": {
+        "title": "Nazwa i twarz",
+        "body": "Nazwa i awatar organizacji, pokazywane wszędzie, gdzie się pojawia. Właściciele i administratorzy mogą je tu zmienić."
+      },
+      "org-roles": {
+        "title": "Co może każda rola",
+        "body": "Macierz uprawnień, rola po roli: czego każda może dotknąć i jak daleko sięga. Udostępnienie pojedynczego zasobu może poszerzyć dostęp ponad rolę, nigdy go nie zawęzi."
+      },
+      "orgs-new": {
+        "title": "Twoje organizacje",
+        "body": "Wszystko jest przypisane do organizacji. Utwórz jedną albo przełączaj się między tymi, do których należysz — każda trzyma swoich agentów, klucze i wiedzę osobno."
       },
       "sandboxes-connections": {
         "title": "Gdzie agenci uruchamiają kod",
         "body": "Agenci, którzy piszą i uruchamiają kod, robią to na tych hostach. Obserwuj sesje na żywo i ustaw limity stąd."
       },
+      "settings-tabs": {
+        "title": "Twoje ustawienia",
+        "body": "Twój profil, logowanie i bezpieczeństwo, powiadomienia oraz polecenia ukośnika — wszystko kryje się za tymi zakładkami; przełączaj się między nimi tutaj."
+      },
+      "skills-list": {
+        "title": "Twoje umiejętności",
+        "body": "Umiejętności, które napisano lub zainstalowano. Agent wybiera te, których potrzebuje, w swojej zakładce Skills, a ta sama umiejętność może służyć kilku agentom naraz."
+      },
+      "skills-new": {
+        "title": "Umiejętności wielokrotnego użytku",
+        "body": "Umiejętność to spakowany zestaw instrukcji, po który agent sięga do zadania. Napisz ją raz tutaj i współdziel między agentami, które jej potrzebują."
+      },
+      "vault-keys": {
+        "title": "Co jest przechowywane",
+        "body": "Wszystkie poświadczenia w tej organizacji, wypisane według nazwy i rodzaju. Agent odwołuje się do klucza po nazwie; samej wartości po zapisaniu nikt już nie zobaczy."
+      },
+      "vault-new": {
+        "title": "Sejf",
+        "body": "Klucze API i inne poświadczenia żyją tutaj, zaszyfrowane w spoczynku. Agenci używają ich, żeby sięgnąć po potrzebne narzędzia, a zapisanego sekretu nikt już nie zobaczy."
+      },
+      "welcome": {
+        "title": "Witaj w AgenticOS",
+        "body": "To tutaj Twój zespół buduje, uruchamia i nadzoruje swoich agentów AI. Przejdziemy przez każdą sekcję i wskażemy, na co warto zwrócić uwagę — jakaś minuta, a zamkniesz to, kiedy chcesz."
+      },
       "workspaces-browser": {
         "title": "Pliki, które agenci zachowali dla Ciebie",
         "body": "Gdy agent zapisuje plik, trafia tutaj — przeglądaj, podglądaj i pobieraj to, co wytworzyły Twoje rozmowy."
       },
-      "finish": {
-        "title": "Wszystko gotowe",
-        "body": "To koniec przewodnika. Wskazówki każdej strony odtworzysz w każdej chwili przyciskiem pomocy na górze — przejdź na pulpit, gdy będziesz gotów zacząć budować."
-      },
       "workspaces-detail": {
         "title": "Wnętrze przestrzeni",
         "body": "Pliki z jednej przestrzeni. Przeglądaj foldery, podejrzyj plik albo pobierz to, co agent dla Ciebie wytworzył."
-      },
-      "settings-tabs": {
-        "title": "Twoje ustawienia",
-        "body": "Twój profil, logowanie i bezpieczeństwo, powiadomienia oraz polecenia ukośnika — wszystko kryje się za tymi zakładkami; przełączaj się między nimi tutaj."
       }
     }
   },
@@ -1827,6 +1855,7 @@
     "fileCount": "{count, plural, =0 {Brak plików} one {1 plik} few {# pliki} many {# plików} other {# pliku}}",
     "fileRemoved": "Plik usunięty",
     "fileSaved": "Plik zapisany",
+    "fileTree": "Pliki skilla",
     "files": "Pliki",
     "files2": "Pliki",
     "files3": "Pliki",

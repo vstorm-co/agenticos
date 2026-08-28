@@ -14,12 +14,11 @@ organization from another, and how long any of it survives.
 
 Three processes, and the arrangement is the security model:
 
-```
-agenticos_backend  (container)  ──HTTP──▶  agenticos_sandboxd  (container)
-   no docker.sock                             /var/run/docker.sock  ──▶  the host's Docker daemon
-                                                                              │
-                                              a session's container  ◀────────┘
-                                              (a sibling, not a child)
+```mermaid
+flowchart LR
+    B["agenticos_backend<br/><i>no docker.sock</i>"] -->|HTTP + SANDBOXD_TOKEN| S["agenticos_sandboxd<br/><i>holds /var/run/docker.sock</i>"]
+    S -->|start a container| D[["the host's Docker daemon"]]
+    D --> C["a session's container<br/><i>a sibling of sandboxd, not a child</i>"]
 ```
 
 - **The API container holds no Docker socket.** That is the whole reason
@@ -40,16 +39,24 @@ the token in `SANDBOXD_TOKEN`. The other two sandbox backends a spec can name �
 `daytona` and `state` — are a hosted service and a document in Postgres, and
 neither involves any of the above.
 
-**The token is root-equivalent.** Whoever holds it can start containers on that
-host. `make sandbox-token` generates one into `backend/.env` once and leaves it
+!!! danger "The token is root-equivalent"
+
+    Whoever holds it can start containers on that host. Treat it as the Docker
+    socket it sits in front of.
+
+`make sandbox-token` generates one into `backend/.env` once and leaves it
 alone afterwards, because regenerating it orphans every workspace the service is
-currently holding. Treat it as the Docker socket it sits in front of — which is
-also why the service's own dashboard is off (`SANDBOXD_UI_ENABLED: 0`): that page
+currently holding. That is also why the service's own dashboard is off (`SANDBOXD_UI_ENABLED: 0`): that page
 asks a human to paste the token into a browser.
 
 ## A session, and what shares one
 
-**One container per session, never one for everybody.** A session is identified
+!!! abstract "One container per session, never one for everybody"
+
+    What a session's key folds in — scope, organization, backend kind and host —
+    is exactly what decides which runs share a container and a directory.
+
+A session is identified
 by a key the backend derives, and the key is what decides what is shared:
 
 ```
@@ -374,10 +381,13 @@ What remains, stated rather than implied:
    wants that trade.
 3. **A runtime with a network can reach ports published on the host.**
    `docker-compose.yml` publishes Postgres and Redis for local development, with
-   `postgres/postgres`; `docker-compose-prod.yml` publishes neither. So this is a
-   laptop caveat rather than a production one — but it is the cost of giving
-   `workbench` a network, and worth knowing before copying the local file to a
-   shared host.
+   `postgres/postgres`; `docker-compose-prod.yml` publishes neither.
+
+!!! warning "A laptop caveat, but check it before copying the local compose file"
+
+    `docker-compose.yml` publishes Postgres and Redis with `postgres/postgres`,
+    and `workbench` is the one runtime with a network. On a shared host that is
+    reachable from inside a sandbox; `docker-compose-prod.yml` publishes neither.
 
 ## What the file browser shows, and what it leaves out
 
@@ -395,6 +405,17 @@ the file counts:
 
 A count has to drop them too, or a workspace reporting four files where one is
 visible is a count nobody can check.
+
+**Whose it is and who else can see it are two answers, and the table carries
+both.** `access_label` is the *scope* in words — "everybody who talks to this
+agent", "whoever is in that conversation" — and it names nobody, which is the
+question an operator has about an agent-scoped workspace six people share. So the
+row also carries `owner_name`: an account's email, or the platform id of an owner
+who arrived through a channel and has no account here. It is drawn as words and
+never as a link, because half of them are not accounts to link to; and it is null
+for every scope but `user`, which is the only one that records an owner at all —
+three of the four honestly have none, and the column says so rather than repeating
+the scope.
 
 **A file says who put it there.** `uploads/` is where an attachment lands, so a
 path under it is a file a person attached and anything else is the agent's own
@@ -432,11 +453,15 @@ product's Files panel possible: reading a workspace never starts a container.
 | The record of what was done | `OPERATION_RETENTION_DAYS` 30 | The daily `sandbox-log-sweep` deletes the rows. The files are untouched |
 
 The last row is the library's default and it is deliberate — the notes and scripts
-are the work, and an agent's user expects them next week. The consequence is that
-disk use only grows: nothing sweeps a workspace whose conversation nobody will
-open again. `/tmp` is cleared by a reboot on a laptop; `/var/lib` is not. A
-deployment with a retention policy sets `SANDBOXD_WORKSPACE_TTL` to the number
-that policy says, and the files older than it go.
+are the work, and an agent's user expects them next week.
+
+!!! info "Disk use only grows"
+
+    Nothing sweeps a workspace whose conversation nobody will open again. Set
+    `SANDBOXD_WORKSPACE_TTL` to whatever your retention policy says and the files
+    older than it go.
+
+`/tmp` is cleared by a reboot on a laptop; `/var/lib` is not.
 
 Deleting a conversation purges its workspace through the product, so this is about
 what nobody deletes rather than about what they do.

@@ -182,6 +182,17 @@ export function useOrganizations() {
     [writeCache],
   );
 
+  const setChatApprovalWaiver = useCallback(
+    async (id: string, allowed: boolean): Promise<Organization> => {
+      const updated = await apiClient.patch<Organization>(`/orgs/${id}`, {
+        chat_may_waive_approvals: allowed,
+      });
+      writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
+      return updated;
+    },
+    [writeCache],
+  );
+
   const deleteOrg = useCallback(
     async (id: string) => {
       try {
@@ -215,6 +226,7 @@ export function useOrganizations() {
     createOrg,
     patchOrg,
     setMonthlyBudget,
+    setChatApprovalWaiver,
     deleteOrg,
     switchOrg,
   };

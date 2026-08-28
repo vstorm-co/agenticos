@@ -13,6 +13,13 @@ from app.services.rag.vectorstore import BaseVectorStore
 logger = logging.getLogger(__name__)
 
 
+class _CollectionRemoved(Exception):
+    """The collection was deleted while a file was being ingested into it.
+
+    Carried into `_failed` only so the failure names a cause; the document row is
+    gone by the time this is raised, so the message is never stored (#1275)."""
+
+
 @dataclass(frozen=True)
 class StoredDocument:
     """What a collection already holds for the file being ingested.
@@ -87,6 +94,8 @@ class IngestionService:
         collection_name: str,
         replace: bool = True,
         source_path: str = "",
+        *,
+        still_wanted: Callable[[], Awaitable[bool]] | None = None,
     ) -> IngestionResult:
         """`source_path` accepts URI schemes like gdrive://id or s3://bucket/key.
 
@@ -95,6 +104,12 @@ class IngestionService:
         caller cannot work out afterwards, and the difference between a file
         this collection's parser does not read and an embedding credential the
         provider refused.
+
+        `still_wanted` is checked after the parse and before the write: parsing a
+        large file is slow, and if the collection is dropped while it runs, the
+        insert's `CREATE TABLE IF NOT EXISTS` would resurrect the dropped table
+        and leave an untracked one behind (#1275). A caller that can tell whether
+        the collection still exists passes it so the write is skipped instead.
         """
         try:
             document: Document = await self.processor.process_file(filepath)
@@ -125,6 +140,21 @@ class IngestionService:
             # other way: a delete that does not happen leaves both, which is
             # visible, searchable and fixable, where neither was none of those
             # (#990).
+            if still_wanted is not None and not await still_wanted():
+                # The collection was torn down while this file parsed. Its
+                # document row went with it, so there is nothing to complete -
+                # and writing now would have `_ensure_collection` recreate the
+                # dropped table and leave an untracked one holding these vectors
+                # (#1275). Abort before the write rather than resurrect it.
+                logger.info(
+                    "Skipping index for %s: collection %s is gone", filepath.name, collection_name
+                )
+                return self._failed(
+                    _CollectionRemoved(collection_name),
+                    stage=IngestionStage.INDEX,
+                    filename=filepath.name,
+                )
+
             await self.store.insert_document(
                 collection_name=collection_name,
                 document=document,

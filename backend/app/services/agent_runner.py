@@ -74,6 +74,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities.approval import (
     ApprovalDecision,
     ApprovalGranted,
+    ApprovalMode,
     ApprovalPending,
     ApprovalRejected,
     ApprovalRequest,
@@ -97,6 +98,7 @@ from app.agents.capabilities.planning import (
     dump_plan,
     new_plan_store,
     open_plan_store,
+    still_open,
 )
 from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE, WorkspaceIdentity
 from app.agents.capabilities.sandbox._identity import SessionScope
@@ -155,6 +157,7 @@ from app.repositories import (
     conversation_repo,
     knowledge_base_repo,
     message_rating_repo,
+    organization_repo,
     run_manifest_repo,
 )
 from app.repositories.agent_run import AgentSpendRow, RunFilters
@@ -529,6 +532,16 @@ class ParkedApproval:
     subagent: str | None = None
     """Which delegate asked, or `None` for the run's own agent."""
 
+    standing: bool = False
+    """Whether this was granted by standing consent rather than parked.
+
+    `ApprovalMode.APPROVE_ALL` grants the call and records it anyway, so the row
+    exists and says who consented: skipping it would make a waived run
+    indistinguishable from an agent that was never gated, and the audit trail
+    `docs/governance.md` describes would quietly become untrue (#925). The row is
+    written `approved` rather than `pending`, and nothing about it is resumable -
+    the run never stopped."""
+
     subagent_agent_id: UUID | None = None
     """That delegate's own agent, or `None` for the run's own agent or an inline
     specialist, which has no agent of its own. Read from the delegation in flight
@@ -577,6 +590,19 @@ class ApprovalChannel:
     decided: dict[str, ApprovalDecision] = field(default_factory=dict)
     parked: dict[str, str] = field(default_factory=dict)
 
+    standing_consent_by: UUID | None = None
+    """Who granted every gated call on this run in advance, or `None`.
+
+    Set only for a web chat turn whose session asked for
+    `ApprovalMode.APPROVE_ALL`, and only after `prepare` has checked that this
+    caller may waive and that the organization allows it. A gated call then
+    resolves to a grant rather than a park - and still appends to `requested`, so
+    the row is written naming the consenting account (#925).
+
+    Never set anywhere unattended: `ApprovalGate` already refuses a run with no
+    approval channel, and standing consent must not become the way a schedule
+    approves itself."""
+
     requested: list[ParkedApproval] = field(default_factory=list)
     """What was parked, in enough detail for a surface to put it to somebody and
     for :meth:`AgentRunnerService._write_approvals` to write the row.
@@ -604,13 +630,19 @@ class ApprovalChannel:
         # list append, each atomic under the GIL - so with no `await` in the body
         # two concurrent gated calls cannot interleave and race the shared session.
         approval_id = uuid4()
-        self.parked[str(approval_id)] = request.tool_call_id
+        # Standing consent is recorded, not skipped: the row is the difference
+        # between a run somebody waived and an agent nobody ever gated. It is not
+        # added to `parked`, because nothing is waiting - `paused_state` names the
+        # calls a resume has to answer, and this one already ran (#925).
+        if self.standing_consent_by is None:
+            self.parked[str(approval_id)] = request.tool_call_id
         self.requested.append(
             ParkedApproval(
                 approval_id=approval_id,
                 tool_call_id=request.tool_call_id,
                 tool_name=request.tool_name,
                 tool_args=request.tool_args,
+                standing=self.standing_consent_by is not None,
                 subagent=None if delegate is None else delegate.name,
                 # The delegate's own agent, which is *not* `self.agent_id`: that one
                 # is the agent whose run this is and what the row is scoped by. Null
@@ -619,6 +651,8 @@ class ApprovalChannel:
                 task_id=None if delegate is None else delegate.task_id,
             )
         )
+        if self.standing_consent_by is not None:
+            return ApprovalGranted(request.tool_args)
         return ApprovalPending()
 
 
@@ -953,6 +987,26 @@ class PreparedRun:
     next turn with a plan nobody continued. Defaulted to an empty store so a
     `PreparedRun` built outside the runner (a test) still answers an empty plan
     rather than `None`; `_assemble` replaces it with the run's seeded one.
+    """
+
+    finished_plan_withheld: bool = False
+    """Whether this run's store was opened empty over a *finished* stored plan.
+
+    A finished checklist is history and is not seeded (#1221), which leaves the
+    store empty - and `finish` writes the store back to the conversation, so the
+    next ordinary turn would dump `[]` over the row and delete the plan the fix
+    promises to keep. So the write is skipped while the store is still empty:
+    there is nothing this turn did to the checklist to record. An agent that
+    writes a new plan dumps a non-empty one and replaces the row as usual.
+
+    This tracks *what was seeded*, not whether the store was touched, and the
+    difference is one case: a turn that writes a plan and then empties it leaves
+    the withheld checklist in the row rather than clearing it. Nothing observes
+    that - `plan_items` has one reader, the seed, and the seed withholds a
+    finished plan either way - so the row differs only in holding a list nobody
+    will be seeded with. Tracking the store's dirtiness instead would need a
+    delegating `PlanStore`: `write_plan` goes through `set_items`, which the
+    library emits no event for.
     """
 
     @property
@@ -1511,10 +1565,17 @@ class AgentRunnerService:
         exposure: AgentExposure | None = None,
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
+        approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
     ) -> PreparedRun:
         """Assemble everything a run needs and open its row.
 
         Args:
+            approval_mode: How much this session wants to be asked, whatever the
+                spec says (#925). `FOLLOW_AGENT` is every run that does not name
+                one and is exactly the behaviour that existed before. The other
+                two are checked here rather than at the surface: `prepare` is the
+                one funnel a fresh run and a resumed one share, so a check at the
+                socket would be a check one caller could forget.
             channel_directory: The one channel this run is answering in, ready
                 to be asked about, or `None` on every surface that is not a
                 channel. Bound by the caller because binding one needs the bot
@@ -1573,7 +1634,57 @@ class AgentRunnerService:
             already_started={},
             version_id=version_id,
             environment_id=effective_environment_id,
+            approval_mode=await self._allowed_approval_mode(ctx, approval_mode, surface=surface),
         )
+
+    async def _allowed_approval_mode(
+        self, ctx: AuthContext, requested: ApprovalMode, *, surface: RunSurface
+    ) -> ApprovalMode:
+        """The mode this caller may actually run, or a refusal.
+
+        **Refused, never downgraded.** Answering a request to waive approvals by
+        quietly following the spec instead would leave somebody believing they had
+        turned the questions off, and the next gated call parks a run they think
+        is running - so a mode this caller may not set is an error with a reason,
+        not a silent fallback (#925).
+
+        Three things have to hold for `APPROVE_ALL`, and each is a different
+        failure if it does not:
+
+        - the caller holds `approvals:decide`. A standing consent *is* the
+          decision the approval queue exists to record, and `member` and `builder`
+          hold `agents:run` without it - so without this gate the everyday chat
+          user grants themselves, in one click, the authority the API refuses them
+          one endpoint over;
+        - the organization allows waiving at all. Without a ceiling a Builder's
+          deliberate gate is one click from nothing in every conversation, which
+          makes the per-tool model advisory;
+        - the surface is the web chat. `ApprovalGate` already refuses a run with
+          no approval channel, and standing consent must not become the way a
+          schedule or a webhook approves itself.
+
+        `ASK_ALL` passes all three by construction: it only ever tightens, so it
+        needs no permission, no ceiling and no surface check.
+        """
+        if requested is not ApprovalMode.APPROVE_ALL:
+            return requested
+        if surface is not RunSurface.WEB:
+            raise AuthorizationError(
+                message="Approvals can only be waived from a chat session.",
+                details={"surface": surface.value},
+            )
+        if not ctx.has(Perm.APPROVALS_DECIDE):
+            raise AuthorizationError(
+                message="You may not waive approvals; ask somebody who can decide them.",
+                details={"permission": Perm.APPROVALS_DECIDE.value},
+            )
+        organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
+        if organization is None or not organization.chat_may_waive_approvals:
+            raise AuthorizationError(
+                message="This organization does not allow conversations to waive approvals.",
+                details={"organization_id": ctx.organization_id},
+            )
+        return requested
 
     async def _assemble(
         self,
@@ -1593,6 +1704,7 @@ class AgentRunnerService:
         resuming: dict[str, ResumedDelegation],
         already_spent: dict[str, DelegationSpend],
         already_started: dict[str, datetime | None],
+        approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
         specialists: Mapping[str | None, Sequence[RegisteredSpecialist]] | None = None,
         model_profile_id: UUID | None = None,
         version_id: UUID | None = None,
@@ -1666,7 +1778,14 @@ class AgentRunnerService:
         # itself seeded from the conversation when that run began, and then worked
         # on. Without the conversation's copy the store is empty every turn, which
         # is an agent denying the plan it wrote in the previous message (#1077).
-        plan_store = await open_plan_store(plan_items if plan_items is not None else recorded.plan)
+        #
+        # `still_open` on the conversation's copy only: a finished checklist is
+        # history, and seeding it would have the tail reminder call a task nobody
+        # is doing "your current plan" (#1221). A resume is mid-plan by
+        # construction and goes through untouched.
+        seeded_from = plan_items if plan_items is not None else still_open(recorded.plan)
+        finished_plan_withheld = seeded_from is None and bool(recorded.plan)
+        plan_store = await open_plan_store(seeded_from)
         resources[PLANNING_STORE_RESOURCE] = plan_store
         # Only on a channel run, and bound to the channel the message arrived in
         # before it got here. Absent everywhere else, and `channel_tools` then
@@ -1804,6 +1923,12 @@ class AgentRunnerService:
             agent_id=agent.id,
             run_id=run.id,
             decided=decided,
+            # Only ever set by a checked `APPROVE_ALL` - `_allowed_approval_mode`
+            # has already refused a caller who may not waive, an organization that
+            # does not allow it, and every surface but the web chat.
+            standing_consent_by=(
+                ctx.user_id if approval_mode is ApprovalMode.APPROVE_ALL else None
+            ),
         )
 
         # Everything a delegation needs, resolved while there is still a session
@@ -1856,6 +1981,7 @@ class AgentRunnerService:
             org_period_spend=org_period_spend,
             org_monthly_budget_usd=organization.monthly_budget_usd,
             request_approval=channel,
+            gate_every_tool=approval_mode is ApprovalMode.ASK_ALL,
             # Both from one read of the conversation (see
             # `_recorded_conversation_state`): the request overhead, without which
             # a one-request turn cannot tell a window with no room for a summary
@@ -1888,6 +2014,7 @@ class AgentRunnerService:
             stash=stash,
             ctx=ctx,
             plan_store=plan_store,
+            finished_plan_withheld=finished_plan_withheld,
         )
 
     async def _delegation_runtime(
@@ -2634,6 +2761,10 @@ class AgentRunnerService:
                 subagent_agent_id=(
                     parked.subagent_agent_id if parked.subagent_agent_id in present else None
                 ),
+                # Who consented in advance, for a call granted by standing consent
+                # rather than parked. `None` leaves the row pending, which is every
+                # other approval there has ever been.
+                standing_consent_by=(channel.standing_consent_by if parked.standing else None),
             )
 
     @staticmethod
@@ -3548,13 +3679,17 @@ class AgentRunnerService:
                             prepared.built.reminder_state.snapshot(),
                         )
                     # The checklist the turn ended on, so the next turn starts
-                    # from it rather than from nothing. Unconditional: `keep_plan`
-                    # treats an empty list as no plan, so an agent that binds no
-                    # planning capability writes nothing, and a run that emptied a
-                    # stored plan records that it did.
-                    await conversations.keep_plan(
-                        prepared.run.conversation_id, await dump_plan(prepared.plan_store)
-                    )
+                    # from it rather than from nothing. `keep_plan` treats an empty
+                    # list as no plan, so an agent that binds no planning
+                    # capability writes nothing, and a run that emptied a stored
+                    # plan records that it did.
+                    #
+                    # The one turn that writes nothing is the one whose store was
+                    # opened empty over a finished plan: it did nothing to the
+                    # checklist, and `[]` would delete the row #1221 keeps.
+                    checklist = await dump_plan(prepared.plan_store)
+                    if checklist or not prepared.finished_plan_withheld:
+                        await conversations.keep_plan(prepared.run.conversation_id, checklist)
                 await self.db.commit()
             except Exception:
                 if finished_cleanly:
