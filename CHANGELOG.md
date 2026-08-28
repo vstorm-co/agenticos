@@ -17,6 +17,36 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.335] - 2026-08-28
+
+### Changed
+
+- **The Share conversation dialog picks a person rather than asking for an email
+  address.** It had a text field and a hand-rolled suggestion list that appeared only
+  once something had been typed, so the control's default state was a blank box you
+  had to already know the answer to fill, and every mistyped address was a 404.
+  `MemberPicker` - a popover over a `cmdk` list - opens with the organization in it,
+  each row a face and a name over the address, and somebody who already has access is
+  not offered again. The API has always accepted `shared_with` beside
+  `shared_with_email`, so this is a client change rather than a contract change, and
+  sharing outside the organization becomes impossible by construction - #930's client
+  half. `matchingMembers` and its four tests go with the field. (#931)
+- **View and Edit carry icons and a sentence.** `Eye` and `Pencil`, in the select and
+  on every row, with one line saying what the level permits - because "edit" on a
+  conversation is not obvious: it is rename, archive, delete and append turns, which
+  `ConversationService._may_write` decides and nothing on the dialog used to say.
+  (#931)
+- **The access list reads as people.** `MemberIdentity`, the same row the members
+  table and the alerts picker draw, resolved against the organization's members - with
+  a fallback to whatever the share itself holds, because a share whose member is gone
+  still has to be revocable. The level is the catalog's word now: the badge printed the
+  API's raw `view`/`edit`, so that one row was English in every locale while the select
+  above it was translated, and the i18n guard could not see it because it is an
+  expression rather than a literal. (#931)
+- `DIALOG_FORM` instead of `DIALOG_CONFIRM`, and three separated sections - invite, who
+  has access, the link - rather than three controls on one row. A share token is not a
+  person, so it keeps its own row. (#931)
+
 ## [0.0.334] - 2026-08-28
 
 ### Fixed
