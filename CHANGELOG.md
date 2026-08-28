@@ -17,6 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.331] - 2026-08-28
+
+### Fixed
+
+- **`DELETE /kb/{id}` deleted only the `knowledge_bases` row.** Its `rag_documents`
+  rows, whose FK is `SET NULL`, survived detached and readable by a later same-named
+  collection; the uploaded files stayed on disk; and the physical `rag_<collection>`
+  table was left behind with the collection name still blocking reuse. The full
+  teardown existed only on the org purge path. `KnowledgeBaseService.delete` now takes
+  the vector store - **required, not optional**, the shape #992 used so a delete route
+  cannot silently skip the teardown again - and runs it: the base's document rows and
+  their stored files, then the row, then the `rag_<collection>` table, dropped only
+  when no other base still references the name, which is not tenant-unique (#913). The
+  route wires in the `VectorStoreSvc` it did not have. (#1266, #1290)
+
 ## [0.0.330] - 2026-08-28
 
 ### Fixed
