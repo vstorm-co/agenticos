@@ -17,6 +17,33 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.319] - 2026-08-28
+
+### Fixed
+
+- **An organization teardown dropped vector tables and unlinked stored uploads before
+  the transaction that deleted their rows had committed.**
+  `OrganizationService.purge` did both inside the request, on the vector store's own
+  session, so a final commit that failed rolled the organization, knowledge base and
+  document rows back into existence pointing at vectors and files that were already
+  gone - residual 1 of #1116's review. The relational deletes still run in the request
+  transaction; the storage paths and the collections whose tables are no longer
+  referenced are collected and handed to `spawn_after_commit`, so a failed commit
+  discards the cleanup unrun and leaves nothing dangling. #1116's ordering - document
+  rows before identifiers, a table dropped only once unreferenced - is unchanged.
+  (#1137)
+- The cleanup is a module function taking the paths, the collections and the vector
+  store rather than a method, so the queued coroutine holds primitives and the
+  process-lived store and never the request session, which is gone by the time it
+  runs. (#1137)
+
+### Changed
+
+- Residuals 2-4 of #1137 - a `NULL`-`knowledge_base_id` document sharing a collection
+  name, a deleted tenant's vectors kept in a shared table, and the TOCTOU on the
+  reference check - all depend on tenant-unique collection names (#913) and are
+  recorded on the `purge` docstring instead.
+
 ## [0.0.318] - 2026-08-28
 
 ### Fixed
