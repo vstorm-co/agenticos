@@ -12,14 +12,17 @@ to neighbouring rows when one is deleted, which a mock cannot show.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from unittest.mock import MagicMock
 
 import pytest
 from sqlalchemy import select, text
+from sqlalchemy.exc import DBAPIError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.core.config import settings as app_settings
+from app.core.exceptions import BadRequestError
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
@@ -141,8 +144,6 @@ class TestDeletingAUser:
     async def test_the_sole_owner_of_a_shared_org_is_refused_not_500ed(self, db):
         """A shared org with no other owner has nobody to hand the creator FK to,
         so the delete is a clean refusal rather than a foreign-key 500."""
-        from app.core.exceptions import BadRequestError
-
         owner = _user()
         db.add(owner)
         await db.flush()
@@ -253,3 +254,57 @@ class TestDeletingAnOrg:
             surviving = await s.get(KnowledgeBase, kb_id)
             assert surviving is not None
             assert surviving.organization_id is None
+
+
+class TestConcurrentSelfDeletes:
+    async def test_mutual_co_owners_deleting_at_once_never_deadlock(
+        self, engine: AsyncEngine
+    ) -> None:
+        """Two users who each solely own a shared org the other co-owns, deleting
+        their own accounts at the same moment.
+
+        `delete` reassigns each solely-created shared org to its heir, taking FOR
+        KEY SHARE on the heir's user row through the FK while holding FOR UPDATE on
+        its own. Before #1134 the two requests took those locks in opposite orders
+        - each holding its own row and waiting for the other's - so Postgres broke
+        the cycle by aborting one with a 40P01, surfacing as a 500. Locking every
+        user row in ascending id order serialises the two on the lower id, so one
+        completes and the other, now the sole owner of its org, gets a clean domain
+        refusal - never a DeadlockDetected. Integration because the deadlock is a
+        property of two transactions the database arbitrates, which a mock cannot
+        show.
+        """
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async with factory() as setup:
+            a = _user()
+            b = _user()
+            setup.add_all([a, b])
+            await setup.flush()
+            org_a = await _org(setup, a)
+            await _member(setup, org_a.id, b.id, "owner")
+            org_b = await _org(setup, b)
+            await _member(setup, org_b.id, a.id, "owner")
+            await setup.commit()
+            a_id, b_id = a.id, b.id
+
+        async def run_delete(user_id: uuid.UUID) -> object:
+            async with factory() as session:
+                user = await UserService(session).delete(user_id)
+                await session.commit()
+                return user
+
+        results = await asyncio.gather(run_delete(a_id), run_delete(b_id), return_exceptions=True)
+
+        for result in results:
+            assert not isinstance(result, (OperationalError, DBAPIError)), result
+
+        deleted = [r for r in results if isinstance(r, User)]
+        refused = [r for r in results if isinstance(r, BadRequestError)]
+        assert len(deleted) == 1
+        assert len(refused) == 1
+
+        async with factory() as check:
+            assert await check.get(User, deleted[0].id) is None
+            survivor = a_id if deleted[0].id == b_id else b_id
+            assert await check.get(User, survivor) is not None
