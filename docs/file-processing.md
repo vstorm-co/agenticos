@@ -1,11 +1,11 @@
-# File Processing
+# File processing
 
 This document covers how files are handled in two contexts: chat file uploads,
 which belong to the person who made them, and RAG document ingestion, which
 belongs to a collection and is gated on
 [who may reach it](#who-may-reach-a-collection).
 
-## Chat File Uploads
+## Chat file uploads
 
 When a user uploads a file in the chat interface, the following pipeline runs:
 
@@ -87,7 +87,7 @@ After that it is an ordinary `text/plain` attachment and everything below applie
 to it unchanged, which is the point: an agent with a workspace gets the paste as
 a file it can open, and one without gets the text in its prompt.
 
-### Supported File Types
+### Supported file types
 
 | Category | MIME Types | Extensions | Processing |
 |----------|-----------|------------|------------|
@@ -180,7 +180,7 @@ rather than from each surface. It has to be there: where a file goes depends on
 whether the agent has a workspace, and that is decided by `prepare`, which has
 not run when a surface is assembling its prompt.
 
-### PDF Parsing (Chat)
+### PDF parsing (chat)
 
 Chat attachments are read with **PyMuPDF**, and that is not configurable. An
 attachment belongs to no collection, so there is no stored configuration to read
@@ -193,7 +193,7 @@ self._parse_pdf_pymupdf(data)`, so a deployment setting it to `llamaparse` or
 could not have worked at all, calling a `parse_async` method the binding does
 not define.
 
-### Size Limits
+### Size limits
 
 !!! warning "Two ceilings, and the browser has its own copy of one"
 
@@ -229,7 +229,7 @@ media/
     ...
 ```
 
-### ChatFile Model
+### ChatFile model
 
 The `ChatFile` database model tracks uploaded files:
 
@@ -246,7 +246,7 @@ The `ChatFile` database model tracks uploaded files:
 | `message_id` | UUID/FK | Linked message (set when message is sent) |
 | `created_at` | DateTime | Upload timestamp |
 
-### Ownership & Access
+### Ownership & access
 
 - Only the file owner can download their files (`GET /files/{id}`).
 - The `FileUploadService.get_user_file()` method compares `chat_file.user_id`
@@ -261,12 +261,12 @@ The `ChatFile` database model tracks uploaded files:
   render a stranger's filename nor pull an attachment off the message it
   already hangs on.
 
-## RAG Document Ingestion
+## RAG document ingestion
 
 When documents are ingested into the RAG knowledge base (via CLI or API), a
 different pipeline handles parsing, chunking, and embedding.
 
-### Ingestion Flow
+### Ingestion flow
 
 ```mermaid
 flowchart TD
@@ -330,7 +330,7 @@ over that connection.
 !!! tip "If ingestion starts failing part-way through a large batch with a connection error, this is the shape to look for."
 
 
-### Supported Formats
+### Supported formats
 
 `.txt`, `.md` and `.docx` are read by the built-in Python parsers whatever the
 collection's parser is. Beyond those, the set follows the parser:
@@ -352,7 +352,7 @@ These sets are what `DocumentProcessor` can actually route — pinned by
 a `.xlsx` was accepted, stored, given a document row and dispatched, and then
 died in a worker as "Unsupported file type".
 
-### Parser Selection (RAG)
+### Parser selection (RAG)
 
 Per collection, on `/rag`, and overridable per upload — not an environment
 variable. Stored on `knowledge_bases.ingestion_config`.
@@ -373,7 +373,7 @@ variable. Stored on `knowledge_bases.ingestion_config`.
 | `liteparse_dpi` | `150` | Higher reads faint scans, slower. |
 | `max_pages` | `1000` | The setting that bounds the cost of one document; `parse_timeout_seconds` only bounds the wait. |
 
-### Chunking Configuration
+### Chunking configuration
 
 Per collection, alongside the parser:
 
@@ -509,7 +509,7 @@ the one caller that never asked the resolver at all, so every uploaded document
 was embedded with the deployment's model and key whatever its collection had
 chosen.
 
-### Vector Storage
+### Vector storage
 Vectors are stored in **pgvector** using the existing PostgreSQL database.
 No additional services needed.
 
@@ -653,7 +653,7 @@ are derived from what people call their knowledge bases, so confirming that
 collection, so reaching one reaches every document in it — which is the thing to weigh
 when deciding what to ingest where.
 
-### Document Tracking
+### Document tracking
 
 
 Ingested documents are tracked in the SQL database via the `RAGDocument` model:
@@ -805,7 +805,7 @@ filter this deployment ships does not currently scrub it.
 [#440]: https://github.com/vstorm-co/agenticos/issues/440
 
 
-### Sync Operations
+### Sync operations
 
 Sync operations are tracked via the `SyncLog` model, recording source, mode,
 total files, ingested/updated/skipped/failed counts, and timing. View sync
@@ -1149,7 +1149,7 @@ field is the honest answer there. Inventing a field name would send somebody to
 edit a value that was accepted. `checked_drive_folder_id` names none for the same
 reason: it answers three sinks and only one of them was sent a form to mark.
 
-### Image Description
+### Image description
 
 When processing documents that contain images, the system can optionally
 describe images using LLM vision capabilities. Image description is a

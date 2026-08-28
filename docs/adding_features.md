@@ -1,6 +1,6 @@
-# Adding New Features
+# Adding a feature
 
-## Adding a New API Endpoint
+## Adding a new API endpoint
 
 !!! abstract "One walkthrough, in the Guides"
 
@@ -17,7 +17,7 @@ session and raising domain exceptions, an `Annotated` **dependency** in
 `api/deps.py`, and a **route** returning `-> Any` with `response_model` doing the
 serialization.
 
-## Adding a Custom CLI Command
+## Adding a custom CLI command
 
 Commands are auto-discovered from `app/commands/`.
 
@@ -68,7 +68,7 @@ part of a **capability**:
 
 What ships today is in the [capability catalog](reference/capabilities.md).
 
-## Adding a Database Migration
+## Adding a database migration
 
 !!! warning "`make db-check` skips itself when no database is listening"
 

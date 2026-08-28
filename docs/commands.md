@@ -1,13 +1,13 @@
-# Commands Reference
+# Commands
 
 This project provides commands via two interfaces: **Make** targets for common
 workflows and a **project CLI** for fine-grained control.
 
-## Make Commands
+## Make commands
 
 Run these from the project root directory.
 
-### Quick Start
+### Quick start
 
 | Command | Description |
 |---------|-------------|
@@ -149,7 +149,7 @@ The runner is `python -m app.worker.prefect_app`; flows live in `app/worker/task
 Open the UI to watch flow runs, inspect logs, and trigger deployments manually.
 Self-hosted by default — set `PREFECT_API_KEY` (and a Cloud `PREFECT_API_URL`) to use Prefect Cloud instead.
 
-### Docker (Development)
+### Docker (development)
 
 | Command | Description |
 |---------|-------------|
@@ -167,7 +167,7 @@ Self-hosted by default — set `PREFECT_API_KEY` (and a Cloud `PREFECT_API_URL`)
 | `make docker-redis` | Start only Redis |
 | `make docker-redis-stop` | Stop Redis |
 
-### Docker (Production with Traefik)
+### Docker (production with Traefik)
 
 | Command | Description |
 |---------|-------------|
@@ -176,7 +176,7 @@ Self-hosted by default — set `PREFECT_API_KEY` (and a Cloud `PREFECT_API_URL`)
 | `make docker-prod-logs` | Follow production logs |
 | `make docker-prod-build` | Build production images |
 
-### Vercel (Frontend Deployment)
+### Vercel (frontend deployment)
 
 | Command | Description |
 |---------|-------------|
@@ -193,7 +193,7 @@ cd backend
 uv run agenticos <group> <command> [options]
 ```
 
-### Server Commands
+### Server commands
 
 ```bash
 uv run agenticos server run              # Start dev server
@@ -240,7 +240,7 @@ uvicorn's `auto` picks the legacy one, which fails the handshake against
 websockets >=14 with an HTTP 500 — and the dashboard chat is a WebSocket.
 
 
-### Database Commands
+### Database commands
 
 ```bash
 uv run agenticos db init                  # Run all migrations
@@ -253,7 +253,7 @@ uv run agenticos db current               # Show current revision
 uv run agenticos db history               # Show migration history
 ```
 
-### User Commands
+### User commands
 
 ```bash
 # Create user (interactive prompts for email/password)
@@ -284,7 +284,7 @@ uv run agenticos cmd create-app-admin user@example.com
 uv run agenticos cmd create-app-admin user@example.com --revoke
 ```
 
-### Custom Commands
+### Custom commands
 
 Custom commands are auto-discovered from `app/commands/`. Run them via:
 
@@ -294,7 +294,7 @@ uv run agenticos cmd <command-name> [options]
 
 `uv run agenticos cmd --help` lists everything the running deployment has.
 
-### Setup and Diagnostics
+### Setup and diagnostics
 
 ```bash
 # An organization, an owner, a model profile and a published agent. Idempotent.
@@ -342,7 +342,7 @@ uv run agenticos cmd seed --count 10 --clear
 migrations it needs. Run `doctor` first when something works locally and not on a
 fresh environment — it is faster than reading logs.
 
-### Channel Bots
+### Channel bots
 
 See [Channels](channels.md) for what each platform supports.
 
@@ -380,11 +380,11 @@ Access modes are `open`, `whitelist`, `jwt_linked` and `group_only`. A mention r
 as the *sender*, never as the bot, and an unlinked identity is refused rather than
 run with no role — see [Channels](channels.md#what-every-channel-shares).
 
-### RAG Commands
+### RAG commands
 
 All RAG commands are custom commands invoked via `cmd`:
 
-#### Document Ingestion
+#### Document ingestion
 
 The default collection is `default`. A name whose vector table the models already
 declare — `documents`, which prefixed is the ingestion tracking table — is refused
@@ -422,7 +422,7 @@ uv run agenticos cmd rag-search "deployment guide" --collection docs
 uv run agenticos cmd rag-search "deployment" --top-k 10
 ```
 
-#### Collection Management
+#### Collection management
 
 ```bash
 # List all collections with stats
@@ -438,7 +438,7 @@ uv run agenticos cmd rag-drop my_collection
 uv run agenticos cmd rag-drop my_collection --yes
 ```
 
-#### Google Drive Sync
+#### Google Drive sync
 
 ```bash
 # Sync from Google Drive root
@@ -448,7 +448,7 @@ uv run agenticos cmd rag-sync-gdrive --collection docs
 uv run agenticos cmd rag-sync-gdrive --collection docs --folder-id abc123
 ```
 
-#### S3/MinIO Sync
+#### S3/MinIO sync
 
 ```bash
 # Sync from S3 bucket root
@@ -462,7 +462,7 @@ uv run agenticos cmd rag-sync-s3 --collection docs --bucket my-bucket
 ```
 
 
-#### Sync Source Management
+#### Sync source management
 
 ```bash
 # List configured sync sources
@@ -498,7 +498,7 @@ process ends when its coroutine returns — so a command that only triggered and
 exited was cancelling the work it had just reported as started. Over the API
 that task belongs to a long-lived worker and nothing has to wait for it.
 
-## Adding Custom Commands
+## Adding custom commands
 
 Commands are auto-discovered from `app/commands/`. Create a new file:
 

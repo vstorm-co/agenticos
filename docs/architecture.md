@@ -1,10 +1,10 @@
-# Architecture Guide
+# Architecture
 
 This project follows a **Repository + Service** layered architecture.
 Every feature — users, conversations, files, RAG documents, sync sources — uses
 the same pattern: **Models → Schemas → Repositories → Services → Endpoints**.
 
-## Request Flow
+## Request flow
 
 ```mermaid
 flowchart LR
@@ -33,7 +33,7 @@ scope no service test can see, and the next reader of the entity has to know to 
 the same thing. The single exemption is a `Literal` of sort orders, imported as a
 type rather than as data access.
 
-## Directory Structure (`backend/app/`)
+## Directory structure (`backend/app/`)
 
 | Directory / File | Purpose |
 |-----------|---------|
@@ -80,9 +80,9 @@ type rather than as data access.
 | `rag/connectors/` | Sync connectors (Google Drive, S3) |
 | `commands/` | Django-style CLI commands |
 
-## Layer Responsibilities
+## Layer responsibilities
 
-### API Routes (`api/routes/v1/`)
+### API routes (`api/routes/v1/`)
 - HTTP request/response handling
 - Input validation via Pydantic schemas
 - Authentication and authorization checks
@@ -116,7 +116,7 @@ type rather than as data access.
 - SQLAlchemy 2.0 model definitions
 - Relationships, indexes, and column defaults live here
 
-### RAG Connectors (`rag/connectors/`)
+### RAG connectors (`rag/connectors/`)
 - Pluggable sync adapters that implement `BaseSyncConnector`
 - Each connector provides `list_files()` and `download_file()`
 - Registered in `CONNECTOR_REGISTRY` for discovery at runtime
@@ -496,7 +496,7 @@ and the rest is what stops the one shape from meaning two things again:
   claimed by `submitFailure`'s `identifiedBy` on the client, so a 409 carries the
   taken value and no field.
 
-## Key Files
+## Key files
 
 - Entry point: `app/main.py`
 - Configuration: `app/core/config.py`
@@ -505,9 +505,9 @@ and the rest is what stops the one shape from meaning two things again:
 - Exception handlers: `app/api/exception_handlers.py`
 - Field-level refusals: `app/core/field_errors.py`
 
-## Authentication & Authorization
+## Authentication & authorization
 
-### Authentication Methods
+### Authentication methods
 
 The project supports two authentication methods, both always available:
 
@@ -628,7 +628,7 @@ return await service.usage(ctx, scope=scope, ...)
 `users.role` column, which went with the squash into `0001_baseline`. They were a third answer to a question
 that already had two.
 
-### IDOR Protection
+### IDOR protection
 
 Two predicates, and they are not interchangeable. **The organization is what
 bounds a read; the user is what narrows it further.**
@@ -734,7 +734,7 @@ The whole route is `CurrentAppAdmin`: every field on it is about somebody else.
 
 For full endpoint-level permissions, see `docs/permissions.md`.
 
-## File Processing in Chat
+## File processing in chat
 
 When a user uploads a file in the chat interface, the following pipeline executes:
 
@@ -748,7 +748,7 @@ Upload (POST /files/upload)
   -> Link (attach to message when sent)
 ```
 
-### Supported File Types
+### Supported file types
 
 | Category | Extensions | Processing |
 |----------|-----------|------------|
@@ -757,7 +757,7 @@ Upload (POST /files/upload)
 | Documents | .docx | Text extracted via python-docx |
 | Text | .txt, .md | UTF-8 decoded directly |
 
-### Parser Selection
+### Parser selection
 Chat attachments are read with PyMuPDF and are not configurable: an attachment
 belongs to no collection, so there is no stored configuration to read a parser
 choice from. Parser selection applies to knowledge collections, where it is a
@@ -769,7 +769,7 @@ Files are saved to `media/{user_id}/` via `FileStorageService`. The `ChatFile`
 model stores the `storage_path`, `filename`, `mime_type`, `size`, `file_type`,
 and `parsed_content` (extracted text). Only the file owner can access their files.
 
-### Size Limits
+### Size limits
 
 There are two, because there are two surfaces. `MAX_UPLOAD_SIZE_MB` (default
 50MB) is the knowledge-base document cap; `CHAT_MAX_UPLOAD_SIZE_MB` (default
@@ -778,9 +778,9 @@ one, because a document is chunked and read back through retrieval while an
 attachment to an agent with no workspace is pasted whole into the prompt — the
 same size fails differently on each. `GET /api/v1/health` publishes both.
 
-## RAG System
+## RAG system
 
-### Architecture Overview
+### Architecture overview
 
 The RAG (Retrieval Augmented Generation) system provides a knowledge base that
 the AI agent can search during conversations. It is composed of:
@@ -791,7 +791,7 @@ Documents -> Parse -> Chunk -> Embed -> Vector Store
 User Query -> Embed -> Search -> Rerank? -> Results -> Agent Prompt
 ```
 
-### Key Principle: RAG is Global
+### Key principle: RAG is global
 
 **Collections are shared across ALL users.** There is no per-user document
 isolation. This means:
@@ -812,7 +812,7 @@ isolation. This means:
 | `BaseVectorStore` | `rag/vectorstore.py` | Abstract interface for vector database operations |
 | `PgVectorStore` | `rag/vectorstore.py` | pgvector (PostgreSQL) implementation |
 
-### Ingestion Pipeline
+### Ingestion pipeline
 
 Documents can be ingested via:
 
@@ -828,7 +828,7 @@ Each ingested document gets:
 - Stored in the vector database
 - Tracked in SQL via `RAGDocument` model with status (`processing`, `done`, `error`)
 
-### Sync Modes
+### Sync modes
 
 | Mode | Behavior |
 |------|----------|
@@ -836,7 +836,7 @@ Each ingested document gets:
 | `new_only` | Add new files, re-ingest files whose content hash changed, skip unchanged |
 | `update_only` | Only re-ingest changed files, skip new files entirely |
 
-### Sync Connectors
+### Sync connectors
 
 Remote document sources use pluggable connectors in
 `app/services/rag/connectors/`. Each connector implements `BaseSyncConnector`

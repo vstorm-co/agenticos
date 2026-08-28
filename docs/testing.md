@@ -1,6 +1,6 @@
-# Testing Guide
+# Testing
 
-## Running Tests
+## Running tests
 
 !!! tip "While writing, run what covers the change; the suite is the pre-push gate"
 
@@ -89,7 +89,7 @@ rule.
     `uv run` picks up whatever interpreter is on the path rather than the pinned
     3.12.
 
-## Test Structure
+## Test structure
 
 Four layers, and which one a test belongs to is decided by what it needs rather
 than by what it is about.
@@ -153,7 +153,7 @@ with *"async def functions are not natively supported"* and lists the plugins
 that would fix it. The `anyio_backend` fixture pins `asyncio`, because that is
 what uvicorn runs.
 
-## Key Fixtures (`tests/conftest.py`)
+## Key fixtures (`tests/conftest.py`)
 
 Five. None of them is a `test_user` or a signed-in client, and that is the
 point: an authenticated caller is a dependency override, so a test says which
@@ -182,7 +182,7 @@ acceptable on a runner.
 | `engine` | The `AsyncEngine` behind it, for a test that needs a session `db` cannot be: *more than one* - a race, a concurrent write, two transactions that have to interleave, where one `AsyncSession` shared across them is not a second connection but a corrupted one - or one the code under test makes for itself, which is how the RAG tests hand `PgVectorStore` its own `async_sessionmaker`. Eighteen files take it |
 | `database_url`, `schema_url` | Session-scoped, and the reason the two above are safe: they name the throwaway database and create its schema once |
 
-## Writing Tests
+## Writing tests
 
 Name the behaviour, not the function, so that a failure says what broke:
 `test_a_grant_widens_access_without_promoting_the_member`, not `test_resolve`.
@@ -299,7 +299,7 @@ schema that had no tiebreak at all.
 traps, the worked examples and the history behind each. This page is the shape of
 the suite; neither repeats the other.
 
-## Frontend Tests
+## Frontend tests
 
 Run these from `frontend/`. At the repository root vitest finds no configuration,
 reports well over a hundred phantom failures and leaves a stray `node_modules/`.
@@ -436,7 +436,7 @@ eight). So:
   needs a list it can trust. `vault.spec.ts` has three `page.reload()` calls
   marked `#230`; when that issue closes, they come out.
 
-## Test Database
+## Test database
 
 Most tests don't hit a real database. The `client` fixture in `tests/conftest.py` overrides
 `get_db_session` with a mocked async session (`AsyncMock`) via FastAPI's

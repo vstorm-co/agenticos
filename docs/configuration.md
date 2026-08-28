@@ -1,4 +1,4 @@
-# Configuration Reference
+# Configuration
 
 All configuration is managed via environment variables, loaded from
 `backend/.env` using [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/).
@@ -13,7 +13,7 @@ print(settings.EMBEDDING_MODEL)
 print(settings.DEBUG)
 ```
 
-## Getting Started
+## Getting started
 
 `make install` creates `backend/.env` from `backend/.env.example` when there is
 none, and never touches it again — so on a fresh checkout there is nothing to
@@ -36,7 +36,7 @@ openssl rand -hex 32   # VAULT_MASTER_KEY — unwraps every credential stored at
 
 The config refuses an unset `VAULT_MASTER_KEY` outside `local`/`development`.
 
-## Project Settings
+## Project settings
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -101,7 +101,7 @@ ciphertext is therefore useless outside the tenant it was sealed for.
 | `VAULT_MASTER_KEY` | (empty, falls back to `SECRET_KEY`) | Master key for the secret vault — shorthand for version 1 of `VAULT_MASTER_KEYS`. Required outside `local`/`development` (unless the map below is set), so a staging vault cannot boot sealed under the published `SECRET_KEY` default. Generate with: `openssl rand -hex 32` |
 | `VAULT_MASTER_KEYS` | `{}` | Every master key still in use, by version, as JSON — `{"1": "<old>", "2": "<new>"}`. The highest version seals new secrets; older ones keep existing rows readable until `agenticos cmd vault-rotate` re-wraps them. When set it is the whole truth: `VAULT_MASTER_KEY` must then be empty. See [Secrets](secrets.md#operations) |
 
-### API Key
+### API key
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -221,7 +221,7 @@ be exact — a live run the sweep flips anyway is flipped back by its own termin
 write — so set it well past your longest legitimate run and no closer. See
 [Governance](governance.md#a-run-whose-process-died).
 
-## AI Models — configured in the app, not here
+## AI models — configured in the app, not here
 
 Chat models are not environment variables. Each organization stores its own
 provider keys in the vault (Settings → Models), and every agent's spec names
@@ -244,14 +244,14 @@ see RAG below.
 | `LOGFIRE_PROJECT` | (none) | Project slug, alongside the organization. With either unset a run's `logfire_trace_id` is still recorded and no link is offered |
 | `LOGFIRE_BASE_URL` | `https://logfire-us.pydantic.dev` | Which Logfire deployment those slugs belong to. `logfire-eu` is a different host, and a link built for the wrong one 404s |
 
-## Web Search
+## Web search
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 
 ## RAG (Retrieval Augmented Generation)
 
-### Vector Database
+### Vector database
 
 pgvector uses the existing PostgreSQL connection. No additional configuration
 is needed.
@@ -263,7 +263,7 @@ is needed.
 | `OPENROUTER_API_KEY` | (empty) | The fallback embeddings credential, for collections that chose no vault key of their own — and the one a degraded choice falls back to. Not "every collection embeds on it": see [File processing](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays) |
 | `EMBEDDING_MODEL` | `text-embedding-3-large` | What a **new** collection is built with. The width is recorded on the row and never changes afterwards, so changing this does not invalidate existing collections — they keep embedding with the model they were created with |
 
-### Document Parsing — configured per collection, not here
+### Document parsing — configured per collection, not here
 
 Parser, OCR, chunk size, chunk overlap, chunking strategy and the
 image-description model are **not** environment variables. They are stored on
@@ -288,7 +288,7 @@ What stays here is what a tenant must not choose:
 Chat attachments are read with PyMuPDF and are not configurable: an attachment
 belongs to no collection, so there is no stored configuration to read.
 
-### Google Drive Sync
+### Google Drive sync
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -307,7 +307,7 @@ folder with the service account's own email address** - it is a principal like
 any other, and a folder nobody shared with it lists as empty rather than as
 refused.
 
-### S3/MinIO Sync
+### S3/MinIO sync
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -625,7 +625,7 @@ Neither view asks a Daytona connection any of this. It publishes no allowlist of
 own and holds none of our sessions to enumerate — what it permits is a setting on
 that account, and what runs there is visible in its own dashboard.
 
-## Messaging Channels
+## Messaging channels
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -653,7 +653,7 @@ sandbox limits are per-agent capability configuration
 Production validation: `CORS_ORIGINS` cannot contain `"*"` in
 `ENVIRONMENT=production`.
 
-## Rate Limiting
+## Rate limiting
 
 Applied to the surfaces a stranger can reach, and only those: the public run API,
 the widget's script, its config, either surface's socket handshake, a hosted
@@ -798,7 +798,7 @@ cgroup — because a watchdog inside a stopped process is stopped too. That case
 is the one the supervisors already cover: the reload supervisor's beat goes
 stale and production's pipe ping goes unanswered.
 
-## Docker / Production
+## Docker / production
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -806,7 +806,7 @@ stale and production's pipe ping goes unanswered.
 | `ACME_EMAIL` | `admin@example.com` | Let's Encrypt email for SSL certs |
 | `REDIS_PASSWORD` | `change-me-in-production` | Redis password for production |
 
-## Production Checklist
+## Production checklist
 
 !!! danger "Every one of these ships with a default that is wrong in production"
 

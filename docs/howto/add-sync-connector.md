@@ -75,7 +75,7 @@ authenticate with.
     credential it names or it does not run, because a fallback means one tenant's
     `folder_id` chooses what is read under the *operator's* identity.
 
-## Step-by-Step: Notion Connector
+## Step by step: a Notion connector
 
 This example implements a Notion connector that fetches pages from a Notion
 workspace.
@@ -313,7 +313,7 @@ curl http://localhost:8000/api/v1/rag/sync/logs \
     -H "Authorization: Bearer $TOKEN"
 ```
 
-## CONFIG_SCHEMA Reference
+## CONFIG_SCHEMA reference
 
 The `CONFIG_SCHEMA` class variable defines how to **find** a source's documents.
 The frontend reads it from the `GET /api/v1/rag/sync/connectors` endpoint to
