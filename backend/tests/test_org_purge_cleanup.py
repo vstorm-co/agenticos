@@ -41,6 +41,56 @@ class TestDispatch:
             timeout=0,
         )
 
+    async def test_a_purge_with_no_paths_still_submits_the_table_drops(self) -> None:
+        run = AsyncMock()
+        with patch.object(teardown_tasks, "run_deployment", run):
+            await dispatch_org_purge_cleanup([], ["docs"])
+
+        run.assert_awaited_once_with(
+            name="org-purge-cleanup/org-purge-cleanup",
+            parameters={"storage_paths": [], "collections": ["docs"]},
+            timeout=0,
+        )
+
+    async def test_it_chunks_a_large_path_list_across_bounded_runs(self) -> None:
+        """A payload over Prefect's 512 KiB flow-parameter limit would be rejected
+        after the rows are gone, so the paths are split across runs and each stays
+        bounded; the table drops ride the first run only (#1274)."""
+        paths = [f"u/{i}.txt" for i in range(teardown_tasks._MAX_PATHS_PER_RUN + 1)]
+        run = AsyncMock()
+        with patch.object(teardown_tasks, "run_deployment", run):
+            await dispatch_org_purge_cleanup(paths, ["docs"])
+
+        assert run.await_count == 2
+        first, second = run.await_args_list
+        assert len(first.kwargs["parameters"]["storage_paths"]) == teardown_tasks._MAX_PATHS_PER_RUN
+        assert first.kwargs["parameters"]["collections"] == ["docs"]
+        assert second.kwargs["parameters"]["storage_paths"] == [paths[-1]]
+        assert second.kwargs["parameters"]["collections"] == []
+
+    async def test_a_transient_submission_failure_is_retried(self) -> None:
+        run = AsyncMock(side_effect=[RuntimeError("prefect blip"), None])
+        with (
+            patch.object(teardown_tasks, "run_deployment", run),
+            patch("asyncio.sleep", new=AsyncMock()),
+        ):
+            await dispatch_org_purge_cleanup(["a/one.txt"], [])
+
+        assert run.await_count == 2
+
+    async def test_a_submission_that_keeps_failing_is_logged_not_raised(self) -> None:
+        """A run that cannot be submitted has no row to reconstruct it, but one
+        transient failure must not abort the rest, so it is logged rather than
+        raised (#1274)."""
+        run = AsyncMock(side_effect=RuntimeError("prefect down"))
+        with (
+            patch.object(teardown_tasks, "run_deployment", run),
+            patch("asyncio.sleep", new=AsyncMock()),
+        ):
+            await dispatch_org_purge_cleanup(["a/one.txt"], [])
+
+        assert run.await_count == teardown_tasks._SUBMIT_ATTEMPTS
+
 
 @asynccontextmanager
 async def _db_ctx() -> Any:

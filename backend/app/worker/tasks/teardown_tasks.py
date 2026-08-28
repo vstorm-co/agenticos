@@ -11,6 +11,7 @@ moment the process that dispatched it died (#1274).
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import logging
 
@@ -26,32 +27,72 @@ logger = logging.getLogger(__name__)
 
 _ORG_PURGE_DEPLOYMENT = "org-purge-cleanup/org-purge-cleanup"
 
+# One run carries at most this many storage paths. A large org can leave tens of
+# thousands of files behind, and a path can be long; the whole parameter payload
+# has to stay under Prefect's 512 KiB flow-parameter limit, or `run_deployment`
+# rejects the run after the rows that carried the paths are already gone (#1274).
+_MAX_PATHS_PER_RUN = 500
+
+# The submission is fired after the commit that removed the rows, so a run lost to
+# a transient Prefect outage - or to the deployment not being registered yet
+# during a rollout - has no row left to reconstruct it and no heartbeat to
+# re-dispatch it. So the submission itself is retried before it is given up on; the
+# run is idempotent, so a retry that duplicates one accepted-but-unacknowledged is
+# safe (#1274).
+_SUBMIT_ATTEMPTS = 3
+_SUBMIT_BACKOFF_SECONDS = 2.0
+
 
 async def dispatch_org_purge_cleanup(storage_paths: list[str], collections: list[str]) -> None:
-    """Submit an org's external-state cleanup as its own durable flow run, and return.
+    """Submit an org's external-state cleanup as durable flow runs, and return.
 
-    `timeout=0` makes this submit-and-return: `run_deployment` records the run on
-    the Prefect server and does not wait for it, so the caller pays for one API
-    call rather than the cleanup it starts. Handed to `spawn_after_commit` by
-    `OrganizationService.purge`, so it runs only once the relational teardown has
-    committed - and the run it creates is then the durable record, executed by a
-    worker and retried by Prefect, so a process that dies after the commit no
-    longer takes the cleanup with it (#1274).
+    Each run submits-and-returns (`run_deployment(timeout=0)`): the run is recorded
+    on the Prefect server and executed by a worker, so a process that dies after the
+    commit no longer takes the cleanup with it - the run and its parameters are the
+    durable record, and the flow's own retries re-run it if a worker dies (#1274).
+    Handed to `spawn_after_commit` by `OrganizationService.purge`, so it runs only
+    once the relational teardown has committed.
 
-    The window this does not close is commit-to-dispatch: a crash after the commit
-    but before this call still loses the cleanup. Closing it fully needs a record
-    committed *with* the delete (an outbox), a larger change; this narrows the loss
-    from the whole cleanup to a single API call and makes everything past it
-    durable, which is the mechanism #1274 chose.
+    The paths are chunked across runs so no run's parameters approach Prefect's
+    512 KiB limit. Collections ride the first run only - `delete_collection` is
+    idempotent, but re-checking them once is enough. The window none of this closes
+    is commit-to-dispatch: a crash after the commit but before this fires still
+    loses the cleanup, which only a record committed *with* the delete (an outbox)
+    would close - a larger change #1274 deferred.
     """
-    # `run_deployment` is sync-compatible: its stub unions the coroutine it returns
-    # in an async context with the `FlowRun` a sync caller gets, and ty cannot tell
-    # which applies. Awaiting it is correct here.
-    await run_deployment(  # ty: ignore[invalid-await]
-        name=_ORG_PURGE_DEPLOYMENT,
-        parameters={"storage_paths": storage_paths, "collections": collections},
-        timeout=0,
-    )
+    chunks = [
+        storage_paths[i : i + _MAX_PATHS_PER_RUN]
+        for i in range(0, len(storage_paths), _MAX_PATHS_PER_RUN)
+    ] or [[]]
+    for index, chunk in enumerate(chunks):
+        await _submit_cleanup_run(chunk, collections if index == 0 else [])
+
+
+async def _submit_cleanup_run(storage_paths: list[str], collections: list[str]) -> None:
+    """One `run_deployment` submission, retried before it is given up on.
+
+    A submission lost for good is a run that never existed, so its file chunk (and,
+    on the first run, the table drops) is orphaned with no row to reconstruct it.
+    Best-effort past the retries: a chunk that cannot be submitted is logged and the
+    remaining chunks still go, rather than one transient failure aborting the rest.
+    """
+    for attempt in range(_SUBMIT_ATTEMPTS):
+        try:
+            # `run_deployment` is sync-compatible: its stub unions the coroutine it
+            # returns in an async context with the `FlowRun` a sync caller gets, and
+            # ty cannot tell which applies. Awaiting it is correct here.
+            await run_deployment(  # ty: ignore[invalid-await]
+                name=_ORG_PURGE_DEPLOYMENT,
+                parameters={"storage_paths": storage_paths, "collections": collections},
+                timeout=0,
+            )
+        except Exception:
+            if attempt == _SUBMIT_ATTEMPTS - 1:
+                logger.exception("org_purge_cleanup submission failed after retries")
+                return
+            await asyncio.sleep(_SUBMIT_BACKOFF_SECONDS * (attempt + 1))
+        else:
+            return
 
 
 async def purge_org_external_state(
