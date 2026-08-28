@@ -17,6 +17,29 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.343] - 2026-08-28
+
+### Changed
+
+- **The org teardown's external cleanup is a durable Prefect deployment.** It was
+  deferred to an in-process `spawn_after_commit` task (#1137), which closed the
+  commit-ordering window but left a durability gap: `spawn_after_commit` is not
+  durable, so a process that died after the commit but before or during the cleanup
+  lost it - orphaning a `rag_<collection>` table and its files with no record of what
+  to drop. `OrganizationService.purge` still hands the work over after the commit, but
+  hands over a `run_deployment` submission rather than the work: the run and its
+  parameters - the paths and collection names, all that is left of the deleted rows -
+  are recorded on the Prefect server, executed by a worker, and re-run by the flow's
+  `retries` if that worker dies. New `app/worker/tasks/teardown_tasks.py` holds the
+  idempotent cleanup, the durable flow wrapper and the submit-and-return dispatch; the
+  flow re-checks each collection name against the knowledge-base table before dropping
+  it, because the name is not tenant-unique (#913), so a name a second organization
+  claimed between the commit and the drop keeps its table. The inline
+  `_purge_external_state` and `_collection_still_referenced` go with it. (#1274)
+- The gap that remains is commit-to-dispatch: a crash before `spawn_after_commit`
+  fires still loses the cleanup, which only a record committed with the delete - an
+  outbox - would close. (#1274)
+
 ## [0.0.342] - 2026-08-28
 
 ### Fixed
