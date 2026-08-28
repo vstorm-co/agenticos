@@ -396,6 +396,35 @@ say so and move on. Run it yourself any time with
 | Recurring patterns | `docs/patterns.md` |
 | The deployment's identity, sign-up policy, notices | `docs/deployment.md` |
 | Settings and the production checklist | `docs/configuration.md` |
+| What the platform does, on one page | `docs/features.md` |
+| The Learn track's own landing | `docs/learn/index.md` |
+| Help, contributing, extending the platform | `docs/resources/index.md` |
+| Why it exists, and what it is not | `docs/about/index.md` |
+| The six decisions that shape the codebase | `docs/about/design.md` |
+| Every notable change | `docs/release-notes.md` (reads `CHANGELOG.md`) |
+
+### The site has seven tabs, and they are the shape of it
+
+`AgenticOS · Features · Learn · Reference · Resources · About · Release Notes`,
+the arrangement FastAPI uses, organised by what the reader is doing rather than
+by what a page is. **Learn is a sequence** — Get started, Build the agent, Put it
+in front of people, Keep it under control, then the recipes — so a page added
+there belongs at a position, not at the end.
+
+Files stay flat in `docs/`. The paths above are named in this file, in
+`.claude/skills/`, in `scripts/docs_drift.py` and in backend docstrings; a
+prettier URL is not worth invalidating every one of them.
+
+Three conventions the whole site now keeps, and a new page owes all three:
+
+- **Sentence case headings.** Product names and acronyms keep their capitals
+  (Docker Compose, Google Drive, PostgreSQL, MCP). Title Case is what the
+  template shipped and what was swept out.
+- **No paragraph over ~115 words.** A fact appended to a paragraph is a fact
+  nobody finds; give it its own paragraph, a bullet, or an admonition. A fact a
+  reader has to have seen *before* acting belongs in an admonition, not in prose.
+- **A recap at the end**, on any page long enough to need one: at most five
+  bullets, each the thing a reader should leave with.
 
 Two things about the reference pages. They are generated from docstrings by
 mkdocstrings, so the reasoning belongs in the docstring rather than in a second prose

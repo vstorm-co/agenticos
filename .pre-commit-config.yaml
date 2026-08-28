@@ -127,6 +127,14 @@ repos:
         language: system
         types_or: [python, ts, tsx, yaml]
         pass_filenames: false
+      # A documentation paragraph long enough that a fact inside it is one
+      # nobody finds. See the script's docstring.
+      - id: check-docs-paragraphs
+        name: no wall-of-text paragraphs
+        entry: python3 scripts/check_docs_paragraphs.py
+        language: system
+        types: [markdown]
+        pass_filenames: false
       # Double backticks are reStructuredText; Markdown renders them literally,
       # and so do editor hovers over a docstring.
       - id: check-backticks
