@@ -29,6 +29,17 @@ from app.agents.capabilities.web_research._search import (
 from app.core.secret_kinds import ApiKeySecret
 
 
+@pytest.fixture(autouse=True)
+def _reset_search_client():
+    """The HTTP providers share one client (#1263); reset it so each test's
+    `httpx.AsyncClient` patch is what the next `search()` builds."""
+    from app.agents.capabilities.web_research import _search
+
+    _search._client = None
+    yield
+    _search._client = None
+
+
 def _tool_ctx(*, retry: int = 0, max_retries: int = 1) -> RunContext[None]:
     """A context with a retry left, which is what a real call starts with."""
     return RunContext(
@@ -262,3 +273,58 @@ class TestParsing:
 
     def test_wrong_kind_returns_none(self):
         assert parse_web_search('{"kind": "chart"}') is None
+
+
+class TestSharedHttpClient:
+    """The HTTP-based providers reuse one client rather than opening one per call
+    (#1263), and it is closed at shutdown."""
+
+    @pytest.mark.anyio
+    async def test_the_client_is_built_once_and_reused(self):
+        from app.agents.capabilities.web_research import _search
+
+        made = 0
+
+        def _make(**_kwargs: object) -> MagicMock:
+            nonlocal made
+            made += 1
+            return MagicMock(is_closed=False)
+
+        with patch("httpx.AsyncClient", _make):
+            first = _search._http()
+            second = _search._http()
+
+        assert made == 1
+        assert first is second
+
+    @pytest.mark.anyio
+    async def test_a_closed_client_is_rebuilt(self):
+        from app.agents.capabilities.web_research import _search
+
+        _search._client = MagicMock(is_closed=True)
+        fresh = MagicMock(is_closed=False)
+        with patch("httpx.AsyncClient", MagicMock(return_value=fresh)):
+            assert _search._http() is fresh
+
+    @pytest.mark.anyio
+    async def test_close_closes_a_live_client(self):
+        from app.agents.capabilities.web_research import _search
+
+        client = MagicMock(is_closed=False, aclose=AsyncMock())
+        _search._client = client
+        await _search.close_http_client()
+        client.aclose.assert_awaited_once()
+        assert _search._client is None
+
+    @pytest.mark.anyio
+    async def test_close_skips_an_already_closed_client_and_a_missing_one(self):
+        from app.agents.capabilities.web_research import _search
+
+        already = MagicMock(is_closed=True, aclose=AsyncMock())
+        _search._client = already
+        await _search.close_http_client()
+        already.aclose.assert_not_awaited()
+        assert _search._client is None
+        # And a no-op when there is nothing to close.
+        await _search.close_http_client()
+        assert _search._client is None

@@ -207,6 +207,7 @@ class ConversationService:
         include_messages: bool = False,
         user_id: UUID | None = None,
         for_write: bool = False,
+        include_favourite: bool = True,
         ctx: AuthContext | None = None,
     ) -> Conversation:
         """One conversation, checked against the tenant first and the reader second.
@@ -218,6 +219,13 @@ class ConversationService:
         `for_write` picks which of the two questions is asked. Reading and
         writing stopped being one question when participation became a way in:
         see `_may_read` and `_may_write`.
+
+        `include_favourite` is on by default so that a route cannot forget it -
+        that is the whole of #1254, and the flag reached two responses out of
+        eight while each route had to remember. It is turned **off** by the
+        callers that use this only to authorize and then discard the row:
+        `GET /conversations/{id}/messages` resolves it twice, through
+        `list_messages` and `conversation_cost`, and neither serializes a star.
         """
         conversation = await conversation_repo.get_conversation_by_id(
             self.db, conversation_id, include_messages=include_messages
@@ -258,6 +266,15 @@ class ConversationService:
                 msg.rating_count = rating_counts.get(msg.id)  # ty: ignore[unresolved-attribute]
         if include_messages and conversation.messages:
             await self._attach_authors(conversation.messages)
+        # Here rather than at each route, because this is the one read every
+        # reader-scoped one goes through - `update`, `archive` and `set_favourite`
+        # all return the object it hands back. Only two responses carried the flag
+        # before, so `GET /conversations/{id}` and the PATCH answered `false` to a
+        # caller who really had starred the thread (#1254). Skipped entirely for a
+        # call with no reader: an internal read pays no query, and a star belongs
+        # to nobody in particular there.
+        if include_favourite:
+            await self._attach_favourites([conversation], user_id=user_id)
         return conversation
 
     async def _may_read(
@@ -346,11 +363,19 @@ class ConversationService:
         `role: "assistant"` turn to it. There is no owner to defer to, so the
         people who were in the room are who tidies it up; participation carries
         the write only while there is nobody it would be taken from.
+
+        **A share carries the write only at `edit`.** Any share at all used to,
+        so the two levels the sharing dialog offers meant the same thing: a
+        conversation shared to *view* could be renamed, archived, deleted, or
+        given a `role: "assistant"` turn that everybody reads in `/chat` and the
+        model is handed back as its own words. The level is stated to whoever
+        grants it, so it has to be the level that is enforced (#931).
         """
         owner = getattr(conversation, "user_id", None)
         if owner is not None and str(owner) == str(user_id):
             return True
-        if await conversation_share_repo.get_share(self.db, conversation.id, user_id):
+        share = await conversation_share_repo.get_share(self.db, conversation.id, user_id)
+        if share is not None and share.permission == "edit":
             return True
         if owner is None:
             return await channel_membership.confirms_participation(
@@ -520,7 +545,11 @@ class ConversationService:
         caller may read through `runs:view` is one they could not star.
         """
         conversation = await self.get_conversation(
-            conversation_id, organization_id=organization_id, user_id=user_id, ctx=ctx
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            include_favourite=False,
+            ctx=ctx,
         )
         await conversation_repo.set_favourite(
             self.db, user_id=user_id, conversation_id=conversation.id, favourite=favourite
@@ -641,6 +670,7 @@ class ConversationService:
             organization_id=organization_id,
             user_id=user_id,
             for_write=True,
+            include_favourite=False,
         )
         await conversation_repo.delete_conversation(self.db, db_conversation=conversation)
         return True
@@ -678,7 +708,11 @@ class ConversationService:
         authorizing half was missed for so long.
         """
         await self.get_conversation(
-            conversation_id, organization_id=organization_id, user_id=user_id, ctx=ctx
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            include_favourite=False,
+            ctx=ctx,
         )
         items = await conversation_repo.get_messages_by_conversation(
             self.db,
@@ -732,7 +766,11 @@ class ConversationService:
         turns" while the label says "this conversation".
         """
         await self.get_conversation(
-            conversation_id, organization_id=organization_id, user_id=user_id, ctx=ctx
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            include_favourite=False,
+            ctx=ctx,
         )
         totals = await conversation_repo.conversation_cost(self.db, conversation_id)
         if totals is None:
@@ -785,7 +823,11 @@ class ConversationService:
         would silently reopen it.
         """
         conversation = await self.get_conversation(
-            conversation_id, organization_id=organization_id, user_id=user_id, for_write=True
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            for_write=True,
+            include_favourite=False,
         )
         if conversation.is_archived:
             raise BadRequestError(

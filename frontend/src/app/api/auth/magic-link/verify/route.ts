@@ -6,6 +6,10 @@ interface TokenResponse {
   access_token: string;
   refresh_token: string;
   token_type?: string;
+  /** Where the link was minted to land. Signed into the token, so it cannot
+      have been edited between the email and here; still judged again by
+      `postSignInDestination` at the landing (#1214). */
+  return_to?: string | null;
 }
 
 export async function POST(request: NextRequest) {
@@ -23,6 +27,7 @@ export async function POST(request: NextRequest) {
     const response = bffJson({
       user,
       access_token: data.access_token,
+      return_to: data.return_to ?? null,
     });
 
     const isProd = process.env.NODE_ENV === "production";

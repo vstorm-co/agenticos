@@ -117,6 +117,15 @@ class WorkspaceSummary(BaseSchema):
     scope: str
     backend: str
     owner_label: str
+    owner_name: str | None = Field(
+        default=None,
+        description=(
+            "Whose files these are, named - an account's email, or the platform id "
+            "of an owner who has none. Null where nobody owns them, which is every "
+            "scope but 'user'. Distinct from `owner_label`, which answers with the "
+            "scope rather than with a person."
+        ),
+    )
     access_label: str = Field(
         default="",
         description=(

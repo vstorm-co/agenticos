@@ -2,9 +2,11 @@ import asyncio
 import contextlib
 import logging
 import secrets
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -25,9 +27,11 @@ from app.core.security import (
 from app.db.models.user import User
 from app.db.updates import writable
 from app.repositories import (
+    knowledge_base_repo,
     member_repo,
     organization_repo,
     organization_secret_repo,
+    rag_document_repo,
     session_repo,
     user_repo,
 )
@@ -44,6 +48,9 @@ from app.services.file_storage import avatar_filename, get_file_storage
 from app.services.organization import OrganizationService
 from app.services.signup_policy import check_may_register
 
+if TYPE_CHECKING:
+    from app.services.rag.vectorstore import BaseVectorStore
+
 logger = logging.getLogger(__name__)
 
 # A real bcrypt hash of a value nobody holds, computed once at import. An
@@ -54,8 +61,14 @@ _DUMMY_HASH = get_password_hash(secrets.token_urlsafe(32))
 
 
 class UserService:
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession, vector_store: "BaseVectorStore | None" = None):
         self.db = db
+        # Only the account-teardown path drops a departing user's vector tables.
+        # A caller may inject the store (the delete route, a test on its own
+        # engine); when none is given the teardown builds one on the process's
+        # shared vector pool, so every delete path cleans up and no other route
+        # pays for a store it never touches (#1131).
+        self._vector_store = vector_store
 
     async def _is_first_user(self) -> bool:
         count = (await self.db.execute(select(func.count()).select_from(User))).scalar_one()
@@ -110,17 +123,31 @@ class UserService:
     async def admin_detail(self, user_id: UUID) -> AdminUserDetail:
         """Where this person has access, when they were last here, what is open.
 
-        Three reads rather than one because they are three tables, and they are
-        here rather than in the drawer because a client assembling them would
-        make three round trips to answer one question - and would have to know
-        that "no sessions ever" and "no sessions now" are different answers.
+        Four reads rather than one because they are three tables and two
+        questions, and they are here rather than in the drawer because a client
+        assembling them would make as many round trips to answer one question -
+        and would have to know that "no sessions ever" and "no sessions now" are
+        different answers.
+
+        **Two scopes, not one.** Where somebody was last seen is a fact about
+        every session they have ever had; how many are open is a fact about the
+        ones still usable. Reading both off the open set answered "Never signed
+        in" for anybody who had signed out - which is most accounts most of the
+        time, and the opposite of the truth on the field this drawer exists for
+        (#1256).
 
         The user is fetched first so an unknown id is a 404 rather than an empty
         detail about nobody.
         """
         await self.get_by_id(user_id)
         memberships = await organization_repo.list_for_user(self.db, user_id)
-        sessions = await session_repo.get_user_sessions(self.db, user_id, active_only=True)
+        # `limit=1` because the query is ordered most-recently-used first and the
+        # head is the whole answer. Nothing prunes this table - every refresh
+        # deactivates a row and inserts another - so a year-old account has
+        # thousands of rows and reading them all to look at one grows without
+        # bound.
+        last_used = await session_repo.get_user_sessions(self.db, user_id, open_only=False, limit=1)
+        open_sessions = await session_repo.get_user_sessions(self.db, user_id, open_only=True)
         return AdminUserDetail(
             memberships=[
                 AdminUserMembership(
@@ -132,11 +159,12 @@ class UserService:
                 )
                 for organization, role in memberships
             ],
-            # The sessions come back most-recently-used first, so the head is
-            # both answers: when they were last here, and the newest one open.
-            last_seen_at=sessions[0].last_used_at if sessions else None,
-            active_sessions=len(sessions),
-            newest_session_at=max((s.created_at for s in sessions), default=None),
+            last_seen_at=last_used[0].last_used_at if last_used else None,
+            active_sessions=len(open_sessions),
+            # Of the open ones: it is read beside their count, and "newest
+            # session August" under "0 open sessions" is a sentence about
+            # nothing.
+            newest_session_at=max((s.created_at for s in open_sessions), default=None),
         )
 
     async def admin_list_with_counts(
@@ -365,20 +393,54 @@ class UserService:
         return str(full_path) if full_path is not None else None
 
     async def delete(self, user_id: UUID) -> User:
-        # FOR UPDATE before the reconcile: releasing the rows that would block the
-        # delete and then deleting is check-then-act, so a private secret or
-        # personal org inserted concurrently (both take FOR KEY SHARE on this row)
-        # would land a fresh CHECK/RESTRICT blocker between the reconcile and the
-        # DELETE and 500 it. The lock makes that insert wait, so the reconcile
-        # sees every child there is - a fresh read under READ COMMITTED (#1115).
-        user = await user_repo.get_by_id_for_update(self.db, user_id)
-        if not user:
-            raise NotFoundError(
-                message="User not found",
-                details={"user_id": user_id},
-            )
+        user = await self._lock_for_delete(user_id)
         await self._release_owned_rows(user_id)
         await user_repo.delete(self.db, user_id)
+        return user
+
+    async def _lock_for_delete(self, user_id: UUID) -> User:
+        """Lock this user's row and every heir's, in ascending id order (#1134).
+
+        The self lock serves #1115: held before the reconcile's reads, it makes a
+        private secret or personal org inserted concurrently (both take FOR KEY
+        SHARE on this row) wait, so the reconcile sees every child there is - a
+        fresh read under READ COMMITTED - rather than 500ing on a CHECK/RESTRICT
+        blocker that landed between the reconcile and the DELETE.
+
+        The heirs are locked here too, and in a stable order with self, because
+        `reassign_creator` hands a solely-created shared org to an heir and so
+        takes FOR KEY SHARE on the heir's user row through the FK. Two users who
+        co-own each other's shared orgs self-deleting at once would each hold a
+        lock on their own row and then wait for the other's - a cycle Postgres
+        breaks by aborting one with a 40P01 500. Taking every user-row lock in
+        ascending id order makes both requests queue on the lower id first, so
+        the cycle cannot form (#1134).
+
+        Self is FOR UPDATE (for #1115); the heirs are FOR NO KEY UPDATE, one step
+        weaker. It still conflicts with the other self-delete's FOR UPDATE, so the
+        ordering holds, but it does *not* conflict with the FOR KEY SHARE an
+        unrelated foreign-key write takes on an heir - a channel identity relinked
+        to them, say - which FOR UPDATE would have, turning that write into a fresh
+        cross-table deadlock this fix must not introduce.
+        """
+        heir_ids: set[UUID] = set()
+        for org in await organization_repo.list_created_by(self.db, user_id):
+            if org.is_personal:
+                continue
+            heir = await member_repo.other_owner_id(
+                self.db, organization_id=org.id, exclude_user_id=user_id
+            )
+            if heir is not None:
+                heir_ids.add(heir)
+
+        user: User | None = None
+        for uid in sorted({user_id, *heir_ids}):
+            if uid == user_id:
+                user = await user_repo.get_by_id_for_update(self.db, uid)
+            else:
+                await user_repo.get_by_id_for_no_key_update(self.db, uid)
+        if user is None:
+            raise NotFoundError(message="User not found", details={"user_id": user_id})
         return user
 
     async def _release_owned_rows(self, user_id: UUID) -> None:
@@ -394,15 +456,29 @@ class UserService:
         Owner of an org they did *not* create takes its last owner membership with
         them (`ON DELETE CASCADE`), leaving nobody who can manage it. That is
         refused here too (#1117).
-        """
-        await organization_secret_repo.promote_owned_private_to_org(self.db, owner_user_id=user_id)
 
-        org_service = OrganizationService(self.db)
-        handled: set[UUID] = set()
-        for org in await organization_repo.list_created_by(self.db, user_id):
-            handled.add(org.id)
+        A fifth is another silent orphan: the user's personal-scoped knowledge
+        bases. `owner_user_id` and `organization_id` are both `SET NULL`, so the
+        org purge below (which handles only org-scoped collections) never reaches
+        them, and their documents, files and vector table would be retained and
+        unreachable while the collection name kept blocking reuse. They are torn
+        down explicitly, with the same store the org purge needs (#1131).
+        """
+        from app.services.rag.embeddings import EmbeddingService
+        from app.services.rag.vectorstore import process_vector_store
+
+        # Every refusal is decided first, before any irreversible cleanup. The
+        # personal-KB and personal-org teardown below drop vector tables and
+        # unlink files through sessions of their own, and a BadRequestError raised
+        # afterwards cannot undo them: the request session rolls the relational
+        # deletes back, and the restored rows then point at data already gone
+        # (#1131). So the sole-owner checks run in a side-effect-free pass, and
+        # the heir each shared org is handed to is captured here and reused below
+        # rather than re-read after the cleanup.
+        created = await organization_repo.list_created_by(self.db, user_id)
+        heirs: dict[UUID, UUID] = {}
+        for org in created:
             if org.is_personal:
-                await org_service.purge(org)
                 continue
             heir = await member_repo.other_owner_id(
                 self.db, organization_id=org.id, exclude_user_id=user_id
@@ -413,15 +489,16 @@ class UserService:
                     "transfer ownership or delete the organization first",
                     details={"user_id": user_id, "organization_id": org.id},
                 )
-            await organization_repo.reassign_creator(self.db, org=org, new_creator_id=heir)
+            heirs[org.id] = heir
 
         # Ownership moves without the creator FK, so a user can be the sole Owner
         # of an org they did not create - one `list_created_by` never returns.
         # Deleting them cascades that last owner membership away and leaves the
         # org ownerless: no 500, but nobody can manage it through the owner-gated
         # APIs (#1117). Refuse, unless another owner is there to keep it.
+        created_ids = {org.id for org in created}
         for org in await organization_repo.list_owned_by(self.db, user_id):
-            if org.id in handled:
+            if org.id in created_ids:
                 continue
             other_owner = await member_repo.other_owner_id(
                 self.db, organization_id=org.id, exclude_user_id=user_id
@@ -432,6 +509,52 @@ class UserService:
                     "transfer ownership or delete the organization first",
                     details={"user_id": user_id, "organization_id": org.id},
                 )
+
+        await organization_secret_repo.promote_owned_private_to_org(self.db, owner_user_id=user_id)
+
+        vector_store = self._vector_store or process_vector_store(
+            settings.rag, EmbeddingService(settings=settings.rag)
+        )
+        await self._purge_personal_collections(vector_store, user_id)
+
+        org_service = OrganizationService(self.db, vector_store=vector_store)
+        for org in created:
+            if org.is_personal:
+                await org_service.purge(org)
+            else:
+                await organization_repo.reassign_creator(
+                    self.db, org=org, new_creator_id=heirs[org.id]
+                )
+
+    async def _purge_personal_collections(
+        self, vector_store: "BaseVectorStore", user_id: UUID
+    ) -> None:
+        """Remove the user's personal-scoped knowledge bases whole (#1131).
+
+        Mirrors `OrganizationService.purge`'s collection teardown for the rows the
+        org purge cannot see. Each base's document rows and stored files go first,
+        then the base row; the physical `rag_<collection>` table is dropped only
+        when no other base still references the name - it is not tenant-unique
+        (#913), so two of them can share one table. The document rows are keyed on
+        `knowledge_base_id`, so a shared collection's other rows are untouched; a
+        shared table is left in place, with only this base's uploads unlinked.
+        """
+        storage = get_file_storage()
+        for kb in await knowledge_base_repo.list_personal_by_owner(self.db, user_id):
+            collection = kb.collection_name
+            storage_paths = await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
+            await knowledge_base_repo.delete(self.db, kb.id)
+            for storage_path in storage_paths:
+                with contextlib.suppress(Exception):
+                    await storage.delete(storage_path)
+            still_shared = await knowledge_base_repo.list_by_collection_name(self.db, collection)
+            if still_shared:
+                continue
+            # Best-effort, and only against the database: a zero-document
+            # collection has no table yet (`DROP TABLE IF EXISTS` no-ops), and any
+            # other database failure is not a reason to abandon the rest.
+            with contextlib.suppress(SQLAlchemyError):
+                await vector_store.delete_collection(collection)
 
     async def admin_update(
         self, user_id: UUID, user_in: UserUpdate, *, acting_admin_id: UUID
@@ -464,10 +587,26 @@ class UserService:
         only ever shrinks by deletion - so refusing self-deletion is what keeps the
         last admin from being the one removed: any other admin deleting the *last*
         one would have to be deleting themselves.
+
+        **That held for one request at a time and not for two.** A and B deleting
+        each other both passed the not-self check, locked different target rows,
+        never contended, and both committed - nobody left who could sign in to
+        administer the deployment (#1208). So the second check is on the app-admin
+        *set*, taken under a lock in a fixed order: the later request waits, re-reads
+        after the first commits, and is refused because it would empty the set. The
+        set is locked on every admin deletion, target in it or not: taking it
+        first and always is what makes the order total, and deleting a user is an
+        administrator's action rather than a hot path.
         """
         if user_id == acting_admin_id:
             raise AuthorizationError(
                 message="You cannot delete your own account; ask another app admin to."
+            )
+        administrators = await user_repo.app_admin_ids_for_update(self.db)
+        if user_id in administrators and len(administrators) < 2:
+            raise AuthorizationError(
+                message="This is the deployment's last app admin; promote another one first.",
+                details={"app_admins": len(administrators)},
             )
         return await self.delete(user_id)
 
@@ -505,15 +644,24 @@ class UserService:
         await session_repo.deactivate_all_user_sessions(self.db, user.id)
         return user
 
-    async def issue_magic_link_token(self, email: str) -> tuple[User, str] | None:
+    async def issue_magic_link_token(
+        self, email: str, *, return_to: str | None = None
+    ) -> tuple[User, str] | None:
         user = await user_repo.get_by_email(self.db, email)
         if user is None or not user.is_active:
             return None
-        token = create_magic_link_token(subject=str(user.id))
+        token = create_magic_link_token(subject=str(user.id), return_to=return_to)
         return user, token
 
-    async def consume_magic_link_token(self, token: str) -> User:
-        """Caller is responsible for minting access/refresh tokens for the returned user."""
+    async def consume_magic_link_token(self, token: str) -> tuple[User, str | None]:
+        """The account the link is for, and where it was headed.
+
+        Caller is responsible for minting access/refresh tokens for the returned
+        user. The return path comes back rather than being applied here: it is
+        the client that navigates, and `postSignInDestination` on that side is
+        the one place deciding whether a path is safe to honour - the same
+        judgement for a password login, an OAuth callback and this (#1214).
+        """
         payload = verify_special_token(token, expected_type="magic_link")
         if payload is None or "sub" not in payload:
             raise AuthenticationError(message="Magic link is invalid or has expired")
@@ -525,4 +673,5 @@ class UserService:
         user = await self.get_by_id(user_id)
         if not user.is_active:
             raise AuthenticationError(message="Account is disabled")
-        return user
+        claimed = payload.get("rt")
+        return user, claimed if isinstance(claimed, str) else None

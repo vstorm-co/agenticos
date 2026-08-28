@@ -388,9 +388,25 @@ describe("signing in without a password", () => {
     await expect(response.json()).resolves.toMatchObject({
       user: { id: "u-1" },
       access_token: "at",
+      // Null rather than absent: the landing reads this to decide where to go,
+      // and a link minted without a path says so (#1214).
+      return_to: null,
     });
     expect(cookie(response, "access_token")).toMatchObject({ value: "at" });
     expect(cookie(response, "refresh_token")).toMatchObject({ value: "rt" });
+  });
+
+  it("passes on the path the link was minted for", async () => {
+    // The path travels in the token because a magic link is followed from an
+    // email, where the tab-local store the OAuth round trip uses is empty. This
+    // route is the only thing between the token and the page that reads it.
+    vi.mocked(backendFetch)
+      .mockResolvedValueOnce({ access_token: "at", refresh_token: "rt", return_to: "/agents/a-1" })
+      .mockResolvedValueOnce({ id: "u-1" });
+
+    const response = await magicLinkVerify(request({}, { token: "one-time" }));
+
+    await expect(response.json()).resolves.toMatchObject({ return_to: "/agents/a-1" });
   });
 
   it("refuses a link that did not verify, without a session", async () => {

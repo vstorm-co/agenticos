@@ -93,7 +93,7 @@ function serve(role: string) {
         items: [{ id: "org-1", name: "Acme", avatar_color: null }],
         total: 1,
       });
-    if (url.endsWith("/members")) {
+    if (url.includes("/members")) {
       return Promise.resolve({
         items: [
           member(ME, "me@acme.test", role, mayChangeRole(role, role)),
@@ -209,7 +209,7 @@ describe("the members table's role control", () => {
           ],
           total: 2,
         });
-      if (url.endsWith("/members"))
+      if (url.includes("/members"))
         return Promise.resolve({
           items: [
             member(ME, "me@acme.test", "owner", mayChangeRole("owner", "owner")),
@@ -249,7 +249,7 @@ describe("the members table's role control", () => {
           items: [{ id: "org-1", name: "Acme", avatar_color: null }],
           total: 1,
         });
-      if (url.endsWith("/members"))
+      if (url.includes("/members"))
         return Promise.resolve({ items: [member(ME, "me@acme.test", "admin")], total: 1 });
       return Promise.resolve({ items: [], total: 0 });
     });

@@ -85,6 +85,40 @@ class TestWhatThePipelineReports:
         assert result.chunk_count == 0
 
 
+class TestSkippingADroppedCollection:
+    """A collection deleted while a file parsed must not be resurrected by the
+    index that follows (#1275)."""
+
+    async def test_a_gone_collection_is_not_written(self):
+        processor = MagicMock(process_file=AsyncMock(return_value=_document(chunks=3)))
+        service = _service(processor)
+
+        result = await service.ingest_file(
+            filepath=Path("handbook.md"),
+            collection_name="docs",
+            replace=False,
+            still_wanted=AsyncMock(return_value=False),
+        )
+
+        assert result.status is IngestionStatus.ERROR
+        # The write is skipped, so `_ensure_collection` never recreates the table.
+        service.store.insert_document.assert_not_awaited()
+
+    async def test_a_live_collection_is_still_written(self):
+        processor = MagicMock(process_file=AsyncMock(return_value=_document(chunks=3)))
+        service = _service(processor)
+
+        result = await service.ingest_file(
+            filepath=Path("handbook.md"),
+            collection_name="docs",
+            replace=False,
+            still_wanted=AsyncMock(return_value=True),
+        )
+
+        assert result.status is IngestionStatus.DONE
+        service.store.insert_document.assert_awaited_once()
+
+
 class TestWhatTheUploadPathRecords:
     async def test_the_worker_writes_the_chunk_count_it_was_given(self):
         document_id = str(uuid.uuid4())

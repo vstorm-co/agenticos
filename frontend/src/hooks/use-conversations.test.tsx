@@ -6,7 +6,13 @@ import { toast } from "sonner";
 
 import { useConversations, type ConversationQuery } from "./use-conversations";
 import { apiClient } from "@/lib/api-client";
-import { useAgentSelectionStore, useAuthStore, useChatStore, useConversationStore } from "@/stores";
+import {
+  useAgentSelectionStore,
+  useAuthStore,
+  useChatStore,
+  useConversationStore,
+  useOrgStore,
+} from "@/stores";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -58,6 +64,7 @@ beforeEach(() => {
   useConversationStore.getState().reset();
   useChatStore.setState({ messages: [], isStreaming: false });
   useAgentSelectionStore.setState({ selectedAgentId: null, defaultAgentId: null });
+  useOrgStore.setState({ activeOrgId: null });
   serve();
   vi.mocked(apiClient.post).mockResolvedValue(conversation("c-new"));
   vi.mocked(apiClient.patch).mockResolvedValue({});
@@ -704,6 +711,12 @@ describe("creating, renaming and removing a conversation", () => {
 
 describe("starring a conversation", () => {
   /**
+   * A pending star is the tab's, not this render's - `favouriteChains` is a
+   * module constant, because a request does not stop when the sidebar unmounts.
+   * So a test that holds a star or an unstar open has to release it before it
+   * finishes, or that promise stays at the head of the conversation's chain for
+   * every test after it.
+   *
    * The star is the one thing this hook patches rather than refetching, and the
    * boundary is exact: which list a thread belongs to is the server's answer,
    * but whether *this reader* starred it is a fact about the row the client
@@ -822,6 +835,302 @@ describe("starring a conversation", () => {
     });
 
     expect(vi.mocked(apiClient.get).mock.calls.length).toBe(before);
+  });
+
+  it("holds a second click until the first request has answered", async () => {
+    // The POST and the DELETE are separate requests and nothing made the second
+    // wait for the first, so a double click could have them answered out of
+    // order - the DELETE first, the POST committing after it - leaving the
+    // thread starred with nothing on screen saying so and no further click to
+    // reconcile them (#1254).
+    const result = await hook();
+    let settle: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+    vi.mocked(apiClient.delete).mockResolvedValue({});
+
+    act(() => {
+      void result.current.setFavourite("c-1", true);
+      void result.current.setFavourite("c-1", false);
+    });
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    expect(apiClient.delete).not.toHaveBeenCalled();
+    // The screen is already showing the second click, which is the point of
+    // patching first: only the request is queued.
+    expect(result.current.conversations.find((c) => c.id === "c-1")?.is_favourite).toBe(false);
+
+    await act(async () => {
+      settle({});
+      await Promise.resolve();
+    });
+
+    await waitFor(() =>
+      expect(apiClient.delete).toHaveBeenCalledWith("/conversations/c-1/favourite"),
+    );
+  });
+
+  it("queues per conversation, so one slow star does not hold another thread's", async () => {
+    const result = await hook();
+    let settle: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+    vi.mocked(apiClient.delete).mockResolvedValue({});
+
+    act(() => {
+      void result.current.setFavourite("c-1", true);
+      void result.current.setFavourite("c-2", false);
+    });
+
+    await waitFor(() =>
+      expect(apiClient.delete).toHaveBeenCalledWith("/conversations/c-2/favourite"),
+    );
+    act(() => settle({}));
+  });
+
+  it("does not roll back from a refusal two clicks old", async () => {
+    // Star, unstar, star: the row is starred and the first POST is the one that
+    // fails. Undoing it would take the star off a thread the reader has since
+    // put it back on, and the queued requests still decide what the server
+    // holds - so only the newest click owns what is on screen.
+    const result = await hook();
+    let refuse: (reason: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        refuse = reject;
+      }),
+    );
+    // The queued DELETE is held rather than answered, so nothing refetches the
+    // list and what is asserted below is the patched cache rather than a fresh
+    // page. Released at the end, because the queue is the tab's: a star left
+    // pending here would be at the head of c-1's chain for every test after it.
+    let release: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.delete).mockReturnValue(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+
+    act(() => {
+      void result.current.setFavourite("c-1", true);
+      void result.current.setFavourite("c-1", false);
+      void result.current.setFavourite("c-1", true);
+    });
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      refuse("boom");
+      await Promise.resolve();
+    });
+
+    expect(result.current.conversations.find((c) => c.id === "c-1")?.is_favourite).toBe(true);
+    expect(toast.error).toHaveBeenCalledWith("Could not change the favourite");
+    await act(async () => {
+      release({});
+      await Promise.resolve();
+    });
+  });
+
+  it("drops a queued click when the account changed while it waited", async () => {
+    // The queue's own hazard: a click waiting its turn is sent with whatever
+    // cookies the browser holds when it gets one, so waiting out a sign-out
+    // would land A's star as B's on a thread they can both read. The account is
+    // checked before the request goes, not only after it answers.
+    const result = await hook();
+    let settle: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+
+    act(() => {
+      void result.current.setFavourite("c-1", true);
+      void result.current.setFavourite("c-1", false);
+    });
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+
+    act(() => {
+      useAuthStore.getState().setUser({ id: "u-next", email: "next@example.com" } as never);
+    });
+    await act(async () => {
+      settle({});
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(apiClient.delete).not.toHaveBeenCalled();
+  });
+
+  it("does not hold the next click behind the list refetch", async () => {
+    // The refetch is outside the chain, because what has to be serialized is
+    // the write. Behind it, a slow GET leaves an unstar optimistic while the
+    // server keeps the star - and a reload then loses the reader's last choice.
+    const result = await hook();
+    vi.mocked(apiClient.post).mockResolvedValue({});
+    vi.mocked(apiClient.delete).mockResolvedValue({});
+    vi.mocked(apiClient.get).mockImplementation(() => new Promise(() => {}));
+
+    await act(async () => {
+      void result.current.setFavourite("c-1", true);
+      await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+      void result.current.setFavourite("c-1", false);
+    });
+
+    await waitFor(() =>
+      expect(apiClient.delete).toHaveBeenCalledWith("/conversations/c-1/favourite"),
+    );
+  });
+
+  it("still queues behind a star that outlived the sidebar", async () => {
+    // Leaving the chat unmounts the sidebar; the request it started carries on,
+    // because nothing aborts it. A queue that lived on the hook would be
+    // discarded with it, and the unstar on the way back would be sent without
+    // waiting - which is the ordering bug the queue exists to prevent, reached
+    // by a different route.
+    const first = renderHook(() => useConversations({}), { wrapper });
+    await waitFor(() => expect(first.result.current.isLoading).toBe(false));
+    let settle: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+    vi.mocked(apiClient.delete).mockResolvedValue({});
+
+    act(() => {
+      void first.result.current.setFavourite("c-1", true);
+    });
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    first.unmount();
+
+    const second = await hook();
+    await act(async () => {
+      void second.current.setFavourite("c-1", false);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(apiClient.delete).not.toHaveBeenCalled();
+
+    await act(async () => {
+      settle({});
+      await Promise.resolve();
+    });
+    await waitFor(() =>
+      expect(apiClient.delete).toHaveBeenCalledWith("/conversations/c-1/favourite"),
+    );
+  });
+
+  it("drops a queued click when the organization changed while it waited", async () => {
+    // `apiClient` stamps `X-Organization-Id` from the store when the request is
+    // sent, so a click queued across a switch is refused for a conversation in
+    // the tenant it was made in - and the server keeps the previous click's
+    // answer with nothing on screen saying so.
+    useOrgStore.setState({ activeOrgId: "org-a" });
+    const result = await hook();
+    let settle: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+
+    act(() => {
+      void result.current.setFavourite("c-1", true);
+      void result.current.setFavourite("c-1", false);
+    });
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+
+    act(() => {
+      useOrgStore.setState({ activeOrgId: "org-b" });
+    });
+    await act(async () => {
+      settle({});
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(apiClient.delete).not.toHaveBeenCalled();
+  });
+
+  it("leaves the refetch to the newest click", async () => {
+    // A superseded click would answer with the state its own request left
+    // behind - the server's star, while the reader has since unstarred it - and
+    // patch that over the newer row.
+    const result = await hook();
+    let settle: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+    let release: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.delete).mockReturnValue(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+
+    act(() => {
+      void result.current.setFavourite("c-1", true);
+      void result.current.setFavourite("c-1", false);
+    });
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    const before = vi.mocked(apiClient.get).mock.calls.length;
+
+    await act(async () => {
+      settle({});
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // The POST answered and was superseded, so it refetched nothing; the DELETE
+    // that replaced it will, once it lands.
+    expect(vi.mocked(apiClient.get).mock.calls.length).toBe(before);
+    expect(result.current.conversations.find((c) => c.id === "c-1")?.is_favourite).toBe(false);
+    await act(async () => {
+      release({});
+      await Promise.resolve();
+    });
+  });
+
+  it("does not queue the next account behind a hung request", async () => {
+    // A request that hangs never drains its chain, so a key shared across
+    // accounts would leave whoever signs in next waiting on a promise that will
+    // not settle - on a thread they can genuinely see.
+    useAuthStore.getState().setUser({ id: "u-a", email: "a@example.com" } as never);
+    const first = await hook();
+    let settle: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+    vi.mocked(apiClient.delete).mockResolvedValue({});
+
+    act(() => {
+      void first.current.setFavourite("c-1", true);
+    });
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+
+    act(() => {
+      useAuthStore.getState().setUser({ id: "u-b", email: "b@example.com" } as never);
+    });
+    const second = await hook();
+    act(() => {
+      void second.current.setFavourite("c-1", false);
+    });
+
+    await waitFor(() =>
+      expect(apiClient.delete).toHaveBeenCalledWith("/conversations/c-1/favourite"),
+    );
+    act(() => settle({}));
   });
 
   it("puts the star back when the request is refused", async () => {

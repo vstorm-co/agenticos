@@ -396,6 +396,17 @@ the file counts:
 A count has to drop them too, or a workspace reporting four files where one is
 visible is a count nobody can check.
 
+**Whose it is and who else can see it are two answers, and the table carries
+both.** `access_label` is the *scope* in words — "everybody who talks to this
+agent", "whoever is in that conversation" — and it names nobody, which is the
+question an operator has about an agent-scoped workspace six people share. So the
+row also carries `owner_name`: an account's email, or the platform id of an owner
+who arrived through a channel and has no account here. It is drawn as words and
+never as a link, because half of them are not accounts to link to; and it is null
+for every scope but `user`, which is the only one that records an owner at all —
+three of the four honestly have none, and the column says so rather than repeating
+the scope.
+
 **A file says who put it there.** `uploads/` is where an attachment lands, so a
 path under it is a file a person attached and anything else is the agent's own
 work — offered as a filter and said on the tile. It is the only signal available:

@@ -31,6 +31,12 @@ export interface WorkspaceSummary {
   backend: string;
   /** Whose workspace this is, in words. Under `agent` scope this is the whole point. */
   owner_label: string;
+  /**
+   * Whose files these are, *named* - an account's email, or the platform id of an
+   * owner who has none. Null where nobody owns them, which is every scope but
+   * `user`. `owner_label` is not this: it answers with the scope.
+   */
+  owner_name: string | null;
   /** Who can see the files. `scope` is the mechanism; this is the consequence. */
   access_label: string;
   bytes_total: number;

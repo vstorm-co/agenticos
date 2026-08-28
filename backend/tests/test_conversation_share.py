@@ -154,3 +154,29 @@ async def test_an_id_outside_the_organization_is_refused_as_not_found(
             await service.share_conversation(uuid.uuid4(), owner, shared_with=outsider)
 
         share_repo.create.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_a_thread_shared_with_you_says_whether_you_starred_it(
+    service: ConversationShareService,
+):
+    """The listing answered `false` for every row, on the surface where the star
+    is most useful: a thread somebody sent you is exactly the kind you keep
+    (#1254)."""
+    mine, theirs = uuid.uuid4(), uuid.uuid4()
+    reader = uuid.uuid4()
+    with (
+        patch(f"{MODULE}.conversation_share_repo") as share_repo,
+        patch(f"{MODULE}.conversation_repo") as conv_repo,
+    ):
+        share_repo.get_conversations_shared_with_user = AsyncMock(
+            return_value=[MagicMock(id=mine), MagicMock(id=theirs)]
+        )
+        share_repo.count_conversations_shared_with_user = AsyncMock(return_value=2)
+        conv_repo.favourite_ids = AsyncMock(return_value={mine})
+
+        items, total = await service.list_shared_with_me(reader)
+
+        assert total == 2
+        assert [item.is_favourite for item in items] == [True, False]
+        assert conv_repo.favourite_ids.await_args.kwargs["user_id"] == reader

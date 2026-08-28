@@ -13,11 +13,14 @@ different sidebars.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.db.models.conversation import Conversation
 from app.db.models.conversation_favourite import ConversationFavourite
@@ -224,3 +227,57 @@ class TestArchivingKeepsTheStarAndDropsTheBand:
         assert await conversation_repo.favourite_ids(
             db, user_id=reader.id, conversation_ids=[thread.id]
         ) == {thread.id}
+
+
+class TestTwoClicksAtOnceStillLeaveOneRow:
+    async def test_a_held_star_does_not_make_the_second_one_fail(self, engine: AsyncEngine) -> None:
+        """Deterministic on purpose, the shape #17's identity race uses: one
+        request's insert is held open - uncommitted, holding the unique-index
+        lock on the new row - while a second stars the same thread.
+
+        `ON CONFLICT DO NOTHING` has the second block on that lock and, once the
+        first commits, do nothing: one row, no error. The read-then-insert it
+        replaces had both requests miss the `SELECT` and both `INSERT`, and the
+        second violated the primary key - so a double click answered 500 and the
+        sidebar rolled the star back off a thread that was in fact starred
+        (#1254). Racing two calls through `gather` does not reproduce it: the
+        pair serialises and the first commits before the second inserts.
+        """
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as setup:
+            organization = await _org(setup)
+            reader = await _user(setup)
+            thread = await _conversation(setup, organization, reader, title="rota")
+            await setup.commit()
+
+        session_a = factory()
+        b_task: asyncio.Task[None] | None = None
+        try:
+            await conversation_repo.set_favourite(
+                session_a, user_id=reader.id, conversation_id=thread.id, favourite=True
+            )
+
+            async def star_again() -> None:
+                async with factory() as session_b:
+                    await conversation_repo.set_favourite(
+                        session_b, user_id=reader.id, conversation_id=thread.id, favourite=True
+                    )
+                    await session_b.commit()
+
+            b_task = asyncio.create_task(star_again())
+            await asyncio.sleep(0.4)
+            assert not b_task.done()  # blocked on A's uncommitted insert
+
+            await session_a.commit()
+
+            await b_task
+            b_task = None
+        finally:
+            if b_task is not None:
+                b_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await b_task
+            await session_a.close()
+
+        async with factory() as session:
+            assert await session.scalar(select(func.count(ConversationFavourite.user_id))) == 1

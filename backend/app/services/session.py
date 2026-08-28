@@ -70,10 +70,10 @@ class SessionService:
         )
 
     async def get_user_sessions(self, user_id: UUID) -> list[Session]:
-        return await session_repo.get_user_sessions(self.db, user_id, active_only=True)
+        return await session_repo.get_user_sessions(self.db, user_id, open_only=True)
 
-    async def count_user_sessions(self, user_id: UUID) -> int:
-        return await session_repo.count_user_sessions(self.db, user_id, active_only=True)
+    async def count_user_sessions(self, user_id: UUID, *, now: datetime | None = None) -> int:
+        return await session_repo.count_user_sessions(self.db, user_id, open_only=True, now=now)
 
     async def validate_refresh_token(self, refresh_token: str) -> Session | None:
         token_hash = _hash_token(refresh_token)
@@ -113,10 +113,14 @@ class SessionService:
         the caller pages on it: revoking the last session on a page has to leave
         the client able to work out that the page is gone.
         """
+        # One cutoff for both statements. A session lapsing between them would
+        # otherwise be in the page and outside the total, which breaks the
+        # invariant the caller pages on without anybody writing a row.
+        now = datetime.now(UTC)
         sessions = await session_repo.get_user_sessions(
-            self.db, user_id, active_only=True, skip=skip, limit=limit
+            self.db, user_id, open_only=True, now=now, skip=skip, limit=limit
         )
-        total = await self.count_user_sessions(user_id)
+        total = await self.count_user_sessions(user_id, now=now)
         return SessionListResponse(
             items=[
                 SessionRead(

@@ -21,6 +21,7 @@ class EmailKey(enum.StrEnum):
     NEWSLETTER_WELCOME = "newsletter_welcome"
     BUDGET_EXCEEDED = "budget_exceeded"
     APPROVAL_REQUESTED = "approval_requested"
+    APPROVAL_PENDING = "approval_pending"
     USAGE_REPORT = "usage_report"
 
 
@@ -42,6 +43,7 @@ _CATEGORIES: dict[EmailKey, EmailCategory] = {
     # columns), consulted where recipients are resolved, in NotificationService.
     EmailKey.BUDGET_EXCEEDED: EmailCategory.LIFECYCLE,
     EmailKey.APPROVAL_REQUESTED: EmailCategory.LIFECYCLE,
+    EmailKey.APPROVAL_PENDING: EmailCategory.LIFECYCLE,
     EmailKey.USAGE_REPORT: EmailCategory.LIFECYCLE,
 }
 

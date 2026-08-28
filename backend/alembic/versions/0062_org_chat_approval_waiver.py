@@ -30,7 +30,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0062_org_chat_approval_waiver"
-down_revision: str | None = "0060_conversation_favourites"
+down_revision: str | None = "0061_session_last_used_index"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

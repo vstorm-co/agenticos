@@ -738,6 +738,7 @@
     "title": "Billing"
   },
   "chat": {
+    "accessLevel": "Access level",
     "accessRevoked": "Access revoked",
     "agentPicker": {
       "appliesNext": "Applies from your next message — earlier answers keep their agent.",
@@ -764,6 +765,7 @@
     "attachedFile": "Attached file",
     "backAgentAposS": "Back to the agent's own model",
     "cancel": "Cancel",
+    "choosePerson": "Choose someone",
     "chunkNumber": "chunk {number}",
     "close": "Close",
     "closeSourcesPanel": "Close sources panel",
@@ -835,6 +837,7 @@
     "download": "Download",
     "dropFilesAttach": "Drop files to attach",
     "edit": "Edit",
+    "editMeans": "Edit lets them rename, archive and delete this conversation, and add turns to it.",
     "empty": {
       "brainstormPrompt": "Give me 5 ideas for an onboarding email sequence for a developer tool.",
       "brainstormTitle": "Brainstorm",
@@ -854,6 +857,7 @@
     "failedArchiveConversation": "Failed to archive conversation",
     "failedCreateConversation": "Failed to create conversation",
     "failedDeleteConversation": "Failed to delete conversation",
+    "failedFavouriteConversation": "Could not change the favourite",
     "failedFetchMessages": "Failed to fetch messages",
     "failedLoadCommands": "Failed to load commands",
     "failedRenameConversation": "Failed to rename conversation",
@@ -861,6 +865,8 @@
     "failedToGenerateLink": "Failed to generate link",
     "failedToRevoke": "Failed to revoke access",
     "failedToShare": "Failed to share conversation",
+    "favourite": "Favourite",
+    "favourites": "Favourites",
     "feedbackHelp": "Help us improve by optionally letting us know what wasn't helpful.",
     "fileCount": "{count, plural, =1 {1 file} other {# files}}",
     "files": {
@@ -898,9 +904,9 @@
     "knowledgeBase": "Knowledge base",
     "link": "Link",
     "linkGenerated": "Share link generated",
+    "linkIsViewOnly": "Anyone with the link can read this conversation. A link is always read-only.",
     "loading": "Loading…",
-    "memberEmail": "Email address",
-    "memberSuggestions": "Matching members",
+    "membersCouldNotBeRead": "The people in this organization could not be read.",
     "modelPicker": {
       "agentModel": "Agent's model",
       "chooseProvider": "Choose a provider",
@@ -1116,6 +1122,7 @@
       "wrote": "{named, select, no {Wrote…} other {Wrote {subject}}}"
     },
     "turnWasStopped": "stopped",
+    "unfavourite": "Remove from favourites",
     "unknownError": "Unknown error",
     "usage": {
       "agentShare": "· {percent}% of this agent's month",
@@ -1137,12 +1144,9 @@
       "workspaceUsedAmount": "workspace {used} stored"
     },
     "view": "View",
+    "viewMeans": "View lets them read this conversation and nothing else.",
     "web": "Web",
-    "whatWentWrong": "What went wrong?",
-    "favourite": "Favourite",
-    "unfavourite": "Remove from favourites",
-    "favourites": "Favourites",
-    "failedFavouriteConversation": "Could not change the favourite"
+    "whatWentWrong": "What went wrong?"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -3038,6 +3042,8 @@
   "organizations": {
     "accessLost": "You no longer have access to that organization.",
     "accessLostSwitched": "You no longer have access to that organization. Switched to {name}.",
+    "accessLostLink": "That link is for an organization you no longer have access to.",
+    "accessLostLinkSwitched": "That link is for an organization you no longer have access to. Showing {name} instead.",
     "created": "Organization created",
     "creating": "Creating...",
     "deleted": "Organization deleted",
@@ -4304,13 +4310,14 @@
       "fromTheAgent": "By the agent",
       "host": "on the host",
       "lastUsed": "Last used",
+      "listingTruncated": "This is not every file. Reading a host is a round trip per folder, so the listing stops at six levels deep and 2,000 entries.",
       "noAgentKeepingFiles": "No agent is keeping files yet. One appears here the first time an agent with a workspace writes something.",
       "noMatches": "Nothing in this workspace matches “{query}”.",
-      "listingTruncated": "This is not every file. Reading a host is a round trip per folder, so the listing stops at six levels deep and 2,000 entries.",
       "nothingListed": "Nothing could be listed here.",
       "onTheHostUnmeasured": "These files are on their host. Turn on Count files to read them.",
       "open": "Open",
       "openTheChatBehindFiles": "Open the chat these files belong to",
+      "owner": "Owner",
       "pickAFile": "Pick a file to read it here.",
       "preview": "Preview",
       "searchLabel": "Search files by name",
@@ -4430,6 +4437,7 @@
     "fileCount": "{count, plural, =0 {No files} =1 {1 file} other {# files}}",
     "fileRemoved": "File removed",
     "fileSaved": "File saved",
+    "fileTree": "Skill files",
     "files": "Files",
     "files2": "Files",
     "files3": "Files",
