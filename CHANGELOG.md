@@ -17,6 +17,50 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.337] - 2026-08-28
+
+### Added
+
+- **A per-conversation approval mode in the chat.** The spec decides which tools are
+  gated, at publish time, per tool - which is right for a statement about what the
+  agent *is*, and says nothing about the mood of one session. Somebody working through
+  twenty turns with an agent that gates three tools answered the same three questions
+  every turn, and their only way out was to republish the agent, changing it for
+  everybody, permanently, to fix an afternoon. Three modes ride the send frame beside
+  the model override: **Follow the agent** (the default, and exactly what existed
+  before), **Approve everything** (standing consent for this conversation - every gated
+  call granted without parking, each one still writing its row), and **Ask about
+  everything** (gate every tool the agent can reach, including the ones the spec left
+  ungated and the ones no capability owns). (#925)
+- Four things make it a session setting rather than a hole in the model. A caller who
+  may not waive is **refused, never downgraded** - quietly following the spec would
+  leave somebody believing they had turned the questions off, and the next parked run
+  says the opposite; the check is in `AgentRunnerService.prepare`, the one funnel a
+  fresh run and a resumed one share. Waiving needs `approvals:decide` **and** the
+  organization's leave: a standing consent *is* the decision the queue exists to
+  record, so `organizations.chat_may_waive_approvals` is the ceiling - **off by
+  default**, changed by somebody holding `approvals:decide` - and without it a
+  Builder's deliberate gate on `send_email` would be one click from nothing in every
+  conversation. **No channel still means no**: only the web chat may waive, because
+  `ApprovalGate` already refuses a run with nobody to ask. And **every waived call is
+  recorded** - the row is written `approved`, names the consenting account and carries
+  `decided_via = "standing"`, its own column rather than a sentence in `note`, because
+  a waived run indistinguishable from an agent that was never gated is
+  `docs/governance.md`'s trail quietly ceasing to be one. (#925)
+- "Ask about everything" gates **MCP tools too**. The spec-driven gate leaves them
+  alone because their approval is a property of the connection; a person who does not
+  trust an agent yet is asking about everything it can do. It only tightens, so it
+  takes no permission, no ceiling and no surface check -
+  `ApprovalRequest.capability_id` is nullable for exactly this case. (#925)
+- `docs/governance.md` gains **How much one conversation wants to be asked**; the tour
+  gains `chat-approval-mode`.
+
+### Changed
+
+- New column `organizations.chat_may_waive_approvals`, default off, with its own switch
+  beside the spending limit - so an upgrade changes nobody's behaviour and the waive
+  option does not render until an owner turns it on.
+
 ## [0.0.336] - 2026-08-28
 
 ### Added
