@@ -17,6 +17,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.321] - 2026-08-28
+
+### Fixed
+
+- **A long maintenance message ended under the mobile tab bar.** `DeploymentGate`
+  returns `MaintenanceScreen` *instead of* rendering `PageTransition`, which is where
+  every other page takes its bottom clearance from, so the last 56px plus the
+  safe-area inset stayed covered even at maximum scroll - on the one screen a visitor
+  sees when nothing else is available. The clearance moves onto the gate's
+  no-wrapper branch and off `MaintenanceScreen`: the gate is what knows this is the
+  whole page, where the screen would inherit page padding anywhere else it were
+  rendered. Still the one `PAGE_CLEARANCE` token, so there is no second copy of the
+  calc to forget `env(safe-area-inset-bottom)` in. (#1241)
+- `page-clearance.test.ts` walks the *pages* and so cannot see that branch; the
+  assertion is a render instead - the gate in maintenance, as a non-admin, with the
+  token spread as classes on its root, so a token that loses the inset fails here too.
+  (#1241)
+
 ## [0.0.320] - 2026-08-28
 
 ### Fixed
