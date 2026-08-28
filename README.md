@@ -1,14 +1,19 @@
 <div align="center">
 
-# AgenticOS
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/hero-dark.svg">
+  <img src=".github/assets/hero-light.svg" alt="AgenticOS — the operating system for your company's AI agents" width="900">
+</picture>
 
 **The operating system for your company's AI agents.**
 Self-hosted, open source, and yours.
 
 [![CI](https://github.com/vstorm-co/agenticos/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vstorm-co/agenticos/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/vstorm-co/agenticos?label=release&color=blue)](https://github.com/vstorm-co/agenticos/releases)
 [![Coverage](https://img.shields.io/badge/platform%20layer-100%25-brightgreen)](docs/testing.md)
 [![Docs](https://img.shields.io/badge/docs-mkdocs-blue)](docs/index.md)
 [![Licence](https://img.shields.io/badge/licence-Apache--2.0-blue)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/vstorm-co/agenticos?style=flat&color=e3b341)](https://github.com/vstorm-co/agenticos/stargazers)
 
 [![Python](https://img.shields.io/badge/python-3.12-3776ab?logo=python&logoColor=white)](backend/pyproject.toml)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Pydantic%20v2-009688?logo=fastapi&logoColor=white)](backend/pyproject.toml)
@@ -51,6 +56,22 @@ collection_ids: [b2a9...]
 budget:
   monthly_usd: 50
 ```
+
+## What it looks like
+
+Somebody who knows what the agent should say edits this, publishes a version, and
+every surface serves that version.
+
+<img src=".github/assets/builder.png" alt="The agent builder: instructions, model, capabilities and limits, with a published version pinned" width="100%">
+
+Published agents, each with the version that is live and who may reach it.
+
+<img src=".github/assets/agents.png" alt="The agent catalog, four published agents with their slugs and visibility" width="100%">
+
+The same runner answers in the dashboard's chat, and in Slack, and behind an API
+key — with the same budget, the same approval gate and the same audit trail.
+
+<img src=".github/assets/chat.png" alt="Web chat: the agent picker, the composer, and the prompt cards a new conversation opens with" width="100%">
 
 ## Get to a running agent
 
@@ -147,7 +168,7 @@ make docs-build   # build with --strict, which is what CI runs
 
 | | |
 |---|---|
-| [Concepts](docs/concepts.md) | Spec, version, exposure, run - the four nouns everything is built from |
+| [Concepts](docs/concepts.md) | Spec, version, exposure, trigger, run - the five nouns everything is built from |
 | [Permissions](docs/permissions.md) | The three layers, scopes, and how a grant widens access without promoting anybody |
 | [Governance](docs/governance.md) | Budgets, approvals, alerts, audit |
 | [Capabilities](docs/reference/capabilities.md) | Every capability that ships, its tools, config and scope |
@@ -228,6 +249,10 @@ Apache License 2.0 - see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
 Apache-2.0 rather than MIT because AgenticOS is meant to be deployed inside other
 companies: the explicit patent grant is the part their legal review asks about,
 and MIT is silent on it.
+
+## Stars
+
+[![Star history](https://api.star-history.com/svg?repos=vstorm-co/agenticos&type=Date)](https://star-history.com/#vstorm-co/agenticos&Date)
 
 ---
 

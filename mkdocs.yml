@@ -22,6 +22,15 @@ exclude_docs: |
 theme:
   name: material
   language: en
+  # One mark, drawn as paths in `docs/assets/mark.svg`, hand-authored rather
+  # than imported from an icon package - the same bargain
+  # `frontend/src/lib/brand-glyphs.generated.ts` takes with every other mark
+  # this product draws. The README's hero embeds the same shapes inline
+  # (`.github/assets/hero-*.svg`), because a `<picture>` there cannot reach a
+  # separate file per theme and a second copy of nine path commands is cheaper
+  # than a build step for one graphic.
+  logo: assets/mark.svg
+  favicon: assets/mark.svg
   palette:
     # A theme per system preference, with a manual override - the same bargain
     # the app itself makes.
