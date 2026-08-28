@@ -290,9 +290,10 @@ memory are the only limits worth setting.
 | `timeout_secs` | 10 | > 0, ≤ 120 |
 | `max_memory_mb` | 256 | 16–4096 |
 
-Capped rather than open-ended, and per agent rather than per deployment: an author
-raising a limit for one data-heavy agent should not need an operator or a
-redeploy.
+!!! info "Per agent, not per deployment"
+
+    An author raising a limit for one data-heavy agent should not need an
+    operator or a redeploy — and the ceilings are capped rather than open-ended.
 
 ## Files & shell
 
@@ -1187,16 +1188,18 @@ files" and "may it read them" are two decisions even though one capability answe
 both, so enabling stays per capability while approving happens per tool. `default`
 follows the capability's own `side_effecting` flag.
 
-`tool_overrides` exists because a tool's description is the highest-leverage
-prompt in the product — it is what the model reads before deciding to call —
-and its name steers just as hard: `search_refund_policy` is not
-`search_documents`. An agent that needs different behaviour from the same tool
-usually needs these reworded, not a second capability written.
+!!! tip "A tool's description is the highest-leverage prompt in the product"
 
-Both are keyed on the tool's **stable id**, never on the name the model sees. That
-is what keeps an approval gate attached to a renamed tool; keying it on the
-visible name would mean a rename silently removes the gate and a side-effecting
-call goes unattended with nothing reporting it. An id no such capability exposes
+    It is what the model reads before deciding to call, and its name steers just
+    as hard: `search_refund_policy` is not `search_documents`. An agent that
+    needs different behaviour from the same tool usually needs these reworded,
+    not a second capability written.
+
+!!! danger "Keyed on the tool's stable id, never on the name the model sees"
+
+    That is what keeps an approval gate attached to a renamed tool. Keying it on
+    the visible name would mean a rename silently removes the gate, and a
+    side-effecting call then goes unattended with nothing reporting it. An id no such capability exposes
 is refused at publish, and so is a name no model could call.
 
 ## Scopes
@@ -1214,18 +1217,21 @@ the agent is assembled:
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
 
-All seven are granted by default today (`DEFAULT_GRANTED_SCOPES` in
-`app/services/agent_registry.py`). Per-organization scope management is
-[roadmap](../ROADMAP.md) work; the check is live and honest in the meantime rather
-than disabled and forgotten.
+!!! note "All seven are granted by default today"
 
-`agents:delegate` is the one worth understanding, because it is *not* the gate on
-who may be delegated to — that is `agents:run`, checked on the publisher against
-each delegate's row. This scope answers a question no permission can: whether this
-**deployment** allows agents to call agents at all. Removing it from that set turns
-delegation off everywhere in one edit, which is what an operator who does not want
-nested runs or fan-out billing needs, and every spec that delegates then says so at
-publish rather than at 3am.
+    `DEFAULT_GRANTED_SCOPES` in `app/services/agent_registry.py`.
+    Per-organization scope management is [roadmap](../ROADMAP.md) work; the check
+    is live and honest in the meantime rather than disabled and forgotten.
+
+!!! warning "`agents:delegate` is not the gate on *who* may be delegated to"
+
+    That is `agents:run`, checked on the publisher against each delegate's row.
+    This scope answers a question no permission can: whether this **deployment**
+    allows agents to call agents at all. Remove it from that set and delegation
+    is off everywhere in one edit.
+
+An operator who does not want nested runs or fan-out billing removes it, and
+every spec that delegates then says so at publish rather than at 3am.
 
 ## What a tool tells the model
 

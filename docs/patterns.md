@@ -2,54 +2,79 @@
 
 ## Dependency Injection
 
-Use FastAPI's `Depends()` for injecting dependencies:
+Everything a route needs arrives as an `Annotated` alias from `app/api/deps.py` -
+never a bare `Depends()` in the signature:
 
 ```python
-from app.api.deps import get_db, get_current_user
+from app.api.deps import ConversationSvc, CurrentUser
 
-@router.get("/conversations")
-async def list_conversations(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    service = ConversationService(db)
-    return await service.get_by_user(current_user.id)
+
+@router.get("", response_model=ConversationList)
+async def list_conversations(service: ConversationSvc, user: CurrentUser) -> Any:
+    items, total = await service.list(user_id=user.id)
+    return ConversationList(items=items, total=total)
 ```
 
-> **Important:** Routes never contain direct database calls. All data access
-> goes through a service, which in turn delegates to a repository.
+!!! important "Routes never contain direct database calls"
 
-Available dependencies in `app/api/deps.py`:
-- `get_db` - Database session
-- `get_current_user` - Authenticated user (raises 401 if not authenticated)
-- `get_current_user_optional` - User or None
-- `get_redis` - Redis connection
+    All data access goes through a service, which in turn delegates to a
+    repository. A route validates, delegates and returns.
+
+The aliases worth knowing, all in `app/api/deps.py`:
+
+| Alias | |
+|---|---|
+| `DBSession` | The request's session. `scope="function"`, which is what commits before the response is written |
+| `StreamingDBSession` | The same session with `scope="request"`, for a route that streams its body |
+| `CurrentUser` | An authenticated user; 401 without one |
+| `CurrentAppAdmin` | The deployment's superadmin |
+| `Auth` | The `AuthContext`: the caller, the organization, the permission set |
+| `Redis` | The Redis client |
+| `<Domain>Svc` | One per service, built from `DBSession` |
 
 ## Service Layer Pattern
 
-Every feature uses the same pattern: a service class receives a DB session,
-instantiates its repository, and provides business-level methods. Services
-are the **only** layer that raises domain exceptions.
+Every feature uses the same pattern: a service class receives a DB session and
+provides business-level methods. Services are the **only** layer that raises
+domain exceptions.
 
 ```python
+from app.repositories import conversation_repo
+
+
 class ConversationService:
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.repo = ConversationRepository()
 
-    async def create(self, data: ConversationCreate, user_id: UUID) -> Conversation:
-        # Business validation
-        return await self.repo.create(self.db, user_id=user_id, **data.model_dump())
+    async def create(self, data: ConversationCreate, ctx: AuthContext) -> Conversation:
+        return await conversation_repo.create_conversation(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            title=data.title,
+        )
 
-    async def get_or_raise(self, id: UUID) -> Conversation:
-        conv = await self.repo.get_by_id(self.db, id)
-        if not conv:
-            raise NotFoundError(message="Conversation not found", details={"id": id})
-        return conv
+    async def get_conversation(self, conversation_id: UUID, *, organization_id: UUID) -> Conversation:
+        conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
+        missing = NotFoundError(
+            message="Conversation not found",
+            details={"conversation_id": conversation_id},
+        )
+        if not conversation:
+            raise missing
+        if conversation.organization_id != organization_id:
+            raise missing
+        return conversation
 ```
 
-All current services follow this pattern: `UserService`, `ConversationService`,
-`FileUploadService`, `FileStorageService`, `RagDocumentService`, `RagSyncService`, `SyncSourceService`.
+The tenant check raises **the same refusal** as a missing row: "you may not read
+this" tells somebody in another organization that the id exists.
+
+A service holds the session and nothing else - repositories are imported as
+modules rather than instantiated, so there is no per-request object graph to keep
+consistent. Where a domain owns infrastructure of its own (clients, adapters,
+parsers) the service becomes a subpackage exporting one facade:
+`services/rag/`, `services/channels/`, `services/email/`.
 
 ## Repository Layer Pattern
 
@@ -59,28 +84,57 @@ the transaction and commits it once — after the route returns and *before* the
 response is written, which is what makes a 2xx mean the write is readable. See
 [the request's transaction](architecture.md#the-requests-transaction).
 
+A repository is a **module of stateless functions**, not a class - `db` first,
+everything after it keyword-only:
+
 ```python
-class ConversationRepository:
-    async def get_by_id(self, db: AsyncSession, id: UUID) -> Conversation | None:
-        return await db.get(Conversation, id)
+# app/repositories/conversation.py
 
-    async def create(self, db: AsyncSession, **kwargs) -> Conversation:
-        conv = Conversation(**kwargs)
-        db.add(conv)
-        await db.flush()  # Not commit! Let dependency manage transaction
-        await db.refresh(conv)
-        return conv
+async def create_conversation(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID | None = None,
+    title: str | None = None,
+) -> Conversation:
+    conversation = Conversation(
+        user_id=user_id, organization_id=organization_id, title=title
+    )
+    db.add(conversation)
+    await db.flush()
+    await db.refresh(conversation)
+    return conversation
 
-    async def get_by_user(
-        self, db: AsyncSession, user_id: UUID, skip: int = 0, limit: int = 100
-    ) -> list[Conversation]:
-        result = await db.execute(
-            select(Conversation)
-            .where(Conversation.user_id == user_id)
-            .offset(skip).limit(limit)
-        )
-        return list(result.scalars().all())
+
+async def get_conversations_by_user(
+    db: AsyncSession,
+    user_id: UUID | None = None,
+    *,
+    organization_id: UUID,
+    skip: int = 0,
+    limit: int = 50,
+) -> list[Conversation]:
+    query = select(Conversation).where(Conversation.organization_id == organization_id)
+    if user_id:
+        query = query.where(Conversation.user_id == user_id)
+    result = await db.execute(query.offset(skip).limit(limit))
+    return list(result.scalars().all())
 ```
+
+Two things about that signature. `organization_id` has no default anywhere in
+that module, on purpose: every conversation belongs to a tenant, and a caller
+that cannot name one has a bug rather than a default. And a narrowing argument
+that is accepted has to be **applied** — a query that takes `user_id` and filters
+only on the tenant answers with every member's conversations. (The real module
+widens the user predicate to confirmed channel participants through
+`_reachable_by`, over ids the caller has already vetted against the platform;
+what matters here is that the argument reaches the `WHERE` clause at all.)
+
+!!! danger "`flush()`, never `commit()`"
+
+    The request's session commits once. The one sanctioned exception is the agent
+    run path, which commits before the model call and again in its terminal
+    `finally`.
 
 ## Exception Handling
 
@@ -96,7 +150,7 @@ if not conversation:
         details={"id": id}
     )
 
-if await self.repo.exists_by_email(self.db, email):
+if await user_repo.get_by_email(self.db, email):
     raise AlreadyExistsError(
         message="User with this email already exists"
     )
@@ -109,14 +163,17 @@ string form, a `datetime` in ISO 8601, an `Enum` as its value. Money is the
 exception worth knowing: a `Decimal` encodes to a float, so a cost or a cap is
 stringified by the code that raises.
 
-**A refusal describes the refusal, not the server.** Everything in `details` is
-read by whoever was refused, so it names the field, the id or the resource they
-can act on - never a filesystem path, an upstream client's exception text, or a
-setting whose value describes the deployment rather than a limit the caller is
-being held to (`max_mb` and `seats_limit` are exactly what a caller can act on;
-where the container keeps its templates is not). The diagnosis is not deleted, it
-moves: the path the loader searched and the vendor SDK's message go in the log
-line beside the raise, where an operator reads them and a caller does not.
+!!! warning "A refusal describes the refusal, not the server"
+
+    Everything in `details` is read by whoever was refused, so it names the
+    field, the id or the resource they can act on - never a filesystem path, an
+    upstream client's exception text, or a setting describing the deployment. The
+    diagnosis is not deleted; it moves to the log line beside the raise.
+
+`max_mb` and `seats_limit` are exactly what a caller can act on; where the
+container keeps its templates is not. The path the loader searched and the vendor
+SDK's message go in the log line beside the raise, where an operator reads them
+and a caller does not.
 
 ```python
 except Exception as exc:

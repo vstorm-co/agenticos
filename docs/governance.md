@@ -29,7 +29,11 @@ reaches the runner at all.
 
 ## Budgets
 
-Two levels, and they are not variations on one number.
+!!! abstract "Two levels, and they are not variations on one number"
+
+    An agent's cap measured against the organization's total is exhausted by its
+    neighbours' runs; the organization's measured against one agent is no ceiling
+    at all. See [why they cannot be collapsed](#why-they-cannot-be-collapsed).
 
 | Level | Set in | Meters | Raised by |
 |---|---|---|---|
@@ -70,9 +74,10 @@ card joins these against `GET /spend`, so a cap can be seen approaching before
 
 ### Enforcement is before the request
 
-Checked *before* each model request, not after. Checking afterwards means the
-request that broke the budget was already paid for, and a loop can overshoot by
-one expensive call every time.
+!!! danger "Before, not after"
+
+    Checking afterwards means the request that broke the budget was already paid
+    for - and a loop can overshoot by one expensive call every time.
 
 !!! important "A failed run still records what it spent"
 
@@ -787,6 +792,28 @@ Resolution is most-specific-first:
 The Builder states the outcome in words rather than describing the rule, because a
 rule the reader has to run in their head is a setting nobody dares touch.
 
+```mermaid
+sequenceDiagram
+    autonumber
+    participant M as Model
+    participant G as ApprovalGate
+    participant Q as Approvals queue
+    participant P as A person
+    M->>G: call a gated tool
+    G->>Q: park it, with the arguments
+    G-->>M: run ends `awaiting_approval`
+    P->>Q: reads the arguments, decides
+    alt approved
+        Q->>G: resume with the arguments that were read
+        G->>M: execute those, not what it proposes now
+    else rejected
+        Q->>G: resume, replaying the denial
+        G->>M: a refusal it can relay, not a crash
+    else expired
+        Q--xM: the run ends `cancelled`. No further model request
+    end
+```
+
 Four properties worth knowing:
 
 - **A parked run is resumable.** Its message history is stored, so the decision is
@@ -924,10 +951,13 @@ a request path can end one — the whole premise is that no request is coming �
 hourly sweep denies by timeout anything still pending past `APPROVAL_EXPIRY_HOURS`
 (three days by default, which spans a weekend).
 
-**It is the run that matters, not the row.** An approval left pending keeps its run
-in `awaiting_approval` indefinitely: work that is neither finished nor going to be,
-sitting in run history and in the oldest-waiting age on the dashboard. So the sweep
-follows each expired call down to the run behind it and ends it, `cancelled` —
+!!! warning "It is the run that matters, not the row"
+
+    A pending approval keeps its run in `awaiting_approval` indefinitely:
+    work that is neither finished nor going to be.
+
+Such a run sits in history and in the oldest-waiting age on the dashboard, so the
+sweep follows each expired call down to the run behind it and ends it, `cancelled` —
 nobody came back, and what it spent before it parked stands.
 
 Three things it deliberately does not do:

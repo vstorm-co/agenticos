@@ -36,10 +36,15 @@ Run these from the project root directory.
 
 ### Before a pull request
 
-`make check` is every CI job except one, and the equality is deliberate rather
-than approximate: `.github/workflows/ci.yml` calls these same Make targets rather
-than repeating their commands, and `backend/tests/test_ci_parity.py` fails if a
-gating job grows a step `check` does not run — or the reverse.
+!!! success "`make check` is every CI job except `e2e`"
+
+    The equality is maintained rather than asserted, and
+    `backend/tests/test_ci_parity.py` is what keeps it true. It has drifted four
+    times.
+
+`.github/workflows/ci.yml` calls these same Make targets rather than repeating
+their commands, so a gating job that grows a step `check` does not run fails the
+parity test — as does the reverse.
 
 ```bash
 make check   # lint, test, db-check, test-frontend-cov, build-frontend, docs-build, audit
@@ -53,10 +58,12 @@ About five minutes, serial, on a warm cache. What it deliberately leaves out:
 | The image build and Trivy scan | CI runs those only on a push to `main` |
 | `make test-migrations` | CI cycles the chain against a throwaway `test_db`. On a laptop `alembic downgrade base` points at whatever `backend/.env` says, which is usually the database with your own work in it — `uv run pytest tests/test_migrations.py` asks the same question against a database of its own, and `make test` already runs it |
 
-One gap no command can close: CI's `test` job has a Postgres beside it, so
-`tests/integration/` runs there, and locally it skips itself when nothing answers
-on 5432. `make check` says so at the end when that happens — `make docker-db`
-first if the change is anywhere near the database.
+!!! warning "One gap no command can close"
+
+    CI's `test` job has a Postgres beside it, so `tests/integration/` runs there;
+    locally it skips itself when nothing answers on 5432. `make check` says so at
+    the end when that happens — run `make docker-db` first if the change is
+    anywhere near the database.
 
 ### What a red `make audit` means
 
