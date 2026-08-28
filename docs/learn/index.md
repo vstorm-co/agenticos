@@ -39,6 +39,11 @@ independent — take the ones your agent needs.
 
 <div class="grid cards" markdown>
 
+- :material-compass-outline:{ .lg .middle } **[Choosing a model](../choosing-models.md)**
+
+    Which model this agent should use — open weights or closed, what drives the
+    bill, and how to change your mind later.
+
 - :material-brain:{ .lg .middle } **[Models and providers](../models.md)**
 
     27 providers, model profiles, fallbacks, and what a token actually costs.
@@ -85,6 +90,11 @@ An agent nobody can reach is a draft. This is how it leaves the console.
 - :material-cloud-upload:{ .lg .middle } **[Deploy](../deploy.md)**
 
     Getting the platform onto a host.
+
+- :material-account-group:{ .lg .middle } **[Rolling it out](../rollout.md)**
+
+    Who does what, a realistic first ninety days, what it costs, and the
+    questions your security review will ask.
 
 </div>
 

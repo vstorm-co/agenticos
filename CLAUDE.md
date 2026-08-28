@@ -383,6 +383,8 @@ say so and move on. Run it yourself any time with
 | The agent spec, field by field | `docs/reference/spec.md` |
 | MCP connections, the server catalog, OAuth | `docs/mcp.md` |
 | Providers, model profiles, fallbacks, cost | `docs/models.md` |
+| Which model to pick, open weights vs closed | `docs/choosing-models.md` |
+| Adoption, roles, cost, the security review | `docs/rollout.md` |
 | The vault, secret kinds, what never leaks | `docs/secrets.md` |
 | Skills — format, library, skills vs knowledge | `docs/skills.md` |
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |

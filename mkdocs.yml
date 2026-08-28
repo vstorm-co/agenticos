@@ -172,6 +172,7 @@ nav:
           - first-agent.md
           - concepts.md
       - Build the agent:
+          - choosing-models.md
           - models.md
           - skills.md
           - file-processing.md
@@ -180,6 +181,7 @@ nav:
           - triggers.md
       - Put it in front of people:
           - channels.md
+          - rollout.md
           - deployment.md
           - deploy.md
       - Keep it under control:

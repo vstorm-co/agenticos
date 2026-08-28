@@ -235,6 +235,11 @@ came from.
     Settings, CLI commands, the agent spec, the capability and permission
     catalogs.
 
+- :material-account-group:{ .lg .middle } **[Rolling it out](rollout.md)**
+
+    For whoever owns the decision rather than the install: who does what, what
+    it costs, and what your security review will ask.
+
 - :material-information-outline:{ .lg .middle } **[About](about/index.md)**
 
     Why it exists, what it deliberately is not, and the six decisions that shape

@@ -1,5 +1,11 @@
 # Models and providers
 
+!!! tip "Deciding rather than configuring?"
+
+    This page is the machinery. [Choosing a model](choosing-models.md) answers
+    *which* model an agent should use — open weights or closed, what actually
+    drives the bill, and why the choice is reversible.
+
 The template this platform grew from built one model from environment variables.
 
 That stops working the moment several organizations share a deployment: each needs
