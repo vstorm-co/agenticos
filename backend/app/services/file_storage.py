@@ -11,7 +11,7 @@ import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from app.core.blocking import run_blocking, write_bytes_cancel_safe
+from app.core.blocking import delete_cancel_safe, run_blocking, write_bytes_cancel_safe
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -225,9 +225,23 @@ class LocalFileStorage(BaseFileStorage):
         return await run_blocking(file_path.read_bytes)
 
     async def delete(self, storage_path: str) -> None:
-        file_path = self._resolve_safe_path(storage_path)
-        if file_path.exists():
-            file_path.unlink()
+        await delete_cancel_safe(self._delete_blocking, storage_path)
+
+    def _delete_blocking(self, storage_path: str) -> None:
+        """The blocking half of :meth:`delete`, run on the file pool.
+
+        `realpath` and `unlink` are blocking syscalls with no yield point, so a
+        bulk teardown that unlinked a whole collection ran them all in one loop
+        turn, stalling every other request on the worker (#1294). Off the loop,
+        the per-file await also lets the teardown loops interleave.
+
+        `missing_ok=True` rather than a check-then-unlink: two coroutines
+        deleting one path now run on separate pool workers, so a guarded unlink
+        would let both see the file, then one succeed and the other raise
+        `FileNotFoundError`. The teardown loops call `delete` best-effort, so a
+        path another path already removed must be a no-op.
+        """
+        self._resolve_safe_path(storage_path).unlink(missing_ok=True)
 
     def get_full_path(self, storage_path: str) -> Path | None:
         """Return absolute filesystem path for local files."""

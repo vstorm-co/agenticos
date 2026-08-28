@@ -70,3 +70,25 @@ async def test_loading_from_local_storage_runs_off_the_request_loop(
 
     assert await storage.load(stored) == b"payload"
     assert ran_on and ran_on[0] != loop_thread
+
+
+async def test_deleting_from_local_storage_runs_off_the_request_loop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A bulk teardown unlinks one file per call, so the unlink must not run on
+    the loop - a dropped collection would otherwise stall the worker (#1294)."""
+    storage = LocalFileStorage(base_dir=tmp_path / "media")
+    stored = await storage.save("u1", "report.bin", b"payload")
+    loop_thread = threading.get_ident()
+    ran_on: list[int] = []
+    real_unlink = Path.unlink
+
+    def recording(self: Path, *args: object, **kwargs: object) -> None:
+        ran_on.append(threading.get_ident())
+        real_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", recording)
+
+    await storage.delete(stored)
+    assert ran_on and ran_on[0] != loop_thread
+    assert not (tmp_path / "media" / stored).exists()

@@ -78,6 +78,83 @@ async def test_a_save_cancelled_before_it_runs_creates_nothing(tmp_path: Path) -
     assert [p for p in tmp_path.rglob("*") if p.is_file()] == []
 
 
+async def test_an_uncancelled_delete_removes_the_file(tmp_path: Path) -> None:
+    storage = LocalFileStorage(base_dir=tmp_path)
+    stored = await storage.save("user", "doc.txt", b"payload")
+    await storage.delete(stored)
+    assert not (tmp_path / stored).exists()
+
+
+async def test_deleting_a_missing_path_through_the_helper_is_a_no_op(tmp_path: Path) -> None:
+    """`unlink(missing_ok=True)` makes concurrent deletes of one path idempotent -
+    a path another cleanup already removed must not raise (#1294)."""
+    storage = LocalFileStorage(base_dir=tmp_path)
+    await storage.delete("user/never-written.bin")
+
+
+async def test_a_cancelled_delete_finishes_the_unlink(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An executor cannot interrupt a running unlink, so a delete cancelled
+    mid-unlink must wait it out - returning while it ran on in the background
+    would let the caller's follow-up be skipped with the old file already gone
+    (#1294)."""
+    storage = LocalFileStorage(base_dir=tmp_path)
+    stored = await storage.save("user", "doc.txt", b"payload")
+    entered = threading.Event()
+    allow = threading.Event()
+    original_unlink = Path.unlink
+
+    def slow_unlink(self: Path, *args: object, **kwargs: object) -> None:
+        entered.set()
+        allow.wait(5)
+        original_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", slow_unlink)
+
+    task = asyncio.create_task(storage.delete(stored))
+    while not entered.is_set():  # noqa: ASYNC110
+        await asyncio.sleep(0.01)
+    task.cancel()
+    allow.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert not (tmp_path / stored).exists()
+
+
+async def test_a_second_cancellation_does_not_detach_the_delete_drain(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A cancellation arriving while the drain waits the unlink out must not carry
+    the caller off and leave it detached; cancelling twice still finishes the
+    unlink (#1294)."""
+    storage = LocalFileStorage(base_dir=tmp_path)
+    stored = await storage.save("user", "doc.txt", b"payload")
+    entered = threading.Event()
+    allow = threading.Event()
+    original_unlink = Path.unlink
+
+    def slow_unlink(self: Path, *args: object, **kwargs: object) -> None:
+        entered.set()
+        allow.wait(5)
+        original_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", slow_unlink)
+
+    task = asyncio.create_task(storage.delete(stored))
+    while not entered.is_set():  # noqa: ASYNC110
+        await asyncio.sleep(0.01)
+    task.cancel()
+    await asyncio.sleep(0)
+    task.cancel()
+    allow.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert not (tmp_path / stored).exists()
+
+
 async def test_parse_content_still_extracts_text_through_the_pool() -> None:
     """The parse wiring moved to `run_blocking`; the extraction is unchanged."""
     service = FileUploadService(db=None)  # type: ignore[arg-type]  # parse touches no db
