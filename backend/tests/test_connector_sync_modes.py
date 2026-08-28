@@ -452,7 +452,7 @@ class TestWhatASyncedDocumentLeavesBehind:
                 str(uuid.uuid4()), sync_log_id=str(uuid.uuid4())
             )
 
-        assert answer["failed"] == 0 and answer["ingested"] == 1
+        assert answer["failed"] == 1 and answer["ingested"] == 0
         documents.create_document.assert_awaited_once()
         documents.fail_ingestion.assert_awaited_once()
         assert "page 4" in documents.fail_ingestion.await_args.args[1]
