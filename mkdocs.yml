@@ -17,10 +17,17 @@ docs_dir: docs
 # reports - is engineering notes rather than site pages. Unlisted they would
 # still build and publish as orphans nothing links to, which is how a page goes
 # stale unseen; they stay readable in the repository, where they are written.
+# `ROADMAP.md` and `about/design.md` are the same kind of material one level up:
+# delivery state written in board shorthand, and the six decisions a contributor
+# needs before their first change. Both are read in the repository, by somebody
+# who has already decided to work on this - publishing them put an internal
+# status report in a tab a prospective user meets first.
 exclude_docs: |
   design/
   plans/
   audits/
+  ROADMAP.md
+  about/design.md
 
 theme:
   name: material
@@ -28,10 +35,9 @@ theme:
   # One mark, drawn as paths in `docs/assets/mark.svg`, hand-authored rather
   # than imported from an icon package - the same bargain
   # `frontend/src/lib/brand-glyphs.generated.ts` takes with every other mark
-  # this product draws. The README's hero embeds the same shapes inline
-  # (`.github/assets/hero-*.svg`), because a `<picture>` there cannot reach a
-  # separate file per theme and a second copy of nine path commands is cheaper
-  # than a build step for one graphic.
+  # this product draws. The README shows this same file rather than a second
+  # rendering of it; one accent that reads on both a light and a dark page is
+  # what lets one mark serve the tab, the site header and the README.
   logo: assets/mark.svg
   favicon: assets/mark.svg
   palette:
@@ -208,8 +214,6 @@ nav:
   - About:
       - about/index.md
       - about/comparison.md
-      - about/design.md
-      - ROADMAP.md
   - Release Notes: release-notes.md
 
 extra:

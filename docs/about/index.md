@@ -58,7 +58,7 @@ comparing it against.
 Monitoring is the weakest of the seven. Every run records a
 `logfire_trace_id` and nothing yet reads it, so what you get today is run
 history, cost and status rather than a trend you can act on. It is on
-[the roadmap](../ROADMAP.md) as R11.
+[the roadmap](https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md) as R11.
 
 Two more gaps worth knowing before you compare: there is no SAML or SCIM yet —
 sign-in is JWT, API keys, Google OAuth and magic links — and there is no
@@ -121,7 +121,10 @@ on top — is held at 100% test coverage in CI. The inherited subsystems are
 reported but do not gate the build, because holding code we did not design to the
 same bar buys a coverage number rather than confidence.
 
-The decisions behind the shape of it are on the next page.
+The six decisions behind the shape of it — why an agent is a file, why the spec
+format only moves forward, why validation happens at publish — are written for
+contributors in
+[`docs/about/design.md`](https://github.com/vstorm-co/agenticos/blob/main/docs/about/design.md).
 
 ## Who builds it
 
@@ -137,4 +140,4 @@ The decisions behind the shape of it are on the next page.
 - The product is mostly the **refusals**, not the happy path.
 - It runs on **your machine**, because that is what an operating system does.
 
-[The design →](design.md) · [The roadmap →](../ROADMAP.md)
+[When to use something else →](comparison.md) · [Install it →](../install.md)

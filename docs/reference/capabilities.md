@@ -1294,7 +1294,7 @@ the agent is assembled:
 !!! note "All seven are granted by default today"
 
     `DEFAULT_GRANTED_SCOPES` in `app/services/agent_registry.py`.
-    Per-organization scope management is [roadmap](../ROADMAP.md) work; the check
+    Per-organization scope management is [roadmap](https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md) work; the check
     is live and honest in the meantime rather than disabled and forgotten.
 
 !!! warning "`agents:delegate` is not the gate on *who* may be delegated to"

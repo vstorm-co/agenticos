@@ -79,6 +79,19 @@ snippets expand *after* every hook, so nothing could reach the included text to
 rewrite its `docs/`-prefixed links — and `--strict` fails on the `docs/docs/…` they
 resolve to.
 
+## Two pages are in the repository and not on the site
+
+`docs/ROADMAP.md` and `docs/about/design.md` sit in `exclude_docs` beside
+`design/`, `plans/` and `audits/`. Delivery state written in board shorthand and
+the six decisions a contributor needs before their first change are read by
+somebody who has already chosen to work on this; published, they put an internal
+status report in a tab a prospective user meets first.
+
+A **published page that links to either one fails `--strict`**, because an
+excluded file is not built and the link resolves to nothing. Link them by GitHub
+blob URL instead - `docs/about/index.md` and `docs/reference/capabilities.md`
+are the two that do.
+
 ## Adding a page
 
 1. Write it in `docs/` (or `docs/howto/`, `docs/reference/`).

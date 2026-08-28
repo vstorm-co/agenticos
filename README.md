@@ -1,9 +1,8 @@
 <div align="center">
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/hero-dark.svg">
-  <img src=".github/assets/hero-light.svg" alt="AgenticOS — the operating system for your company's AI agents" width="900">
-</picture>
+<img src="docs/assets/mark.svg" alt="" width="84" height="84">
+
+<h1>AgenticOS</h1>
 
 <p>
   <b>The operating system for your company's AI agents.</b><br>
@@ -18,7 +17,6 @@
   <a href="#-what-makes-it-an-operating-system">Why it is an OS</a> &middot;
   <a href="#-why-agenticos">Comparison</a> &middot;
   <a href="docs/mcp.md">Integrations</a> &middot;
-  <a href="docs/ROADMAP.md">Roadmap</a> &middot;
   <a href="CHANGELOG.md">Changelog</a>
 </p>
 
@@ -169,7 +167,7 @@ own, with agents a non-engineer edits and an accountant can audit.
 <sub>✅ first-class · ~ partial or via configuration · — not available · DIY you wire it yourself.
 "A library" means LangGraph, Pydantic AI or similar. Reflects each project as of 2026-08;
 corrections welcome via PR. The last three rows are ours to fix and are on the
-<a href="docs/ROADMAP.md">roadmap</a>.</sub>
+<a href="https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md">roadmap</a>.</sub>
 
 ## Why
 

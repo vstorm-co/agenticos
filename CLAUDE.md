@@ -400,8 +400,15 @@ say so and move on. Run it yourself any time with
 | The Learn track's own landing | `docs/learn/index.md` |
 | Help, contributing, extending the platform | `docs/resources/index.md` |
 | Why it exists, and what it is not | `docs/about/index.md` |
-| The six decisions that shape the codebase | `docs/about/design.md` |
+| The six decisions that shape the codebase | `docs/about/design.md` (repo only) |
+| Delivery state and what is left | `docs/ROADMAP.md` (repo only) |
 | Every notable change | `docs/release-notes.md` (reads `CHANGELOG.md`) |
+
+**Two of those are in `exclude_docs` and are not site pages**: `docs/ROADMAP.md`
+and `docs/about/design.md`. They stay in the repository, where a contributor
+reads them, and a published page that links to one **fails `--strict`** - so
+reference them by their GitHub blob URL, the way `docs/about/index.md` and
+`docs/reference/capabilities.md` do.
 
 ### The site has seven tabs, and they are the shape of it
 
