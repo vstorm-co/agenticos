@@ -86,24 +86,24 @@ Running the services by hand instead? Python 3.12, Node with
 
 ## Installation
 
-```console
-$ git clone https://github.com/vstorm-co/agenticos.git
-$ cd agenticos
-$ make dev
+```bash
+git clone https://github.com/vstorm-co/agenticos.git
+cd agenticos
+make dev
 ```
 
 That brings up Postgres, Redis, the API, the worker and the frontend.
 
 Then create an organization, an owner, a model and a first agent:
 
-```console
-$ make platform-bootstrap BOOTSTRAP_API_KEY=sk-...
+```bash
+make platform-bootstrap BOOTSTRAP_API_KEY=sk-...
 ```
 
 And open the console:
 
-```console
-$ open http://localhost:3000
+```bash
+open http://localhost:3000
 ```
 
 Sign in with `admin@example.com` / `admin123`.
@@ -112,8 +112,8 @@ Sign in with `admin@example.com` / `admin123`.
 
     Not sure the deployment can actually run an agent? Ask it.
 
-    ```console
-    $ uv run agenticos cmd doctor
+    ```bash
+    uv run agenticos cmd doctor
     ```
 
 ## What an agent looks like
@@ -154,8 +154,8 @@ budget:
 Publish it and it runs the same way in every surface: the console's chat, a
 hosted page, an embedded widget, the HTTP API, Slack, Telegram, Mattermost.
 
-```console
-$ curl -X POST http://localhost:8000/api/v1/agents/$AGENT_ID/run \
+```bash
+curl -X POST http://localhost:8000/api/v1/agents/$AGENT_ID/run \
     -H "Authorization: Bearer $TOKEN" \
     -H "X-Organization-Id: $ORG_ID" \
     -H "Content-Type: application/json" \
