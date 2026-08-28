@@ -1,17 +1,22 @@
 # MCP — the tools nobody here has to write
 
 [Model Context Protocol](https://modelcontextprotocol.io) servers are this
-platform's answer to "you cannot write a connector for everything". An
-organization points at a server, its tools appear in the Builder, and no code
-changes on our side. Everything in the [capability catalog](reference/capabilities.md)
-is code we wrote and hold to 100% coverage; everything here is a URL somebody
-pasted.
+platform's answer to "you cannot write a connector for everything".
 
-The two are not alternatives. A capability is the right shape for something the
-platform must guarantee — a budget guard, a sandbox, retrieval that cites its
-sources. MCP is the right shape for the forty SaaS products a company happens to
-use, where the guarantee that matters is only "the tools are the ones the vendor
-published".
+An organization points at a server, its tools appear in the Builder, and no code
+changes on our side.
+
+Everything in the [capability catalog](reference/capabilities.md) is code we wrote
+and hold to 100% coverage. Everything here is a URL somebody pasted.
+
+!!! info "The two are not alternatives"
+
+    A **capability** is the right shape for something the platform must guarantee
+    — a budget guard, a sandbox, retrieval that cites its sources.
+
+    **MCP** is the right shape for the forty SaaS products a company happens to
+    use, where the guarantee that matters is only "the tools are the ones the
+    vendor published".
 
 ## A connection
 
@@ -28,35 +33,42 @@ Atlassian works alongside a streamable-HTTP one with nothing to configure.
 | `is_enabled` | Off without losing the credential |
 | `last_status` | What the last probe found, and when |
 
-**An address this deployment must not reach is refused, and the refusal says
-so.** A URL that resolves to a loopback, private, link-local or shared-CGNAT
-address, one that does not resolve at all, one carrying credentials in its
-userinfo, one on a scheme other than `http`/`https`, or one that is simply
-malformed, comes back as a **400**
-naming `url` as the field at fault — on create, on edit, and on starting an
-OAuth flow, personal and organization-wide alike. What it names beyond that is
-the *host*, never the URL — a URL carries a key in its query string, and the
-sentence explaining the refusal is one written in this repository rather than
-whatever the URL parser had to say about the text you sent. It
-used to be a 500 with no details and a traceback in the log, which reads as the
-platform breaking rather than as an address to correct
-([#861](https://github.com/vstorm-co/agenticos/issues/861)) — self-hosting and
-pasting a `localhost` URL is the ordinary case, not the exotic one.
+!!! warning "An address this deployment must not reach is refused, and the refusal says so"
+
+    A URL that resolves to a loopback, private, link-local or shared-CGNAT
+    address, one that does not resolve at all, one carrying credentials in its
+    userinfo, one on a scheme other than `http`/`https`, or one that is simply
+    malformed, comes back as a **400** naming `url` as the field at fault — on
+    create, on edit, and on starting an OAuth flow, personal and organization-wide
+    alike.
+
+    What it names beyond that is the **host**, never the URL: a URL carries a key
+    in its query string, and the sentence explaining the refusal is one written in
+    this repository rather than whatever the URL parser had to say about the text
+    you sent.
+
+    It used to be a 500 with no details and a traceback in the log, which reads as
+    the platform breaking rather than as an address to correct
+    ([#861](https://github.com/vstorm-co/agenticos/issues/861)) — self-hosting and
+    pasting a `localhost` URL is the ordinary case, not the exotic one.
 
 ### Personal or organization-wide
 
 Two kinds, and the difference is the point.
 
-**Personal** (Settings → Your connections) is scoped to one member and reached
-only by their own assistant. Its credential is sealed to the *member*, not to an
-organization — a personal connection has none, and its owner may belong to
-several, so binding it to whichever was active when they added it would make the
-token unreadable the moment they switched.
+**Personal** (Settings → Your connections) is scoped to one member and reached only
+by their own assistant.
+
+Its credential is sealed to the *member*, not to an organization — a personal
+connection has none, and its owner may belong to several, so binding it to
+whichever was active when they added it would make the token unreadable the moment
+they switched.
 
 **Organization** is scoped to the organization, gated on `connections:manage`, and
-is the only kind a published agent's spec may name. A published agent that
-answered differently depending on whose session ran it could not be reviewed or
-reasoned about, which is the whole reason for the restriction.
+is the only kind a published agent's spec may name.
+
+A published agent that answered differently depending on whose session ran it could
+not be reviewed or reasoned about, which is the whole reason for the restriction.
 
 ```
 GET  /api/v1/me/mcp-connections     personal
@@ -71,16 +83,36 @@ connection an agent still names loses that server for the agent, not the run.
 
 Three modes, which is the only thing that really varies between servers.
 
-**None.** Public documentation servers, mostly — Cloudflare's docs server needs no
-credential at all.
+=== "None"
 
-**Token.** A bearer token pasted once and sealed. Each catalog entry carries its
-own hint about where to get one, because generic instructions are the main reason
-token setup fails. `PATCH` with `auth_token: ""` clears it.
+    Public documentation servers, mostly — Cloudflare's docs server needs no
+    credential at all.
 
-**OAuth 2.1.** Most business servers (Notion, Linear, Atlassian, Asana) return
-`401` with a `WWW-Authenticate` header pointing at RFC 9728 protected-resource
-metadata, and the flow runs from there:
+=== "Token"
+
+    A bearer token pasted once and sealed.
+
+    Each catalog entry carries its own hint about where to get one, because
+    generic instructions are the main reason token setup fails.
+
+    `PATCH` with `auth_token: ""` clears it.
+
+=== "OAuth 2.1"
+
+    Most business servers — Notion, Linear, Atlassian, Asana — return `401` with a
+    `WWW-Authenticate` header pointing at RFC 9728 protected-resource metadata,
+    and the flow runs from there.
+
+    1. **Discover** — probe the server, resolve its authorization server, fetch
+       RFC 8414 metadata.
+    2. **Register** — RFC 7591 dynamic client registration.
+    3. **Consent** — a PKCE authorization URL with `state` and an RFC 8707
+       resource indicator; the browser goes there.
+    4. **Exchange** — the callback swaps the code for tokens, then redirects the
+       browser back to the MCP servers page, which says whether it worked. That is
+       the only place the outcome can be told: the person is looking at a page
+       they did not navigate to themselves.
+    5. **Refresh** — when the access token expires.
 
 ```mermaid
 sequenceDiagram
@@ -99,157 +131,168 @@ sequenceDiagram
     P-->>O: back to the MCP servers page, with the outcome
 ```
 
-1. **Discover** — probe the server, resolve its authorization server, fetch RFC
-   8414 metadata.
-2. **Register** — RFC 7591 dynamic client registration.
-3. **Consent** — a PKCE authorization URL with `state` and an RFC 8707 resource
-   indicator; the browser goes there.
-4. **Exchange** — the callback swaps the code for tokens, then redirects the
-   browser back to the MCP servers page, which says whether it worked. That is
-   the only place the outcome can be told: the person is looking at a page they
-   did not navigate to themselves.
-5. **Refresh** — when the access token expires.
+### Every URL in that flow is checked, not just the one you typed
 
-!!! danger "Every URL reached in that flow is SSRF-checked, not just the one somebody typed"
+!!! danger "Discovery means the remote server chooses most of the addresses we call"
 
-    Discovery means the *remote server* chooses most of the addresses we call,
-    and connecting a single hostile server used to be enough: a name could answer
-    a public address to the check and a private one to the request that followed
-    ([#860](https://github.com/vstorm-co/agenticos/issues/860)). The address that
-    passed the check is now the address connected to.
+    Connecting a single hostile server used to be enough: a name could answer a
+    public address to the check and a private one to the request that followed
+    ([#860](https://github.com/vstorm-co/agenticos/issues/860)).
 
-The request goes to the resolved IP with the original host in the `Host` header
-and in TLS SNI, so the certificate is still verified against the name and nothing
+    The address that passed the check is now the address connected to.
+
+The request goes to the resolved IP with the original host in the `Host` header and
+in TLS SNI, so the certificate is still verified against the name and nothing
 resolves it a second time.
 
-That second half is what [#860](https://github.com/vstorm-co/agenticos/issues/860)
-closed, and it matters here more than anywhere else in the product. The address
+That second half matters here more than anywhere else in the product. The address
 an operator types is only the first hop — the authorization server, the token
-endpoint, the registration endpoint and every redirect after them are named by
-the remote server's own discovery documents. While the check merely resolved a
-name and handed the string back, connecting a single hostile server was enough:
-a name could answer a public address to the check and a private one to the
-request that followed, and nobody in your organization had to be the attacker.
-Redirects are followed one hop at a time, bounded at five, each with its own
-check — a `302` to a new host is re-resolved, not trusted.
+endpoint, the registration endpoint and every redirect after them are named by the
+remote server's own discovery documents. Nobody in your organization had to be the
+attacker.
 
-Where a name answers with several addresses, every one of them is checked and
-kept, and an address that refuses the connection is followed by the next — what
-an ordinary client gets from the resolver, without asking DNS a second time. A
-name answering with one public address and one private one is refused whole
-rather than narrowed to its public half.
+Redirects are followed one hop at a time, bounded at five, each with its own check.
+A `302` to a new host is re-resolved, not trusted.
 
-Two edges remain, both narrow and both deliberate. The **consent URL** is
-checked and then handed to somebody's browser, which resolves it itself; there
-is no pinning to do. And the **connection's own URL** is checked at save and
-resolved again when an agent runs — operator-typed, so rebinding it means being
-the operator. Nothing a *model* chooses reaches this check at all, and nothing
-should: a URL an agent picked wants Pydantic AI's `safe_download`.
+Where a name answers with several addresses, every one of them is checked and kept,
+and an address that refuses the connection is followed by the next — what an
+ordinary client gets from the resolver, without asking DNS a second time. A name
+answering with one public address and one private one is refused **whole** rather
+than narrowed to its public half.
+
+Two edges remain, both narrow and both deliberate:
+
+- The **consent URL** is checked and then handed to somebody's browser, which
+  resolves it itself. There is no pinning to do.
+- The **connection's own URL** is checked at save and resolved again when an agent
+  runs — operator-typed, so rebinding it means being the operator.
+
+Nothing a *model* chooses reaches this check at all, and nothing should: a URL an
+agent picked wants Pydantic AI's `safe_download`.
 
 !!! info "Behind an egress proxy, the proxy does the connecting"
 
-    `HTTP_PROXY` and `HTTPS_PROXY` are honoured, because a deployment that
-    mandates an egress proxy would otherwise lose MCP OAuth entirely — and that
-    proxy is an egress control in its own right. On that path the pinned address
-    is what the proxy is *asked* to reach (`CONNECT 93.184.216.34:443`, or an
-    absolute-form request line for plain HTTP) rather than what this process
-    connects to, so the guarantee ends at the proxy. TLS is still end to end,
-    so the certificate is still verified against the original name. A policy
-    proxy that refuses a bare address will refuse these requests; the log line
-    written when a proxy is configured is there so that failure is readable.
+    `HTTP_PROXY` and `HTTPS_PROXY` are honoured, because a deployment that mandates
+    an egress proxy would otherwise lose MCP OAuth entirely — and that proxy is an
+    egress control in its own right.
 
-A step that fails says **which step gave up and what class of thing raised**,
-never what the upstream client wrote. `httpx` puts the failing request in its
-message and the two requests here are a client registration and a token grant,
-so quoting it would carry a token endpoint — reached with credentials — into the
-browser; a pydantic error over an unreadable token response echoes the payload it
-rejected, which is the tokens. Both stay in the server log, which is where an
-operator already looks.
+    On that path the pinned address is what the proxy is *asked* to reach
+    (`CONNECT 93.184.216.34:443`, or an absolute-form request line for plain HTTP)
+    rather than what this process connects to, so the guarantee ends at the proxy.
+    TLS is still end to end, so the certificate is still verified against the
+    original name.
+
+    A policy proxy that refuses a bare address will refuse these requests; the log
+    line written when a proxy is configured is there so that failure is readable.
+
+### When a step fails
+
+A step that fails says **which step gave up and what class of thing raised**, never
+what the upstream client wrote.
+
+`httpx` puts the failing request in its message, and the two requests here are a
+client registration and a token grant — so quoting it would carry a token endpoint,
+reached with credentials, into the browser. A pydantic error over an unreadable
+token response echoes the payload it rejected, which is the tokens. Both stay in
+the server log, which is where an operator already looks.
 
 **A discovery document naming a URL that cannot be requested at all is the same
-kind of answer** — a **400** saying which endpoint was unusable, and that it is
-malformed. It is a distinct refusal from "this server pointed the flow at a
-blocked address": one says the server aimed us somewhere this deployment will
-not go, the other that it wrote an address nothing can dial, and reporting
-either as the other would be a confident claim about whose fault a failure was.
-An unusable `WWW-Authenticate` hint ends that discovery candidate rather than
-the flow, because the well-known URIs after it are derived from the URL an
-operator typed and may well answer. This was a 500 with an empty body until
-[#889](https://github.com/vstorm-co/agenticos/issues/889): `httpx.InvalidURL`
-does not derive from `httpx.HTTPError`, so none of the flow's catches saw it,
-and no check here could have — the URL is refused while the request is being
-built, above both the SSRF check and the pinned client. What the parser could
-not read (`Invalid port: 'client_secret=…'`) is the remote server's own text
-and stays in the log with everything else.
+kind of answer**: a **400** saying which endpoint was unusable, and that it is
+malformed.
+
+That is a distinct refusal from "this server pointed the flow at a blocked
+address". One says the server aimed us somewhere this deployment will not go, the
+other that it wrote an address nothing can dial, and reporting either as the other
+would be a confident claim about whose fault a failure was.
+
+An unusable `WWW-Authenticate` hint ends that discovery *candidate* rather than the
+flow, because the well-known URIs after it are derived from the URL an operator
+typed and may well answer.
+
+This was a 500 with an empty body until
+[#889](https://github.com/vstorm-co/agenticos/issues/889): `httpx.InvalidURL` does
+not derive from `httpx.HTTPError`, so none of the flow's catches saw it — and no
+check here could have, because the URL is refused while the request is being built,
+above both the SSRF check and the pinned client. What the parser could not read
+(`Invalid port: 'client_secret=…'`) is the remote server's own text and stays in
+the log with everything else.
 
 !!! warning "An organization's OAuth connection is still someone's grant"
 
     `POST /mcp-connections/oauth/start` produces a connection the organization
     owns, which is what a shared service account is for. But the grant remains the
-    consenting person's at the provider: revoking their access there stops the
-    organization's server working until it is authorized again. Consent with an
-    account the organization controls.
+    *consenting person's* at the provider: revoking their access there stops the
+    organization's server working until it is authorized again.
+
+    Consent with an account the organization controls.
+
+### Three rules about tokens
 
 **A token never follows a moved URL.** Editing a connection's URL drops its OAuth
 payload, pending flow and mirrored scopes — personal and organization connections
 alike — so the connection reads "needs re-authorization" rather than sending a
-token issued for one host to a different one. On an organization row this is also
-a boundary between administrators: one `mcp:manage` holder repointing a connection
-another authorized must not have the platform deliver that token to the new host.
+token issued for one host to a different one.
+
+On an organization row this is also a boundary between administrators: one
+`mcp:manage` holder repointing a connection another authorized must not have the
+platform deliver that token to the new host.
 
 **A disabled connection hands out no tokens anywhere.** The agent tool path skips
-it, and the trigger portals do too: a caller who kept a trigger's `connection_id`
+it, and the trigger portals do too — a caller who kept a trigger's `connection_id`
 cannot keep enumerating repositories or registering hooks with a credential an
 administrator switched off.
 
-**Deleting a connection releases what was registered through it.** Any [event
-trigger](triggers.md) whose provider webhook was auto-registered with this
-account's token has that hook deregistered (best-effort, while the token still
-exists) and falls back to manual delivery — the trigger's URL and secret still
-stand, so re-pointing a provider at it by hand keeps working. The GitHub portal's
-connect flow is also upgrade-aware in the other direction: an organization that
-connected the GitHub catalog entry as a plain bearer connection before the OAuth
-flow existed has that same row re-authorized in place — found by its catalog key,
-whatever it was named — rather than refused or duplicated, and the bearer token
-keeps working until the new consent lands.
+**Deleting a connection releases what was registered through it.** Any
+[event trigger](triggers.md) whose provider webhook was auto-registered with this
+account's token has that hook deregistered — best-effort, while the token still
+exists — and falls back to manual delivery. The trigger's URL and secret still
+stand, so re-pointing a provider at it by hand keeps working.
+
+The GitHub portal's connect flow is also upgrade-aware in the other direction: an
+organization that connected the GitHub catalog entry as a plain bearer connection
+before the OAuth flow existed has that same row re-authorized in place — found by
+its catalog key, whatever it was named — rather than refused or duplicated, and the
+bearer token keeps working until the new consent lands.
 
 ## What happens on a turn
 
-Each server is probed with a short `tools/list` round-trip — 3 seconds — before
-the turn starts, and the probes run concurrently.
+Each server is probed with a short `tools/list` round-trip — 3 seconds — before the
+turn starts, and the probes run concurrently.
 
 !!! warning "An unreachable server is skipped with a warning, not raised"
 
     Pydantic AI enters every toolset when a run starts, so a dead server would
-    otherwise abort the whole turn: one expired token on one connection would
-    take down every agent that names it, including the ones that never needed it.
-    The model then answers **without** those tools - right for a chat turn, wrong
+    otherwise abort the whole turn: one expired token on one connection would take
+    down every agent that names it, including the ones that never needed it.
+
+    The model then answers **without** those tools — right for a chat turn, wrong
     if you assumed a tool was always there.
 
-That is a deliberate trade. The `/test` endpoint and `last_status` are how you
-find out; the [audit trail](governance.md#audit) records what actually ran.
+That is a deliberate trade. The `/test` endpoint and `last_status` are how you find
+out, and the [audit trail](governance.md#audit) records what actually ran.
 
 ### Name collisions
 
 !!! note "Tools are prefixed with the connection name"
 
     `github-work` becomes `github_work_*`, because two servers exposing the same
-    tool name make Pydantic AI raise on duplicates, which aborts the turn. An
-    allowlist filters *before* prefixing, so it compares against the unprefixed
+    tool name make Pydantic AI raise on duplicates, which aborts the turn.
+
+    An allowlist filters *before* prefixing, so it compares against the unprefixed
     names picked in the UI.
 
-Two connections whose names reduce to the same prefix are deduplicated, first one
-wins, with a warning naming the loser. Deployment-managed servers are ordered
-first, so they win over a user connection that happens to pick the same name.
+Two connections whose names reduce to the same prefix are deduplicated — first one
+wins, with a warning naming the loser. Deployment-managed servers are ordered first,
+so they win over a user connection that happens to pick the same name.
 
 ## The catalog
 
-A picker that starts empty and asks for a URL is a picker nobody uses, so the
-common servers ship with the metadata needed to connect them: the URL, how it
+A picker that starts empty and asks for a URL is a picker nobody uses, so the common
+servers ship with the metadata needed to connect them: the URL, how it
 authenticates, what to tell whoever is pasting a credential.
 
-This is a hand-maintained list, not a mirror of the public registry. Each entry is
-a small promise — that somebody looked at the server, that the auth flow works,
+This is a hand-maintained list, **not** a mirror of the public registry. Each entry
+is a small promise — that somebody looked at the server, that the auth flow works,
 that the description is honest — and a mirrored registry cannot make that promise.
 
 `(self-hosted)` below means the entry describes the server but you supply the URL:
@@ -373,3 +416,16 @@ To add an entry to the list, see
   connections rather than assuming a gate.
 - **Cost attribution.** What a server does on its own side is not in this
   platform's [budget](governance.md#budgets). Only the model tokens are.
+
+## Recap
+
+- An MCP server is **a URL somebody pasted**, and its tools appear without a
+  deploy.
+- **Personal** connections reach one member's assistant; only **organization**
+  connections may be named by a published spec.
+- Every address in an OAuth flow is **checked and pinned**, including the ones the
+  remote server chose.
+- A token never follows a moved URL, a disabled connection hands out none, and
+  deleting one deregisters what it registered.
+- An unreachable server is **skipped**, not raised — the turn answers without those
+  tools.
