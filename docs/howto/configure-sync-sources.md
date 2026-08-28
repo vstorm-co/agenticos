@@ -1,7 +1,4 @@
-
-# How to: Configure Sync Sources
-
-## Overview
+# Configure sync sources
 
 Sync sources pull documents from external services (Google Drive, S3/MinIO) into
 knowledge collections on their own. Each source stores a connector type, a target

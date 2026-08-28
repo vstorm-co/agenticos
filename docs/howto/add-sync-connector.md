@@ -1,5 +1,4 @@
-
-# How to: Add a New Sync Connector
+# Add a sync connector
 
 ## Architecture
 

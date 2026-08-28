@@ -1,4 +1,4 @@
-# Using Message Ratings
+# Use message ratings
 
 People can rate an agent's answers, and the ratings are readable two ways: on the
 turn itself, and in aggregate for whoever administers the deployment.

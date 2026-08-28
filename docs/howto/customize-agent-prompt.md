@@ -1,4 +1,4 @@
-# How to: Write an Agent's Instructions
+# Write an agent's instructions
 
 !!! danger "Instructions are data, not code"
 
