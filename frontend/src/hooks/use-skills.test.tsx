@@ -107,6 +107,31 @@ describe("useSkills", () => {
     );
   });
 
+  it("cancels the in-flight list read before invalidating, so a stale refetch cannot win (#154)", async () => {
+    // invalidateQueries dedupes onto a fetch already running; a list read that
+    // began before the create committed would otherwise resolve with the
+    // pre-write body and leave the gallery a skill short. Cancel first.
+    vi.mocked(apiClient.post).mockResolvedValue({ name: "refunds" });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const cancelSpy = vi.spyOn(client, "cancelQueries");
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+    const scoped = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => useSkills(), { wrapper: scoped });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.create.mutateAsync({ name: "refunds", description: "", content: "" });
+
+    expect(cancelSpy).toHaveBeenCalledWith({ queryKey: ["skills"] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["skills"] });
+    const cancelOrder = cancelSpy.mock.invocationCallOrder[0] ?? 0;
+    const invalidateOrder = invalidateSpy.mock.invocationCallOrder[0] ?? 0;
+    expect(cancelOrder).toBeGreaterThan(0);
+    expect(cancelOrder).toBeLessThan(invalidateOrder);
+  });
+
   it("says an edit reaches every agent at once", async () => {
     // Skills are bound by reference. That is the whole point, and the person
     // editing one should know it before they hit save.

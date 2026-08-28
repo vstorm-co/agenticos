@@ -165,6 +165,26 @@ describe("the workspace explorer", () => {
     expect(screen.getByText("SKILL.md")).toBeVisible();
   });
 
+  it("keeps a closed folder closed across a search", async () => {
+    // Searching replaces the tree with a flat list of matches, so the fold state
+    // has to live above it: kept in the tree, clearing the box would hand the
+    // reader the defaults back and reopen everything they closed.
+    render(<WorkspaceExplorer workspaceId="w-1" />);
+    await userEvent.click(screen.getByText("skills"));
+    expect(screen.getByRole("treeitem", { name: /skills/ })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+
+    await userEvent.type(screen.getByLabelText("Search files by name"), "checklist");
+    await userEvent.clear(screen.getByLabelText("Search files by name"));
+
+    expect(screen.getByRole("treeitem", { name: /skills/ })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
   it("counts everything under a folder, not only what sits directly in it", async () => {
     // `skills` holds no file of its own - both are one level further down - and it
     // read `0 files` above two visible rows.
@@ -406,8 +426,8 @@ describe("the tree built from the paths", () => {
 
     expect(tree).toHaveLength(1);
     expect(tree[0]!.isDir).toBe(true);
-    expect(tree[0]!.name).toBe("uploads");
-    expect(tree[0]!.children.map((child) => child.name)).toEqual(["x.pdf"]);
+    expect(tree[0]!.label).toBe("uploads");
+    expect(tree[0]!.children.map((child) => child.label)).toEqual(["x.pdf"]);
   });
 
   it("uses the directory row where the listing includes one, not two folders", () => {
@@ -427,13 +447,13 @@ describe("the tree built from the paths", () => {
     // where a reader looks first.
     const tree = treeOf([file("/z.txt"), file("/a.txt"), file("/m/one.txt")]);
 
-    expect(tree.map((node) => node.name)).toEqual(["m", "a.txt", "z.txt"]);
+    expect(tree.map((node) => node.label)).toEqual(["m", "a.txt", "z.txt"]);
   });
 
   it("keeps two folders apart", () => {
     const tree = treeOf([file("/a/one.txt"), file("/b/two.txt")]);
 
-    expect(tree.map((node) => node.name)).toEqual(["a", "b"]);
+    expect(tree.map((node) => node.label)).toEqual(["a", "b"]);
     expect(tree[0]!.children.map((child) => child.path)).toEqual(["/a/one.txt"]);
   });
 });

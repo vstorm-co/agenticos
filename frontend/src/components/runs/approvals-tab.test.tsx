@@ -51,6 +51,7 @@ const PARKED: ToolApproval = {
   status: "pending",
   decided_by_user_id: null,
   decided_at: null,
+  decided_via: "click" as const,
   note: null,
   created_at: "2026-08-04T09:00:00Z",
 };
@@ -197,6 +198,35 @@ describe("the decided record in the same table", () => {
     expect(row).toHaveTextContent("ada@acme.test");
     expect(row).toHaveTextContent("grace@acme.test");
     expect(within(row).queryByRole("button")).toBeNull();
+  });
+
+  it("says when a decision was a standing consent rather than a click", async () => {
+    // Both are `approved` and nobody read these arguments before they ran, so a
+    // record that does not say which is a list of green ticks (#925).
+    backend({
+      decided: [
+        {
+          ...DECIDED,
+          status: "approved",
+          decided_via: "standing" as const,
+          decided_by_email: "grace@acme.test",
+        },
+      ],
+    });
+
+    render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
+
+    const row = (await screen.findByText("grace@acme.test")).closest("tr") as HTMLElement;
+    expect(row).toHaveTextContent("waived in advance for the conversation");
+  });
+
+  it("says nothing extra about a decision somebody actually made", async () => {
+    backend({ decided: [DECIDED] });
+
+    render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
+
+    const row = (await screen.findByText("grace@acme.test")).closest("tr") as HTMLElement;
+    expect(row).not.toHaveTextContent("waived in advance");
   });
 
   it("folds a decided row's arguments behind a disclosure", async () => {

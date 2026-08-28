@@ -2930,6 +2930,85 @@ class TestBrowsingEveryWorkspace:
         assert await SandboxWorkspaceService(mock_db_session).visible_to(_ctx()) == []
         looked_up.assert_not_called()
 
+    async def test_a_user_scoped_workspace_names_its_owner(self, monkeypatch, mock_db_session):
+        """Whose files these are, which `owner_label` does not answer: that one
+        says the *scope* - "Your files for this agent" - so a column drawing it
+        under an Owner heading names nobody (#137)."""
+        from app.repositories import agent as agent_repo
+        from app.repositories import member as member_repo
+
+        owner = uuid4()
+        row = _row(scope="user", owner_ref=str(owner))
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        monkeypatch.setattr(
+            member_repo,
+            "get_emails_for_users",
+            AsyncMock(return_value={owner: "nina@example.com"}),
+        )
+        _no_conversations(monkeypatch)
+
+        [overview] = await SandboxWorkspaceService(mock_db_session).visible_to(_ctx())
+
+        assert overview.owner_name == "nina@example.com"
+
+    async def test_an_owner_with_no_account_here_is_named_by_their_platform_id(
+        self, monkeypatch, mock_db_session
+    ):
+        """`owner_ref` is a string, and a Slack-sourced workspace's owner is a
+        platform id rather than an account (#131). It is the answer rather than a
+        failed lookup - and the table draws it as words, never as a link."""
+        from app.repositories import agent as agent_repo
+        from app.repositories import member as member_repo
+
+        row = _row(scope="user", owner_ref="slack:U024BE7LH")
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        asked = AsyncMock(return_value={})
+        monkeypatch.setattr(member_repo, "get_emails_for_users", asked)
+        _no_conversations(monkeypatch)
+
+        [overview] = await SandboxWorkspaceService(mock_db_session).visible_to(_ctx())
+
+        assert overview.owner_name == "slack:U024BE7LH"
+        # Nothing to look up: the ref is not an id, so no user ids are asked for.
+        assert asked.await_args.kwargs["user_ids"] == []
+
+    async def test_an_id_nobody_in_this_organization_holds_names_nobody(
+        self, monkeypatch, mock_db_session
+    ):
+        """Naming a stranger's email off an id is the one read this listing must
+        not do, so an unresolved account says nothing rather than showing the id."""
+        from app.repositories import agent as agent_repo
+        from app.repositories import member as member_repo
+
+        row = _row(scope="user", owner_ref=str(uuid4()))
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        monkeypatch.setattr(member_repo, "get_emails_for_users", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        [overview] = await SandboxWorkspaceService(mock_db_session).visible_to(_ctx())
+
+        assert overview.owner_name is None
+
+    async def test_a_workspace_nobody_owns_asks_for_no_emails(self, monkeypatch, mock_db_session):
+        """Three of the four scopes have no owner - only `user` records one - so
+        the ordinary listing pays no query for this at all."""
+        from app.repositories import agent as agent_repo
+        from app.repositories import member as member_repo
+
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[_row()]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        asked = AsyncMock(return_value={})
+        monkeypatch.setattr(member_repo, "get_emails_for_users", asked)
+        _no_conversations(monkeypatch)
+
+        [overview] = await SandboxWorkspaceService(mock_db_session).visible_to(_ctx())
+
+        assert overview.owner_name is None
+        asked.assert_not_called()
+
     async def test_the_conversation_behind_a_workspace_is_named(self, monkeypatch, mock_db_session):
         """A table of conversation ids is a table nobody can read, and "which chat
         are these files from" is the first question asked of one."""

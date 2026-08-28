@@ -1,17 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  AlertTriangle,
-  ChevronRight,
-  Download,
-  Folder,
-  FolderOpen,
-  Info,
-  Search,
-} from "lucide-react";
+import { AlertTriangle, Download, Info, Search } from "lucide-react";
 
-import { FileContent, FileIcon } from "@/components/files";
+import { FileContent, FileIcon, PathTree, type PathTreeNode } from "@/components/files";
 import { Badge, Button, Input, Skeleton } from "@/components/ui";
 import { hasSourceView, resolveFileKind } from "@/lib/file-kinds";
 import { useWorkspaceFiles } from "@/hooks";
@@ -29,10 +21,15 @@ function segments(path: string): string[] {
   return path.split("/").filter(Boolean);
 }
 
-/** One entry of the tree, with whatever sits inside it. */
-export interface TreeNode {
-  name: string;
-  /** The full path, which is the identity a folder is remembered open by. */
+/**
+ * One entry of the tree, with whatever sits inside it.
+ *
+ * `PathTreeNode` plus the listing's own row: `label` and `path` are what the
+ * shared tree reads, `file` is what this surface's rows render - a size and a
+ * download, which a skill's file has neither of.
+ */
+export interface TreeNode extends PathTreeNode {
+  label: string;
   path: string;
   isDir: boolean;
   children: TreeNode[];
@@ -63,7 +60,7 @@ export function treeOf(files: WorkspaceFile[]): TreeNode[] {
       walked = walked === "" ? part : `${walked}/${part}`;
       let node = byPath.get(walked);
       if (node === undefined || !node.isDir) {
-        node = { name: part, path: walked, isDir: true, children: [] };
+        node = { label: part, path: walked, isDir: true, children: [] };
         byPath.set(walked, node);
         siblings.push(node);
       }
@@ -81,9 +78,9 @@ export function treeOf(files: WorkspaceFile[]): TreeNode[] {
       folder(parts);
       continue;
     }
-    const name = parts[parts.length - 1] as string;
+    const label = parts[parts.length - 1] as string;
     const siblings = folder(parts.slice(0, -1));
-    const node: TreeNode = { name, path: file.path, isDir: false, children: [], file };
+    const node: TreeNode = { label, path: file.path, isDir: false, children: [], file };
     byPath.set(segments(file.path).join("/"), node);
     siblings.push(node);
   }
@@ -93,7 +90,7 @@ export function treeOf(files: WorkspaceFile[]): TreeNode[] {
     // and the one that puts what can be opened where a reader looks first.
     nodes.sort(
       (left, right) =>
-        Number(right.isDir) - Number(left.isDir) || left.name.localeCompare(right.name),
+        Number(right.isDir) - Number(left.isDir) || left.label.localeCompare(right.label),
     );
     for (const node of nodes) order(node.children);
     return nodes;
@@ -152,15 +149,21 @@ function initiallyOpen(nodes: TreeNode[]): Set<string> {
  */
 export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
   const t = useTranslations("sandboxes.workspaces");
+  const tc = useTranslations("common");
   const { files, isLoading, error } = useWorkspaceFiles(workspaceId);
   // Which folders are open, by path. A set rather than a prefix: the tree shows
   // every level at once, so "where am I" is not a single place any more.
-  const [open, setOpen] = useState<Set<string> | null>(null);
   const [query, setQuery] = useState("");
   // A path rather than the row: the listing is refetched, and a held row would go
   // on rendering a file that has been overwritten since.
   const [selected, setSelected] = useState<string | null>(null);
   const [asSource, setAsSource] = useState(false);
+  // Above the search, not inside the tree: searching replaces the tree with a
+  // flat list, so folds kept in the tree would be discarded and reset every time
+  // the box was cleared. `null` until the reader touches a folder, so the first
+  // render already shows what `initiallyOpen` wants rather than opening it a
+  // frame later.
+  const [open, setOpen] = useState<Set<string> | null>(null);
   const source = useMemo<FileSource>(() => ({ kind: "workspace", id: workspaceId }), [workspaceId]);
 
   // Memoised, because it is the dependency of the two memos below: `?? []` builds a
@@ -177,8 +180,6 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
     [all, query],
   );
   const tree = useMemo(() => treeOf(all), [all]);
-  // Null until the listing arrives, so the first render of a tree opens it rather
-  // than an effect opening it a frame later.
   const opened = open ?? initiallyOpen(tree);
 
   if (isLoading) return <Skeleton className="h-40 w-full" />;
@@ -278,26 +279,55 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
                was `uploads` opened on a list of one row and hid every file it
                held - and moving between two folders meant walking up and back
                down. */
-            <ul role="tree" aria-label={t("folders")} className="min-w-0">
-              {tree.map((node) => (
-                <TreeRow
-                  key={node.path}
-                  node={node}
-                  depth={0}
-                  open={opened}
-                  selected={selected}
-                  source={source}
-                  onSelect={setSelected}
-                  onToggle={(path: string) =>
-                    setOpen((): Set<string> => {
-                      const next = new Set(opened);
-                      if (!next.delete(path)) next.add(path);
-                      return next;
-                    })
-                  }
-                />
-              ))}
-            </ul>
+            <PathTree
+              nodes={tree}
+              label={t("folders")}
+              selectedPath={selected}
+              onSelect={(node) => setSelected(node.path)}
+              openPaths={opened}
+              onToggleFolder={(path) =>
+                setOpen(() => {
+                  const next = new Set(opened);
+                  if (!next.delete(path)) next.add(path);
+                  return next;
+                })
+              }
+              renderFile={(node) => (
+                <>
+                  <FileIcon
+                    name={node.label}
+                    className="text-muted-foreground h-3.5 w-3.5 shrink-0"
+                  />
+                  <span className="min-w-0 flex-1 truncate font-mono text-xs">{node.label}</span>
+                </>
+              )}
+              /* Outside the button that opens the file: the download does not
+                 need it opened first, and the name is then all a reader hears
+                 rather than the name and a size. */
+              renderFileMeta={(node) => (
+                <>
+                  <span className="text-muted-foreground shrink-0 text-[11px]">
+                    {node.file?.size == null ? "—" : formatBytes(node.file.size)}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label={tc("downloadNamed", { name: node.path })}
+                    onClick={() => void workspaceFileAccess(source, node.path).download()}
+                    className="text-muted-foreground hover:text-foreground shrink-0 rounded-md p-1"
+                  >
+                    <Download className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                </>
+              )}
+              /* Everything under it, not the files immediately in it: `src`
+                 holding only `src/components/widget.tsx` counted zero and then
+                 opened to reveal a file, which is a row contradicting itself. */
+              renderFolderMeta={(node) => (
+                <span className="text-muted-foreground/70 shrink-0 pr-2 text-[10px]">
+                  {t("fileCount", { count: countFiles(node.children) })}
+                </span>
+              )}
+            />
           )}
         </div>
 
@@ -402,131 +432,5 @@ function FileList({ source, files, selected, onSelect, showFullPath }: FileListP
         </li>
       ))}
     </ul>
-  );
-}
-
-/**
- * One row of the tree, and whatever is under it.
- *
- * Indented by depth rather than nested in padded boxes: an indent is what says
- * "inside", and a box inside a box inside a box eats the width a path needs.
- * `role="tree"` and `aria-expanded` because that is what this is - a reader on a
- * screen reader gets a tree rather than a list of buttons whose meaning is in
- * their left margin.
- */
-function TreeRow({
-  node,
-  depth,
-  open,
-  selected,
-  source,
-  onSelect,
-  onToggle,
-}: {
-  node: TreeNode;
-  depth: number;
-  open: Set<string>;
-  selected: string | null;
-  source: FileSource;
-  onSelect: (path: string) => void;
-  onToggle: (path: string) => void;
-}) {
-  const t = useTranslations("sandboxes.workspaces");
-  const tc = useTranslations("common");
-  const isOpen = open.has(node.path);
-  // Inline, because the depth is data: a Tailwind class built by interpolation is
-  // a class the compiler never sees and never emits.
-  const indent = { paddingLeft: `${depth * 0.75 + 0.5}rem` };
-
-  if (!node.isDir) {
-    return (
-      // The same three parts `FileList` uses, for the same reason: the button is
-      // named by the file and nothing else, so a size does not become part of what
-      // a screen reader announces - and the download does not need the file opened
-      // first.
-      <li
-        role="treeitem"
-        aria-selected={selected === node.path}
-        className="flex items-center gap-1"
-      >
-        <button
-          type="button"
-          onClick={() => onSelect(node.path)}
-          aria-current={selected === node.path}
-          style={indent}
-          title={node.path}
-          className={cn(
-            "flex min-w-0 flex-1 items-center gap-2 rounded-md py-1.5 pr-2 text-left",
-            selected === node.path ? "bg-accent" : "hover:bg-accent/60",
-          )}
-        >
-          <FileIcon name={node.name} className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-          <span className="min-w-0 flex-1 truncate font-mono text-xs">{node.name}</span>
-        </button>
-        <span className="text-muted-foreground shrink-0 text-[11px]">
-          {node.file?.size == null ? "—" : formatBytes(node.file.size)}
-        </span>
-        <button
-          type="button"
-          aria-label={tc("downloadNamed", { name: node.path })}
-          onClick={() => void workspaceFileAccess(source, node.path).download()}
-          className="text-muted-foreground hover:text-foreground shrink-0 rounded-md p-1"
-        >
-          <Download className="h-3.5 w-3.5" />
-        </button>
-      </li>
-    );
-  }
-
-  return (
-    // `aria-selected` on a folder too: the role requires it, and a folder in this
-    // tree is never the selection - what is read on the right is always a file.
-    <li role="treeitem" aria-expanded={isOpen} aria-selected={false}>
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          onClick={() => onToggle(node.path)}
-          style={indent}
-          className="hover:bg-accent/60 flex w-full items-center gap-1.5 rounded-md py-1.5 pr-2 text-left"
-        >
-          <ChevronRight
-            className={cn(
-              "text-muted-foreground h-3.5 w-3.5 shrink-0 transition-transform",
-              isOpen && "rotate-90",
-            )}
-            aria-hidden
-          />
-          {isOpen ? (
-            <FolderOpen className="text-muted-foreground h-3.5 w-3.5 shrink-0" aria-hidden />
-          ) : (
-            <Folder className="text-muted-foreground h-3.5 w-3.5 shrink-0" aria-hidden />
-          )}
-          <span className="min-w-0 flex-1 truncate text-xs font-medium">{node.name}</span>
-        </button>
-        {/* Everything under it, not the files immediately in it: `src` holding
-            only `src/components/widget.tsx` counted zero and then opened to
-            reveal a file, which is a row contradicting itself. */}
-        <span className="text-muted-foreground/70 shrink-0 pr-2 text-[10px]">
-          {t("fileCount", { count: countFiles(node.children) })}
-        </span>
-      </div>
-
-      {isOpen && (
-        <ul role="group">
-          {node.children.map((child) => (
-            <TreeRow
-              key={child.path}
-              node={child}
-              depth={depth + 1}
-              open={open}
-              selected={selected}
-              source={source}
-              onSelect={onSelect}
-              onToggle={onToggle}
-            />
-          ))}
-        </ul>
-      )}
-    </li>
   );
 }

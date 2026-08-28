@@ -171,6 +171,7 @@ describe("stepsForPage", () => {
       "chat-composer",
       "chat-plan",
       "chat-model-picker",
+      "chat-approval-mode",
     ]);
   });
 

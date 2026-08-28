@@ -134,6 +134,7 @@ export function ChatContainer() {
     cancelQueued,
     clearQueued,
     setModelProfile,
+    setApprovalMode,
     pendingApproval,
     sendResumeDecisions,
     pendingQuestions,
@@ -311,6 +312,9 @@ export function ChatContainer() {
         setModelProfile(profileId);
         setModelProfileId(profileId);
       }}
+      // Only into the hook: nothing on screen is a share of it, unlike the
+      // context gauge the model switch has to move.
+      onApprovalModeChange={setApprovalMode}
       onRegenerate={handleRegenerate}
       slashContext={slashContext}
       slashCommands={slashCommands}
@@ -370,6 +374,7 @@ interface ChatUIProps {
     files?: import("@/types").ChatMessageFile[],
   ) => void;
   onModelProfileChange?: (profileId: string | null) => void;
+  onApprovalModeChange?: (mode: import("./chat-controls").ApprovalMode) => void;
   onRegenerate?: (messageId: string) => void;
   slashContext?: import("./slash-commands").SlashCommandContext;
   slashCommands?: import("./slash-commands").SlashCommand[];
@@ -402,6 +407,7 @@ function ChatUI({
   isArchived,
   sendMessage,
   onModelProfileChange,
+  onApprovalModeChange,
   onRegenerate,
   slashContext,
   slashCommands,
@@ -547,8 +553,13 @@ function ChatUI({
                   attachmentSlot={attachmentSlot}
                 />
               </div>
-              <div className="border-foreground/8 flex items-center justify-between border-t px-3 py-2 sm:px-4">
-                <div className="flex items-center gap-2">
+              {/* `gap-2` and a shrinkable right group, because at 390px the
+                  three controls are 358px wide and used to run 27px past the
+                  composer's own edge - measured on an iPhone 15 viewport. The
+                  connection pill keeps its size (it is two words) and the group
+                  that can give way does. */}
+              <div className="border-foreground/8 flex items-center justify-between gap-2 border-t px-3 py-2 sm:px-4">
+                <div className="flex shrink-0 items-center gap-2">
                   <span
                     className={`inline-flex items-center gap-1.5 font-mono text-[10px] tracking-wider uppercase ${isConnected ? "text-muted-foreground" : "text-destructive"}`}
                   >
@@ -560,13 +571,14 @@ function ChatUI({
                     {isConnected ? tc("live") : tc("offline")}
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex min-w-0 items-center gap-1.5">
                   {/* Who answers, first and largest: it is the most consequential
                     choice in the composer and it was a tab inside a popover. */}
                   <AgentPicker />
                   <div data-tour="chat-model-picker">
                     <ChatControls
                       onModelProfileChange={onModelProfileChange}
+                      onApprovalModeChange={onApprovalModeChange}
                       agentModel={agentModel}
                     />
                   </div>

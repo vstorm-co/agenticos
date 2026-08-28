@@ -47,14 +47,15 @@ instead of pretending the bad version never existed.
 **Environments** are named pointers at versions, and each says whether a publish
 may move it.
 
-*Publishing mints a version; putting it somewhere is a separate decision.* An
-environment either **waits to be promoted onto** - which is what `production`,
-the default, does - or **follows every publish**, which is what a `dev`
-somebody is iterating in usually wants. Publish used to repoint the default
-whatever it was, so fixing a prompt changed what the live bot answered with, in
-the same click, with nothing on screen saying so.
+!!! important "Publishing mints a version; putting it somewhere is a separate decision"
 
-Two consequences worth stating. The **first** publish creates `production` on
+    Publish used to repoint the default environment whatever it was, so fixing a
+    prompt changed what the live bot answered with, in the same click, with
+    nothing on screen saying so.
+
+An environment either **waits to be promoted onto** - which is what `production`,
+the default, does - or **follows every publish**, which is what a `dev`
+somebody is iterating in usually wants. Two consequences worth stating. The **first** publish creates `production` on
 the version it just minted, because an agent with no environment has nowhere to
 run at all. And a **rollback lands the same way** as a publish - it is a publish
 of an older spec - so putting an old version back in front of people is one
@@ -69,10 +70,11 @@ environment resolves through - so it moves when that environment moves.
 **Where an agent is reachable, and by whom.** Web chat, an HTTP API key, a public
 link, a Slack or Telegram bot, an embedded widget.
 
-The important property: *every surface goes through one runner*. Budgets,
-approvals, the audit trail and the permission checks are identical whether a run
-came from the chat window or a Slack mention, because there is exactly one code
-path that executes an agent.
+!!! success "Every surface goes through one runner"
+
+    Budgets, approvals, the audit trail and the permission checks are identical
+    whether a run came from the chat window or a Slack mention, because there is
+    exactly one code path that executes an agent.
 
 Channels have two rules worth stating on their own. **A bot answers as one
 agent** - it is a single identity in the chat, so binding a second agent to one
@@ -143,25 +145,31 @@ story.
 **One execution.** It has a subject, a version, a surface, a status, token counts
 and a cost.
 
-A run that fails still records what it spent. A run that stops on its budget is
-recorded as `budget_exceeded` rather than `failed`, so an operator filtering for
-problems does not wade through the platform working correctly. A run a
-[guardrail](reference/capabilities.md#guardrails) blocked is `guardrail_blocked`
-for the same reason - a refusal is the platform working, not a malfunction. A run somebody
-stopped - the composer's stop button, a socket that went away, a delegation
-cancelled from above - is `cancelled` for the same reason, on every surface and
-not only the streaming one. A run that parks on an approval is
-`awaiting_approval` and is resumable - its message history is
-stored so the decision can be applied to the conversation it belongs to. A run that
-parks *inside a delegation* stores one level per agent, each with its own
-conversation, so approving continues the delegate that stopped rather than starting
-its work again.
+**A run that fails still records what it spent.** How it *ended* is a status of
+its own rather than `failed`, because an operator filtering for problems should
+not wade through the platform working correctly:
 
-A run can also contain another run. When an agent delegates to a published agent,
-that delegation gets an `agent_runs` row of its own carrying `parent_run_id` - so
-"what did the researcher cost this month" has an answer - while both share one
-spend ledger. There is no `delegated` status, because how a run *ended* and how it
-*started* are two questions and `parent_run_id` answers the second.
+| Status | The run |
+|---|---|
+| `failed` | broke |
+| `budget_exceeded` | reached a cap - a spending limit doing its job |
+| `guardrail_blocked` | was refused by a [guardrail](reference/capabilities.md#guardrails) |
+| `cancelled` | was stopped: the composer's stop button, a socket that went away, a delegation cancelled from above. On every surface, not only the streaming one |
+| `awaiting_approval` | parked on an approval, and is **resumable** - its message history is stored so the decision applies to the conversation it belongs to |
+
+A run that parks *inside a delegation* stores one level per agent, each with its
+own conversation, so approving continues the delegate that stopped rather than
+starting its work again.
+
+!!! note "A run can contain another run"
+
+    A delegation gets an `agent_runs` row of its own carrying `parent_run_id`, so
+    "what did the researcher cost this month" has an answer - while both share
+    one spend ledger. There is no `delegated` status: how a run *ended* and how
+    it *started* are two questions.
+
+`parent_run_id` answers "how did this run start"; the status answers "how did it
+end".
 
 ### A run and its transcript
 

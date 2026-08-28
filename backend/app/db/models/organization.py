@@ -6,6 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -65,6 +66,21 @@ class Organization(Base, TimestampMixin):
     # against a sum of those, and a float would drift against the total the
     # Activity page shows.
     monthly_budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+
+    # Whether a chat session may grant standing consent to this agent's gated
+    # tools - `ApprovalMode.APPROVE_ALL` (#925). Off by default, and the default is
+    # the point: without a ceiling a Builder's deliberate gate on `send_email` is
+    # one click from nothing in every conversation, which makes the whole per-tool
+    # approval model advisory. An organization decides once that waiving is
+    # allowed at all; who may then do it is `approvals:decide`, which is a
+    # separate question and already answered.
+    #
+    # Only ever *widens* nothing: switching it off does not tighten an existing
+    # spec, it removes an override. So an upgrade changes nobody's behaviour until
+    # somebody turns it on deliberately.
+    chat_may_waive_approvals: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
     members: Mapped[list["OrganizationMember"]] = relationship(
         "OrganizationMember",

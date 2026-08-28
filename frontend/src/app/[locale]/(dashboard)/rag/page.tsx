@@ -131,7 +131,7 @@ export default function RAGPage() {
             {loading ? (
               // The same tiles the populated grid draws, as skeletons - a skeleton
               // that draws a different shape is a layout jump on every load.
-              <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {[0, 1, 2].map((tile) => (
                   <div key={tile} className="border-border rounded-xl border p-5">
                     <Skeleton className="h-9 w-9 rounded-lg" />
@@ -169,7 +169,7 @@ export default function RAGPage() {
                 }
               />
             ) : (
-              <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {sorted.map((kb) => (
                   <KBCard key={kb.id} kb={kb} />
                 ))}

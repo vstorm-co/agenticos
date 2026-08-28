@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ShareDialog, matchingMembers } from "./share-dialog";
+import { ShareDialog, sharedPerson, toPermission } from "./share-dialog";
 import type { OrganizationMember } from "@/types";
 
 const shareConversation = vi.fn();
@@ -10,6 +10,8 @@ const fetchShares = vi.fn();
 const revokeShare = vi.fn();
 const listedMembers = vi.fn<() => OrganizationMember[]>(() => []);
 const listedShares = vi.fn<() => Record<string, unknown>[]>(() => []);
+const membersError = vi.fn<() => string | null>(() => null);
+const fetchMembers = vi.fn();
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/hooks", () => ({
@@ -20,7 +22,11 @@ vi.mock("@/hooks", () => ({
     fetchShares,
     revokeShare,
   }),
-  useMembers: () => ({ members: listedMembers() }),
+  useMembers: () => ({
+    members: listedMembers(),
+    error: membersError(),
+    fetchMembers,
+  }),
 }));
 // Imported by its own path rather than through the barrel, so it is mocked by
 // that path too.
@@ -29,6 +35,9 @@ vi.mock("@/hooks/use-copy-to-clipboard", () => ({
 }));
 vi.mock("@/stores", () => ({
   useOrgStore: (pick: (state: unknown) => unknown) => pick({ activeOrgId: "org-1" }),
+  // The reader is never a candidate - sharing with yourself is refused - so the
+  // dialog has to know who they are.
+  useAuthStore: (pick: (state: unknown) => unknown) => pick({ user: { id: "u-me" } }),
 }));
 
 const member = (userId: string, email: string, fullName: string | null = null) =>
@@ -59,73 +68,209 @@ beforeEach(() => {
   vi.clearAllMocks();
   listedMembers.mockReturnValue(MEMBERS);
   listedShares.mockReturnValue([]);
+  membersError.mockReturnValue(null);
   shareConversation.mockResolvedValue({ id: "s-1" });
   revokeShare.mockResolvedValue(undefined);
 });
 
-describe("matchingMembers", () => {
-  it("matches by email and by name, case-insensitively", () => {
-    expect(matchingMembers(MEMBERS, "SAM")).toHaveLength(1);
-    expect(matchingMembers(MEMBERS, "vale")).toHaveLength(1);
+async function openPicker() {
+  await userEvent.click(screen.getByRole("button", { name: /Choose someone|Sam|Nina/ }));
+}
+
+async function pick(name: RegExp) {
+  await openPicker();
+  await userEvent.click(screen.getByRole("option", { name }));
+}
+
+describe("toPermission", () => {
+  it("takes the two levels a conversation has", () => {
+    expect(toPermission("view")).toBe("view");
+    expect(toPermission("edit")).toBe("edit");
   });
 
-  it("suggests nothing for an empty query", () => {
-    expect(matchingMembers(MEMBERS, "  ")).toHaveLength(0);
-  });
-
-  it("does not suggest what the field already says", () => {
-    // An exact match is a decision already made, not a suggestion.
-    expect(matchingMembers(MEMBERS, "sam@example.com")).toHaveLength(0);
-  });
-
-  it("caps the list", () => {
-    const many = Array.from({ length: 10 }, (_, i) => member(`u${i}`, `user${i}@example.com`));
-    expect(matchingMembers(many, "user")).toHaveLength(6);
+  it("refuses anything else rather than defaulting", () => {
+    // Radix hands back a plain string. A level the catalog does not know is a
+    // bug in the caller, and defaulting would grant whichever one is first.
+    expect(() => toPermission("owner")).toThrow(/Unknown conversation permission/);
   });
 });
 
-describe("the share dialog", () => {
-  it("offers an email field only - there is no user id input", () => {
-    renderDialog();
+describe("sharedPerson", () => {
+  it("draws a share as the member it names", () => {
+    const person = sharedPerson(
+      { id: "s-1", shared_with: "u1", permission: "view" } as never,
+      MEMBERS,
+    );
 
-    expect(screen.getByLabelText("Email address")).toHaveAttribute("type", "email");
-    expect(screen.queryByPlaceholderText(/user id/i)).not.toBeInTheDocument();
+    expect(person).toMatchObject({ user_id: "u1", email: "sam@example.com" });
   });
 
-  it("suggests matching organization members while typing", async () => {
-    renderDialog();
+  it("falls back to the address for a share whose member is gone", () => {
+    // Still revocable, which is what the row is for.
+    const person = sharedPerson(
+      {
+        id: "s-1",
+        shared_with: "u-9",
+        shared_with_email: "gone@example.com",
+        permission: "view",
+      } as never,
+      MEMBERS,
+    );
 
-    await userEvent.type(screen.getByLabelText("Email address"), "sam");
-
-    const listbox = screen.getByRole("listbox", { name: "Matching members" });
-    expect(listbox).toHaveTextContent("sam@example.com");
-    expect(listbox).toHaveTextContent("Sam Fisher");
-    expect(listbox).not.toHaveTextContent("nina@example.com");
+    expect(person).toMatchObject({ user_id: "u-9", email: "gone@example.com" });
   });
 
-  it("fills the email when a suggestion is picked", async () => {
-    renderDialog();
+  it("keys a share that names only an address on the share itself", () => {
+    // It still has to be revocable, and the row needs a stable key.
+    const person = sharedPerson(
+      { id: "s-7", shared_with_email: "invited@example.com", permission: "view" } as never,
+      MEMBERS,
+    );
 
-    await userEvent.type(screen.getByLabelText("Email address"), "nina");
-    await userEvent.click(screen.getByRole("option", { name: /nina@example.com/ }));
-
-    expect(screen.getByLabelText("Email address")).toHaveValue("nina@example.com");
-    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(person).toMatchObject({ user_id: "s-7", email: "invited@example.com" });
   });
 
-  it("shares with the typed email", async () => {
-    shareConversation.mockResolvedValue({});
+  it("answers with nobody for a link", () => {
+    expect(
+      sharedPerson({ id: "s-2", share_token: "tok", permission: "view" } as never, MEMBERS),
+    ).toBeNull();
+  });
+});
+
+describe("choosing who to share with", () => {
+  it("has no email field at all", () => {
+    // The whole of #931: a blank box you had to already know the answer to fill,
+    // and every mistyped address a 404.
     renderDialog();
 
-    await userEvent.type(screen.getByLabelText("Email address"), "nina@example.com");
+    expect(screen.queryByLabelText("Email address")).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("offers the organization before anything is typed", async () => {
+    renderDialog();
+
+    await openPicker();
+
+    expect(screen.getByRole("option", { name: /Sam Fisher/ })).toBeVisible();
+    expect(screen.getByRole("option", { name: /Nina Vale/ })).toBeVisible();
+  });
+
+  it("says who is chosen, on the thing you press", async () => {
+    renderDialog();
+
+    await pick(/Nina Vale/);
+
+    expect(screen.getByRole("button", { name: "Nina Vale" })).toBeVisible();
+  });
+
+  it("does not offer somebody who already has access", async () => {
+    // Offering them again is a row that answers "already shared" after the click
+    // rather than before it.
+    listedShares.mockReturnValue([{ id: "s-1", shared_with: "u1", permission: "view" }]);
+    renderDialog();
+
+    await openPicker();
+
+    expect(screen.queryByRole("option", { name: /Sam Fisher/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Nina Vale/ })).toBeVisible();
+  });
+
+  it("does not offer the reader themselves", async () => {
+    // The server refuses `shared_with == shared_by`, so offering the row is a
+    // refusal after the click rather than an option that cannot be taken.
+    listedMembers.mockReturnValue([...MEMBERS, member("u-me", "me@example.com", "Me")]);
+    renderDialog();
+
+    await openPicker();
+
+    expect(screen.queryByRole("option", { name: /me@example.com/ })).not.toBeInTheDocument();
+  });
+
+  it("names a member with no name by their whole address", async () => {
+    // Two colleagues called `alex` in different domains were the same row: the
+    // fallback used to strip the domain, and the row omits the address beneath a
+    // nameless account precisely because the line above it is the address.
+    listedMembers.mockReturnValue([
+      member("u3", "alex@corp.example"),
+      member("u4", "alex@vendor.example"),
+    ]);
+    renderDialog();
+
+    await openPicker();
+
+    expect(screen.getByRole("option", { name: /alex@corp.example/ })).toBeVisible();
+    expect(screen.getByRole("option", { name: /alex@vendor.example/ })).toBeVisible();
+  });
+
+  it("will not submit a pick the refreshed shares took away", async () => {
+    // The picker stays usable while the shares are refetched, so somebody can
+    // choose a person the answer then reveals already has access. The button is
+    // enabled on the *chosen member*, not on the id, so there is nothing left to
+    // submit when they leave the list.
+    renderDialog();
+    await pick(/Sam Fisher/);
+    expect(screen.getByRole("button", { name: "Share conversation" })).toBeEnabled();
+
+    // The refetch lands - Sam already has access, so he leaves `candidates` - and
+    // the next thing the reader touches renders the dialog with him gone.
+    listedShares.mockReturnValue([{ id: "s-1", shared_with: "u1", permission: "view" }]);
+    await userEvent.click(screen.getByRole("combobox", { name: "Access level" }));
+    await userEvent.click(screen.getByRole("option", { name: "Edit" }));
+
+    expect(screen.getByRole("button", { name: "Share conversation" })).toBeDisabled();
+  });
+
+  it("says so when the people could not be read, and offers a retry", async () => {
+    // The picker is the only way to name somebody, so a failed members request
+    // would otherwise be an empty disabled control with no explanation and
+    // nothing to press.
+    listedMembers.mockReturnValue([]);
+    membersError.mockReturnValue("boom");
+    renderDialog();
+
+    expect(screen.getByText(/could not be read/)).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(fetchMembers).toHaveBeenCalled();
+  });
+
+  it("shares with the id the picker holds, not an address", async () => {
+    // `shared_with` has always been accepted beside `shared_with_email`, so
+    // this is a client change rather than a contract one - and it cannot name
+    // somebody outside the organization.
+    renderDialog();
+    await pick(/Nina Vale/);
+
     await userEvent.click(screen.getByRole("button", { name: "Share conversation" }));
 
-    // As `shared_with_email`, not `shared_with`: the latter is a UUID field,
-    // and an email sent there is a 422 before the service ever runs.
     expect(shareConversation).toHaveBeenCalledWith("c1", {
-      shared_with_email: "nina@example.com",
+      shared_with: "u2",
       permission: "view",
     });
+  });
+
+  it("cannot be pressed until somebody is picked", async () => {
+    // The disabled state *is* the guard: a handler that re-checked would hold a
+    // branch nothing can reach.
+    renderDialog();
+
+    expect(screen.getByRole("button", { name: "Share conversation" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Share conversation" }));
+
+    expect(shareConversation).not.toHaveBeenCalled();
+  });
+
+  it("says what the level permits, and changes when it changes", async () => {
+    // "Edit" on a conversation is not obvious: it carries renaming, archiving,
+    // deleting the thread and appending turns.
+    renderDialog();
+    expect(screen.getByText(/View lets them read/)).toBeVisible();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Access level" }));
+    await userEvent.click(screen.getByRole("option", { name: "Edit" }));
+
+    expect(screen.getByText(/Edit lets them rename/)).toBeVisible();
   });
 });
 
@@ -154,61 +299,39 @@ describe("sharing a conversation", () => {
     // View and edit are different grants; defaulting to edit would hand somebody
     // more than was asked for.
     renderDialog();
-    await userEvent.type(screen.getByLabelText("Email address"), "sam@example.com");
-    await userEvent.click(screen.getByRole("combobox"));
+    await pick(/Sam Fisher/);
+    await userEvent.click(screen.getByRole("combobox", { name: "Access level" }));
     await userEvent.click(screen.getByRole("option", { name: "Edit" }));
 
     await userEvent.click(screen.getByRole("button", { name: "Share conversation" }));
 
     expect(shareConversation).toHaveBeenCalledWith("c1", {
-      shared_with_email: "sam@example.com",
+      shared_with: "u1",
       permission: "edit",
     });
   });
 
-  it("shares with view access unless told otherwise", async () => {
-    renderDialog();
-    await userEvent.type(screen.getByLabelText("Email address"), "sam@example.com");
-
-    await userEvent.click(screen.getByRole("button", { name: "Share conversation" }));
-
-    expect(shareConversation).toHaveBeenCalledWith("c1", {
-      shared_with_email: "sam@example.com",
-      permission: "view",
-    });
-  });
-
-  it("empties the field on success, so the next share starts clean", async () => {
+  it("clears the choice on success, so the next share starts clean", async () => {
     const { toast } = await import("sonner");
     renderDialog();
-    await userEvent.type(screen.getByLabelText("Email address"), "sam@example.com");
+    await pick(/Sam Fisher/);
 
     await userEvent.click(screen.getByRole("button", { name: "Share conversation" }));
 
-    expect(screen.getByLabelText("Email address")).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Choose someone" })).toBeVisible();
     expect(toast.success).toHaveBeenCalledWith("Conversation shared");
   });
 
-  it("keeps what was typed when the share is refused, and says why", async () => {
-    // "That person is not in this organization" is worth reading beside the
-    // address that produced it.
+  it("keeps the choice when the share is refused, and says why", async () => {
     const { toast } = await import("sonner");
     shareConversation.mockRejectedValue(new Error("Not in this organization"));
     renderDialog();
-    await userEvent.type(screen.getByLabelText("Email address"), "outsider@example.com");
+    await pick(/Sam Fisher/);
 
     await userEvent.click(screen.getByRole("button", { name: "Share conversation" }));
 
     expect(toast.error).toHaveBeenCalledWith("Not in this organization");
-    expect(screen.getByLabelText("Email address")).toHaveValue("outsider@example.com");
-  });
-
-  it("shares with nobody when the field is empty", async () => {
-    renderDialog();
-
-    await userEvent.click(screen.getByRole("button", { name: "Share conversation" }));
-
-    expect(shareConversation).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Sam Fisher" })).toBeVisible();
   });
 });
 
@@ -262,37 +385,53 @@ describe("sharing by link", () => {
     expect(toast.error).toHaveBeenCalledWith("Link sharing is off for this organization");
   });
 
-  it("carries the chosen access level into the link", async () => {
+  it("mints a view-only link whatever the level above it says", async () => {
+    // A token reaches exactly one route - `GET /conversations/shared/{token}` -
+    // so there is no token-authorised write to grant. An `edit` link would
+    // promise renaming, archiving and appending that the surface cannot do, and
+    // the level select is about a *person* (#931).
     shareConversation.mockResolvedValue({ id: "s-1", share_token: "tok" });
     renderDialog();
-    await userEvent.click(screen.getByRole("combobox"));
+    await userEvent.click(screen.getByRole("combobox", { name: "Access level" }));
     await userEvent.click(screen.getByRole("option", { name: "Edit" }));
 
     await userEvent.click(screen.getByRole("button", { name: /Generate share link/ }));
 
     expect(shareConversation).toHaveBeenCalledWith("c1", {
       generate_link: true,
-      permission: "edit",
+      permission: "view",
     });
+  });
+
+  it("says a link is read-only before one is minted", async () => {
+    renderDialog();
+
+    expect(screen.getByText(/A link is always read-only/)).toBeVisible();
   });
 });
 
 describe("who it is shared with", () => {
-  it("lists each share by name, level, and whether it is a link", () => {
+  it("lists each share as a person, with its level in words", () => {
     listedShares.mockReturnValue([
-      { id: "s-1", shared_with_email: "sam@example.com", permission: "view" },
+      { id: "s-1", shared_with: "u1", permission: "view" },
       { id: "s-2", share_token: "tok", permission: "edit" },
       { id: "s-3", shared_with: "u-9", permission: "view" },
     ]);
     renderDialog();
 
+    // The member as the rest of the product draws one: the name, and the
+    // address beneath it.
+    expect(screen.getByText("Sam Fisher")).toBeInTheDocument();
     expect(screen.getByText("sam@example.com")).toBeInTheDocument();
-    // A link share has no address, so it is named "Link" *and* badged as one.
-    expect(screen.getAllByText("Link")).toHaveLength(2);
     // A share the server could only resolve to a user id is shown by that id
-    // rather than dropped.
+    // rather than dropped - it still has to be revocable.
     expect(screen.getByText("u-9")).toBeInTheDocument();
-    expect(screen.getByText("edit")).toBeInTheDocument();
+    // A link share is a link, not a person.
+    expect(screen.getByText("Link")).toBeInTheDocument();
+    // The catalog's word, capitalised - not the API's raw `"edit"`, which was
+    // English in every locale one row below a translated select.
+    expect(screen.getByText("Edit")).toBeInTheDocument();
+    expect(screen.queryByText("edit")).toBeNull();
   });
 
   it("says nothing at all when it is shared with nobody", () => {
@@ -304,8 +443,8 @@ describe("who it is shared with", () => {
   it("revokes the share whose button was pressed", async () => {
     const { toast } = await import("sonner");
     listedShares.mockReturnValue([
-      { id: "s-1", shared_with_email: "sam@example.com", permission: "view" },
-      { id: "s-2", shared_with_email: "nina@example.com", permission: "view" },
+      { id: "s-1", shared_with: "u1", permission: "view" },
+      { id: "s-2", shared_with: "u2", permission: "view" },
     ]);
     renderDialog();
 
@@ -319,9 +458,7 @@ describe("who it is shared with", () => {
   it("says why a revoke was refused", async () => {
     const { toast } = await import("sonner");
     revokeShare.mockRejectedValue(new Error("Not yours to revoke"));
-    listedShares.mockReturnValue([
-      { id: "s-1", shared_with_email: "sam@example.com", permission: "view" },
-    ]);
+    listedShares.mockReturnValue([{ id: "s-1", shared_with: "u1", permission: "view" }]);
     renderDialog();
 
     await userEvent.click(screen.getByRole("button", { name: "Revoke access" }));

@@ -82,6 +82,7 @@ async def list_workspaces(
             scope=overview.row.scope,
             backend=overview.row.backend,
             owner_label=owner_label(overview.row),
+            owner_name=overview.owner_name,
             access_label=overview.access_label,
             bytes_total=overview.row.bytes_total,
             file_count=counted.counts.get(overview.row.id, (None, None))[0],

@@ -89,7 +89,7 @@ export default function OrgsPage() {
         {isLoading ? (
           // The same tiles the populated grid draws, as skeletons - a skeleton
           // that draws a different shape is a layout jump on every load.
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {[0, 1].map((tile) => (
               <div key={tile} className="border-border flex flex-col gap-4 rounded-xl border p-5">
                 <div className="flex items-start gap-3">
@@ -125,7 +125,7 @@ export default function OrgsPage() {
             </Button>
           </div>
         ) : (
-          <ul className="grid gap-3 sm:grid-cols-2">
+          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {orgs.map((org) => {
               const isActive = org.id === activeOrgId;
               return (

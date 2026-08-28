@@ -3,10 +3,10 @@
 
 ## Overview
 
-Sync sources let you automatically pull documents from external services
-(Google Drive, S3/MinIO) into your RAG collections. Each source is a
-persistent configuration that stores a connector type, target collection,
-connector-specific settings, a sync mode, and an optional schedule.
+Sync sources pull documents from external services (Google Drive, S3/MinIO) into
+knowledge collections on their own. Each source stores a connector type, a target
+collection, connector-specific settings, a sync mode, an optional schedule, and
+the id of the [vault secret](../secrets.md) that authenticates it.
 
 When a sync runs, the connector lists remote files, downloads them to a
 temporary directory, and feeds them through the standard ingestion pipeline
@@ -18,15 +18,13 @@ every sync operation.
 | Component | Location | Role |
 |-----------|----------|------|
 | `BaseSyncConnector` | `app/services/rag/connectors/__init__.py` | Abstract base for all connectors |
-| `RemoteFile` | `app/rag/connectors/__init__.py` | Pydantic model describing a remote file |
-| `CONNECTOR_REGISTRY` | `app/rag/connectors/__init__.py` | Maps connector type strings to classes |
+| `RemoteFile` | `app/services/rag/connectors/__init__.py` | Pydantic model describing a remote file |
+| `CONNECTOR_REGISTRY` | `app/services/rag/connectors/__init__.py` | Maps connector type strings to classes |
 | `SyncSource` (DB model) | `app/db/models/sync_source.py` | Persists source configurations |
 | `SyncLog` (DB model) | `app/db/models/sync_log.py` | Tracks individual sync operations |
 | `SyncSourceService` | `app/services/sync_source.py` | Business logic for CRUD + trigger |
 | RAG CLI commands | `app/commands/rag.py` | CLI interface for managing sources |
 | RAG API routes | `app/api/routes/v1/rag.py` | REST API for managing sources |
-
----
 
 ## Quick Start -- CLI
 
@@ -82,8 +80,6 @@ uv run agenticos cmd rag-source-remove <source-id>
 The `<source-id>` is a UUID printed when you create the source and shown
 in the `rag-sources` listing.
 
----
-
 ## Quick Start -- UI
 
 1. Navigate to **Knowledge Base** and open the **Sync** tab.
@@ -100,8 +96,6 @@ in the `rag-sources` listing.
 The UI calls the same REST API documented below, so anything you can do
 in the UI you can also do with `curl` or any HTTP client.
 
----
-
 ## Sync Modes
 
 | Mode | Behavior |
@@ -110,12 +104,11 @@ in the UI you can also do with `curl` or any HTTP client.
 | `new_only` | Add new files + update changed files. Uses SHA-256 hash to detect changes — unchanged files are skipped. |
 | `update_only` | Only update files already in the collection. New files are skipped. Uses SHA-256 hash to skip unchanged files. |
 
-Choose `new_only` for most workflows — it adds new files and updates
-modified ones while skipping unchanged files (fastest incremental sync).
-Choose `update_only` when you only want to refresh existing documents
-without adding new ones. Choose `full` for a clean re-import every time.
+!!! tip "`new_only` for most workflows"
 
----
+    It adds new files and updates modified ones while skipping unchanged files,
+    which is the fastest incremental sync. `update_only` refreshes existing
+    documents without adding new ones; `full` is a clean re-import every time.
 
 ## Schedule
 
@@ -129,11 +122,12 @@ automatically:
 | `120` | Every 2 hours |
 | `1440` | Once per day |
 
-Scheduled syncs require a running background task system:
+!!! warning "A schedule needs the Prefect runner"
 
-Without a background task system, only manual triggers (CLI or API) work.
-
----
+    `check_scheduled_syncs_flow` is a Prefect deployment that wakes every 60
+    seconds and fires whatever is due, so `schedule_minutes` does nothing without
+    the `prefect-server` and `prefect-runner` containers `make dev` starts. With
+    neither running, only a manual trigger (CLI, API or the UI) syncs anything.
 
 ## Google Drive Setup
 
@@ -197,8 +191,6 @@ formats (PDF, XLSX, PPTX) during download. A file whose Drive name contains path
 separators is written as one file inside the sync directory, never at the path
 its name spells.
 
----
-
 ## S3 / MinIO Setup
 
 ### 1. Configure the environment
@@ -221,8 +213,6 @@ For MinIO, the endpoint is typically `http://minio:9000` (Docker) or
 |-------|------|----------|---------|-------------|
 | `bucket` | string | Yes | -- | S3 bucket name |
 | `prefix` | string | No | `""` | Key prefix to limit sync scope (e.g. `documents/legal/`). Leave empty for the entire bucket. |
-
----
 
 ## API Reference
 
@@ -293,8 +283,6 @@ The response includes each connector's `config_schema`, which the
 frontend uses to render dynamic forms. It is also useful for building
 integrations programmatically.
 
----
-
 ## Updating a Source
 
 You can update any subset of fields on an existing source with `PATCH`:
@@ -314,8 +302,6 @@ Updatable fields: `name`, `config`, `sync_mode`, `schedule_minutes`,
 `is_active`, `collection_name`.
 
 Set `is_active` to `false` to pause a source without deleting it.
-
----
 
 ## Monitoring Sync Operations
 
@@ -343,8 +329,6 @@ curl http://localhost:8000/api/v1/rag/sync/logs?collection_name=legal&limit=5 \
   -H "Authorization: Bearer $TOKEN"
 ```
 
----
-
 ## Adding Custom Connectors
 
 To add a new connector type (e.g. Notion, Confluence, Dropbox), see
@@ -363,8 +347,6 @@ The short version:
 
 Once registered, the connector appears automatically in the CLI, API,
 and UI.
-
----
 
 ## Troubleshooting
 

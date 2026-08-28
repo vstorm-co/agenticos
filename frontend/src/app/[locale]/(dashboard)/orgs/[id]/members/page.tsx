@@ -16,7 +16,12 @@ import { toast } from "sonner";
 
 import { ApiError, getErrorMessage, parseErrorMessage } from "@/lib/api-error";
 import { ErrorState } from "@/components/states";
-import { InviteLinkDialog, InviteMemberDialog, OrgSpendingLimit } from "@/components/teams";
+import {
+  InviteLinkDialog,
+  InviteMemberDialog,
+  OrgApprovalWaiver,
+  OrgSpendingLimit,
+} from "@/components/teams";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
   Badge,
@@ -396,6 +401,11 @@ export default function OrgMembersPage({ params }: PageProps) {
       {/* The workspace's own spending ceiling sits with its other settings. It
           hides itself from anyone who may not change them. */}
       {org && <OrgSpendingLimit org={org} />}
+
+      {/* And whether a chat session here may waive them. Governance, like the
+          ceiling above it, and hidden from anybody who may not decide an
+          approval in the first place. */}
+      {org && <OrgApprovalWaiver org={org} />}
 
       {/* The table draws its own skeleton from the same column definitions, so
           the header and every column width are already right while it loads -

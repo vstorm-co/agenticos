@@ -35,6 +35,7 @@ from pydantic_ai.run import AgentRun
 from pydantic_ai.tools import DeferredToolRequests
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.approval import ApprovalMode
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.deps import AgentDeps, AskUserCallback, CompactionSink
@@ -115,6 +116,35 @@ def requested_model_profile_id(frame: Mapping[str, Any]) -> UUID | None:
     except ValueError as exc:
         raise BadRequestError(
             message="That is not a valid model id", details={"model_profile_id": str(raw)}
+        ) from exc
+
+
+def requested_approval_mode(frame: Mapping[str, Any]) -> ApprovalMode:
+    """How much this session wants to be asked, if it said.
+
+    `FOLLOW_AGENT` is what a client that sends nothing gets, and it is exactly
+    the behaviour that existed before the control did: the spec decides.
+
+    Whether the caller may *have* the mode they asked for is not decided here -
+    `AgentRunnerService.prepare` checks the permission, the organization's
+    ceiling and the surface, because it is the one funnel every run goes through.
+    This only refuses a value that is not a mode at all.
+
+    Raises:
+        BadRequestError: If the frame names something that is not one of the three
+            modes. Falling back to `FOLLOW_AGENT` would leave somebody believing
+            they had turned the questions off, and the next gated call parks a run
+            they think is running.
+    """
+    raw = frame.get("approval_mode")
+    if raw is None or raw == "":
+        return ApprovalMode.FOLLOW_AGENT
+    try:
+        return ApprovalMode(str(raw))
+    except ValueError as exc:
+        raise BadRequestError(
+            message="That is not an approval mode",
+            details={"approval_mode": str(raw)},
         ) from exc
 
 
@@ -274,6 +304,7 @@ class ChatAgentRunner:
         on_compaction: CompactionSink | None = None,
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
+        approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
     ) -> ChatTurn:
         """Run the named agent for this turn and record what it consumed.
 
@@ -339,6 +370,10 @@ class ChatAgentRunner:
             # The version this environment pins runs instead of the default -
             # how a dev environment is exercised from the chat before promotion.
             environment_id=environment_id,
+            # Checked in `prepare`, not here: refused rather than downgraded, so a
+            # caller who may not waive approvals is told, and the turn does not
+            # run believing it has consent it was never given (#925).
+            approval_mode=approval_mode,
         )
         # The approval channel was wired by `prepare`; these are the halves only a
         # live surface can provide. Without `ask_user`, an agent whose instructions

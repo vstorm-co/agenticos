@@ -342,6 +342,15 @@ class ChannelAdapter(ABC):
     async def stop_polling(self, bot_id: str) -> None:
         """Stop polling for this bot."""
 
+    async def aclose(self) -> None:
+        """Release long-lived resources at shutdown.
+
+        A no-op by default; an adapter that holds a reused HTTP client (#952)
+        overrides this to close it. Called once, after polling has stopped and
+        background work has drained.
+        """
+        return
+
     @abstractmethod
     async def register_webhook(self, bot_token: str, url: str, secret: str | None) -> bool:
         """Register webhook URL with the platform. Returns True on success."""

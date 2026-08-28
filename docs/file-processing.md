@@ -11,22 +11,15 @@ When a user uploads a file in the chat interface, the following pipeline runs:
 
 ### Flow
 
-```
-1. Upload     POST /api/v1/files/upload
-               |
-2. Validate    Check MIME type against allowed list + enforce size limit
-               |
-3. Classify    Determine file_type: "image", "pdf", "docx", "spreadsheet", "text"
-               |
-4. Parse       Extract text content (images skip this step)
-               |
-5. Store       Save file to media/{user_id}/ via FileStorageService
-               |
-6. Record      Create ChatFile row in database
-               |
-7. Link        When message is sent, ChatFile is attached via message_id FK
-               |
-8. Display     Composer shows a card per attachment: name, excerpt, type, size
+```mermaid
+flowchart TD
+    U["Upload<br/><code>POST /api/v1/files/upload</code>"] --> V["Validate<br/>MIME against the allowed list, size limit"]
+    V --> C["Classify<br/>image · pdf · docx · spreadsheet · text"]
+    C --> P["Parse<br/>extract text — images skip this"]
+    P --> S["Store<br/><code>media/{user_id}/</code>"]
+    S --> R["Record<br/>a <code>ChatFile</code> row"]
+    R --> L["Link<br/>attached to the message by <code>message_id</code>"]
+    L --> D["Display<br/>a card per attachment: name, excerpt, type, size"]
 ```
 
 The upload response carries a `preview` — the first three lines of the extracted
@@ -200,6 +193,14 @@ not define.
 
 ### Size Limits
 
+!!! warning "Two ceilings, and the browser has its own copy of one"
+
+    A chat attachment is refused by `CHAT_MAX_UPLOAD_SIZE_MB` (10 MB); a
+    knowledge-base document by `MAX_UPLOAD_SIZE_MB` (50 MB). Set
+    `NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB` to match the first: too high and the
+    composer accepts a file the API refuses, too low and it refuses one the API
+    would take.
+
 - Maximum attachment size: `CHAT_MAX_UPLOAD_SIZE_MB` (default: **10 MB**). This is
   the section's own limit — a chat attachment is refused by this number, not by the
   knowledge base's larger `MAX_UPLOAD_SIZE_MB`, and the two are separate settings
@@ -265,23 +266,21 @@ different pipeline handles parsing, chunking, and embedding.
 
 ### Ingestion Flow
 
-```
-1. Input       File path (CLI) or uploaded file (API)
-                |
-2. Parse       DocumentProcessor selects parser by file type
-                |
-3. Chunk       Text split into segments (configurable size/overlap/strategy)
-                |
-4. Embed       Chunks embedded via configured provider
-                |
-5. Store       Vectors written to vector database
-                |
-6. Track       RAGDocument record created in SQL (status tracking)
+```mermaid
+flowchart TD
+    I["Input<br/>a path (CLI) or an upload (API)"] --> P["Parse<br/><code>DocumentProcessor</code> picks a parser by type"]
+    P --> C["Chunk<br/>size, overlap and strategy are configurable"]
+    C --> E["Embed<br/>through the collection's provider"]
+    E --> S["Store<br/>vectors in <code>rag_&lt;collection&gt;</code>"]
+    S --> T["Track<br/>a <code>RAGDocument</code> row carries the status"]
 ```
 
-Over the API the order is the other way round: the `RAGDocument` row is written
-first and steps 2–5 run in a background task against a session of their own,
-which is why an upload answers `{"status": "processing"}` rather than waiting.
+!!! note "Over the API the order is the other way round"
+
+    The `RAGDocument` row is written **first** and the middle four steps run in a
+    background task with a session of their own - which is why an upload answers
+    `202 {"status": "processing"}` rather than waiting.
+
 There are two addresses an upload can arrive at — `POST /rag/collections/{name}/ingest`
 and `POST /kb/{kb_id}/documents` — and both answer **202** with the same
 `RAGIngestResponse`, every field of it, `"document_id": null` included: the vector
@@ -847,11 +846,18 @@ the collection name it had then, and those used to be dropped from the page afte
 
 ### What a sync source is not allowed to decide
 
+!!! danger "Whoever can drop a file in a shared folder chooses the string the next sync handles"
+
+    Two of those strings used to be taken at face value: a file name that was a
+    path (`../../../../home/app/.ssh/authorized_keys` is a legal Drive name), and
+    a folder id that reached Drive's query language. `remote_names.py` refuses
+    both, and `BaseSyncConnector` - not a connector - decides where a byte lands,
+    so a connector added later inherits the refusal rather than having to
+    remember it.
+
 A source's contents are not the deployment's to trust, and on a Drive folder
 shared outside the organization they are not even the tenant's: sharing is what
-folder sharing is *for*, so whoever can drop a file in one chooses the string
-the next sync handles. Two of those strings used to be taken at face value, and
-`app/services/rag/remote_names.py` is where both are now refused.
+folder sharing is *for*.
 
 **A file name is a label, not a path component.** `../../../../home/app/.ssh/authorized_keys`
 is a legal Drive file name, and the connector wrote `dest_dir / file.name`
@@ -883,9 +889,14 @@ been shared. The fallback is gone; the setting now serves only the
 
 ### The credential is a vault secret, not a config field
 
-`sync_sources.config` says how to *find* the documents — a folder id, a bucket, a
-prefix — and holds nothing that has to be kept. What authenticates is a vault
-secret the source names in `secret_id`: a `gcp_service_account` for Drive, an
+!!! danger "A credential never goes in a connector's `CONFIG_SCHEMA`"
+
+    `sync_sources.config` says how to *find* the documents. What authenticates is
+    a vault secret the source names in `secret_id` - and there is no
+    deployment-wide fallback, because a fallback means one tenant's folder id
+    choosing what is read under the operator's identity.
+
+What the source names in `secret_id` is a `gcp_service_account` for Drive or an
 `aws_credentials` pair for S3, declared by the connector as `SECRET_KIND` and
 offered to the wizard as `secret_kind` on the connector listing.
 

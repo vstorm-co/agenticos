@@ -12,21 +12,25 @@ to neighbouring rows when one is deleted, which a mock cannot show.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from sqlalchemy import select, text
+from sqlalchemy.exc import DBAPIError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.core.background import discard_deferred, drain, start_deferred
 from app.core.config import settings as app_settings
+from app.core.exceptions import BadRequestError
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.rag_document import RAGDocument
 from app.db.models.user import User
+from app.repositories import knowledge_base_repo
 from app.services.file_storage import get_file_storage
 from app.services.organization import OrganizationService
 from app.services.rag.vectorstore import PgVectorStore
@@ -96,14 +100,28 @@ def _org_collection(org_id: uuid.UUID, collection_name: str) -> KnowledgeBase:
     )
 
 
-def _org_document(
+def _personal_kb(org_id: uuid.UUID, owner_id: uuid.UUID, collection_name: str) -> KnowledgeBase:
+    return KnowledgeBase(
+        id=uuid.uuid4(),
+        name="My notes",
+        scope=KBScope.PERSONAL.value,
+        collection_name=collection_name,
+        embedding_model="text-embedding-3-small",
+        embedding_dim=1536,
+        organization_id=org_id,
+        owner_user_id=owner_id,
+        visibility="private",
+    )
+
+
+def _kb_document(
     collection_name: str, kb_id: uuid.UUID, org_id: uuid.UUID, storage_path: str
 ) -> RAGDocument:
     return RAGDocument(
         id=uuid.uuid4(),
         collection_name=collection_name,
-        filename="doc.txt",
-        filesize=7,
+        filename="notes.txt",
+        filesize=5,
         filetype="txt",
         storage_path=storage_path,
         status="completed",
@@ -183,8 +201,6 @@ class TestDeletingAUser:
     async def test_the_sole_owner_of_a_shared_org_is_refused_not_500ed(self, db):
         """A shared org with no other owner has nobody to hand the creator FK to,
         so the delete is a clean refusal rather than a foreign-key 500."""
-        from app.core.exceptions import BadRequestError
-
         owner = _user()
         db.add(owner)
         await db.flush()
@@ -209,6 +225,138 @@ class TestDeletingAUser:
         await db.refresh(org)
         assert org.created_by_user_id == heir.id
         assert await db.get(User, creator.id) is None
+
+    async def test_deleting_a_user_removes_their_personal_knowledge_base_whole(
+        self, engine: AsyncEngine
+    ) -> None:
+        """A personal-scoped KB the user owns is torn down whole - rows, files and
+        vector table - rather than orphaned by the `SET NULL` cascade with its
+        name still blocking reuse (#1131)."""
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        storage = get_file_storage()
+        stored_path = await storage.save("kb-owner", "notes.txt", b"hello")
+        collection = f"kbnine{uuid.uuid4().hex[:12]}"
+        table = store._table(collection)
+        async with factory() as s:
+            user = _user()
+            s.add(user)
+            await s.flush()
+            org = await _org(s, user, is_personal=True)
+            kb = _personal_kb(org.id, user.id, collection)
+            s.add(kb)
+            await s.flush()
+            s.add(_kb_document(collection, kb.id, org.id, stored_path))
+            await s.execute(text(f"CREATE TABLE {table} (id int)"))
+            await s.commit()
+            user_id, kb_id = user.id, kb.id
+
+        async with factory() as s:
+            await UserService(s, vector_store=store).delete(user_id)
+            await s.commit()
+
+        async with factory() as s:
+            assert await s.get(KnowledgeBase, kb_id) is None
+            docs = await s.execute(
+                select(RAGDocument).where(RAGDocument.knowledge_base_id == kb_id)
+            )
+            assert docs.scalars().all() == []
+            assert (await s.execute(text("SELECT to_regclass(:t)"), {"t": table})).scalar() is None
+            assert await s.get(User, user_id) is None
+            # The name is reusable: no surviving row claims it.
+            assert await knowledge_base_repo.get_by_collection_name(s, collection) is None
+
+        assert storage.get_full_path(stored_path) is None
+
+    async def test_a_personal_kb_sharing_a_collection_keeps_the_table(
+        self, engine: AsyncEngine
+    ) -> None:
+        """Two KBs can back onto one physical table (collection_name is not
+        tenant-unique, #913), so deleting one owner's personal KB removes its rows
+        but not the table the other still references (#1131)."""
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbnine{uuid.uuid4().hex[:12]}"
+        table = store._table(collection)
+        async with factory() as s:
+            leaver = _user()
+            keeper = _user()
+            s.add_all([leaver, keeper])
+            await s.flush()
+            leaver_org = await _org(s, leaver, is_personal=True)
+            keeper_org = await _org(s, keeper, is_personal=True)
+            s.add(_personal_kb(leaver_org.id, leaver.id, collection))
+            keeper_kb = _personal_kb(keeper_org.id, keeper.id, collection)
+            s.add(keeper_kb)
+            await s.execute(text(f"CREATE TABLE {table} (id int)"))
+            await s.commit()
+            leaver_id, keeper_kb_id = leaver.id, keeper_kb.id
+
+        async with factory() as s:
+            await UserService(s, vector_store=store).delete(leaver_id)
+            await s.commit()
+
+        async with factory() as s:
+            assert await s.get(KnowledgeBase, keeper_kb_id) is not None
+            assert (
+                await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
+            ).scalar() is not None
+
+    async def test_a_refused_delete_leaves_the_personal_kb_intact(
+        self, engine: AsyncEngine
+    ) -> None:
+        """The sole-owner refusal is decided before any teardown, so a delete that
+        refuses does not leave the user's personal KB's files or table gone while
+        its row rolls back (#1131)."""
+        from app.core.exceptions import BadRequestError
+
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        storage = get_file_storage()
+        stored_path = await storage.save("kb-owner", "notes.txt", b"hello")
+        collection = f"kbnine{uuid.uuid4().hex[:12]}"
+        table = store._table(collection)
+        async with factory() as s:
+            user = _user()
+            s.add(user)
+            await s.flush()
+            await _org(s, user)  # a shared org solely owned -> the delete refuses
+            personal_org = await _org(s, user, is_personal=True)
+            kb = _personal_kb(personal_org.id, user.id, collection)
+            s.add(kb)
+            await s.flush()
+            s.add(_kb_document(collection, kb.id, personal_org.id, stored_path))
+            await s.execute(text(f"CREATE TABLE {table} (id int)"))
+            await s.commit()
+            user_id, kb_id = user.id, kb.id
+
+        async with factory() as s:
+            with pytest.raises(BadRequestError):
+                await UserService(s, vector_store=store).delete(user_id)
+            await s.rollback()
+
+        async with factory() as s:
+            assert await s.get(KnowledgeBase, kb_id) is not None
+            assert (
+                await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
+            ).scalar() is not None
+        assert storage.get_full_path(stored_path) is not None
+        await storage.delete(stored_path)
 
 
 class TestDeletingAnOrg:
@@ -325,7 +473,7 @@ class TestDeletingAnOrg:
             kb = _org_collection(org.id, collection)
             s.add(kb)
             await s.flush()
-            s.add(_org_document(collection, kb.id, org.id, stored_path))
+            s.add(_kb_document(collection, kb.id, org.id, stored_path))
             await s.commit()
             org_id = org.id
 
@@ -361,7 +509,7 @@ class TestDeletingAnOrg:
             kb = _org_collection(org.id, collection)
             s.add(kb)
             await s.flush()
-            s.add(_org_document(collection, kb.id, org.id, stored_path))
+            s.add(_kb_document(collection, kb.id, org.id, stored_path))
             await s.commit()
             org_id = org.id
 
@@ -461,3 +609,57 @@ class TestDeletingAnOrg:
             surviving = await s.get(KnowledgeBase, kb_id)
             assert surviving is not None
             assert surviving.organization_id is None
+
+
+class TestConcurrentSelfDeletes:
+    async def test_mutual_co_owners_deleting_at_once_never_deadlock(
+        self, engine: AsyncEngine
+    ) -> None:
+        """Two users who each solely own a shared org the other co-owns, deleting
+        their own accounts at the same moment.
+
+        `delete` reassigns each solely-created shared org to its heir, taking FOR
+        KEY SHARE on the heir's user row through the FK while holding FOR UPDATE on
+        its own. Before #1134 the two requests took those locks in opposite orders
+        - each holding its own row and waiting for the other's - so Postgres broke
+        the cycle by aborting one with a 40P01, surfacing as a 500. Locking every
+        user row in ascending id order serialises the two on the lower id, so one
+        completes and the other, now the sole owner of its org, gets a clean domain
+        refusal - never a DeadlockDetected. Integration because the deadlock is a
+        property of two transactions the database arbitrates, which a mock cannot
+        show.
+        """
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async with factory() as setup:
+            a = _user()
+            b = _user()
+            setup.add_all([a, b])
+            await setup.flush()
+            org_a = await _org(setup, a)
+            await _member(setup, org_a.id, b.id, "owner")
+            org_b = await _org(setup, b)
+            await _member(setup, org_b.id, a.id, "owner")
+            await setup.commit()
+            a_id, b_id = a.id, b.id
+
+        async def run_delete(user_id: uuid.UUID) -> object:
+            async with factory() as session:
+                user = await UserService(session).delete(user_id)
+                await session.commit()
+                return user
+
+        results = await asyncio.gather(run_delete(a_id), run_delete(b_id), return_exceptions=True)
+
+        for result in results:
+            assert not isinstance(result, (OperationalError, DBAPIError)), result
+
+        deleted = [r for r in results if isinstance(r, User)]
+        refused = [r for r in results if isinstance(r, BadRequestError)]
+        assert len(deleted) == 1
+        assert len(refused) == 1
+
+        async with factory() as check:
+            assert await check.get(User, deleted[0].id) is None
+            survivor = a_id if deleted[0].id == b_id else b_id
+            assert await check.get(User, survivor) is not None

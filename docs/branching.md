@@ -43,14 +43,20 @@ workflow is how a build ends up passing on nothing.
 
 ### A required check may legitimately report `skipped`
 
+!!! info "A `skipped` required check is a pass, not a problem"
+
+    GitHub satisfies a required status check with `success`, `skipped` **or**
+    `neutral`. So a backend-only branch gets no frontend answer at all - which
+    means "green" on such a branch is a claim about fewer jobs than `make check`
+    runs.
+
 Three of those six do not run on every pull request. `test`, `test-frontend` and
 `e2e` are 8.2, 5.3 and 5.1 billed minutes each, and a `changes` job decides which
 of them a change set can provably not affect — `scripts/ci_changed_scope.py`, so
 the rule is testable rather than a glob in a YAML file
 ([#317](https://github.com/vstorm-co/agenticos/issues/317)).
 
-This is legal because GitHub satisfies a required status check with **`success`,
-`skipped` or `neutral`**. It is why the gate is a job-level `if:` and **not** a
+That is why the gate is a job-level `if:` and **not** a
 `paths:` filter on the workflow: a filtered-out workflow never posts its checks at
 all, so the ruleset waits for six contexts that will never arrive and the merge
 button stays grey forever.
@@ -204,18 +210,24 @@ then reports as somebody else's cancellation.
 
 ## Squash, and why the pull request title matters
 
-`main` keeps one commit per pull request, built from the **pull request title and
-body** rather than from the branch's own commits. So `wip`, `fixup` and `try
-again` never reach it — and the description is not a courtesy, it is the commit
-message that survives. `CLAUDE.md` has the format.
+!!! important "The pull request description *is* the commit message that survives"
+
+    `main` keeps one commit per pull request, built from the title and body rather
+    than from the branch's own commits. `CLAUDE.md` has the format.
+
+So `wip`, `fixup` and `try again` never reach it — and the description is not a
+courtesy.
 
 ## The escape hatch
 
-There are **no bypass actors**. An owner who needs to merge something now
-disables the ruleset, merges, and turns it back on. That is deliberate: a bypass
-that is always available is a bypass that gets used weekly, and a release path
-nobody can describe. Three clicks and an audit entry is the right amount of
-friction for something that should be rare.
+!!! warning "There are no bypass actors"
+
+    An owner who needs to merge something now disables the ruleset, merges, and
+    turns it back on - three clicks and an audit entry, which is the right amount
+    of friction for something that should be rare.
+
+That is deliberate: a bypass that is always available is a bypass that gets used
+weekly, and a release path nobody can describe.
 
 ## Dependency updates
 

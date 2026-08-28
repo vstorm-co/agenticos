@@ -47,6 +47,7 @@ from app.agents.capabilities.approval import (
     ApprovalDecision,
     ApprovalGate,
     ApprovalGranted,
+    ApprovalMode,
     ApprovalPending,
     ApprovalRejected,
     ApprovalRequest,
@@ -55,9 +56,12 @@ from app.agents.deps import AgentDeps
 from app.agents.factory import build_agent
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import AgentSpec
+from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import ApiKeySecret
-from app.services.agent_runner import ApprovalChannel
+from app.db.models.agent_run import RunSurface
+from app.services.agent_chat import requested_approval_mode
+from app.services.agent_runner import AgentRunnerService, ApprovalChannel
 from app.services.approvals import ApprovalService
 
 # Tool names now, not capability ids: the gate matches what the model called,
@@ -215,6 +219,166 @@ class TestGate:
         assert tool.calls == [{}]
 
 
+class TestAskingAboutEverything:
+    """`ApprovalMode.ASK_ALL` on a chat session (#925).
+
+    It only ever tightens, so it needs no permission and no ceiling - and it
+    reaches further than the spec-driven gate deliberately: a person who does not
+    trust an agent yet is asking about everything it can do, which includes the
+    tools no capability owns.
+    """
+
+    @pytest.mark.anyio
+    async def test_a_tool_the_spec_left_ungated_is_asked_about(self):
+        tool = _Recorder()
+        gate = ApprovalGate(required_tool_names=frozenset(), gate_every_tool=True)
+
+        result = await gate.wrap_tool_execute(
+            _ctx(ApprovalGranted(tool_args={"q": "rota"})),
+            call=_call({"q": "rota"}),
+            tool_def=_tool_def(name="search_web"),
+            args={"q": "rota"},
+            handler=tool,
+        )
+
+        assert tool.calls == [{"q": "rota"}]
+        assert result == "sent"
+
+    @pytest.mark.anyio
+    async def test_a_tool_no_capability_owns_is_asked_about_too(self):
+        """An MCP tool. Outside the spec-driven gate on purpose - its approval is
+        a property of the connection - and inside this one, because "ask about
+        everything" that skips half the tools is not what it says."""
+        tool = _Recorder()
+        gate = ApprovalGate(required_tool_names=frozenset(), gate_every_tool=True)
+
+        result = await gate.wrap_tool_execute(
+            _ctx(ApprovalRejected(note="not that repository")),
+            call=_call({"repo": "private"}),
+            tool_def=_tool_def(capability_id=None, name="github_create_issue"),
+            args={"repo": "private"},
+            handler=tool,
+        )
+
+        assert tool.calls == []
+        assert "not that repository" in result
+
+    @pytest.mark.anyio
+    async def test_it_still_refuses_where_nobody_can_be_asked(self):
+        """Tightening cannot become a way to run unattended: no channel is still
+        no, which is the rule the whole gate is built on."""
+        tool = _Recorder()
+        gate = ApprovalGate(required_tool_names=frozenset(), gate_every_tool=True)
+
+        result = await gate.wrap_tool_execute(
+            _ctx(None),
+            call=_call({"q": "rota"}),
+            tool_def=_tool_def(name="search_web"),
+            args={"q": "rota"},
+            handler=tool,
+        )
+
+        assert tool.calls == []
+        assert "cannot ask anyone" in result
+
+    @pytest.mark.anyio
+    async def test_off_by_default_nothing_changes(self):
+        """The gate every agent gets is the spec's, and an ungated tool runs."""
+        tool = _Recorder()
+        gate = ApprovalGate(required_tool_names=GATED)
+
+        await gate.wrap_tool_execute(
+            _ctx(None),
+            call=_call({"q": "rota"}),
+            tool_def=_tool_def(name="search_web"),
+            args={"q": "rota"},
+            handler=tool,
+        )
+
+        assert tool.calls == [{"q": "rota"}]
+
+
+class TestStandingConsent:
+    """`ApprovalMode.APPROVE_ALL`: granted in advance, recorded anyway (#925).
+
+    The row is the whole point. A waived run and an agent nobody ever gated are
+    the same run to anybody reading afterwards unless the row says which - so a
+    grant that skipped the write would take the audit trail
+    `docs/governance.md` describes with it.
+    """
+
+    @pytest.mark.anyio
+    async def test_a_gated_call_is_granted_rather_than_parked(self):
+        consenter = uuid.uuid4()
+        channel = ApprovalChannel(
+            organization_id=uuid.uuid4(),
+            agent_id=uuid.uuid4(),
+            run_id=uuid.uuid4(),
+            standing_consent_by=consenter,
+        )
+
+        decision = await channel(
+            ApprovalRequest(
+                capability_id="email",
+                tool_name="send_email",
+                tool_call_id="call-1",
+                tool_args={"to": "a@example.com"},
+            )
+        )
+
+        assert isinstance(decision, ApprovalGranted)
+        assert decision.tool_args == {"to": "a@example.com"}
+        # Nothing is waiting, so nothing is in `parked`: `paused_state` names the
+        # calls a resume has to answer, and this one already ran.
+        assert channel.parked == {}
+
+    @pytest.mark.anyio
+    async def test_it_is_recorded_with_the_arguments_it_ran_with(self):
+        channel = ApprovalChannel(
+            organization_id=uuid.uuid4(),
+            agent_id=uuid.uuid4(),
+            run_id=uuid.uuid4(),
+            standing_consent_by=uuid.uuid4(),
+        )
+
+        await channel(
+            ApprovalRequest(
+                capability_id="email",
+                tool_name="send_email",
+                tool_call_id="call-1",
+                tool_args={"to": "a@example.com"},
+            )
+        )
+
+        [recorded] = channel.requested
+        assert recorded.standing is True
+        assert recorded.tool_name == "send_email"
+        # Nobody read these before they ran; the row is what lets somebody read
+        # them afterwards.
+        assert recorded.tool_args == {"to": "a@example.com"}
+
+    @pytest.mark.anyio
+    async def test_without_consent_the_call_still_parks(self):
+        channel = ApprovalChannel(
+            organization_id=uuid.uuid4(),
+            agent_id=uuid.uuid4(),
+            run_id=uuid.uuid4(),
+        )
+
+        decision = await channel(
+            ApprovalRequest(
+                capability_id="email",
+                tool_name="send_email",
+                tool_call_id="call-1",
+                tool_args={"to": "a@example.com"},
+            )
+        )
+
+        assert isinstance(decision, ApprovalPending)
+        [recorded] = channel.requested
+        assert recorded.standing is False
+
+
 class TestApprovalChannel:
     @pytest.mark.anyio
     async def test_a_first_ask_parks_the_call_and_remembers_which_one(self):
@@ -346,6 +510,9 @@ class TestApprovalQueue:
             # not pass these is exactly the caller a queue would show as anonymous.
             "subagent_name": None,
             "subagent_agent_id": None,
+            # Nobody waived it either: a parked call is one somebody still has to
+            # read, and `None` here is what leaves the row `pending` (#925).
+            "standing_consent_by": None,
         }
 
     @pytest.mark.anyio
@@ -410,6 +577,110 @@ def gated_capability():
 
     yield
     REGISTRY.pop(GATED_CAPABILITY)
+
+
+class TestWhoMayWaive:
+    """The refusals, which are the point of the ceiling (#925).
+
+    A standing consent *is* the decision the approval queue exists to record, and
+    `member` and `builder` hold `agents:run` without `approvals:decide` - so
+    without these checks the everyday chat user grants themselves, in one click,
+    the authority the API refuses them one endpoint over.
+
+    Refused, never downgraded: quietly following the spec instead would leave
+    somebody believing they had turned the questions off, and the next gated call
+    parks a run they think is running.
+    """
+
+    @staticmethod
+    def _ctx(role: str) -> AuthContext:
+        return AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=role)
+
+    @staticmethod
+    def _service() -> AgentRunnerService:
+        """A runner with no session of its own: every test here patches the one
+        read it makes, or asserts it makes none."""
+        return AgentRunnerService(MagicMock())
+
+    @pytest.mark.anyio
+    async def test_a_member_may_not_waive(self):
+        service = self._service()
+
+        with pytest.raises(AuthorizationError):
+            await service._allowed_approval_mode(
+                self._ctx(OrgRoleName.MEMBER.value),
+                ApprovalMode.APPROVE_ALL,
+                surface=RunSurface.WEB,
+            )
+
+    @pytest.mark.anyio
+    async def test_an_organization_that_forbids_it_refuses_an_operator(self):
+        service = self._service()
+        organization = MagicMock(chat_may_waive_approvals=False)
+
+        with (
+            patch(
+                "app.services.agent_runner.organization_repo.get_by_id",
+                new=AsyncMock(return_value=organization),
+            ),
+            pytest.raises(AuthorizationError),
+        ):
+            await service._allowed_approval_mode(
+                self._ctx(OrgRoleName.OPERATOR.value),
+                ApprovalMode.APPROVE_ALL,
+                surface=RunSurface.WEB,
+            )
+
+    @pytest.mark.anyio
+    async def test_an_operator_in_an_organization_that_allows_it_may(self):
+        service = self._service()
+        organization = MagicMock(chat_may_waive_approvals=True)
+
+        with patch(
+            "app.services.agent_runner.organization_repo.get_by_id",
+            new=AsyncMock(return_value=organization),
+        ):
+            mode = await service._allowed_approval_mode(
+                self._ctx(OrgRoleName.OPERATOR.value),
+                ApprovalMode.APPROVE_ALL,
+                surface=RunSurface.WEB,
+            )
+
+        assert mode is ApprovalMode.APPROVE_ALL
+
+    @pytest.mark.anyio
+    async def test_no_unattended_surface_may_waive(self):
+        """A schedule, an API call, a channel, an embed. `ApprovalGate` already
+        refuses a run with no approval channel; standing consent must not become
+        the way round that - and `EMBED` is on the list deliberately, being the
+        one other surface with a person at the keyboard and no session of theirs
+        to hold the consent."""
+        service = self._service()
+
+        for surface in (RunSurface.API, RunSurface.SLACK, RunSurface.SCHEDULE, RunSurface.EMBED):
+            with pytest.raises(AuthorizationError):
+                await service._allowed_approval_mode(
+                    self._ctx(OrgRoleName.OWNER.value),
+                    ApprovalMode.APPROVE_ALL,
+                    surface=surface,
+                )
+
+    @pytest.mark.anyio
+    async def test_asking_about_everything_needs_nothing(self):
+        """It only ever tightens - no permission, no ceiling, and no read of the
+        organization to decide it."""
+        service = self._service()
+        asked = AsyncMock()
+
+        with patch("app.services.agent_runner.organization_repo.get_by_id", new=asked):
+            mode = await service._allowed_approval_mode(
+                self._ctx(OrgRoleName.VIEWER.value),
+                ApprovalMode.ASK_ALL,
+                surface=RunSurface.API,
+            )
+
+        assert mode is ApprovalMode.ASK_ALL
+        asked.assert_not_called()
 
 
 @dataclass
@@ -521,3 +792,28 @@ class TestParkAndResume:
             if isinstance(part, ToolReturnPart)
         ]
         assert any("not now" in str(content) for content in refusals)
+
+
+class TestTheFrameThatCarriesTheMode:
+    """What a client sends, and what the server does with a value it does not know.
+
+    The mode rides the send frame the way `model_profile_id` does. Whether the
+    caller may *have* it is decided in `prepare`; this is only about reading it.
+    """
+
+    def test_a_frame_that_says_nothing_follows_the_agent(self):
+        """Which is exactly the behaviour that existed before the control did."""
+        assert requested_approval_mode({}) is ApprovalMode.FOLLOW_AGENT
+        assert requested_approval_mode({"approval_mode": ""}) is ApprovalMode.FOLLOW_AGENT
+        assert requested_approval_mode({"approval_mode": None}) is ApprovalMode.FOLLOW_AGENT
+
+    def test_each_mode_is_read_back(self):
+        for mode in ApprovalMode:
+            assert requested_approval_mode({"approval_mode": mode.value}) is mode
+
+    def test_a_mode_that_is_not_one_is_refused(self):
+        """Not defaulted. Falling back to following the agent would leave somebody
+        believing they had turned the questions off, and the next gated call parks
+        a run they think is running."""
+        with pytest.raises(BadRequestError):
+            requested_approval_mode({"approval_mode": "yolo"})

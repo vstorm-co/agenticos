@@ -34,6 +34,7 @@ const WORKSPACE: WorkspaceSummary = {
   scope: "conversation",
   backend: "state",
   owner_label: "This conversation",
+  owner_name: null,
   access_label: "Whoever is in that conversation",
   bytes_total: 2048,
   file_count: 2,

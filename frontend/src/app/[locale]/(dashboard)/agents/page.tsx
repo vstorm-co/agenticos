@@ -145,7 +145,7 @@ export default function AgentsPage() {
           render inside the same frame. */}
       {isLoading ? (
         <AgentsCard visible={null} total={0} controls={galleryControls}>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {[0, 1, 2].map((row) => (
               <div key={row} className="border-border rounded-xl border p-4">
                 <div className="flex items-start gap-3">
@@ -186,7 +186,7 @@ export default function AgentsPage() {
               }
             />
           ) : (
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {visible.map((agent) => (
                 <AgentCard
                   key={agent.id}

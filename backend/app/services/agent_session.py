@@ -29,6 +29,7 @@ from app.services.agent_chat import (
     ChatTurn,
     OpenedRun,
     requested_agent_id,
+    requested_approval_mode,
     requested_environment_id,
     requested_model_profile_id,
 )
@@ -302,6 +303,11 @@ class AgentSession:
                     # records which one, and the budget is the agent's.
                     model_profile_id=requested_model_profile_id(data),
                     environment_id=requested_environment_id(data),
+                    # How much this session wants to be asked. Validated inside
+                    # `prepare` against the caller's `approvals:decide` and the
+                    # organization's ceiling, and *refused* there rather than
+                    # downgraded (#925).
+                    approval_mode=requested_approval_mode(data),
                 )
             # `turn.output` is what the run *ended* with; a turn that parked ended
             # with nothing, so its words are on the timeline (#509).

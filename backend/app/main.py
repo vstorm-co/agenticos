@@ -188,6 +188,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # is left stuck in `processing` forever (#417 is the same row, from the other
     # end).
     await background.drain()
+    # Close each adapter's reused HTTP client now that no polling task or drained
+    # background turn can still be mid-request on it (#952).
+    for _adapter in (_telegram_adapter, _mattermost_adapter, _slack_adapter):
+        await _adapter.aclose()
+    # The shared outbound clients web search and the model-catalog listings reuse,
+    # closed the same way now that nothing can still be mid-request on them (#1263).
+    from app.agents.capabilities.web_research._search import close_http_client
+    from app.services.model_catalog import close_listing_client
+
+    await close_http_client()
+    await close_listing_client()
     # The knowledge capability caches a store of its own, built on the first
     # search and reachable from no request; a shutdown followed by more work -
     # a test, a reload - must not search through it once `close_db` has run.

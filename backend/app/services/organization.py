@@ -55,6 +55,7 @@ def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRe
         member_count=member_count,
         role=role,
         monthly_budget_usd=org.monthly_budget_usd,
+        chat_may_waive_approvals=org.chat_may_waive_approvals,
         created_at=org.created_at,
         updated_at=org.updated_at,
     )
@@ -259,22 +260,36 @@ class OrganizationService:
     ) -> Organization:
         """Update org metadata and settings.
 
-        Two permissions decide this PATCH, each covering the fields it names:
+        Three permissions decide this PATCH, each covering the fields it names:
         `org:settings` for the metadata (name, avatar), `budgets:manage` for
-        the monthly spending cap. The built-in Owner and Admin hold both, so
-        nothing changes for them - but the catalog advertises `budgets:manage`
-        as its own entitlement, and a permission the matrix shows and no
-        endpoint consults is a row that means nothing.
+        the monthly spending cap, `approvals:decide` for whether chat sessions
+        may waive approvals. The built-in Owner and Admin hold all three, so
+        nothing changes for them - but the catalog advertises each as its own
+        entitlement, and a permission the matrix shows and no endpoint consults
+        is a row that means nothing.
+
+        The waiver is gated on `approvals:decide` rather than on `org:settings`
+        because of what it is: raising the ceiling on standing consent is a
+        decision about the approval queue, and somebody who may not decide one
+        approval should not be able to switch the queue off for every
+        conversation (#925).
         """
         org, membership = await self.get_for_user(org_id, requester_id)
         wants_budget = "monthly_budget_usd" in data.model_fields_set
         wants_color = "avatar_color" in data.model_fields_set
-        wants_metadata = bool(data.model_fields_set - {"monthly_budget_usd"})
+        wants_waiver = "chat_may_waive_approvals" in data.model_fields_set
+        wants_metadata = bool(
+            data.model_fields_set - {"monthly_budget_usd", "chat_may_waive_approvals"}
+        )
         if wants_metadata and not role_has(membership.role, Perm.ORG_SETTINGS):
             raise AuthorizationError(message="Only Owner or Admin can update the organization")
         if wants_budget and not role_has(membership.role, Perm.BUDGETS_MANAGE):
             raise AuthorizationError(
                 message="Changing the spending limit requires 'budgets:manage'"
+            )
+        if wants_waiver and not role_has(membership.role, Perm.APPROVALS_DECIDE):
+            raise AuthorizationError(
+                message="Changing whether chats may waive approvals requires 'approvals:decide'"
             )
 
         if wants_budget:
@@ -288,6 +303,11 @@ class OrganizationService:
         if wants_color:
             # Same field-named-not-valued rule: `null` resets the colour to auto.
             org = await organization_repo.set_avatar_color(self.db, org, color=data.avatar_color)
+
+        if wants_waiver and data.chat_may_waive_approvals is not None:
+            org = await organization_repo.set_chat_approval_waiver(
+                self.db, org, allowed=data.chat_may_waive_approvals
+            )
 
         return await organization_repo.update(
             self.db,

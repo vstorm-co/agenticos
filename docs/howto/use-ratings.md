@@ -1,7 +1,7 @@
 # Using Message Ratings
 
-Users can rate AI assistant responses to provide feedback on answer quality.
-This feedback helps improve the AI and gives administrators insight into response quality.
+People can rate an agent's answers, and the ratings are readable two ways: on the
+turn itself, and in aggregate for whoever administers the deployment.
 
 ## Rating Messages
 
@@ -55,9 +55,11 @@ Navigate to **Admin → Response Ratings** (or `/admin/ratings`) to access the a
 A bar chart shows ratings over the last 30 days. Green bars represent likes,
 red bars represent dislikes.
 
-This page's window is fixed. To read the same numbers over a period you choose,
-use the dashboard's **Answer quality, deployment-wide** card, which follows the
-period filter at the top of the page.
+!!! note "This page's window is fixed at 30 days"
+
+    To read the same numbers over a period you choose, use the dashboard's
+    **Answer quality, deployment-wide** card, which follows the period filter at
+    the top of the page.
 
 ### Filtering Ratings
 
@@ -86,7 +88,10 @@ Export ratings for external analysis:
 - **JSON** — Full structured data, suitable for scripts and analysis tools
 - **CSV** — Spreadsheet-compatible format for Excel or Google Sheets
 
-Exports respect the current filters (e.g., export only dislikes with comments).
+!!! tip "Exports respect the current filters"
+
+    Narrow to dislikes with comments, then export, and that is what you get -
+    the filters are part of the query, not of the view.
 
 ### Viewing Conversations
 
@@ -131,7 +136,9 @@ For programmatic access to ratings data, use the admin API endpoints:
 | `/admin/ratings/export` | GET | Export ratings (JSON/CSV) |
 | `/admin/conversations` | GET | List all conversations |
 
-Every `/admin` endpoint is gated on `CurrentAppAdmin` — a signed-in user whose
-`users.is_app_admin` is true. That is the **deployment** superadmin, not a role inside
-an organization: there is no `users.role` column and no organization role reaches
-these routes. See [permissions](../permissions.md#layer-1-usersis_app_admin-the-deployment-superadmin).
+!!! warning "Every `/admin` endpoint is the deployment superadmin, not an org role"
+
+    The gate is `CurrentAppAdmin` — a signed-in user whose `users.is_app_admin` is
+    true. There is no `users.role` column, and no organization role reaches these
+    routes. See
+    [permissions](../permissions.md#layer-1-usersis_app_admin-the-deployment-superadmin).

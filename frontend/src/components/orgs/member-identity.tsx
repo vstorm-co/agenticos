@@ -8,11 +8,17 @@ export interface IdentifiedMember {
   full_name?: string | null;
 }
 
-/** What to call somebody, preferring the name they gave over their address. */
+/**
+ * What to call somebody, preferring the name they gave over their address.
+ *
+ * The whole address when there is no name, not its local part. Stripping the
+ * domain read tidily and made two people indistinguishable: `alex@corp.example`
+ * and `alex@vendor.example` both drew as `alex`, and the row omits the address
+ * beneath a nameless account precisely because the line above it is supposed to
+ * *be* the address (#931).
+ */
 export function displayName(member: IdentifiedMember): string {
-  // The address without its domain, by removing the domain rather than by indexing a
-  // split - which would need a fallback for an element that always exists.
-  return member.full_name || member.email.replace(/@.*$/, "");
+  return member.full_name || member.email;
 }
 
 /**

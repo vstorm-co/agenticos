@@ -17,6 +17,773 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.341] - 2026-08-28
+
+### Fixed
+
+- **The card grids clipped by 34px on a 390px viewport.**
+  `grid gap-3 md:grid-cols-2 xl:grid-cols-3` declares no column count *below* `md`, so
+  the single implicit track is `auto` and sizes to its items' content: the grid box
+  measured 324px while its own `grid-template-columns` computed **391.094px**.
+  `min-width: 0` injected at every level of the ancestor chain changes nothing - the
+  track is what is too wide, not the item - where `grid-cols-1`, that is
+  `repeat(1, minmax(0, 1fr))`, makes the track the container's 324px and the card's own
+  `truncate` finally has something to truncate against. Applied to fourteen grids
+  across nine files: the ones whose cards carry user-supplied unbreakable text - a
+  slug, an email, a URL, an id - because those are the ones whose min-content is
+  unbounded. The sweep found 71 grids with the same shape and deliberately leaves the
+  other 57: the pattern is only a defect when something inside cannot be broken, and a
+  no-op class on 57 files is a diff nobody can review. (#120)
+- **The chat control bar ran 27px past the composer at 390px.** Three controls, 358px
+  of them, in a `justify-between` row with the connection pill. The pill is `shrink-0`
+  now - two words, nothing to give - and the control group `min-w-0`, which
+  `AgentPicker`'s trigger needed too: its `max-w-[160px]` on the name is a cap, not
+  permission for a flex item to shrink. (#120)
+- **A dashboard widget's info button was a 14x14 tap target**, a third of the 44px both
+  mobile platforms ask for. A `before:absolute before:-inset-[15px]` pseudo-element
+  takes it to 44x44 without moving anything on screen. (#120)
+
+### Changed
+
+- #120 had "describe it later" in every field, so **the issue body is now the audit**:
+  measured at 390x780 and 768x1024 in Chromium against the running app, fourteen pages,
+  each scrolled to the end, recording overflow, tap-target size, text size and anything
+  intersecting the fixed tab bar. Good news up front - the document never scrolls
+  horizontally, at either width, on any of the fourteen pages. Three things are
+  deliberately left and scoped on the issue rather than fixed here: the three data
+  tables, which each sit in their own `overflow-x-auto` scroller so no column is lost
+  but which want to be cards below `md` (Activity is 1155px in a 364px column); 45
+  sub-40px tap targets, most of them the repository's own `icon-sm`, which want one
+  hit-area token below `md` rather than bigger buttons; and the 10-11px mono label
+  register, which is a design decision about a phone. (#120)
+
+## [0.0.340] - 2026-08-28
+
+### Added
+
+- **A README front page: hero, pitch, badges, nav, then the spec sample and what the
+  product looks like.** The content was already strong; what it lacked was the visual
+  first impression. The graphics are authored in this repository - no icon package, no
+  external asset host, no hand-copied path data:
+  `.github/assets/hero-{light,dark}.svg`, one per theme and served through a
+  `<picture>`, drawing the sentence the README opens with rather than decorating it -
+  one spec, one runner, the surfaces that reach it and the four refusals underneath,
+  in the app's own palette read out of `globals.css` and converted rather than
+  eyeballed; and `docs/assets/mark.svg`, the same mark alone, which is now the docs
+  site's logo and favicon, which the site did not have. One file, not two: an earlier
+  draft had a copy in `.github/assets/`, which is the second-source defect this
+  repository keeps citing. (#783)
+- **Release and stars badges** - the two the header lacked - plus a star-history image
+  before the footer. Image paths are relative, so they render in a pull request as
+  well as on `main`; absolute `raw.githubusercontent` URLs would show broken images to
+  whoever reviews a change about graphics. (#783)
+- Three screenshots - the builder, the catalog, the chat surface - at 1600px,
+  palette-reduced to 220 colours, 392KB for all three. Taken from a `make dev` run
+  against a **throwaway database** rather than a developer's own, which held eleven E2E
+  fixtures and four scratch agents; the fresh one was dropped afterwards and the
+  developer's eleven agents verified still there. No shot shows a live model answer,
+  deliberately: the alternatives were to spend somebody's tokens or to fake a
+  transcript, so the chat shot is the composer with a real question typed and the agent
+  picker showing which agent will answer. (#783)
+
+### Fixed
+
+- The docs table promised "Spec, version, exposure, run - the four nouns" where
+  `concepts.md` has five: the trigger was added and one of the two pages updated.
+  (#783)
+
+## [0.0.339] - 2026-08-28
+
+### Fixed
+
+- **`/runs` had 0px under its last run row where every other list page gets 64px.** It
+  was in `FULL_HEIGHT_ROUTES`, so `PageTransition` gave it `min-h-0` and withheld
+  `PAGE_CLEARANCE` - and it stopped being a full-height route in #914: the page's root
+  is an ordinary scrolling `flex flex-col` and the run detail is `sticky` inside the
+  page's own scroll rather than a pane with a scrollbar of its own. One regex was
+  answering two different questions on the page's behalf, so it is two now:
+  `OWN_SCROLL_PANE` (`/chat` alone, which needs the constrained chain so the transcript
+  scrolls instead of the page) and `OWN_BOTTOM_ROOM` (`/chat` and `/runs`, both having
+  something that must reach the bottom edge). Activity then declares `PAGE_CLEARANCE`
+  one level in, on its **list column** - and that placement is the whole point, because
+  padding on the box *around* the two-column row shortens the containing block the
+  sticky panel is clamped to. Measured at 1440x800 against a transcription of the
+  page's own chain: room on the outer box gives 64px of clearance and a panel top of
+  **-48px** with its header cut off by 56px, which is the figure in the issue; room on
+  the list column gives 64px and a panel pinned 8px from the window top, header
+  visible. (#1206)
+- **Below `lg`, the run detail panel's last 56px sat behind the mobile tab bar.** The
+  list column is `hidden` there and the panel is the only column, so its flat
+  `h-[calc(100dvh-1rem)]` ran under a bar that is `fixed bottom-0`, `min-h-[56px]` plus
+  the safe-area inset. Measured at 390x780: 56px hidden before, 8px clear after, which
+  matches the 8px it already keeps at the top. The full height stays above `lg`, where
+  the bar is hidden. Same element, two lines, so it is here rather than in a second
+  change. (#1206)
+- `page-transition.test.tsx` was asserting the old reason - "constrains Activity too,
+  where the list and the run detail scroll apart", true before the page was rebuilt and
+  false since. It asserts both halves of what is true now: no `min-h-0`, and no `pb-`
+  either, with the prefix-match case still checking that `/runsomething` *gets* the
+  room. (#1206)
+
+## [0.0.338] - 2026-08-28
+
+### Changed
+
+- **A presentation and correctness pass over every page of the site** - 25 concept and
+  reference pages, the 8 guides, the 3 reference stubs. The site was accurate and
+  almost unreadable: 27 pages of unbroken prose, one mermaid diagram between them, no
+  content tabs anywhere, ~20 pages with no callouts at all, and three flows drawn in
+  ASCII that only line up in a monospace font. The words are mostly unchanged; what
+  changes is what a reader sees before they start reading. **17 mermaid diagrams**
+  where prose or ASCII described a flow - the request path and the transaction's
+  ordering, both ingestion pipelines, the three permission layers, park -> decide ->
+  resume, the sandbox's three processes, envelope encryption, MCP's OAuth 2.1
+  handshake, a sync's six stages. **~130 callouts**, each promoting a rule the page
+  already stated and whose violation costs something: a 2xx means the write is
+  readable, a budget is checked before the request, an empty origin list allows
+  nothing, the sandbox token is root-equivalent. Content tabs where alternatives were
+  stacked vertically, and prose restructured where it was a table or a list in
+  disguise. (#784)
+
+### Fixed
+
+- **Four pages were teaching things that are not true here.** `patterns.md`'s three
+  worked examples had all drifted off the code - a DI example injecting
+  `Depends(get_db)` and `Depends(get_current_user)`, neither of which exists, where the
+  aliases do and `DBSession`'s `scope="function"` is load-bearing (#353); a repository
+  written as a `ConversationRepository` class, the one shape the architecture rule
+  rules out; and a service holding `self.repo`, which no service in the codebase does.
+  `howto/customize-agent-prompt.md` taught editing `app/agents/prompts.py` and
+  overriding `DEFAULT_SYSTEM_PROMPT`, with a `get_system_prompt_with_rag()` and an
+  `AI_TEMPERATURE` that do not exist - contradicting the sentence CLAUDE.md calls the
+  whole design; it is rewritten around the spec and `default_instructions.py`.
+  `howto/add-background-task.md` step 2 was `asyncio.create_task(...)`, which is
+  exactly the shape #417 was: the task starts before the request commits, so a flow
+  reading its own row finds nothing, and the exception is dropped too - now
+  `spawn_after_commit` / `spawn`. And `howto/add-api-endpoint.md` was a second,
+  already-diverging copy of `adding_features.md`'s walkthrough; it is the single copy
+  now, with `adding_features.md` pointing at it. (#784)
+- Smaller corrections: `configure-sync-sources.md` named `app/rag/connectors/` twice
+  for a package that is `app/services/rag/connectors/`, and had a sentence ending in a
+  colon with nothing after it; `ROADMAP.md` was dated 2026-07-27 and contradicted
+  itself about the 100% gate, with three items describing features that have shipped;
+  `index.md` promised "four nouns" where `concepts.md` has five; and a dead anchor in
+  `configuration.md`, which mkdocs reports at INFO so `--strict` never caught it.
+  (#784)
+
+## [0.0.337] - 2026-08-28
+
+### Added
+
+- **A per-conversation approval mode in the chat.** The spec decides which tools are
+  gated, at publish time, per tool - which is right for a statement about what the
+  agent *is*, and says nothing about the mood of one session. Somebody working through
+  twenty turns with an agent that gates three tools answered the same three questions
+  every turn, and their only way out was to republish the agent, changing it for
+  everybody, permanently, to fix an afternoon. Three modes ride the send frame beside
+  the model override: **Follow the agent** (the default, and exactly what existed
+  before), **Approve everything** (standing consent for this conversation - every gated
+  call granted without parking, each one still writing its row), and **Ask about
+  everything** (gate every tool the agent can reach, including the ones the spec left
+  ungated and the ones no capability owns). (#925)
+- Four things make it a session setting rather than a hole in the model. A caller who
+  may not waive is **refused, never downgraded** - quietly following the spec would
+  leave somebody believing they had turned the questions off, and the next parked run
+  says the opposite; the check is in `AgentRunnerService.prepare`, the one funnel a
+  fresh run and a resumed one share. Waiving needs `approvals:decide` **and** the
+  organization's leave: a standing consent *is* the decision the queue exists to
+  record, so `organizations.chat_may_waive_approvals` is the ceiling - **off by
+  default**, changed by somebody holding `approvals:decide` - and without it a
+  Builder's deliberate gate on `send_email` would be one click from nothing in every
+  conversation. **No channel still means no**: only the web chat may waive, because
+  `ApprovalGate` already refuses a run with nobody to ask. And **every waived call is
+  recorded** - the row is written `approved`, names the consenting account and carries
+  `decided_via = "standing"`, its own column rather than a sentence in `note`, because
+  a waived run indistinguishable from an agent that was never gated is
+  `docs/governance.md`'s trail quietly ceasing to be one. (#925)
+- "Ask about everything" gates **MCP tools too**. The spec-driven gate leaves them
+  alone because their approval is a property of the connection; a person who does not
+  trust an agent yet is asking about everything it can do. It only tightens, so it
+  takes no permission, no ceiling and no surface check -
+  `ApprovalRequest.capability_id` is nullable for exactly this case. (#925)
+- `docs/governance.md` gains **How much one conversation wants to be asked**; the tour
+  gains `chat-approval-mode`.
+
+### Changed
+
+- New column `organizations.chat_may_waive_approvals`, default off, with its own switch
+  beside the spending limit - so an upgrade changes nobody's behaviour and the waive
+  option does not render until an owner turns it on.
+
+## [0.0.336] - 2026-08-28
+
+### Added
+
+- **An Owner column on the workspaces table.** It said who *else* could see a
+  workspace and never who it belongs to: `access_label` describes the **scope** -
+  "everybody who talks to this agent", "one person" - which is a different fact, and on
+  an agent-scoped workspace shared by six people it is not the one an operator is
+  asking. `owner_label` was already on the row and already rendered by the chat panel,
+  used here only as a fallback heading. Plain text and never a link, because
+  `owner_ref` is a string and a Slack-sourced workspace's owner is a platform id
+  rather than an account (#131), so a linked cell would be broken on half the rows.
+  Sortable, because grouping a deployment by holder is what somebody opens this to do.
+  (#137)
+
+### Changed
+
+- **One folder tree, not two.** `/skills` and `/workspaces/{id}` had written the same
+  tree twice - the same recursion, the same expand-collapse set keyed on a folder's
+  path, the same chevron and two folder icons, the same `role="tree"` with
+  `aria-expanded` - over two node shapes and **two polarities of open state**, one
+  holding what was collapsed and the other what was open. `PathTree` in
+  `components/files` is now the mechanics and the semantics: indentation by depth, the
+  roles, one selected file, the open set. What a row *says* stays with the caller,
+  because a skill's file is a name and a workspace's is a name, a size and a download -
+  which is why there are two render props: `renderFile` inside the button that opens
+  the file, so that is all a screen reader announces, and `renderFileMeta` beside it,
+  because the workspace's download must not need the file opened first and a button
+  inside a button is invalid. `workspace-explorer.tsx` is 110 lines lighter,
+  `skill-files.tsx` 80, against one 203-line component. One deliberate visual change: a
+  skill's *file* rows were indented twelve pixels further than its folders and the
+  workspace's were not, so the two trees disagreed about the same question. They indent
+  alike now. (#137)
+
+## [0.0.335] - 2026-08-28
+
+### Changed
+
+- **The Share conversation dialog picks a person rather than asking for an email
+  address.** It had a text field and a hand-rolled suggestion list that appeared only
+  once something had been typed, so the control's default state was a blank box you
+  had to already know the answer to fill, and every mistyped address was a 404.
+  `MemberPicker` - a popover over a `cmdk` list - opens with the organization in it,
+  each row a face and a name over the address, and somebody who already has access is
+  not offered again. The API has always accepted `shared_with` beside
+  `shared_with_email`, so this is a client change rather than a contract change, and
+  sharing outside the organization becomes impossible by construction - #930's client
+  half. `matchingMembers` and its four tests go with the field. (#931)
+- **View and Edit carry icons and a sentence.** `Eye` and `Pencil`, in the select and
+  on every row, with one line saying what the level permits - because "edit" on a
+  conversation is not obvious: it is rename, archive, delete and append turns, which
+  `ConversationService._may_write` decides and nothing on the dialog used to say.
+  (#931)
+- **The access list reads as people.** `MemberIdentity`, the same row the members
+  table and the alerts picker draw, resolved against the organization's members - with
+  a fallback to whatever the share itself holds, because a share whose member is gone
+  still has to be revocable. The level is the catalog's word now: the badge printed the
+  API's raw `view`/`edit`, so that one row was English in every locale while the select
+  above it was translated, and the i18n guard could not see it because it is an
+  expression rather than a literal. (#931)
+- `DIALOG_FORM` instead of `DIALOG_CONFIRM`, and three separated sections - invite, who
+  has access, the link - rather than three controls on one row. A share token is not a
+  person, so it keeps its own row. (#931)
+
+## [0.0.334] - 2026-08-28
+
+### Fixed
+
+- **Every notification link was organization-agnostic, and the page it opens acts on
+  whichever organization the reader last used.** `apiClient` stamps
+  `X-Organization-Id` from a selection persisted per browser, so somebody in two
+  organizations who was last working in Globex opened the approval alert for a run in
+  Acme and read **Globex's** queue: very likely empty, and reading as *nothing is
+  waiting* about a run that is parked and ageing towards
+  `ApprovalService.expire_stale`. The agent links were wrong more quietly -
+  `/agents/{id}` under the wrong organization is a refusal for an agent the reader can
+  genuinely see, one switch away. `run.organization_id` and `agent.organization_id`
+  were in scope at all four call sites and discarded. Every link now carries
+  `org=<id>`, built in one place - `NotificationService._link`, which picks the
+  separator from the path because the approvals link already carries
+  `?tab=approvals`. (#1204)
+- **The console adopts it the way it adopts `/orgs/{id}`.** `organizationInQuery`
+  reads it under the same two rules as the path's reader and for the same reasons
+  #1032 gives: a UUID only, so a future `?org=new` is not adopted as a tenant id and
+  refused on every request, and lower-cased, because the value is stored and found by
+  `===` against ids the server serialises in canonical lower case. The adoption is the
+  existing layout effect in the recovery hook, before the tenant cache reset and
+  before the page's own queries, so the first request the page makes already carries
+  the right tenant. Two rules follow from what the parameter is: **the path outranks
+  it**, since `/orgs/{id}` *is* that organization while `?org=` only says which one an
+  alert was about; and adoption is keyed on the path and the adopted id together,
+  because two alerts about two organizations arrive at the same path and keying on the
+  path alone would read the first one's tenant. (#1204)
+- A reader who has since left that organization is told the link is the reason, rather
+  than being moved in silence and reading another organization's page as the answer to
+  the alert. It cannot name the organization: they are not a member, so it is not in
+  their list. (#1204)
+
+### Added
+
+- `docs/governance.md` gains **Every link says which organization it is about** under
+  Alerts.
+
+## [0.0.333] - 2026-08-28
+
+### Fixed
+
+- **An ingestion that had already read its file kept writing when the collection was
+  deleted underneath it.** `insert_document` reaches `_ensure_collection`, whose
+  `CREATE TABLE IF NOT EXISTS` recreated the just-dropped `rag_<collection>` table and
+  inserted the chunks - leaving an untracked table of stale vectors reachable by a
+  later same-named collection, and then failing to record completion because the
+  document row was gone. `IngestionService.ingest_file` takes an optional
+  `still_wanted` check, run **after the parse and before the write**: the upload flow
+  checks its own `rag_documents` row, which the delete removes, and the two sync flows
+  check that the collection still has a knowledge base. When it reports the collection
+  gone the write is skipped and a failure returned rather than the table resurrected.
+  (#1275)
+- Both checks are **fail-safe**: any error answers "still wanted", so the guard can
+  only ever skip a write it is certain is unwanted and never blocks a legitimate
+  ingestion. It closes the parse-duration window, which is the wide one - parsing a
+  large file is seconds where the insert is fast. Two residuals stay, both narrow and
+  pre-existing: a collection dropped in the instant between the check and the insert,
+  and the sync check being collection-level rather than tenant-precise while
+  collection names are not tenant-unique (#913). (#1275)
+
+## [0.0.332] - 2026-08-28
+
+### Fixed
+
+- **A new turn no longer starts from a checklist that is already finished.**
+  `keep_plan` records whatever the store held when the run ended, completed steps
+  included, and the next turn seeded from it - so a thread whose three steps were all
+  ticked off in August opened in November with the tail reminder calling them "your
+  current plan" and `read_plan` answering with them, and the agent worked to a
+  checklist about a task nobody is doing. The filter is at the **seed** rather than at
+  the moment the last step is ticked: within the turn that finishes a plan the store
+  still holds it, so `read_plan`, the reminder and the transcript agree and the agent
+  can summarise what it just did - and it is the *next* question that starts clean,
+  with the ticked checklist still in the messages above it where it reads as what was
+  done. Nothing is deleted; the row keeps the finished plan and `still_open` decides
+  only what a fresh turn is seeded with. **Finished** means at least one step and every
+  step `completed` or `cancelled` - `blocked` is work outstanding and keeps the plan.
+  (#1221)
+
+### Changed
+
+- The rule is written down in both places: the seeding rule's docstring in
+  `planning/_capability.py`, and `docs/reference/capabilities.md`, whose paragraph said
+  the opposite ("A finished checklist is kept rather than cleared").
+
+## [0.0.331] - 2026-08-28
+
+### Fixed
+
+- **`DELETE /kb/{id}` deleted only the `knowledge_bases` row.** Its `rag_documents`
+  rows, whose FK is `SET NULL`, survived detached and readable by a later same-named
+  collection; the uploaded files stayed on disk; and the physical `rag_<collection>`
+  table was left behind with the collection name still blocking reuse. The full
+  teardown existed only on the org purge path. `KnowledgeBaseService.delete` now takes
+  the vector store - **required, not optional**, the shape #992 used so a delete route
+  cannot silently skip the teardown again - and runs it: the base's document rows and
+  their stored files, then the row, then the `rag_<collection>` table, dropped only
+  when no other base still references the name, which is not tenant-unique (#913). The
+  route wires in the `VectorStoreSvc` it did not have. (#1266, #1290)
+
+## [0.0.330] - 2026-08-28
+
+### Fixed
+
+- **A magic link ignored where the visitor was headed.** `/auth/magic-link` called
+  `postSignInDestination()` with nothing, so somebody who arrived at
+  `?returnTo=/agents/a-1` landed on `/dashboard` - which door somebody came through
+  still deciding where they end up. #121 removed that drift on the roles axis and #135
+  on the provider axis; this was the last door with it. The path travels **in the
+  token**, as a signed `rt` claim: #135's `sessionStorage` is allowed because the OAuth
+  round trip starts and ends in the same tab, where a magic link is followed from an
+  email - another tab, often another application, sometimes another browser - and that
+  store is empty by construction. No schema change, and nothing between the mint and
+  the landing can edit it. (#1214)
+- **Refused before it is signed, and judged again at the landing.**
+  `MagicLinkRequest.return_to` accepts a path on this deployment and nothing with a
+  scheme, a second leading slash, a backslash or a control character - the same five
+  shapes `frontend/src/lib/auth-landing.ts` refuses - so a token holding an arbitrary
+  string never exists rather than existing and being filtered on read.
+  `postSignInDestination` judges it again anyway: a check that ran once, on the server,
+  on a value that then travelled through an email is not a check the client can rely
+  on having happened. (#1214)
+- `POST /auth/magic-link/verify` answers with `MagicLinkToken` - the pair plus
+  `return_to`, unapplied, because the client navigates and the landing owns that
+  judgement. Its own schema rather than a nullable field on `Token`: the login and
+  refresh responses have no return path to carry, and a field that is always null on
+  most responses is one a client learns to ignore. The page also goes through
+  `goToDestination` now, so a destination carrying a fragment is no longer
+  double-appended by `next@16.2`'s segment cache. (#1214)
+
+### Added
+
+- `docs/architecture.md` gains **Where a fresh session lands** - the one decision, and
+  the three transports that carry it.
+
+## [0.0.329] - 2026-08-28
+
+### Fixed
+
+- **Dropping a collection orphaned every file it held.**
+  `DELETE /rag/collections/{name}` dropped the vector table and deleted the
+  `rag_documents` rows, but `delete_by_collection` was a bulk delete returning only a
+  rowcount - so nothing unlinked the uploads and each one stayed on disk. The
+  repository deletes `RETURNING storage_path` now and answers with the non-null paths,
+  the shape `delete_by_knowledge_base` already used, and the service unlinks each one
+  best-effort: a file already gone is not a reason to fail the drop. Keyed on
+  `collection_name`, so it clears the files for every knowledge base backing that
+  physical collection - which is what the drop route means. (#1265)
+
+## [0.0.328] - 2026-08-28
+
+### Fixed
+
+- **`make test-frontend-cov` intermittently failed the 100% statement gate at 99.98%
+  on a clean tree.** The one miss was `markdown-content.impl.tsx:37`, the `pl-8`
+  return in `orderedIndent` - the indent band for a 10-99 item ordered list. Nothing
+  in the markdown-content suite renders a list that size, so the statement was covered
+  only when some *other* suite happened to render one, and under parallel scheduling
+  that render is not guaranteed. The indent test already pinned the 1-9, 100+ and
+  1000+ bands; the two-digit case is pinned now too, deterministically rather than by
+  accident. The branch is live - a 10-99 item list is reachable - so it is covered,
+  not removed. (#1264)
+
+## [0.0.327] - 2026-08-28
+
+### Changed
+
+- **One HTTP client per module for web search and model listings**, rather than one per
+  call. These are the two per-call `httpx.AsyncClient` sites the #952 audit left
+  outside its channel-adapter scope: the HTTP-based search providers (Brave, Exa) and
+  the model-catalog listing fetch. Each opened a fresh client per call, so a search
+  tool invoked several times in one run - or a catalog refresh asking provider after
+  provider - paid a new TCP and TLS handshake against a host it had just talked to.
+  Both are module-level functions with no adapter lifecycle to hang a client on, so
+  #1262's shape does not fit: the client is built lazily, rebuilt if it was closed,
+  and carries the timeout per request so one client serves every provider. The app
+  lifespan closes both at shutdown, after background work has drained, where it
+  already closes the channel adapters' clients. `ddgs` and Tavily go through their own
+  SDKs rather than httpx and are untouched. (#1263)
+
+## [0.0.326] - 2026-08-28
+
+### Fixed
+
+- **Two app admins deleting each other could leave the deployment with none.** The
+  not-self refusal in `admin_delete` states a lockout invariant - a deployment keeps
+  at least one administrator - and it held only against one request at a time. #1115's
+  `SELECT ... FOR UPDATE` covers the *target* row, so admin A deleting B and admin B
+  deleting A locked different rows, touched different personal organizations and never
+  contended: both committed, and `count(*) FROM users WHERE is_app_admin` was 0, with
+  a direct database write as the only recovery. New
+  `user_repo.app_admin_ids_for_update` locks the set the decision was always about,
+  and `admin_delete` takes it before deciding, so the later of two mutual deletes
+  waits, re-reads a set of one once the first commits, and is refused. (#1208)
+- Two choices worth naming. **`ORDER BY id` is load-bearing**: rows are locked in the
+  order they are returned, so two requests taking the same set take it in the same
+  order and one waits, where an unordered pair each holding half of it is #1134 in a
+  new place. And the lock is taken on **every** admin deletion, not only when the
+  target is an admin - reading the target's flag first to decide whether to lock puts
+  a window between the read and the lock, and deleting a user is an administrator's
+  action rather than a hot path. (#1208)
+
+### Changed
+
+- `docs/deployment.md` already argued this invariant from the set; it now says what
+  makes it true across two requests.
+
+## [0.0.325] - 2026-08-28
+
+### Fixed
+
+- **The parked-run alert routinely told somebody to approve a call the platform will
+  refuse them.** `approvals:decide` belongs to `owner`, `admin` and `operator`, and
+  the default audience for a parked tool call is the run's initiator plus the
+  administrators - a builder starting their own agent from the chat is the ordinary
+  initiator, not an edge case. They got "waiting on your approval", a **Review the
+  request** button, and then an Activity page with no Approvals tab at all: the
+  refusal arriving as an absent tab rather than a sentence. The audience is now split
+  by the permission rather than trimmed to it - a decider gets the request and its
+  link to the queue, and anybody else gets a new `approval_pending` mail saying the
+  run is held not failed, that approving it belongs to an owner, admin or operator,
+  and that nothing is asked of them. Trimming instead would have dropped the one
+  person definitely waiting on the run, which is the whole reason `initiator` is in
+  the default audience. (#1203)
+- The second mail carries **no link**, deliberately: `agents:view` being a role
+  permission does not make one agent reachable, since agent access is resolved per
+  resource, so a `chosen` recipient with no grant to a private agent would get a
+  second call to action the platform refuses. (#1203)
+- Which roles decide is read off `ROLE_PERMS` rather than listed beside it, so a role
+  gaining or losing `approvals:decide` cannot leave the routing behind - the same
+  defect one level up. App admins count as deciders: they hold no membership row and
+  `AuthContext.permissions` gives them everything. A test pins the derivation,
+  including that `builder` and `member` are not in it. (#1203)
+
+### Added
+
+- `docs/governance.md` gains **The approval alert is two emails** under Alerts.
+
+## [0.0.324] - 2026-08-28
+
+### Fixed
+
+- **The admin drawer said "Never signed in" for anybody who had signed out.** Both of
+  its session figures came off the same read - the user's *active* sessions - and a
+  user who signs out, or whose sessions were revoked, has no active row at all, so
+  `last_seen_at` came back null. That is most accounts most of the time, and it is the
+  opposite of the truth on the one field the drawer exists to answer. Where somebody
+  was last seen is a fact about every session they have ever had, so the read takes
+  the whole history (`open_only=False`) and the head of it, most-recently-used first,
+  is the answer. (#1256)
+- **An expired session counted as open.** Nothing sweeps a session that simply
+  lapses: the row stays `is_active` until the next refresh finds it past `expires_at`
+  and declines it, so a session nobody can use was reported as open. "Open" now means
+  `is_active AND expires_at > now()`, and it lives in `app/repositories/session.py`
+  rather than at one call site - which is why the flag is `open_only` and not
+  `active_only`: the old name described the column, not the question. The user's own
+  devices list goes through the same two functions, so it stops offering an expired
+  row to revoke. `newest_session_at` stays scoped to the open ones, because "newest
+  session August" under "0 open sessions" is a sentence about nothing. (#1256)
+
+### Changed
+
+- New index on `(user_id, last_used_at, id)` for the sessions table, so reading the
+  head of an unpruned history is bounded rather than a per-user scan and top-N sort.
+
+## [0.0.323] - 2026-08-28
+
+### Fixed
+
+- **`is_favourite` was false on six conversation responses out of eight.** Only
+  `list_conversations` and `set_favourite` passed rows through `_attach_favourites`,
+  so `GET /conversations/{id}`, the PATCH, the archive response and
+  `/shared-with-me` serialized ORM objects that never carried the flag - the schema
+  default answered `false` to a caller who really had starred the thread, and the
+  sidebar un-starred it on the next render. It is stamped in `get_conversation`
+  instead, the one read every reader-scoped route goes through, so a route cannot
+  forget; `list_shared_with_me` has its own repository call and its own stamp. A read
+  with no reader - the admin listing, the run path resolving a thread - still asks for
+  nobody's stars and pays no query to say so. (#1254)
+- **Starring the same thread twice at once raised.** `set_favourite` read the row and
+  inserted when it saw none, so two overlapping POSTs both saw nothing and the second
+  `flush()` violated the primary key: a 500 on an endpoint that promises idempotent
+  success, and a retried request did it too. Now `INSERT ... ON CONFLICT DO NOTHING`,
+  the shape `channel_identity_repo.get_or_create` already uses (#17), and the unstar
+  is an unconditional `DELETE`. (#1254)
+- **A double click could leave a thread starred with nothing on screen saying so.**
+  The POST and the DELETE were separate requests with nothing making the second wait,
+  so the DELETE could be answered first and the POST commit after it. One promise
+  chain per conversation now, so the requests land in click order; the optimistic
+  patch still happens at once, and a refusal rolls the row back only if its click is
+  still the newest. (#1254)
+
+## [0.0.322] - 2026-08-28
+
+### Added
+
+- **Azure, Bedrock and Vertex AI are inside the model-catalog drift guard.**
+  `_documented_rows` reads the two four-column tables, so the three providers with
+  the most involved credential shapes were in no assertion but the id one. Their
+  credential is prose and maps to no field - but *which of the three tables a
+  provider sits in* is itself a claim about its credential, since the heading says
+  "Credential is not an API key", and that is comparable. Two assertions follow: the
+  three tables partition `PROVIDERS`, so a provider documented twice or in none of
+  them fails; and which table a row is in matches `secret_kind`, so moving a row
+  without changing the spec, or the reverse, fails. (#1252)
+
+## [0.0.321] - 2026-08-28
+
+### Fixed
+
+- **A long maintenance message ended under the mobile tab bar.** `DeploymentGate`
+  returns `MaintenanceScreen` *instead of* rendering `PageTransition`, which is where
+  every other page takes its bottom clearance from, so the last 56px plus the
+  safe-area inset stayed covered even at maximum scroll - on the one screen a visitor
+  sees when nothing else is available. The clearance moves onto the gate's
+  no-wrapper branch and off `MaintenanceScreen`: the gate is what knows this is the
+  whole page, where the screen would inherit page padding anywhere else it were
+  rendered. Still the one `PAGE_CLEARANCE` token, so there is no second copy of the
+  calc to forget `env(safe-area-inset-bottom)` in. (#1241)
+- `page-clearance.test.ts` walks the *pages* and so cannot see that branch; the
+  assertion is a render instead - the gate in maintenance, as a non-admin, with the
+  token spread as classes on its root, so a token that loses the inset fails here too.
+  (#1241)
+
+## [0.0.320] - 2026-08-28
+
+### Fixed
+
+- **Deleting a user orphaned their personal organization's knowledge base.**
+  `UserService.delete` purged the personal organization through
+  `OrganizationService.purge`, but built that service **with no vector store** - and
+  `purge` only removes *org-scoped* collections. A personal-scoped base, whose
+  `owner_user_id` and `organization_id` are both `ON DELETE SET NULL`, was therefore
+  never touched: the row was orphaned and its `rag_documents` rows, uploaded files and
+  `rag_<collection>` table were retained and unreachable, while the collection name
+  went on blocking reuse through `CollectionAccessService.claim`. The same missing
+  store also left that organization's org-scoped collections without their physical
+  tables. (#1131)
+- `UserService` takes an optional `vector_store` and the account teardown uses it, or
+  builds one on the process's shared vector pool when none is injected - so route and
+  CLI paths both clean up and no other `UserService` route pays for a store it never
+  touches, mirroring `get_organization_teardown_service`. New
+  `_purge_personal_collections` deletes each personal base's document rows, unlinks
+  its stored files, deletes the row, and drops the `rag_<collection>` table **only
+  when no other base still references the name** - it is not tenant-unique (#913).
+  (#1131)
+
+### Added
+
+- `knowledge_base_repo.list_personal_by_owner`, the predicate that previously lived
+  inline in `get_accessible`.
+
+## [0.0.319] - 2026-08-28
+
+### Fixed
+
+- **An organization teardown dropped vector tables and unlinked stored uploads before
+  the transaction that deleted their rows had committed.**
+  `OrganizationService.purge` did both inside the request, on the vector store's own
+  session, so a final commit that failed rolled the organization, knowledge base and
+  document rows back into existence pointing at vectors and files that were already
+  gone - residual 1 of #1116's review. The relational deletes still run in the request
+  transaction; the storage paths and the collections whose tables are no longer
+  referenced are collected and handed to `spawn_after_commit`, so a failed commit
+  discards the cleanup unrun and leaves nothing dangling. #1116's ordering - document
+  rows before identifiers, a table dropped only once unreferenced - is unchanged.
+  (#1137)
+- The cleanup is a module function taking the paths, the collections and the vector
+  store rather than a method, so the queued coroutine holds primitives and the
+  process-lived store and never the request session, which is gone by the time it
+  runs. (#1137)
+
+### Changed
+
+- Residuals 2-4 of #1137 - a `NULL`-`knowledge_base_id` document sharing a collection
+  name, a deleted tenant's vectors kept in a shared table, and the TOCTOU on the
+  reference check - all depend on tenant-unique collection names (#913) and are
+  recorded on the `purge` docstring instead.
+
+## [0.0.318] - 2026-08-28
+
+### Fixed
+
+- **Two users who co-own each other's shared organizations could deadlock by
+  deleting their own accounts at the same moment.** `UserService.delete` took
+  `FOR UPDATE` on its own user row - the #1115 reconcile lock - and then, reassigning
+  a solely-created shared organization to an heir, took `FOR KEY SHARE` on the heir's
+  row through the foreign key. Each request held its own row and waited for the
+  other's, so Postgres broke the cycle by aborting one with `40P01`: a 500 rather
+  than a result. `UserService._lock_for_delete` now discovers the heirs a delete will
+  reassign to and locks every user row it needs - self and every heir - **in ascending
+  id order**, before the reconcile. Two concurrent self-deletes queue on the lower id,
+  so one completes and the other, now sole owner of its organization, gets the
+  existing clean domain refusal. (#1134)
+- The self `FOR UPDATE` still precedes the reconcile's authoritative reads and is held
+  through the `DELETE`, so #1115's guarantee is unchanged: a concurrent child insert
+  waits, and the reconcile sees every child. (#1134)
+
+## [0.0.317] - 2026-08-28
+
+### Fixed
+
+- **The email that says a run is parked now sends the reader to the queue.**
+  `approvals_url` was `{frontend}/agents/{agent.id}` - the Builder page, which holds
+  one sentence of prose about tool calls reaching a queue and no queue at all. So the
+  one alert whose whole purpose is *somebody has to decide, now* landed a search away
+  from the decision, behind a button reading "Review the request", while the run aged
+  towards `ApprovalService.expire_stale`. It addresses `/runs?tab=approvals` now -
+  Activity's Approvals tab, the only surface carrying Approve and Reject, and a
+  surface with no URL at all until #934. (#935)
+- It deliberately does **not** name the run with `?run=`, though the notification
+  holds it: the decide controls are on the queue *row*, and below `lg` a focused run
+  replaces the list - so naming the run would hide the buttons from the reader most
+  likely to be on a phone. Budget mail still opens the agent, which is correct: the
+  cap it reports is edited there. (#935)
+
+### Added
+
+- `docs/governance.md` gains **An alert links to where the decision is** - where
+  approvals mail points, why it does not name the run, and why budget mail differs.
+
+## [0.0.316] - 2026-08-28
+
+### Fixed
+
+- **Which of Activity's three tabs is open is now in the address bar.** `Tabs` was
+  uncontrolled, so there was no URL for the approvals queue at all - which is why the
+  dashboard card's "See all" opened the run history, where nothing can be decided.
+  `?tab=approvals` and `?tab=spend` are written; `runs` is the default and, like every
+  other unset narrowing on this page, writes nothing. `parseRunsTab` joins
+  `parseRunFilters`, and `runsHref` takes a `tab`. (#934)
+- **A tab named by a link is resolved against what the reader may open.**
+  `approvals` is gated on `approvals:decide`, so a link carrying it that reaches
+  somebody without the permission opens the run history rather than a strip whose
+  selected value has no trigger and no content - a blank page under a live set of
+  tabs. An unrecognised name falls back the same way. (#934)
+- **A focused run is cleared when the tab changes**, and `?run=` goes with it. It
+  already was, incidentally and untested, since #537; left behind, a reload reopened
+  a detail panel on a tab that never had one - and below `lg` the panel *replaces*
+  the list, so the strip was live while every tab's content stayed hidden and
+  clicking Approvals appeared to do nothing. (#934)
+- The approvals widget's `seeAll` points at the queue rather than the history - the
+  same wrong destination as the parked-run email, enabled by the same missing
+  parameter. (#934)
+
+## [0.0.315] - 2026-08-27
+
+### Fixed
+
+- **Every REST helper in the Mattermost adapter opened its own HTTP client**, and
+  Slack's attachment download did too, so each call paid a fresh TCP connection and
+  TLS handshake against a host it had just talked to. A streamed channel turn is not
+  one call - the live reply pushes an edit roughly every second, plus typing, the
+  opening, the final edit and a download per attachment - so a minute-long answer
+  spent seconds of wall clock re-establishing connections it already had, and the
+  bot host saw the socket churn of a client that never keeps one open. One client
+  per adapter now, built in `__init__` and closed at shutdown: Mattermost's ten
+  call sites borrow it through a `nullcontext` so none of them closes it and the
+  pool stays warm, and no call site changed. (#952)
+- `ChannelAdapter` grows a no-op close, and the lifespan calls it on every adapter
+  **after** polling has stopped and background work has drained - so a turn still
+  finishing an edit is never cut off from its client. The two non-channel per-call
+  clients the issue also lists have no adapter lifecycle to hang a reused client
+  on, and are filed separately. (#952)
+
+## [0.0.314] - 2026-08-27
+
+### Fixed
+
+- **The vault list kept the pre-write rows after a store or rotate**, roughly one
+  run in eight, so a new row never appeared and the spec timed out. The create
+  itself worked - the artifact showed the keys stored with an empty error alert, so
+  the write succeeded and the render was stale. Same dedup race as #154: the
+  mutation invalidated the list and relied on the refetch, and the vault page
+  issues its list read on load, so a read that began before the write committed
+  resolved with the pre-write body and marked the query fresh. The secrets hook's
+  one `invalidate` helper cancels the list query before invalidating. (#130, #154)
+- **Three `page.reload()` workarounds are retired with it** - the row appears on
+  its own now, which is the verification that it no longer flakes. On the issue's
+  two acceptance criteria: `submitDialog` already asserts the write's response
+  status and prints its body on a non-2xx, so a refused store fails at its source
+  before the row is awaited; and the create never failed - it answered 201, and the
+  list render was the stale half. (#130)
+
+## [0.0.313] - 2026-08-27
+
+### Fixed
+
+- **A mutation's invalidation could be answered with pre-write data**, which is
+  what made `sharing.spec.ts` and `skills.spec.ts` flake. A mutation's `onSuccess`
+  invalidated and relied on the refetch - but `invalidateQueries` **dedupes its
+  refetch onto a fetch already in flight**, and both the sharing panel and the
+  skills gallery fan out several reads on mount. A read that began before the
+  mutation committed resolved with the pre-write body, marked the query fresh, and
+  the panel kept the old value until a reload. It hit the *second* mutation in a
+  sequence and never the first, which is exactly the shape the issue describes.
+  Each hook's one `invalidate` helper cancels the query before invalidating now, so
+  the invalidation dispatches a genuinely new post-commit fetch rather than
+  awaiting the stale one it meant to replace. (#154)
+- Worth being clear about what this was not: the read is ordered after the commit
+  and reaches Postgres, and `no-store` has been in effect since #405 - the client
+  simply dropped the fresh answer. (#154, #405, #230)
+
 ## [0.0.312] - 2026-08-27
 
 ### Added

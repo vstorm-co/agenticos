@@ -437,6 +437,7 @@ async def list_workspace_files(
         organization_id=active_org.id,
         include_messages=False,
         user_id=current_user.id,
+        include_favourite=False,
     )
     found = await workspaces.listing(ctx, conversation_id=conversation_id)
     if found is None:
@@ -494,6 +495,7 @@ async def read_workspace_file(
         organization_id=active_org.id,
         include_messages=False,
         user_id=current_user.id,
+        include_favourite=False,
     )
     content = await workspaces.read_text(ctx, conversation_id=conversation_id, path=path)
     if content is None:
@@ -536,6 +538,7 @@ async def read_workspace_bytes(
         organization_id=active_org.id,
         include_messages=False,
         user_id=current_user.id,
+        include_favourite=False,
     )
     data = await workspaces.read_bytes(ctx, conversation_id=conversation_id, path=path)
     return file_response(data, path=path, download=download)

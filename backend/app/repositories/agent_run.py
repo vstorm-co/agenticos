@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any, Literal, cast
 from uuid import UUID
@@ -15,6 +15,7 @@ from sqlalchemy.orm import aliased
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import (
     AgentRun,
+    ApprovalDecidedVia,
     ApprovalStatus,
     RunOrder,
     RunRating,
@@ -1463,7 +1464,16 @@ async def create_approval(
     tool_args: dict,
     subagent_name: str | None = None,
     subagent_agent_id: UUID | None = None,
+    standing_consent_by: UUID | None = None,
 ) -> ToolApproval:
+    """Write one approval row: pending, or already approved by standing consent.
+
+    `standing_consent_by` is the account that waived this conversation's
+    approvals, and the row it writes is `approved` with `decided_via` saying it
+    was a standing consent rather than a click - so the queue never offers it and
+    the record still says who authorised what (#925).
+    """
+    standing = standing_consent_by is not None
     approval = ToolApproval(
         id=approval_id,
         organization_id=organization_id,
@@ -1473,6 +1483,12 @@ async def create_approval(
         tool_args=tool_args,
         subagent_name=subagent_name,
         subagent_agent_id=subagent_agent_id,
+        status=ApprovalStatus.APPROVED.value if standing else ApprovalStatus.PENDING.value,
+        decided_by_user_id=standing_consent_by,
+        decided_at=datetime.now(UTC) if standing else None,
+        decided_via=(
+            ApprovalDecidedVia.STANDING.value if standing else ApprovalDecidedVia.CLICK.value
+        ),
     )
     db.add(approval)
     await db.flush()
@@ -1529,6 +1545,9 @@ class ApprovalRow:
         decided_by_email: Who decided, for the record view. Null while the call is
             pending, and after a decider's account is deleted - the decision
             outlives the account, which is the point of an audit trail.
+        decided_via: Whether somebody read these arguments and pressed a button,
+            or the conversation had waived approvals in advance. Both are
+            `approved`, and the record is only a record if it says which (#925).
     """
 
     id: UUID
@@ -1545,6 +1564,7 @@ class ApprovalRow:
     decided_by_user_id: UUID | None
     decided_by_email: str | None
     decided_at: datetime | None
+    decided_via: str
     note: str | None
     created_at: datetime | None
 
@@ -1654,6 +1674,7 @@ async def list_approvals(
             decided_by_user_id=approval.decided_by_user_id,
             decided_by_email=decided_email,
             decided_at=approval.decided_at,
+            decided_via=approval.decided_via,
             note=approval.note,
             created_at=approval.created_at,
         )

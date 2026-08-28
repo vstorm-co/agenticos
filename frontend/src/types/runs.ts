@@ -296,6 +296,13 @@ export interface ToolApproval {
   status: "pending" | "approved" | "rejected" | "expired";
   decided_by_user_id: string | null;
   decided_at: string | null;
+  /**
+   * How it was decided, which is a different question from what was decided.
+   * `click` is somebody reading the arguments and pressing a button; `standing`
+   * is a conversation that had waived approvals in advance, by the account
+   * `decided_by_user_id` names. Both are `approved` (#925).
+   */
+  decided_via: "click" | "standing";
   note: string | null;
   created_at?: string;
 }
