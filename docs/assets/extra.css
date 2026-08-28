@@ -1,0 +1,108 @@
+/* AgenticOS documentation - the small amount of styling the Material theme does
+   not give us. Everything here is either the home page's hero, which no theme
+   has an opinion about, or a readability adjustment measured against the pages
+   that actually exist: `governance.md` is 1246 lines and `channels.md` 1480, so
+   line length and heading rhythm decide whether either is readable at all. */
+
+:root {
+  --agenticos-hero-max: 34rem;
+}
+
+/* ---------------------------------------------------------------- hero ---- */
+
+/* The home page opens on a mark, a name and one sentence, in that order and
+   centred - a reader who arrives from a link decides in about two seconds
+   whether this is the thing they were looking for, and a wall of prose does not
+   answer that question. */
+.agenticos-hero {
+  text-align: center;
+  margin: 2.5rem auto 3rem;
+  max-width: var(--agenticos-hero-max);
+}
+
+.agenticos-hero__mark {
+  width: 5.5rem;
+  height: 5.5rem;
+  margin: 0 auto 1.25rem;
+  display: block;
+}
+
+.agenticos-hero__name {
+  font-size: 3rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  margin: 0 0 0.75rem;
+}
+
+.agenticos-hero__tagline {
+  font-size: 1.05rem;
+  font-style: italic;
+  line-height: 1.6;
+  color: var(--md-default-fg-color--light);
+  margin: 0 0 1.5rem;
+}
+
+.agenticos-hero__badges img {
+  margin: 0 0.15rem 0.35rem;
+  vertical-align: middle;
+}
+
+.agenticos-hero__links {
+  margin-top: 1.5rem;
+  font-size: 0.9rem;
+}
+
+/* ------------------------------------------------------------ typography -- */
+
+/* Sections in a long page need to be findable while scrolling past them, and
+   the theme's default h2 is barely heavier than body text. A rule above each
+   one is what turns a 1200-line page into a page with parts. */
+.md-typeset h2 {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-top: 2.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--md-default-fg-color--lightest);
+}
+
+.md-typeset h3 {
+  font-weight: 600;
+  margin-top: 1.75rem;
+}
+
+/* ----------------------------------------------------------- grid cards --- */
+
+.md-typeset .grid.cards > ul > li {
+  border-radius: 0.4rem;
+  transition: border-color 125ms, box-shadow 125ms;
+}
+
+.md-typeset .grid.cards > ul > li:hover {
+  border-color: var(--md-accent-fg-color);
+  box-shadow: none;
+}
+
+/* ------------------------------------------------------------ nav tabs ---- */
+
+/* Seven tabs on one row, so they get the weight that makes them read as the
+   site's structure rather than as breadcrumbs. */
+.md-tabs__link {
+  font-size: 0.72rem;
+  opacity: 0.85;
+}
+
+.md-tabs__link--active,
+.md-tabs__link:hover {
+  opacity: 1;
+}
+
+/* --------------------------------------------------------- release notes -- */
+
+/* CHANGELOG.md is 9000 lines of `## [0.0.343] - 2026-08-28` headings. Under the
+   rule added above, every one of them would draw a line across the page. */
+.md-typeset .agenticos-release-notes h2 {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 2rem;
+}

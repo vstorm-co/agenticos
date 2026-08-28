@@ -13,11 +13,14 @@ edit_uri: edit/main/docs/
 
 docs_dir: docs
 
-# Design artifacts (review demos and their notes) are engineering material for
-# pull-request review, not site pages - unlisted they would still build and
-# publish as orphans nothing links to, which is how a page goes stale unseen.
+# Working material - design demos for pull-request review, change plans, audit
+# reports - is engineering notes rather than site pages. Unlisted they would
+# still build and publish as orphans nothing links to, which is how a page goes
+# stale unseen; they stay readable in the repository, where they are written.
 exclude_docs: |
   design/
+  plans/
+  audits/
 
 theme:
   name: material
@@ -49,20 +52,33 @@ theme:
         icon: material/weather-sunny
         name: Switch to light mode
   features:
+    # The seven tabs are the top-level shape of this site, so they stay on
+    # screen while a page scrolls - a reader three sections into `governance.md`
+    # can still see that Reference is one click away.
     - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.sections
     - navigation.top
     - navigation.instant
     - navigation.tracking
     - navigation.indexes
+    # Learn is a sequence, not a bag of pages. The footer's previous/next is what
+    # makes reading it in order the default rather than a thing you have to
+    # navigate back to the sidebar for.
+    - navigation.footer
     - toc.follow
     - search.highlight
     - search.suggest
+    - search.share
     - content.code.copy
     - content.code.annotate
+    - content.tooltips
     - content.action.edit
   icon:
     repo: fontawesome/brands/github
+
+extra_css:
+  - assets/extra.css
 
 markdown_extensions:
   - admonition
@@ -96,6 +112,16 @@ markdown_extensions:
       line_spans: __span
       pygments_lang_class: true
 
+# `scripts/mkdocs_hooks.py` reads CHANGELOG.md into the release-notes page - see
+# its docstring for why that is a hook rather than a snippet include.
+hooks:
+  - scripts/mkdocs_hooks.py
+
+# `mkdocs serve` watches `docs/` and this file. The release-notes page is built
+# from a file outside both.
+watch:
+  - CHANGELOG.md
+
 plugins:
   - search
   # The API reference is generated from the docstrings rather than written twice.
@@ -117,47 +143,59 @@ plugins:
             filters: ["!^_"]
 
 nav:
-  - Home:
-      - index.md
-      - install.md
-      - first-agent.md
-      - deploy.md
-  - Concepts:
-      - concepts.md
-      - deployment.md
-      - permissions.md
-      - governance.md
-      - triggers.md
-      - models.md
-      - mcp.md
-      - skills.md
-      - secrets.md
-      - channels.md
-      - file-processing.md
-      - sandbox.md
-  - Guides:
-      - howto/add-capability.md
-      - howto/add-mcp-server.md
-      - howto/add-api-endpoint.md
-      - howto/add-background-task.md
-      - howto/customize-agent-prompt.md
-      - howto/add-sync-connector.md
-      - howto/configure-sync-sources.md
-      - howto/use-ratings.md
+  - AgenticOS: index.md
+  - Features: features.md
+  - Learn:
+      - learn/index.md
+      - Get started:
+          - install.md
+          - first-agent.md
+          - concepts.md
+      - Build the agent:
+          - models.md
+          - skills.md
+          - file-processing.md
+          - mcp.md
+          - sandbox.md
+          - triggers.md
+      - Put it in front of people:
+          - channels.md
+          - deployment.md
+          - deploy.md
+      - Keep it under control:
+          - permissions.md
+          - governance.md
+          - secrets.md
+      - How-to - recipes:
+          - howto/customize-agent-prompt.md
+          - howto/configure-sync-sources.md
+          - howto/use-ratings.md
   - Reference:
       - configuration.md
       - commands.md
-      - reference/capabilities.md
       - reference/spec.md
+      - reference/capabilities.md
       - reference/permissions.md
-  - Contributing:
-      - architecture.md
-      - patterns.md
-      - adding_features.md
-      - testing.md
-      - code-review.md
-      - branching.md
+  - Resources:
+      - resources/index.md
+      - Development - contributing:
+          - architecture.md
+          - patterns.md
+          - adding_features.md
+          - testing.md
+          - code-review.md
+          - branching.md
+      - Extending the platform:
+          - howto/add-capability.md
+          - howto/add-mcp-server.md
+          - howto/add-api-endpoint.md
+          - howto/add-background-task.md
+          - howto/add-sync-connector.md
+  - About:
+      - about/index.md
+      - about/design.md
       - ROADMAP.md
+  - Release Notes: release-notes.md
 
 extra:
   social:
