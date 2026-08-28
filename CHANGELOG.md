@@ -17,6 +17,34 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.320] - 2026-08-28
+
+### Fixed
+
+- **Deleting a user orphaned their personal organization's knowledge base.**
+  `UserService.delete` purged the personal organization through
+  `OrganizationService.purge`, but built that service **with no vector store** - and
+  `purge` only removes *org-scoped* collections. A personal-scoped base, whose
+  `owner_user_id` and `organization_id` are both `ON DELETE SET NULL`, was therefore
+  never touched: the row was orphaned and its `rag_documents` rows, uploaded files and
+  `rag_<collection>` table were retained and unreachable, while the collection name
+  went on blocking reuse through `CollectionAccessService.claim`. The same missing
+  store also left that organization's org-scoped collections without their physical
+  tables. (#1131)
+- `UserService` takes an optional `vector_store` and the account teardown uses it, or
+  builds one on the process's shared vector pool when none is injected - so route and
+  CLI paths both clean up and no other `UserService` route pays for a store it never
+  touches, mirroring `get_organization_teardown_service`. New
+  `_purge_personal_collections` deletes each personal base's document rows, unlinks
+  its stored files, deletes the row, and drops the `rag_<collection>` table **only
+  when no other base still references the name** - it is not tenant-unique (#913).
+  (#1131)
+
+### Added
+
+- `knowledge_base_repo.list_personal_by_owner`, the predicate that previously lived
+  inline in `get_accessible`.
+
 ## [0.0.319] - 2026-08-28
 
 ### Fixed
