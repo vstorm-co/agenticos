@@ -17,6 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.342] - 2026-08-28
+
+### Fixed
+
+- **`LocalFileStorage.delete` was `async def` over three blocking syscalls with no
+  yield point** - `realpath` inside `_resolve_safe_path`, `Path.exists` and
+  `Path.unlink`. The RAG teardown loops (collection drop, knowledge-base delete) call it
+  once per file with no bound, so dropping a large collection unlinked every upload in a
+  single event-loop turn and stalled every other request the worker was serving. It
+  runs through `run_blocking` now - the dedicated file pool `load` already uses - so
+  every caller yields and the teardown loops interleave. This is the `delete` case #25
+  did not reach: it offloaded `save` and `load`, and `delete` only became a hot path
+  once the bulk teardown loops started calling it per file. Behaviour is unchanged; it
+  still removes the file and tolerates a missing one. (#1294)
+
 ## [0.0.341] - 2026-08-28
 
 ### Fixed
