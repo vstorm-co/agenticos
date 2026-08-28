@@ -51,13 +51,20 @@ async def test_a_page_reports_the_total_not_its_own_length(service: SessionServi
         patch(
             "app.repositories.session.get_user_sessions", new=AsyncMock(return_value=page)
         ) as fetch,
-        patch("app.repositories.session.count_user_sessions", new=AsyncMock(return_value=17)),
+        patch(
+            "app.repositories.session.count_user_sessions", new=AsyncMock(return_value=17)
+        ) as count,
     ):
         result = await service.list_sessions(user_id, skip=10, limit=2)
 
     assert len(result.items) == 2
     assert result.total == 17
-    assert fetch.await_args.kwargs == {"active_only": True, "skip": 10, "limit": 2}
+    kwargs = fetch.await_args.kwargs
+    assert (kwargs["open_only"], kwargs["skip"], kwargs["limit"]) == (True, 10, 2)
+    # The same cutoff in both statements. A session lapsing between them would
+    # otherwise be in the page and outside the total, which is the invariant the
+    # client pages on breaking with nobody writing a row.
+    assert kwargs["now"] == count.await_args.kwargs["now"]
 
 
 async def test_the_page_is_what_the_caller_asked_for(service: SessionService) -> None:

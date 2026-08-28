@@ -108,9 +108,19 @@ describe("the widget catalog", () => {
     for (const id of WIDGET_IDS) {
       const destination = WIDGETS[id].seeAll;
       if (destination !== undefined) {
-        expect(known.has(destination), `${id} points at ${destination}`).toBe(true);
+        // A destination may narrow what it opens - the approvals card points at
+        // Activity's queue rather than its run history - so the route is the
+        // part before the query.
+        const { pathname } = new URL(destination, "http://dashboard.test");
+        expect(known.has(pathname), `${id} points at ${destination}`).toBe(true);
       }
     }
+  });
+
+  it("sends the approvals card to the queue rather than to the run history", () => {
+    // "See all" under a count of what is waiting used to open Activity on Runs,
+    // where nothing can be decided. There was no URL for the tab until #934.
+    expect(WIDGETS.approvals.seeAll).toBe("/runs?tab=approvals");
   });
 });
 

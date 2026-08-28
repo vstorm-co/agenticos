@@ -288,8 +288,10 @@ class TestUserServicePostgresql:
         """Test deleting user."""
         with (
             patch("app.services.user.user_repo") as mock_repo,
+            patch("app.services.user.organization_repo") as mock_org_repo,
             patch.object(user_service, "_release_owned_rows", new=AsyncMock()),
         ):
+            mock_org_repo.list_created_by = AsyncMock(return_value=[])
             mock_repo.get_by_id_for_update = AsyncMock(return_value=mock_user)
             mock_repo.delete = AsyncMock(return_value=mock_user)
 
@@ -300,7 +302,11 @@ class TestUserServicePostgresql:
     @pytest.mark.anyio
     async def test_delete_not_found(self, user_service: UserService):
         """A missing user is refused up front, before any teardown is attempted."""
-        with patch("app.services.user.user_repo") as mock_repo:
+        with (
+            patch("app.services.user.user_repo") as mock_repo,
+            patch("app.services.user.organization_repo") as mock_org_repo,
+        ):
+            mock_org_repo.list_created_by = AsyncMock(return_value=[])
             mock_repo.get_by_id_for_update = AsyncMock(return_value=None)
 
             with pytest.raises(NotFoundError):
@@ -385,8 +391,10 @@ class TestUserServicePostgresql:
     ):
         with (
             patch("app.services.user.user_repo") as mock_repo,
+            patch("app.services.user.organization_repo") as mock_org_repo,
             patch.object(user_service, "_release_owned_rows", new=AsyncMock()),
         ):
+            mock_org_repo.list_created_by = AsyncMock(return_value=[])
             mock_repo.get_by_id_for_update = AsyncMock(return_value=mock_user)
             mock_repo.app_admin_ids_for_update = AsyncMock(return_value=[uuid4(), uuid4()])
             mock_repo.delete = AsyncMock(return_value=mock_user)

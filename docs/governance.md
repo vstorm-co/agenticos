@@ -610,6 +610,19 @@ it. They were local state until #768, so the p95 figure was the only number on
 the dashboard that could reach the runs behind it and three cards carried no link
 at all — there was nothing honest to point them at.
 
+**Including which tab is open.** `?tab=approvals` and `?tab=spend` open the queue
+and the cost screen; the run history is the default and is never written. That is
+the address a link to a *decision* needs, and the reason the parameter exists: the
+approvals card's "See all" and the alert that says a run is parked both had to
+point at the run history, where nothing can be decided (#934). A tab named by a
+link is resolved against what the reader may open — `approvals` is gated on
+`approvals:decide`, so a link carrying it that reaches somebody without the
+permission opens the run history rather than a strip whose selected tab has no
+content. Switching tabs closes an open run detail and takes `?run=` with it: a
+panel that outlives the tab that opened it sits beside a queue it has nothing to
+do with, and below `lg` it replaces the list, so the strip stayed live while every
+tab's content was hidden.
+
 **Duration is computed in SQL, over the whole narrowed set.** That is what gets
 from *"p95 is 14.8s"* on the dashboard to **those runs** — sorting one page of
 twenty-five sorts the wrong set, because the slowest run of a month is not in
@@ -992,6 +1005,57 @@ and outlives the people in it: `admins` still means the right people after a
 reorganisation, and it means them in whichever organization the spec is imported
 into. A named member who has left contributes nothing rather than raising - an
 approval queue must not go silent because one id no longer resolves.
+
+### An alert links to where the decision is
+
+**Approvals mail opens the queue** — `/runs?tab=approvals`, Activity's Approvals
+tab, which is the only surface carrying Approve and Reject. It used to open
+`/agents/{id}`, the Builder: one sentence of prose about tool calls reaching a
+queue, and no queue. So the one email whose whole purpose is *somebody has to
+decide, now* landed a search away from the decision, while the parked run aged
+towards `ApprovalService.expire_stale` (#935). There was no URL for the tab
+until #934 put it in `?tab=`.
+
+It deliberately does **not** name the run with `&run=`, though the alert holds
+one: the decide controls are on the queue row, and below `lg` a focused run
+replaces the list — which would hide them from the reader most likely to be on a
+phone.
+
+Budget mail opens the agent, and that is the right destination for it: the cap
+it reports is edited there.
+
+### The approval alert is two emails
+
+`approvals:decide` belongs to `owner`, `admin` and `operator`. The default
+audience for a parked call includes whoever started the run, and a builder
+starting their own agent from the chat is the ordinary initiator - so the alert
+routinely reached somebody the platform would refuse. They got **"waiting on
+your approval"** with a **Review the request** button, followed it, and Activity
+drew no Approvals tab at all: the refusal arriving as an absent tab rather than a
+sentence.
+
+So the audience is split by the permission rather than trimmed to it:
+
+| Recipient holds | Gets |
+|---|---|
+| `approvals:decide` | the request, with the link to the queue |
+| anything less | the *fact*: the run is held not failed, approving it belongs to an owner, admin or operator, and nothing is asked of them |
+
+Trimming instead would leave the one person definitely waiting on the run - the
+person who started it - hearing nothing about why it stopped.
+
+The second email carries **no link**, and that is deliberate rather than
+unfinished. `agents:view` being a role permission does not make one agent
+reachable: agent access is resolved per resource, so a `chosen` recipient with no
+grant to a private agent would get a second call to action the platform refuses -
+the same defect in a new place. Nothing is asked of that reader, so nothing is
+offered. Nor does it claim anybody else has been told: an audience of one
+non-decider means nobody who can decide was mailed at all, and a sentence
+promising otherwise would leave them waiting on somebody who never heard.
+
+Which roles decide is read off the permission catalog, not listed beside it: a
+role gaining or losing `approvals:decide` must not leave the routing behind,
+which is the same defect one level up.
 
 ### Two rules that are not negotiable
 
