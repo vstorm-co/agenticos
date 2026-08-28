@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.329] - 2026-08-28
+
+### Fixed
+
+- **Dropping a collection orphaned every file it held.**
+  `DELETE /rag/collections/{name}` dropped the vector table and deleted the
+  `rag_documents` rows, but `delete_by_collection` was a bulk delete returning only a
+  rowcount - so nothing unlinked the uploads and each one stayed on disk. The
+  repository deletes `RETURNING storage_path` now and answers with the non-null paths,
+  the shape `delete_by_knowledge_base` already used, and the service unlinks each one
+  best-effort: a file already gone is not a reason to fail the drop. Keyed on
+  `collection_name`, so it clears the files for every knowledge base backing that
+  physical collection - which is what the drop route means. (#1265)
+
 ## [0.0.328] - 2026-08-28
 
 ### Fixed
