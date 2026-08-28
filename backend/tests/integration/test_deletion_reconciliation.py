@@ -13,7 +13,8 @@ to neighbouring rows when one is deleted, which a mock cannot show.
 from __future__ import annotations
 
 import uuid
-from unittest.mock import MagicMock
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from sqlalchemy import select, text
@@ -32,6 +33,26 @@ from app.services.rag.vectorstore import PgVectorStore
 from app.services.user import UserService
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def _route_purge_dispatch_to_impl(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run the org-purge cleanup in-process instead of submitting it to Prefect.
+
+    `OrganizationService.purge` now hands its external cleanup to a durable
+    Prefect deployment run (#1274); with no runner behind the test, `run_deployment`
+    would fail on an unregistered deployment. Routing that submission straight to
+    the cleanup it would have run keeps these tests exercising the real drop and
+    unlink through the commit/rollback gate that defers them - the submission fires
+    only after a committed teardown, so a rolled-back one still runs nothing.
+    """
+    from app.worker.tasks import teardown_tasks
+
+    async def _run(*, name: str, parameters: dict[str, Any], timeout: float) -> None:
+        del name, timeout
+        await teardown_tasks.purge_org_external_state(**parameters)
+
+    monkeypatch.setattr(teardown_tasks, "run_deployment", AsyncMock(side_effect=_run))
 
 
 def _user(email: str | None = None) -> User:
