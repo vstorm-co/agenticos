@@ -53,6 +53,16 @@ new model, without touching a single agent.
 
 **Agents → New agent.**
 
+!!! tip "Or start from a template"
+
+    **Agents → Agent templates** ships twenty-eight ready-made agents grouped by
+    industry, each with its instructions written, its capabilities switched on
+    and the skills it needs installed alongside it.
+
+    One arrives as a **draft** rather than published, and deliberately: a
+    template cannot choose your model, and it has never seen your knowledge
+    collection. The rest of this page is what you do next either way.
+
 The name becomes the handle it is addressed by from Slack and the API, and it is
 frozen at creation — `Support Copilot` becomes `@support-copilot`.
 

@@ -29,6 +29,7 @@ export const qk = {
     // "agents" so the same invalidations that move the list refresh the answer.
     anyRunnable: () => ["agents", "any-runnable"] as const,
     detail: (id: string) => ["agents", id] as const,
+    templates: () => ["agents", "templates"] as const,
     // The page is part of the key: a history past its page size is several
     // answers, and caching one as another shows the wrong decade of the timeline.
     versions: (id: string, skip = 0, limit = 50) =>

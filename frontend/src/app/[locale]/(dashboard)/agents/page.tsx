@@ -3,9 +3,10 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, Plus } from "lucide-react";
+import { Bot, Library, Plus } from "lucide-react";
 
 import { AgentCard } from "@/components/agents/agent-card";
+import { AgentTemplateDialog } from "@/components/agents/agent-template-dialog";
 import { CreateAgentDialog } from "@/components/agents/create-agent-dialog";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
@@ -74,6 +75,8 @@ export default function AgentsPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const tTemplates = useTranslations("agentTemplates");
   const [pendingDelete, setPendingDelete] = useState<Agent | null>(null);
   const [pendingArchive, setPendingArchive] = useState<Agent | null>(null);
 
@@ -131,10 +134,20 @@ export default function AgentsPage() {
         description={t("agentConfigurationNotCode")}
         actions={
           canEdit ? (
-            <Button data-tour="agents-new" onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4" />
-              {t("newAgent")}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                data-tour="agents-templates"
+                onClick={() => setTemplatesOpen(true)}
+              >
+                <Library className="h-4 w-4" />
+                {tTemplates("browse")}
+              </Button>
+              <Button data-tour="agents-new" onClick={() => setCreateOpen(true)}>
+                <Plus className="h-4 w-4" />
+                {t("newAgent")}
+              </Button>
+            </div>
           ) : undefined
         }
       />
@@ -209,6 +222,7 @@ export default function AgentsPage() {
         </AgentsCard>
       )}
 
+      <AgentTemplateDialog open={templatesOpen} onOpenChange={setTemplatesOpen} />
       <CreateAgentDialog
         open={createOpen}
         onOpenChange={setCreateOpen}

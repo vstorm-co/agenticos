@@ -193,3 +193,36 @@ export interface GalleryInstallResult {
   skipped: string[];
   unknown: string[];
 }
+
+/** One shipped agent template as the picker shows it. */
+export interface AgentTemplate {
+  key: string;
+  name: string;
+  description: string;
+  capabilities: string[];
+  skills: string[];
+  mcp: string[];
+  /** What a person still has to attach before publishing. */
+  attach: string[];
+  budget_usd: number | null;
+  installed: boolean;
+}
+
+export interface TemplateIndustry {
+  id: string;
+  templates: AgentTemplate[];
+}
+
+export interface AgentTemplateCatalog {
+  industries: TemplateIndustry[];
+}
+
+/** What installing a template created, and what is left to do. */
+export interface TemplateInstallResult {
+  agent_id: string;
+  slug: string;
+  name: string;
+  skills_installed: string[];
+  attach: string[];
+  suggested_mcp: string[];
+}

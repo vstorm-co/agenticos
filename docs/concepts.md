@@ -41,6 +41,14 @@ The spec keeps two rules, and they are what make it useful.
     New fields get defaults, so an agent published today still loads after an
     upgrade. Removing or renaming a field is a migration, not an edit.
 
+!!! info "A template is a spec somebody already wrote"
+
+    The [agent templates](first-agent.md#3-build-the-agent) that ship with the
+    platform are specs with everything a folder in an image can know: the
+    instructions, the capabilities, and the skills to install. They name no
+    model and no collection, because those are UUIDs nobody outside your
+    deployment has - which is why an installed template is a draft.
+
 ## Version
 
 **A frozen spec.**

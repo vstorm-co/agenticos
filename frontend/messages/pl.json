@@ -2799,6 +2799,34 @@
     "skills-gallery": {
       "title": "Zacznij od galerii",
       "body": "Siedemdziesiąt gotowych skills pogrupowanych branżami. Zainstaluj jeden albo całą półkę, a potem edytuj jak każdy inny."
+    },
+    "agents-templates": {
+      "title": "Zacznij od szablonu",
+      "body": "Dwadzieścia osiem gotowych agentów według branży. Instalacja tworzy draft z już podpiętymi skillami."
+    }
+  },
+  "agentTemplates": {
+    "browse": "Szablony agentów",
+    "title": "Szablony agentów",
+    "description": "Gotowi agenci według branży. Instalacja tworzy draft, którego kończysz i publikujesz.",
+    "industryHint": "Każdy przychodzi jako draft: wybierz model, podłącz czego potrzebuje, potem opublikuj.",
+    "back": "Wszystkie branże",
+    "use": "Użyj tego",
+    "alreadyInstalled": "Zainstalowany",
+    "count": "{count, plural, one {1 agent} few {# agenty} many {# agentów} other {# agentów}}",
+    "budget": "{amount} USD / miesiąc",
+    "bringsSkills": "{count, plural, one {Instaluje z nim 1 skill} few {Instaluje z nim # skille} many {Instaluje z nim # skilli} other {Instaluje z nim # skilli}}",
+    "needsAttaching": "Musisz jeszcze podłączyć: {what}",
+    "suggestsMcp": "Dobrze działa z: {servers}",
+    "installed": "{name} utworzony jako draft — wybierz model, potem opublikuj",
+    "industry": {
+      "healthcare": "Ochrona zdrowia",
+      "finance": "Finanse i ubezpieczenia",
+      "ecommerce": "E-commerce i print on demand",
+      "software": "Zespoły software'owe",
+      "public-sector": "Sektor publiczny i utilities",
+      "legal": "Prawo i doradztwo",
+      "manufacturing": "Produkcja i logistyka"
     }
   }
 }

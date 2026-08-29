@@ -122,6 +122,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
   },
 
   {
+    id: "agents-templates",
+    page: ROUTES.AGENTS,
+    target: "agents-templates",
+    permission: Perm.agentsEdit,
+    inTour: true,
+  },
+  {
     id: "agents-new",
     page: ROUTES.AGENTS,
     target: "agents-new",

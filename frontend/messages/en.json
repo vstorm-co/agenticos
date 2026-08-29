@@ -4950,6 +4950,34 @@
     "skills-gallery": {
       "title": "Start from the gallery",
       "body": "Seventy ready-made skills, grouped by industry. Install one, or a whole shelf, then edit it like any other."
+    },
+    "agents-templates": {
+      "title": "Start from a template",
+      "body": "Twenty-eight ready-made agents by industry. Installing one creates a draft with its skills already bound."
+    }
+  },
+  "agentTemplates": {
+    "browse": "Agent templates",
+    "title": "Agent templates",
+    "description": "Ready-made agents by industry. Installing one creates a draft you finish and publish.",
+    "industryHint": "Each arrives as a draft: pick a model, attach what it needs, then publish.",
+    "back": "All industries",
+    "use": "Use this",
+    "alreadyInstalled": "Installed",
+    "count": "{count, plural, =1 {1 agent} other {# agents}}",
+    "budget": "{amount} USD / month",
+    "bringsSkills": "{count, plural, =1 {Installs 1 skill with it} other {Installs # skills with it}}",
+    "needsAttaching": "You still attach: {what}",
+    "suggestsMcp": "Works well with: {servers}",
+    "installed": "{name} created as a draft — pick a model, then publish",
+    "industry": {
+      "healthcare": "Healthcare",
+      "finance": "Finance and insurance",
+      "ecommerce": "E-commerce and print on demand",
+      "software": "Software teams",
+      "public-sector": "Public sector and utilities",
+      "legal": "Legal and professional services",
+      "manufacturing": "Manufacturing and logistics"
     }
   }
 }

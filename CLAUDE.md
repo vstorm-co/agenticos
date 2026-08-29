@@ -300,6 +300,7 @@ Trigger map — what changed → which page:
 | Changed | Update |
 |---|---|
 | `app/agents/spec.py` | `docs/reference/spec.md` (via the docstrings) |
+| `app/services/agent_templates.py`, `app/core/catalog/agent_templates/**` | `docs/first-agent.md`, `docs/concepts.md` |
 | `app/agents/capabilities/**` | `docs/reference/capabilities.md` |
 | `app/agents/mcp*.py`, `app/services/mcp_*.py`, `app/core/catalog/mcp_servers.json` | `docs/mcp.md` |
 | `app/agents/model_resolver.py`, `app/services/model_profile.py`, `app/services/model_catalog.py` | `docs/models.md` |
