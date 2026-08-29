@@ -81,23 +81,43 @@ export function McpServerPicker({
   // A connection the catalog does not describe is a custom server somebody
   // pointed at a URL. It belongs on the gallery under its own name rather than
   // nowhere, so the rows are built from both sides and then merged.
-  const described = new Map<string, OrgMcpConnectionRecord>();
+  //
+  // **All of them, not one per entry.** Uniqueness on an organization's
+  // connections is `(organization_id, name)`, so five Notion servers with five
+  // credentials and five sets of permissions are five rows the spec can bind
+  // separately - their names are the tool prefixes that tell them apart. A map
+  // keyed on the catalog entry kept the last one and silently dropped the rest,
+  // which also made an already-bound connection impossible to unbind here,
+  // because it had no row to click (#1341).
+  const described = new Map<string, OrgMcpConnectionRecord[]>();
   const custom: OrgMcpConnectionRecord[] = [];
   for (const connection of connections) {
     const entry = entryForConnection(connection, catalog);
-    if (entry) described.set(entry.key, connection);
+    if (entry) described.set(entry.key, [...(described.get(entry.key) ?? []), connection]);
     else custom.push(connection);
   }
 
   const rows: CardRow[] = [
-    ...catalog.map((entry) => ({
-      key: entry.key,
-      name: entry.name,
-      description: entry.description,
-      icon: entry.icon,
-      auth: tMcp(MCP_AUTH_LABEL[entry.auth]),
-      connection: described.get(entry.key) ?? null,
-    })),
+    ...catalog.flatMap((entry): CardRow[] => {
+      const base = {
+        name: entry.name,
+        description: entry.description,
+        icon: entry.icon,
+        auth: tMcp(MCP_AUTH_LABEL[entry.auth]),
+      };
+      const bound = described.get(entry.key) ?? [];
+      if (bound.length === 0) {
+        return [{ ...base, key: entry.key, connection: null, label: null }];
+      }
+      return bound.map((connection) => ({
+        ...base,
+        key: connection.id,
+        connection,
+        // Only where it disambiguates. One connection is the ordinary case and
+        // its name beside the entry's would read as noise.
+        label: bound.length > 1 ? connection.name : null,
+      }));
+    }),
     ...custom.map((connection) => ({
       key: connection.id,
       name: connection.name,
@@ -105,6 +125,7 @@ export function McpServerPicker({
       icon: null,
       auth: null,
       connection,
+      label: null,
     })),
   ];
 
@@ -139,6 +160,7 @@ export function McpServerPicker({
             description={row.description}
             icon={row.icon}
             auth={row.auth}
+            label={row.label}
             connection={row.connection}
             selected={(id) => chosen.has(id)}
             onToggle={onToggle}
@@ -168,6 +190,8 @@ interface CardRow {
   description: string;
   icon: string | null;
   auth: string | null;
+  /** The connection's own name, where one entry has more than one. */
+  label: string | null;
   connection: OrgMcpConnectionRecord | null;
 }
 
@@ -176,6 +200,7 @@ function ServerCard({
   description,
   icon,
   auth,
+  label,
   connection,
   selected,
   onToggle,
@@ -185,6 +210,7 @@ function ServerCard({
   description: string;
   icon?: string | null;
   auth: string | null;
+  label: string | null;
   connection: OrgMcpConnectionRecord | null;
   selected: (connectionId: string) => boolean;
   onToggle: (connectionId: string) => void;
@@ -215,6 +241,13 @@ function ServerCard({
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium">{name}</span>
+          {/* The connection's own name, which is its tool prefix - the only
+              thing that tells two servers from one catalog entry apart. */}
+          {label && (
+            <Badge variant="secondary" className="font-mono">
+              {label}
+            </Badge>
+          )}
           {auth && <Badge variant="outline">{auth}</Badge>}
           {state !== "connected" && (
             <Badge variant={state === "error" ? "destructive" : "secondary"}>

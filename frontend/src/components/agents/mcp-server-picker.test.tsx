@@ -278,3 +278,76 @@ describe("McpServerPicker", () => {
     expect(screen.queryByText("Linear")).toBeNull();
   });
 });
+
+describe("several connections behind one catalog entry", () => {
+  /**
+   * Five Notion servers with five credentials and five sets of permissions is a
+   * shape the schema allows - uniqueness is `(organization_id, name)`, and the
+   * name is the tool prefix. The picker used to key its rows on the catalog
+   * entry, so four of the five vanished (#1341).
+   */
+  const THREE = [
+    connection({ id: "c1", name: "gh-readonly", catalog_key: "github" }),
+    connection({ id: "c2", name: "gh-issues", catalog_key: "github" }),
+    connection({ id: "c3", name: "gh-admin", catalog_key: "github" }),
+  ];
+
+  it("shows one row per connection, not one per entry", () => {
+    render(
+      <McpServerPicker connections={THREE} catalog={CATALOG} selectedIds={[]} onToggle={vi.fn()} />,
+    );
+
+    expect(screen.getAllByText("GitHub")).toHaveLength(3);
+    // Told apart by the name the model sees as the tool prefix.
+    for (const name of ["gh-readonly", "gh-issues", "gh-admin"]) {
+      expect(screen.getByText(name)).toBeInTheDocument();
+    }
+  });
+
+  it("binds the connection whose row was clicked", async () => {
+    const onToggle = vi.fn();
+    render(
+      <McpServerPicker
+        connections={THREE}
+        catalog={CATALOG}
+        selectedIds={[]}
+        onToggle={onToggle}
+      />,
+    );
+
+    await userEvent.click(screen.getByText("gh-issues"));
+
+    expect(onToggle).toHaveBeenCalledWith("c2");
+  });
+
+  it("lets an already-bound connection be unbound, whichever one it is", async () => {
+    // The one that used to be dropped: bound in the spec, no row to click.
+    const onToggle = vi.fn();
+    render(
+      <McpServerPicker
+        connections={THREE}
+        catalog={CATALOG}
+        selectedIds={["c1"]}
+        onToggle={onToggle}
+      />,
+    );
+
+    await userEvent.click(screen.getByText("gh-readonly"));
+
+    expect(onToggle).toHaveBeenCalledWith("c1");
+  });
+
+  it("does not label the ordinary case, where one entry has one connection", () => {
+    render(
+      <McpServerPicker
+        connections={[connection({ id: "c1", name: "gh", catalog_key: "github" })]}
+        catalog={CATALOG}
+        selectedIds={[]}
+        onToggle={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("GitHub")).toBeInTheDocument();
+    expect(screen.queryByText("gh")).not.toBeInTheDocument();
+  });
+});

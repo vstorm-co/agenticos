@@ -271,6 +271,24 @@ turn starts, and the probes run concurrently.
 That is a deliberate trade. The `/test` endpoint and `last_status` are how you find
 out, and the [audit trail](governance.md#audit) records what actually ran.
 
+### One server, connected several times
+
+An organization may connect the same server more than once — a Notion with
+read-only access to one workspace, another scoped to a single database, a third
+holding an admin credential. That is a supported shape, not a workaround: names
+are unique per organization rather than per catalog entry, and the name is the
+tool prefix, so the model sees `notion_readonly_search` and
+`notion_admin_search` as different tools.
+
+Bind whichever the agent should have. The Builder lists one row per connection
+and labels each with its name where an entry has more than one.
+
+!!! tip "The name is the whole distinction"
+
+    `notion` and `notion-2` tell nobody anything. Name a connection after what
+    it may reach — `notion-handbook`, `notion-admin` — because that string is
+    what the model reads when it decides which tool to call.
+
 ### Name collisions
 
 !!! note "Tools are prefixed with the connection name"
