@@ -274,6 +274,13 @@ CALLS: tuple[Call, ...] = (
         query="?from=2020-01-01T00:00:00&to=2020-01-02T00:00:00",
     ),
     Call("GET", "/skills", Perm.SKILLS_VIEW),
+    Call("GET", "/skills/gallery", Perm.SKILLS_VIEW),
+    Call(
+        "POST",
+        "/skills/gallery/install",
+        Perm.SKILLS_EDIT,
+        body={"keys": ["healthcare/consent-explainer"]},
+    ),
     Call(
         "POST",
         "/skills",

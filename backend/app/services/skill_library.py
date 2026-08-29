@@ -35,6 +35,14 @@ logger = logging.getLogger(__name__)
 # and `app/` keeps no top-level packages beyond the framework's own.
 LIBRARY_ROOT = Path(__file__).resolve().parent.parent / "core" / "catalog" / "skills"
 
+# The gallery is a *second* root, and the separation is the whole point.
+# Everything under `LIBRARY_ROOT` is installed into every organization
+# automatically - at creation, and topped up on every listing (`_ensure_bundled`).
+# Seventy industry skills arriving that way would be seventy rows nobody asked
+# for, in every tenant, on the next deploy. So the gallery is opt-in: read by the
+# same parser, never seeded, installed only when somebody picks one.
+GALLERY_ROOT = Path(__file__).resolve().parent.parent / "core" / "catalog" / "skill_gallery"
+
 # The file that makes a directory a skill. Named for the convention rather than
 # `index.md` so a folder is recognisable as a skill on disk.
 MANIFEST = "SKILL.md"
@@ -68,6 +76,16 @@ class LibrarySkill:
     resources: tuple[LibraryResource, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class GalleryIndustry:
+    """One directory under the gallery root, and the skills in it."""
+
+    id: str
+    """The directory name - what the console groups and filters by."""
+
+    skills: tuple[LibrarySkill, ...]
+
+
 @cache
 def library() -> tuple[LibrarySkill, ...]:
     """Every bundled skill, by folder name.
@@ -98,7 +116,47 @@ def get(key: str) -> LibrarySkill | None:
     return next((skill for skill in library() if skill.key == key), None)
 
 
-def _read(folder: Path) -> LibrarySkill:
+@cache
+def gallery() -> tuple[GalleryIndustry, ...]:
+    """The opt-in gallery, grouped by the industry directory that holds it.
+
+    Same folder shape and same parser as the bundled library, and deliberately
+    not the same directory: nothing here is seeded. An industry with no readable
+    skill is dropped rather than shown empty, and one unreadable manifest costs
+    its own skill rather than the industry it sits in.
+    """
+    if not GALLERY_ROOT.is_dir():
+        logger.warning("Skill gallery directory is missing: %s", GALLERY_ROOT)
+        return ()
+
+    industries: list[GalleryIndustry] = []
+    for folder in sorted(GALLERY_ROOT.iterdir()):
+        if not folder.is_dir() or folder.name.startswith((".", "_")):
+            continue
+        skills: list[LibrarySkill] = []
+        for entry in sorted(folder.iterdir()):
+            if not entry.is_dir() or entry.name.startswith((".", "_")):
+                continue
+            try:
+                # Keyed by industry as well as folder, so two industries may
+                # both ship an `intake-triage` without one shadowing the other.
+                skills.append(_read(entry, key=f"{folder.name}/{entry.name}"))
+            except Exception:
+                logger.exception("Could not read the gallery skill in %s", entry)
+        if skills:
+            industries.append(GalleryIndustry(id=folder.name, skills=tuple(skills)))
+    return tuple(industries)
+
+
+def gallery_get(key: str) -> LibrarySkill | None:
+    """One gallery skill by its `<industry>/<folder>` key."""
+    return next(
+        (skill for industry in gallery() for skill in industry.skills if skill.key == key),
+        None,
+    )
+
+
+def _read(folder: Path, *, key: str | None = None) -> LibrarySkill:
     manifest = folder / MANIFEST
     metadata, body = _split_frontmatter(manifest.read_text(encoding="utf-8"))
 
@@ -121,7 +179,7 @@ def _read(folder: Path) -> LibrarySkill:
         if path.is_file() and path.name != MANIFEST and not path.name.startswith(".")
     )
     return LibrarySkill(
-        key=folder.name,
+        key=key or folder.name,
         name=name,
         description=description,
         category=category,

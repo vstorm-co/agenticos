@@ -27,6 +27,10 @@ from app.db.updates import writable
 from app.repositories import member_repo, resource_grant_repo, skill_repo
 from app.repositories.skill import SkillSort
 from app.schemas.skill import (
+    GalleryIndustryRead,
+    GalleryInstallResult,
+    GallerySkillRead,
+    SkillGallery,
     SkillList,
     SkillResourceUpdate,
     SkillSummary,
@@ -414,7 +418,22 @@ class SkillService:
         bundled = skill_library.get(key)
         if bundled is None:
             raise NotFoundError(message="No such bundled skill", details={"key": key})
+        return await self._copy_library_skill(ctx, bundled, seeded=True)
 
+    async def _copy_library_skill(
+        self,
+        ctx: AuthContext,
+        bundled: skill_library.LibrarySkill,
+        *,
+        seeded: bool,
+    ) -> Skill:
+        """Write one library or gallery folder in as an ordinary skill.
+
+        Shared by the seeding paths and by the gallery, because a copy is a copy
+        - what differs is who is recorded as having made it. `seeded` is that
+        difference and it is the audit entry's honesty: true means the platform
+        wrote this as the organization's owner, false means a person chose it.
+        """
         skill = await self.create(
             ctx,
             name=bundled.name,
@@ -439,13 +458,76 @@ class SkillService:
             target_type="skill",
             target_id=str(skill.id),
             details={
-                "key": key,
+                "key": bundled.key,
                 "name": bundled.name,
                 "resources": len(bundled.resources),
-                "seeded": True,
+                "seeded": seeded,
             },
         )
         return skill
+
+    async def gallery(self, ctx: AuthContext) -> SkillGallery:
+        """The opt-in gallery, with what this organization already has marked.
+
+        `installed` is matched on *name* rather than on key, which is the same
+        rule installing uses: the organization owns its copy from the moment it
+        lands, so a renamed folder in a later release must not offer a second
+        copy of a skill somebody is already editing.
+        """
+        names = frozenset(await skill_repo.list_names(self.db, organization_id=ctx.organization_id))
+        return SkillGallery(
+            industries=[
+                GalleryIndustryRead(
+                    id=industry.id,
+                    skills=[
+                        GallerySkillRead(
+                            key=entry.key,
+                            name=entry.name,
+                            description=entry.description,
+                            category=entry.category,
+                            installed=entry.name in names,
+                        )
+                        for entry in industry.skills
+                    ],
+                )
+                for industry in skill_library.gallery()
+            ]
+        )
+
+    async def install_gallery(self, ctx: AuthContext, keys: Sequence[str]) -> GalleryInstallResult:
+        """Copy gallery skills into this organization, as the caller.
+
+        Not as the organization's owner, which is what the seeding paths do:
+        somebody clicked this, so the audit entry names them and the skill is
+        theirs to have chosen. There is no `seeded` flag on it for the same
+        reason.
+
+        Every outcome is reported rather than raised. A shelf of ten where one
+        is already present must install the other nine, so an existing name is
+        `skipped` and an unrecognised key is `unknown` - and a request that
+        installs nothing is still a 200 describing why.
+        """
+        names = set(await skill_repo.list_names(self.db, organization_id=ctx.organization_id))
+        installed: list[str] = []
+        skipped: list[str] = []
+        unknown: list[str] = []
+
+        for key in dict.fromkeys(keys):
+            entry = skill_library.gallery_get(key)
+            if entry is None:
+                unknown.append(key)
+                continue
+            if entry.name in names:
+                skipped.append(entry.name)
+                continue
+            await self._copy_library_skill(ctx, entry, seeded=False)
+            # Two keys in one request can carry the same name only if the
+            # gallery ships a duplicate; tracking it here keeps that a skip
+            # rather than a unique-name violation mid-request.
+            names.add(entry.name)
+            installed.append(entry.name)
+
+        return GalleryInstallResult(installed=installed, skipped=skipped, unknown=unknown)
 
     async def add_resource(
         self,
