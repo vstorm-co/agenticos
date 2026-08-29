@@ -158,7 +158,7 @@ def gallery_get(key: str) -> LibrarySkill | None:
 
 def _read(folder: Path, *, key: str | None = None) -> LibrarySkill:
     manifest = folder / MANIFEST
-    metadata, body = _split_frontmatter(manifest.read_text(encoding="utf-8"))
+    metadata, body = split_frontmatter(manifest.read_text(encoding="utf-8"))
 
     name = str(metadata.get("name") or folder.name)
     description = str(metadata.get("description") or "").strip()
@@ -188,7 +188,7 @@ def _read(folder: Path, *, key: str | None = None) -> LibrarySkill:
     )
 
 
-def _split_frontmatter(text: str) -> tuple[dict[str, object], str]:
+def split_frontmatter(text: str) -> tuple[dict[str, object], str]:
     """The YAML header and the body below it.
 
     A manifest with no frontmatter is not an error: the folder name and the

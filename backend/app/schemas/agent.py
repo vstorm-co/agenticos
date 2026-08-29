@@ -512,3 +512,52 @@ class AgentRunResult(BaseSchema):
             "arrive."
         ),
     )
+
+
+class AgentTemplateRead(BaseSchema):
+    """One shipped template as the picker shows it - never the instructions."""
+
+    key: str = Field(description="`<industry>/<folder>`, how an install request names it")
+    name: str
+    description: str
+    capabilities: list[str] = Field(description="Capability ids it switches on")
+    skills: list[str] = Field(description="Gallery keys installed with it, if missing")
+    mcp: list[str] = Field(description="Catalog keys worth connecting - suggestions, not bindings")
+    attach: list[str] = Field(
+        description="What a person still has to provide before publishing: collection, context"
+    )
+    budget_usd: float | None = None
+    installed: bool = Field(
+        description="Whether this organization already has an agent by that name"
+    )
+
+
+class TemplateIndustryRead(BaseSchema):
+    id: str
+    templates: list[AgentTemplateRead]
+
+
+class AgentTemplateCatalog(BaseSchema):
+    industries: list[TemplateIndustryRead]
+
+
+class TemplateInstallRequest(BaseSchema):
+    key: str = Field(min_length=1, max_length=128)
+
+
+class TemplateInstallResult(BaseSchema):
+    """What was created, and what the person still has to do.
+
+    An installed template is a **draft**: it names no model, because this
+    platform has no organization-wide default on purpose, and it may name no
+    collection. Both are decisions the spec refuses to make on somebody's
+    behalf, so the result carries them back rather than publishing something
+    that would answer its first question from nowhere.
+    """
+
+    agent_id: UUID
+    slug: str
+    name: str
+    skills_installed: list[str] = Field(description="Gallery skills copied in for this agent")
+    attach: list[str] = Field(description="What to attach before publishing")
+    suggested_mcp: list[str] = Field(description="Catalog keys worth connecting")

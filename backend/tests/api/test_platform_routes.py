@@ -217,6 +217,13 @@ _SPEC: dict[str, Any] = {"name": "Support"}
 # tests/integration/test_platform_flows.py.
 CALLS: tuple[Call, ...] = (
     Call("GET", "/agents/capabilities", Perm.AGENTS_VIEW),
+    Call("GET", "/agents/templates", Perm.AGENTS_VIEW),
+    Call(
+        "POST",
+        "/agents/templates/install",
+        Perm.AGENTS_EDIT,
+        body={"key": "healthcare/procedure-assistant"},
+    ),
     Call("GET", "/agents/mcp-catalog", Perm.AGENTS_VIEW),
     Call("GET", "/agents", Perm.AGENTS_VIEW),
     Call("POST", "/agents", Perm.AGENTS_EDIT, body={"spec": _SPEC}),

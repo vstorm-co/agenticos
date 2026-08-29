@@ -43,6 +43,7 @@ from app.schemas.agent import (
     AgentRunRequest,
     AgentRunResult,
     AgentSpecImport,
+    AgentTemplateCatalog,
     AgentVersionDetail,
     AgentVersionList,
     AgentVersionRead,
@@ -53,6 +54,8 @@ from app.schemas.agent import (
     McpCatalog,
     McpCatalogEntry,
     SpecialistPromote,
+    TemplateInstallRequest,
+    TemplateInstallResult,
 )
 from app.services.capability_contracts import tool_contracts
 from app.services.file_storage import sniff_image_media_type
@@ -97,6 +100,34 @@ async def list_capability_catalog() -> Any:
         if definition.selectable
     ]
     return CapabilityCatalog(items=items, total=len(items))
+
+
+@router.get(
+    "/templates",
+    response_model=AgentTemplateCatalog,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_agent_templates(service: AgentRegistrySvc, ctx: Auth) -> Any:
+    """Shipped agent templates by industry, with what this organization already has."""
+    return await service.templates(ctx)
+
+
+@router.post(
+    "/templates/install",
+    response_model=TemplateInstallResult,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.AGENTS_EDIT))],
+)
+async def install_agent_template(
+    data: TemplateInstallRequest, service: AgentRegistrySvc, ctx: Auth
+) -> Any:
+    """Create a draft agent from a template, installing the skills it expects.
+
+    A draft, not a published agent: the template names no model - there is no
+    organization-wide default here - and may name no collection. The result says
+    what is still to attach.
+    """
+    return await service.install_template(ctx, data.key)
 
 
 @router.get(

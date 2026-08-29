@@ -520,6 +520,7 @@ include = [
     "app/schemas/trigger_template.py",
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",
+    "app/services/agent_templates.py",
     "app/services/agent_session.py",
     # The turn loop itself, shared by the dashboard chat and the embedded
     # widget since #634. One frame vocabulary for both sockets, and the sink a
@@ -753,6 +754,7 @@ include = [
     "app/schemas/trigger_template.py",
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",
+    "app/services/agent_templates.py",
     # The whole dashboard chat wire format: every frame the WebSocket sends and
     # every frame it accepts. It sat outside both gates while `use-chat.ts`
     # switched on its names, which is the drift #144 describes.
