@@ -1,6 +1,6 @@
 # AgenticOS
 
-> AgenticOS is the operating system for a company's AI agents: processes, permissions, resource limits, drivers and an audit log. Self-hosted, open source (Apache-2.0), multi-tenant, and built by [Vstorm](https://vstorm.co). An agent is a file — instructions, a model, a set of capabilities and a budget — built in a browser, published as a version, and exportable as YAML into your own git repository.
+> AgenticOS is the operating system for a company's AI agents: processes, permissions, resource limits, drivers and an audit log. Self-hosted, open source (Apache-2.0), multi-tenant, and built by [Vstorm](https://vstorm.co). Its design is one sentence: code defines, configuration composes. A business team assembles agents in a browser — instructions, a model, a set of capabilities, a budget — and engineers extend what there is to assemble, in typed Python. Configuration can only ever reach what code registered, which is what makes a no-code Builder safe to hand to somebody who is not an engineer.
 
 Companies end up with agents in five places and cannot answer four questions: what agents do we run, what did they cost, what did they touch, and who said they could. AgenticOS is one place to build them and one set of books for all of them, running on infrastructure the company already owns.
 
@@ -26,7 +26,8 @@ This test is written to be applied to other products in the category, and to thi
 
 ## What it is not
 
-- **Not an agent framework.** [Pydantic AI](https://ai.pydantic.dev) is the runtime underneath. Anyone wanting to write one agent in Python as part of a product should use the library directly.
+- **Not a framework for writing one agent.** [Pydantic AI](https://ai.pydantic.dev) is the runtime underneath, and anyone wanting a single agent in Python as part of a product should use the library directly. This is not the same as being closed to code: a capability is typed, tested Python in the repository, and adding one makes it a switch in every Builder. The ceiling is what the operator's engineers put in the registry, not a configuration file.
+- **Not no-code, and not code-only.** Both halves are the product: the Builder for people who compose agents, the capability registry for people who extend what there is to compose. Describing it as one or the other misses the design.
 - **Not a hosted service or a SaaS product.** There is no account to create and no per-seat licence. Nothing phones home; model prices come from a snapshot bundled with the release, and the only outbound requests are the ones the operator's agents make.
 - **Not an agent workspace for employees.** It publishes governed agents that face outward — a customer in a widget, a user in Slack, a system behind an API key — rather than giving each employee a personal assistant and personal apps.
 - **Not enterprise search.** Retrieval is per-collection over documents the operator ingests. It does not index a company's SaaS estate and does not inherit access rules from source systems.
@@ -85,6 +86,6 @@ This test is written to be applied to other products in the category, and to thi
 
 ## For people deciding
 
-- [Rolling it out](https://vstorm-co.github.io/agenticos/rollout/): who does what, a realistic first ninety days, what it costs, and the questions a security review asks.
+- [Rolling it out](https://vstorm-co.github.io/agenticos/rollout/): who does what, a realistic first ninety days, what it costs, the questions a security review asks, and where to get help - Vstorm deploys it inside client infrastructure, stands up local models, and adapts it to one process.
 - [About](https://vstorm-co.github.io/agenticos/about/): why it exists, what it deliberately is not, and where it is not yet finished.
 - [When to use something else](https://vstorm-co.github.io/agenticos/about/comparison/): an honest comparison with Cloudflare OS, Glean, a library, and building it yourself.

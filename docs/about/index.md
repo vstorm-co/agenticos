@@ -10,10 +10,15 @@ and exactly wrong for the forty small agents a company actually wants, because
 the person who knows what the agent should say is not the person with commit
 access.
 
-So here, **an agent is a file**. In an operating system a program is a file:
-something you can read, copy, version and commit. An agent is the same —
-instructions, a model, a set of capabilities, a budget — built in a UI, published
-as a version, and exportable as YAML into your own git repository.
+So here, **code defines and configuration composes**. A business team assembles
+agents in a browser — instructions, a model, a set of capabilities, a budget —
+and engineers extend what there is to assemble, in typed Python. Configuration
+can only ever reach what code registered, which is what makes a no-code Builder
+safe to hand to somebody who is not an engineer.
+
+The spec is a document, so it versions on publish and exports as YAML into your
+own git repository. The ceiling is not that document: it is whatever your
+engineers put in the registry.
 
 ## What makes something an operating system for agents
 
@@ -79,9 +84,15 @@ A company that wants more than three agents, and wants them governed.
 
 ## What it deliberately is not
 
-**It is not an agent framework.** [Pydantic AI](https://ai.pydantic.dev) is the
-runtime underneath, and if what you want is to write an agent in Python, use it
-directly — you will be happier.
+**It is not a framework for writing one agent.**
+[Pydantic AI](https://ai.pydantic.dev) is the runtime underneath, and if what
+you want is a single agent in Python as part of a product, use it directly.
+
+That is not the same as saying this is closed to code. Extending it *is* Python
+— a [capability](../howto/add-capability.md) is typed, tested code in this
+repository, and a connector, a channel or an ingestion strategy is the same
+pattern. The difference is that you write the tool once and everybody composes
+with it afterwards.
 
 **It is not a hosted service.** Nothing phones home. Model prices come from a
 snapshot bundled with the release, and the only outbound requests are the ones
@@ -132,7 +143,8 @@ contributors in
 
 ## Recap
 
-- An **agent is a file**: readable, copyable, versioned, committable.
+- **Code defines, configuration composes** — a business team assembles agents,
+  engineers extend what there is to assemble, and neither waits for the other.
 - "Operating system" is a **specification here, not a label** — seven jobs, each
   with a mechanism behind it.
 - The test is meant to be **applied to other products too**, and to this one:

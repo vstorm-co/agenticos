@@ -30,15 +30,19 @@ running a company's AI agents.
 
 The key point is this:
 
-!!! quote "An agent is a file, not a service"
+!!! quote "Code defines, configuration composes"
 
-    In an operating system a program is a file — something you can read, copy,
-    version and commit. So is an agent here: instructions, a model, a set of
-    capabilities, a budget. Somebody builds it in a UI, publishes a version, and
-    it runs the same way everywhere — web chat, HTTP API, Slack, Telegram, an
-    embedded widget.
+    A business team composes agents in a browser — instructions, a model, a set
+    of capabilities, a budget — and the result runs the same way everywhere:
+    web chat, HTTP API, Slack, Telegram, an embedded widget.
 
-Everything else on this site follows from that one sentence.
+    Engineers extend what there is to compose, in typed Python. Configuration
+    can only ever reach what code registered, which is what makes a no-code
+    Builder safe to hand to somebody who is not an engineer.
+
+Everything else on this site follows from that one sentence. The ceiling is not
+a config file — it is whatever your engineers put in the registry, and the
+source is yours.
 
 ## Start where you are
 

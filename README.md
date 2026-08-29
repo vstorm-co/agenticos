@@ -62,8 +62,16 @@ AgenticOS is one place to build them and one set of books for all of them.
   widget, the HTTP API, Slack, Telegram, Mattermost and schedules — the same
   agent, the same budget, the same audit.
 
-**An agent here is a file, not a service.** In an operating system a program is a
-file: something you can read, copy, version and commit. So is an agent.
+**Code defines, configuration composes.** A business team assembles agents in a
+browser and never opens Python; engineers extend what there is to assemble - a
+capability is typed, tested code in this repository, and adding one makes it a
+switch in everybody's Builder. Configuration can only ever reach what code
+registered, which is what makes a no-code Builder safe to hand to somebody who
+is not an engineer.
+
+So the ceiling is not a config file. It is whatever your engineers put in the
+registry - and it is Apache-2.0, on your hardware, so that includes whatever you
+write for your own use case.
 
 ## What it looks like
 
@@ -289,8 +297,9 @@ named above, and a test keeps that true.
 
 Three things that trip up a first change here:
 
-- **An agent is a file.** There is no `@agent.tool` and no agent module to
-  decorate; a new tool reaches a model through the capability registry. See
+- **An agent is a file; a tool is code.** There is no `@agent.tool` and no agent
+  module to decorate - a new tool is typed Python that registers a capability,
+  and from then on it is a switch in everybody's Builder. See
   [Add a capability](docs/howto/add-capability.md).
 - **`require(...)` gates go on collection routes only.** A permission gate on a
   per-resource route cannot see that row's grants, so it refuses a Viewer who was

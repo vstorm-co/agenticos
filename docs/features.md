@@ -2,29 +2,48 @@
 
 AgenticOS gives you the following.
 
-## An agent is a file
+## Code defines, configuration composes
 
-Not a class and not a decorator. In an operating system a program is a file —
-something you can read, copy, version and commit — and an agent here is the same
-thing: instructions, a model, a set of capabilities, a budget.
+That one sentence is the whole design, and it describes two halves that are
+deliberately not the same job.
 
-```yaml
-name: Support Copilot
-instructions: |
-  Answer from the product wiki and cite the document you used.
-  If the wiki does not cover it, say so rather than guessing.
-model_profile_id: 8f1c...
-capabilities:
-  - id: knowledge
-    config: { default_top_k: 8 }
-  - id: web_research
-    approval: required
-collection_ids: [b2a9...]
-budget:
-  monthly_usd: 50
-```
+**A business team composes agents in a browser.** Instructions, a model, a set
+of capabilities, a budget — no Python, no pull request, no release. The spec is
+a document, so it versions on publish and exports as YAML into your own git
+repository.
 
-Everything else on this page follows from that one decision.
+**Engineers extend what there is to compose.** A capability is typed, tested
+Python in this repository: a tool the model can call, a guardrail, a compaction
+strategy, a connector. You add one, and from that moment it is a switch in
+everybody's Builder.
+
+The rule between the two halves is the load-bearing part:
+
+!!! quote "Configuration can only ever reach what code registered"
+
+    Which is exactly what makes a no-code Builder safe to hand to somebody who
+    is not an engineer. They cannot invent a tool, widen a scope or reach a
+    system nobody wired — the worst they can do is assemble things that were
+    already approved.
+
+So the ceiling is not a config file. It is whatever your engineers put in the
+registry, and the platform is Apache-2.0, so that includes anything you write
+for your own use case.
+
+| You want | You do |
+|---|---|
+| A different answer from an agent | Edit the instructions and publish. Seconds, no engineer |
+| A tool for a SaaS product | Point at [an MCP server](mcp.md). Usually no code at all |
+| A tool nobody has written | [Add a capability](howto/add-capability.md) — typed Python, and it appears in the Builder |
+| A different ingestion, channel or connector | [Extend the platform](resources/index.md#extending-the-platform); the same pattern each time |
+| The whole thing shaped to one process | Fork it. It is your deployment and your source |
+
+!!! tip "The split is the point"
+
+    The person who knows what the agent should say is rarely the person with
+    commit access — and the person who can write a tool should not be spending
+    their week on wording changes. This is the line that lets both of them work
+    without waiting for the other.
 
 !!! info "Why this is called an operating system"
 
@@ -32,12 +51,6 @@ Everything else on this page follows from that one decision.
     resource limits, access control, drivers, a filesystem, one shell for many
     interfaces, and an audit log. Each has a mechanism on this page.
     [The seven, and how to test any other product against them →](about/index.md#what-makes-something-an-operating-system-for-agents)
-
-!!! tip
-
-    The person who knows what the agent should say is rarely the person with
-    commit access. When behaviour lives in a file rather than in Python, they do
-    not need it.
 
 ## Built in a UI, versioned on publish
 

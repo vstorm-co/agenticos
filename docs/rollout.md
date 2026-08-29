@@ -121,6 +121,31 @@ was worth doing:
 | **How many people have published an agent** | The adoption number that predicts whether this survives its champion |
 | **Approvals waiting** | A queue that grows means the gate is on the wrong action, or the agent is not trusted yet. Both are worth knowing early |
 
+## Getting help
+
+You can run this entirely yourself. It is Apache-2.0, the documentation is the
+whole story rather than a teaser, and nothing here is gated behind a support
+contract.
+
+Two places to ask when something is not covered:
+[GitHub issues and discussions](https://github.com/vstorm-co/agenticos) for the
+project, and [Resources](resources/index.md) for the contributor guides.
+
+**[Vstorm](https://vstorm.co) builds AgenticOS, and also deploys it.** That is
+worth knowing if the work you are looking at is one of these:
+
+| | |
+|---|---|
+| **Getting it into production inside your infrastructure** | Your cloud, your data centre, or air-gapped, wired to the systems you already run |
+| **Standing up local models** | So inference never leaves the building — the hardware, the runtime, and the profiles pointing at it |
+| **Adapting the platform to one process** | A capability nobody has written, an ingestion path for your document shape, a channel you use and nobody else does |
+| **Building the first agents with your team** | Embedded, so the second one is theirs rather than ours |
+
+None of that is a licence — the platform is the same open source either way, and
+a deployment somebody else did is still yours to read, change and keep running.
+
+[Talk to us →](https://vstorm.co/contact-us/)
+
 ## Recap
 
 - It replaces **a backlog of small automations**, not a person.
