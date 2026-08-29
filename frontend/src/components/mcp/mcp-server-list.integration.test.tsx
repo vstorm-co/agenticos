@@ -84,6 +84,12 @@ function serve(org: OrgMcpConnectionRecord[], own: McpConnectionRecord[]) {
   });
 }
 
+/** Open the connections modal for GitHub, where every account is listed. */
+async function openConnections() {
+  await userEvent.click(within(githubRow()).getByRole("button", { name: /Manage connections on/ }));
+  return within(await screen.findByRole("dialog"));
+}
+
 /** The GitHub row, which is where every assertion below happens. */
 function githubRow() {
   return screen.getByRole("group", { name: "GitHub" });
@@ -102,18 +108,30 @@ async function mount({
 describe("McpServerList", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("shows both owners on the same row, because that is the difference", async () => {
-    // The reported confusion, answered on screen: one server, two credentials,
-    // and a label on each saying whose it is.
+  it("keeps the card to two controls and counts what is behind them", async () => {
+    // The card used to grow a chip per connection, so a server with three
+    // accounts stood taller than its neighbours and the grid went ragged.
     await mount({ org: [connection()], own: [] });
 
     const row = within(githubRow());
-    // The state rides on the control that acts on it, so the action row is one
-    // line on every card - a separate chip put it on its own line and pushed
-    // the buttons down on exactly the cards that had one.
-    expect(row.getByTitle("Organization: Connected")).toBeInTheDocument();
-    expect(row.queryByTitle(/^You:/)).toBeNull();
-    expect(row.getByRole("button", { name: "Manage Organization" })).toBeInTheDocument();
+    expect(row.getByRole("button", { name: "Connect" })).toBeInTheDocument();
+    // Labelled for a screen reader, and counted for everybody else.
+    expect(row.getByRole("button", { name: "Manage connections on GitHub" })).toHaveTextContent(
+      "1 connection",
+    );
+  });
+
+  it("separates the two owners in the modal, because that is the difference", async () => {
+    // One server, two credentials, and a heading on each saying whose it is -
+    // which decides where it can be used at all.
+    await mount({ org: [connection({ name: "gh-org" })], own: [connection({ name: "gh-mine" })] });
+
+    const dialog = await openConnections();
+
+    expect(dialog.getByRole("heading", { name: "The organization's" })).toBeInTheDocument();
+    expect(dialog.getByRole("heading", { name: "Yours" })).toBeInTheDocument();
+    expect(dialog.getByText("gh-org")).toBeInTheDocument();
+    expect(dialog.getByText("gh-mine")).toBeInTheDocument();
   });
 
   it("records provenance when a catalog server is connected for the organization", async () => {
@@ -226,14 +244,15 @@ describe("McpServerList", () => {
   it("lets a member without connections:manage read the organization column, not write it", async () => {
     // Read access is deliberate: an agent author has to see what the Builder
     // will offer. A button that always 403s is worse than no button.
-    await mount({ canManageOrganization: false, org: [connection()] });
+    await mount({ canManageOrganization: false, org: [connection({ name: "gh-org" })] });
 
-    const row = within(githubRow());
-    // The organization's state is still readable - an agent author has to see
-    // what the Builder will offer.
-    expect(row.getByTitle(/^Organization:/)).toBeInTheDocument();
+    const dialog = await openConnections();
+
+    // Readable - an agent author has to see what the Builder will offer.
+    expect(dialog.getByText("gh-org")).toBeInTheDocument();
     // But nothing that writes it. A button that always 403s is worse than none.
-    expect(row.queryByRole("button", { name: "Manage Organization" })).toBeNull();
+    expect(dialog.queryByRole("button", { name: "Disconnect" })).toBeNull();
+    expect(dialog.queryByRole("button", { name: "Edit" })).toBeNull();
   });
 
   it("shows a server nobody curated rather than hiding it", async () => {
@@ -330,13 +349,15 @@ describe("McpServerList", () => {
     // double-click fired a second DELETE. The guard is what this pins.
     await mount({ org: [connection()] });
 
-    const row = within(githubRow());
-    await userEvent.click(row.getByRole("button", { name: "Manage Organization" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Disconnect" }));
+    const connections = await openConnections();
+    await userEvent.click(connections.getByRole("button", { name: "Disconnect" }));
 
     // A real dialog, not window.confirm, and its description names the server.
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText(/Disconnect "github"\?/)).toBeInTheDocument();
+    // Two are open by now - the connections modal underneath it - so the confirm
+    // is found by its own words rather than by a role there are two of.
+    const dialog = (await screen.findByText(/Disconnect "github"\?/)).closest(
+      '[role="dialog"], [role="alertdialog"]',
+    ) as HTMLElement;
 
     // Hold the DELETE in flight so the busy guard is observable: the confirm
     // button disables itself, so the second click cannot fire a second DELETE.
@@ -361,5 +382,62 @@ describe("McpServerList", () => {
     await mount({ org: [connection()] });
 
     expect(document.querySelectorAll("img")).toHaveLength(0);
+  });
+});
+
+describe("several accounts on one server", () => {
+  /**
+   * The half #1341 left open, finished. An organization may hold a read-only
+   * GitHub and an admin one; the page could neither create the second nor show
+   * it under its own entry, and once both scopes were filled the Connect button
+   * disappeared entirely.
+   */
+  it("offers to connect from the card however many accounts exist", async () => {
+    await mount({
+      org: [connection({ id: "o1", name: "github" })],
+      own: [connection({ id: "p1", name: "github" })],
+    });
+
+    expect(within(githubRow()).getByRole("button", { name: "Connect" })).toBeInTheDocument();
+  });
+
+  it("names every account, so two are never one", async () => {
+    await mount({
+      org: [
+        connection({ id: "o1", name: "gh-readonly" }),
+        connection({ id: "o2", name: "gh-admin" }),
+      ],
+    });
+
+    // One card, whatever it holds.
+    expect(screen.getAllByRole("group", { name: "GitHub" })).toHaveLength(1);
+    expect(
+      within(githubRow()).getByRole("button", { name: /Manage connections/ }),
+    ).toHaveTextContent("2 connections");
+
+    const dialog = await openConnections();
+    expect(dialog.getByText("gh-readonly")).toBeInTheDocument();
+    expect(dialog.getByText("gh-admin")).toBeInTheDocument();
+  });
+
+  it("seeds a name nothing holds yet, so the first submit is not a conflict", async () => {
+    await mount({ org: [connection({ id: "o1", name: "github" })] });
+
+    const dialog = await openConnections();
+    // The organization's section, where `github` is already taken.
+    await userEvent.click(dialog.getByRole("button", { name: "Connect another" }));
+
+    expect(await screen.findByLabelText(/name/i)).toHaveValue("github-2");
+  });
+
+  it("says where each owner's accounts can be used, which is the whole distinction", async () => {
+    await mount({ org: [connection({ name: "gh-org" })] });
+
+    const dialog = await openConnections();
+
+    expect(dialog.getByText("The only kind an agent can be bound to.")).toBeInTheDocument();
+    expect(
+      dialog.getByText("Yours alone — your chat, and your direct messages in a channel."),
+    ).toBeInTheDocument();
   });
 });

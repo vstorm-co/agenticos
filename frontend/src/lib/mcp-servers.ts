@@ -65,29 +65,25 @@ function normalizeUrl(url: string): string {
 }
 
 /**
- * The connection to *entry* among *connections*, or null if there is none.
+ * Every connection that points at one catalog entry, in order.
  *
- * Generic over the record so the caller gets back the type it passed in - the
- * organization's servers carry a `catalog_key` a personal one does not, and
- * widening them to the shared shape here would lose it at the one call site
- * that wants it.
+ * An organization may hold several - a Notion read-only, a Notion admin - and
+ * uniqueness is on the name rather than on the entry, so this is a supported
+ * shape rather than a mistake. Matching runs the same three ways as the
+ * singular version, and a connection matched by one is not matched again by the
+ * next.
  */
-function connectionForEntry<T extends McpConnectionRecord>(
+function connectionsForEntry<T extends McpConnectionRecord>(
   entry: McpCatalogEntry,
   connections: T[],
-): T | null {
-  // Recorded provenance beats any guess: the backend stored which entry this
-  // came from, and a URL that has since been edited must not un-match it.
-  const byKey = connections.find(
-    (connection) => "catalog_key" in connection && connection.catalog_key === entry.key,
+): T[] {
+  const target = entry.url === null ? null : normalizeUrl(entry.url);
+  return connections.filter(
+    (connection) =>
+      ("catalog_key" in connection && connection.catalog_key === entry.key) ||
+      (target !== null && normalizeUrl(connection.url) === target) ||
+      connection.name === entry.key,
   );
-  if (byKey) return byKey;
-  if (entry.url) {
-    const target = normalizeUrl(entry.url);
-    const byUrl = connections.find((connection) => normalizeUrl(connection.url) === target);
-    if (byUrl) return byUrl;
-  }
-  return connections.find((connection) => connection.name === entry.key) ?? null;
 }
 
 /** The catalog entry *connection* points at, or null for a server we do not list. */
@@ -144,10 +140,18 @@ export interface McpServerRow {
   tokenHint: string | null;
   /** The catalog entry this row is, or null for a custom server. */
   entry: McpCatalogEntry | null;
-  /** The organization's connection - the only kind an agent can be bound to. */
-  organization: OrgMcpConnectionRecord | null;
-  /** The caller's own connection, used by their assistant and nothing else. */
-  personal: McpConnectionRecord | null;
+  /**
+   * The organization's connections - the only kind an agent can be bound to.
+   *
+   * A list, because an organization may hold several accounts on one server: a
+   * read-only Notion and an admin one are two connections with two names, and
+   * the name is the tool prefix that tells them apart. One row per *server*
+   * with a list inside it, rather than a card per connection - two identical
+   * cards side by side read as a bug rather than as two accounts.
+   */
+  organizations: OrgMcpConnectionRecord[];
+  /** The caller's own, used by their assistant and nothing else. */
+  personals: McpConnectionRecord[];
 }
 
 /** Where custom servers sort, and what the heading over them says. */
@@ -180,8 +184,8 @@ export function rowForEntry(entry: McpCatalogEntry): McpServerRow {
     docsUrl: entry.docs_url,
     tokenHint: entry.token_hint,
     entry,
-    organization: null,
-    personal: null,
+    organizations: [],
+    personals: [],
   };
 }
 
@@ -192,12 +196,15 @@ export function mergeServers(
 ): McpServerRow[] {
   const claimed = new Set<string>();
 
+  // One row per server, holding every connection to it. An entry with three
+  // organization accounts is one card listing three, not three cards that
+  // differ in nothing a reader can see - the extras used to fall through as
+  // "custom" servers, which is where a second account went to be mislabelled.
   const rows: McpServerRow[] = catalog.map((entry) => {
-    const org = connectionForEntry(entry, organization);
-    const own = connectionForEntry(entry, personal);
-    if (org) claimed.add(org.id);
-    if (own) claimed.add(own.id);
-    return { ...rowForEntry(entry), organization: org, personal: own };
+    const organizations = connectionsForEntry(entry, organization);
+    const personals = connectionsForEntry(entry, personal);
+    for (const connection of [...organizations, ...personals]) claimed.add(connection.id);
+    return { ...rowForEntry(entry), organizations, personals };
   });
 
   const custom = (connection: McpConnectionRecord, isOrg: boolean): McpServerRow => ({
@@ -211,8 +218,8 @@ export function mergeServers(
     docsUrl: null,
     tokenHint: null,
     entry: null,
-    organization: isOrg ? (connection as OrgMcpConnectionRecord) : null,
-    personal: isOrg ? null : connection,
+    organizations: isOrg ? [connection as OrgMcpConnectionRecord] : [],
+    personals: isOrg ? [] : [connection],
   });
 
   return [

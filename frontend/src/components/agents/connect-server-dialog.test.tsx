@@ -156,14 +156,7 @@ describe("ConnectServerDialog", () => {
       const assign = vi.fn();
       Object.defineProperty(window, "location", {
         configurable: true,
-        value: {
-          get href() {
-            return "";
-          },
-          set href(value: string) {
-            assign(value);
-          },
-        },
+        value: { assign },
       });
 
       open(OAUTH_ENTRY);

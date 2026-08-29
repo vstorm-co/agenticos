@@ -95,7 +95,9 @@ function ConnectionForm({
   onSubmit: (values: ConnectionFormValues) => void;
 }) {
   const t = useTranslations("mcp");
-  const [name, setName] = useState(draft.existing?.name ?? draft.row.entry?.key ?? "");
+  const [name, setName] = useState(
+    draft.existing?.name ?? draft.suggestedName ?? draft.row.entry?.key ?? "",
+  );
   const [url, setUrl] = useState(draft.existing?.url ?? draft.row.entry?.url ?? "");
   const [token, setToken] = useState("");
   const [auth, setAuth] = useState<DraftAuth>(() => initialAuth(draft));

@@ -91,7 +91,7 @@ function ConnectForm({
         } else {
           // Blocked anyway. Better a navigation the person did not expect than
           // a consent screen that never opens and no explanation.
-          window.location.href = authorization_url;
+          window.location.assign(authorization_url);
         }
         onClose();
         toast.info(t("finishConsentThenReturn"));

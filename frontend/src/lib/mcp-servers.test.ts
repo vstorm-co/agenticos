@@ -60,8 +60,8 @@ describe("mergeServers", () => {
     const rows = mergeServers([GITHUB], [organization()], [personal()]);
 
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.organization?.id).toBe("o1");
-    expect(rows[0]?.personal?.id).toBe("p1");
+    expect(rows[0]?.organizations[0]?.id).toBe("o1");
+    expect(rows[0]?.personals[0]?.id).toBe("p1");
   });
 
   it("trusts the recorded catalog key over the URL", () => {
@@ -75,7 +75,7 @@ describe("mergeServers", () => {
     );
 
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.organization?.id).toBe("o1");
+    expect(rows[0]?.organizations[0]?.id).toBe("o1");
   });
 
   it("falls back to the name for a server the organization hosts itself", () => {
@@ -86,7 +86,7 @@ describe("mergeServers", () => {
       [personal({ name: "postgres", url: "https://pg/mcp" })],
     );
 
-    expect(rows[0]?.personal?.id).toBe("p1");
+    expect(rows[0]?.personals[0]?.id).toBe("p1");
   });
 
   it("gives a connection the catalog does not carry a row of its own", () => {
@@ -101,7 +101,7 @@ describe("mergeServers", () => {
     expect(rows.map((row) => row.key)).toEqual(["github", "p9"]);
     expect(rows[1]?.category).toBe(CUSTOM_CATEGORY);
     expect(rows[1]?.entry).toBeNull();
-    expect(rows[1]?.personal?.id).toBe("p9");
+    expect(rows[1]?.personals[0]?.id).toBe("p9");
   });
 
   it("never lists a connection twice", () => {
@@ -134,8 +134,8 @@ describe("mergeServers", () => {
     // The key, not the sentence: a custom row's description is this app's own copy and
     // the component translates it, where a catalog row carries the backend's text.
     expect(rows.map((row) => row.descriptionKey)).toEqual(["customAddedByOrg", "customAddedByYou"]);
-    expect(rows[0]?.organization?.id).toBe("o9");
-    expect(rows[0]?.personal).toBeNull();
+    expect(rows[0]?.organizations[0]?.id).toBe("o9");
+    expect(rows[0]?.personals).toEqual([]);
   });
 
   it("reads a custom server's auth kind off the connection, since no entry declares one", () => {
@@ -184,5 +184,55 @@ describe("connectionState", () => {
     expect(connectionState(personal({ auth_type: "oauth", oauth_authorized: true }))).toBe(
       "connected",
     );
+  });
+});
+
+describe("several accounts on one server", () => {
+  /**
+   * An organization may hold a read-only Notion and an admin one. Uniqueness is
+   * `(organization_id, name)` rather than per catalog entry, so this is a
+   * supported shape - and the extras used to fall through as "custom" rows,
+   * which is where a second account went to be mislabelled.
+   */
+  function orgFor(id: string, name: string): OrgMcpConnectionRecord {
+    return { ...personal({ id, name }), catalog_key: "github" } as OrgMcpConnectionRecord;
+  }
+
+  it("keeps one row for the server and lists every connection on it", () => {
+    const rows = mergeServers([GITHUB], [orgFor("o1", "gh"), orgFor("o2", "gh-admin")], []);
+
+    // One card, not two that differ in nothing a reader can see.
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.organizations.map((c) => c.name)).toEqual(["gh", "gh-admin"]);
+  });
+
+  it("does not label an extra account a custom server", () => {
+    const rows = mergeServers([GITHUB], [orgFor("o1", "gh"), orgFor("o2", "gh-admin")], []);
+
+    expect(rows.some((row) => row.category === CUSTOM_CATEGORY)).toBe(false);
+    expect(rows[0]?.entry).not.toBeNull();
+  });
+
+  it("keeps the two owners apart on one row", () => {
+    const rows = mergeServers(
+      [GITHUB],
+      [orgFor("o1", "gh"), orgFor("o2", "gh-admin")],
+      [personal({ id: "p1", name: "gh-mine" })],
+    );
+
+    expect(rows[0]?.organizations).toHaveLength(2);
+    expect(rows[0]?.personals.map((c) => c.id)).toEqual(["p1"]);
+  });
+
+  it("still sends a server the catalog does not describe to the custom rows", () => {
+    // Neither its URL nor its name points at an entry - the three ways a
+    // connection is matched, all missed.
+    const rows = mergeServers(
+      [GITHUB],
+      [],
+      [personal({ id: "x", name: "ours", url: "https://elsewhere/mcp" })],
+    );
+
+    expect(rows.at(-1)?.category).toBe(CUSTOM_CATEGORY);
   });
 });

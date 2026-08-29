@@ -34,6 +34,14 @@ export interface DraftState {
   row: McpServerRow;
   /** The connection being edited, or null when connecting for the first time. */
   existing: McpConnectionRecord | null;
+  /**
+   * What to seed the name with, where the entry's own key is taken.
+   *
+   * Connecting a *second* account for one server would otherwise open on the
+   * name the first one already holds, and names are unique per organization -
+   * so the form's first submit was a guaranteed conflict.
+   */
+  suggestedName?: string;
 }
 
 /**

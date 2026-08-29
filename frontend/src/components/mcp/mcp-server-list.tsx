@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Building2, ChevronDown, ExternalLink, Plug, Plus, User } from "lucide-react";
+import { ChevronRight, ExternalLink, Plug, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -10,11 +10,6 @@ import {
   Card,
   CardContent,
   ConfirmDialog,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
   ListCard,
   Pager,
   SearchInput,
@@ -27,9 +22,9 @@ import {
 } from "@/components/ui";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { McpConnectionDialog } from "@/components/mcp/mcp-connection-dialog";
+import { ServerConnectionsDialog } from "@/components/mcp/server-connections-dialog";
 import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
 import {
-  SCOPE_LABEL,
   type ConnectionFormValues,
   type DraftState,
   type Scope,
@@ -41,10 +36,10 @@ import { getErrorMessage } from "@/lib/api-error";
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import { startMcpOAuth } from "@/lib/mcp-connections-api";
 import {
+  connectionState,
   CUSTOM_CATEGORY,
   MCP_AUTH_LABEL,
   MCP_STATE_LABEL,
-  connectionState,
 } from "@/lib/mcp-servers";
 import type { McpServerRow } from "@/lib/mcp-servers";
 import { useTranslations } from "next-intl";
@@ -125,7 +120,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         .filter((row) => category === "all" || row.category === category)
         .filter((row) => {
           if (state === "all") return true;
-          const connected = row.organization !== null || row.personal !== null;
+          const connected = row.organizations.length > 0 || row.personals.length > 0;
           return state === "connected" ? connected : !connected;
         }),
     [rows, category, state],
@@ -139,6 +134,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   });
 
   const [draft, setDraft] = useState<DraftState | null>(null);
+  const [managing, setManaging] = useState<McpServerRow | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [toolPicker, setToolPicker] = useState<ToolPickerState | null>(null);
@@ -157,7 +153,30 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   const openDraft = (scope: Scope, row: McpServerRow, existing: McpConnectionRecord | null) => {
     // The dialog seeds its own fields from this - name, url and auth type off
     // the row and any connection being edited.
-    setDraft({ scope, row, existing });
+    setDraft({ scope, row, existing, suggestedName: existing ? undefined : freeName(row, scope) });
+  };
+
+  /**
+   * A name nothing in this scope holds yet, for a second account on one server.
+   *
+   * The entry's own key first, because that is the ordinary case and reads
+   * best; then `-2`, `-3` and so on. A name is unique per organization and
+   * becomes the tool prefix, so seeding one already taken made the form's first
+   * submit a guaranteed conflict.
+   */
+  const freeName = (row: McpServerRow, scope: Scope): string | undefined => {
+    const base = row.entry?.key;
+    if (base === undefined) return undefined;
+    const taken = new Set(
+      (scope === "organization" ? organization.connections : personal.connections).map(
+        (connection) => connection.name,
+      ),
+    );
+    if (!taken.has(base)) return base;
+    for (let n = 2; ; n += 1) {
+      const candidate = `${base}-${n}`;
+      if (!taken.has(candidate)) return candidate;
+    }
   };
 
   /** Probe a server, returning its tools or null after saying why not. */
@@ -198,7 +217,9 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     setBusyId(row.key);
     try {
       const { authorization_url } = await startMcpOAuth({ name, url: row.url ?? "" }, scope);
-      window.location.href = authorization_url;
+      // `assign`, not a write to `href`: the React compiler reads a property
+      // write on `window` as mutating a value from outside the component.
+      window.location.assign(authorization_url);
     } catch (caught) {
       toast.error(getErrorMessage(caught, tErrors, t("couldNotStartSign")));
       setBusyId(null);
@@ -370,8 +391,8 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                     docsUrl: null,
                     tokenHint: null,
                     entry: null,
-                    organization: null,
-                    personal: null,
+                    organizations: [],
+                    personals: [],
                   },
                   null,
                 )
@@ -479,49 +500,33 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                     is scannable. State rides on the trigger rather than on a
                     chip of its own, because a chip on some cards and not others
                     is the misalignment again, one row up. */}
-                  <div className="border-border mt-3 flex flex-wrap items-center gap-1.5 border-t pt-3">
-                    {(row.organization === null || row.personal === null) && (
+                  <div className="border-border mt-3 flex items-center gap-1.5 border-t pt-3">
+                    {/* Exactly two controls, whatever the card holds. The row
+                        used to grow one chip per connection, so a server with
+                        three accounts stood taller than its neighbours and the
+                        grid went ragged - the misalignment this footer exists
+                        to prevent, reintroduced one row down. */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openDraft(defaultScope(row, canManageOrganization), row, null)}
+                      disabled={busyId === row.key}
+                    >
+                      <Plug className="mr-1 h-3.5 w-3.5" />
+                      {busyId === row.key ? t("redirecting") : t("connectAction")}
+                    </Button>
+                    {connectionCount(row) > 0 && (
                       <Button
                         size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          openDraft(defaultScope(row, canManageOrganization), row, null)
-                        }
-                        disabled={busyId === row.key}
+                        variant="ghost"
+                        onClick={() => setManaging(row)}
+                        aria-label={t("manageConnectionsOn", { name: row.name })}
                       >
-                        <Plug className="mr-1 h-3.5 w-3.5" />
-                        {busyId === row.key ? t("redirecting") : t("connectAction")}
+                        {t("connectionCount", { count: connectionCount(row) })}
+                        <ChevronRight className="ml-1 h-3.5 w-3.5" />
                       </Button>
                     )}
-                    {row.organization && canManageOrganization && (
-                      <ConnectionMenu
-                        scope="organization"
-                        row={row}
-                        connection={row.organization}
-                        busyId={busyId}
-                        onEdit={(connection) => openDraft("organization", row, connection)}
-                        onTools={(connection) => handleTools("organization", connection)}
-                        onDisconnect={(connection) => handleDisconnect("organization", connection)}
-                        onOAuth={() =>
-                          handleOAuth(row, row.organization?.name ?? row.name, "organization")
-                        }
-                      />
-                    )}
-                    {row.organization && !canManageOrganization && (
-                      <ScopeChip scope="organization" connection={row.organization} />
-                    )}
-                    {row.personal && (
-                      <ConnectionMenu
-                        scope="personal"
-                        row={row}
-                        connection={row.personal}
-                        busyId={busyId}
-                        onEdit={(connection) => openDraft("personal", row, connection)}
-                        onTools={(connection) => handleTools("personal", connection)}
-                        onDisconnect={(connection) => handleDisconnect("personal", connection)}
-                        onOAuth={() => handleOAuth(row, row.personal?.name ?? row.name, "personal")}
-                      />
-                    )}
+                    <StateDot row={row} />
                   </div>
                 </div>
               </CardContent>
@@ -538,6 +543,24 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           counted={t("serverCount", { count: list.total })}
         />
       </ListCard>
+
+      <ServerConnectionsDialog
+        row={managing}
+        canManageOrganization={canManageOrganization}
+        busyId={busyId}
+        onClose={() => setManaging(null)}
+        onConnect={(scope, row) => {
+          setManaging(null);
+          openDraft(scope, row, null);
+        }}
+        onEdit={(scope, row, connection) => {
+          setManaging(null);
+          openDraft(scope, row, connection);
+        }}
+        onTools={handleTools}
+        onDisconnect={handleDisconnect}
+        onOAuth={(scope, row, connection) => handleOAuth(row, connection.name, scope)}
+      />
 
       <McpConnectionDialog
         draft={draft}
@@ -575,46 +598,6 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
 }
 
 /**
- * Where a server is held, and whether it works there.
- *
- * A chip per owner rather than a panel per owner. The card sits in a grid, and
- * the question somebody scanning a grid is asking is "is this connected, and
- * for whom" - two words, twice. Everything you can *do* about it hangs off one
- * button below, because the owner is a choice inside the flow rather than a
- * reason to draw the flow twice.
- */
-function ScopeChip({
-  scope,
-  connection,
-}: {
-  scope: Scope;
-  connection: McpConnectionRecord | null;
-}) {
-  const t = useTranslations("mcp");
-  const state = connectionState(connection);
-  const Icon = scope === "organization" ? Building2 : User;
-
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs",
-        state === "connected"
-          ? "border-success/40 bg-success/10 text-foreground"
-          : state === "error"
-            ? "border-destructive/40 bg-destructive/10 text-foreground"
-            : "border-border text-muted-foreground",
-      )}
-      title={`${t(SCOPE_LABEL[scope])}: ${t(MCP_STATE_LABEL[state])}`}
-    >
-      <Icon className="h-3 w-3 shrink-0" aria-hidden />
-      {t(SCOPE_LABEL[scope])}
-      <span aria-hidden>·</span>
-      {t(MCP_STATE_LABEL[state])}
-    </span>
-  );
-}
-
-/**
  * Which owner the Connect button offers first.
  *
  * The one that has nothing yet, preferring the organization when both are
@@ -622,8 +605,11 @@ function ScopeChip({
  * which is what somebody adding one on this page is usually after.
  */
 function defaultScope(row: McpServerRow, canManageOrganization: boolean): Scope {
-  if (canManageOrganization && row.organization === null) return "organization";
-  return "personal";
+  // The empty side first, then the organization's - which is the one an agent
+  // can actually be bound to, so it is the right default for a second account.
+  if (canManageOrganization && row.organizations.length === 0) return "organization";
+  if (row.personals.length === 0) return "personal";
+  return canManageOrganization ? "organization" : "personal";
 }
 
 /**
@@ -635,79 +621,41 @@ function defaultScope(row: McpServerRow, canManageOrganization: boolean): Scope 
  * personal connection". The owner is what the trigger says; the verbs are
  * inside.
  */
-function ConnectionMenu({
-  scope,
-  row,
-  connection,
-  busyId,
-  onEdit,
-  onTools,
-  onDisconnect,
-  onOAuth,
-}: {
-  scope: Scope;
-  row: McpServerRow;
-  connection: McpConnectionRecord;
-  busyId: string | null;
-  onEdit: (connection: McpConnectionRecord) => void;
-  onTools: (connection: McpConnectionRecord) => void;
-  onDisconnect: (connection: McpConnectionRecord) => void;
-  onOAuth: () => void;
-}) {
+/** How many accounts this server holds, across both owners. */
+function connectionCount(row: McpServerRow): number {
+  return row.organizations.length + row.personals.length;
+}
+
+/**
+ * The card's one piece of state, as a dot.
+ *
+ * The worst state wins: a card whose three accounts include one that failed
+ * says so, because "mostly working" is not what somebody scanning a grid of
+ * sixty servers for a broken one needs to see.
+ */
+function StateDot({ row }: { row: McpServerRow }) {
   const t = useTranslations("mcp");
-  const state = connectionState(connection);
-  const busy = busyId === connection.id || busyId === row.key;
-  const owner = t(SCOPE_LABEL[scope]);
-  const Icon = scope === "organization" ? Building2 : User;
+  const states = [...row.organizations, ...row.personals].map((c) => connectionState(c));
+  if (states.length === 0) return null;
+  const worst = states.includes("error")
+    ? "error"
+    : states.includes("needs-authorization")
+      ? "needs-authorization"
+      : states.includes("disabled")
+        ? "disabled"
+        : "connected";
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={busy}
-          aria-label={t("manageNamed", { name: owner })}
-          title={`${owner}: ${t(MCP_STATE_LABEL[state])}`}
-        >
-          <Icon className="mr-1 h-3.5 w-3.5" />
-          {owner}
-          {/* The state, as a dot on the control that acts on it. A separate chip
-              put it on its own line, which made the action row sit lower on the
-              cards that had one - the misalignment this layout exists to fix. */}
-          <span
-            aria-hidden
-            className={cn(
-              "ml-1.5 inline-block h-1.5 w-1.5 rounded-full",
-              state === "connected"
-                ? "bg-success"
-                : state === "error"
-                  ? "bg-destructive"
-                  : "bg-muted-foreground/50",
-            )}
-          />
-          <ChevronDown className="ml-1 h-3 w-3 opacity-60" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        {/* First, and only when it is the thing standing between this server and
-            working: an unauthorized connection is the one state where every
-            other verb here is premature. */}
-        {state === "needs-authorization" && (
-          <DropdownMenuItem onSelect={onOAuth}>{t("finishSign")}</DropdownMenuItem>
-        )}
-        <DropdownMenuItem onSelect={() => onTools(connection)}>
-          {t("checkConnection")}
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onEdit(connection)}>{t("settings")}</DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          className="text-destructive focus:text-destructive"
-          onSelect={() => onDisconnect(connection)}
-        >
-          {t("disconnect")}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <span
+      className={cn(
+        "ml-auto inline-block h-2 w-2 shrink-0 rounded-full",
+        worst === "connected"
+          ? "bg-success"
+          : worst === "error"
+            ? "bg-destructive"
+            : "bg-muted-foreground/50",
+      )}
+      title={t(MCP_STATE_LABEL[worst])}
+    />
   );
 }
