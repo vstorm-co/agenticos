@@ -17,7 +17,8 @@
   <a href="#-what-makes-it-an-operating-system">Why it is an OS</a> &middot;
   <a href="#-why-agenticos">Comparison</a> &middot;
   <a href="docs/mcp.md">Integrations</a> &middot;
-  <a href="CHANGELOG.md">Changelog</a>
+  <a href="CHANGELOG.md">Changelog</a> &middot;
+  <a href="llms.txt">llms.txt</a>
 </p>
 
 <p>

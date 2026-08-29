@@ -15,10 +15,10 @@ accountable, and running on hardware you control — all three at once.
 | | What it is | When to use it instead |
 |---|---|---|
 | [Pydantic AI](https://ai.pydantic.dev) | The agent library AgenticOS runs on | You are building one agent, in Python, as part of a product |
-| LangChain, LlamaIndex, elizaOS | Libraries and frameworks for composing model calls | Same — you want code, not a platform, and you are happy owning the deployment |
+| LangGraph, LangChain, LlamaIndex, elizaOS | Libraries and frameworks for composing model calls | Same — you want code, not a platform, and you are happy owning the deployment |
 | [Cloudflare OS](https://github.com/cloudflare/cloudflare-os) | An open-source agent workspace on Cloudflare Workers | Your users are your own employees, you are already on Cloudflare, and you want per-person apps more than a governed agent catalog |
 | [Glean](https://www.glean.com) | Hosted enterprise search with agents on top | You want 275+ ACL-aware connectors indexed for you and the data may live in a vendor's cloud |
-| Dify, Flowise | Visual agent builders | You want the builder without self-hosted multi-tenancy and per-organization key isolation |
+| Dify, Flowise | Visual agent builders, self-hostable | You want the builder and a workflow canvas, and the governance model matters less to you than how fast somebody can assemble a flow |
 | Hosted enterprise agent platforms | Closed-source platforms sold with a deployment team | You want somebody else accountable for the outcome and the licence cost is not the constraint |
 | OpenAI Assistants, Bedrock Agents | Hosted agent runtimes | You are happy on one vendor and do not need the data on your own hardware |
 
@@ -82,26 +82,59 @@ If your problem is *"we need governed agents and the data cannot leave"*, the
 comparison goes the other way: Glean is hosted, priced per seat with an
 enterprise minimum, and not something you run yourself.
 
-## Building it yourself
+## A library, and building the rest yourself
 
-The honest option, and often correct. A library plus a queue plus a database gets
-you a working agent quickly, and for one or two agents that is less work than
-learning a platform.
+LangGraph, LangChain, LlamaIndex, Pydantic AI. The most common right answer,
+and the one this project is least in competition with: AgenticOS **runs on**
+Pydantic AI, so a library is the layer underneath rather than the alternative
+to it.
 
-The bill arrives at the fifth agent, and it is always the same items: budgets
-that stop a run rather than report on it, an approval that cannot be decided
-twice, tenant isolation that survives someone forgetting a `WHERE` clause,
-per-organization secrets, and one execution path so Slack and the API cannot
-disagree about what an agent costs.
+A library plus a queue plus a database gets you a working agent quickly, and
+for one or two agents that is less work than learning a platform.
 
-If you are going to build those anyway, the seven jobs in
-[About](index.md#what-makes-something-an-operating-system-for-agents) are a
+Use the library directly when:
+
+- **The agent is the product.** Its behaviour is a feature you ship, versioned
+  with your code, reviewed in your pull requests. A UI that lets somebody else
+  change it is not a benefit here — it is a way for your product to change
+  without a release.
+- **You need the loop.** Custom control flow, a graph with cycles, a retry
+  policy nobody else's abstraction expresses. A platform gives you a
+  well-defined runner; that is exactly what you are trying not to have.
+- **There is no non-engineer in the story.** If every change was always going to
+  be written by an engineer anyway, the indirection buys you nothing.
+- **There is one agent.** Or two. The economics below only turn at a handful.
+
+What you take on instead is the
+[seven jobs](index.md#what-makes-something-an-operating-system-for-agents), one
+at a time and usually in this order, each after it has already hurt once:
+
+| You will end up writing | Because |
+|---|---|
+| A budget that stops a run | Counting spend after the fact is not a budget, and the first surprise invoice teaches this |
+| An approval that is decided once | The second decision on a decided approval is a race, and it is not theoretical |
+| Tenant isolation | The first time a `WHERE organization_id` is forgotten, it is a data incident rather than a bug |
+| A per-tenant secret store | One deployment-wide key means one leak is every customer's leak |
+| One execution path across surfaces | Otherwise Slack and your API disagree about what an agent cost |
+| An audit trail that records failures | A ledger that only logs successes answers the wrong question during an incident |
+
+None of that is hard. All of it is work you are not doing on your product, and
+it is the whole of what this platform is.
+
+!!! info "The line is somewhere around the fifth agent"
+
+    Or earlier, at the first person who needs to change what an agent says and
+    does not have commit access. Before that, a library and a queue is less work
+    and you should use one.
+
+And if you are going to build those six rows anyway, the
+[seven jobs](index.md#what-makes-something-an-operating-system-for-agents) are a
 reasonable specification to build against — whether or not you use this one.
 
 ## Recap
 
 - Use a **library** for one agent inside a product; use this for a catalog of
-  them.
+  them — the line is around the fifth agent, or the first non-engineer builder.
 - **Open source and self-hostable are different promises** — check which one you
   actually need.
 - **Cloudflare OS** is a workspace for employees; this is a catalog of agents

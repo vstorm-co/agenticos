@@ -314,6 +314,7 @@ Trigger map — what changed → which page:
 | `app/core/config.py` | `docs/configuration.md` |
 | `app/commands/**`, a new `make` target | `docs/commands.md` |
 | A new route, service or layering change | `docs/architecture.md` |
+| The one-line pitch, what the product is *not*, or a page a reader should meet first | `llms.txt` at the repository root - copied into the site by `scripts/mkdocs_hooks.py`, so there is one copy and it is the one models read |
 | `.github/workflows/ai-review.yml`, `.github/codex/**` | `docs/code-review.md` |
 | `.pre-commit-config.yaml`, `.github/dependabot.yml`, the branch rulesets | `docs/branching.md` |
 | A capability, permission or setting that changes the first-run path | `docs/first-agent.md`, `docs/install.md` |

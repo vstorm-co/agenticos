@@ -19,6 +19,7 @@ page stays correct on the site.
 from __future__ import annotations
 
 import re
+import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -28,6 +29,7 @@ if TYPE_CHECKING:
     from mkdocs.structure.pages import Page
 
 RELEASE_NOTES = "release-notes.md"
+LLMS_TXT = "llms.txt"
 CHANGELOG_MARKER = "<!-- changelog -->"
 
 _CHANGELOG = Path(__file__).resolve().parent.parent / "CHANGELOG.md"
@@ -53,3 +55,19 @@ def on_page_markdown(
     if page.file.src_uri != RELEASE_NOTES:
         return None
     return markdown.replace(CHANGELOG_MARKER, _changelog_body())
+
+
+def on_post_build(*, config: MkDocsConfig) -> None:
+    """Copy `llms.txt` from the repository root into the built site.
+
+    The file is how a language model is meant to discover what a project is, so
+    it has to be served at the site root - and it is also the first thing
+    somebody browsing the repository looks for, so it has to be at the
+    repository root. Copying beats keeping two of them: the version that would
+    drift is the one nobody edits, and it is the one the models read.
+
+    `docs_dir` cannot reach outside itself, which is why this is a hook rather
+    than a file in `docs/`.
+    """
+    source = Path(__file__).resolve().parent.parent / LLMS_TXT
+    shutil.copyfile(source, Path(config.site_dir) / LLMS_TXT)
