@@ -55,6 +55,7 @@ describe("McpServerPicker", () => {
         catalog={CATALOG}
         selectedIds={[]}
         onToggle={vi.fn()}
+        onChoose={vi.fn()}
         onConnect={vi.fn()}
       />,
     );
@@ -69,6 +70,7 @@ describe("McpServerPicker", () => {
         catalog={CATALOG}
         selectedIds={[]}
         onToggle={vi.fn()}
+        onChoose={vi.fn()}
         onConnect={vi.fn()}
       />,
     );
@@ -85,6 +87,7 @@ describe("McpServerPicker", () => {
         catalog={CATALOG}
         selectedIds={["c1"]}
         onToggle={vi.fn()}
+        onChoose={vi.fn()}
         onConnect={vi.fn()}
       />,
     );
@@ -107,6 +110,7 @@ describe("McpServerPicker", () => {
         catalog={CATALOG}
         selectedIds={[]}
         onToggle={vi.fn()}
+        onChoose={vi.fn()}
         onConnect={vi.fn()}
       />,
     );
@@ -122,6 +126,7 @@ describe("McpServerPicker", () => {
         catalog={CATALOG}
         selectedIds={[]}
         onToggle={vi.fn()}
+        onChoose={vi.fn()}
         onConnect={vi.fn()}
       />,
     );
@@ -137,6 +142,7 @@ describe("McpServerPicker", () => {
         catalog={CATALOG}
         selectedIds={[]}
         onToggle={onToggle}
+        onChoose={vi.fn()}
         onConnect={vi.fn()}
       />,
     );
@@ -152,6 +158,7 @@ describe("McpServerPicker", () => {
         catalog={CATALOG}
         selectedIds={[]}
         onToggle={onToggle}
+        onChoose={vi.fn()}
         onConnect={vi.fn()}
       />,
     );
@@ -170,6 +177,7 @@ describe("McpServerPicker", () => {
         catalog={CATALOG}
         selectedIds={[]}
         onToggle={onToggle}
+        onChoose={vi.fn()}
         onConnect={vi.fn()}
         disabled
       />,
@@ -191,6 +199,7 @@ describe("McpServerPicker", () => {
         catalog={CATALOG}
         selectedIds={["c1", "00000000-0000-0000-0000-0000000000ff"]}
         onToggle={vi.fn()}
+        onChoose={vi.fn()}
         onConnect={vi.fn()}
       />,
     );
@@ -205,6 +214,7 @@ describe("McpServerPicker", () => {
         catalog={CATALOG}
         selectedIds={["gone-1", "gone-2"]}
         onToggle={vi.fn()}
+        onChoose={vi.fn()}
         onConnect={vi.fn()}
       />,
     );
@@ -222,6 +232,7 @@ describe("McpServerPicker", () => {
         catalog={CATALOG}
         selectedIds={[]}
         onToggle={vi.fn()}
+        onChoose={vi.fn()}
         onConnect={vi.fn()}
       />,
     );
@@ -240,6 +251,7 @@ describe("McpServerPicker", () => {
         catalog={CATALOG}
         selectedIds={[]}
         onToggle={vi.fn()}
+        onChoose={vi.fn()}
         onConnect={onConnect}
       />,
     );
@@ -261,6 +273,7 @@ describe("McpServerPicker", () => {
         catalog={CATALOG}
         selectedIds={[]}
         onToggle={onToggle}
+        onChoose={vi.fn()}
         onConnect={vi.fn()}
       />,
     );
@@ -278,6 +291,7 @@ describe("McpServerPicker", () => {
         catalog={[...CATALOG, linear]}
         selectedIds={[]}
         onToggle={vi.fn()}
+        onChoose={vi.fn()}
         onConnect={vi.fn()}
       />,
     );
@@ -302,6 +316,7 @@ describe("McpServerPicker", () => {
         catalog={[...CATALOG, linear]}
         selectedIds={[]}
         onToggle={vi.fn()}
+        onChoose={vi.fn()}
         onConnect={vi.fn()}
       />,
     );
@@ -318,7 +333,9 @@ describe("several connections behind one catalog entry", () => {
    * Five Notion servers with five credentials and five sets of permissions is a
    * shape the schema allows - uniqueness is `(organization_id, name)`, and the
    * name is the tool prefix. The picker used to key its rows on the catalog
-   * entry, so four of the five vanished (#1341).
+   * entry, so four of the five vanished (#1341); keying on the connection
+   * instead brought them all back as five cards saying "Notion", which is the
+   * same catalog read five times.
    */
   const THREE = [
     connection({ id: "c1", name: "gh-readonly", catalog_key: "github" }),
@@ -326,25 +343,68 @@ describe("several connections behind one catalog entry", () => {
     connection({ id: "c3", name: "gh-admin", catalog_key: "github" }),
   ];
 
-  it("shows one row per connection, not one per entry", () => {
+  it("shows one row for the server and offers its accounts in a select", async () => {
     render(
       <McpServerPicker
         connections={THREE}
         catalog={CATALOG}
         selectedIds={[]}
         onToggle={vi.fn()}
+        onChoose={vi.fn()}
         onConnect={vi.fn()}
       />,
     );
 
-    expect(screen.getAllByText("GitHub")).toHaveLength(3);
-    // Told apart by the name the model sees as the tool prefix.
+    expect(screen.getAllByText("GitHub")).toHaveLength(1);
+    await userEvent.click(screen.getByRole("combobox", { name: /which github account/i }));
     for (const name of ["gh-readonly", "gh-issues", "gh-admin"]) {
-      expect(screen.getByText(name)).toBeInTheDocument();
+      expect(await screen.findByRole("option", { name })).toBeVisible();
     }
   });
 
-  it("binds the connection whose row was clicked", async () => {
+  it("shows the bound account rather than the first, so the row says which is in use", () => {
+    render(
+      <McpServerPicker
+        connections={THREE}
+        catalog={CATALOG}
+        selectedIds={["c3"]}
+        onToggle={vi.fn()}
+        onChoose={vi.fn()}
+        onConnect={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("combobox", { name: /which github account/i })).toHaveTextContent(
+      "gh-admin",
+    );
+    expect(screen.getByRole("checkbox", { name: "GitHub" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  });
+
+  it("replaces the bound account in one call rather than untoggling and toggling", async () => {
+    // Two calls would each read the same spec and the second would overwrite
+    // the first, so the agent would end up bound to both accounts or neither.
+    const onChoose = vi.fn();
+    render(
+      <McpServerPicker
+        connections={THREE}
+        catalog={CATALOG}
+        selectedIds={["c1"]}
+        onToggle={vi.fn()}
+        onChoose={onChoose}
+        onConnect={vi.fn()}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("combobox", { name: /which github account/i }));
+    await userEvent.click(await screen.findByRole("option", { name: "gh-issues" }));
+
+    expect(onChoose).toHaveBeenCalledWith(THREE, "c2");
+  });
+
+  it("binds the account the select is showing", async () => {
     const onToggle = vi.fn();
     render(
       <McpServerPicker
@@ -352,45 +412,45 @@ describe("several connections behind one catalog entry", () => {
         catalog={CATALOG}
         selectedIds={[]}
         onToggle={onToggle}
+        onChoose={vi.fn()}
         onConnect={vi.fn()}
       />,
     );
 
-    await userEvent.click(screen.getByText("gh-issues"));
-
-    expect(onToggle).toHaveBeenCalledWith("c2");
-  });
-
-  it("lets an already-bound connection be unbound, whichever one it is", async () => {
-    // The one that used to be dropped: bound in the spec, no row to click.
-    const onToggle = vi.fn();
-    render(
-      <McpServerPicker
-        connections={THREE}
-        catalog={CATALOG}
-        selectedIds={["c1"]}
-        onToggle={onToggle}
-        onConnect={vi.fn()}
-      />,
-    );
-
-    await userEvent.click(screen.getByText("gh-readonly"));
+    await userEvent.click(screen.getByRole("checkbox", { name: "GitHub" }));
 
     expect(onToggle).toHaveBeenCalledWith("c1");
   });
 
-  it("does not label the ordinary case, where one entry has one connection", () => {
+  it("offers no choice where there is none to make", () => {
     render(
       <McpServerPicker
         connections={[connection({ id: "c1", name: "gh", catalog_key: "github" })]}
         catalog={CATALOG}
         selectedIds={[]}
         onToggle={vi.fn()}
+        onChoose={vi.fn()}
         onConnect={vi.fn()}
       />,
     );
 
     expect(screen.getByText("GitHub")).toBeInTheDocument();
-    expect(screen.queryByText("gh")).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  });
+
+  it("cannot be re-pointed by a viewer who cannot edit", () => {
+    render(
+      <McpServerPicker
+        connections={THREE}
+        catalog={CATALOG}
+        selectedIds={["c1"]}
+        onToggle={vi.fn()}
+        onChoose={vi.fn()}
+        onConnect={vi.fn()}
+        disabled
+      />,
+    );
+
+    expect(screen.getByRole("combobox", { name: /which github account/i })).toBeDisabled();
   });
 });

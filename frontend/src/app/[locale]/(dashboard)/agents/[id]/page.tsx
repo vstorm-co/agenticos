@@ -1077,6 +1077,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 onToggle={(connectionId) =>
                   update({ mcp_server_ids: toggleId(spec.mcp_server_ids, connectionId) })
                 }
+                onChoose={(options, connectionId) =>
+                  update({
+                    mcp_server_ids: [
+                      ...spec.mcp_server_ids.filter(
+                        (id) => !options.some((option) => option.id === id),
+                      ),
+                      connectionId,
+                    ],
+                  })
+                }
                 onConnect={setConnectingServer}
                 disabled={!canEdit}
               />

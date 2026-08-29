@@ -4,7 +4,18 @@ import { useState } from "react";
 import { Check, Plug } from "lucide-react";
 
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
-import { Badge, Checkbox, Pager, SearchInput, useListControls } from "@/components/ui";
+import {
+  Badge,
+  Checkbox,
+  Pager,
+  SearchInput,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  useListControls,
+} from "@/components/ui";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import {
   connectionState,
@@ -24,6 +35,13 @@ interface McpServerPickerProps {
   /** `spec.mcp_server_ids`. */
   selectedIds: string[];
   onToggle: (connectionId: string) => void;
+  /**
+   * Bind one of a server's accounts, replacing whichever of them is bound now.
+   *
+   * One call rather than an untoggle and a toggle: both would read the same
+   * spec and the second would overwrite the first.
+   */
+  onChoose: (options: OrgMcpConnectionRecord[], connectionId: string) => void;
   /**
    * Connect a server that has none, without leaving the page.
    *
@@ -75,6 +93,7 @@ export function McpServerPicker({
   catalog,
   selectedIds,
   onToggle,
+  onChoose,
   onConnect,
   disabled,
 }: McpServerPickerProps) {
@@ -89,13 +108,10 @@ export function McpServerPicker({
   // pointed at a URL. It belongs on the gallery under its own name rather than
   // nowhere, so the rows are built from both sides and then merged.
   //
-  // **All of them, not one per entry.** Uniqueness on an organization's
-  // connections is `(organization_id, name)`, so five Notion servers with five
-  // credentials and five sets of permissions are five rows the spec can bind
-  // separately - their names are the tool prefixes that tell them apart. A map
-  // keyed on the catalog entry kept the last one and silently dropped the rest,
-  // which also made an already-bound connection impossible to unbind here,
-  // because it had no row to click (#1341).
+  // One row per *server*, holding every connection to it. A row per connection
+  // was tried and produced two identical cards for one Notion, which reads as a
+  // bug rather than as two accounts - so the row carries the list and the card
+  // asks which account when there is a choice (#1341).
   const described = new Map<string, OrgMcpConnectionRecord[]>();
   const custom: OrgMcpConnectionRecord[] = [];
   for (const connection of connections) {
@@ -105,40 +121,30 @@ export function McpServerPicker({
   }
 
   const rows: CardRow[] = [
-    ...catalog.flatMap((entry): CardRow[] => {
-      const base = {
+    ...catalog.map((entry): CardRow => {
+      const bound = described.get(entry.key) ?? [];
+      return {
+        key: entry.key,
         name: entry.name,
         description: entry.description,
         icon: entry.icon,
         auth: tMcp(MCP_AUTH_LABEL[entry.auth]),
         entry,
+        connections: bound,
       };
-      const bound = described.get(entry.key) ?? [];
-      if (bound.length === 0) {
-        return [{ ...base, key: entry.key, connection: null, label: null }];
-      }
-      return bound.map((connection) => ({
-        ...base,
-        key: connection.id,
-        connection,
-        // Only where it disambiguates. One connection is the ordinary case and
-        // its name beside the entry's would read as noise.
-        label: bound.length > 1 ? connection.name : null,
-      }));
     }),
-    ...custom.map((connection) => ({
+    ...custom.map((connection): CardRow => ({
       key: connection.id,
       name: connection.name,
       description: connection.url,
       icon: null,
       auth: null,
-      connection,
-      label: null,
       entry: null,
+      connections: [connection],
     })),
   ];
 
-  const narrowed = connectedOnly ? rows.filter((row) => row.connection !== null) : rows;
+  const narrowed = connectedOnly ? rows.filter((row) => row.connections.length > 0) : rows;
   const list = useListControls({
     items: narrowed,
     matches: (row, query) =>
@@ -169,11 +175,11 @@ export function McpServerPicker({
             description={row.description}
             icon={row.icon}
             auth={row.auth}
-            label={row.label}
-            connection={row.connection}
+            connections={row.connections}
             entry={row.entry}
             selected={(id) => chosen.has(id)}
             onToggle={onToggle}
+            onChoose={onChoose}
             onConnect={onConnect}
             disabled={disabled}
           />
@@ -201,9 +207,14 @@ interface CardRow {
   description: string;
   icon: string | null;
   auth: string | null;
-  /** The connection's own name, where one entry has more than one. */
-  label: string | null;
-  connection: OrgMcpConnectionRecord | null;
+  /**
+   * Every account the organization holds on this server.
+   *
+   * Empty means nothing to bind - the card offers to connect one instead. More
+   * than one means the card asks *which*, because an agent binds a connection
+   * and the answer to "whose credential is this" has to be on screen.
+   */
+  connections: OrgMcpConnectionRecord[];
   /** The catalog entry behind the row, so an unconnected one can be connected. */
   entry: McpCatalogEntry | null;
 }
@@ -213,11 +224,11 @@ function ServerCard({
   description,
   icon,
   auth,
-  label,
-  connection,
+  connections,
   entry,
   selected,
   onToggle,
+  onChoose,
   onConnect,
   disabled,
 }: {
@@ -225,19 +236,23 @@ function ServerCard({
   description: string;
   icon?: string | null;
   auth: string | null;
-  label: string | null;
-  connection: OrgMcpConnectionRecord | null;
+  connections: OrgMcpConnectionRecord[];
   entry: McpCatalogEntry | null;
   selected: (connectionId: string) => boolean;
   onToggle: (connectionId: string) => void;
+  onChoose: (options: OrgMcpConnectionRecord[], connectionId: string) => void;
   onConnect: (entry: McpCatalogEntry) => void;
   disabled?: boolean;
 }) {
   const t = useTranslations("agents");
   // The state words belong to the MCP page, which is where they are also read.
   const tMcp = useTranslations("mcp");
+  // Which account this row acts on: the one the spec already names, else the
+  // first. Ticking the row binds it; the select below changes which it is.
+  const bound = connections.find((account) => selected(account.id)) ?? null;
+  const connection = bound ?? connections[0] ?? null;
   const state = connectionState(connection);
-  const isOn = connection !== null && selected(connection.id);
+  const isOn = bound !== null;
   const bindable = connection !== null;
 
   const body = (
@@ -258,13 +273,6 @@ function ServerCard({
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium">{name}</span>
-          {/* The connection's own name, which is its tool prefix - the only
-              thing that tells two servers from one catalog entry apart. */}
-          {label && (
-            <Badge variant="secondary" className="font-mono">
-              {label}
-            </Badge>
-          )}
           {auth && <Badge variant="outline">{auth}</Badge>}
           {state !== "connected" && (
             <Badge variant={state === "error" ? "destructive" : "secondary"}>
@@ -297,21 +305,49 @@ function ServerCard({
   }
 
   return (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={isOn}
-      aria-label={name}
-      disabled={disabled}
-      onClick={() => onToggle(connection.id)}
+    <div
       className={cn(
-        "flex items-start gap-3 rounded-xl border p-4 text-left transition-colors",
+        "rounded-xl border p-4 transition-colors",
         isOn ? "border-brand bg-brand/5" : "hover:border-foreground/20",
         disabled && "cursor-not-allowed opacity-60",
       )}
     >
-      {body}
-    </button>
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={isOn}
+        aria-label={name}
+        disabled={disabled}
+        onClick={() => onToggle(connection.id)}
+        className="flex w-full items-start gap-3 text-left"
+      >
+        {body}
+      </button>
+
+      {/* Which account, where the organization holds more than one. Choosing is
+          binding: there is nowhere but the spec to remember a choice, so a
+          select that only recorded an intention would forget it on reload. */}
+      {connections.length > 1 && (
+        <div className="mt-3 pl-7">
+          <Select
+            value={connection.id}
+            disabled={disabled}
+            onValueChange={(next) => onChoose(connections, next)}
+          >
+            <SelectTrigger className="h-8 text-xs" aria-label={t("whichAccount", { name })}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {connections.map((option) => (
+                <SelectItem key={option.id} value={option.id} className="font-mono text-xs">
+                  {option.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+    </div>
   );
 }
 

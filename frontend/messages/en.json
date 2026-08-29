@@ -636,7 +636,8 @@
     "youNotVisitorsWhich": "For you, not for visitors - which placement this is.",
     "yourBackendSignsToken": "Your backend signs a token we verify",
     "zoom": "Zoom in",
-    "zoomOut": "Zoom out"
+    "zoomOut": "Zoom out",
+    "whichAccount": "Which {name} account this agent uses"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
