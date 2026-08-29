@@ -45,6 +45,8 @@ interface McpConnectionList {
 }
 
 const ROOT = "/me/mcp-connections";
+/** The organization's own router, mounted beside `/me/...` rather than under `/orgs`. */
+const ORG_ROOT = "/mcp-connections";
 
 export async function listMcpConnections(): Promise<McpConnectionRecord[]> {
   const data = await apiClient.get<McpConnectionList>(ROOT);
@@ -96,7 +98,12 @@ export async function startMcpOAuth(
   // Two endpoints, one flow. Which one decides who *holds* the connection when
   // the provider sends the browser back - the person who consented, or the
   // organization they consented on behalf of.
-  const root = scope === "organization" ? "/orgs/mcp-connections" : ROOT;
+  //
+  // The organization's router is mounted at `/mcp-connections`, not under
+  // `/orgs` - that prefix belongs to organizations, members and invitations.
+  // It read `/orgs/mcp-connections` until #1340, so every organization-scoped
+  // consent 404ed before it left the browser.
+  const root = scope === "organization" ? ORG_ROOT : ROOT;
   return apiClient.post<{ authorization_url: string }>(`${root}/oauth/start`, input);
 }
 

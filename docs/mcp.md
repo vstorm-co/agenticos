@@ -295,6 +295,15 @@ This is a hand-maintained list, **not** a mirror of the public registry. Each en
 is a small promise — that somebody looked at the server, that the auth flow works,
 that the description is honest — and a mirrored registry cannot make that promise.
 
+!!! warning "A promise that has to be re-made"
+
+    The promise decays. The official Postgres reference server was archived out
+    of `modelcontextprotocol/servers` in 2025 and this catalog went on linking to
+    it, so the one thing the entry offered a reader was a 404. Nothing checks
+    these links — a test that reaches the public internet is a test that fails on
+    somebody's train — so re-reading the catalog is a periodic human job, and an
+    entry nobody can vouch for should be deleted rather than left.
+
 `(self-hosted)` below means the entry describes the server but you supply the URL:
 either because it runs on your own infrastructure, or because the vendor issues a
 per-account endpoint.

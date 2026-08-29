@@ -46,12 +46,12 @@
   {
     "key": "postgres",
     "name": "PostgreSQL",
-    "description": "Query a database over read-only views. Self-hosted: you supply the URL.",
+    "description": "Query your own database over a Postgres MCP server you run. Not hosted by anybody.",
     "category": "data",
     "auth": "token",
     "url": "",
-    "docs_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/postgres",
-    "token_hint": "Point this at a server you run against read-only views - never at a primary with write access.",
+    "docs_url": "https://github.com/crystaldba/postgres-mcp",
+    "token_hint": "The bearer your own server checks - not a database password. Point it at read-only views, never at a primary with write access.",
     "icon": "postgres"
   },
   {
