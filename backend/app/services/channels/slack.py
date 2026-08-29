@@ -33,6 +33,7 @@ from app.services.channels.base import (
     IncomingMessage,
     OutgoingMessage,
     split_thread,
+    thread_key,
 )
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.router import ChannelMessageRouter
@@ -120,8 +121,6 @@ class SlackAdapter(ChannelAdapter):
         }
         if thread_ts:
             kwargs["thread_ts"] = thread_ts
-        if "thread_ts" not in kwargs and msg.reply_to_message_id:
-            kwargs["thread_ts"] = msg.reply_to_message_id
         if msg.image_png is not None:
             await client.files_upload_v2(
                 channel=channel,
@@ -467,9 +466,12 @@ class SlackAdapter(ChannelAdapter):
 
         chat_type = "private" if channel_type in ("im", "mpim") else "group"
 
-        # For threads: fold thread_ts into platform_chat_id so each thread
-        # gets its own ChannelSession and Conversation
-        platform_chat_id = f"{channel}:{thread_ts}" if thread_ts else channel
+        platform_chat_id = thread_key(
+            channel,
+            thread_id=thread_ts or "",
+            message_id=message_ts,
+            chat_type=chat_type,
+        )
 
         return IncomingMessage(
             platform="slack",

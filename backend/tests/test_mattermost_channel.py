@@ -79,7 +79,8 @@ class TestNormalisation:
 
         assert incoming is not None
         assert incoming.chat_type == "group"
-        assert incoming.platform_chat_id == "c1"
+        # Its own post, because the reply will open a thread rooted there (#1339).
+        assert incoming.platform_chat_id == "c1:p1"
 
     def test_a_webhook_from_a_direct_message_channel_is_private(self):
         """Mattermost names a DM channel after both user ids joined by `__`;
@@ -241,3 +242,98 @@ class TestSending:
             "https://mattermost.acme.com/api/v4/posts",
             "https://mattermost.acme.com/api/v4/posts",
         ]
+
+
+class TestAMentionAndTheThreadItOpensAreOneConversation:
+    """The bug #1339 fixed: they used to be two.
+
+    The reply to a channel mention opens a thread rooted at that message. Keyed
+    on the bare channel, the first turn and every turn after it landed in
+    different conversations - so the agent answered a question and then, in the
+    thread it had just created, had no memory of it.
+    """
+
+    def test_a_channel_message_keys_on_the_thread_its_reply_will_open(self):
+        incoming = MattermostAdapter().parse_incoming(
+            {
+                "event": "posted",
+                "data": {
+                    "post": json.dumps(
+                        {"id": "p1", "user_id": "u1", "channel_id": "c1", "message": "hi"}
+                    ),
+                    "channel_type": "O",
+                    "sender_name": "@kacper",
+                },
+            },
+            "bot-1",
+        )
+
+        assert incoming is not None
+        assert incoming.platform_chat_id == "c1:p1"
+
+    def test_the_reply_in_that_thread_keys_on_the_same_conversation(self):
+        """The second turn resolves the session the first turn created."""
+        first = MattermostAdapter().parse_incoming(
+            {
+                "event": "posted",
+                "data": {
+                    "post": json.dumps(
+                        {"id": "p1", "user_id": "u1", "channel_id": "c1", "message": "hi"}
+                    ),
+                    "channel_type": "O",
+                    "sender_name": "@kacper",
+                },
+            },
+            "bot-1",
+        )
+        second = MattermostAdapter().parse_incoming(
+            {
+                "event": "posted",
+                "data": {
+                    "post": json.dumps(
+                        {
+                            "id": "p2",
+                            "root_id": "p1",
+                            "user_id": "u1",
+                            "channel_id": "c1",
+                            "message": "and then?",
+                        }
+                    ),
+                    "channel_type": "O",
+                    "sender_name": "@kacper",
+                },
+            },
+            "bot-1",
+        )
+
+        assert first is not None and second is not None
+        assert first.platform_chat_id == second.platform_chat_id == "c1:p1"
+
+    def test_two_unrelated_mentions_in_one_channel_do_not_share_a_conversation(self):
+        def _at_root(post_id: str):
+            return MattermostAdapter().parse_incoming(
+                {
+                    "event": "posted",
+                    "data": {
+                        "post": json.dumps(
+                            {"id": post_id, "user_id": "u1", "channel_id": "c1", "message": "hi"}
+                        ),
+                        "channel_type": "O",
+                        "sender_name": "@kacper",
+                    },
+                },
+                "bot-1",
+            )
+
+        one, two = _at_root("p1"), _at_root("p9")
+
+        assert one is not None and two is not None
+        assert one.platform_chat_id != two.platform_chat_id
+
+    def test_a_direct_message_stays_one_continuous_conversation(self):
+        """A DM is not threaded per turn - that would restart it every time."""
+        first = MattermostAdapter().parse_incoming(_posted(id="p1"), "bot-1")
+        second = MattermostAdapter().parse_incoming(_posted(id="p2"), "bot-1")
+
+        assert first is not None and second is not None
+        assert first.platform_chat_id == second.platform_chat_id == "c1"

@@ -52,6 +52,7 @@ from app.services.channels.base import (
     IncomingMessage,
     OutgoingMessage,
     split_thread,
+    thread_key,
 )
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.router import ChannelMessageRouter
@@ -189,8 +190,6 @@ class MattermostAdapter(ChannelAdapter):
             body: dict[str, Any] = {"channel_id": channel_id, "message": msg.text}
             if root_id:
                 body["root_id"] = root_id
-            elif msg.reply_to_message_id:
-                body["root_id"] = msg.reply_to_message_id
             if file_ids:
                 body["file_ids"] = file_ids
 
@@ -205,8 +204,6 @@ class MattermostAdapter(ChannelAdapter):
         body: dict[str, Any] = {"channel_id": channel_id, "message": msg.text}
         if root_id:
             body["root_id"] = root_id
-        elif msg.reply_to_message_id:
-            body["root_id"] = msg.reply_to_message_id
 
         async with self._client() as client:
             response = await client.post(
@@ -723,7 +720,12 @@ class MattermostAdapter(ChannelAdapter):
             platform=self.platform,
             bot_id=bot_id,
             platform_user_id=post.get("user_id", ""),
-            platform_chat_id=f"{channel_id}:{root_id}" if root_id else channel_id,
+            platform_chat_id=thread_key(
+                channel_id,
+                thread_id=root_id,
+                message_id=post.get("id"),
+                chat_type="private" if channel_type == "D" else "group",
+            ),
             chat_type="private" if channel_type == "D" else "group",
             text=text,
             raw=payload,
@@ -855,15 +857,21 @@ class MattermostAdapter(ChannelAdapter):
 
         channel_id = str(payload.get("channel_id") or "")
         channel_name = str(payload.get("channel_name") or "")
+        # No type field in this payload: Mattermost names a direct-message
+        # channel after both user ids joined by two underscores.
+        chat_type = "private" if "__" in channel_name else "group"
 
         return IncomingMessage(
             platform=self.platform,
             bot_id=bot_id,
             platform_user_id=str(payload.get("user_id") or ""),
-            platform_chat_id=channel_id,
-            # Mattermost names a direct-message channel after both user ids
-            # joined by two underscores; there is no type field in this payload.
-            chat_type="private" if "__" in channel_name else "group",
+            platform_chat_id=thread_key(
+                channel_id,
+                thread_id="",
+                message_id=str(payload.get("post_id") or "") or None,
+                chat_type=chat_type,
+            ),
+            chat_type=chat_type,
             text=text,
             raw=payload,
             platform_username=str(payload.get("user_name") or "") or None,

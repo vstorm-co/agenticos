@@ -90,6 +90,34 @@ def split_thread(platform_chat_id: str) -> tuple[str, str]:
     return channel, thread
 
 
+def thread_key(channel_id: str, *, thread_id: str, message_id: str | None, chat_type: str) -> str:
+    """The id a message's conversation is keyed on, threads included.
+
+    Three cases, and the middle one is why this function exists.
+
+    A message **already in a thread** keys on that thread, as it always has.
+
+    A message at the **top of a channel** keys on *itself*, because the reply is
+    going to open a thread rooted there. Keyed on the bare channel it would be a
+    different conversation from the thread the agent is about to create, so the
+    agent would answer a question and then, in its own thread, have no memory of
+    it - and every unrelated mention in that channel would pile into one
+    conversation besides (#1339).
+
+    A **direct message** keys on the chat and never on a message. A DM is one
+    continuous conversation; threading each turn would restart it every time.
+
+    This is the only place that decides, and the adapters read the thread back
+    out of the id with :func:`split_thread`. Two mechanisms - an id here and a
+    `reply_to_message_id` fallback in each adapter - is what let them disagree.
+    """
+    if thread_id:
+        return f"{channel_id}:{thread_id}"
+    if chat_type == "private" or not message_id:
+        return channel_id
+    return f"{channel_id}:{message_id}"
+
+
 @dataclass(frozen=True)
 class IncomingAttachment:
     """A file somebody sent a bot, before it has been fetched.

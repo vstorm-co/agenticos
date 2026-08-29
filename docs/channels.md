@@ -657,11 +657,35 @@ caller — at `RATE_LIMIT_RUN_PER_MINUTE`.
    (add the bot's `xapp-` token in its settings) and expose nothing.
 4. Bind the agent: Builder → the agent → **Availability** → the bot.
 
-Works in channels and in DMs. A thread gets its own conversation, so two people
-asking different things in the same channel do not end up in one thread of
-context. A message from a linked account runs as that person — never as the bot;
-one from an account nobody has linked runs under the binding, and only in a
-channel. A direct message asks for the account first.
+Works in channels and in DMs. A message from a linked account runs as that
+person — never as the bot; one from an account nobody has linked runs under the
+binding, and only in a channel. A direct message asks for the account first.
+
+### One conversation per thread
+
+**In a channel, the unit is the thread, not the channel.** Mention the bot and
+it answers in a thread rooted at your message; that thread is one conversation,
+and it keeps its context for as long as people reply in it. Drop the bot into a
+thread that already exists and it joins that one instead.
+
+So two people asking different things in the same channel get two
+conversations, and neither reads the other's context.
+
+**In a DM the unit is the chat.** A direct message is one continuous
+conversation — threading each turn would restart it every time somebody
+answered.
+
+!!! info "This was wrong until recently"
+
+    A mention at the top of a channel used to be keyed on the channel, while
+    the thread the reply opened was keyed on the thread. They were two
+    conversations, so the agent answered a question and then, one message later
+    in the thread it had just created, had no memory of it — and every
+    unrelated mention in that channel piled into one conversation besides.
+
+    Now the thread a reply *will* open is what the first message keys on, so
+    both halves agree. Conversations from before the fix are not migrated; they
+    simply stop being reached, and nothing in them is lost.
 
 ## Telegram
 
