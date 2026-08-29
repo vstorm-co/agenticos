@@ -39,6 +39,7 @@ from app.agents.spec import (
     AgentSpec,
     BudgetSpec,
     CapabilityBindingSpec,
+    McpServerRef,
     SpecialistSpec,
     SubagentRef,
 )
@@ -1175,23 +1176,7 @@ class AgentRegistryService:
         problems.add(await self._skill_problems(ctx, spec.skill_ids))
         problems.add(await self._context_problems(ctx, spec.context_ids))
 
-        for connection_id in spec.mcp_server_ids:
-            connection = await mcp_connection_repo.get_org_scoped_by_id(
-                self.db, connection_id=connection_id, organization_id=ctx.organization_id
-            )
-            if connection is None:
-                # Says which of the two ways it can fail applies, because the
-                # likely one - a personal connection picked in the Builder - is
-                # not a missing row and "not found" would send the person
-                # looking for something that is right in front of them.
-                problems.add(
-                    [
-                        f"MCP server {connection_id} is not shared with this organization. "
-                        "A published agent can only use connections the organization owns, "
-                        "never a member's personal one - otherwise what it can reach would "
-                        "depend on who happens to run it."
-                    ]
-                )
+        problems.add(await self._mcp_problems(ctx, spec.mcp_servers))
 
         problems.add(await _sandbox_problems(self.db, ctx, spec))
         problems.merge(await self._delegation_problems(ctx, spec, agent_id=agent_id))
@@ -1316,6 +1301,55 @@ class AgentRegistryService:
             )
             if not reachable:
                 problems.append(f"Skill not found: {skill_id}")
+        return problems
+
+    async def _mcp_problems(self, ctx: AuthContext, refs: list[McpServerRef]) -> list[str]:
+        """Every way a set of MCP bindings can be unpublishable.
+
+        The first is the one this check has always made: only the organization's
+        own connections, because a published agent's reach cannot depend on
+        whose session runs it. The other two guard the single exception to that
+        - a binding that asks to speak through the runner's own account - and
+        both are questions with no answer at run time, which is why they are
+        asked here where somebody can still change the binding.
+        """
+        problems: list[str] = []
+        flagged: dict[str, UUID] = {}
+        for ref in refs:
+            connection = await mcp_connection_repo.get_org_scoped_by_id(
+                self.db, connection_id=ref.connection_id, organization_id=ctx.organization_id
+            )
+            if connection is None:
+                # Says which of the two ways it can fail applies, because the
+                # likely one - a personal connection picked in the Builder - is
+                # not a missing row and "not found" would send the person
+                # looking for something that is right in front of them.
+                problems.append(
+                    f"MCP server {ref.connection_id} is not shared with this organization. "
+                    "A published agent can only use connections the organization owns, "
+                    "never a member's personal one - otherwise what it can reach would "
+                    "depend on who happens to run it."
+                )
+                continue
+            if not ref.use_personal_when_available:
+                continue
+            if connection.catalog_key is None:
+                problems.append(
+                    f"{connection.name!r} cannot use a member's own account: it was connected "
+                    "to a URL rather than to a catalog entry, so nothing says which of their "
+                    "connections is the same service. Reconnect it from the catalog, or turn "
+                    "the option off."
+                )
+                continue
+            twin = flagged.get(connection.catalog_key)
+            if twin is not None:
+                problems.append(
+                    f"Two bindings to the same service ({connection.catalog_key}) both ask for "
+                    f"the member's own account: {twin} and {ref.connection_id}. One run cannot "
+                    "substitute two, so pick which of them speaks as the member."
+                )
+                continue
+            flagged[connection.catalog_key] = ref.connection_id
         return problems
 
     async def _context_problems(self, ctx: AuthContext, context_ids: Sequence[UUID]) -> list[str]:

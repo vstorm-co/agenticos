@@ -1221,6 +1221,17 @@ class _Delegation:
 
     user_id: str | None
     user_name: str | None
+
+    personal_mcp_user_id: UUID | None
+    """Whose own MCP connections a binding flagged for substitution may use.
+
+    Set only for a conversation that holds exactly one identified person, and
+    `None` everywhere else. Here rather than derived per delegate because it is a
+    fact about the *run*: a delegate answers into the same conversation its
+    parent does, so the second reader that makes substitution unsafe is the same
+    second reader at every level.
+    """
+
     approvals: ApprovalChannel
     budget: _RunBudget
 
@@ -1561,6 +1572,7 @@ class AgentRunnerService:
         channel_key: str | None = None,
         channel_directory: ChannelDirectory | None = None,
         user_name: str | None = None,
+        private_to_user: bool = False,
         extra_toolsets: list[Any] | None = None,
         exposure: AgentExposure | None = None,
         model_profile_id: UUID | None = None,
@@ -1626,6 +1638,7 @@ class AgentRunnerService:
             channel_directory=channel_directory,
             model_profile_id=model_profile_id,
             user_name=user_name,
+            private_to_user=private_to_user,
             extra_toolsets=extra_toolsets,
             exposure=exposure,
             decided={},
@@ -1698,6 +1711,7 @@ class AgentRunnerService:
         channel_key: str | None = None,
         channel_directory: ChannelDirectory | None = None,
         user_name: str | None,
+        private_to_user: bool = False,
         extra_toolsets: list[Any] | None,
         exposure: AgentExposure | None,
         decided: dict[str, ApprovalDecision],
@@ -1801,12 +1815,22 @@ class AgentRunnerService:
         # secret may not.
         secrets = await self.secrets.resolve_for_bindings(ctx, _secret_ids(spec))
 
+        # Whose own MCP connections a flagged binding may speak through, and the
+        # only place the answer is assembled. Both halves are required: a
+        # conversation nobody else can read, *and* a person to attribute it to.
+        # An API key run is neither, and a channel run is only the first when the
+        # caller says the chat is one-to-one.
+        personal_mcp_user_id = ctx.user_id if private_to_user else None
+
         # The MCP servers the spec binds, resolved here rather than by each
         # surface. A surface that forgot would produce an agent missing half its
         # tools with nothing to show for it, and the answer would differ between
         # the playground and Slack for no reason anybody could see.
         spec_toolsets = await build_toolsets_for_agent(
-            self.db, organization_id=ctx.organization_id, connection_ids=spec.mcp_server_ids
+            self.db,
+            organization_id=ctx.organization_id,
+            refs=spec.mcp_servers,
+            personal_for_user_id=personal_mcp_user_id,
         )
 
         run = existing_run
@@ -1950,6 +1974,7 @@ class AgentRunnerService:
             agent=agent,
             run=run,
             user_name=user_name,
+            personal_mcp_user_id=personal_mcp_user_id,
             resources=resources,
             approvals=channel,
             budget=run_budget,
@@ -2025,6 +2050,7 @@ class AgentRunnerService:
         agent: Agent,
         run: AgentRun,
         user_name: str | None,
+        personal_mcp_user_id: UUID | None,
         resources: dict[str, Any],
         approvals: ApprovalChannel,
         budget: _RunBudget,
@@ -2079,6 +2105,7 @@ class AgentRunnerService:
             # caller's id, for the reason `_assemble` says at greater length.
             user_id=None if ctx.user_id is None else str(ctx.user_id),
             user_name=user_name,
+            personal_mcp_user_id=personal_mcp_user_id,
             approvals=approvals,
             budget=budget,
             record=self._delegation_recorder(run=run, attribution=attribution, queued=delegations),
@@ -2455,7 +2482,8 @@ class AgentRunnerService:
         toolsets = await build_toolsets_for_agent(
             self.db,
             organization_id=ctx.organization_id,
-            connection_ids=runnable.mcp_server_ids,
+            refs=runnable.mcp_servers,
+            personal_for_user_id=delegation.personal_mcp_user_id,
         )
         secrets = await self.secrets.resolve_for_bindings(ctx, _secret_ids(runnable))
         return ResolvedSubagent(
@@ -3054,6 +3082,7 @@ class AgentRunnerService:
         conversation_id: UUID | None = None,
         channel_key: str | None = None,
         channel_directory: ChannelDirectory | None = None,
+        private_to_user: bool = False,
         message_history: list[Any] | None = None,
         exposure: AgentExposure | None = None,
         environment_id: UUID | None = None,
@@ -3102,6 +3131,7 @@ class AgentRunnerService:
             conversation_id=conversation_id,
             channel_key=channel_key,
             channel_directory=channel_directory,
+            private_to_user=private_to_user,
             exposure=exposure,
             environment_id=environment_id,
         )
@@ -3262,6 +3292,11 @@ class AgentRunnerService:
             surface=RunSurface(run.surface),
             conversation_id=run.conversation_id,
             user_name=None,
+            # What the row can still say. A dashboard run is one person's own
+            # conversation by construction; a resumed direct message is not
+            # recognisable as one from here, so it narrows to the organization's
+            # account rather than guessing (#1343).
+            private_to_user=RunSurface(run.surface) is RunSurface.WEB and run.user_id is not None,
             extra_toolsets=None,
             # A resumed run reuses its row, and the binding is reloaded above to
             # re-enrich the spec, so there is nothing left for `_assemble` to

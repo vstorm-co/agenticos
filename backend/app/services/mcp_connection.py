@@ -50,6 +50,7 @@ from app.agents.mcp import (
     validate_mcp_url,
 )
 from app.agents.mcp_oauth import McpOAuthPayload, OAuthError
+from app.agents.spec import McpServerRef
 from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
@@ -1369,7 +1370,11 @@ class McpConnectionService:
 
 
 async def build_toolsets_for_agent(
-    db: AsyncSession, *, organization_id: UUID, connection_ids: list[UUID]
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    refs: list[McpServerRef],
+    personal_for_user_id: UUID | None = None,
 ) -> list[Any]:
     """Agent toolsets for a published agent: exactly the servers its spec names.
 
@@ -1379,13 +1384,26 @@ async def build_toolsets_for_agent(
     reasoned about or reviewed. Only organization-scoped rows resolve here, so
     a member's personal token can never end up inside a shared agent.
 
+    `personal_for_user_id` is the one exception, and it is narrow on both sides.
+    The caller passes it only for a conversation that holds exactly one
+    identified person and nobody else - never a channel, never a group direct
+    message, never an API key - and it is honoured only for a binding whose spec
+    asked for it. What it substitutes is the *credential*, not the binding: the
+    tool prefix stays the organization's, so the same agent presents the same
+    tools whoever runs it, and only the account behind them changes.
+
+    A person holding two accounts to one service is left alone rather than
+    guessed at. Their own connections are the only place that choice could be
+    recorded and nothing records it yet (#1342), and picking the older of two
+    Notion workspaces silently is worse than answering from the organization's.
+
     Runs in the caller's session rather than opening its own: an OAuth refresh
     spent here has to be persisted by the same transaction that recorded the run.
     """
     specs: list[McpServerSpec] = []
-    for connection_id in connection_ids:
+    for ref in refs:
         connection = await mcp_connection_repo.get_org_scoped_by_id(
-            db, connection_id=connection_id, organization_id=organization_id
+            db, connection_id=ref.connection_id, organization_id=organization_id
         )
         if connection is None or not connection.is_enabled:
             # Deleted, disabled or moved out of the organization since publish.
@@ -1394,26 +1412,67 @@ async def build_toolsets_for_agent(
             # agent instead of taking the conversation down with it.
             logger.warning(
                 "Agent references MCP connection %s, which this organization (%s) no longer offers",
-                connection_id,
+                ref.connection_id,
                 organization_id,
             )
             continue
-        headers = await _resolve_auth_headers(db, connection)
+        speaking_as = await _personal_substitute(
+            db, connection, ref=ref, user_id=personal_for_user_id
+        )
+        headers = await _resolve_auth_headers(db, speaking_as)
         if headers is None:
             # OAuth not authorized / expired, or an undecryptable bearer token.
             # Warning rather than info: this server was bound on purpose, so
             # losing it is an operator's problem, not the routine attrition of
             # an ambient connection somebody enabled once in Settings.
             logger.warning(
-                "Skipping MCP connection %r for this run: no usable credentials", connection.name
+                "Skipping MCP connection %r for this run: no usable credentials",
+                speaking_as.name,
             )
             continue
         specs.append(
             McpServerSpec(
+                # The organization's, always. A tool the model was told about
+                # must not change its name because of who is in the chat.
                 name=connection.name,
-                url=connection.url,
+                url=speaking_as.url,
                 headers=headers,
-                allowed_tools=connection.allowed_tools,
+                allowed_tools=speaking_as.allowed_tools,
             )
         )
     return await build_mcp_toolsets(specs)
+
+
+async def _personal_substitute(
+    db: AsyncSession,
+    connection: McpConnection,
+    *,
+    ref: McpServerRef,
+    user_id: UUID | None,
+) -> McpConnection:
+    """The runner's own connection to this service, or the organization's.
+
+    Every condition here is a refusal to substitute, and each one is a way the
+    substitution could otherwise leak an account: a binding that did not ask, a
+    conversation with a second reader in it, a connection with no catalog entry
+    to match on, and a person with more than one account and no way to say which.
+    """
+    if not ref.use_personal_when_available or user_id is None:
+        return connection
+    if connection.catalog_key is None:
+        # Refused at publish, so reachable only for a spec stored before the
+        # check existed. The organization's account is the safe answer.
+        return connection
+    owned = await mcp_connection_repo.list_user_scoped_by_catalog_key(
+        db, user_id=user_id, catalog_key=connection.catalog_key
+    )
+    if len(owned) != 1:
+        if owned:
+            logger.info(
+                "Not substituting a personal connection for %r: this member holds %d of them",
+                connection.name,
+                len(owned),
+            )
+        return connection
+    logger.info("Speaking to %r as the member's own connection", connection.name)
+    return owned[0]

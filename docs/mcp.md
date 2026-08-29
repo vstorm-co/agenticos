@@ -76,8 +76,41 @@ GET  /api/v1/mcp-connections        organization, requires connections:manage
 POST /api/v1/mcp-connections/{id}/test   probe it, list its tools, store the status
 ```
 
-A spec names organization connections by id in `mcp_server_ids`. Deleting a
-connection an agent still names loses that server for the agent, not the run.
+A spec names organization connections in `mcp_servers`, one entry per binding.
+Deleting a connection an agent still names loses that server for the agent, not
+the run.
+
+### Speaking as whoever is running the agent
+
+A binding carries one option: `use_personal_when_available`. With it on, a run
+reaches that service through the *runner's own* connection instead of the
+organization's — but only where the conversation holds exactly one identified
+person and nobody else. That means the dashboard chat, and a one-to-one direct
+message on Slack, Telegram or Mattermost. A channel, a group direct message, the
+embedded widget, an API key and a scheduled run all keep the organization's
+account.
+
+It is off by default, and that default is the point: the organization's account
+is the answer an agent is reviewed against, and this is the one place a run may
+differ from it.
+
+Only the credential is substituted. The tool prefix stays the organization's, so
+the agent presents the same tools to everyone and only the account behind them
+changes.
+
+!!! warning "Two things publish refuses, and one it declines to guess"
+
+    A flagged binding whose connection has no `catalog_key` is refused: the key
+    is what says a member's Notion and the organization's are the same service,
+    and a connection made from a bare URL has nothing to match on. Two flagged
+    bindings sharing one `catalog_key` are refused too — one run cannot
+    substitute two accounts.
+
+    At run time, a member holding *several* of their own connections to one
+    service keeps the organization's account. Nothing records which of them they
+    meant, and picking the older workspace silently is worse than answering as
+    the organization
+    ([#1342](https://github.com/vstorm-co/agenticos/issues/1342)).
 
 ## Authentication
 

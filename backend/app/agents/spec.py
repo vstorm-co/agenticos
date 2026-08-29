@@ -52,7 +52,13 @@ logger = logging.getLogger(__name__)
 # 9 adds `context_ids` - context files the agent injects into its instructions or
 # exposes through the `context` capability's tool. Same free half of the table:
 # a list with an empty default, so every stored spec loads unchanged.
-SPEC_VERSION = 9
+#
+# 10 replaces `mcp_server_ids` with `mcp_servers`, a list of typed references,
+# because the binding grew a policy: whether a run may reach the same service
+# through the *runner's own* account instead of the organization's. A bare id
+# had nowhere to carry that, and a second parallel list of flagged ids is two
+# lists that drift.
+SPEC_VERSION = 10
 
 ApprovalMode = Literal["default", "required", "never"]
 
@@ -466,6 +472,47 @@ class ModelSettingsSpec(BaseModel):
 DelegationMode = Literal["sync", "async", "auto"]
 
 
+class McpServerRef(BaseModel):
+    """One MCP connection this agent may call, and on whose account.
+
+    An id would have been enough while a binding was only a reference. It is not
+    one any more: `use_personal_when_available` is policy about *whose* account
+    answers, and policy belongs on the binding rather than in a second list of
+    ids kept in step with the first by hand.
+
+    The organization's connection is always what is bound, and it is what the
+    agent is reviewed against. The flag adds one narrow substitution on top of
+    it: in a conversation that holds exactly one identified person and nobody
+    else, that person's own connection to the same service is used instead. It
+    is off by default because the default has to be the reviewable answer - an
+    agent whose reach depends on who ran it is the thing
+    :func:`build_toolsets_for_agent` exists to prevent, and this is the one
+    place it is allowed, deliberately and per binding.
+
+    Two constraints hold the substitution together, both checked at publish:
+
+    - The bound connection must carry a `catalog_key`. That key is what says a
+      person's Notion and the organization's Notion are the same service; a
+      connection somebody pointed at a bare URL has nothing to match on.
+    - Two flagged bindings may not share one `catalog_key`, because the
+      substitution would then have two answers and no way to choose.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    connection_id: UUID = Field(
+        description="The organization's MCP connection. A personal one is refused at publish."
+    )
+    use_personal_when_available: bool = Field(
+        default=False,
+        description=(
+            "Let a run reach this service through the runner's own connection "
+            "when the conversation is theirs alone. Off by default; ignored "
+            "wherever a second person can read the answer."
+        ),
+    )
+
+
 class SubagentRef(BaseModel):
     """One published agent this agent may delegate to, pinned to a version.
 
@@ -535,7 +582,7 @@ class SpecialistSpec(BaseModel):
       metering one shared ledger would double-count every request.
     - `notifications` and `observability` - a specialist is not the subject of an
       alert or a Logfire service; the run it happens inside is.
-    - `mcp_server_ids` - an MCP connection is organization-scoped configuration,
+    - `mcp_servers` - an MCP connection is organization-scoped configuration,
       and reaching one through a specialist nobody published is the wrong door.
       There is deliberately **no** route to one from here: `share_with_delegates`
       lends *capability bindings*, and an MCP connection is not a capability, so
@@ -764,12 +811,13 @@ class AgentSpec(BaseModel):
             "publisher could read themselves."
         ),
     )
-    mcp_server_ids: list[UUID] = Field(
+    mcp_servers: list[McpServerRef] = Field(
         default_factory=list,
         description=(
-            "Organization-scoped MCP connections this agent may call. Personal "
-            "connections are refused at publish: a published agent's reach cannot "
-            "depend on whose session runs it."
+            "Organization-scoped MCP connections this agent may call, each with "
+            "the one policy a binding carries. Personal connections are refused "
+            "at publish: a published agent's reach cannot depend on whose "
+            "session runs it, except where a binding says so explicitly."
         ),
     )
 
@@ -778,7 +826,7 @@ class AgentSpec(BaseModel):
         description=(
             "Published agents this agent may delegate to, each pinned to a "
             "version. Top level rather than inside the delegation capability's "
-            "config, for the same reason `collection_ids` and `mcp_server_ids` "
+            "config, for the same reason `collection_ids` and `mcp_servers` "
             "are: a reference to another row in this organization is a property "
             "of the agent, it is what publish validation walks, and it is what "
             "makes the `agents:run` check on each one a sibling of the collection "
@@ -814,6 +862,30 @@ class AgentSpec(BaseModel):
         default=None,
         description="Send this agent's traces to a Logfire project of its own",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_version_9_mcp_server_ids(cls, data: Any) -> Any:
+        """Let a spec written against `mcp_server_ids` load as `mcp_servers`.
+
+        Version 10 turned a list of ids into a list of references so the binding
+        could carry `use_personal_when_available`. Without this, `extra="forbid"`
+        would refuse every stored spec that names an MCP server - a 500 on every
+        run of something nobody touched - and the ids are the same ids, so there
+        is nothing to decide: each becomes a reference with the flag off, which
+        is the behaviour those specs already have.
+
+        An explicit `mcp_servers` wins, so re-reading a migrated spec changes
+        nothing.
+        """
+        if not isinstance(data, dict) or "mcp_server_ids" not in data:
+            return data
+        legacy = data["mcp_server_ids"]
+        migrated = {key: value for key, value in data.items() if key != "mcp_server_ids"}
+        if "mcp_servers" in data or not isinstance(legacy, list):
+            return migrated
+        migrated["mcp_servers"] = [{"connection_id": value} for value in legacy]
+        return migrated
 
     @model_validator(mode="before")
     @classmethod

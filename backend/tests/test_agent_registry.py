@@ -23,7 +23,7 @@ from pydantic import BaseModel
 
 from app.agents.capabilities import REGISTRY, CapabilityToolInfo, load_builtins, register
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
-from app.agents.spec import AgentSpec, CapabilityBindingSpec, SpecialistSpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec, McpServerRef, SpecialistSpec
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -1286,7 +1286,7 @@ class TestValidateSpec:
 
     @pytest.mark.anyio
     async def test_an_mcp_server_that_is_not_an_organization_connection_is_refused(self):
-        """`mcp_server_ids` used to be a field that did nothing at all.
+        """`mcp_servers` used to be a field that did nothing at all.
 
         Refusing here is what makes it a promise: an agent published with a
         server bound either gets that server at run time or never publishes.
@@ -1309,7 +1309,11 @@ class TestValidateSpec:
             pytest.raises(BadRequestError) as refused,
         ):
             await AgentRegistryService(_db()).validate_spec(
-                ctx, _spec(mcp_server_ids=[connection_id], model_profile_id=uuid.uuid4())
+                ctx,
+                _spec(
+                    mcp_servers=[McpServerRef(connection_id=connection_id)],
+                    model_profile_id=uuid.uuid4(),
+                ),
             )
 
         problem = refused.value.details["problems"][0]
@@ -1319,6 +1323,96 @@ class TestValidateSpec:
             "connection_id": connection_id,
             "organization_id": ctx.organization_id,
         }
+
+    @pytest.mark.anyio
+    async def test_speaking_as_a_member_needs_a_catalog_entry_to_match_them_on(self):
+        """A connection made from a URL has nothing a personal one can be joined to.
+
+        Refused here rather than at run time, where the only options are to guess
+        or to quietly ignore what the binding asked for - and a binding that says
+        "use my own account" and does not is worse than one that was never offered.
+        """
+        ctx = _ctx()
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
+                new=AsyncMock(return_value=MagicMock(name="crm", catalog_key=None)),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(
+                ctx,
+                _spec(
+                    mcp_servers=[
+                        McpServerRef(connection_id=uuid.uuid4(), use_personal_when_available=True)
+                    ],
+                    model_profile_id=uuid.uuid4(),
+                ),
+            )
+
+        assert "catalog entry" in refused.value.details["problems"][0]
+
+    @pytest.mark.anyio
+    async def test_two_bindings_to_one_service_cannot_both_speak_as_the_member(self):
+        """One run substitutes one account, so two claims on it have no answer."""
+        ctx = _ctx()
+        first, second = uuid.uuid4(), uuid.uuid4()
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
+                new=AsyncMock(return_value=MagicMock(catalog_key="notion")),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(
+                ctx,
+                _spec(
+                    mcp_servers=[
+                        McpServerRef(connection_id=first, use_personal_when_available=True),
+                        McpServerRef(connection_id=second, use_personal_when_available=True),
+                    ],
+                    model_profile_id=uuid.uuid4(),
+                ),
+            )
+
+        problem = refused.value.details["problems"][0]
+        assert str(first) in problem and str(second) in problem
+
+    @pytest.mark.anyio
+    async def test_two_bindings_to_one_service_are_fine_while_neither_asks(self):
+        """The refusal is about the substitution, not about binding twice."""
+        ctx = _ctx()
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.mcp_connection_repo.get_org_scoped_by_id",
+                new=AsyncMock(return_value=MagicMock(catalog_key="notion")),
+            ),
+        ):
+            await AgentRegistryService(_db()).validate_spec(
+                ctx,
+                _spec(
+                    mcp_servers=[
+                        McpServerRef(connection_id=uuid.uuid4()),
+                        McpServerRef(connection_id=uuid.uuid4()),
+                    ],
+                    model_profile_id=uuid.uuid4(),
+                ),
+            )
 
     @pytest.mark.anyio
     async def test_a_spec_whose_references_all_resolve_raises_nothing(self):
@@ -1351,7 +1445,7 @@ class TestValidateSpec:
                     collection_ids=[collection_id],
                     skill_ids=[skill.id],
                     model_profile_id=uuid.uuid4(),
-                    mcp_server_ids=[uuid.uuid4()],
+                    mcp_servers=[McpServerRef(connection_id=uuid.uuid4())],
                 ),
             )
 

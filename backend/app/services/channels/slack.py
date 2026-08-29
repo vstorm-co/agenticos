@@ -477,6 +477,8 @@ class SlackAdapter(ChannelAdapter):
             platform="slack",
             bot_id=bot_id,
             platform_user_id=user_id,
+            # `im` alone: `mpim` is a direct message with several people in it.
+            one_to_one=channel_type == "im",
             platform_chat_id=platform_chat_id,
             chat_type=chat_type,
             text=text,

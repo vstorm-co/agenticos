@@ -28,7 +28,7 @@ from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
 from app.agents.capabilities.compaction import ContextGauge
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.planning import PLANNING_STORE_RESOURCE
-from app.agents.spec import AgentSpec, CapabilityBindingSpec, ObservabilitySpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec, McpServerRef, ObservabilitySpec
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
 from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
 from app.core.permissions import AuthContext, OrgRoleName
@@ -247,7 +247,7 @@ class TestPrepare:
 
     @pytest.mark.anyio
     async def test_the_mcp_servers_the_spec_binds_reach_the_agent_that_is_built(self):
-        """`mcp_server_ids` is part of the published contract, so it has to act.
+        """`mcp_servers` is part of the published contract, so it has to act.
 
         Resolved here, in the one place every surface goes through, and against
         the run's own organization - an agent's reach is a property of the agent,
@@ -256,8 +256,8 @@ class TestPrepare:
         ctx = _ctx()
         service = AgentRunnerService(_db())
         agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
-        connection_ids = [uuid.uuid4(), uuid.uuid4()]
-        spec = AgentSpec(name="Support", mcp_server_ids=connection_ids)
+        refs = [McpServerRef(connection_id=uuid.uuid4()), McpServerRef(connection_id=uuid.uuid4())]
+        spec = AgentSpec(name="Support", mcp_servers=refs)
 
         with (
             patch.object(
@@ -283,7 +283,10 @@ class TestPrepare:
 
         assert toolsets.await_args.kwargs == {
             "organization_id": ctx.organization_id,
-            "connection_ids": connection_ids,
+            "refs": refs,
+            # An API run has neither a private conversation nor, necessarily, a
+            # person - so no binding may reach for anybody's own account.
+            "personal_for_user_id": None,
         }
         # Alongside what the surface brought, not instead of it: the WebSocket
         # chat still attaches its own, and dropping either half would leave an
@@ -301,7 +304,7 @@ class TestPrepare:
         service = AgentRunnerService(_db())
         run = _parked_run()
         agent = MagicMock(id=run.agent_id, current_version_id=run.agent_version_id)
-        spec = AgentSpec(name="Support", mcp_server_ids=[uuid.uuid4()])
+        spec = AgentSpec(name="Support", mcp_servers=[McpServerRef(connection_id=uuid.uuid4())])
 
         with (
             patch(
@@ -329,7 +332,7 @@ class TestPrepare:
             build.return_value.ledger = SpendLedger()
             await service.resume(ctx, run.id)
 
-        assert toolsets.await_args.kwargs["connection_ids"] == spec.mcp_server_ids
+        assert toolsets.await_args.kwargs["refs"] == spec.mcp_servers
         assert build.call_args.kwargs["extra_toolsets"] == ["linear-toolset"]
 
     @pytest.mark.anyio

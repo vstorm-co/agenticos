@@ -158,6 +158,30 @@ async def get_org_scoped_by_catalog_key(
     return result.scalars().first()
 
 
+async def list_user_scoped_by_catalog_key(
+    db: AsyncSession, *, user_id: UUID, catalog_key: str
+) -> list[McpConnection]:
+    """This person's own enabled connections to one catalog entry.
+
+    A list rather than one row: nothing stops somebody holding two Notion
+    accounts, and which of them an agent should speak through is a question only
+    they can answer. The caller substitutes when there is exactly one and
+    declines to guess otherwise (#1342).
+    """
+    result = await db.execute(
+        select(McpConnection)
+        .where(
+            McpConnection.purpose == "mcp",
+            McpConnection.user_id == user_id,
+            McpConnection.scope == "user",
+            McpConnection.catalog_key == catalog_key,
+            McpConnection.is_enabled.is_(True),
+        )
+        .order_by(McpConnection.created_at.asc())
+    )
+    return list(result.scalars())
+
+
 async def get_portal_grant(
     db: AsyncSession, *, organization_id: UUID, portal_key: str
 ) -> McpConnection | None:

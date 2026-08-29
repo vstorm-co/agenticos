@@ -24,6 +24,7 @@ import {
   MCP_STATE_LABEL,
 } from "@/lib/mcp-servers";
 import { cn } from "@/lib/utils";
+import type { McpServerRef } from "@/types/agents";
 import type { McpCatalogEntry } from "@/types/mcp";
 import { useTranslations } from "next-intl";
 
@@ -32,16 +33,17 @@ interface McpServerPickerProps {
   connections: OrgMcpConnectionRecord[];
   /** The organization catalog: every server that can be connected in one click. */
   catalog: McpCatalogEntry[];
-  /** `spec.mcp_server_ids`. */
-  selectedIds: string[];
-  onToggle: (connectionId: string) => void;
+  /** `spec.mcp_servers`. */
+  value: McpServerRef[];
   /**
-   * Bind one of a server's accounts, replacing whichever of them is bound now.
+   * The whole list, rebuilt.
    *
-   * One call rather than an untoggle and a toggle: both would read the same
-   * spec and the second would overwrite the first.
+   * One callback rather than one per gesture. Binding, choosing which account
+   * and turning personal substitution on all write the same list, and three
+   * callbacks reading the same spec would each start from the copy the previous
+   * one replaced.
    */
-  onChoose: (options: OrgMcpConnectionRecord[], connectionId: string) => void;
+  onChange: (next: McpServerRef[]) => void;
   /**
    * Connect a server that has none, without leaving the page.
    *
@@ -63,7 +65,7 @@ interface McpServerPickerProps {
  * catalog nobody connects from.
  *
  * Only a connection can be bound, and that is not a UI preference. The spec
- * stores `mcp_server_ids`, and the only MCP things in this system with an id
+ * stores connection ids, and the only MCP things in this system with an id
  * are connections; a catalog entry is keyed by name and has none. So an
  * unconnected server is shown, described, and offers the way to connect it -
  * it is not a checkbox that would have nothing to write.
@@ -83,26 +85,59 @@ interface McpServerPickerProps {
  * **What this picker cannot do, and says so.** The choice is per server, not per
  * tool, and it is not an approval decision. `allowed_tools` lives on the
  * connection, so two agents bound to the same server get the same tools, and
- * `AgentSpec.mcp_server_ids` is a flat list of ids with nowhere to put a
- * per-agent override. Separately, the approval capability gates only tools a
+ * a binding has nowhere to put a per-agent override. Separately, the approval capability gates only tools a
  * capability owns - MCP tools are not among them, so nothing here can be held
  * for a human.
  */
 export function McpServerPicker({
   connections,
   catalog,
-  selectedIds,
-  onToggle,
-  onChoose,
+  value,
+  onChange,
   onConnect,
   disabled,
 }: McpServerPickerProps) {
   const t = useTranslations("agents");
   const tMcp = useTranslations("mcp");
   const [connectedOnly, setConnectedOnly] = useState(false);
-  const chosen = new Set(selectedIds);
+  const bound = new Map(value.map((ref) => [ref.connection_id, ref]));
   const known = new Set(connections.map((connection) => connection.id));
-  const orphaned = selectedIds.filter((id) => !known.has(id));
+  const orphaned = value.map((ref) => ref.connection_id).filter((id) => !known.has(id));
+
+  /** Bind a connection, or drop it. */
+  const toggle = (connectionId: string) =>
+    onChange(
+      bound.has(connectionId)
+        ? value.filter((ref) => ref.connection_id !== connectionId)
+        : [...value, { connection_id: connectionId, use_personal_when_available: false }],
+    );
+
+  /**
+   * Point a bound row at a different account of the same server, keeping what
+   * the binding already said. Binding when none of them was bound: there is
+   * nowhere but the spec to remember a choice, so a select that only recorded
+   * an intention would forget it on reload.
+   */
+  const choose = (options: OrgMcpConnectionRecord[], connectionId: string) => {
+    const previous = options.find((option) => bound.has(option.id));
+    const ids = new Set(options.map((option) => option.id));
+    onChange([
+      ...value.filter((ref) => !ids.has(ref.connection_id)),
+      {
+        connection_id: connectionId,
+        use_personal_when_available: previous
+          ? (bound.get(previous.id)?.use_personal_when_available ?? false)
+          : false,
+      },
+    ]);
+  };
+
+  const setPersonal = (connectionId: string, use_personal_when_available: boolean) =>
+    onChange(
+      value.map((ref) =>
+        ref.connection_id === connectionId ? { ...ref, use_personal_when_available } : ref,
+      ),
+    );
 
   // A connection the catalog does not describe is a custom server somebody
   // pointed at a URL. It belongs on the gallery under its own name rather than
@@ -122,7 +157,7 @@ export function McpServerPicker({
 
   const rows: CardRow[] = [
     ...catalog.map((entry): CardRow => {
-      const bound = described.get(entry.key) ?? [];
+      const owned = described.get(entry.key) ?? [];
       return {
         key: entry.key,
         name: entry.name,
@@ -130,7 +165,7 @@ export function McpServerPicker({
         icon: entry.icon,
         auth: tMcp(MCP_AUTH_LABEL[entry.auth]),
         entry,
-        connections: bound,
+        connections: owned,
       };
     }),
     ...custom.map((connection): CardRow => ({
@@ -177,9 +212,10 @@ export function McpServerPicker({
             auth={row.auth}
             connections={row.connections}
             entry={row.entry}
-            selected={(id) => chosen.has(id)}
-            onToggle={onToggle}
-            onChoose={onChoose}
+            binding={(id) => bound.get(id) ?? null}
+            onToggle={toggle}
+            onChoose={choose}
+            onPersonal={setPersonal}
             onConnect={onConnect}
             disabled={disabled}
           />
@@ -226,9 +262,10 @@ function ServerCard({
   auth,
   connections,
   entry,
-  selected,
+  binding,
   onToggle,
   onChoose,
+  onPersonal,
   onConnect,
   disabled,
 }: {
@@ -238,9 +275,10 @@ function ServerCard({
   auth: string | null;
   connections: OrgMcpConnectionRecord[];
   entry: McpCatalogEntry | null;
-  selected: (connectionId: string) => boolean;
+  binding: (connectionId: string) => McpServerRef | null;
   onToggle: (connectionId: string) => void;
   onChoose: (options: OrgMcpConnectionRecord[], connectionId: string) => void;
+  onPersonal: (connectionId: string, use: boolean) => void;
   onConnect: (entry: McpCatalogEntry) => void;
   disabled?: boolean;
 }) {
@@ -249,10 +287,11 @@ function ServerCard({
   const tMcp = useTranslations("mcp");
   // Which account this row acts on: the one the spec already names, else the
   // first. Ticking the row binds it; the select below changes which it is.
-  const bound = connections.find((account) => selected(account.id)) ?? null;
-  const connection = bound ?? connections[0] ?? null;
+  const ref = connections.map((account) => binding(account.id)).find((one) => one !== null) ?? null;
+  const connection =
+    connections.find((account) => account.id === ref?.connection_id) ?? connections[0] ?? null;
   const state = connectionState(connection);
-  const isOn = bound !== null;
+  const isOn = ref !== null;
   const bindable = connection !== null;
 
   const body = (
@@ -346,6 +385,28 @@ function ServerCard({
             </SelectContent>
           </Select>
         </div>
+      )}
+
+      {/* Only once bound: an agent that reaches this server through nobody has
+          no account to substitute, and a switch that writes nothing is a
+          promise the run will not keep. On the connection's own `catalog_key`
+          rather than on the entry it renders under, because that is the column
+          publish checks - `entryForConnection` also matches on URL, so a card
+          can carry an entry while the row has no key to join a member's own
+          connection to. */}
+      {isOn && connection.catalog_key !== null && (
+        <label className="mt-3 flex items-start gap-2 pl-7">
+          <Checkbox
+            checked={ref.use_personal_when_available}
+            disabled={disabled}
+            onCheckedChange={(next) => onPersonal(connection.id, next === true)}
+            className="mt-0.5"
+          />
+          <span className="text-muted-foreground text-xs">
+            {t("useTheirOwnAccount")}
+            <span className="mt-0.5 block">{t("useTheirOwnAccountHint")}</span>
+          </span>
+        </label>
       )}
     </div>
   );

@@ -637,7 +637,9 @@
     "yourBackendSignsToken": "Your backend signs a token we verify",
     "zoom": "Zoom in",
     "zoomOut": "Zoom out",
-    "whichAccount": "Which {name} account this agent uses"
+    "whichAccount": "Which {name} account this agent uses",
+    "useTheirOwnAccount": "Speak as whoever is running it",
+    "useTheirOwnAccountHint": "In the dashboard chat and one-to-one direct messages, use that person's own connection to this service where they have one. Everywhere else the organization's account answers."
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",

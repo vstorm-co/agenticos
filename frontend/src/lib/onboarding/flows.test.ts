@@ -446,7 +446,7 @@ describe("stepsForFlow", () => {
   });
 
   it("ends the MCP detour back at the picker, so the connection reaches the agent", () => {
-    // Connecting a server does not bind it: the builder writes `spec.mcp_server_ids`
+    // Connecting a server does not bind it: the builder writes `spec.mcp_servers`
     // only when the picker is toggled. Without this step the walk published an agent
     // that could not reach the server it had just been told to connect for it.
     const yes = stepsForFlow(FLOWS["create-agent"], EMPTY, allow, {

@@ -31,7 +31,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.agents.capabilities.approval import approval_required_tools
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
-from app.agents.spec import AgentSpec, CapabilityBindingSpec, SpecialistSpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec, McpServerRef, SpecialistSpec
 from app.api import deps
 from app.core.config import settings
 from app.core.exceptions import (
@@ -2320,7 +2320,7 @@ class TestManagingTheOrganizationsMcpServers:
 
 
 class TestBindingAnMcpServerToAnAgent:
-    """`mcp_server_ids` against real rows - the only place the scope rule is real.
+    """`mcp_servers` against real rows - the only place the scope rule is real.
 
     A mock can be told that a connection is organization-scoped. Whether the
     query actually says so - and therefore whether a member's personal token can
@@ -2333,7 +2333,11 @@ class TestBindingAnMcpServerToAnAgent:
         model = await _default_model(db, tenant)
         return await AgentRegistryService(db).create(
             tenant.ctx,
-            AgentSpec(name="Support", model_profile_id=model.id, mcp_server_ids=connection_ids),
+            AgentSpec(
+                name="Support",
+                model_profile_id=model.id,
+                mcp_servers=[McpServerRef(connection_id=cid) for cid in connection_ids],
+            ),
         )
 
     async def test_an_organization_connection_publishes(self, db) -> None:
@@ -2343,7 +2347,9 @@ class TestBindingAnMcpServerToAnAgent:
 
         version = await AgentRegistryService(db).publish(tenant.ctx, agent.id)
 
-        assert version.spec["mcp_server_ids"] == [str(connection.id)]
+        assert version.spec["mcp_servers"] == [
+            {"connection_id": str(connection.id), "use_personal_when_available": False}
+        ]
 
     async def test_a_personal_connection_cannot_be_bound_to_a_published_agent(self, db) -> None:
         """The row belongs to this organization and to the person publishing it.

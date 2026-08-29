@@ -38,7 +38,7 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from app.agents.capabilities.budget import SpendLedger
 from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE
 from app.agents.capabilities.subagents import SubagentsConfig
-from app.agents.spec import AgentSpec, SpecialistSpec, SubagentRef
+from app.agents.spec import AgentSpec, McpServerRef, SpecialistSpec, SubagentRef
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
     DelegationOutcome,
@@ -656,7 +656,10 @@ class TestAPublishedDelegate:
         does not make them optional."""
         delegate_id = uuid.uuid4()
         connection_id = uuid.uuid4()
-        pinned = _version(delegate_id, AgentSpec(name="Linear Bot", mcp_server_ids=[connection_id]))
+        pinned = _version(
+            delegate_id,
+            AgentSpec(name="Linear Bot", mcp_servers=[McpServerRef(connection_id=connection_id)]),
+        )
         spec = _delegating(
             subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)]
         )
@@ -667,7 +670,9 @@ class TestAPublishedDelegate:
             prepared = await _prepare(spec, versions={pinned.id: pinned})
             built = prepared.built("linear-bot")
 
-        assert toolsets.await_args_list[-1].kwargs["connection_ids"] == [connection_id]
+        assert toolsets.await_args_list[-1].kwargs["refs"] == [
+            McpServerRef(connection_id=connection_id)
+        ]
         assert built["extra_toolsets"] == ["linear-toolset"]
 
     async def test_a_delegate_with_no_description_is_still_describable(self):
@@ -998,7 +1003,7 @@ class TestASpecialistTheModelInvents:
         built = prepared.invented(model="fast")
 
         spec = built["spec"]
-        assert (spec.capabilities, spec.subagents, spec.skill_ids, spec.mcp_server_ids) == (
+        assert (spec.capabilities, spec.subagents, spec.skill_ids, spec.mcp_servers) == (
             [],
             [],
             [],

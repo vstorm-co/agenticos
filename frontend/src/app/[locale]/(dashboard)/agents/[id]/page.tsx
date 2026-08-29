@@ -352,17 +352,17 @@ export default function AgentBuilderPage({ params }: PageProps) {
         title: t("mcpServers"),
         icon: MAP_ICONS.mcp,
         side: "right",
-        items: spec.mcp_server_ids.map((entry) => {
-          const connection = mcpConnections.find((row) => row.id === entry);
+        items: spec.mcp_servers.map((ref) => {
+          const connection = mcpConnections.find((row) => row.id === ref.connection_id);
           // The mark belongs to the *catalog* entry a connection matches, not to
           // the connection - which is how the picker resolves it, and the same
           // three-source fallback `McpServerIcon` applies underneath.
           const known =
             connection === undefined ? null : entryForConnection(connection, mcpCatalog);
           return {
-            key: entry,
-            label: connection?.name ?? t("namedMissing", { name: entry }),
-            mcp: { icon: known?.icon ?? null, name: connection?.name ?? entry },
+            key: ref.connection_id,
+            label: connection?.name ?? t("namedMissing", { name: ref.connection_id }),
+            mcp: { icon: known?.icon ?? null, name: connection?.name ?? ref.connection_id },
           };
         }),
         empty: t("noMcpServersAttached"),
@@ -813,7 +813,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
         // Bound as soon as it exists: somebody who connected a server from
         // inside the Builder was going to tick it next.
         onConnected={(connectionId) =>
-          update({ mcp_server_ids: toggleId(spec.mcp_server_ids, connectionId) })
+          update({
+            mcp_servers: [
+              ...spec.mcp_servers,
+              { connection_id: connectionId, use_personal_when_available: false },
+            ],
+          })
         }
       />
 
@@ -1073,20 +1078,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
               <McpServerPicker
                 connections={mcpConnections}
                 catalog={mcpCatalog}
-                selectedIds={spec.mcp_server_ids}
-                onToggle={(connectionId) =>
-                  update({ mcp_server_ids: toggleId(spec.mcp_server_ids, connectionId) })
-                }
-                onChoose={(options, connectionId) =>
-                  update({
-                    mcp_server_ids: [
-                      ...spec.mcp_server_ids.filter(
-                        (id) => !options.some((option) => option.id === id),
-                      ),
-                      connectionId,
-                    ],
-                  })
-                }
+                value={spec.mcp_servers}
+                onChange={(mcp_servers) => update({ mcp_servers })}
                 onConnect={setConnectingServer}
                 disabled={!canEdit}
               />

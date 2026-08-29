@@ -366,6 +366,10 @@ class ChatAgentRunner:
             surface=RunSurface.WEB,
             conversation_id=conversation_id,
             user_name=user.full_name,
+            # The dashboard chat is one signed-in person's own conversation and
+            # nobody else can read it, which is the whole condition a binding
+            # flagged `use_personal_when_available` is waiting for.
+            private_to_user=True,
             model_profile_id=model_profile_id,
             # The version this environment pins runs instead of the default -
             # how a dev environment is exercised from the chat before promotion.

@@ -26,6 +26,9 @@ from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import SPEC_VERSION, AgentSpec, ModelSettingsSpec
 from app.core.secret_kinds import ApiKeySecret
 
+_ID = uuid.uuid4()
+_OTHER_ID = uuid.uuid4()
+
 
 @pytest.fixture(autouse=True)
 def _builtins_loaded():
@@ -205,8 +208,46 @@ class TestSpecsPublishedBeforeThisExisted:
         """A literal on purpose: this is the tripwire for a shape change nobody
         bumped, so it has to fail when the constant moves rather than follow it.
         8 added `observability.organization` and `observability.project` (#206);
-        9 added `context_ids` (#48)."""
-        assert AgentSpec(name="x").spec_version == SPEC_VERSION == 9
+        9 added `context_ids` (#48); 10 turned `mcp_server_ids` into
+        `mcp_servers` (#1341)."""
+        assert AgentSpec(name="x").spec_version == SPEC_VERSION == 10
+
+    def test_a_version_9_spec_loads_its_mcp_ids_as_bindings(self):
+        """`extra="forbid"` would otherwise refuse every stored spec that names
+        an MCP server - a 500 on every run of something nobody touched."""
+        spec = AgentSpec.model_validate({"name": "x", "mcp_server_ids": [str(_ID), str(_OTHER_ID)]})
+
+        assert [
+            (ref.connection_id, ref.use_personal_when_available) for ref in spec.mcp_servers
+        ] == [
+            (_ID, False),
+            (_OTHER_ID, False),
+        ]
+
+    def test_the_migrated_field_does_not_survive_into_the_spec(self):
+        """Left in place it would fail `extra="forbid"` on the way back in."""
+        spec = AgentSpec.model_validate({"name": "x", "mcp_server_ids": [str(_ID)]})
+
+        assert AgentSpec.from_yaml(spec.to_yaml()) == spec
+
+    def test_an_explicit_binding_wins_over_the_legacy_ids(self):
+        """Re-reading a spec this already migrated changes nothing."""
+        spec = AgentSpec.model_validate(
+            {
+                "name": "x",
+                "mcp_server_ids": [str(_OTHER_ID)],
+                "mcp_servers": [{"connection_id": str(_ID), "use_personal_when_available": True}],
+            }
+        )
+
+        assert [ref.connection_id for ref in spec.mcp_servers] == [_ID]
+
+    def test_legacy_ids_that_are_not_a_list_are_left_to_pydantic(self):
+        """Dropped rather than coerced: a spec this malformed is not one to
+        guess at, and `mcp_servers` then fails on its own terms."""
+        spec = AgentSpec.model_validate({"name": "x", "mcp_server_ids": None})
+
+        assert spec.mcp_servers == []
 
     def test_a_spec_that_is_not_a_mapping_is_left_to_pydantic(self):
         """The migration must not swallow a malformed document."""
