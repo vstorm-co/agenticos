@@ -15,6 +15,7 @@
   <a href="docs/install.md">Install</a> &middot;
   <a href="docs/first-agent.md">Your first agent</a> &middot;
   <a href="#-what-makes-it-an-operating-system">Why it is an OS</a> &middot;
+  <a href="#-what-an-agent-can-actually-do">What agents can do</a> &middot;
   <a href="#-why-agenticos">Comparison</a> &middot;
   <a href="docs/mcp.md">Integrations</a> &middot;
   <a href="CHANGELOG.md">Changelog</a> &middot;
@@ -52,15 +53,18 @@ and who said they could.*
 AgenticOS is one place to build them and one set of books for all of them.
 
 - 🏗️ **Built by whoever knows the answer.** Instructions, a model, capabilities
-  and a budget, edited in a browser and published as a version. Changing what an
+  and limits, edited in a browser and published as a version. Changing what an
   agent says is not a pull request, a review and a release.
-- 🛡️ **Governed like software the company owns.** Budgets that stop a run
-  *before* the model request, human approval on anything side-effecting, an audit
-  trail, and tenant isolation enforced by the schema rather than by a `WHERE`
-  clause somebody has to remember.
-- 🔌 **Everywhere, from one runner.** Web chat, a hosted page, an embeddable
-  widget, the HTTP API, Slack, Telegram, Mattermost and schedules — the same
-  agent, the same budget, the same audit.
+- 🧰 **Agents that do the work, not just talk about it.** Retrieval over your own
+  documents, a real browser, Python in a sandbox with files and a shell, charts,
+  images, delegation to subagents - and any of
+  [59 MCP servers](docs/mcp.md) by URL when the tool already exists.
+- 🔌 **Everywhere, from one runner.** Web chat, a hosted page with no login, an
+  embeddable widget, the HTTP API, a raw WebSocket to build your own frontend,
+  Slack, Telegram, Mattermost, and schedules that need nobody typing.
+- 🛡️ **Governed, because forty agents need it.** Budgets that stop a run before
+  the model request, approval on anything side-effecting, an audit trail, and
+  tenant isolation enforced by the schema.
 
 **Code defines, configuration composes.** A business team assembles agents in a
 browser and never opens Python; engineers extend what there is to assemble - a
@@ -150,6 +154,53 @@ like to be judged on, and
 [When to use something else](docs/about/comparison.md) is where we run it against
 the alternatives - including the rows where the honest answer here is "not yet".
 
+## 🧰 What an agent can actually do
+
+Switched on per agent, in the Builder. Each carries its own settings, its own
+permission scope and - where it acts on the outside world - its own approval
+gate.
+
+| | |
+|---|---|
+| **Answer from your documents** | Retrieval over collections in your own Postgres, plus [skills](docs/skills.md) it loads on demand and [context files](docs/context.md) bound across agents |
+| **Go and find out** | Web search, fetch one page properly, or drive a **real browser** through a site that needs clicking |
+| **Do the work** | Run Python, keep a [sandbox](docs/sandbox.md) with files and a shell, draw charts, generate images |
+| **Handle what is too big for one answer** | Delegate to subagents, keep a task list, think longer, compact a long conversation |
+| **Stay inside the lines** | Guardrails that redact or block, per-tool output caps, and the clock |
+| **Anything else** | [Any MCP server by URL](docs/mcp.md) - 59 in the picker with OAuth wired, and no connector to write |
+
+## 📚 Retrieval you can actually tune
+
+Most platforms give you one ingestion path and a slider. Here every collection
+carries its own settings, and any upload can override them.
+
+| | |
+|---|---|
+| **Three PDF parsers** | `pymupdf` local and fast, and the only one that extracts embedded images for description · `liteparse` local and layout-aware, keeping tables as ASCII grids rather than flattening them · `llamaparse` a cloud service returning markdown, for scans the local two mangle |
+| **Chunking** | `recursive`, `markdown` or `fixed`, with your own size and overlap |
+| **OCR** | On demand or automatic, with a language |
+| **Images inside documents** | Described by a model profile you choose, with your own prompt |
+| **Embeddings** | Per organization, in your own pgvector - a vector written for one tenant cannot be read by another |
+| **Sources** | Upload, or sync a Google Drive folder or an S3 bucket on a schedule |
+
+[File processing →](docs/file-processing.md) ·
+[The recipe, step by step →](docs/howto/set-up-knowledge-base.md)
+
+## 🔌 Where it answers
+
+Publish once. The same runner serves all of these, so an answer does not depend
+on where the question came from.
+
+| | |
+|---|---|
+| **Web chat** | In the console, with attachments and slash commands |
+| **A hosted page** | `/e/{key}` - send somebody a link, no account needed |
+| **An embeddable widget** | On your own site, with variables from the address bar |
+| **The HTTP API** | [One POST and you have an answer](docs/api.md) |
+| **A raw WebSocket** | Stream tokens into a frontend you built yourself |
+| **Slack, Telegram, Mattermost** | Where an `@mention` runs as **the person who sent it**, not as the bot |
+| **Schedules and triggers** | A clock, a webhook, or a mailbox we poll - [routines](docs/triggers.md) |
+
 ## 🆚 Why AgenticOS?
 
 The only one of these you can run to completion on infrastructure you already
@@ -163,12 +214,12 @@ own, with agents a non-engineer edits and an accountant can audit.
 | Local models (Ollama, LiteLLM) | ✅ | ✅ | — | ✅ |
 | Agent built and edited by a non-engineer | ✅ | ~ | ✅ | — |
 | Versioned on publish, exportable into your git | ✅ | ~ | — | — |
-| **Budget that stops a run before the model call** | ✅ | ~ | ~ | DIY |
+| Budget that stops a run before the model call | ✅ | ~ | ~ | DIY |
 | Human approval on side-effecting tools | ✅ | ✅ | ~ | DIY |
 | Multi-tenant isolation in the schema | ✅ | ~ | ✅ | DIY |
 | Per-organization secret vault | ✅ | ✅ | ✅ | DIY |
-| Any MCP server by URL | ✅ | ✅ | ~ | ~ |
-| Slack, Telegram, widget and API from one runner | ✅ | — | ~ | DIY |
+| **Any MCP server by URL, 59 in the picker** | ✅ | ✅ | ~ | ~ |
+| **Slack, Telegram, widget, hosted page and API from one runner** | ✅ | — | ~ | DIY |
 | ACL-aware connectors to 275+ SaaS systems | — | ~ | ✅ | — |
 | Evaluation harness | — | — | ✅ | ~ |
 | SAML / SCIM | — | ✅ | ✅ | — |
@@ -191,14 +242,14 @@ AgenticOS moves the agent out of the code and puts governance around it instead.
 | | |
 |---|---|
 | **Agents** | Built in a UI, versioned on publish, exportable as YAML into your own git repository |
-| **[Capabilities](docs/reference/capabilities.md)** | Knowledge search, web research, charts, sandboxed Python, reasoning effort - switched on per agent, never edited as code in a browser |
+| **[Capabilities](docs/reference/capabilities.md)** | Retrieval, web search and fetch, a real browser, Python, a sandbox with files and a shell, charts, images, delegation, planning, guardrails - switched on per agent |
 | **[Integrations](docs/mcp.md)** | Any MCP server by URL, with 59 in the picker - GitHub, Linear, Notion, Slack, Stripe, Postgres, Sentry. No connector to write |
 | **[Models](docs/models.md)** | 27 providers, a key per organization, fallback on outage, or self-hosted Ollama and LiteLLM |
-| **Knowledge** | Collections with RAG over documents, Google Drive and S3 |
+| **[Knowledge](docs/file-processing.md)** | Retrieval over your documents with three PDF parsers, your own chunking, OCR and image description - per collection, overridable per upload. Google Drive and S3 sync |
 | **[Skills](docs/skills.md)** | Written know-how the agent loads only when it decides it is relevant |
 | **[Routines](docs/triggers.md)** | A schedule fires on the clock, a trigger fires on an arrival - a run with the same budget and books as any other |
 | **[Governance](docs/governance.md)** | Monthly budgets that stop a run, human approval for anything side-effecting, an audit trail, per-agent alerts |
-| **[Surfaces](docs/channels.md)** | Web chat, HTTP API, Slack, Telegram, Mattermost, embeddable widgets - one runner behind all of them |
+| **[Surfaces](docs/channels.md)** | Web chat, a hosted page with no login, an embeddable widget, the HTTP API, a raw WebSocket for your own frontend, Slack, Telegram, Mattermost - one runner behind all of them |
 | **[Sandbox](docs/sandbox.md)** | A workspace an agent gets files and a shell in, with a record of what it did there |
 | **[Access](docs/permissions.md)** | Permission catalog in code, roles composed from it, per-resource sharing |
 | **Multi-tenant** | Organization isolation enforced by database constraints, not only by service code |
@@ -224,7 +275,7 @@ Nothing phones home. Model prices come from a bundled
 [`genai-prices`](https://github.com/pydantic/genai-prices) snapshot, and the only
 outbound calls are the ones your agents make.
 
-## 📚 Documentation
+## 📖 Documentation
 
 The docs are built with MkDocs and live in [`docs/`](docs/).
 

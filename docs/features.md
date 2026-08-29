@@ -123,9 +123,22 @@ Slack, Stripe, Postgres — are in the picker with their OAuth flows already wir
 Upload documents, or sync a Google Drive folder or an S3 bucket. AgenticOS parses
 them, chunks them, embeds them into pgvector, and keeps them in *your* Postgres.
 
+**How it reads them is yours to decide**, per collection and overridable per
+upload — which is unusual, and it is where retrieval quality is actually won:
+
+| | |
+|---|---|
+| **PDF parser** | `pymupdf` — local, fast, and the only one that extracts embedded images for description · `liteparse` — local and layout-aware, keeping tables as ASCII grids rather than flattening them · `llamaparse` — a cloud service billed per page that returns markdown |
+| **Chunking** | `recursive`, `markdown` or `fixed`, with your own size and overlap |
+| **OCR** | On demand or automatic, with a language |
+| **Images in documents** | Described by a model profile you choose, with your own prompt |
+
 Embeddings are keyed per organization. A vector written for one tenant cannot be
 read by another, and that is enforced by the schema rather than by a `WHERE`
 clause somebody has to remember.
+
+The embedding model is fixed when a collection is created, because two models of
+equal width write into different spaces that search would go on comparing.
 
 [File processing →](file-processing.md) · [Skills →](skills.md)
 

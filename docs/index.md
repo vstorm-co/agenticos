@@ -225,13 +225,13 @@ came from.
 | | |
 |---|---|
 | **Agents** | Built in a UI, versioned on publish, exportable as YAML into your own git repository |
-| **[Capabilities](reference/capabilities.md)** | Knowledge search, web research, charts, code execution, a sandbox, delegation — switched on per agent, never edited as code in a browser |
+| **[Capabilities](reference/capabilities.md)** | Retrieval, web search and fetch, a real browser, Python, a sandbox with files and a shell, charts, images, delegation, planning, guardrails — switched on per agent |
 | **[Integrations](mcp.md)** | Any MCP server by URL, with 59 common ones in the picker — GitHub, Linear, Notion, Slack, Stripe, Postgres |
 | **[Models](models.md)** | 27 providers, per-organization keys, fallbacks, and self-hosted Ollama or a LiteLLM proxy |
-| **[Knowledge](file-processing.md)** | Collections with RAG over documents, Google Drive and S3 |
+| **[Knowledge](file-processing.md)** | Retrieval over your documents with three PDF parsers, your own chunking, OCR and image description — per collection, overridable per upload. Google Drive and S3 sync |
 | **[Skills](skills.md)** | Written know-how the agent loads only when it decides it is relevant |
 | **[Governance](governance.md)** | Monthly budgets, human approval, an audit trail, per-agent alerts |
-| **[Surfaces](channels.md)** | Web chat, HTTP API, Slack, Telegram, embeddable widgets — one runner behind all of them |
+| **[Surfaces](channels.md)** | Web chat, a hosted page with no login, an embeddable widget, the HTTP API, a raw WebSocket for your own frontend, Slack, Telegram, Mattermost — one runner behind all of them |
 | **[Secrets](secrets.md)** | Sealed per organization. No response, log line or audit entry ever carries a plaintext key |
 
 [The full list of features →](features.md)
