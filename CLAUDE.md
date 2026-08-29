@@ -305,7 +305,7 @@ Trigger map — what changed → which page:
 | `app/agents/model_resolver.py`, `app/services/model_profile.py`, `app/services/model_catalog.py` | `docs/models.md` |
 | `app/core/vault.py`, `secret_kinds.py`, `app/services/organization_secret.py` | `docs/secrets.md` |
 | `app/core/permissions.py`, `app/services/access.py` | `docs/permissions.md` + `docs/reference/permissions.md` |
-| `app/services/skills.py`, `skill_library.py`, `app/core/catalog/skills/**` | `docs/skills.md` |
+| `app/services/skills.py`, `skill_library.py`, `app/core/catalog/skills/**`, `skill_gallery/**` | `docs/skills.md` |
 | `app/services/spend.py`, `approvals.py`, `notifications.py` | `docs/governance.md` |
 | `app/services/channels/**`, `agent_exposure.py`, `agent_embed.py` | `docs/channels.md` |
 | `app/services/rag/**`, `file_upload.py`, `ingestion_config.py` | `docs/file-processing.md` |

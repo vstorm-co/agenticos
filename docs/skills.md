@@ -162,9 +162,8 @@ organization starts with them. Creating an organization copies the whole shipped
 library in as ordinary skills, owned by the organization's owner and visible to the
 organization.
 
-There is no Install button and no separate "ready-made" list. The skills page shows
-one list, with a `built-in` badge on anything whose name matches the shipped
-library.
+The skills page shows one list, with a `built-in` badge on anything whose name
+matches the shipped library. Those three are not chosen — they arrive.
 
 **And they stay there.** The catalog grows with deploys, so the listing tops itself
 up: a bundled skill the organization does not have yet is copied in the next time
@@ -192,6 +191,37 @@ it is, so an edited refund policy survives a reseed.
 `e2e/seed.setup.ts` also creates one through the UI, which is what the E2E suite
 asserts against.
 
+### The gallery — seventy more, and none of them arrive uninvited
+
+**Skills → Skill gallery** opens a catalog of ready-made skills grouped by
+industry: healthcare, finance and insurance, e-commerce and print on demand,
+software teams, public sector and utilities, legal and professional services,
+manufacturing and logistics. Ten each.
+
+Pick an industry, then install one skill or the whole shelf. From that moment it
+is an ordinary skill the organization owns and edits, exactly like a bundled one.
+
+!!! info "The gallery is opt-in, and that is the whole difference"
+
+    The bundled three live in `app/core/catalog/skills/` and are copied into
+    **every** organization automatically. The gallery lives in
+    `app/core/catalog/skill_gallery/` and is copied into **none** — it is read by
+    the same parser, from a second directory, and never seeded.
+
+    Seventy industry skills in the first directory would have been seventy rows
+    nobody asked for, in every tenant, on the next deploy.
+
+Installing a shelf where you already have one of its skills installs the rest and
+leaves that one alone: an existing name is skipped rather than overwritten, and
+the request answers with what it installed, what it skipped, and any key this
+deployment does not ship.
+
+Adding to the gallery is the same as adding a bundled skill — a folder with a
+`SKILL.md`, under the industry it belongs to — with one extra rule: **its name
+must not collide with a bundled skill or another gallery skill.** Installing
+matches on name, so a collision would silently skip forever. A test reads all
+seventy and fails on one.
+
 ### Seeding copies
 
 A seeded skill is an ordinary skill owned by the organization, editable from the
@@ -208,12 +238,13 @@ not want is **disabled** — which every agent respects and nothing overwrites.
 
 ### Why the library is bundled and not fetched
 
-Adding a skill to the shipped library is a deploy.
+Adding a skill to the shipped library or the gallery is a deploy.
 
 The alternative — importing from a git URL — costs outbound network from the
 backend, a parser pointed at somebody else's repository, and a promise about content
-nobody here has read. Each folder in `app/core/catalog/skills/` is the same small
-promise the [MCP catalog](mcp.md#the-catalog) makes: somebody looked at it.
+nobody here has read. Each folder in `app/core/catalog/skills/` and
+`app/core/catalog/skill_gallery/` is the same small promise the
+[MCP catalog](mcp.md#the-catalog) makes: somebody looked at it.
 
 ## Skills or knowledge?
 
@@ -279,10 +310,12 @@ failing the run. The agent is less capable, not broken.
 ## Recap
 
 - A skill is **procedure**, written by a person, and loaded only when the model
-  decides its *description* is relevant.
-- Discovery costs a line per skill; the body costs nothing until it is opened.
+  decides its *description* is relevant — discovery costs a line per skill, and
+  the body costs nothing until it is opened.
 - In a workspace a skill is also **files**, which is what makes its scripts runnable.
 - An agent **proposes** an edit; a person applies it, once, and the decision is
   final.
 - Binding a skill **lends** it, so the publisher must be able to see it — and
   nothing is re-checked at run time.
+- The **gallery** is seventy ready-made skills by industry, installed on request —
+  unlike the bundled three, which arrive on their own.
