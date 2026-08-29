@@ -228,6 +228,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.skillsEdit,
     inTour: true,
   },
+  // The gallery is where a first skill actually comes from - an empty
+  // organization has three, and writing one from scratch is the harder path.
+  {
+    id: "skills-gallery",
+    page: ROUTES.SKILLS,
+    target: "skills-gallery",
+    permission: Perm.skillsEdit,
+    inTour: true,
+  },
   { id: "skills-list", page: ROUTES.SKILLS, target: "skills-list", permission: Perm.skillsView },
 
   // Standing context — the files an organization injects into every agent's

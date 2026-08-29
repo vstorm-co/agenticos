@@ -165,3 +165,31 @@ export interface ContextFileList {
   items: ContextFileSummary[];
   total: number;
 }
+
+/** One skill on a gallery shelf - the picker's row, never the body. */
+export interface GallerySkill {
+  /** `<industry>/<folder>` - what an install request names. */
+  key: string;
+  name: string;
+  description: string;
+  category: string | null;
+  /** Whether this organization already has a skill by this name. */
+  installed: boolean;
+}
+
+/** One industry shelf and what is on it. */
+export interface GalleryIndustry {
+  id: string;
+  skills: GallerySkill[];
+}
+
+export interface SkillGallery {
+  industries: GalleryIndustry[];
+}
+
+/** What an install did, per key, so a partial result is legible. */
+export interface GalleryInstallResult {
+  installed: string[];
+  skipped: string[];
+  unknown: string[];
+}

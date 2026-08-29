@@ -4474,7 +4474,30 @@
     "showWhatChangedIn": "Show what changed in {name}",
     "sizeUploadsWhenCreated": "{size} · uploads when the skill is created",
     "support": "support",
-    "whatSoModelCan": "What is in it, so the model can decide without loading it"
+    "whatSoModelCan": "What is in it, so the model can decide without loading it",
+    "gallery": {
+      "browse": "Skill gallery",
+      "title": "Skill gallery",
+      "description": "Ready-made skills by industry. Installing copies one into your organization, where you can edit it.",
+      "industryHint": "Install one, or the whole shelf. A skill you already have is left exactly as it is.",
+      "back": "All industries",
+      "install": "Install",
+      "installAll": "{count, plural, =0 {All installed} =1 {Install 1 skill} other {Install all # skills}}",
+      "alreadyInstalled": "Installed",
+      "allInstalled": "All installed",
+      "available": "{count, plural, =1 {1 skill} other {# skills}}",
+      "installed": "{count, plural, =1 {1 skill installed} other {# skills installed}}",
+      "allPresent": "{count, plural, =1 {You already had that skill} other {You already had all # skills}}",
+      "industry": {
+        "healthcare": "Healthcare",
+        "finance": "Finance and insurance",
+        "ecommerce": "E-commerce and print on demand",
+        "software": "Software teams",
+        "public-sector": "Public sector and utilities",
+        "legal": "Legal and professional services",
+        "manufacturing": "Manufacturing and logistics"
+      }
+    }
   },
   "states": {
     "loading": "Loading"
@@ -4922,5 +4945,11 @@
     "authorFilterPlaceholder": "e.g. Jane Doe",
     "textFilterLabel": "Text contains",
     "textFilterPlaceholder": "e.g. hiring"
+  },
+  "steps": {
+    "skills-gallery": {
+      "title": "Start from the gallery",
+      "body": "Seventy ready-made skills, grouped by industry. Install one, or a whole shelf, then edit it like any other."
+    }
   }
 }

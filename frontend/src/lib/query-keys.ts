@@ -235,6 +235,7 @@ export const qk = {
       limit: number;
     }) => ["skills", "list", query] as const,
     detail: (id: string) => ["skills", id] as const,
+    gallery: () => ["skills", "gallery"] as const,
     resource: (skillId: string, resourceId: string) =>
       ["skills", skillId, "resources", resourceId] as const,
   },

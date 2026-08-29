@@ -1892,7 +1892,30 @@
     "showWhatChangedIn": "Pokaż, co zmieniło się w {name}",
     "sizeUploadsWhenCreated": "{size} · zostanie przesłany przy tworzeniu skilla",
     "support": "support",
-    "whatSoModelCan": "Co w nim jest, żeby model mógł zdecydować bez wczytywania go"
+    "whatSoModelCan": "Co w nim jest, żeby model mógł zdecydować bez wczytywania go",
+    "gallery": {
+      "browse": "Galeria skills",
+      "title": "Galeria skills",
+      "description": "Gotowe skills według branży. Instalacja kopiuje jeden do twojej organizacji, gdzie możesz go edytować.",
+      "industryHint": "Zainstaluj jeden albo całą półkę. Skill, który już masz, zostaje dokładnie taki, jaki jest.",
+      "back": "Wszystkie branże",
+      "install": "Zainstaluj",
+      "installAll": "{count, plural, =0 {Wszystkie zainstalowane} one {Zainstaluj 1 skill} few {Zainstaluj wszystkie # skille} many {Zainstaluj wszystkie # skilli} other {Zainstaluj wszystkie # skilli}}",
+      "alreadyInstalled": "Zainstalowany",
+      "allInstalled": "Wszystkie zainstalowane",
+      "available": "{count, plural, one {1 skill} few {# skille} many {# skilli} other {# skilli}}",
+      "installed": "{count, plural, one {Zainstalowano 1 skill} few {Zainstalowano # skille} many {Zainstalowano # skilli} other {Zainstalowano # skilli}}",
+      "allPresent": "{count, plural, one {Ten skill już masz} other {Masz już wszystkie # skilli}}",
+      "industry": {
+        "healthcare": "Ochrona zdrowia",
+        "finance": "Finanse i ubezpieczenia",
+        "ecommerce": "E-commerce i print on demand",
+        "software": "Zespoły software'owe",
+        "public-sector": "Sektor publiczny i utilities",
+        "legal": "Prawo i doradztwo",
+        "manufacturing": "Produkcja i logistyka"
+      }
+    }
   },
   "settings": {
     "builtCommands": "Wbudowane polecenia",
@@ -2771,5 +2794,11 @@
     "yourBackendSignsToken": "Twój backend podpisuje token, który weryfikujemy",
     "zoom": "Powiększ",
     "zoomOut": "Pomniejsz"
+  },
+  "steps": {
+    "skills-gallery": {
+      "title": "Zacznij od galerii",
+      "body": "Siedemdziesiąt gotowych skills pogrupowanych branżami. Zainstaluj jeden albo całą półkę, a potem edytuj jak każdy inny."
+    }
   }
 }
