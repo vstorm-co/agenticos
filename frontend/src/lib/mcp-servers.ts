@@ -160,6 +160,31 @@ export const CUSTOM_CATEGORY = "custom";
  * "what you can connect" rather than "what happens to be in the database" -
  * which is the difference between a catalog and a dump.
  */
+/**
+ * The row one catalog entry makes, with nothing connected to it.
+ *
+ * Its own function because two callers need it and only one of them is
+ * merging: the Builder's connect dialog wants the row for a single entry, and
+ * taking `mergeServers(...)[0]` gave it a `McpServerRow | undefined` for a
+ * case that cannot happen.
+ */
+export function rowForEntry(entry: McpCatalogEntry): McpServerRow {
+  return {
+    key: entry.key,
+    name: entry.name,
+    description: entry.description,
+    descriptionKey: null,
+    category: entry.category,
+    auth: entry.auth,
+    url: entry.url,
+    docsUrl: entry.docs_url,
+    tokenHint: entry.token_hint,
+    entry,
+    organization: null,
+    personal: null,
+  };
+}
+
 export function mergeServers(
   catalog: McpCatalogEntry[],
   organization: OrgMcpConnectionRecord[],
@@ -172,20 +197,7 @@ export function mergeServers(
     const own = connectionForEntry(entry, personal);
     if (org) claimed.add(org.id);
     if (own) claimed.add(own.id);
-    return {
-      key: entry.key,
-      name: entry.name,
-      description: entry.description,
-      descriptionKey: null,
-      category: entry.category,
-      auth: entry.auth,
-      url: entry.url,
-      docsUrl: entry.docs_url,
-      tokenHint: entry.token_hint,
-      entry,
-      organization: org,
-      personal: own,
-    };
+    return { ...rowForEntry(entry), organization: org, personal: own };
   });
 
   const custom = (connection: McpConnectionRecord, isOrg: boolean): McpServerRow => ({

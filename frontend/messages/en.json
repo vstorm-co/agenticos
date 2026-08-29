@@ -2493,7 +2493,8 @@
     "useServiceCredentialNot": "Use a service credential, not your own - every agent bound to this server acts with it. Sealed for this organization and never shown again.",
     "whichToolsExposed": "Which tools this connection exposes. Selecting all keeps tools the server adds later enabled automatically.{scope, select, organization { This applies to every agent bound to this server - per-agent tool selection does not exist yet.} other {}}",
     "whoeverSignsGrantsIf": "Whoever signs in grants it. If their access at the provider is revoked, this server stops working for every agent until somebody signs in again - so use an account the organization controls.",
-    "yoursAloneYourOwn": "Yours alone, in your own chat. No agent can bind it."
+    "yoursAloneYourOwn": "Yours alone, in your own chat. No agent can bind it.",
+    "finishConsentThenReturn": "Finish in the tab that opened, then come back — the server appears here once it is authorised."
   },
   "members": {
     "emailPlaceholder": "colleague@example.com",

@@ -38,6 +38,8 @@ import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
 import { ExposuresPanel } from "@/components/agents/exposures-panel";
 import { TriggersPanel } from "@/components/triggers/triggers-panel";
+import type { McpCatalogEntry } from "@/types/mcp";
+import { ConnectServerDialog } from "@/components/agents/connect-server-dialog";
 import { McpServerPicker } from "@/components/agents/mcp-server-picker";
 import { McpServerList } from "@/components/mcp/mcp-server-list";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
@@ -149,6 +151,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // cannot be published. `useMcpCatalog` only supplies the names and logos -
   // the ids the spec stores belong to the connections.
   const { connections: mcpConnections } = useOrgMcpConnections();
+  const [connectingServer, setConnectingServer] = useState<McpCatalogEntry | null>(null);
   const { exposures } = useExposures(id);
   const { embeds } = useEmbeds(id);
   const { servers: mcpCatalog } = useMcpCatalog();
@@ -804,6 +807,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
         </DialogContent>
       </Dialog>
 
+      <ConnectServerDialog
+        entry={connectingServer}
+        onClose={() => setConnectingServer(null)}
+        // Bound as soon as it exists: somebody who connected a server from
+        // inside the Builder was going to tick it next.
+        onConnected={(connectionId) =>
+          update({ mcp_server_ids: toggleId(spec.mcp_server_ids, connectionId) })
+        }
+      />
+
       <PublishDialog
         open={publishOpen}
         onOpenChange={setPublishOpen}
@@ -1064,6 +1077,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 onToggle={(connectionId) =>
                   update({ mcp_server_ids: toggleId(spec.mcp_server_ids, connectionId) })
                 }
+                onConnect={setConnectingServer}
                 disabled={!canEdit}
               />
               <p className="text-muted-foreground mt-4 text-xs">{t("twoLimitsWorthKnowing")}</p>

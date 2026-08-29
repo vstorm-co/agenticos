@@ -271,6 +271,22 @@ turn starts, and the probes run concurrently.
 That is a deliberate trade. The `/test` endpoint and `last_status` are how you find
 out, and the [audit trail](governance.md#audit) records what actually ran.
 
+### Connecting one from the Builder
+
+An agent's **MCP servers** tab lists the whole catalog, not only what has
+credentials. A server with none is not a checkbox — there is no connection id
+for the spec to hold — so the card opens the connect dialog **in place**.
+
+A token or credential-free server is connected without leaving the page, and the
+new connection is ticked for the agent as soon as it exists.
+
+!!! info "OAuth opens a tab"
+
+    The consent screen is the provider's, so there is nowhere to stay — but
+    there is a way not to lose the agent you were editing. Finish in the tab
+    that opens and come back; the server appears in the list once it is
+    authorised.
+
 ### One server, connected several times
 
 An organization may connect the same server more than once — a Notion with

@@ -1820,7 +1820,8 @@
     "useServiceCredentialNot": "Użyj poświadczenia serwisowego, nie własnego — z nim działa każdy agent związany z tym serwerem. Zapieczętowane dla tej organizacji i nigdy więcej niepokazywane.",
     "whichToolsExposed": "Które narzędzia udostępnia to połączenie. Wybranie wszystkich sprawia, że narzędzia dodane później przez serwer pozostają włączone automatycznie.{scope, select, organization { Dotyczy to każdego agenta związanego z tym serwerem — wybór narzędzi osobno dla agenta jeszcze nie istnieje.} other {}}",
     "whoeverSignsGrantsIf": "Zgody udziela ten, kto się loguje. Jeśli jego dostęp u providera zostanie cofnięty, serwer przestanie działać dla wszystkich agentów, dopóki ktoś nie zaloguje się ponownie — dlatego użyj konta, które kontroluje organizacja.",
-    "yoursAloneYourOwn": "Tylko Twoje, w Twoim własnym czacie. Żaden agent nie może go związać."
+    "yoursAloneYourOwn": "Tylko Twoje, w Twoim własnym czacie. Żaden agent nie może go związać.",
+    "finishConsentThenReturn": "Dokończ w otwartej karcie i wróć tutaj — serwer pojawi się na liście po autoryzacji."
   },
   "skills": {
     "addFile": "Dodaj plik",

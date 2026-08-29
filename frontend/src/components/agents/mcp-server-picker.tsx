@@ -1,12 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { Check, Plug } from "lucide-react";
 
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { Badge, Checkbox, Pager, SearchInput, useListControls } from "@/components/ui";
-import { ROUTES } from "@/lib/constants";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import {
   connectionState,
@@ -26,6 +24,14 @@ interface McpServerPickerProps {
   /** `spec.mcp_server_ids`. */
   selectedIds: string[];
   onToggle: (connectionId: string) => void;
+  /**
+   * Connect a server that has none, without leaving the page.
+   *
+   * The dialog is the caller's rather than this component's: the picker is
+   * handed its connections and catalog and renders them, and a data hook inside
+   * it would make a presentational component fetch.
+   */
+  onConnect: (entry: McpCatalogEntry) => void;
   disabled?: boolean;
 }
 
@@ -69,6 +75,7 @@ export function McpServerPicker({
   catalog,
   selectedIds,
   onToggle,
+  onConnect,
   disabled,
 }: McpServerPickerProps) {
   const t = useTranslations("agents");
@@ -104,6 +111,7 @@ export function McpServerPicker({
         description: entry.description,
         icon: entry.icon,
         auth: tMcp(MCP_AUTH_LABEL[entry.auth]),
+        entry,
       };
       const bound = described.get(entry.key) ?? [];
       if (bound.length === 0) {
@@ -126,6 +134,7 @@ export function McpServerPicker({
       auth: null,
       connection,
       label: null,
+      entry: null,
     })),
   ];
 
@@ -162,8 +171,10 @@ export function McpServerPicker({
             auth={row.auth}
             label={row.label}
             connection={row.connection}
+            entry={row.entry}
             selected={(id) => chosen.has(id)}
             onToggle={onToggle}
+            onConnect={onConnect}
             disabled={disabled}
           />
         ))}
@@ -193,6 +204,8 @@ interface CardRow {
   /** The connection's own name, where one entry has more than one. */
   label: string | null;
   connection: OrgMcpConnectionRecord | null;
+  /** The catalog entry behind the row, so an unconnected one can be connected. */
+  entry: McpCatalogEntry | null;
 }
 
 function ServerCard({
@@ -202,8 +215,10 @@ function ServerCard({
   auth,
   label,
   connection,
+  entry,
   selected,
   onToggle,
+  onConnect,
   disabled,
 }: {
   name: string;
@@ -212,8 +227,10 @@ function ServerCard({
   auth: string | null;
   label: string | null;
   connection: OrgMcpConnectionRecord | null;
+  entry: McpCatalogEntry | null;
   selected: (connectionId: string) => boolean;
   onToggle: (connectionId: string) => void;
+  onConnect: (entry: McpCatalogEntry) => void;
   disabled?: boolean;
 }) {
   const t = useTranslations("agents");
@@ -261,17 +278,21 @@ function ServerCard({
   );
 
   // Nothing to bind to, so the card is the way to make one rather than a
-  // checkbox that would have no id to write into the spec.
+  // checkbox that would have no id to write into the spec. It opens the connect
+  // dialog here rather than linking to the servers page, which threw away an
+  // unsaved draft and asked somebody to find their way back.
   if (!bindable) {
     return (
-      <Link
-        href={ROUTES.MCP_SERVERS}
-        className="border-border hover:border-foreground/20 flex items-start gap-3 rounded-xl border border-dashed p-4 transition-colors"
+      <button
+        type="button"
+        disabled={disabled || entry === null}
+        onClick={() => entry && onConnect(entry)}
+        className="border-border hover:border-foreground/20 flex items-start gap-3 rounded-xl border border-dashed p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60"
       >
         {body}
         <Plug className="text-muted-foreground mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
         <span className="sr-only">{t("connectServerFirst")}</span>
-      </Link>
+      </button>
     );
   }
 

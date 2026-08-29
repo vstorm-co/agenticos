@@ -55,6 +55,7 @@ describe("McpServerPicker", () => {
         catalog={CATALOG}
         selectedIds={[]}
         onToggle={vi.fn()}
+        onConnect={vi.fn()}
       />,
     );
     expect(screen.getByRole("checkbox", { name: "GitHub" })).toBeInTheDocument();
@@ -68,6 +69,7 @@ describe("McpServerPicker", () => {
         catalog={CATALOG}
         selectedIds={[]}
         onToggle={vi.fn()}
+        onConnect={vi.fn()}
       />,
     );
     expect(screen.getByRole("checkbox", { name: "internal-crm" })).toBeInTheDocument();
@@ -83,6 +85,7 @@ describe("McpServerPicker", () => {
         catalog={CATALOG}
         selectedIds={["c1"]}
         onToggle={vi.fn()}
+        onConnect={vi.fn()}
       />,
     );
     expect(screen.getByRole("checkbox", { name: "GitHub" })).toHaveAttribute(
@@ -104,6 +107,7 @@ describe("McpServerPicker", () => {
         catalog={CATALOG}
         selectedIds={[]}
         onToggle={vi.fn()}
+        onConnect={vi.fn()}
       />,
     );
     expect(screen.getByText("Needs authorization")).toBeInTheDocument();
@@ -118,6 +122,7 @@ describe("McpServerPicker", () => {
         catalog={CATALOG}
         selectedIds={[]}
         onToggle={vi.fn()}
+        onConnect={vi.fn()}
       />,
     );
 
@@ -132,6 +137,7 @@ describe("McpServerPicker", () => {
         catalog={CATALOG}
         selectedIds={[]}
         onToggle={onToggle}
+        onConnect={vi.fn()}
       />,
     );
     await userEvent.click(screen.getByRole("checkbox", { name: "GitHub" }));
@@ -146,6 +152,7 @@ describe("McpServerPicker", () => {
         catalog={CATALOG}
         selectedIds={[]}
         onToggle={onToggle}
+        onConnect={vi.fn()}
       />,
     );
     screen.getByRole("checkbox", { name: "GitHub" }).focus();
@@ -163,6 +170,7 @@ describe("McpServerPicker", () => {
         catalog={CATALOG}
         selectedIds={[]}
         onToggle={onToggle}
+        onConnect={vi.fn()}
         disabled
       />,
     );
@@ -183,6 +191,7 @@ describe("McpServerPicker", () => {
         catalog={CATALOG}
         selectedIds={["c1", "00000000-0000-0000-0000-0000000000ff"]}
         onToggle={vi.fn()}
+        onConnect={vi.fn()}
       />,
     );
     expect(screen.getByText(/1 server this organization does not offer/)).toBeInTheDocument();
@@ -196,6 +205,7 @@ describe("McpServerPicker", () => {
         catalog={CATALOG}
         selectedIds={["gone-1", "gone-2"]}
         onToggle={vi.fn()}
+        onConnect={vi.fn()}
       />,
     );
 
@@ -207,22 +217,38 @@ describe("McpServerPicker", () => {
     // reach at all" needed another page, and a catalog nobody sees is a catalog
     // nobody connects from.
     render(
-      <McpServerPicker connections={[]} catalog={CATALOG} selectedIds={[]} onToggle={vi.fn()} />,
+      <McpServerPicker
+        connections={[]}
+        catalog={CATALOG}
+        selectedIds={[]}
+        onToggle={vi.fn()}
+        onConnect={vi.fn()}
+      />,
     );
 
     expect(screen.getByText("GitHub")).toBeInTheDocument();
     expect(screen.getByText("Not connected")).toBeInTheDocument();
   });
 
-  it("sends someone to the organization's servers to connect one, not to their own", () => {
-    // Settings would be the wrong answer, not just a worse one: a personal
-    // connection is refused at publish, so it produces an agent that cannot ship.
+  it("offers to connect an unconnected server here rather than sending anyone away", async () => {
+    // It used to be a link to `/mcp-servers`, which threw away an unsaved draft
+    // and asked somebody to find their way back to the agent they were editing.
+    const onConnect = vi.fn();
     render(
-      <McpServerPicker connections={[]} catalog={CATALOG} selectedIds={[]} onToggle={vi.fn()} />,
+      <McpServerPicker
+        connections={[]}
+        catalog={CATALOG}
+        selectedIds={[]}
+        onToggle={vi.fn()}
+        onConnect={onConnect}
+      />,
     );
 
-    expect(screen.getByRole("link", { name: /GitHub/ })).toHaveAttribute("href", "/mcp-servers");
-    expect(screen.queryByRole("link", { name: /Settings/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByText("GitHub"));
+
+    // The entry, so the caller's dialog can seed a form from it.
+    expect(onConnect).toHaveBeenCalledWith(GITHUB);
   });
 
   it("an unconnected server is not a checkbox, because there is no id to bind", () => {
@@ -230,7 +256,13 @@ describe("McpServerPicker", () => {
     // would be one that cannot write anything.
     const onToggle = vi.fn();
     render(
-      <McpServerPicker connections={[]} catalog={CATALOG} selectedIds={[]} onToggle={onToggle} />,
+      <McpServerPicker
+        connections={[]}
+        catalog={CATALOG}
+        selectedIds={[]}
+        onToggle={onToggle}
+        onConnect={vi.fn()}
+      />,
     );
 
     expect(screen.queryByRole("checkbox", { name: "GitHub" })).not.toBeInTheDocument();
@@ -246,6 +278,7 @@ describe("McpServerPicker", () => {
         catalog={[...CATALOG, linear]}
         selectedIds={[]}
         onToggle={vi.fn()}
+        onConnect={vi.fn()}
       />,
     );
 
@@ -269,6 +302,7 @@ describe("McpServerPicker", () => {
         catalog={[...CATALOG, linear]}
         selectedIds={[]}
         onToggle={vi.fn()}
+        onConnect={vi.fn()}
       />,
     );
 
@@ -294,7 +328,13 @@ describe("several connections behind one catalog entry", () => {
 
   it("shows one row per connection, not one per entry", () => {
     render(
-      <McpServerPicker connections={THREE} catalog={CATALOG} selectedIds={[]} onToggle={vi.fn()} />,
+      <McpServerPicker
+        connections={THREE}
+        catalog={CATALOG}
+        selectedIds={[]}
+        onToggle={vi.fn()}
+        onConnect={vi.fn()}
+      />,
     );
 
     expect(screen.getAllByText("GitHub")).toHaveLength(3);
@@ -312,6 +352,7 @@ describe("several connections behind one catalog entry", () => {
         catalog={CATALOG}
         selectedIds={[]}
         onToggle={onToggle}
+        onConnect={vi.fn()}
       />,
     );
 
@@ -329,6 +370,7 @@ describe("several connections behind one catalog entry", () => {
         catalog={CATALOG}
         selectedIds={["c1"]}
         onToggle={onToggle}
+        onConnect={vi.fn()}
       />,
     );
 
@@ -344,6 +386,7 @@ describe("several connections behind one catalog entry", () => {
         catalog={CATALOG}
         selectedIds={[]}
         onToggle={vi.fn()}
+        onConnect={vi.fn()}
       />,
     );
 
