@@ -13,9 +13,10 @@ to neighbouring rows when one is deleted, which a mock cannot show.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import uuid
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import select, text
@@ -30,7 +31,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.rag_document import RAGDocument
 from app.db.models.user import User
-from app.repositories import knowledge_base_repo
+from app.repositories import knowledge_base_repo, member_repo, user_repo
 from app.services.file_storage import get_file_storage
 from app.services.organization import OrganizationService
 from app.services.rag.vectorstore import PgVectorStore
@@ -611,6 +612,15 @@ class TestDeletingAnOrg:
             assert surviving.organization_id is None
 
 
+_RENDEZVOUS_SECONDS = 1.0
+"""How long one request waits for the other to take a user lock before carrying on.
+
+Long enough that two live transactions always meet inside it - pre-fix they meet
+in milliseconds - and short enough that the post-fix path, where only one ever
+arrives, pays it once and the suite does not notice.
+"""
+
+
 class TestConcurrentSelfDeletes:
     async def test_mutual_co_owners_deleting_at_once_never_deadlock(
         self, engine: AsyncEngine
@@ -643,13 +653,44 @@ class TestConcurrentSelfDeletes:
             await setup.commit()
             a_id, b_id = a.id, b.id
 
+        # Without this the test passes against the code it exists to fail
+        # against: `gather` alone gives no guarantee both transactions reach the
+        # conflicting sequence, and the pre-fix implementation answers one
+        # success and one refusal too - measured, five runs out of five (#1268).
+        #
+        # A plain `Barrier` cannot express it, because the fix's whole purpose is
+        # that one side *does not arrive*: ordering ascending, the request whose
+        # own id is the higher blocks on the lower id before reaching its own
+        # lock. So this is a rendezvous with a deadline. Each request pauses
+        # after taking a user lock until the other has taken one too, or until
+        # the deadline passes. Pre-fix both arrive in milliseconds, both then
+        # hold their own row and reach for the other's, and Postgres aborts one
+        # with a 40P01. Post-fix only one arrives, waits out the deadline once
+        # and completes; the second is queued in the database, not deadlocked.
+        both_hold_one = asyncio.Event()
+        arrivals = 0
+        real_lock = user_repo.get_by_id_for_update
+
+        async def locking(db: Any, uid: uuid.UUID) -> Any:
+            nonlocal arrivals
+            locked = await real_lock(db, uid)
+            arrivals += 1
+            if arrivals >= 2:
+                both_hold_one.set()
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(both_hold_one.wait(), _RENDEZVOUS_SECONDS)
+            return locked
+
         async def run_delete(user_id: uuid.UUID) -> object:
             async with factory() as session:
                 user = await UserService(session).delete(user_id)
                 await session.commit()
                 return user
 
-        results = await asyncio.gather(run_delete(a_id), run_delete(b_id), return_exceptions=True)
+        with patch.object(user_repo, "get_by_id_for_update", locking):
+            results = await asyncio.gather(
+                run_delete(a_id), run_delete(b_id), return_exceptions=True
+            )
 
         for result in results:
             assert not isinstance(result, (OperationalError, DBAPIError)), result
@@ -663,3 +704,83 @@ class TestConcurrentSelfDeletes:
             assert await check.get(User, deleted[0].id) is None
             survivor = a_id if deleted[0].id == b_id else b_id
             assert await check.get(User, survivor) is not None
+
+    async def test_an_heir_named_after_the_locks_were_taken_is_refused(
+        self, engine: AsyncEngine
+    ) -> None:
+        """Memberships are not locked, so the two heir reads can disagree.
+
+        `_lock_for_delete` discovers heirs without a lock and locks them;
+        `_release_owned_rows` re-reads authoritatively. An owner promoted between
+        the two names an heir whose row was never locked, and `reassign_creator`
+        would take their FK lock outside the ascending sequence - the cycle
+        #1134 closed, by another door. Refusing is safe and the caller retries
+        (#1268).
+        """
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async with factory() as setup:
+            owner, first_heir, latecomer = _user(), _user(), _user()
+            setup.add_all([owner, first_heir, latecomer])
+            await setup.flush()
+            org = await _org(setup, owner)
+            await _member(setup, org.id, first_heir.id, "owner")
+            await setup.commit()
+            owner_id, latecomer_id = owner.id, latecomer.id
+
+        # The second read answers somebody the lock pass never saw. Patched at
+        # the boundary rather than raced, because the interleaving is the
+        # premise here and not the thing under test.
+        real = member_repo.other_owner_id
+        calls = 0
+
+        async def moving_target(db: Any, **kwargs: Any) -> uuid.UUID | None:
+            nonlocal calls
+            calls += 1
+            return await real(db, **kwargs) if calls == 1 else latecomer_id
+
+        async with factory() as session:
+            with patch.object(member_repo, "other_owner_id", moving_target):
+                with pytest.raises(BadRequestError) as refused:
+                    await UserService(session).delete(owner_id)
+
+        assert "changed while" in refused.value.message
+
+        async with factory() as check:
+            assert await check.get(User, owner_id) is not None
+
+    async def test_a_delete_does_not_block_an_ordinary_write_against_its_heir(
+        self, engine: AsyncEngine
+    ) -> None:
+        """The heir lock is `FOR NO KEY UPDATE`, and that is load-bearing.
+
+        `FOR UPDATE` conflicts with the `FOR KEY SHARE` any foreign-key write
+        takes - a channel identity relinked to the heir, say - so ordering the
+        locks with the strongest mode would have traded one deadlock for a
+        conflict class that did not exist before (#1268). This holds an FK lock
+        on the heir open across the delete and asserts neither side errors.
+        """
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async with factory() as setup:
+            owner, heir = _user(), _user()
+            setup.add_all([owner, heir])
+            await setup.flush()
+            org = await _org(setup, owner)
+            await _member(setup, org.id, heir.id, "owner")
+            await setup.commit()
+            owner_id, heir_id = owner.id, heir.id
+
+        async with factory() as holder:
+            # What an FK write against the heir takes, and nothing stronger.
+            await holder.execute(
+                text("SELECT 1 FROM users WHERE id = :id FOR KEY SHARE"), {"id": heir_id}
+            )
+
+            async with factory() as session:
+                deleted = await UserService(session).delete(owner_id)
+                await session.commit()
+
+            await holder.commit()
+
+        assert deleted.id == owner_id

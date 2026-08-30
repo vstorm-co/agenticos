@@ -393,12 +393,12 @@ class UserService:
         return str(full_path) if full_path is not None else None
 
     async def delete(self, user_id: UUID) -> User:
-        user = await self._lock_for_delete(user_id)
-        await self._release_owned_rows(user_id)
+        user, locked_heirs = await self._lock_for_delete(user_id)
+        await self._release_owned_rows(user_id, locked_heirs=locked_heirs)
         await user_repo.delete(self.db, user_id)
         return user
 
-    async def _lock_for_delete(self, user_id: UUID) -> User:
+    async def _lock_for_delete(self, user_id: UUID) -> tuple[User, frozenset[UUID]]:
         """Lock this user's row and every heir's, in ascending id order (#1134).
 
         The self lock serves #1115: held before the reconcile's reads, it makes a
@@ -422,6 +422,14 @@ class UserService:
         unrelated foreign-key write takes on an heir - a channel identity relinked
         to them, say - which FOR UPDATE would have, turning that write into a fresh
         cross-table deadlock this fix must not introduce.
+
+        Returns:
+            The locked user, and the heir ids locked with them. The second is
+            what `_release_owned_rows` checks its own authoritative read against:
+            memberships are not locked here, so an ownership change landing
+            between the two reads could name an heir this never locked, and
+            `reassign_creator` would then take that user's FK lock outside the
+            ordered sequence - the cycle again, by another door (#1268).
         """
         heir_ids: set[UUID] = set()
         for org in await organization_repo.list_created_by(self.db, user_id):
@@ -441,9 +449,9 @@ class UserService:
                 await user_repo.get_by_id_for_no_key_update(self.db, uid)
         if user is None:
             raise NotFoundError(message="User not found", details={"user_id": user_id})
-        return user
+        return user, frozenset(heir_ids)
 
-    async def _release_owned_rows(self, user_id: UUID) -> None:
+    async def _release_owned_rows(self, user_id: UUID, *, locked_heirs: frozenset[UUID]) -> None:
         """Hand on or remove what would otherwise block the user's deletion (#9).
 
         Three FK/CHECK pairs make a bare `DELETE users` 500: a private secret's
@@ -487,6 +495,17 @@ class UserService:
                 raise BadRequestError(
                     message="Cannot delete the sole owner of a shared organization; "
                     "transfer ownership or delete the organization first",
+                    details={"user_id": user_id, "organization_id": org.id},
+                )
+            if heir not in locked_heirs:
+                # Ownership moved between the lock pass and this one. Handing the
+                # org to somebody whose row is not locked takes their FK lock
+                # outside the ascending sequence, which is the deadlock #1134
+                # closed. Refusing is safe and the caller can simply try again;
+                # taking the lock here is not (#1268).
+                raise BadRequestError(
+                    message="Ownership of one of this account's organizations changed while "
+                    "the deletion was being prepared; try again",
                     details={"user_id": user_id, "organization_id": org.id},
                 )
             heirs[org.id] = heir
