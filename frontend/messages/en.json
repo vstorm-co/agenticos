@@ -3053,6 +3053,14 @@
       "workspaces-detail": {
         "title": "Inside a workspace",
         "body": "The files from one workspace. Browse the folders, preview a file, or download whatever an agent produced for you."
+      },
+      "skills-gallery": {
+        "title": "Start from the gallery",
+        "body": "Seventy ready-made skills, grouped by industry. Install one, or a whole shelf, then edit it like any other."
+      },
+      "agents-templates": {
+        "title": "Start from a template",
+        "body": "Twenty-eight ready-made agents by industry. Installing one creates a draft with its skills already bound."
       }
     }
   },
@@ -4962,16 +4970,6 @@
     "authorFilterPlaceholder": "e.g. Jane Doe",
     "textFilterLabel": "Text contains",
     "textFilterPlaceholder": "e.g. hiring"
-  },
-  "steps": {
-    "skills-gallery": {
-      "title": "Start from the gallery",
-      "body": "Seventy ready-made skills, grouped by industry. Install one, or a whole shelf, then edit it like any other."
-    },
-    "agents-templates": {
-      "title": "Start from a template",
-      "body": "Twenty-eight ready-made agents by industry. Installing one creates a draft with its skills already bound."
-    }
   },
   "agentTemplates": {
     "browse": "Agent templates",

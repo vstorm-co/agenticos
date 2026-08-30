@@ -68,21 +68,23 @@ test.describe("MCP servers", () => {
     await expect(page.getByText("OAuth").first()).toBeVisible();
   });
 
-  test("says who has connected each server, on the card", async ({ page }) => {
-    // The merge, and the answer to the question that started it: a catalog
-    // entry is not a sibling of a connection, it is what one points at. So
-    // "connected, and by whom" is a property of the card.
-    //
-    // Both matchers are exact. GitHub's own description contains the word
-    // "organization", so a substring match resolves to two elements and fails
-    // on strict mode — which is a test asserting on prose rather than on the
-    // scope label it means.
-    // Asserted on the server the seed actually connects. It used to be GitHub's
-    // card, which was connected both ways by an older seed; today nothing is
-    // connected personally, so the "You" half has no fixture to stand on and
-    // claiming it would be asserting on an empty page.
+  test("says how many accounts each server holds, and opens them", async ({ page }) => {
+    // The card used to carry a chip per connection, which made a server with
+    // three accounts stand taller than its neighbours and the grid go ragged
+    // (#1341). It carries two controls now whatever it holds: connect, and a
+    // count that opens the accounts behind it. Who owns each one is inside,
+    // where there is room to say it - and that distinction is not decoration,
+    // because only the organization's can be bound to an agent.
     const card = await findSeededServer(page);
-    await expect(card.getByText("Organization", { exact: true })).toBeVisible();
+    const manage = card.getByRole("button", { name: /Manage connections on/ });
+
+    await expect(manage).toBeVisible();
+    await expect(manage).toContainText("connection");
+
+    await manage.click();
+    const accounts = page.getByRole("dialog");
+    await expect(accounts.getByText("The organization's")).toBeVisible();
+    await expect(accounts.getByText("Yours")).toBeVisible();
   });
 
   test("marks each card with the service's own logo", async ({ page }) => {
