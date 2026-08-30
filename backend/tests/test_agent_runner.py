@@ -1723,6 +1723,9 @@ class TestParking:
             # And an empty checklist, which is a run that bound no planning
             # capability: the store the runner always opens held nothing to snapshot.
             "plan": [],
+            # What the request asked for, so the continuation is the same run
+            # rather than a default-mode one wearing its id (#1326, #1343).
+            "admitted_as": {"approval_mode": "follow_agent", "private_to_user": False},
         }
 
     @pytest.mark.anyio
@@ -2000,6 +2003,104 @@ class TestResume:
         assert channel.decided["call-1"] == ApprovalGranted(
             tool_args={"to": "customer@example.com"}
         )
+
+    async def _resumed(self, *, paused_state: dict) -> MagicMock:
+        """Resume a parked run and hand back the `build_agent` mock.
+
+        Everything the resume path reaches for is patched: what these tests ask
+        is what the *continuation* was built with, which is decided before any of
+        it matters.
+        """
+        service = AgentRunnerService(_db())
+        approval = self._approval(status=ApprovalStatus.REJECTED.value, tool_args={}, note="no")
+        run = _parked_run(paused_state=paused_state, user_id=uuid.uuid4())
+        run.paused_state["tool_call_ids"] = {str(approval.id): "call-1"}
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                new=AsyncMock(return_value=[approval]),
+            ),
+            patch(
+                "app.services.agent_runner.agent_repo.get_version",
+                new=AsyncMock(return_value=self._version()),
+            ),
+            patch("app.services.agent_runner.build_agent", return_value=self._built()) as build,
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+        ):
+            await service.resume(_ctx(), run.id)
+
+        return build
+
+    @pytest.mark.anyio
+    async def test_a_run_parked_under_ask_all_is_rebuilt_with_the_gate_it_parked_behind(self):
+        """The strictest mode used to be the one that failed open (#1326).
+
+        `ASK_ALL` gates tools the spec leaves open. The resume took the default
+        mode, so the wrapper was absent on the continuation - and a call a
+        reviewer had *rejected* then ran, because nothing was left to consume the
+        rejection.
+        """
+        build = await self._resumed(
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "admitted_as": {"approval_mode": "ask_all", "private_to_user": False},
+            }
+        )
+
+        assert build.call_args.kwargs["gate_every_tool"] is True
+
+    @pytest.mark.anyio
+    async def test_a_run_parked_before_this_was_recorded_resumes_as_it_always_did(self):
+        """An older payload has no `admitted_as`, and loads as the default -
+        which is what those runs were, so nothing about them changes."""
+        build = await self._resumed(paused_state={"messages": [], "tool_call_ids": {}})
+
+        assert build.call_args.kwargs["gate_every_tool"] is False
+
+    @pytest.mark.anyio
+    async def test_a_parked_direct_message_still_speaks_as_the_member_who_started_it(self):
+        """Half a conversation as the member and half as the organization is
+        worse than either, and the surface alone cannot tell a direct message
+        from a channel (#1343)."""
+        with patch(
+            "app.services.agent_runner.build_toolsets_for_agent",
+            new=AsyncMock(return_value=[]),
+        ) as toolsets:
+            run_user_id = await self._resumed(
+                paused_state={
+                    "messages": [],
+                    "tool_call_ids": {},
+                    "admitted_as": {
+                        "approval_mode": "follow_agent",
+                        "private_to_user": True,
+                    },
+                }
+            )
+
+        assert run_user_id is not None
+        assert toolsets.await_args.kwargs["personal_for_user_id"] is not None
+
+    @pytest.mark.anyio
+    async def test_a_parked_channel_run_answers_as_the_organization(self):
+        """The default, and what a run admitted in a room was."""
+        with patch(
+            "app.services.agent_runner.build_toolsets_for_agent",
+            new=AsyncMock(return_value=[]),
+        ) as toolsets:
+            await self._resumed(paused_state={"messages": [], "tool_call_ids": {}})
+
+        assert toolsets.await_args.kwargs["personal_for_user_id"] is None
 
     @pytest.mark.anyio
     async def test_leaving_the_queue_is_committed_before_the_call_is_replayed(self):

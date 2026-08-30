@@ -452,6 +452,41 @@ class DelegationFrame(BaseModel):
     )
 
 
+class AdmittedAs(BaseModel):
+    """The terms a run was admitted on, as the request stated them.
+
+    Two facts today, and what they have in common is the whole reason this is one
+    model rather than two fields: neither is derivable from the run row, both are
+    decided by the request, and both are read again when a parked run resumes. A
+    third such fact belongs here rather than beside it.
+
+    Every field defaults to the safe answer, because this is read back out of a
+    JSONB column: a run parked before this existed loads as one that asked for
+    nothing unusual, which is what it was.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    approval_mode: ApprovalMode = Field(
+        default=ApprovalMode.FOLLOW_AGENT,
+        description=(
+            "How much the session asked to be told about, whatever the spec says. "
+            "`ASK_ALL` gates tools the spec leaves open, so a resume that took the "
+            "default rebuilt without the wrapper and ran a call a reviewer had "
+            "rejected (#1326)."
+        ),
+    )
+    private_to_user: bool = Field(
+        default=False,
+        description=(
+            "Whether the conversation held exactly one identified person. What "
+            "decides if a binding may speak through their own MCP account, and "
+            "unrecoverable from the row: `agent_runs` records the surface, and a "
+            "direct message and a channel are the same surface (#1343)."
+        ),
+    )
+
+
 class PausedRunState(BaseModel):
     """What a parked run needs to pick up where it stopped.
 
@@ -490,6 +525,13 @@ class PausedRunState(BaseModel):
             "The specialists the run's own agent kept with `create_agent`, so a "
             "park does not lose them. Empty for a run that kept none, and for one "
             "parked before this existed"
+        ),
+    )
+    admitted_as: AdmittedAs = Field(
+        default_factory=lambda: AdmittedAs(),
+        description=(
+            "What the request that parked this run asked for, so the continuation "
+            "is the same run rather than a default-mode one wearing its id"
         ),
     )
     plan: list[dict[str, Any]] = Field(
@@ -1007,6 +1049,16 @@ class PreparedRun:
     will be seeded with. Tracking the store's dirtiness instead would need a
     delegating `PlanStore`: `write_plan` goes through `set_items`, which the
     library emits no event for.
+    """
+
+    admitted_as: AdmittedAs = field(default_factory=lambda: AdmittedAs())
+    """What the request that started this run said about it, for a resume to restore.
+
+    A resumed run is rebuilt from the row, and the row records the surface and
+    the caller and nothing else about the terms it was admitted on. Anything the
+    *request* decided has to travel with the parked state or it is re-derived
+    from a default - which is how the strictest approval mode became the one that
+    failed open on the path where somebody had said no (#1326).
     """
 
     @property
@@ -2040,6 +2092,7 @@ class AgentRunnerService:
             ctx=ctx,
             plan_store=plan_store,
             finished_plan_withheld=finished_plan_withheld,
+            admitted_as=AdmittedAs(approval_mode=approval_mode, private_to_user=private_to_user),
         )
 
     async def _delegation_runtime(
@@ -3005,6 +3058,11 @@ class AgentRunnerService:
         """
         return paused_state.model_copy(
             update={
+                # What the request asked for, recorded here for the same reason
+                # the delegation frames are: `finish` is the one place both
+                # surfaces pass through, and a surface that had to remember it
+                # would be the surface that forgot (#1326, #1343).
+                "admitted_as": prepared.admitted_as,
                 "delegated_approvals": {
                     str(parked.approval_id): parked.task_id
                     for parked in prepared.approvals.requested
@@ -3292,11 +3350,13 @@ class AgentRunnerService:
             surface=RunSurface(run.surface),
             conversation_id=run.conversation_id,
             user_name=None,
-            # What the row can still say. A dashboard run is one person's own
-            # conversation by construction; a resumed direct message is not
-            # recognisable as one from here, so it narrows to the organization's
-            # account rather than guessing (#1343).
-            private_to_user=RunSurface(run.surface) is RunSurface.WEB and run.user_id is not None,
+            # The terms the run was admitted on, restored rather than re-derived.
+            # `agent_runs` records the surface and the caller, so a resume that
+            # inferred these got the strictest approval mode wrong on the one
+            # path where somebody had said no (#1326), and read a direct message
+            # as a channel (#1343).
+            approval_mode=state.admitted_as.approval_mode,
+            private_to_user=state.admitted_as.private_to_user and run.user_id is not None,
             extra_toolsets=None,
             # A resumed run reuses its row, and the binding is reloaded above to
             # re-enrich the spec, so there is nothing left for `_assemble` to

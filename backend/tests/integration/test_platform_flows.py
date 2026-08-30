@@ -283,12 +283,14 @@ async def _mcp_connection(
         organization_id=tenant.organization.id,
         scope=scope,
         name=name,
-        url="https://mcp.example.com/mcp",
-        auth_token=None,
-        allowed_tools=None,
-        is_enabled=True,
-        auth_type="bearer",
-        **overrides,
+        **{
+            "url": "https://mcp.example.com/mcp",
+            "auth_token": None,
+            "allowed_tools": None,
+            "is_enabled": True,
+            "auth_type": "bearer",
+            **overrides,
+        },
     )
     db.add(connection)
     await db.flush()
@@ -2399,10 +2401,111 @@ class TestBindingAnMcpServerToAnAgent:
         await build_toolsets_for_agent(
             db,
             organization_id=tenant.organization.id,
-            connection_ids=[bound.id, personal.id],
+            refs=[McpServerRef(connection_id=bound.id), McpServerRef(connection_id=personal.id)],
         )
 
         assert seen == [["linear"]]
+
+    async def test_a_flagged_binding_speaks_through_the_runners_own_connection(
+        self, db, monkeypatch
+    ) -> None:
+        """The join from the organization's row to the member's is a real query.
+
+        A mock can be told the two are the same service. Whether the lookup
+        actually scopes to *this* member and *this* catalog entry - rather than
+        handing one person's token to another's run - is a question only
+        Postgres answers.
+        """
+        tenant = await _tenant(db, name="Substituting")
+        bound = await _mcp_connection(db, tenant, name="notion", scope="org", catalog_key="notion")
+        await _mcp_connection(
+            db,
+            tenant,
+            name="my-notion",
+            scope="user",
+            catalog_key="notion",
+            url="https://mine.example.com/mcp",
+        )
+        seen: list[list[tuple[str, str]]] = []
+
+        async def fake_build(specs) -> list[str]:
+            seen.append([(spec.name, spec.url) for spec in specs])
+            return []
+
+        monkeypatch.setattr("app.services.mcp_connection.build_mcp_toolsets", fake_build)
+
+        await build_toolsets_for_agent(
+            db,
+            organization_id=tenant.organization.id,
+            refs=[McpServerRef(connection_id=bound.id, use_personal_when_available=True)],
+            personal_for_user_id=tenant.user.id,
+        )
+
+        # Their URL, the organization's name: the credential is substituted and
+        # the tool prefix is not.
+        assert seen == [[("notion", "https://mine.example.com/mcp")]]
+
+    async def test_somebody_elses_connection_is_never_substituted(self, db, monkeypatch) -> None:
+        """The lookup is scoped to the person the run is attributed to."""
+        tenant = await _tenant(db, name="Not Mine")
+        stranger = await _tenant(db, name="Stranger")
+        bound = await _mcp_connection(db, tenant, name="notion", scope="org", catalog_key="notion")
+        await _mcp_connection(
+            db,
+            stranger,
+            name="their-notion",
+            scope="user",
+            catalog_key="notion",
+            url="https://theirs.example.com/mcp",
+        )
+        seen: list[list[str]] = []
+
+        async def fake_build(specs) -> list[str]:
+            seen.append([spec.url for spec in specs])
+            return []
+
+        monkeypatch.setattr("app.services.mcp_connection.build_mcp_toolsets", fake_build)
+
+        await build_toolsets_for_agent(
+            db,
+            organization_id=tenant.organization.id,
+            refs=[McpServerRef(connection_id=bound.id, use_personal_when_available=True)],
+            personal_for_user_id=tenant.user.id,
+        )
+
+        assert seen == [["https://mcp.example.com/mcp"]]
+
+    async def test_a_disabled_connection_of_their_own_is_not_reached_for(
+        self, db, monkeypatch
+    ) -> None:
+        """Switching one off is how somebody stops an agent using it."""
+        tenant = await _tenant(db, name="Switched Off")
+        bound = await _mcp_connection(db, tenant, name="notion", scope="org", catalog_key="notion")
+        await _mcp_connection(
+            db,
+            tenant,
+            name="my-notion",
+            scope="user",
+            catalog_key="notion",
+            url="https://mine.example.com/mcp",
+            is_enabled=False,
+        )
+        seen: list[list[str]] = []
+
+        async def fake_build(specs) -> list[str]:
+            seen.append([spec.url for spec in specs])
+            return []
+
+        monkeypatch.setattr("app.services.mcp_connection.build_mcp_toolsets", fake_build)
+
+        await build_toolsets_for_agent(
+            db,
+            organization_id=tenant.organization.id,
+            refs=[McpServerRef(connection_id=bound.id, use_personal_when_available=True)],
+            personal_for_user_id=tenant.user.id,
+        )
+
+        assert seen == [["https://mcp.example.com/mcp"]]
 
 
 class TestLockingAnMcpConnectionBeforeSpendingItsRefreshToken:
