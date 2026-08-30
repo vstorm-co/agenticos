@@ -3709,7 +3709,6 @@
       "runsViewIsMissing": "Reading run history and spend takes the runs:view permission, which this account does not hold. Nothing failed - the page did not ask.",
       "showEveryAgent": "Show every agent",
       "showingTheNewestOf": "{shown, plural, =1 {Showing the newest of {total} decided in this window} other {Showing the newest # of {total} decided in this window}}. Export the CSV for the whole record.",
-      "showingTheOldestOf": "{shown, plural, =1 {Showing the oldest of {total} waiting} other {Showing the oldest # of {total} waiting}}. The queue drains from the top, so deciding these brings up the next.",
       "slowRuns": "Slow runs",
       "someRunsCouldNotBePriced": "{count, plural, =1 {1 run in this window could not be priced, so the figures below are a floor} other {# runs in this window could not be priced, so the figures below are a floor}}",
       "specialistHasNoAgent": "Defined inside its parent's agent rather than published on its own, so there is no agent page to open.",
@@ -3833,7 +3832,8 @@
       "resumeFailed": "The run could not be resumed.",
       "modelFilter": "Filter by model",
       "anyModel": "Any model",
-      "decidedByStandingConsent": "waived in advance for the conversation"
+      "decidedByStandingConsent": "waived in advance for the conversation",
+      "approvalCount": "{count, plural, =1 {1 request} other {# requests}}"
     },
     "sandboxes": {
       "addConnection": "Add connection",

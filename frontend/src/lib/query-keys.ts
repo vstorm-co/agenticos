@@ -176,7 +176,9 @@ export const qk = {
     // answers "the top level", this answers "what did this run delegate", and
     // caching one as the other would show a run's children as the whole history.
     delegations: (parentRunId: string) => ["runs", "list", "delegations", parentRunId] as const,
-    approvals: () => ["runs", "approvals"] as const,
+    // Keyed on the page, because the queue is server-paged: one key for every
+    // page would show page one's rows under page three's pager (#1336).
+    approvals: (skip = 0) => ["runs", "approvals", skip] as const,
     // The decided record over a window - a different question from the queue,
     // so a different key: the queue must refresh on a decision, the record on
     // a window change.

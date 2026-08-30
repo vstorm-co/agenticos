@@ -66,17 +66,26 @@ const DECIDED: ToolApproval = {
 };
 
 /**
- * `/approvals` twice over: the decided record asks with params (statuses + the
- * window), the queue asks bare. One endpoint, two questions - the mock keeps
- * them apart. The caller holds `approvals:decide`, which is the only state the
- * page ever renders this tab in; `decidedTotal` lets the record report more
- * rows than it returned, the way the capped endpoint does.
+ * `/approvals` twice over: the decided record asks with an array of pairs
+ * (`status` repeats), the queue asks with a `skip`. One endpoint, two questions
+ * - the shape of `params` is what keeps them apart, which is also why the mock
+ * cannot discriminate on params being present at all: the queue grew a `skip`
+ * when it became server-paged (#1336) and every queue assertion then read the
+ * record's rows. The caller holds `approvals:decide`, which is the only state
+ * the page ever renders this tab in; the totals let either report more rows
+ * than it returned, the way the capped endpoint does.
  */
 function backend({
   queue = [] as ToolApproval[],
+  queueTotal,
   decided = [] as ToolApproval[],
   decidedTotal,
-}: { queue?: ToolApproval[]; decided?: ToolApproval[]; decidedTotal?: number } = {}) {
+}: {
+  queue?: ToolApproval[];
+  queueTotal?: number;
+  decided?: ToolApproval[];
+  decidedTotal?: number;
+} = {}) {
   vi.mocked(apiClient.get).mockImplementation((path: string, options?: unknown) => {
     if (path === "/me/permissions")
       return Promise.resolve({
@@ -85,12 +94,24 @@ function backend({
         is_app_admin: false,
         permissions: [{ permission: "approvals:decide", scope: "all" }],
       });
+    const params = (options as { params?: unknown } | undefined)?.params;
     return Promise.resolve(
-      (options as { params?: unknown } | undefined)?.params
+      Array.isArray(params)
         ? { items: decided, total: decidedTotal ?? decided.length }
-        : { items: queue, total: queue.length },
+        : { items: queue, total: queueTotal ?? queue.length },
     );
   });
+}
+
+/** The `skip` each queue request was made with, in order. */
+function queueSkips(): string[] {
+  return vi
+    .mocked(apiClient.get)
+    .mock.calls.filter(([path, options]) => {
+      const params = (options as { params?: unknown } | undefined)?.params;
+      return path === "/approvals" && !Array.isArray(params);
+    })
+    .map(([, options]) => (options as { params: { skip: string } }).params.skip);
 }
 
 beforeEach(() => {
@@ -295,6 +316,85 @@ describe("the decided record in the same table", () => {
   });
 });
 
+describe("reaching a request past the first page of the queue", () => {
+  /**
+   * The alert an approval sends addresses `/runs?tab=approvals` and names
+   * neither the run nor the request - deliberately, because the decide controls
+   * live on the queue row and below `lg` a focused run replaces the list
+   * (#935). So with fifty or more waiting, the newly parked request the email
+   * was about was the one row its reader could not reach, until enough older
+   * calls had been decided (#1336).
+   */
+  const parked = (index: number): ToolApproval => ({
+    ...PARKED,
+    id: `ap-${index}`,
+    run_id: `run-${index}`,
+    tool_id: `tool_${index}`,
+  });
+  const FULL = Array.from({ length: 50 }, (_, index) => parked(index));
+
+  it("asks the server for the page it is showing", async () => {
+    backend({ queue: FULL, queueTotal: 62 });
+
+    render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
+    await screen.findByText("tool_0");
+    await userEvent.click(screen.getByRole("button", { name: /next/i }));
+
+    await waitFor(() => expect(queueSkips()).toContain("50"));
+  });
+
+  it("offers no pager for a queue that fits on one page", async () => {
+    backend({ queue: [PARKED] });
+
+    render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
+
+    await screen.findByText("send_email");
+    expect(screen.queryByRole("button", { name: /next/i })).toBeNull();
+  });
+
+  it("counts the whole queue, not the page", async () => {
+    backend({ queue: FULL, queueTotal: 62 });
+
+    render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
+
+    expect(await screen.findByText(/62 requests/)).toBeVisible();
+  });
+
+  it("steps back when deciding empties the page the reader is on", async () => {
+    // The one request on page two, decided. Left where they were, somebody is
+    // looking at an empty table under a badge saying fifty are waiting - so the
+    // page they are on is clamped to one that exists.
+    let waiting = 51;
+    vi.mocked(apiClient.get).mockImplementation((path: string, options?: unknown) => {
+      if (path === "/me/permissions")
+        return Promise.resolve({
+          organization_id: "o1",
+          role: "operator",
+          is_app_admin: false,
+          permissions: [{ permission: "approvals:decide", scope: "all" }],
+        });
+      const params = (options as { params?: { skip?: string } } | undefined)?.params;
+      if (Array.isArray(params)) return Promise.resolve({ items: [], total: 0 });
+      const skip = Number(params?.skip ?? "0");
+      return Promise.resolve({
+        items: skip === 0 ? FULL : waiting > 50 ? [parked(50)] : [],
+        total: waiting,
+      });
+    });
+
+    render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
+    await screen.findByText("tool_0");
+    await userEvent.click(screen.getByRole("button", { name: /next/i }));
+    const decide = await screen.findByRole("button", { name: "Approve" });
+
+    waiting = 50;
+    await userEvent.click(decide);
+
+    await waitFor(() => expect(queueSkips().at(-1)).toBe("0"));
+    expect(await screen.findByText("tool_0")).toBeVisible();
+  });
+});
+
 describe("the export beside the table", () => {
   it("asks for every status the table shows, over the page's window", async () => {
     backend({ queue: [PARKED], decided: [DECIDED] });
@@ -332,7 +432,7 @@ describe("the export beside the table", () => {
           permissions: [],
         });
       return Promise.resolve(
-        (options as { params?: unknown } | undefined)?.params
+        Array.isArray((options as { params?: unknown } | undefined)?.params)
           ? { items: [], total: 0 }
           : { items: [PARKED], total: 1 },
       );
