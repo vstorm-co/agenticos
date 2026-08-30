@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import uuid
+from datetime import timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -30,8 +31,15 @@ from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.rag_document import RAGDocument
+from app.db.models.teardown_intent import TeardownIntent
 from app.db.models.user import User
-from app.repositories import knowledge_base_repo, member_repo, user_repo
+from app.db.session import get_worker_db_context
+from app.repositories import (
+    knowledge_base_repo,
+    member_repo,
+    teardown_intent_repo,
+    user_repo,
+)
 from app.services.file_storage import get_file_storage
 from app.services.organization import OrganizationService
 from app.services.rag.vectorstore import PgVectorStore
@@ -44,18 +52,32 @@ pytestmark = pytest.mark.anyio
 def _route_purge_dispatch_to_impl(monkeypatch: pytest.MonkeyPatch) -> None:
     """Run the org-purge cleanup in-process instead of submitting it to Prefect.
 
-    `OrganizationService.purge` now hands its external cleanup to a durable
-    Prefect deployment run (#1274); with no runner behind the test, `run_deployment`
+    `OrganizationService.purge` hands its external cleanup to a durable Prefect
+    deployment run (#1274); with no runner behind the test, `run_deployment`
     would fail on an unregistered deployment. Routing that submission straight to
     the cleanup it would have run keeps these tests exercising the real drop and
-    unlink through the commit/rollback gate that defers them - the submission fires
-    only after a committed teardown, so a rolled-back one still runs nothing.
+    unlink through the commit/rollback gate that defers them - the submission
+    fires only after a committed teardown, so a rolled-back one still runs
+    nothing.
+
+    The parameter is an intent id, so this reads the row the purge committed and
+    deletes it afterwards - which is what the flow does, and what makes these
+    tests exercise the outbox rather than route around it (#1269).
     """
     from app.worker.tasks import teardown_tasks
 
     async def _run(*, name: str, parameters: dict[str, Any], timeout: float) -> None:
         del name, timeout
-        await teardown_tasks.purge_org_external_state(**parameters)
+        intent_id = uuid.UUID(parameters["intent_id"])
+        async with get_worker_db_context() as db:
+            intent = await teardown_intent_repo.get(db, intent_id)
+            if intent is None:
+                return
+            paths, collections = list(intent.storage_paths), list(intent.collections)
+        await teardown_tasks.purge_org_external_state(paths, collections)
+        async with get_worker_db_context() as db:
+            await teardown_intent_repo.finish(db, intent_id)
+            await db.commit()
 
     monkeypatch.setattr(teardown_tasks, "run_deployment", AsyncMock(side_effect=_run))
 
@@ -860,3 +882,155 @@ class TestTwoTeardownsSharingOneCollectionName:
             await session.commit()
 
         vector_store.delete_collection.assert_not_awaited()
+
+
+class TestTheTeardownOutbox:
+    """A crash between the purge's commit and the hand-off (#1269).
+
+    `spawn_after_commit` is not a durable queue. Before the intent row, a process
+    that died in that window lost the cleanup outright - and the committed delete
+    had already removed the document paths and collection names a retry would
+    need to find, so nothing was left to reconstruct it. The row is written in
+    the purge's own transaction, so it survives whatever the process does next.
+    """
+
+    @staticmethod
+    async def _purge_without_dispatching(engine: AsyncEngine, collection: str) -> uuid.UUID:
+        """Purge an org, then discard the hand-off - a crash, in one line."""
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as s:
+            user = _user()
+            s.add(user)
+            await s.flush()
+            org = await _org(s, user)
+            s.add(_org_collection(org.id, collection))
+            await s.commit()
+            org_id = org.id
+
+        async with factory() as s:
+            org = await s.get(Organization, org_id)
+            await OrganizationService(s, vector_store=store).purge(org)
+            await s.commit()
+            # The process dies here. Everything queued for after the commit goes
+            # with it; the intent, committed above, does not.
+            discard_deferred(s)
+        return org_id
+
+    async def test_the_intent_survives_a_crash_before_the_hand_off(
+        self, engine: AsyncEngine
+    ) -> None:
+        collection = f"kbout{uuid.uuid4().hex[:12]}"
+        org_id = await self._purge_without_dispatching(engine, collection)
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async with factory() as s:
+            assert await s.get(Organization, org_id) is None
+            intents = (
+                (
+                    await s.execute(
+                        select(TeardownIntent).where(TeardownIntent.organization_id == org_id)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+
+        assert len(intents) == 1
+        assert intents[0].collections == [collection]
+        # Never handed over, which is exactly what the sweep looks for.
+        assert intents[0].dispatched_at is None
+
+    async def test_the_sweep_claims_what_was_never_dispatched(self, engine: AsyncEngine) -> None:
+        collection = f"kbout{uuid.uuid4().hex[:12]}"
+        org_id = await self._purge_without_dispatching(engine, collection)
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async with factory() as s:
+            claimed = await teardown_intent_repo.claim_stale(
+                s, older_than=timedelta(minutes=15), limit=50
+            )
+            await s.commit()
+
+        assert [intent.organization_id for intent in claimed] == [org_id]
+        assert claimed[0].attempts == 1
+
+    async def test_a_freshly_dispatched_intent_is_left_alone(self, engine: AsyncEngine) -> None:
+        """Otherwise the sweep duplicates every run a healthy purge makes."""
+        collection = f"kbout{uuid.uuid4().hex[:12]}"
+        org_id = await self._purge_without_dispatching(engine, collection)
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async with factory() as s:
+            intent = (
+                (
+                    await s.execute(
+                        select(TeardownIntent).where(TeardownIntent.organization_id == org_id)
+                    )
+                )
+                .scalars()
+                .one()
+            )
+            await teardown_intent_repo.mark_dispatched(s, intent.id)
+            await s.commit()
+
+        async with factory() as s:
+            claimed = await teardown_intent_repo.claim_stale(
+                s, older_than=timedelta(minutes=15), limit=50
+            )
+            await s.commit()
+
+        assert [one.id for one in claimed] == []
+
+    async def test_finishing_removes_the_row_so_nothing_sweeps_it_again(
+        self, engine: AsyncEngine
+    ) -> None:
+        """The row's absence is the completion."""
+        collection = f"kbout{uuid.uuid4().hex[:12]}"
+        org_id = await self._purge_without_dispatching(engine, collection)
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async with factory() as s:
+            intent = (
+                (
+                    await s.execute(
+                        select(TeardownIntent).where(TeardownIntent.organization_id == org_id)
+                    )
+                )
+                .scalars()
+                .one()
+            )
+            await teardown_intent_repo.finish(s, intent.id)
+            await s.commit()
+
+        async with factory() as s:
+            claimed = await teardown_intent_repo.claim_stale(
+                s, older_than=timedelta(minutes=15), limit=50
+            )
+            await s.commit()
+
+        assert claimed == []
+
+    async def test_two_sweeps_at_once_take_different_rows(self, engine: AsyncEngine) -> None:
+        """`skip_locked`, so a second worker does not queue behind the first."""
+        first = await self._purge_without_dispatching(engine, f"kbout{uuid.uuid4().hex[:12]}")
+        second = await self._purge_without_dispatching(engine, f"kbout{uuid.uuid4().hex[:12]}")
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async with factory() as one, factory() as two:
+            claimed_one = await teardown_intent_repo.claim_stale(
+                one, older_than=timedelta(minutes=15), limit=1
+            )
+            claimed_two = await teardown_intent_repo.claim_stale(
+                two, older_than=timedelta(minutes=15), limit=1
+            )
+            await one.commit()
+            await two.commit()
+
+        taken = {intent.organization_id for intent in claimed_one + claimed_two}
+        assert taken == {first, second}

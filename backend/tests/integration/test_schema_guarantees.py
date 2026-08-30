@@ -32,7 +32,7 @@ from app.db.models.rag_document import RAGDocument
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.skill import Skill
 from app.db.models.user import User
-from app.repositories import embed_visitor_repo, ingestion_spend_repo
+from app.repositories import embed_visitor_repo, ingestion_spend_repo, mcp_connection_repo
 
 pytestmark = pytest.mark.anyio
 
@@ -227,6 +227,60 @@ class TestMcpConnectionOwnership:
             )
 
         await db.flush()
+
+    async def test_nominating_one_account_un_nominates_the_others(self, db):
+        """The bulk update that keeps the index satisfiable, against real rows.
+
+        Whether its `WHERE` narrows to this person, this service and the other
+        rows is not something a mock can answer - and getting it wrong either
+        leaves two nominated (the write then fails) or clears somebody else's.
+        """
+        org = await _org(db)
+        stranger = User(
+            id=uuid.uuid4(),
+            email=f"{uuid.uuid4().hex}@example.com",
+            hashed_password="x",
+            is_active=True,
+        )
+        db.add(stranger)
+        await db.flush()
+
+        rows = {}
+        for owner, key, name in (
+            (org.owner_user.id, "notion", "mine-work"),
+            (org.owner_user.id, "notion", "mine-side"),
+            (org.owner_user.id, "github", "mine-github"),
+            (stranger.id, "notion", "theirs"),
+        ):
+            row = McpConnection(
+                id=uuid.uuid4(),
+                organization_id=org.id,
+                user_id=owner,
+                scope="user",
+                name=name,
+                url=f"https://{name}.example.com/mcp",
+                catalog_key=key,
+                is_default=True,
+            )
+            db.add(row)
+            rows[name] = row
+        # Four rows, three of them nominated on distinct (person, service)
+        # pairs - the index permits that, and `mine-side` is the one being
+        # nominated over.
+        rows["mine-side"].is_default = False
+        await db.flush()
+
+        await mcp_connection_repo.clear_default_for_catalog_key(
+            db,
+            user_id=org.owner_user.id,
+            catalog_key="notion",
+            except_id=rows["mine-side"].id,
+        )
+
+        assert rows["mine-work"].is_default is False
+        # Untouched: a different service, and a different person.
+        assert rows["mine-github"].is_default is True
+        assert rows["theirs"].is_default is True
 
     @staticmethod
     async def _leaver(db, org: Organization) -> User:

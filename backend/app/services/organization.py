@@ -20,6 +20,7 @@ from app.repositories import (
     member_repo,
     organization_repo,
     rag_document_repo,
+    teardown_intent_repo,
 )
 from app.schemas.organization import (
     OrganizationCreate,
@@ -364,9 +365,14 @@ class OrganizationService:
         by a worker (#1274). The flow re-checks each collection against the KB
         table before dropping it, because `collection_name` is not tenant-unique
         (#913): a name a second org has claimed between this commit and the drop
-        keeps its table. The gap this does not close is commit-to-dispatch - a
-        crash before `spawn_after_commit` fires still loses the cleanup, which
-        only a record committed with the delete (an outbox) would close.
+        keeps its table.
+
+        What is left to release is written as a `TeardownIntent` in *this*
+        transaction, so it commits with the delete. That closes the last window -
+        a crash between the commit and the hand-off - because the row survives it
+        and a sweep re-dispatches whatever nothing finished. The flow deletes the
+        row when it is done, so an empty table means nothing is outstanding
+        (#1269).
         """
         await organization_repo.get_by_id_for_update(self.db, org.id)
         collections: list[str] = []
@@ -385,9 +391,19 @@ class OrganizationService:
             from app.core.background import spawn_after_commit
             from app.worker.tasks.teardown_tasks import dispatch_org_purge_cleanup
 
+            # Written in *this* transaction, so the record of what to release
+            # commits with the delete that released it. The hand-off below is
+            # then an optimisation rather than the only chance: lose it to a
+            # crash and the sweep finds the row and dispatches it again (#1269).
+            intent = await teardown_intent_repo.create(
+                self.db,
+                organization_id=org.id,
+                storage_paths=storage_paths,
+                collections=to_drop,
+            )
             spawn_after_commit(
                 self.db,
-                dispatch_org_purge_cleanup(storage_paths, to_drop),
+                dispatch_org_purge_cleanup(intent.id),
                 name="org_purge_cleanup",
             )
 

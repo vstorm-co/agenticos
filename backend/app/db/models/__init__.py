@@ -41,6 +41,7 @@ from app.db.models.context import ContextFile, ContextMode
 from app.db.models.skill import Skill, SkillResource
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
+from app.db.models.teardown_intent import TeardownIntent
 
 __all__ = [
     "User",
@@ -100,4 +101,5 @@ __all__ = [
     "ResourceGrant",
     "GrantLevel",
     "Visibility",
+    "TeardownIntent",
 ]

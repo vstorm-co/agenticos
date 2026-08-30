@@ -1,18 +1,24 @@
-"""The org-teardown cleanup survives the process that dispatched it (#1274).
+"""The org-teardown cleanup survives the process that dispatched it.
 
 `OrganizationService.purge` used to hand its external cleanup - unlinking stored
 uploads, dropping vector tables - to an in-process `spawn_after_commit` task,
 which died with the process. It now submits a durable Prefect deployment run: the
-run and its parameters are recorded on the server and retried by a worker. These
-pin the two halves - the dispatch submits the right run, and the cleanup it runs
-is idempotent and re-checks a shared collection name before dropping it.
+run is recorded on the server and retried by a worker (#1274).
+
+What that left was the window before the submission. The intent is written in
+the purge's own transaction now, so it commits with the delete, and a sweep
+re-dispatches anything nothing finished - which is what the dispatch tests below
+pin, along with the cleanup itself being idempotent and re-checking a shared
+collection name before dropping it (#1269).
 """
 
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from datetime import timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
@@ -22,74 +28,102 @@ from app.worker.tasks.teardown_tasks import (
     dispatch_org_purge_cleanup,
     org_purge_cleanup_flow,
     purge_org_external_state,
+    teardown_sweep_flow,
 )
 
 pytestmark = pytest.mark.anyio
 
 
 class TestDispatch:
+    @staticmethod
+    def _session() -> Any:
+        """A worker session context whose `db` is a mock, for the stamp below."""
+        db = MagicMock()
+
+        @asynccontextmanager
+        async def ctx() -> Any:
+            yield db
+
+        return db, ctx
+
     async def test_it_submits_the_cleanup_as_its_own_deployment_run(self) -> None:
         """`run_deployment` records the run on the Prefect server; that is what
         makes the cleanup outlive the process that dispatched it."""
+        intent_id = uuid4()
         run = AsyncMock()
-        with patch.object(teardown_tasks, "run_deployment", run):
-            await dispatch_org_purge_cleanup(["a/one.txt"], ["docs"])
+        _db, ctx = self._session()
+        with (
+            patch.object(teardown_tasks, "run_deployment", run),
+            patch.object(teardown_tasks, "get_worker_db_context", ctx),
+            patch.object(teardown_tasks.teardown_intent_repo, "mark_dispatched", AsyncMock()),
+        ):
+            await dispatch_org_purge_cleanup(intent_id)
 
         run.assert_awaited_once_with(
             name="org-purge-cleanup/org-purge-cleanup",
-            parameters={"storage_paths": ["a/one.txt"], "collections": ["docs"]},
+            parameters={"intent_id": str(intent_id)},
             timeout=0,
         )
 
-    async def test_a_purge_with_no_paths_still_submits_the_table_drops(self) -> None:
+    async def test_the_payload_is_an_id_rather_than_the_paths_themselves(self) -> None:
+        """Which is what removed the chunking this used to do: a large org can
+        leave tens of thousands of files behind, and the whole payload had to
+        stay under Prefect's 512 KiB flow-parameter limit. The flow reads them
+        from the row (#1269)."""
         run = AsyncMock()
-        with patch.object(teardown_tasks, "run_deployment", run):
-            await dispatch_org_purge_cleanup([], ["docs"])
+        _db, ctx = self._session()
+        with (
+            patch.object(teardown_tasks, "run_deployment", run),
+            patch.object(teardown_tasks, "get_worker_db_context", ctx),
+            patch.object(teardown_tasks.teardown_intent_repo, "mark_dispatched", AsyncMock()),
+        ):
+            await dispatch_org_purge_cleanup(uuid4())
 
-        run.assert_awaited_once_with(
-            name="org-purge-cleanup/org-purge-cleanup",
-            parameters={"storage_paths": [], "collections": ["docs"]},
-            timeout=0,
-        )
+        assert set(run.await_args.kwargs["parameters"]) == {"intent_id"}
 
-    async def test_it_chunks_a_large_path_list_across_bounded_runs(self) -> None:
-        """A payload over Prefect's 512 KiB flow-parameter limit would be rejected
-        after the rows are gone, so the paths are split across runs and each stays
-        bounded; the table drops ride the first run only (#1274)."""
-        paths = [f"u/{i}.txt" for i in range(teardown_tasks._MAX_PATHS_PER_RUN + 1)]
-        run = AsyncMock()
-        with patch.object(teardown_tasks, "run_deployment", run):
-            await dispatch_org_purge_cleanup(paths, ["docs"])
+    async def test_a_dispatched_intent_is_stamped_so_the_sweep_leaves_it_alone(self) -> None:
+        intent_id = uuid4()
+        stamp = AsyncMock()
+        _db, ctx = self._session()
+        with (
+            patch.object(teardown_tasks, "run_deployment", AsyncMock()),
+            patch.object(teardown_tasks, "get_worker_db_context", ctx),
+            patch.object(teardown_tasks.teardown_intent_repo, "mark_dispatched", stamp),
+        ):
+            await dispatch_org_purge_cleanup(intent_id)
 
-        assert run.await_count == 2
-        first, second = run.await_args_list
-        assert len(first.kwargs["parameters"]["storage_paths"]) == teardown_tasks._MAX_PATHS_PER_RUN
-        assert first.kwargs["parameters"]["collections"] == ["docs"]
-        assert second.kwargs["parameters"]["storage_paths"] == [paths[-1]]
-        assert second.kwargs["parameters"]["collections"] == []
+        assert stamp.await_args.args[1] == intent_id
 
     async def test_a_transient_submission_failure_is_retried(self) -> None:
         run = AsyncMock(side_effect=[RuntimeError("prefect blip"), None])
+        _db, ctx = self._session()
         with (
             patch.object(teardown_tasks, "run_deployment", run),
+            patch.object(teardown_tasks, "get_worker_db_context", ctx),
+            patch.object(teardown_tasks.teardown_intent_repo, "mark_dispatched", AsyncMock()),
             patch("asyncio.sleep", new=AsyncMock()),
         ):
-            await dispatch_org_purge_cleanup(["a/one.txt"], [])
+            await dispatch_org_purge_cleanup(uuid4())
 
         assert run.await_count == 2
 
-    async def test_a_submission_that_keeps_failing_is_logged_not_raised(self) -> None:
-        """A run that cannot be submitted has no row to reconstruct it, but one
-        transient failure must not abort the rest, so it is logged rather than
-        raised (#1274)."""
+    async def test_a_submission_that_keeps_failing_leaves_the_intent_for_the_sweep(self) -> None:
+        """Not fatal any more, and that is the whole of #1269: the row stays
+        undispatched, so the sweep finds it. Stamping it here would tell the
+        sweep a run exists that does not."""
         run = AsyncMock(side_effect=RuntimeError("prefect down"))
+        stamp = AsyncMock()
+        _db, ctx = self._session()
         with (
             patch.object(teardown_tasks, "run_deployment", run),
+            patch.object(teardown_tasks, "get_worker_db_context", ctx),
+            patch.object(teardown_tasks.teardown_intent_repo, "mark_dispatched", stamp),
             patch("asyncio.sleep", new=AsyncMock()),
         ):
-            await dispatch_org_purge_cleanup(["a/one.txt"], [])
+            await dispatch_org_purge_cleanup(uuid4())
 
         assert run.await_count == teardown_tasks._SUBMIT_ATTEMPTS
+        stamp.assert_not_awaited()
 
 
 @asynccontextmanager
@@ -169,12 +203,158 @@ class TestTheCleanup:
 
 
 class TestTheFlow:
-    async def test_it_runs_the_cleanup(self) -> None:
-        """The `@flow` wrapper is thin: it carries the durability and delegates the
-        work to `purge_org_external_state`."""
+    @staticmethod
+    def _session() -> Any:
+        db = MagicMock(commit=AsyncMock())
+
+        @asynccontextmanager
+        async def ctx() -> Any:
+            yield db
+
+        return db, ctx
+
+    async def test_it_reads_what_to_release_from_the_intent(self) -> None:
+        """The parameters carry an id; the row carries the work."""
+        intent = MagicMock(storage_paths=["u/a.txt"], collections=["docs"])
         impl = AsyncMock(return_value={"unlinked": 1, "dropped": 1})
-        with patch.object(teardown_tasks, "purge_org_external_state", impl):
-            result = await org_purge_cleanup_flow(["u/a.txt"], ["docs"])
+        _db, ctx = self._session()
+        with (
+            patch.object(teardown_tasks, "get_worker_db_context", ctx),
+            patch.object(
+                teardown_tasks.teardown_intent_repo, "get", AsyncMock(return_value=intent)
+            ),
+            patch.object(teardown_tasks.teardown_intent_repo, "finish", AsyncMock()),
+            patch.object(teardown_tasks, "purge_org_external_state", impl),
+        ):
+            result = await org_purge_cleanup_flow(str(uuid4()))
 
         impl.assert_awaited_once_with(["u/a.txt"], ["docs"])
         assert result == {"unlinked": 1, "dropped": 1}
+
+    async def test_finishing_deletes_the_intent(self) -> None:
+        """The row's absence is the completion, so nothing has to interpret a
+        status column and no sweep has to decide what `done` means."""
+        intent_id = uuid4()
+        finish = AsyncMock()
+        _db, ctx = self._session()
+        with (
+            patch.object(teardown_tasks, "get_worker_db_context", ctx),
+            patch.object(
+                teardown_tasks.teardown_intent_repo,
+                "get",
+                AsyncMock(return_value=MagicMock(storage_paths=[], collections=[])),
+            ),
+            patch.object(teardown_tasks.teardown_intent_repo, "finish", finish),
+            patch.object(teardown_tasks, "purge_org_external_state", AsyncMock(return_value={})),
+        ):
+            await org_purge_cleanup_flow(str(intent_id))
+
+        assert finish.await_args.args[1] == intent_id
+
+    async def test_an_intent_already_gone_is_a_run_that_already_succeeded(self) -> None:
+        """A duplicate submission, or a retry after the work landed. Nothing to
+        do and nothing to complain about."""
+        impl = AsyncMock()
+        _db, ctx = self._session()
+        with (
+            patch.object(teardown_tasks, "get_worker_db_context", ctx),
+            patch.object(teardown_tasks.teardown_intent_repo, "get", AsyncMock(return_value=None)),
+            patch.object(teardown_tasks, "purge_org_external_state", impl),
+        ):
+            result = await org_purge_cleanup_flow(str(uuid4()))
+
+        impl.assert_not_awaited()
+        assert result == {"unlinked": 0, "dropped": 0}
+
+
+class TestTheSweep:
+    """The half `spawn_after_commit` cannot cover (#1269).
+
+    A process that died between the purge's commit and the hand-off leaves an
+    intent nobody ever submitted, and the committed delete has already removed
+    the paths and collection names a retry would otherwise need to find.
+    """
+
+    @staticmethod
+    def _session() -> Any:
+        db = MagicMock(commit=AsyncMock())
+
+        @asynccontextmanager
+        async def ctx() -> Any:
+            yield db
+
+        return db, ctx
+
+    async def test_it_re_dispatches_what_it_claims(self) -> None:
+        first, second = MagicMock(id=uuid4()), MagicMock(id=uuid4())
+        run = AsyncMock()
+        _db, ctx = self._session()
+        with (
+            patch.object(teardown_tasks, "get_worker_db_context", ctx),
+            patch.object(
+                teardown_tasks.teardown_intent_repo,
+                "claim_stale",
+                AsyncMock(return_value=[first, second]),
+            ),
+            patch.object(teardown_tasks, "run_deployment", run),
+        ):
+            result = await teardown_sweep_flow()
+
+        assert result == {"claimed": 2, "dispatched": 2}
+        assert [call.kwargs["parameters"]["intent_id"] for call in run.await_args_list] == [
+            str(first.id),
+            str(second.id),
+        ]
+
+    async def test_a_quiet_fleet_dispatches_nothing(self) -> None:
+        run = AsyncMock()
+        _db, ctx = self._session()
+        with (
+            patch.object(teardown_tasks, "get_worker_db_context", ctx),
+            patch.object(
+                teardown_tasks.teardown_intent_repo, "claim_stale", AsyncMock(return_value=[])
+            ),
+            patch.object(teardown_tasks, "run_deployment", run),
+        ):
+            result = await teardown_sweep_flow()
+
+        run.assert_not_awaited()
+        assert result == {"claimed": 0, "dispatched": 0}
+
+    async def test_one_submission_failing_does_not_abandon_the_others(self) -> None:
+        first, second = MagicMock(id=uuid4()), MagicMock(id=uuid4())
+        run = AsyncMock(side_effect=[RuntimeError("down")] * 3 + [None])
+        _db, ctx = self._session()
+        with (
+            patch.object(teardown_tasks, "get_worker_db_context", ctx),
+            patch.object(
+                teardown_tasks.teardown_intent_repo,
+                "claim_stale",
+                AsyncMock(return_value=[first, second]),
+            ),
+            patch.object(teardown_tasks, "run_deployment", run),
+            patch("asyncio.sleep", new=AsyncMock()),
+        ):
+            result = await teardown_sweep_flow()
+
+        # The first exhausted its retries; the second went. It stays claimed
+        # either way, and the next sweep past the stale window takes it again.
+        assert result == {"claimed": 2, "dispatched": 1}
+
+    async def test_it_asks_for_a_bounded_batch_past_a_generous_deadline(self) -> None:
+        """A backlog drains over several ticks rather than in one burst, and the
+        deadline sits well past the flow's own retries so a healthy run is never
+        duplicated by impatience."""
+        claim = AsyncMock(return_value=[])
+        _db, ctx = self._session()
+        with (
+            patch.object(teardown_tasks, "get_worker_db_context", ctx),
+            patch.object(teardown_tasks.teardown_intent_repo, "claim_stale", claim),
+        ):
+            await teardown_sweep_flow()
+
+        assert claim.await_args.kwargs == {
+            "older_than": teardown_tasks._STALE_AFTER,
+            "limit": teardown_tasks._SWEEP_BATCH,
+        }
+        assert timedelta(minutes=3) < teardown_tasks._STALE_AFTER

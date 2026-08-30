@@ -279,6 +279,20 @@ committed — a failure reported for something that was working, and an invitati
 to press the button again and fire the schedule twice ([#658][658]). The route
 answers `202` and the fire starts after the commit.
 
+!!! warning "It is not a queue that survives the process"
+
+    `spawn_after_commit` runs the work only if the process lives long enough to
+    start it. That is fine for work a later request can reproduce, and not fine
+    for work whose *input* the commit just destroyed - an organization purge
+    hands on the paths and collection names that its own commit removed the last
+    record of, so a crash between the two loses them for good.
+
+    Where that applies, the intent is written as a row in the same transaction
+    and the hand-off becomes an optimisation: `teardown_intents` names what is
+    left to release, the flow deletes the row once it has, and a sweep
+    re-dispatches whatever nothing finished. The row's absence is the
+    completion, so an empty table means nothing is outstanding.
+
 Two things follow from where the queue lives:
 
 - **It belongs to the session, not to the request.** A service dispatching a
