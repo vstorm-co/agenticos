@@ -489,6 +489,9 @@ describe("which of a member's own accounts an agent speaks as", () => {
 
   it("records the nomination against the account it is beside", async () => {
     await mount({ own: TWO });
+    // The hook patches its cache with what the write answered, so a bare mock
+    // would fault after the assertion and surface as an unhandled rejection.
+    vi.mocked(apiClient.patch).mockResolvedValue({ ...TWO[1], is_default: true });
     const dialog = await openConnections();
 
     const [, side] = dialog.getAllByLabelText("Agents speak as this one");
