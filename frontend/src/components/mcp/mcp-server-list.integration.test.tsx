@@ -67,6 +67,7 @@ function connection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConn
     last_error: null,
     last_checked_at: null,
     catalog_key: "github",
+    is_default: false,
     granted_scopes: null,
     created_at: "2026-07-01T00:00:00Z",
     updated_at: null,
@@ -260,7 +261,8 @@ describe("McpServerList", () => {
     // revoke - which is what deleting the second page would otherwise create.
     // No `catalog_key`: this is a personal record, and one carrying GitHub's
     // key would be folded onto the GitHub row instead of getting its own.
-    const { catalog_key: _ignored, ...crm } = connection({
+    const crm = connection({
+      catalog_key: null,
       id: "p9",
       name: "internal-crm",
       url: "https://crm.internal/mcp",
@@ -291,7 +293,8 @@ describe("McpServerList", () => {
     // has no catalog key and no brand mark anywhere, so the card shows a
     // bordered initial - the same fallback the vault uses for a provider with
     // no logo. A blank square or a broken image would read as a failed load.
-    const { catalog_key: _ignored, ...crm } = connection({
+    const crm = connection({
+      catalog_key: null,
       id: "p9",
       name: "internal-crm",
       url: "https://crm.internal/mcp",
@@ -439,5 +442,76 @@ describe("several accounts on one server", () => {
     expect(
       dialog.getByText("Yours alone — your chat, and your direct messages in a channel."),
     ).toBeInTheDocument();
+  });
+});
+
+describe("which of a member's own accounts an agent speaks as", () => {
+  /**
+   * A binding flagged "speak as whoever is running it" substitutes the runner's
+   * own connection for the organization's. With two accounts on one service it
+   * declined to guess, and there was nowhere to say which was meant (#1342).
+   */
+  const TWO = [
+    connection({ id: "p1", name: "notion-work" }),
+    connection({ id: "p2", name: "notion-side" }),
+  ];
+
+  it("offers the choice where the member holds more than one", async () => {
+    await mount({ own: TWO });
+    const dialog = await openConnections();
+
+    expect(dialog.getAllByLabelText("Agents speak as this one")).toHaveLength(2);
+  });
+
+  it("offers nothing where there is no choice to make", async () => {
+    // A single account is substituted whether or not it is marked, so a switch
+    // beside it would be a control that changes nothing.
+    await mount({ own: [connection({ id: "p1", name: "notion" })] });
+    const dialog = await openConnections();
+
+    expect(dialog.queryByLabelText("Agents speak as this one")).toBeNull();
+  });
+
+  it("offers nothing for a connection with no catalog key", async () => {
+    // It lands on this row because `entryForConnection` also matches on URL,
+    // but the substitution joins on the key - and without one there is nothing
+    // to nominate it against. Publish refuses the same combination.
+    await mount({
+      own: [
+        connection({ id: "p1", name: "gh-work" }),
+        connection({ id: "p2", name: "gh-typed", catalog_key: null }),
+      ],
+    });
+    const dialog = await openConnections();
+
+    expect(dialog.getAllByLabelText("Agents speak as this one")).toHaveLength(1);
+  });
+
+  it("records the nomination against the account it is beside", async () => {
+    await mount({ own: TWO });
+    const dialog = await openConnections();
+
+    const [, side] = dialog.getAllByLabelText("Agents speak as this one");
+    await userEvent.click(side!);
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/me/mcp-connections/p2", {
+        is_default: true,
+      }),
+    );
+  });
+
+  it("shows which one is nominated", async () => {
+    await mount({
+      own: [
+        connection({ id: "p1", name: "notion-work", is_default: true }),
+        connection({ id: "p2", name: "notion-side" }),
+      ],
+    });
+    const dialog = await openConnections();
+
+    const boxes = dialog.getAllByLabelText("Agents speak as this one");
+    expect(boxes[0]).toBeChecked();
+    expect(boxes[1]).not.toBeChecked();
   });
 });

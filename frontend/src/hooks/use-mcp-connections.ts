@@ -38,6 +38,8 @@ interface UseMcpConnectionsResult {
       allowed_tools?: string[];
       clear_allowed_tools?: boolean;
       is_enabled?: boolean;
+      /** Speak as this one where an agent asked for the member's own account. */
+      is_default?: boolean;
     },
   ) => Promise<McpConnectionRecord>;
   remove: (id: string) => Promise<void>;

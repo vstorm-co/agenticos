@@ -24,6 +24,14 @@ export interface McpConnectionRecord {
   last_status: string | null;
   last_error: string | null;
   last_checked_at: string | null;
+  /** Which catalog entry it points at, where it was connected from one. */
+  catalog_key: string | null;
+  /**
+   * Speak as this account where an agent binding asked for the member's own and
+   * they hold several on this service. At most one of theirs per service, kept
+   * so by a partial unique index (#1342).
+   */
+  is_default: boolean;
   created_at: string;
   updated_at: string | null;
 }
@@ -73,6 +81,8 @@ export async function updateMcpConnection(
     allowed_tools?: string[];
     clear_allowed_tools?: boolean;
     is_enabled?: boolean;
+    /** Speak as this one where an agent asked for the member's own account. */
+    is_default?: boolean;
   },
 ): Promise<McpConnectionRecord> {
   return apiClient.patch<McpConnectionRecord>(`${ROOT}/${id}`, patch);

@@ -106,11 +106,10 @@ changes.
     bindings sharing one `catalog_key` are refused too — one run cannot
     substitute two accounts.
 
-    At run time, a member holding *several* of their own connections to one
-    service keeps the organization's account. Nothing records which of them they
-    meant, and picking the older workspace silently is worse than answering as
-    the organization
-    ([#1342](https://github.com/vstorm-co/agenticos/issues/1342)).
+    A member holding *several* of their own connections to one service picks
+    one, in Settings → Your connections: the account they nominate is the one an
+    agent speaks as. Until they pick, the organization's account answers -
+    picking the older workspace silently would be worse.
 
 ## Authentication
 

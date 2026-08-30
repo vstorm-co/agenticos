@@ -37,6 +37,14 @@ class McpConnectionUpdate(BaseSchema):
     # in a PATCH body is indistinguishable from "not provided").
     clear_allowed_tools: bool = False
     is_enabled: bool | None = None
+    is_default: bool | None = Field(
+        default=None,
+        description=(
+            "Speak as this account, where an agent binding asked for the "
+            "member's own and they hold several on this service. Setting it "
+            "clears the flag on the others (#1342)."
+        ),
+    )
 
 
 class McpConnectionRead(TimestampSchema, BaseSchema):
@@ -60,6 +68,14 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
     last_status: str | None
     last_error: str | None
     last_checked_at: datetime | None
+    # Which catalog entry this points at, where it was connected from one. On
+    # the personal read as well as the organization's, because it is what says a
+    # member's Notion and the organization's are the same service - the join the
+    # substitution is made on.
+    catalog_key: str | None = None
+    # Whether an agent speaking as this member uses this account. Only ever true
+    # for one of their connections per service.
+    is_default: bool = False
 
     @classmethod
     def from_model(cls, connection: McpConnection) -> McpConnectionRead:
@@ -81,6 +97,8 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
             last_status=connection.last_status,
             last_error=connection.last_error,
             last_checked_at=connection.last_checked_at,
+            catalog_key=connection.catalog_key,
+            is_default=connection.is_default,
             created_at=connection.created_at,
             updated_at=connection.updated_at,
         )
@@ -122,25 +140,17 @@ class OrgMcpConnectionUpdate(BaseSchema):
     is_enabled: bool | None = None
 
 
-class OrgMcpConnectionRead(McpConnectionRead):
-    """An organization connection as the API returns it.
+class OrgMcpConnectionList(BaseSchema):
+    """An organization's connections.
 
-    Adds only `catalog_key`: the Builder and the servers page both want to
-    show a curated server's real name and logo, and matching on the URL - which
-    is what the frontend does for personal connections - guesses where this
-    knows.
+    Its own list rather than `McpConnectionList` because the two are different
+    collections behind different permissions; the *rows* are the same shape, and
+    were only ever a subclass to add `catalog_key` - which every connection has
+    now that the substitution joins a member's account to the organization's on
+    it (#1342).
     """
 
-    catalog_key: str | None
-
-    @classmethod
-    def from_model(cls, connection: McpConnection) -> OrgMcpConnectionRead:
-        base = McpConnectionRead.from_model(connection)
-        return cls(**base.model_dump(), catalog_key=connection.catalog_key)
-
-
-class OrgMcpConnectionList(BaseSchema):
-    items: list[OrgMcpConnectionRead]
+    items: list[McpConnectionRead]
     total: int
 
 

@@ -540,6 +540,29 @@ class McpConnectionService:
             update_data["oauth_pending_payload"] = None
             update_data["oauth_state"] = None
 
+        if update_data.get("is_default"):
+            if db_connection.catalog_key is None:
+                # Nothing to nominate it against: the key is what says this
+                # account and the organization's are the same service, so a
+                # default on a connection made from a bare URL would never be
+                # read (#1342).
+                raise refused_field(
+                    "is_default",
+                    "This connection was made from a URL rather than from the catalog, "
+                    "so nothing says which service it is. Reconnect it from the catalog "
+                    "to speak as it.",
+                )
+            # Cleared on the siblings first, so the partial unique index is
+            # never asked to hold two at once. One statement rather than a read
+            # and a loop: the index is the constraint, and this is what keeps
+            # the write inside it.
+            await mcp_connection_repo.clear_default_for_catalog_key(
+                self.db,
+                user_id=user_id,
+                catalog_key=db_connection.catalog_key,
+                except_id=db_connection.id,
+            )
+
         if not update_data:
             return db_connection
         return await mcp_connection_repo.update(
@@ -1466,13 +1489,29 @@ async def _personal_substitute(
     owned = await mcp_connection_repo.list_user_scoped_by_catalog_key(
         db, user_id=user_id, catalog_key=connection.catalog_key
     )
-    if len(owned) != 1:
+    speaking_as = _nominated(owned)
+    if speaking_as is None:
         if owned:
             logger.info(
-                "Not substituting a personal connection for %r: this member holds %d of them",
+                "Not substituting a personal connection for %r: this member holds %d of them "
+                "and has nominated none",
                 connection.name,
                 len(owned),
             )
         return connection
     logger.info("Speaking to %r as the member's own connection", connection.name)
-    return owned[0]
+    return speaking_as
+
+
+def _nominated(owned: list[McpConnection]) -> McpConnection | None:
+    """Which of a member's accounts on one service to speak as, if any is clear.
+
+    One account needs no nomination - there is nothing to choose between - so it
+    answers whether or not it is marked. Several answer only the one marked
+    default, which a partial unique index keeps to at most one; several with none
+    marked answer nothing, because picking the older workspace silently is worse
+    than answering as the organization (#1342).
+    """
+    if len(owned) == 1:
+        return owned[0]
+    return next((account for account in owned if account.is_default), None)

@@ -2507,7 +2507,10 @@
     "tools": "Tools",
     "edit": "Edit",
     "connectionCount": "{count, plural, =1 {1 connection} other {# connections}}",
-    "manageConnectionsOn": "Manage connections on {name}"
+    "manageConnectionsOn": "Manage connections on {name}",
+    "agentsSpeakAsThisOne": "Agents speak as this one",
+    "agentsSpeakAsThis": "Agents will speak as this account",
+    "agentsNoLongerSpeak": "Agents no longer speak as this account"
   },
   "members": {
     "emailPlaceholder": "colleague@example.com",

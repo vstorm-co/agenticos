@@ -38,7 +38,6 @@ from app.schemas.mcp_connection import (
     McpConnectionRead,
     McpConnectionUpdate,
     OrgMcpConnectionCreate,
-    OrgMcpConnectionRead,
     OrgMcpConnectionUpdate,
 )
 from app.services import mcp_connection as mcp_connection_service
@@ -80,6 +79,7 @@ def _connection(**overrides) -> McpConnection:
         # for a reason that has nothing to do with what the test is about.
         "scope": "user",
         "catalog_key": None,
+        "is_default": False,
         "name": "github",
         "url": "https://example.com/mcp",
         "auth_token": None,
@@ -558,10 +558,55 @@ class TestSpeakingAsTheMemberWhoAsked:
         assert seen[0][0].url == org.url
 
     @pytest.mark.anyio
+    async def test_the_account_they_nominated_is_the_one_that_answers(self, monkeypatch):
+        """Two accounts, one marked. The mark is the whole answer (#1342)."""
+        seen = self._capture(monkeypatch)
+        org = _connection(name="notion", catalog_key="notion")
+        self._bound(monkeypatch, org)
+        self._owns(
+            monkeypatch,
+            [
+                _connection(name="side", url="https://side/mcp", catalog_key="notion"),
+                _connection(
+                    name="work", url="https://work/mcp", catalog_key="notion", is_default=True
+                ),
+            ],
+        )
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[McpServerRef(connection_id=org.id, use_personal_when_available=True)],
+            personal_for_user_id=uuid4(),
+        )
+
+        assert seen[0][0].url == "https://work/mcp"
+
+    @pytest.mark.anyio
+    async def test_one_account_needs_no_nomination(self, monkeypatch):
+        """There is nothing to choose between, so an unmarked single account
+        answers - which is why no upgrade has to backfill a default."""
+        seen = self._capture(monkeypatch)
+        org = _connection(name="notion", catalog_key="notion")
+        self._bound(monkeypatch, org)
+        self._owns(
+            monkeypatch, [_connection(name="mine", url="https://mine/mcp", catalog_key="notion")]
+        )
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[McpServerRef(connection_id=org.id, use_personal_when_available=True)],
+            personal_for_user_id=uuid4(),
+        )
+
+        assert seen[0][0].url == "https://mine/mcp"
+
+    @pytest.mark.anyio
     async def test_two_accounts_of_their_own_are_not_guessed_between(self, monkeypatch):
-        """Nothing records which of them they meant (#1342), and picking the
-        older Notion workspace silently is worse than answering as the
-        organization."""
+        """Nothing records which of them they meant, and picking the older
+        Notion workspace silently is worse than answering as the organization.
+        They nominate one; until they do, this is the answer (#1342)."""
         seen = self._capture(monkeypatch)
         org = _connection(name="notion", catalog_key="notion")
         self._bound(monkeypatch, org)
@@ -1072,6 +1117,7 @@ class TestMcpConnectionService:
         mock_repo.create = AsyncMock()
         mock_repo.update = AsyncMock()
         mock_repo.delete = AsyncMock()
+        mock_repo.clear_default_for_catalog_key = AsyncMock()
         monkeypatch.setattr(mcp_connection_service, "mcp_connection_repo", mock_repo)
         return mock_repo
 
@@ -1309,6 +1355,54 @@ class TestMcpConnectionService:
         assert update_data["auth_token"] is None
         # Credentials changed → stale check result is reset.
         assert update_data["last_status"] is None
+
+    @pytest.mark.anyio
+    async def test_nominating_an_account_clears_the_siblings_first(self, service, repo):
+        """The partial unique index is the constraint, so it is never asked to
+        hold two: the others are cleared before this row is written (#1342)."""
+        user_id = uuid4()
+        conn = _connection(user_id=user_id, catalog_key="notion")
+        repo.get_by_id.return_value = conn
+
+        await service.update(
+            user_id=user_id, connection_id=conn.id, data=McpConnectionUpdate(is_default=True)
+        )
+
+        assert repo.clear_default_for_catalog_key.await_args.kwargs == {
+            "user_id": user_id,
+            "catalog_key": "notion",
+            "except_id": conn.id,
+        }
+        assert repo.update.call_args.kwargs["update_data"]["is_default"] is True
+
+    @pytest.mark.anyio
+    async def test_un_nominating_leaves_the_siblings_alone(self, service, repo):
+        """Turning one off says nothing about which should be on instead."""
+        user_id = uuid4()
+        conn = _connection(user_id=user_id, catalog_key="notion", is_default=True)
+        repo.get_by_id.return_value = conn
+
+        await service.update(
+            user_id=user_id, connection_id=conn.id, data=McpConnectionUpdate(is_default=False)
+        )
+
+        repo.clear_default_for_catalog_key.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_connection_with_no_catalog_entry_cannot_be_nominated(self, service, repo):
+        """The key is what says this account and the organization's are the same
+        service, so a default without one would never be read."""
+        user_id = uuid4()
+        conn = _connection(user_id=user_id, catalog_key=None)
+        repo.get_by_id.return_value = conn
+
+        with pytest.raises(BadRequestError) as refused:
+            await service.update(
+                user_id=user_id, connection_id=conn.id, data=McpConnectionUpdate(is_default=True)
+            )
+
+        assert refused.value.details["fields"][0]["field"] == "is_default"
+        repo.update.assert_not_awaited()
 
     @pytest.mark.anyio
     async def test_update_url_revalidates_ssrf(self, service, repo):
@@ -2420,7 +2514,7 @@ class TestOrgReadSchema:
             secret_key_version=sealed.key_version,
         )
 
-        read = OrgMcpConnectionRead.from_model(conn)
+        read = McpConnectionRead.from_model(conn)
 
         assert (read.has_auth_token, read.catalog_key) == (True, "github")
         rendered = read.model_dump_json()

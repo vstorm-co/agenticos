@@ -163,6 +163,71 @@ class TestMcpConnectionOwnership:
         with pytest.raises(IntegrityError):
             await db.flush()
 
+    async def test_one_account_per_person_per_service_can_be_nominated(self, db):
+        """A member says which of their accounts an agent speaks as, and the
+        index is what keeps that answer single (#1342)."""
+        org = await _org(db)
+        for name in ("work", "side"):
+            db.add(
+                McpConnection(
+                    id=uuid.uuid4(),
+                    organization_id=org.id,
+                    user_id=org.owner_user.id,
+                    scope="user",
+                    name=name,
+                    url=f"https://{name}.example.com/mcp",
+                    catalog_key="notion",
+                    is_default=True,
+                )
+            )
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    async def test_two_accounts_on_one_service_are_fine_while_neither_is_nominated(self, db):
+        """The constraint is on the nomination, not on holding several."""
+        org = await _org(db)
+        for name in ("work", "side"):
+            db.add(
+                McpConnection(
+                    id=uuid.uuid4(),
+                    organization_id=org.id,
+                    user_id=org.owner_user.id,
+                    scope="user",
+                    name=name,
+                    url=f"https://{name}.example.com/mcp",
+                    catalog_key="notion",
+                )
+            )
+
+        await db.flush()
+
+    async def test_two_people_may_each_nominate_their_own(self, db):
+        """The index is per person; one member's choice is not another's."""
+        org = await _org(db)
+        second = User(
+            id=uuid.uuid4(),
+            email=f"{uuid.uuid4().hex}@example.com",
+            hashed_password="x",
+            is_active=True,
+        )
+        db.add(second)
+        await db.flush()
+        for owner in (org.owner_user.id, second.id):
+            db.add(
+                McpConnection(
+                    id=uuid.uuid4(),
+                    organization_id=org.id,
+                    user_id=owner,
+                    scope="user",
+                    name=f"notion-{uuid.uuid4().hex[:6]}",
+                    url="https://mcp.notion.com/mcp",
+                    catalog_key="notion",
+                    is_default=True,
+                )
+            )
+
+        await db.flush()
+
     @staticmethod
     async def _leaver(db, org: Organization) -> User:
         """A member who can actually be deleted - not the organization's creator,

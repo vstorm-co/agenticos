@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import {
   Button,
+  Checkbox,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -41,6 +42,7 @@ export function ServerConnectionsDialog({
   onEdit,
   onTools,
   onDisconnect,
+  onNominate,
   onOAuth,
 }: {
   /** The server being managed, or null when the dialog is closed. */
@@ -52,6 +54,8 @@ export function ServerConnectionsDialog({
   onEdit: (scope: Scope, row: McpServerRow, connection: McpConnectionRecord) => void;
   onTools: (scope: Scope, connection: McpConnectionRecord) => void;
   onDisconnect: (scope: Scope, connection: McpConnectionRecord) => void;
+  /** Nominate one of the reader's own accounts. Personal connections only. */
+  onNominate: (connection: McpConnectionRecord, use: boolean) => void;
   onOAuth: (scope: Scope, row: McpServerRow, connection: McpConnectionRecord) => void;
 }) {
   const t = useTranslations("mcp");
@@ -94,6 +98,10 @@ export function ServerConnectionsDialog({
                 onDisconnect={(connection) => onDisconnect("personal", connection)}
                 onOAuth={(connection) => onOAuth("personal", row, connection)}
                 onConnect={() => onConnect("personal", row)}
+                // Only where there is a choice to make. One account is
+                // substituted whether or not it is marked, so a switch beside it
+                // would be a control that changes nothing (#1342).
+                onNominate={row.personals.length > 1 ? onNominate : undefined}
               />
             </div>
           </>
@@ -115,6 +123,7 @@ function Owners({
   onDisconnect,
   onOAuth,
   onConnect,
+  onNominate,
 }: {
   heading: string;
   caption: string;
@@ -126,6 +135,7 @@ function Owners({
   onTools: (connection: McpConnectionRecord) => void;
   onDisconnect: (connection: McpConnectionRecord) => void;
   onOAuth: (connection: McpConnectionRecord) => void;
+  onNominate?: (connection: McpConnectionRecord, use: boolean) => void;
   onConnect?: () => void;
 }) {
   const t = useTranslations("mcp");
@@ -154,6 +164,11 @@ function Owners({
               onTools={() => onTools(connection)}
               onDisconnect={() => onDisconnect(connection)}
               onOAuth={() => onOAuth(connection)}
+              onNominate={
+                onNominate && connection.catalog_key !== null
+                  ? (use) => onNominate(connection, use)
+                  : undefined
+              }
             />
           ))}
         </ul>
@@ -177,6 +192,7 @@ function Account({
   onTools,
   onDisconnect,
   onOAuth,
+  onNominate,
 }: {
   connection: McpConnectionRecord;
   readOnly: boolean;
@@ -185,6 +201,12 @@ function Account({
   onTools: () => void;
   onDisconnect: () => void;
   onOAuth: () => void;
+  /**
+   * Passed only where the reader holds more than one account on this service
+   * and this one names a catalog entry - the two conditions under which the
+   * choice exists and can be recorded (#1342).
+   */
+  onNominate?: (use: boolean) => void;
 }) {
   const t = useTranslations("mcp");
   const state = connectionState(connection);
@@ -208,6 +230,16 @@ function Account({
       <span className="min-w-0 flex-1">
         <span className="block truncate font-mono text-sm">{name}</span>
         <span className="text-muted-foreground text-xs">{t(MCP_STATE_LABEL[state])}</span>
+        {onNominate && (
+          <label className="mt-1 flex items-center gap-1.5">
+            <Checkbox
+              checked={connection.is_default}
+              disabled={busy}
+              onCheckedChange={(next) => onNominate(next === true)}
+            />
+            <span className="text-muted-foreground text-xs">{t("agentsSpeakAsThisOne")}</span>
+          </label>
+        )}
       </span>
 
       {!readOnly && (

@@ -14,6 +14,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
+from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import lazyload
 
@@ -180,6 +181,30 @@ async def list_user_scoped_by_catalog_key(
         .order_by(McpConnection.created_at.asc())
     )
     return list(result.scalars())
+
+
+async def clear_default_for_catalog_key(
+    db: AsyncSession, *, user_id: UUID, catalog_key: str, except_id: UUID
+) -> None:
+    """Un-nominate this person's other accounts on one service.
+
+    Run before the row being nominated is written, so the partial unique index
+    on `(user_id, catalog_key) WHERE is_default` is never asked to hold two.
+    """
+    # `sql_update`, because this module defines its own `update` - the row-level
+    # one every repository here has.
+    await db.execute(
+        sql_update(McpConnection)
+        .where(
+            McpConnection.user_id == user_id,
+            McpConnection.scope == "user",
+            McpConnection.catalog_key == catalog_key,
+            McpConnection.id != except_id,
+            McpConnection.is_default.is_(True),
+        )
+        .values(is_default=False)
+    )
+    await db.flush()
 
 
 async def get_portal_grant(

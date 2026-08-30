@@ -29,7 +29,6 @@ import type { McpConnectionRecord, McpConnectionTestResult } from "./mcp-connect
  * endpoint to start an OAuth flow for an organization server.
  */
 export interface OrgMcpConnectionRecord extends McpConnectionRecord {
-  catalog_key: string | null;
   /**
    * The OAuth scopes the connected account consented to, or null for a bearer
    * connection (which holds no consent). What a portal checks to decide whether

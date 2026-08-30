@@ -311,6 +311,18 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     }
   };
 
+  const handleNominate = async (connection: McpConnectionRecord, use: boolean) => {
+    setBusyId(connection.id);
+    try {
+      await api("personal").update(connection.id, { is_default: use });
+      toast.success(use ? t("agentsSpeakAsThis") : t("agentsNoLongerSpeak"));
+    } catch (caught) {
+      toast.error(getErrorMessage(caught, tErrors));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const handleSaveTools = async () => {
     if (!toolPicker) return;
     const { scope, connection, tools, checked } = toolPicker;
@@ -559,6 +571,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         }}
         onTools={handleTools}
         onDisconnect={handleDisconnect}
+        onNominate={handleNominate}
         onOAuth={(scope, row, connection) => handleOAuth(row, connection.name, scope)}
       />
 

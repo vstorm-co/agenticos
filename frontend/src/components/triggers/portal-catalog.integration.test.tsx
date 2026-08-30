@@ -243,6 +243,7 @@ function orgConnection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpC
     last_error: null,
     last_checked_at: null,
     catalog_key: "github",
+    is_default: false,
     granted_scopes: ["repo", "admin:repo_hook"],
     created_at: "2026-07-01T00:00:00Z",
     updated_at: null,
