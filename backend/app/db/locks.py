@@ -17,6 +17,7 @@ carries a namespace: two unrelated ceilings must not block each other because a
 UUID happened to hash the same way.
 """
 
+import hashlib
 from enum import IntEnum
 from uuid import UUID
 
@@ -31,6 +32,10 @@ class LockScope(IntEnum):
     ORGANIZATIONS_PER_USER = 1
     #: How many agents one organization may hold.
     AGENTS_PER_ORGANIZATION = 2
+    #: Which teardown gets to decide whether a physical vector table is still
+    #: referenced. `collection_name` is not tenant-unique (#913), so two
+    #: teardowns can be about one table.
+    COLLECTION_NAME = 3
 
 
 def _key(subject: UUID) -> int:
@@ -41,6 +46,25 @@ def _key(subject: UUID) -> int:
     answer. The low bits of a v4 UUID are random, which is what makes that rare.
     """
     return (subject.int & 0xFFFFFFFF) - 0x80000000
+
+
+def _name_key(subject: str) -> int:
+    """A name as the integer the lock takes, with the same collision bargain.
+
+    `blake2b` rather than `hash()`, which is salted per process: two workers
+    would key one collection differently and the lock would serialize nothing.
+    """
+    digest = hashlib.blake2b(subject.encode(), digest_size=4).digest()
+    return int.from_bytes(digest, "big") - 0x80000000
+
+
+async def hold_name(db: AsyncSession, scope: LockScope, subject: str) -> None:
+    """Take the lock for one named subject, until this transaction ends.
+
+    The string half of :func:`hold_subject`, for a subject that is a name rather
+    than a row - a collection name, which several rows can claim.
+    """
+    await db.execute(select(func.pg_advisory_xact_lock(scope.value, _name_key(subject))))
 
 
 async def hold_subject(db: AsyncSession, scope: LockScope, subject: UUID) -> None:

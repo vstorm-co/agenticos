@@ -784,3 +784,79 @@ class TestConcurrentSelfDeletes:
             await holder.commit()
 
         assert deleted.id == owner_id
+
+
+class TestTwoTeardownsSharingOneCollectionName:
+    """`collection_name` is not tenant-unique (#913), so two can be one table.
+
+    Each transaction deletes its own base and then counts the bases still
+    claiming the name. Under READ COMMITTED each saw the other's pre-delete row,
+    both took the "still referenced, skip the drop" branch, both committed, and
+    the table nobody references was left behind (#1273). It is the exact inverse
+    of #1269's risk, where a stale check drops a table it should not.
+    """
+
+    async def test_the_second_teardown_drops_the_table_the_first_could_not(
+        self, engine: AsyncEngine
+    ) -> None:
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kb_shared_{uuid.uuid4().hex[:8]}"
+
+        async with factory() as setup:
+            first, second = _user(), _user()
+            setup.add_all([first, second])
+            await setup.flush()
+            for owner in (first, second):
+                org = await _org(setup, owner, is_personal=True)
+                setup.add(_personal_kb(org.id, owner.id, collection))
+            await setup.commit()
+            first_id, second_id = first.id, second.id
+
+        dropped: list[str] = []
+
+        def store() -> MagicMock:
+            vector_store = MagicMock()
+            vector_store.delete_collection = AsyncMock(side_effect=dropped.append)
+            return vector_store
+
+        # Both live at once, each having deleted its own base before either
+        # commits - the interleaving that produced the leak. The advisory lock on
+        # the name is what makes the second read the first's committed absence
+        # rather than its pre-delete row.
+        async def run_delete(user_id: uuid.UUID) -> None:
+            async with factory() as session:
+                await UserService(session, vector_store=store()).delete(user_id)
+                await session.commit()
+
+        await asyncio.gather(run_delete(first_id), run_delete(second_id))
+
+        assert dropped == [collection], (
+            "the table both teardowns released was dropped by neither: each saw "
+            "the other's pre-delete row and skipped it (#1273)"
+        )
+
+    async def test_a_name_a_surviving_base_still_claims_is_not_dropped(
+        self, engine: AsyncEngine
+    ) -> None:
+        """The lock serializes the decision; it does not change it."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kb_kept_{uuid.uuid4().hex[:8]}"
+
+        async with factory() as setup:
+            going, staying = _user(), _user()
+            setup.add_all([going, staying])
+            await setup.flush()
+            for owner in (going, staying):
+                org = await _org(setup, owner, is_personal=True)
+                setup.add(_personal_kb(org.id, owner.id, collection))
+            await setup.commit()
+            going_id = going.id
+
+        vector_store = MagicMock()
+        vector_store.delete_collection = AsyncMock()
+
+        async with factory() as session:
+            await UserService(session, vector_store=vector_store).delete(going_id)
+            await session.commit()
+
+        vector_store.delete_collection.assert_not_awaited()

@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
+from app.db.locks import LockScope, hold_name
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.resource_grant import Visibility
 from app.db.vector_tables import MAX_COLLECTION_NAME_LENGTH
@@ -495,6 +496,14 @@ class KnowledgeBaseService:
         if kb.is_default:
             raise BadRequestError(message="Cannot delete the default knowledge base")
         collection = kb.collection_name
+        # And the *name* before the base, because the drop below is decided by
+        # counting the bases that still claim it. `collection_name` is not
+        # tenant-unique (#913), so two teardowns of two bases sharing one name
+        # each saw the other's not-yet-committed row under READ COMMITTED, both
+        # took the "still referenced" branch, and the table nobody referenced was
+        # left behind (#1273). Held for the transaction, so the second teardown
+        # reads the first one's committed absence.
+        await hold_name(self.db, LockScope.COLLECTION_NAME, collection)
         # Lock the base before enumerating its documents, so a concurrent upload
         # or sync inserting a row cannot slip in between the enumeration and the
         # base delete and survive detached under `ON DELETE SET NULL` (#1266).

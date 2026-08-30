@@ -57,6 +57,10 @@ def _kb(
 ):
     kb = MagicMock()
     kb.id = uuid.uuid4()
+    # A real name, not a mock: the teardown takes an advisory lock keyed on it,
+    # and hashing a `MagicMock` is a `TypeError` from `blake2b` rather than
+    # anything about the behaviour under test.
+    kb.collection_name = f"kb_{uuid.uuid4().hex[:8]}"
     kb.scope = scope
     kb.owner_user_id = owner_user_id
     kb.organization_id = organization_id
@@ -102,7 +106,10 @@ class TestKBAccessControl:
 
     @pytest.fixture
     def mock_db(self):
-        return MagicMock()
+        # `execute` is awaited by the advisory lock the teardown takes, so it has
+        # to be an `AsyncMock`; the rest of the session is never reached here,
+        # because every repository call is patched.
+        return MagicMock(execute=AsyncMock())
 
     @pytest.mark.anyio
     async def test_personal_kb_visible_to_owner(self, mock_db):
@@ -571,7 +578,10 @@ class TestBindingAnEmbeddingSecret:
 
     @pytest.fixture
     def mock_db(self):
-        return MagicMock()
+        # `execute` is awaited by the advisory lock the teardown takes, so it has
+        # to be an `AsyncMock`; the rest of the session is never reached here,
+        # because every repository call is patched.
+        return MagicMock(execute=AsyncMock())
 
     def _secret(self, purpose: str = "openrouter"):
         secret = MagicMock()
@@ -657,7 +667,10 @@ class TestWhoServesTheEmbeddingModel:
 
     @pytest.fixture
     def mock_db(self):
-        return MagicMock()
+        # `execute` is awaited by the advisory lock the teardown takes, so it has
+        # to be an `AsyncMock`; the rest of the session is never reached here,
+        # because every repository call is patched.
+        return MagicMock(execute=AsyncMock())
 
     def _kb_row(self, *, provider: str = "openrouter", secret_id: uuid.UUID | None = None):
         return MagicMock(
@@ -836,7 +849,10 @@ class TestCollectionCounts:
 
     @pytest.fixture
     def mock_db(self):
-        return MagicMock()
+        # `execute` is awaited by the advisory lock the teardown takes, so it has
+        # to be an `AsyncMock`; the rest of the session is never reached here,
+        # because every repository call is patched.
+        return MagicMock(execute=AsyncMock())
 
     @pytest.mark.anyio
     async def test_counts_are_asked_for_by_collection_name_not_by_id(self, mock_db):

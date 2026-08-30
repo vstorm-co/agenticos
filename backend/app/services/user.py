@@ -24,6 +24,7 @@ from app.core.security import (
     verify_password,
     verify_special_token,
 )
+from app.db.locks import LockScope, hold_name
 from app.db.models.user import User
 from app.db.updates import writable
 from app.repositories import (
@@ -561,6 +562,11 @@ class UserService:
         storage = get_file_storage()
         for kb in await knowledge_base_repo.list_personal_by_owner(self.db, user_id):
             collection = kb.collection_name
+            # The name, before anything that decides whether to drop its table:
+            # two deletes of two bases sharing one name each saw the other's
+            # pre-delete row and both skipped the drop, leaving a table nobody
+            # references (#1273).
+            await hold_name(self.db, LockScope.COLLECTION_NAME, collection)
             storage_paths = await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
             await knowledge_base_repo.delete(self.db, kb.id)
             for storage_path in storage_paths:
