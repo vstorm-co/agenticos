@@ -85,11 +85,48 @@ describe("the channels page", () => {
     expect(await screen.findByText(/No agent bound/)).toBeVisible();
   });
 
-  it("warns that a Slack bot cannot verify what arrives", async () => {
-    serve([bot({ platform: "slack", api_base_url: null, has_slack_signing_secret: false })]);
+  it("warns that a Socket Mode bot has no token to open its socket with", async () => {
+    // This asserted "Signing secret" here, on a polling bot, and passed - which
+    // is the bug written down as a test. Socket Mode verifies nothing inbound;
+    // what it cannot start without is the xapp- token.
+    serve([bot({ platform: "slack", api_base_url: null, webhook_mode: false })]);
     await mount();
 
-    expect(await screen.findByText("Signing secret")).toBeVisible();
+    expect(await screen.findByText("No app-level token")).toBeVisible();
+    expect(screen.queryByText("No signing secret")).toBeNull();
+  });
+
+  it("warns that a Slack webhook cannot verify what arrives", async () => {
+    // The other transport, and the other credential: without the signing secret
+    // the events route answers 500 to everything, the URL challenge included.
+    serve([
+      bot({
+        platform: "slack",
+        api_base_url: null,
+        webhook_mode: true,
+        has_slack_signing_secret: false,
+      }),
+    ]);
+    await mount();
+
+    expect(await screen.findByText("No signing secret")).toBeVisible();
+  });
+
+  it("says nothing is missing once a Socket Mode bot has its app token", async () => {
+    serve([
+      bot({
+        platform: "slack",
+        api_base_url: null,
+        webhook_mode: false,
+        has_slack_app_token: true,
+        has_slack_signing_secret: false,
+      }),
+    ]);
+    await mount();
+
+    await screen.findByText("Acme Support");
+    expect(screen.queryByText("No app-level token")).toBeNull();
+    expect(screen.queryByText("No signing secret")).toBeNull();
   });
 
   it("warns that a Mattermost webhook has no token to check", async () => {
@@ -200,6 +237,94 @@ describe("the channels page", () => {
 
     await screen.findByText("Acme Support");
     expect(screen.queryByRole("combobox", { name: /Cost reporting/ })).toBeNull();
+  });
+
+  it("adds the app token a Slack bot was registered without", async () => {
+    // The flow this dialog exists for: the xapp- token is generated on another
+    // Slack screen, minutes after the bot was registered here, and the only way
+    // to supply it used to be deleting the bot - which takes its binding too.
+    const jarvis = bot({ id: "b9", platform: "slack", name: "Jarvis", api_base_url: null });
+    serve([jarvis]);
+    vi.mocked(apiClient.patch).mockResolvedValue({ ...jarvis, has_slack_app_token: true });
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
+    await userEvent.type(screen.getByLabelText(/App-level token/), "xapp-1-A0000-abc");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/channels/bots/b9", {
+        slack_app_token: "xapp-1-A0000-abc",
+      }),
+    );
+  });
+
+  it("will not save a dialog nobody edited", async () => {
+    // A patch of {} is a write that reseals every stored credential under a new
+    // key version for no reason, so there is nothing to send and nothing to do.
+    serve([bot({ platform: "slack", name: "Jarvis", api_base_url: null })]);
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
+
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  });
+
+  it("does not offer the platform for editing", async () => {
+    // It decides which credentials the row carries and how messages reach it,
+    // so changing it is registering a different bot under one id.
+    serve([bot({ platform: "slack", name: "Jarvis", api_base_url: null })]);
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
+
+    expect(screen.queryByRole("button", { name: "Telegram" })).toBeNull();
+  });
+
+  it("never puts a stored credential back in the box", async () => {
+    // Sealed at rest and never read back, so the input starts empty and says
+    // that leaving it empty keeps what is there.
+    serve([
+      bot({
+        platform: "slack",
+        name: "Jarvis",
+        api_base_url: null,
+        has_slack_app_token: true,
+      }),
+    ]);
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
+
+    expect(screen.getByLabelText(/App-level token/)).toHaveValue("");
+    expect(screen.getAllByText(/Leave blank to keep it/).length).toBeGreaterThan(0);
+  });
+
+  it("renames a bot without touching a credential", async () => {
+    const acme = bot();
+    serve([acme]);
+    vi.mocked(apiClient.patch).mockResolvedValue({ ...acme, name: "Acme Ops" });
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Acme Support" }));
+    await userEvent.clear(screen.getByLabelText(/Name/));
+    await userEvent.type(screen.getByLabelText(/Name/), "Acme Ops");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/channels/bots/b1", { name: "Acme Ops" }),
+    );
+  });
+
+  it("refuses a token too short to be one the platform issued", async () => {
+    serve([bot({ platform: "slack", name: "Jarvis", api_base_url: null })]);
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
+    await userEvent.type(screen.getByLabelText(/Replace bot token/), "xoxb-1");
+
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(screen.getByText(/not one the platform issued/)).toBeVisible();
   });
 
   it("removes a bot", async () => {

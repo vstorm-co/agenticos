@@ -649,13 +649,125 @@ caller — at `RATE_LIMIT_RUN_PER_MINUTE`.
 
 ## Slack
 
-1. Create a Slack app, add a bot user, install it to the workspace.
-2. Register the bot: **Channels → Add bot**, platform `slack`, paste
+1. **api.slack.com/apps → Create New App → From scratch.** Name it and pick the
+   workspace.
+2. **OAuth & Permissions → Bot Token Scopes → Add an OAuth Scope**, and add the
+   eleven below. *Install to Workspace* stays greyed out until at least one is
+   added, which is what a blank app is waiting for.
+3. **Install App → Install to Workspace → Allow.** Copy the **Bot User OAuth
+   Token** (`xoxb-…`).
+4. **Event Subscriptions → Enable Events → Subscribe to bot events**, and add the
+   five events below.
+5. Register the bot: **Channels → Add bot**, platform `slack`, paste
    the bot token.
-3. Either point Slack's Events API at
-   `https://your-api.example.com/api/v1/slack/BOT_ID/events`, or run Socket Mode
-   (add the bot's `xapp-` token in its settings) and expose nothing.
-4. Bind the agent: Builder → the agent → **Availability** → the bot.
+6. Pick a transport — Socket Mode needs nothing exposed and is the right choice
+   on a laptop:
+     - **Socket Mode.** *Basic Information → App-Level Tokens → Generate*, scope
+       `connections:write`; paste the `xapp-` token into the bot's settings here.
+       No Request URL, no signing secret.
+     - **Events API.** Paste the signing secret from *Basic Information → App
+       Credentials* into the bot's settings **first**, then set Slack's *Request
+       URL* to `https://your-api.example.com/api/v1/slack/BOT_ID/events` — the
+       bot id is on its row under **Channels**.
+7. **App Home → Messages Tab**: enable it and tick *Allow users to send Slash
+   commands and messages from the messages tab*. Without it Slack hides the
+   bot's message box and a direct message is impossible.
+8. Publish the agent, then bind it: Builder → the agent → **Availability** → the
+   bot.
+9. Invite the bot to a channel — `/invite @your-bot` — and mention it.
+
+!!! tip "Or paste a manifest and skip steps 2, 4, 6 and 7"
+
+    **App Manifest** in the left nav takes the whole configuration at once —
+    scopes, events, Socket Mode and the message tab — which is less error-prone
+    than eleven passes through a scope picker. Create the app *from a manifest*,
+    or paste this over an existing app's:
+
+    ```yaml
+    display_information:
+      name: Support Copilot
+    features:
+      bot_user:
+        display_name: Support Copilot
+        always_online: true
+      app_home:
+        messages_tab_enabled: true
+        messages_tab_read_only_enabled: false
+    oauth_config:
+      scopes:
+        bot:
+          - chat:write
+          - files:write
+          - files:read
+          - app_mentions:read
+          - users:read
+          - channels:read
+          - groups:read
+          - channels:history
+          - groups:history
+          - im:history
+          - mpim:history
+    settings:
+      event_subscriptions:
+        bot_events:
+          - app_mention
+          - message.channels
+          - message.groups
+          - message.im
+          - message.mpim
+      socket_mode_enabled: true
+      token_rotation_enabled: false
+    ```
+
+    For the Events API instead, set `socket_mode_enabled: false` and add
+    `request_url` under `event_subscriptions` — and read the next warning first,
+    because Slack validates that URL the moment the manifest is saved.
+
+!!! danger "The signing secret goes in before the Request URL, not after"
+
+    Slack verifies a new Request URL by posting a signed `url_verification`
+    challenge to it, and that challenge takes the same path as every other event.
+    A bot with no signing secret answers **500 to all of them**, so Slack reports
+    "Your request URL didn't respond with the correct challenge value" — which
+    reads like a networking problem and is not one.
+
+!!! warning "Do not opt into token rotation"
+
+    *Advanced token security via token rotation*, at the top of **OAuth &
+    Permissions**, makes the `xoxb-` token expire. This deployment stores a
+    static bot token in the vault and does not refresh one, so the bot works and
+    then stops. Redirect URLs, PKCE, user token scopes, IP ranges and
+    Enterprise-Managed Authorization on that page are all unused too — leave them
+    alone.
+
+### Scopes and events
+
+Eleven bot token scopes, each earning its place by a call the adapter makes:
+
+| Scope | What needs it |
+|---|---|
+| `chat:write` | `chat.postMessage`, and `chat.update` for the reply rewritten as it is written |
+| `files:write` | `files.upload` — a chart or a file the agent sends back |
+| `files:read` | an attachment somebody posted, fetched from `url_private_download` |
+| `app_mentions:read` | being named in a channel |
+| `channels:history`, `groups:history`, `im:history`, `mpim:history` | the `message` events, and `conversations.history` for the channel transcript |
+| `channels:read`, `groups:read` | `conversations.info`, `.list` and `.members` — the channel lookups an agent may call |
+| `users:read` | `users.info`, which turns member ids into people |
+
+Five bot events: `app_mention`, `message.channels`, `message.groups`,
+`message.im`, `message.mpim`.
+
+The bot sees what the app was installed with and nothing beyond it. Adding a
+scope later means reinstalling the app, which mints a new `xoxb-` token — paste
+that one in too, or the bot keeps the access it had.
+
+!!! info "A bot that answers nothing has three indistinguishable causes"
+
+    The events route answers **200 and does nothing** for a bot id it cannot
+    find or that is paused, on purpose: a prober learns only that the endpoint
+    exists, which the URL already said. So silence means one of a wrong `BOT_ID`
+    in the Request URL, no agent bound to the bot, or a missing scope or event
+    subscription — and none of the three says so. Check them in that order.
 
 Works in channels and in DMs. A message from a linked account runs as that
 person — never as the bot; one from an account nobody has linked runs under the
@@ -869,6 +981,19 @@ it is about to wait.
     which no amount of routing can. `@slug` still parses — as an alias for the
     agent behind this bot, refused when it names any other.
 - **Access policy per bot** — open, whitelist, or "must be linked to a member".
+- **A credential can be added or replaced after registration.** The pencil on a
+  bot's row opens it: rename it, paste a rotated token, or supply the credential
+  that was not in hand when it was registered — which is the ordinary case on
+  Slack, whose `xapp-` token is generated on a different screen minutes later.
+
+    Every credential here is sealed at rest and **never read back**, so each
+    field starts empty and an empty field means *keep what is stored* rather
+    than *clear it*. Only what somebody typed is sent. What the dialog does not
+    offer is the platform, because it decides which credentials the row carries
+    and how messages reach it, and the transport, because switching to webhook
+    mode is only half a move — the webhook still has to be registered with the
+    platform, and a bot that reports `webhook` without one answers nothing.
+    `channel-webhook-register` does both halves.
 - **Linking, and where it is required** — every run belongs to somebody: the
   budget it spends, what it may read and the audit entry it writes are all
   attributed. Where that *somebody* comes from depends on whether the bot is

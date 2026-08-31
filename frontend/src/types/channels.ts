@@ -86,3 +86,27 @@ export interface ChannelBotCreate {
   /** Slack only: this app's xapp- token, for Socket Mode (dev). */
   slack_app_token?: string;
 }
+
+/**
+ * What may be changed about a bot already registered.
+ *
+ * The platform is absent on purpose: it decides which credentials the row
+ * carries and which transport reaches it, so changing it would be registering a
+ * different bot under one id.
+ *
+ * Every field is optional and **an omitted credential keeps the stored one** -
+ * the backend distinguishes omission from a value. That is the whole shape of
+ * editing a sealed credential: it is never read back to be edited, so a blank
+ * input means "leave it" rather than "clear it", and only a field somebody
+ * typed into is sent.
+ */
+export interface ChannelBotUpdate {
+  name?: string;
+  /** A replacement bot token. Sealed at rest like the first one. */
+  token?: string;
+  /** Mattermost only: the bot's own server. An address, so it is read back. */
+  api_base_url?: string;
+  webhook_secret?: string;
+  slack_signing_secret?: string;
+  slack_app_token?: string;
+}
