@@ -29,7 +29,12 @@ from app.schemas.channel_bot import (
     ChannelBotRead,
     ChannelBotUpdate,
 )
-from app.services.channels import SECRET_MINTED_BY_US, get_adapter, inbound_webhook_url
+from app.services.channels import (
+    SECRET_MINTED_BY_US,
+    connection_state,
+    get_adapter,
+    inbound_webhook_url,
+)
 from app.services.channels.supervisor import close_inbound_stream, open_inbound_stream
 
 logger = logging.getLogger(__name__)
@@ -313,9 +318,18 @@ class ChannelBotService:
             self.db, channel_bot_ids=[bot.id for bot in bots]
         )
         total = await channel_bot_repo.count(self.db, organization_id=self._org_id)
+        # One read per row, from the Redis every worker shares - the supervisor
+        # holding the socket is usually in another process, so this cannot be
+        # asked of the adapter here. A webhook bot is not asked at all: it holds
+        # no connection, and a `down` beside one would be a fault reported about
+        # a design (#1351).
+        connections = {
+            bot.id: await connection_state.read(bot.id) for bot in bots if not bot.webhook_mode
+        }
         return [
             ChannelBotRead.model_validate(bot).model_copy(
                 update={
+                    "connection": connections.get(bot.id),
                     "agents": [
                         BotAgent(
                             id=agent.id,
@@ -324,7 +338,7 @@ class ChannelBotService:
                             has_avatar=agent.has_avatar,
                         )
                         for agent in answering.get(bot.id, [])
-                    ]
+                    ],
                 }
             )
             for bot in bots

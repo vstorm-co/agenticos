@@ -15,6 +15,7 @@ function bot(overrides: Partial<ChannelBot> = {}): ChannelBot {
     has_webhook_secret: false,
     has_slack_signing_secret: false,
     has_slack_app_token: false,
+    connection: null,
     agents: [],
     created_at: "2026-08-31T09:00:00Z",
     ...overrides,

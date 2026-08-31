@@ -3394,6 +3394,7 @@
       "columnAnswering": "Answering here",
       "columnBot": "Bot",
       "columnDelivery": "Delivery",
+      "connectionDown": "Not connected",
       "credentialStored": "Stored. Leave blank to keep it.",
       "credentialUnset": "Not set.",
       "editBot": "Edit {bot}",

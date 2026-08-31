@@ -159,6 +159,20 @@ class BotAgent(BaseSchema):
     has_avatar: bool
 
 
+class ChannelConnectionRead(BaseSchema):
+    """Whether this bot's inbound connection is actually up.
+
+    Absent where nothing is known - no Redis, or no supervisor has touched this
+    bot since the entry expired. Unknown is its own answer: claiming healthy is
+    the defect this reports on, and claiming broken is the same defect pointing
+    the other way.
+    """
+
+    state: Literal["up", "down"]
+    reason: str | None = None
+    """What an operator can do about it, never a vendor exception's text."""
+
+
 class ChannelBotRead(BaseSchema):
     """Schema for reading a channel bot (token_encrypted is never returned)."""
 
@@ -178,6 +192,15 @@ class ChannelBotRead(BaseSchema):
     has_webhook_secret: bool = False
     has_slack_signing_secret: bool = False
     has_slack_app_token: bool = False
+    connection: ChannelConnectionRead | None = None
+    """The state of the socket this bot receives on, for a polling bot.
+
+    A webhook bot holds no connection and reports none. A polling bot whose
+    stream never opened used to look identical to a working one: the row showed
+    `Polling`, an agent bound and nothing else, while the reason sat in a
+    container log (#1351).
+    """
+
     agents: list[BotAgent] = []
     """Who answers here, from the active bindings.
 

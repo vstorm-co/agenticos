@@ -40,6 +40,16 @@ export interface ChannelBot {
   /** Whether Socket Mode (dev polling) can run - never the token itself. */
   has_slack_app_token: boolean;
   /**
+   * Whether the socket this bot receives on is actually up.
+   *
+   * `null` for a webhook bot, which holds no connection, and for a polling bot
+   * nothing is known about - no Redis, or no supervisor has touched it since the
+   * entry expired. Unknown is its own answer: a polling bot whose stream never
+   * opened used to look identical to a working one, and claiming the reverse
+   * would put a fault on every bot in a deployment that cannot report.
+   */
+  connection: ChannelConnection | null;
+  /**
    * Who answers here, from the active bindings.
    *
    * A bot with none is registered and silent, which is the state somebody opens
@@ -49,6 +59,13 @@ export interface ChannelBot {
   agents: BotAgent[];
   created_at: string;
   updated_at?: string | null;
+}
+
+/** The state of the inbound socket a polling bot receives on. */
+export interface ChannelConnection {
+  state: "up" | "down";
+  /** What an operator can do about it. Never a vendor exception's text. */
+  reason: string | null;
 }
 
 /** An agent that answers on one bot. */

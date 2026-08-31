@@ -39,6 +39,7 @@ from app.services.channels import register_adapter
 from app.services import rate_limit
 from app.services import trigger_dedupe
 from app.services.channels import dedupe as channel_dedupe
+from app.services.channels import connection_state as channel_connection_state
 from app.services.channels import membership as channel_membership
 from app.services.channels.supervisor import allow_intake, begin_shutdown, open_inbound_stream
 
@@ -108,6 +109,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # conversation service consults from inside a request but caches in the
     # Redis every worker shares (#641).
     channel_membership.configure(redis_client)
+    # And whether each polling bot's inbound connection is actually up, which
+    # only the supervisor holding that socket knows and which the channels
+    # listing has to read from another worker entirely (#1351).
+    channel_connection_state.configure(redis_client)
     # And an event trigger's delivery dedupe, so a provider's redelivery of one
     # webhook does not fire a second run - the fire runs in a dispatched flow,
     # outside any request the claim could read `request.state` from.
@@ -206,6 +211,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     channel_dedupe.configure(None)
     rate_limit.configure(None)
     channel_membership.configure(None)
+    channel_connection_state.configure(None)
     trigger_dedupe.configure(None)
     maintenance.configure(None)
     if "redis" in state:

@@ -27,6 +27,7 @@ from app.agents.capabilities.channel_tools import (
 )
 from app.core.security import encode_untrusted
 from app.db.session import get_db_context
+from app.services.channels import connection_state
 from app.services.channels.base import (
     ChannelAdapter,
     IncomingAttachment,
@@ -386,13 +387,23 @@ class SlackAdapter(ChannelAdapter):
                 await self._run_socket_mode(bot_id, bot_token)
             except asyncio.CancelledError:
                 break
-            except ChannelNotConfigured:
+            except ChannelNotConfigured as exc:
                 # Not a crash and not something a retry fixes: an operator has
                 # to add the token. Retrying would be the spin all over again.
                 logger.warning("Slack Socket Mode not started for bot %s", bot_id)
+                # Its own message, because this one is written here rather than by
+                # a vendor: it names the credential to add. Recorded so the row
+                # says so - a WARNING in a container was the only evidence, and
+                # `/channels` showed the bot as healthy (#1351).
+                await connection_state.record_down(bot_id, str(exc))
                 return
             except Exception:
                 logger.exception("Slack Socket Mode crashed for bot %s, restarting in 5s", bot_id)
+                await connection_state.record_down(
+                    bot_id,
+                    "The Slack connection keeps failing. Check the app-level token "
+                    "and that Socket Mode is enabled in the Slack app.",
+                )
             await asyncio.sleep(5)
 
     async def _run_socket_mode(self, bot_id: str, bot_token: str) -> None:
@@ -441,6 +452,7 @@ class SlackAdapter(ChannelAdapter):
 
         client.socket_mode_request_listeners.append(handler)  # type: ignore[arg-type]
         await client.connect()
+        await connection_state.record_up(bot_id)
         while True:
             await asyncio.sleep(1)
 

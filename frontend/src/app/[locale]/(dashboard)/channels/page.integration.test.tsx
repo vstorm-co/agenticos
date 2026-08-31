@@ -41,6 +41,7 @@ function bot(overrides: Partial<ChannelBot> = {}): ChannelBot {
     has_webhook_secret: true,
     has_slack_signing_secret: false,
     has_slack_app_token: false,
+    connection: null,
     agents: [{ id: "a1", name: "Support", slug: "support", has_avatar: false }],
     created_at: "2026-08-09T18:00:00Z",
     ...overrides,
@@ -129,6 +130,53 @@ describe("the channels page", () => {
     await screen.findByText("Acme Support");
     expect(screen.queryByText("No app-level token")).toBeNull();
     expect(screen.queryByText("No signing secret")).toBeNull();
+  });
+
+  it("says out loud that a live bot's connection is down", async () => {
+    // The state this exists for: the row showed `Polling`, an agent bound and
+    // nothing else, while the reason sat in a container log (#1351).
+    serve([
+      bot({
+        connection: { state: "down", reason: "Add the xapp- token in the bot's settings." },
+      }),
+    ]);
+    await mount();
+
+    expect(await screen.findByText("Not connected")).toBeVisible();
+  });
+
+  it("carries the reason where somebody can read it", async () => {
+    serve([bot({ connection: { state: "down", reason: "Add the xapp- token." } })]);
+    await mount();
+
+    expect(await screen.findByTitle("Add the xapp- token.")).toBeVisible();
+  });
+
+  it("says nothing about a connection that is up", async () => {
+    serve([bot({ connection: { state: "up", reason: null } })]);
+    await mount();
+
+    await screen.findByText("Acme Support");
+    expect(screen.queryByText("Not connected")).toBeNull();
+  });
+
+  it("says nothing about a connection nobody could report on", async () => {
+    // No Redis, or an entry that expired. Unknown is not a fault, and a red
+    // badge on every bot would be this defect pointing the other way.
+    serve([bot({ connection: null })]);
+    await mount();
+
+    await screen.findByText("Acme Support");
+    expect(screen.queryByText("Not connected")).toBeNull();
+  });
+
+  it("does not call a paused bot disconnected", async () => {
+    // It has no connection by design, and the row already says `Paused`.
+    serve([bot({ is_active: false, connection: { state: "down", reason: "stopped" } })]);
+    await mount();
+
+    expect(await screen.findByText("Paused")).toBeVisible();
+    expect(screen.queryByText("Not connected")).toBeNull();
   });
 
   it("warns that a Mattermost webhook has no token to check", async () => {

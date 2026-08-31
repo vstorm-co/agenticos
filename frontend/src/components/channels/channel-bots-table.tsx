@@ -115,6 +115,14 @@ export function ChannelBotsTable({
             <div className={cn("flex flex-col items-start gap-1", paused(bot))}>
               <Badge variant="outline">{bot.webhook_mode ? t("webhook") : t("polling")}</Badge>
               {missing && <Badge variant="secondary">{t(missing)}</Badge>}
+              {/* Only "down", and only on a live bot. A paused one has no
+                  connection by design and already says so on the next line, and
+                  an unknown state is not a fault to report. */}
+              {bot.is_active && bot.connection?.state === "down" && (
+                <Badge variant="destructive" title={bot.connection.reason ?? undefined}>
+                  {t("connectionDown")}
+                </Badge>
+              )}
               {!bot.is_active && <Badge variant="secondary">{t("paused")}</Badge>}
             </div>
           );

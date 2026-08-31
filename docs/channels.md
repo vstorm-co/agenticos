@@ -791,13 +791,19 @@ The bot sees what the app was installed with and nothing beyond it. Adding a
 scope later means reinstalling the app, which mints a new `xoxb-` token — paste
 that one in too, or the bot keeps the access it had.
 
-!!! info "A bot that answers nothing has three indistinguishable causes"
+!!! info "A bot that answers nothing: what is reported, and what is not"
 
-    The events route answers **200 and does nothing** for a bot id it cannot
-    find or that is paused, on purpose: a prober learns only that the endpoint
-    exists, which the URL already said. So silence means one of a wrong `BOT_ID`
-    in the Request URL, no agent bound to the bot, or a missing scope or event
-    subscription — and none of the three says so. Check them in that order.
+    The connection is. A polling bot whose stream did not open, or keeps
+    failing, carries a **Not connected** badge on its row under **Channels**,
+    with the reason on it - the supervisor knows, and until #1351 it wrote that
+    to the container log and nowhere else.
+
+    The rest is still silent, and this is the order to check it in: no agent
+    bound to the bot (the row says so), a missing scope or event subscription,
+    then a wrong `BOT_ID` in the Request URL. That last one cannot report
+    itself: the events route answers **200 and does nothing** for a bot id it
+    cannot find, on purpose, because a prober should learn only that the
+    endpoint exists - which the URL already said.
 
 Works in channels and in DMs. A message from a linked account runs as that
 person — never as the bot; one from an account nobody has linked runs under the
