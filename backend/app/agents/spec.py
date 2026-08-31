@@ -489,6 +489,13 @@ class McpServerRef(BaseModel):
     :func:`build_toolsets_for_agent` exists to prevent, and this is the one
     place it is allowed, deliberately and per binding.
 
+    `allowed_tools` is the other thing a binding carries, and it is the reason
+    the same server can serve two agents differently. `allowed_tools` on the
+    *connection* is one administrator's decision for everybody bound to it; this
+    narrows within it, per agent. The two intersect at run time rather than one
+    overriding the other, so an agent cannot reach a tool the connection excluded
+    - not even one excluded after the agent was published.
+
     Two constraints hold the substitution together, both checked at publish:
 
     - The bound connection must carry a `catalog_key`. That key is what says a
@@ -509,6 +516,15 @@ class McpServerRef(BaseModel):
             "Let a run reach this service through the runner's own connection "
             "when the conversation is theirs alone. Off by default; ignored "
             "wherever a second person can read the answer."
+        ),
+    )
+    allowed_tools: list[str] | None = Field(
+        default=None,
+        description=(
+            "Which of the server's tools this agent may call. Null is every tool "
+            "the connection allows, which is what a binding meant before this "
+            "field existed. Narrowing only: the connection's own allowlist is an "
+            "administrator's ceiling and this cannot reach past it."
         ),
     )
 

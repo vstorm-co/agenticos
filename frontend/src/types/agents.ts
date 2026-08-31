@@ -233,6 +233,12 @@ export interface McpServerRef {
    * is reviewed against, and this is the one place that can differ per run.
    */
   use_personal_when_available: boolean;
+  /**
+   * Which of the server's tools this agent may call. `null` is every tool the
+   * connection allows. Narrowing only: the connection's own allowlist is an
+   * administrator's ceiling and the two intersect at run time.
+   */
+  allowed_tools: string[] | null;
 }
 
 export interface AgentSpec {

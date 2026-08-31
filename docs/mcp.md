@@ -29,7 +29,7 @@ Atlassian works alongside a streamable-HTTP one with nothing to configure.
 | `name` | Also the tool prefix. See [Name collisions](#name-collisions) |
 | `url` | SSRF-validated before we ever request it |
 | `auth_token` | Sealed in the [vault](secrets.md), never returned by any endpoint |
-| `allowed_tools` | An allowlist, or null for "everything the server offers" |
+| `allowed_tools` | An allowlist, or null for "everything the server offers". A binding narrows within it — see below |
 | `is_enabled` | Off without losing the credential |
 | `last_status` | What the last probe found, and when |
 
@@ -100,6 +100,28 @@ handbook` do.
 A spec names organization connections in `mcp_servers`, one entry per binding.
 Deleting a connection an agent still names loses that server for the agent, not
 the run.
+
+### Which tools, and who decides
+
+Two allowlists, and neither overrides the other.
+
+**On the connection**, `allowed_tools` is one administrator's decision for
+everybody bound to it — the tools this organization is willing to reach on that
+server at all. **On the binding**, it narrows within that, per agent. So one
+server can serve a read-only agent and an editing one without connecting it
+twice.
+
+They intersect at run time. An agent cannot reach a tool the connection
+excludes, including one excluded after the agent was published — the binding
+loses that tool rather than the agent losing the server. Null on either side
+means no narrowing from there, so a binding that names nothing gets whatever the
+connection allows, which is what every binding did before this existed.
+
+The Builder lists a server's tools from its **last successful probe**, recorded
+on the connection. Probing dials out to a third party and is gated on
+`connections:manage`; an agent author holds `agents:edit` and needs the list to
+choose from, so the list is read rather than fetched. A connection nothing has
+checked yet offers nothing to pick, and the servers page is where it is checked.
 
 ### Speaking as whoever is running the agent
 

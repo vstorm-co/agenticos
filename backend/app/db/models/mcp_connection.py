@@ -157,6 +157,11 @@ class McpConnection(Base, TimestampMixin):
     # Optional, not unique, and never a replacement - the slug stays on screen
     # beside it, because a run's tool calls are recorded under the prefix.
     label: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Every tool the server offered the last time anything probed it - the
+    # catalogue `allowed_tools` is chosen from. Recorded so the Builder can list
+    # them without holding `connections:manage`, which gates the probe because it
+    # dials out to a third party. Null until the connection is next checked.
+    last_tools: Mapped[list[dict[str, str]] | None] = mapped_column(JSONB, nullable=True)
     # Which of this member's accounts on one service an agent speaks as, where a
     # binding asked to substitute theirs and they hold more than one. False on
     # every row until somebody chooses: a single account is substituted whether

@@ -639,7 +639,8 @@
     "zoomOut": "Zoom out",
     "whichAccount": "Which {name} account this agent uses",
     "useTheirOwnAccount": "Speak as whoever is running it",
-    "useTheirOwnAccountHint": "In the dashboard chat and one-to-one direct messages, use that person's own connection to this service where they have one. Everywhere else the organization's account answers."
+    "useTheirOwnAccountHint": "In the dashboard chat and one-to-one direct messages, use that person's own connection to this service where they have one. Everywhere else the organization's account answers.",
+    "everyToolThisServerOffers": "Every tool it offers"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -2486,7 +2487,6 @@
     "settings": "Settings",
     "stateDisabled": "Disabled",
     "storedEncryptedNeverShown": "Stored encrypted and never shown again.",
-    "toggleNamed": "Toggle {name}",
     "toolSelectionSaved": "Tool selection saved.",
     "toolsFrom": "Tools from \"{name}\"",
     "unreachable": "Unreachable",
@@ -2513,7 +2513,12 @@
     "agentsNoLongerSpeak": "Agents no longer speak as this account",
     "displayName": "Name",
     "displayNamePlaceholder": "Marketing workspace",
-    "displayNameHint": "What this connection is called on screen. Optional — without one it is shown under its tool prefix."
+    "displayNameHint": "What this connection is called on screen. Optional — without one it is shown under its tool prefix.",
+    "searchTools": "Search tools…",
+    "toolsSelected": "{on} of {total} on",
+    "selectAll": "Select all",
+    "selectNone": "Select none",
+    "noToolMatches": "No tool matches that."
   },
   "members": {
     "emailPlaceholder": "colleague@example.com",

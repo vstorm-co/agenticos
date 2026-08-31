@@ -40,6 +40,8 @@ import { ExposuresPanel } from "@/components/agents/exposures-panel";
 import { TriggersPanel } from "@/components/triggers/triggers-panel";
 import type { McpCatalogEntry } from "@/types/mcp";
 import { ConnectServerDialog } from "@/components/agents/connect-server-dialog";
+import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
+import type { ToolPickerState } from "@/components/mcp/mcp-server-list-types";
 import { McpServerPicker } from "@/components/agents/mcp-server-picker";
 import { McpServerList } from "@/components/mcp/mcp-server-list";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
@@ -152,6 +154,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // the ids the spec stores belong to the connections.
   const { connections: mcpConnections } = useOrgMcpConnections();
   const [connectingServer, setConnectingServer] = useState<McpCatalogEntry | null>(null);
+  const [toolPicker, setToolPicker] = useState<ToolPickerState | null>(null);
   const { exposures } = useExposures(id);
   const { embeds } = useEmbeds(id);
   const { servers: mcpCatalog } = useMcpCatalog();
@@ -807,6 +810,28 @@ export default function AgentBuilderPage({ params }: PageProps) {
         </DialogContent>
       </Dialog>
 
+      <McpToolPickerDialog
+        toolPicker={toolPicker}
+        setToolPicker={setToolPicker}
+        submitting={false}
+        // Written into the spec rather than onto the connection: this is the
+        // agent's narrowing, and the connection's own allowlist is everybody's.
+        // Every tool checked means "no narrowing from here", which is null - not
+        // a list that would freeze out a tool the server adds later.
+        onSave={() => {
+          if (toolPicker === null) return;
+          const every = toolPicker.checked.size === toolPicker.tools.length;
+          update({
+            mcp_servers: spec.mcp_servers.map((ref) =>
+              ref.connection_id === toolPicker.connection.id
+                ? { ...ref, allowed_tools: every ? null : [...toolPicker.checked] }
+                : ref,
+            ),
+          });
+          setToolPicker(null);
+        }}
+      />
+
       <ConnectServerDialog
         entry={connectingServer}
         onClose={() => setConnectingServer(null)}
@@ -816,7 +841,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
           update({
             mcp_servers: [
               ...spec.mcp_servers,
-              { connection_id: connectionId, use_personal_when_available: false },
+              {
+                connection_id: connectionId,
+                use_personal_when_available: false,
+                allowed_tools: null,
+              },
             ],
           })
         }
@@ -1080,6 +1109,19 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 catalog={mcpCatalog}
                 value={spec.mcp_servers}
                 onChange={(mcp_servers) => update({ mcp_servers })}
+                onTools={(connection, ref) =>
+                  setToolPicker({
+                    scope: "organization",
+                    connection,
+                    // The connection's last probe rather than a fresh one: the
+                    // probe is gated on `connections:manage`, which an agent
+                    // author need not hold (#1341).
+                    tools: connection.last_tools ?? [],
+                    checked: new Set(
+                      ref.allowed_tools ?? (connection.last_tools ?? []).map((one) => one.name),
+                    ),
+                  })
+                }
                 onConnect={setConnectingServer}
                 disabled={!canEdit}
               />

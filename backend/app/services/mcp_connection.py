@@ -32,6 +32,7 @@ from __future__ import annotations
 import logging
 import secrets
 from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
@@ -605,6 +606,11 @@ class McpConnectionService:
                 "last_status": "error" if error else "ok",
                 "last_error": error,
                 "last_checked_at": datetime.now(UTC),
+                # Only on a probe that answered. A failed one says nothing about
+                # what the server offers, and blanking the list would leave an
+                # agent author with nothing to choose from because the server
+                # was briefly unreachable.
+                **({"last_tools": [asdict(tool) for tool in tools]} if error is None else {}),
             },
         )
         return db_connection, tools, error
@@ -1480,10 +1486,31 @@ async def build_toolsets_for_agent(
                 name=connection.name,
                 url=speaking_as.url,
                 headers=headers,
-                allowed_tools=speaking_as.allowed_tools,
+                allowed_tools=_narrowed_tools(speaking_as.allowed_tools, ref.allowed_tools),
             )
         )
     return await build_mcp_toolsets(specs)
+
+
+def _narrowed_tools(connection: list[str] | None, binding: list[str] | None) -> list[str] | None:
+    """The tools this binding may call: both allowlists, intersected.
+
+    Null on either side means "no narrowing from here" - the connection's null is
+    every tool the server offers, and the binding's is every tool the connection
+    allows. So the answer is null only when neither narrows.
+
+    Intersected rather than overridden, and that is the whole rule: the
+    connection's list is an administrator's ceiling for everybody bound to it,
+    and an agent published before a tool was excluded must not keep reaching it.
+    A binding naming a tool the connection has since excluded loses that tool
+    rather than the agent losing the server (#1341).
+    """
+    if connection is None:
+        return binding
+    if binding is None:
+        return connection
+    within = set(binding)
+    return [tool for tool in connection if tool in within]
 
 
 async def _personal_substitute(

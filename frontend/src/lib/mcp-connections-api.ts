@@ -38,6 +38,11 @@ export interface McpConnectionRecord {
    * so by a partial unique index (#1342).
    */
   is_default: boolean;
+  /**
+   * Every tool the server offered when it was last reached. Null means nothing
+   * has asked yet, which is not the same as "offers none".
+   */
+  last_tools: McpToolInfo[] | null;
   created_at: string;
   updated_at: string | null;
 }

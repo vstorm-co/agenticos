@@ -2350,7 +2350,13 @@ class TestBindingAnMcpServerToAnAgent:
         version = await AgentRegistryService(db).publish(tenant.ctx, agent.id)
 
         assert version.spec["mcp_servers"] == [
-            {"connection_id": str(connection.id), "use_personal_when_available": False}
+            {
+                "connection_id": str(connection.id),
+                "use_personal_when_available": False,
+                # Null rather than a list: the binding narrows nothing, so it
+                # gets whatever the connection allows.
+                "allowed_tools": None,
+            }
         ]
 
     async def test_a_personal_connection_cannot_be_bound_to_a_published_agent(self, db) -> None:

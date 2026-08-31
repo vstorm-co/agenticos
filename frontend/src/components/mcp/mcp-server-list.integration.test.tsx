@@ -69,6 +69,7 @@ function connection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConn
     catalog_key: "github",
     is_default: false,
     label: null,
+    last_tools: null,
     granted_scopes: null,
     created_at: "2026-07-01T00:00:00Z",
     updated_at: null,

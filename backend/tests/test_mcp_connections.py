@@ -431,6 +431,81 @@ class TestToolsetsForAgent:
         assert [spec.name for spec in seen[0]] == ["github"]
 
 
+class TestWhichToolsABindingMayCall:
+    """Two allowlists, and neither overrides the other (#1341).
+
+    `allowed_tools` on the connection is one administrator's decision for
+    everybody bound to it; on the binding it narrows within that, per agent. So
+    the same server can serve a read-only agent and an editing one, and neither
+    can reach past the ceiling - not even an agent published before a tool was
+    excluded from the connection.
+    """
+
+    @staticmethod
+    def _capture(monkeypatch) -> list[list[McpServerSpec]]:
+        seen: list[list[McpServerSpec]] = []
+
+        async def fake_build(specs: list[McpServerSpec]) -> list[str]:
+            seen.append(specs)
+            return [spec.name for spec in specs]
+
+        monkeypatch.setattr(mcp_connection_service, "build_mcp_toolsets", fake_build)
+        return seen
+
+    async def _tools(self, monkeypatch, *, on_connection, on_binding) -> list[str] | None:
+        seen = self._capture(monkeypatch)
+        bound = _connection(name="notion", allowed_tools=on_connection)
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_id",
+            AsyncMock(return_value=bound),
+        )
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[McpServerRef(connection_id=bound.id, allowed_tools=on_binding)],
+        )
+        return seen[0][0].allowed_tools
+
+    @pytest.mark.anyio
+    async def test_neither_narrowing_is_every_tool_the_server_offers(self, monkeypatch):
+        assert await self._tools(monkeypatch, on_connection=None, on_binding=None) is None
+
+    @pytest.mark.anyio
+    async def test_the_binding_alone_narrows_to_what_it_names(self, monkeypatch):
+        """The case the field exists for: two agents, one server, different reach."""
+        assert await self._tools(monkeypatch, on_connection=None, on_binding=["search"]) == [
+            "search"
+        ]
+
+    @pytest.mark.anyio
+    async def test_the_connection_alone_still_decides(self, monkeypatch):
+        """A binding that names nothing takes the connection's list, which is
+        what every binding did before this field existed."""
+        assert await self._tools(monkeypatch, on_connection=["search"], on_binding=None) == [
+            "search"
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_binding_cannot_reach_past_the_connections_ceiling(self, monkeypatch):
+        """Named on the binding, excluded on the connection: excluded. An
+        administrator's decision is not something a spec can widen."""
+        tools = await self._tools(
+            monkeypatch, on_connection=["search"], on_binding=["search", "create-pages"]
+        )
+
+        assert tools == ["search"]
+
+    @pytest.mark.anyio
+    async def test_a_binding_naming_only_excluded_tools_loses_them_not_the_server(
+        self, monkeypatch
+    ):
+        """The server stays attached with no tools rather than the run failing:
+        the same narrowing every other broken binding gets."""
+        assert await self._tools(monkeypatch, on_connection=["search"], on_binding=["delete"]) == []
+
+
 class TestSpeakingAsTheMemberWhoAsked:
     """The one case where an agent's reach depends on who is running it.
 

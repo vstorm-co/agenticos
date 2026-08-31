@@ -17,6 +17,11 @@ NAME_PATTERN = r"^[a-z0-9][a-z0-9-]{0,31}$"
 MAX_ALLOWED_TOOLS = 100
 
 
+class McpToolRead(BaseSchema):
+    name: str
+    description: str
+
+
 class McpConnectionCreate(BaseSchema):
     name: str = Field(..., min_length=1, max_length=32, pattern=NAME_PATTERN)
     url: str = Field(..., min_length=1, max_length=2048)
@@ -94,6 +99,10 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
     # What a person reads, where somebody set one. Null is not a gap to fill in:
     # the slug is what the connection was always shown as.
     label: str | None = None
+    # Every tool the server offered when it was last reached, so a Builder can
+    # list them without holding the permission the probe needs. Null means
+    # nothing has asked yet, which is not the same as "offers none".
+    last_tools: list[McpToolRead] | None = None
     # Whether an agent speaking as this member uses this account. Only ever true
     # for one of their connections per service.
     is_default: bool = False
@@ -120,6 +129,11 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
             last_checked_at=connection.last_checked_at,
             catalog_key=connection.catalog_key,
             label=connection.label,
+            last_tools=(
+                None
+                if connection.last_tools is None
+                else [McpToolRead(**tool) for tool in connection.last_tools]
+            ),
             is_default=connection.is_default,
             created_at=connection.created_at,
             updated_at=connection.updated_at,
@@ -192,11 +206,6 @@ class OrgMcpConnectionList(BaseSchema):
 
     items: list[McpConnectionRead]
     total: int
-
-
-class McpToolRead(BaseSchema):
-    name: str
-    description: str
 
 
 class McpConnectionTestResult(BaseSchema):

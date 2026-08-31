@@ -41,6 +41,7 @@ function connection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConn
     catalog_key: null,
     is_default: false,
     label: null,
+    last_tools: null,
     granted_scopes: null,
     created_at: "2026-07-01T00:00:00Z",
     updated_at: null,
@@ -49,8 +50,16 @@ function connection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConn
 }
 
 /** A bound server, with the substitution off - what ticking a row writes. */
-function bound(connectionId: string, personal = false): McpServerRef {
-  return { connection_id: connectionId, use_personal_when_available: personal };
+function bound(
+  connectionId: string,
+  personal = false,
+  tools: string[] | null = null,
+): McpServerRef {
+  return {
+    connection_id: connectionId,
+    use_personal_when_available: personal,
+    allowed_tools: tools,
+  };
 }
 
 function picker(props: {
@@ -58,6 +67,7 @@ function picker(props: {
   catalog?: McpCatalogEntry[];
   value?: McpServerRef[];
   onChange?: (next: McpServerRef[]) => void;
+  onTools?: (connection: OrgMcpConnectionRecord, ref: McpServerRef) => void;
   onConnect?: (entry: McpCatalogEntry) => void;
   disabled?: boolean;
 }) {
@@ -67,6 +77,7 @@ function picker(props: {
       catalog={props.catalog ?? CATALOG}
       value={props.value ?? []}
       onChange={props.onChange ?? vi.fn()}
+      onTools={props.onTools ?? vi.fn()}
       onConnect={props.onConnect ?? vi.fn()}
       disabled={props.disabled}
     />
@@ -402,5 +413,64 @@ describe("speaking as whoever is running the agent", () => {
     render(picker({ connections: [connection({ id: "c1" })], value: [bound("c1")] }));
 
     expect(screen.queryByRole("checkbox", { name: /speak as/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("which of a server's tools this agent may call", () => {
+  /**
+   * `allowed_tools` used to live only on the connection, so two agents bound to
+   * one server got the same tools and the picker said so in its own docstring.
+   * It is on the binding now, and the two intersect at run time - the
+   * connection's list is an administrator's ceiling (#1341).
+   */
+  const NOTION = connection({ id: "c1", name: "gh", catalog_key: "github" });
+
+  it("is not offered until the server is bound", () => {
+    render(picker({ connections: [NOTION] }));
+
+    expect(screen.queryByRole("button", { name: /tool/i })).not.toBeInTheDocument();
+  });
+
+  it("says every tool while the binding narrows nothing", () => {
+    render(picker({ connections: [NOTION], value: [bound("c1")] }));
+
+    expect(screen.getByRole("button", { name: "Every tool it offers" })).toBeVisible();
+  });
+
+  it("counts what the binding narrowed to", () => {
+    render(picker({ connections: [NOTION], value: [bound("c1", false, ["search", "fetch"])] }));
+
+    expect(screen.getByRole("button", { name: "2 tools" })).toBeVisible();
+  });
+
+  it("hands the caller the connection and the binding it belongs to", async () => {
+    const onTools = vi.fn();
+    render(picker({ connections: [NOTION], value: [bound("c1", false, ["search"])], onTools }));
+
+    await userEvent.click(screen.getByRole("button", { name: "1 tool" }));
+
+    expect(onTools).toHaveBeenCalledWith(NOTION, bound("c1", false, ["search"]));
+  });
+
+  it("carries the choice across a change of account", async () => {
+    // The tools are chosen for the agent; which account it speaks through is a
+    // different question, and two accounts on one server expose the same tools.
+    const onChange = vi.fn();
+    const two = [
+      connection({ id: "c1", name: "gh-work", catalog_key: "github" }),
+      connection({ id: "c2", name: "gh-side", catalog_key: "github" }),
+    ];
+    render(picker({ connections: two, value: [bound("c1", true, ["search"])], onChange }));
+
+    await userEvent.click(screen.getByRole("combobox", { name: /which github account/i }));
+    await userEvent.click(await screen.findByRole("option", { name: "gh-side" }));
+
+    expect(onChange).toHaveBeenCalledWith([bound("c2", true, ["search"])]);
+  });
+
+  it("cannot be opened by a viewer who cannot edit", () => {
+    render(picker({ connections: [NOTION], value: [bound("c1")], disabled: true }));
+
+    expect(screen.getByRole("button", { name: "Every tool it offers" })).toBeDisabled();
   });
 });

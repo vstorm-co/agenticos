@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Plug } from "lucide-react";
+import { Check, Plug, Wrench } from "lucide-react";
 
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import {
   Badge,
+  Button,
   Checkbox,
   Pager,
   SearchInput,
@@ -44,6 +45,13 @@ interface McpServerPickerProps {
    * one replaced.
    */
   onChange: (next: McpServerRef[]) => void;
+  /**
+   * Choose which of a bound server's tools this agent may call.
+   *
+   * The dialog is the caller's, like `onConnect`: the tool list comes from the
+   * connection's last probe and the picker is shared with the servers page.
+   */
+  onTools: (connection: OrgMcpConnectionRecord, ref: McpServerRef) => void;
   /**
    * Connect a server that has none, without leaving the page.
    *
@@ -94,6 +102,7 @@ export function McpServerPicker({
   catalog,
   value,
   onChange,
+  onTools,
   onConnect,
   disabled,
 }: McpServerPickerProps) {
@@ -109,7 +118,14 @@ export function McpServerPicker({
     onChange(
       bound.has(connectionId)
         ? value.filter((ref) => ref.connection_id !== connectionId)
-        : [...value, { connection_id: connectionId, use_personal_when_available: false }],
+        : [
+            ...value,
+            {
+              connection_id: connectionId,
+              use_personal_when_available: false,
+              allowed_tools: null,
+            },
+          ],
     );
 
   /**
@@ -120,14 +136,17 @@ export function McpServerPicker({
    */
   const choose = (options: OrgMcpConnectionRecord[], connectionId: string) => {
     const previous = options.find((option) => bound.has(option.id));
+    const kept = previous ? bound.get(previous.id) : undefined;
     const ids = new Set(options.map((option) => option.id));
     onChange([
       ...value.filter((ref) => !ids.has(ref.connection_id)),
       {
         connection_id: connectionId,
-        use_personal_when_available: previous
-          ? (bound.get(previous.id)?.use_personal_when_available ?? false)
-          : false,
+        use_personal_when_available: kept?.use_personal_when_available ?? false,
+        // Carried over: the tools are chosen for the *agent*, and the account it
+        // speaks through is a different question. Two accounts on one server
+        // expose the same tools.
+        allowed_tools: kept?.allowed_tools ?? null,
       },
     ]);
   };
@@ -216,6 +235,7 @@ export function McpServerPicker({
             onToggle={toggle}
             onChoose={choose}
             onPersonal={setPersonal}
+            onTools={onTools}
             onConnect={onConnect}
             disabled={disabled}
           />
@@ -266,6 +286,7 @@ function ServerCard({
   onToggle,
   onChoose,
   onPersonal,
+  onTools,
   onConnect,
   disabled,
 }: {
@@ -279,6 +300,7 @@ function ServerCard({
   onToggle: (connectionId: string) => void;
   onChoose: (options: OrgMcpConnectionRecord[], connectionId: string) => void;
   onPersonal: (connectionId: string, use: boolean) => void;
+  onTools: (connection: OrgMcpConnectionRecord, ref: McpServerRef) => void;
   onConnect: (entry: McpCatalogEntry) => void;
   disabled?: boolean;
 }) {
@@ -390,6 +412,27 @@ function ServerCard({
               ))}
             </SelectContent>
           </Select>
+        </div>
+      )}
+
+      {/* Which of the server's tools this agent may call - the question this
+          picker could not answer, because `allowed_tools` lived on the
+          connection and two agents bound to one server got the same tools. Only
+          once bound, for the same reason the switch below is. */}
+      {isOn && (
+        <div className="mt-3 pl-7">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={disabled}
+            onClick={() => onTools(connection, ref)}
+          >
+            <Wrench className="mr-1 h-3.5 w-3.5" />
+            {ref.allowed_tools === null
+              ? t("everyToolThisServerOffers")
+              : t("toolCount", { count: ref.allowed_tools.length })}
+          </Button>
         </div>
       )}
 
