@@ -344,10 +344,17 @@ class TestTelegramSending:
 
 class TestSlackReceiving:
     def test_a_file_with_no_text_is_still_a_message(self):
+        """Carries `subtype: file_share`, which is what Slack actually sends.
+
+        It did not, and that is how the defect below survived a green suite: the
+        whole attachment path was asserted against a payload shape the platform
+        never produces.
+        """
         parsed = SlackAdapter().parse_incoming(
             {
                 "event": {
                     "type": "message",
+                    "subtype": "file_share",
                     "user": "U1",
                     "channel": "C1",
                     "ts": "1.0",
@@ -643,3 +650,77 @@ async def test_an_upload_is_not_posted_back_whichever_backend_holds_it(tmp_path)
         assert path.lstrip("/").startswith(_NOT_THE_AGENTS)
 
     assert not "reports/summary.csv".lstrip("/").startswith(_NOT_THE_AGENTS)
+
+
+class TestWhichSlackSubtypesAreSomebodyTalking:
+    """Slack stamps a `subtype` for two unrelated reasons, and the adapter refused
+    all of them - so a message with an image attached was dropped whole, caption
+    included, before `_attachments` ever ran. The attachment path was written,
+    tested and unreachable on this platform.
+    """
+
+    @staticmethod
+    def _event(**extra: object) -> dict[str, object]:
+        return {
+            "event": {
+                "type": "message",
+                "user": "U1",
+                "channel": "D1",
+                "channel_type": "im",
+                "ts": "1.0",
+                "text": "co widzisz?",
+                **extra,
+            }
+        }
+
+    def test_a_photo_with_a_caption_arrives_with_both(self):
+        """The reported defect: a question asked about an attached image, in a DM,
+        answered as though the message had been empty."""
+        parsed = SlackAdapter().parse_incoming(
+            self._event(
+                subtype="file_share",
+                files=[
+                    {
+                        "name": "screenshot.png",
+                        "mimetype": "image/png",
+                        "size": 2048,
+                        "url_private_download": "https://files.slack.test/screenshot.png",
+                    }
+                ],
+            ),
+            "bot-1",
+        )
+
+        assert parsed is not None
+        assert parsed.text == "co widzisz?"
+        assert len(parsed.attachments) == 1
+        assert parsed.attachments[0].filename == "screenshot.png"
+
+    def test_a_plain_message_with_no_subtype_still_arrives(self):
+        parsed = SlackAdapter().parse_incoming(self._event(), "bot-1")
+
+        assert parsed is not None
+        assert parsed.text == "co widzisz?"
+
+    @pytest.mark.parametrize(
+        "subtype",
+        ["message_changed", "message_deleted", "channel_join", "channel_topic", "bot_message"],
+    )
+    def test_the_platform_describing_the_channel_is_not(self, subtype: str):
+        """These are the ones the guard exists for, and they stay refused. An edit
+        answered again is the same question twice, and a join is not a question."""
+        assert SlackAdapter().parse_incoming(self._event(subtype=subtype), "bot-1") is None
+
+    def test_a_thread_broadcast_is_left_out_deliberately(self):
+        """A thread reply also posted to the channel, so it arrives beside the
+        reply itself - answering both would be answering twice."""
+        assert (
+            SlackAdapter().parse_incoming(self._event(subtype="thread_broadcast"), "bot-1") is None
+        )
+
+    def test_the_bots_own_message_is_refused_whatever_its_subtype(self):
+        """Answering it is a loop, and each turn is a model call."""
+        assert (
+            SlackAdapter().parse_incoming(self._event(subtype="file_share", bot_id="B1"), "bot-1")
+            is None
+        )

@@ -652,7 +652,7 @@ caller — at `RATE_LIMIT_RUN_PER_MINUTE`.
 1. **api.slack.com/apps → Create New App → From scratch.** Name it and pick the
    workspace.
 2. **OAuth & Permissions → Bot Token Scopes → Add an OAuth Scope**, and add the
-   eleven below. *Install to Workspace* stays greyed out until at least one is
+   thirteen below. *Install to Workspace* stays greyed out until at least one is
    added, which is what a blank app is waiting for.
 3. **Install App → Install to Workspace → Allow.** Copy the **Bot User OAuth
    Token** (`xoxb-…`).
@@ -707,6 +707,8 @@ caller — at `RATE_LIMIT_RUN_PER_MINUTE`.
           - groups:history
           - im:history
           - mpim:history
+          - im:read
+          - mpim:read
     settings:
       event_subscriptions:
         bot_events:
@@ -742,7 +744,7 @@ caller — at `RATE_LIMIT_RUN_PER_MINUTE`.
 
 ### Scopes and events
 
-Eleven bot token scopes, each earning its place by a call the adapter makes:
+Thirteen bot token scopes, each earning its place by a call the adapter makes:
 
 | Scope | What needs it |
 |---|---|
@@ -752,6 +754,7 @@ Eleven bot token scopes, each earning its place by a call the adapter makes:
 | `app_mentions:read` | being named in a channel |
 | `channels:history`, `groups:history`, `im:history`, `mpim:history` | the `message` events, and `conversations.history` for the channel transcript |
 | `channels:read`, `groups:read` | `conversations.info`, `.list` and `.members` — the channel lookups an agent may call |
+| `im:read`, `mpim:read` | `conversations.members` on a direct message. Easy to leave out and quiet when you do: the membership check fails closed, so a conversation nobody could be confirmed in **disappears from the conversation list** rather than erroring |
 | `users:read` | `users.info`, which turns member ids into people |
 
 Five bot events: `app_mention`, `message.channels`, `message.groups`,
@@ -776,6 +779,13 @@ A mention anywhere in the message counts, not only at the start. A handle typed
 without letting Slack resolve it stays plain text and is not a mention — the
 platform delivered none — and `@channel`, `@all`, `@here` and `@everyone` address
 the room rather than an agent.
+
+**A message with a file attached is a message.** Slack marks one with
+`subtype: file_share`, and both the file and the caption sent with it reach the
+agent — an image with *"what do you see?"* under it is one turn, not two. What
+stays refused is the platform describing the channel rather than somebody
+speaking in it: an edit, a deletion, a join, a topic change, and anything the bot
+itself posted.
 
 The bot sees what the app was installed with and nothing beyond it. Adding a
 scope later means reinstalling the app, which mints a new `xoxb-` token — paste

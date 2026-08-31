@@ -43,6 +43,24 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_SPOKEN_SUBTYPES = frozenset({"file_share"})
+"""Message subtypes that are still somebody talking to the bot.
+
+Slack stamps a `subtype` on a `message` event for two unrelated reasons: the
+platform describing the channel - an edit, a deletion, a join, a topic change -
+and a person sending something richer than plain text. Refusing every subtype
+treats the second as the first, and `file_share` is the one that costs: a message
+with a file attached carries it, so **every image and document sent to a Slack bot
+was dropped before `_attachments` ever ran** - with the whole attachment path
+written, tested and unreachable, and the caption on the file discarded with it.
+
+An allowlist rather than a deny-list of the platform's own subtypes, because the
+platform adds subtypes and the ones worth answering are the short list.
+`thread_broadcast` is deliberately not here: it is a thread reply *also* posted to
+the channel, so it arrives beside the reply itself and answering both would be
+answering twice.
+"""
+
 _MEMBERSHIP_PAGES = 50
 """How far `is_channel_member` will walk `conversations.members`.
 
@@ -445,7 +463,7 @@ class SlackAdapter(ChannelAdapter):
         """Parse a Slack event payload into IncomingMessage.
 
         Handles `message` events (direct messages and channel messages).
-        Ignores bot messages, message_changed, and other subtypes.
+        Ignores bot messages, edits, deletions and joins.
         Thread replies get thread_ts folded into platform_chat_id.
         """
         event: dict[str, Any] = raw_payload.get("event", raw_payload)
@@ -454,7 +472,8 @@ class SlackAdapter(ChannelAdapter):
         if event_type != "message" and event_type != "app_mention":
             return None
 
-        if event.get("bot_id") or event.get("subtype"):
+        subtype = event.get("subtype")
+        if event.get("bot_id") or (subtype and subtype not in _SPOKEN_SUBTYPES):
             return None
 
         attachments = self._attachments(event)
