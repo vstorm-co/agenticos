@@ -30,7 +30,6 @@ from app.schemas.knowledge_base import (
 )
 from app.services.access import COLLECTION, SECRET, resolve_access, visible_resource_ids
 from app.services.collection_access import CollectionAccessService, readable_kb, writable_kb
-from app.services.file_storage import get_file_storage
 from app.services.ingestion_config import (
     IngestionConfig,
     IngestionConfigService,
@@ -481,11 +480,14 @@ class KnowledgeBaseService:
         left the `rag_documents` rows (their FK is `SET NULL`, so they survived
         detached and readable by a later same-named collection), the uploaded
         files, and the physical `rag_<collection>` vector table all behind, with
-        the collection name still blocking reuse (#1266). So the documents and
-        their files go, then the row, then the table - dropped only when no other
-        base still references the name, which is not tenant-unique (#913). The
-        store is required, not optional, so a delete route cannot silently skip
-        the teardown again.
+        the collection name still blocking reuse (#1266). So the documents go, then
+        the row, then the table - dropped only when no other base still references
+        the name, which is not tenant-unique (#913). The store is required, not
+        optional, so a delete route cannot silently skip the teardown again.
+
+        The stored files are unlinked after the commit (`spawn_after_commit`), so a
+        rollback keeps them beside the rows it restores rather than stranding those
+        rows on missing files (#1293).
         """
         # Access first, then the rule about default bases: "cannot delete the
         # default knowledge base" is a statement about a row, so answering it for
@@ -501,10 +503,13 @@ class KnowledgeBaseService:
         await knowledge_base_repo.lock(self.db, kb.id)
         storage_paths = await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
         await knowledge_base_repo.delete(self.db, kb.id)
-        storage = get_file_storage()
-        for storage_path in storage_paths:
-            with contextlib.suppress(Exception):
-                await storage.delete(storage_path)
+        if storage_paths:
+            from app.core.background import spawn_after_commit
+            from app.services.file_storage import delete_files_best_effort
+
+            spawn_after_commit(
+                self.db, delete_files_best_effort(storage_paths), name="delete-kb-files"
+            )
         if not await knowledge_base_repo.list_by_collection_name(self.db, collection):
             # No base references the name any more, so any sync source still
             # pointing at it is dangling: `get_due_for_sync` would re-select it

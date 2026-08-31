@@ -22,6 +22,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.core import background
 from app.repositories import rag_document_repo
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import (
@@ -36,6 +37,28 @@ from app.services.rag_document import RAGDocumentService
 from app.worker.tasks.rag_tasks import _run_ingestion
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def _no_leftover_tasks():
+    """A deferred unlink one test starts must not be drained by the next."""
+    background._running.clear()
+    yield
+    background._running.clear()
+
+
+def _deferring_db() -> MagicMock:
+    """A session stand-in whose `info` is a real dict, so `spawn_after_commit`
+    queues on it the way a live session's does."""
+    db = MagicMock()
+    db.info = {}
+    return db
+
+
+async def _run_deferred(db: MagicMock) -> None:
+    """What `_managed_session` does the instant its commit returns."""
+    background.start_deferred(db)
+    await background.drain(timeout=5.0)
 
 
 def _document(*, chunks: int) -> Document:
@@ -231,9 +254,10 @@ class TestRetiringWhatAReplacementDeleted:
             "delete",
             AsyncMock(side_effect=lambda _db, doc_id: deleted.append(doc_id)),
         )
-        monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
+        monkeypatch.setattr("app.services.file_storage.get_file_storage", lambda: storage)
 
-        service = RAGDocumentService(MagicMock())
+        db = _deferring_db()
+        service = RAGDocumentService(db)
         monkeypatch.setattr(service, "get_document", AsyncMock(return_value=current))
         await service.complete_ingestion(
             str(current.id),
@@ -242,12 +266,15 @@ class TestRetiringWhatAReplacementDeleted:
             replaced_document_id="old-vector-doc",
         )
 
+        # The row goes in the transaction; the file is unlinked only once it commits.
         assert deleted == [stale_id]
+        storage.delete.assert_not_awaited()
+        await _run_deferred(db)
         storage.delete.assert_awaited_once_with("rag/docs/handbook.md")
 
     async def test_a_storage_backend_that_refuses_still_loses_the_row(self, monkeypatch):
         """The database must not go on describing vectors nobody holds because a
-        file could not be unlinked - the same terms `delete_document` takes.
+        file could not be unlinked - the deferred unlink swallows its failure.
         """
         stale = MagicMock(id=uuid.uuid4(), storage_path="rag/docs/handbook.md")
         deleted: list[uuid.UUID] = []
@@ -260,11 +287,12 @@ class TestRetiringWhatAReplacementDeleted:
             AsyncMock(side_effect=lambda _db, doc_id: deleted.append(doc_id)),
         )
         monkeypatch.setattr(
-            "app.services.rag_document.get_file_storage",
+            "app.services.file_storage.get_file_storage",
             lambda: MagicMock(delete=AsyncMock(side_effect=OSError("read-only volume"))),
         )
 
-        service = RAGDocumentService(MagicMock())
+        db = _deferring_db()
+        service = RAGDocumentService(db)
         monkeypatch.setattr(
             service,
             "get_document",
@@ -276,6 +304,7 @@ class TestRetiringWhatAReplacementDeleted:
             chunk_count=9,
             replaced_document_id="old-vector-doc",
         )
+        await _run_deferred(db)
 
         assert deleted == [stale.id]
 
@@ -294,9 +323,10 @@ class TestRetiringWhatAReplacementDeleted:
             "delete",
             AsyncMock(side_effect=lambda _db, doc_id: deleted.append(doc_id)),
         )
-        monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
+        monkeypatch.setattr("app.services.file_storage.get_file_storage", lambda: storage)
 
-        service = RAGDocumentService(MagicMock())
+        db = _deferring_db()
+        service = RAGDocumentService(db)
         monkeypatch.setattr(
             service,
             "get_document",
@@ -308,6 +338,7 @@ class TestRetiringWhatAReplacementDeleted:
             chunk_count=9,
             replaced_document_id="old-vector-doc",
         )
+        await _run_deferred(db)
 
         assert deleted == [stale.id]
         storage.delete.assert_not_awaited()

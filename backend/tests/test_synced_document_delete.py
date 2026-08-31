@@ -23,10 +23,33 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.core import background
 from app.repositories import rag_document_repo
 from app.services.rag_document import RAGDocumentService
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def _no_leftover_tasks():
+    """A deferred unlink one test starts must not be drained by the next."""
+    background._running.clear()
+    yield
+    background._running.clear()
+
+
+def _deferring_db() -> MagicMock:
+    """A session stand-in whose `info` is a real dict, so `spawn_after_commit`
+    queues on it the way a live session's does."""
+    db = MagicMock()
+    db.info = {}
+    return db
+
+
+async def _run_deferred(db: MagicMock) -> None:
+    """What `_managed_session` does the instant its commit returns."""
+    background.start_deferred(db)
+    await background.drain(timeout=5.0)
 
 
 def _row(*, vector_document_id: str | None, storage_path: str = "") -> MagicMock:
@@ -60,6 +83,23 @@ class TestDeletingATrackedDocument:
         await RAGDocumentService(MagicMock()).delete_document(str(row.id), ingestion)
 
         ingestion.remove_document.assert_not_awaited()
+
+    async def test_the_stored_file_is_unlinked_after_the_commit(self, monkeypatch):
+        """The row and its vectors go in the transaction; the file is unlinked only
+        once it commits, so a rollback keeps it beside the restored row (#1293)."""
+        row = _row(vector_document_id="vector-doc-1", storage_path="rag/docs/report.pdf")
+        monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=row))
+        monkeypatch.setattr(rag_document_repo, "delete", AsyncMock(return_value=True))
+        storage = MagicMock(delete=AsyncMock())
+        monkeypatch.setattr("app.services.file_storage.get_file_storage", lambda: storage)
+        ingestion = MagicMock(remove_document=AsyncMock(return_value=True))
+        db = _deferring_db()
+
+        await RAGDocumentService(db).delete_document(str(row.id), ingestion)
+        storage.delete.assert_not_awaited()
+
+        await _run_deferred(db)
+        storage.delete.assert_awaited_once_with("rag/docs/report.pdf")
 
     async def test_a_store_that_refuses_still_removes_the_row(self, monkeypatch):
         """The cleanup is best-effort by design: a row kept because the store was
@@ -275,33 +315,56 @@ class TestTheCLISync:
 
 
 class TestDroppingACollection:
-    async def test_it_unlinks_the_stored_uploads(self, monkeypatch):
-        """The bulk row delete returns the storage paths now, so each upload is
-        unlinked rather than orphaned on disk when a collection is dropped (#1265)."""
+    async def test_it_unlinks_the_stored_uploads_after_the_commit(self, monkeypatch):
+        """The bulk row delete returns the storage paths, and the unlink is deferred
+        past the commit so a rollback keeps the files (#1265, #1293)."""
         monkeypatch.setattr(
             rag_document_repo,
             "delete_by_collection",
             AsyncMock(return_value=["rag/docs/a.pdf", "rag/docs/b.md"]),
         )
         storage = MagicMock(delete=AsyncMock())
-        monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
+        monkeypatch.setattr("app.services.file_storage.get_file_storage", lambda: storage)
+        db = _deferring_db()
 
-        await RAGDocumentService(MagicMock()).delete_by_collection("docs")
+        await RAGDocumentService(db).delete_by_collection("docs")
+        storage.delete.assert_not_awaited()
 
+        await _run_deferred(db)
         assert storage.delete.await_count == 2
         storage.delete.assert_any_await("rag/docs/a.pdf")
         storage.delete.assert_any_await("rag/docs/b.md")
 
-    async def test_a_failed_unlink_does_not_fail_the_drop(self, monkeypatch):
-        """A file already gone is not a reason to leave the collection half-dropped."""
+    async def test_a_rolled_back_drop_keeps_the_files(self, monkeypatch):
+        """The unlink is discarded when the transaction that removed the rows did
+        not commit, so the restored rows still point at their files (#1293)."""
+        monkeypatch.setattr(
+            rag_document_repo,
+            "delete_by_collection",
+            AsyncMock(return_value=["rag/docs/a.pdf"]),
+        )
+        storage = MagicMock(delete=AsyncMock())
+        monkeypatch.setattr("app.services.file_storage.get_file_storage", lambda: storage)
+        db = _deferring_db()
+
+        await RAGDocumentService(db).delete_by_collection("docs")
+        background.discard_deferred(db)
+        await background.drain(timeout=5.0)
+
+        storage.delete.assert_not_awaited()
+
+    async def test_a_failed_unlink_does_not_raise(self, monkeypatch):
+        """A file already gone is not a reason for the deferred unlink to fail."""
         monkeypatch.setattr(
             rag_document_repo,
             "delete_by_collection",
             AsyncMock(return_value=["rag/docs/gone.pdf"]),
         )
         storage = MagicMock(delete=AsyncMock(side_effect=FileNotFoundError()))
-        monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
+        monkeypatch.setattr("app.services.file_storage.get_file_storage", lambda: storage)
+        db = _deferring_db()
 
-        await RAGDocumentService(MagicMock()).delete_by_collection("docs")
+        await RAGDocumentService(db).delete_by_collection("docs")
+        await _run_deferred(db)
 
         storage.delete.assert_awaited_once()

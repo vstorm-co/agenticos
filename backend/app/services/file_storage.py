@@ -4,6 +4,7 @@ Supports local filesystem storage.
 Files are organized per-user: {storage_root}/{user_id}/{uuid}_{filename}
 """
 
+import contextlib
 import logging
 import os
 import re
@@ -15,6 +16,23 @@ from app.core.blocking import delete_cancel_safe, run_blocking, write_bytes_canc
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+async def delete_files_best_effort(storage_paths: list[str]) -> None:
+    """Unlink stored uploads, suppressing any failure - a file already gone is not
+    an error.
+
+    Handed to `spawn_after_commit` by the teardown paths, so the unlinks run only
+    once the transaction that removed the rows has committed: an unlink before the
+    commit is undone by a rollback as a file already gone, leaving the restored row
+    pointing at nothing (#1293). Takes ids, holds nothing of the request session,
+    and resolves the storage backend when it runs.
+    """
+    storage = get_file_storage()
+    for storage_path in storage_paths:
+        with contextlib.suppress(Exception):
+            await storage.delete(storage_path)
+
 
 ALLOWED_MIME_TYPES = {
     "image/jpeg",
