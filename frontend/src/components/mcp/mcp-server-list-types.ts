@@ -68,4 +68,14 @@ export interface ToolPickerState {
   connection: McpConnectionRecord;
   tools: McpToolInfo[];
   checked: Set<string>;
+  /**
+   * Whose narrowing this is, which is the whole of what the dialog says about
+   * itself.
+   *
+   * `"connection"` is the servers page: one administrator's decision for
+   * everybody bound to it. `"agent"` is the Builder: this agent only, within
+   * that ceiling. Saying the wrong one is worse than saying nothing, because
+   * both screens look identical (#1341).
+   */
+  appliesTo: "connection" | "agent";
 }

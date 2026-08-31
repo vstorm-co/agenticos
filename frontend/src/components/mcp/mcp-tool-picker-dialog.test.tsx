@@ -20,12 +20,23 @@ const TOOLS = [
  * asserting on a controlled component with a frozen prop would test nothing
  * about what a click does.
  */
-function Harness({ checked, onSave = vi.fn() }: { checked?: string[]; onSave?: () => void }) {
+function Harness({
+  checked,
+  tools = TOOLS,
+  appliesTo = "connection",
+  onSave = vi.fn(),
+}: {
+  checked?: string[];
+  tools?: typeof TOOLS;
+  appliesTo?: ToolPickerState["appliesTo"];
+  onSave?: () => void;
+}) {
   const [state, setState] = useState<ToolPickerState | null>({
     scope: "organization",
     connection: CONNECTION,
-    tools: TOOLS,
-    checked: new Set(checked ?? TOOLS.map((tool) => tool.name)),
+    tools,
+    checked: new Set(checked ?? tools.map((tool) => tool.name)),
+    appliesTo,
   });
   return (
     <McpToolPickerDialog
@@ -123,5 +134,49 @@ describe("McpToolPickerDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Save selection" }));
 
     expect(onSave).toHaveBeenCalled();
+  });
+});
+
+describe("what the dialog says it is deciding", () => {
+  /**
+   * Both screens draw the same dialog, and it used to carry the servers page's
+   * sentence on either - so the Builder said the choice applied to every agent
+   * bound to the server and that per-agent selection did not exist, while being
+   * the per-agent selection (#1341).
+   */
+  it("on a connection, says it applies to everything bound to it", () => {
+    render(<Harness appliesTo="connection" />);
+
+    expect(screen.getByText(/applies to every agent bound to this server/)).toBeVisible();
+  });
+
+  it("on an agent, says it narrows within the connection's own list", () => {
+    render(<Harness appliesTo="agent" />);
+
+    expect(screen.getByText(/narrows within it/)).toBeVisible();
+    expect(screen.queryByText(/does not exist yet/)).toBeNull();
+  });
+});
+
+describe("a connection nothing has probed", () => {
+  /**
+   * The Builder reads the tool list off the connection's last successful probe,
+   * so a server nobody has checked has nothing to choose from. That is not the
+   * same nothing as a search matching none of twenty-five, and one message for
+   * both answered "No tool matches that" under an empty search box.
+   */
+  it("says why the list is empty, and where to fix it", () => {
+    render(<Harness tools={[]} appliesTo="agent" />);
+
+    expect(screen.getByText(/Nothing has checked this connection yet/)).toBeVisible();
+    expect(screen.getByText(/MCP servers page/)).toBeVisible();
+    expect(screen.queryByText("No tool matches that.")).toBeNull();
+  });
+
+  it("offers no search or select-all over a list of none", () => {
+    render(<Harness tools={[]} />);
+
+    expect(screen.queryByLabelText("Search tools…")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Select all" })).toBeNull();
   });
 });

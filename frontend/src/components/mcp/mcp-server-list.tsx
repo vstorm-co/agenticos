@@ -210,6 +210,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           ? tools.map((tool) => tool.name)
           : connection.allowed_tools,
       ),
+      appliesTo: "connection",
     });
   };
 

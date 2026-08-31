@@ -120,8 +120,12 @@ connection allows, which is what every binding did before this existed.
 The Builder lists a server's tools from its **last successful probe**, recorded
 on the connection. Probing dials out to a third party and is gated on
 `connections:manage`; an agent author holds `agents:edit` and needs the list to
-choose from, so the list is read rather than fetched. A connection nothing has
-checked yet offers nothing to pick, and the servers page is where it is checked.
+choose from, so the list is read rather than fetched.
+
+A connection nothing has probed yet has no catalogue to offer, and the picker
+says so and points at the servers page, which is where a connection is checked.
+A binding that already names tools shows those, so what it is bound to stays
+visible and can still be narrowed.
 
 ### Speaking as whoever is running the agent
 

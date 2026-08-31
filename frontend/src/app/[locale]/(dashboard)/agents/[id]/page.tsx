@@ -115,13 +115,39 @@ import type { FieldProblem } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn } from "@/lib/utils";
-import type { AgentSpec, CapabilityBindingSpec } from "@/types/agents";
+import type { AgentSpec, CapabilityBindingSpec, McpServerRef } from "@/types/agents";
+import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 import { DIALOG_CANVAS, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 
 interface PageProps {
   params: Promise<{ id: string }>;
+}
+
+/**
+ * What the tool picker opens with for one binding.
+ *
+ * The tools come from the connection's **last successful probe** rather than a
+ * fresh one: probing dials out to a third party and is gated on
+ * `connections:manage`, which an agent author need not hold (#1341).
+ *
+ * A connection nothing has probed yet has no catalogue, and a binding that
+ * already names tools would then read "0 of 0 on" while its card says three -
+ * so the names it holds stand in. They came from the server once, they are what
+ * the agent is bound to, and they can at least be narrowed further without a
+ * probe. The dialog says where to get the real list.
+ */
+function toolChoice(connection: OrgMcpConnectionRecord, ref: McpServerRef): ToolPickerState {
+  const probed = connection.last_tools;
+  const tools = probed ?? (ref.allowed_tools ?? []).map((name) => ({ name, description: "" }));
+  return {
+    scope: "organization",
+    connection,
+    tools,
+    checked: new Set(ref.allowed_tools ?? tools.map((one) => one.name)),
+    appliesTo: "agent",
+  };
 }
 
 export default function AgentBuilderPage({ params }: PageProps) {
@@ -1109,19 +1135,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 catalog={mcpCatalog}
                 value={spec.mcp_servers}
                 onChange={(mcp_servers) => update({ mcp_servers })}
-                onTools={(connection, ref) =>
-                  setToolPicker({
-                    scope: "organization",
-                    connection,
-                    // The connection's last probe rather than a fresh one: the
-                    // probe is gated on `connections:manage`, which an agent
-                    // author need not hold (#1341).
-                    tools: connection.last_tools ?? [],
-                    checked: new Set(
-                      ref.allowed_tools ?? (connection.last_tools ?? []).map((one) => one.name),
-                    ),
-                  })
-                }
+                onTools={(connection, ref) => setToolPicker(toolChoice(connection, ref))}
                 onConnect={setConnectingServer}
                 disabled={!canEdit}
               />

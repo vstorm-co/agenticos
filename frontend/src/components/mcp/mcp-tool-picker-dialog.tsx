@@ -80,32 +80,36 @@ export function McpToolPickerDialog({
           <DialogTitle>{t("toolsFrom", { name: toolPicker?.connection.name ?? "" })}</DialogTitle>
         </DialogHeader>
         <p className="text-foreground/55 shrink-0 text-xs">
-          {t("whichToolsExposed", { scope: toolPicker?.scope ?? "personal" })}
+          {toolPicker?.appliesTo === "agent"
+            ? t("whichToolsAgent")
+            : t("whichToolsConnection", { scope: toolPicker?.scope ?? "personal" })}
         </p>
 
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <SearchInput value={query} onChange={setQuery} placeholder={t("searchTools")} />
-          <span className="text-muted-foreground text-xs" role="status">
-            {t("toolsSelected", { on: toolPicker?.checked.size ?? 0, total: tools.length })}
-          </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="ml-auto"
-            onClick={() =>
-              setChecked((previous) => {
-                const next = new Set(previous);
-                for (const tool of shown) {
-                  if (allShownOn) next.delete(tool.name);
-                  else next.add(tool.name);
-                }
-                return next;
-              })
-            }
-          >
-            {allShownOn ? t("selectNone") : t("selectAll")}
-          </Button>
-        </div>
+        {tools.length > 0 && (
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <SearchInput value={query} onChange={setQuery} placeholder={t("searchTools")} />
+            <span className="text-muted-foreground text-xs" role="status">
+              {t("toolsSelected", { on: toolPicker?.checked.size ?? 0, total: tools.length })}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto"
+              onClick={() =>
+                setChecked((previous) => {
+                  const next = new Set(previous);
+                  for (const tool of shown) {
+                    if (allShownOn) next.delete(tool.name);
+                    else next.add(tool.name);
+                  }
+                  return next;
+                })
+              }
+            >
+              {allShownOn ? t("selectNone") : t("selectAll")}
+            </Button>
+          </div>
+        )}
 
         <ul className="border-foreground/10 divide-foreground/8 min-h-0 flex-1 divide-y overflow-y-auto rounded-xl border">
           {shown.map((tool) => (
@@ -139,7 +143,20 @@ export function McpToolPickerDialog({
           ))}
           {shown.length === 0 && (
             <li className="text-muted-foreground px-4 py-6 text-center text-xs">
-              {t("noToolMatches")}
+              {/* Two different nothings. A server nobody has probed has no list
+                  to choose from and the reader has somewhere to go about it;
+                  a search that matched none of twenty-five is their own doing.
+                  One message for both said "No tool matches that" under an
+                  empty search box, which is the wrong answer and hides the
+                  reason. */}
+              {tools.length === 0 ? (
+                <>
+                  {t("noToolsProbed")}
+                  <span className="mt-1 block">{t("checkItOnTheServersPage")}</span>
+                </>
+              ) : (
+                t("noToolMatches")
+              )}
             </li>
           )}
         </ul>

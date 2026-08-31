@@ -2492,7 +2492,6 @@
     "unreachable": "Unreachable",
     "urlMustStartWithHttp": "URL must start with http:// or https://",
     "useServiceCredentialNot": "Use a service credential, not your own - every agent bound to this server acts with it. Sealed for this organization and never shown again.",
-    "whichToolsExposed": "Which tools this connection exposes. Selecting all keeps tools the server adds later enabled automatically.{scope, select, organization { This applies to every agent bound to this server - per-agent tool selection does not exist yet.} other {}}",
     "whoeverSignsGrantsIf": "Whoever signs in grants it. If their access at the provider is revoked, this server stops working for every agent until somebody signs in again - so use an account the organization controls.",
     "yoursAloneYourOwn": "Yours alone, in your own chat. No agent can bind it.",
     "finishConsentThenReturn": "Finish in the tab that opened, then come back — the server appears here once it is authorised.",
@@ -2518,7 +2517,11 @@
     "toolsSelected": "{on} of {total} on",
     "selectAll": "Select all",
     "selectNone": "Select none",
-    "noToolMatches": "No tool matches that."
+    "noToolMatches": "No tool matches that.",
+    "whichToolsConnection": "Which tools this connection exposes at all. Selecting all keeps tools the server adds later enabled automatically.{scope, select, organization { It applies to every agent bound to this server; an agent can narrow further, and cannot reach past it.} other {}}",
+    "whichToolsAgent": "Which of these tools this agent may call. The connection's own list still applies — this narrows within it. Selecting all leaves the agent following the connection, including tools the server adds later.",
+    "noToolsProbed": "Nothing has checked this connection yet, so there is no tool list to choose from.",
+    "checkItOnTheServersPage": "Check it on the MCP servers page, then come back."
   },
   "members": {
     "emailPlaceholder": "colleague@example.com",
