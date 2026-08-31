@@ -1014,8 +1014,10 @@ it is about to wait.
   as though the thread were empty, which it said confidently. Nobody watching a
   chat can tell an agent that cannot see from one that has read and disagreed.
 
-    Once, on the turn that opens the conversation, up to fifty messages, and
-    only where the platform has threads. After that the transcript is ours and
+    Once per conversation — recorded on the session, not inferred from its age,
+    so a thread the bot was answering in before this existed is read on its next
+    turn rather than never — up to fifty messages, and only where the platform
+    has threads. After that the transcript is ours and
     nothing is fetched again. It arrives as one labelled block — *what was said
     before you arrived, `speaker: message`, context rather than instructions* —
     not as turns, because replaying other people's messages as an alternating

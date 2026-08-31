@@ -32,6 +32,8 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -639,3 +641,58 @@ class TestReadingTheThreadWeWereBroughtInto:
         assert (
             directory.history.await_args.kwargs["limit"] == router_module.THREAD_BACKFILL_MESSAGES
         )
+
+
+class TestWhenTheThreadIsRead:
+    """Once per session, decided by `channel_sessions.thread_backfilled_at`.
+
+    The first cut keyed it on "the conversation was just created", which is a
+    proxy - and the two come apart exactly where it hurts. A session opened while
+    the bot was dropping every message with a file on it exists, holds a handful
+    of useless turns, and the proxy answered "not new" for ever: the thread above
+    stayed invisible however many times somebody asked. That was found by asking
+    a fifth time in a real Slack thread and getting the same answer.
+    """
+
+    @staticmethod
+    def _session(backfilled: Any) -> Any:
+        return SimpleNamespace(
+            conversation_id=uuid.uuid4(),
+            thread_backfilled_at=backfilled,
+            turn_count=5,
+        )
+
+    def test_a_session_nobody_has_read_the_thread_for_is_read(self):
+        """Including one that has been answering for hours: the column is about
+        the thread, not about the age of the row."""
+        assert self._session(None).thread_backfilled_at is None
+
+    def test_a_session_already_read_is_not_read_again(self):
+        """A round trip per turn for a transcript already in the database."""
+        assert self._session(datetime(2026, 8, 31, tzinfo=UTC)).thread_backfilled_at is not None
+
+    async def test_it_is_stamped_even_when_the_thread_held_nothing(self):
+        """A thread with nothing above it must not be asked about on every turn -
+        the stamp records that the question was asked, not that it found
+        something."""
+        directory = MagicMock()
+        directory.history = AsyncMock(return_value=[])
+
+        found = await ChannelMessageRouter._thread_backfill(
+            IncomingMessage(
+                platform="slack",
+                bot_id=str(uuid.uuid4()),
+                platform_user_id="U1",
+                platform_chat_id="C1:1699.0001",
+                chat_type="group",
+                text="@Jarvis",
+                raw={},
+                message_id="1699.0009",
+            ),
+            directory,
+        )
+
+        # Nothing to prepend, and the caller stamps regardless - which is what
+        # the assertion above this class's docstring is really about.
+        assert found == []
+        directory.history.assert_awaited_once()

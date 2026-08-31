@@ -6,6 +6,7 @@ import logging
 import re
 import time
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic_ai.messages import ModelMessage, ModelRequest, UserPromptPart
@@ -246,7 +247,7 @@ class ChannelMessageRouter:
             await self._send_reply(bot, incoming, await self._invite_to_link(incoming, db))
             return
 
-        session, opened = await self._resolve_session(incoming, bot, identity, db)
+        session = await self._resolve_session(incoming, bot, identity, db)
 
         try:
             self._check_rate_limit(bot, str(identity.id))
@@ -293,10 +294,16 @@ class ChannelMessageRouter:
         # runner, which is also what records the tool calls, the model and the
         # version this bot's own write dropped.
         history = await self._load_history(db, session.conversation_id)
-        if opened:
-            # The thread above this message, which we were never sent. Only on the
-            # turn that opens the conversation: after it, the transcript is ours.
+        if session.thread_backfilled_at is None:
+            # The thread above this message, which we were never sent. Once per
+            # session, stamped whether or not it found anything - a thread with
+            # nothing above it must not be asked about on every turn.
             history = await self._thread_backfill(incoming, directory) + history
+            await channel_session_repo.update(
+                db,
+                db_session=session,
+                update_data={"thread_backfilled_at": datetime.now(UTC)},
+            )
         try:
             answered = await ChannelAgentRouter(db).answer_default(
                 incoming.text,
@@ -827,18 +834,19 @@ class ChannelMessageRouter:
 
     async def _resolve_session(
         self, incoming: IncomingMessage, bot: Any, identity: Any, db: Any
-    ) -> tuple[Any, bool]:
+    ) -> Any:
         """Get or create ChannelSession (+ backing Conversation) for this bot+chat.
 
-        Returns the session and **whether it was just created**, which is what
-        decides if the thread above this message has to be read from the platform:
-        a conversation we already hold needs nothing fetched, and asking anyway
-        would be a round trip per turn for a transcript already in the database.
+        Whether the thread above this message still has to be read is *not*
+        decided here: it is `channel_sessions.thread_backfilled_at`, because "the
+        conversation was just created" is only a proxy for it and the two come
+        apart exactly where it hurts - a session opened while the bot was
+        dropping messages exists, holds a few useless turns, and the proxy
+        answers "not new" for ever.
         """
         session = await channel_session_repo.get_by_bot_and_chat(
             db, bot_id=bot.id, platform_chat_id=incoming.platform_chat_id
         )
-        created = session is None
         if not session:
             # The conversation belongs to the organization that owns the bot -
             # not to the linked user's personal org. A Slack channel is the
@@ -861,7 +869,7 @@ class ChannelMessageRouter:
         # messages" counts. Here rather than after the answer, because a turn that
         # failed still happened - a counter that only advanced on success would
         # drift quietly against the messages people actually sent.
-        return await channel_session_repo.touch(db, session), created
+        return await channel_session_repo.touch(db, session)
 
     def _check_rate_limit(self, bot: Any, identity_id: str) -> None:
         """In-memory token-bucket rate limiter.
