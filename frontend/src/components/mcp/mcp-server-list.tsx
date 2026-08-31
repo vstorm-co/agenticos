@@ -518,7 +518,13 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                     is scannable. State rides on the trigger rather than on a
                     chip of its own, because a chip on some cards and not others
                     is the misalignment again, one row up. */}
-                  <div className="border-border mt-3 flex items-center gap-1.5 border-t pt-3">
+                  {/* `min-w-0` so the row can shrink rather than overflow. Every
+                      `Button` is `whitespace-nowrap` and nothing here could give
+                      way, so the two controls took the full width, `ml-auto`
+                      collapsed to nothing, and the `shrink-0` dot was pushed
+                      past the card's right edge - visibly outside it on a card
+                      with three connections. */}
+                  <div className="border-border mt-3 flex min-w-0 items-center gap-1.5 border-t pt-3">
                     {/* Exactly two controls, whatever the card holds. The row
                         used to grow one chip per connection, so a server with
                         three accounts stood taller than its neighbours and the
@@ -527,6 +533,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                     <Button
                       size="sm"
                       variant="outline"
+                      className="shrink-0"
                       onClick={() => openDraft(defaultScope(row, canManageOrganization), row, null)}
                       disabled={busyId === row.key}
                     >
@@ -537,10 +544,16 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                       <Button
                         size="sm"
                         variant="ghost"
+                        // The one control allowed to give way: the count is the
+                        // least important thing on the row, and something has to
+                        // shrink or the dot leaves the card.
+                        className="min-w-0"
                         onClick={() => setManaging(row)}
                         aria-label={t("manageConnectionsOn", { name: row.name })}
                       >
-                        {t("connectionCount", { count: connectionCount(row) })}
+                        <span className="truncate">
+                          {t("connectionCount", { count: connectionCount(row) })}
+                        </span>
                         <ChevronRight className="ml-1 h-3.5 w-3.5" />
                       </Button>
                     )}
