@@ -17,6 +17,8 @@ vi.mock("@/lib/api-client", async (importOriginal) => {
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+import { toast } from "sonner";
+
 const permissions = { can: vi.fn(() => true) };
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => permissions }));
 
@@ -257,6 +259,21 @@ describe("the channels page", () => {
         slack_app_token: "xapp-1-A0000-abc",
       }),
     );
+  });
+
+  it("keeps the dialog open and says so when the save is refused", async () => {
+    // A refused patch must not read as a saved one: the credential is still
+    // missing and the operator has to see that it is.
+    serve([bot({ platform: "slack", name: "Jarvis", api_base_url: null })]);
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("nope"));
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
+    await userEvent.type(screen.getByLabelText(/App-level token/), "xapp-1-A0000-abc");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(screen.getByRole("button", { name: "Save" })).toBeVisible();
   });
 
   it("will not save a dialog nobody edited", async () => {
