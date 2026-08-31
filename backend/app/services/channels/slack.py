@@ -610,10 +610,10 @@ class SlackAdapter(ChannelAdapter):
         Slack delivers what the app subscribed to, and `message.channels` is
         every message in every channel the bot is in - so with that subscription
         an unanswered question is not the same thing as no question, and a bot
-        that answered everything talked over the team it was invited to
-        (agenticos#1071). Reading it here rather than dropping the subscription
-        keeps the whole conversation arriving, which is what an agent deciding
-        for itself whether to answer will need.
+        that answered everything talked over the team it was invited to. Reading
+        it here rather than dropping the subscription keeps the whole
+        conversation arriving, which is what an agent deciding for itself
+        whether to answer will need.
 
         `app_mention` is delivered only when the bot was named, so it needs
         nothing read.

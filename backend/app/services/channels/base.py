@@ -197,9 +197,9 @@ class IncomingMessage:
     Mattermost and Slack both set it, and both for the same reason: each can be
     handed every message in every channel the bot is in - Mattermost's socket
     always is, and a Slack app subscribed to `message.channels` is - so a default
-    agent answering all of them is a bot that talks over a team
-    (agenticos#634, #1071). Telegram delivers on its own subscription rules and
-    leaves this unset.
+    agent answering all of them is a bot that talks over a team it was invited
+    to (agenticos#634 on Mattermost, and the same defect on Slack). Telegram
+    delivers on its own subscription rules and leaves this unset.
     """
 
     attachments: list[IncomingAttachment] = field(default_factory=list)

@@ -230,7 +230,7 @@ class TestReadingWhoASlackMessageNamed:
     """Slack delivers what the app subscribed to, and `message.channels` is every
     message in every channel the bot is in - so the same defect Mattermost had
     arrives here through a subscription rather than through a socket, and did:
-    the bot answered every message in a shared channel (#1071).
+    the bot answered every message in a shared channel.
 
     Dropping the subscription would have fixed the symptom and cost the thing an
     agent deciding for itself whether to answer needs, which is the whole
