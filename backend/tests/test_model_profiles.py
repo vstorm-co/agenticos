@@ -681,7 +681,7 @@ class TestProfilesKeyedFromTheVault:
             "app.services.model_profile.organization_secret_repo.get",
             new=AsyncMock(return_value=secret),
         ):
-            resolved = await ModelProfileService(_db())._resolve_credential(
+            resolved = await ModelProfileService(_db()).resolve_credential(
                 ctx.organization_id, profile
             )
 
@@ -705,7 +705,7 @@ class TestProfilesKeyedFromTheVault:
             ),
             pytest.raises(BadRequestError) as exc,
         ):
-            await ModelProfileService(_db())._resolve_credential(ctx.organization_id, profile)
+            await ModelProfileService(_db()).resolve_credential(ctx.organization_id, profile)
 
         assert "Test profile" in exc.value.message
 
@@ -789,7 +789,7 @@ class TestAnEndpointOfItsOwn:
     Every piece of this existed before and nothing joined them: the provider
     catalog said which providers accept an endpoint, `validate_endpoint_url`
     checked one, and `_build_provider` knew how to pass one to the SDK - while
-    `_resolve_credential` returned `base_url=None` unconditionally and the
+    `resolve_credential` returned `base_url=None` unconditionally and the
     validator had no caller outside this file. So a deployment could not reach a
     gateway, a LiteLLM proxy or an Ollama however carefully it stored the URL.
     """
