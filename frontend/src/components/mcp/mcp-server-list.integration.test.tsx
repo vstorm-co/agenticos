@@ -431,8 +431,7 @@ describe("several accounts on one server", () => {
     // The organization's section, where `github` is already taken.
     await userEvent.click(dialog.getByRole("button", { name: "Connect another" }));
 
-    // Exact: the form has a display name too, and /name/i matches both.
-    expect(await screen.findByLabelText("Name")).toHaveValue("github-2");
+    expect(await screen.findByLabelText("Tool prefix")).toHaveValue("github-2");
   });
 
   it("says where each owner's accounts can be used, which is the whole distinction", async () => {
@@ -557,7 +556,7 @@ describe("naming a connection something a person can read", () => {
 
     await within(githubRow()).getByRole("button", { name: "Connect" }).click();
     const form = within(await screen.findByRole("dialog"));
-    await userEvent.type(form.getByLabelText("Display name"), "  Marketing workspace  ");
+    await userEvent.type(form.getByLabelText("Name"), "  Marketing workspace  ");
     await userEvent.click(form.getByRole("button", { name: /Connect/ }));
 
     await waitFor(() =>
@@ -600,7 +599,7 @@ describe("naming a connection something a person can read", () => {
 
     await userEvent.click(dialog.getByRole("button", { name: "Edit" }));
     const form = within(await screen.findByRole("dialog"));
-    await userEvent.clear(form.getByLabelText("Display name"));
+    await userEvent.clear(form.getByLabelText("Name"));
     await userEvent.click(form.getByRole("button", { name: "Save" }));
 
     await waitFor(() =>
@@ -620,6 +619,6 @@ describe("naming a connection something a person can read", () => {
     await userEvent.click(dialog.getByRole("button", { name: "Edit" }));
 
     const form = within(await screen.findByRole("dialog"));
-    expect(form.getByLabelText("Display name")).toHaveValue("Marketing workspace");
+    expect(form.getByLabelText("Name")).toHaveValue("Marketing workspace");
   });
 });

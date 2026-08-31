@@ -78,24 +78,24 @@ POST /api/v1/mcp-connections/{id}/test   probe it, list its tools, store the sta
 
 ### Two names, and they answer different questions
 
-A connection carries a **name** and a **display name**, and only the first is
-constrained. The name is the server's tool prefix — lowercase letters, digits and
-hyphens, unique among the organization's servers — because that is what a tool
-name can carry and what the model reads before it calls one. The display name is
-free text, optional, and is what a person sees.
+A connection carries a **name** and a **tool prefix**, and only the second is
+constrained. The prefix is lowercase letters, digits and hyphens, unique among
+the organization's servers, because that is what a tool name can carry and what
+the model reads before it calls one. The name is free text, optional, and is
+what a person sees.
 
 The distinction earns its place the moment an organization connects one service
 twice. Two Notion accounts have to be `notion` and `notion-2`, and neither says
 which workspace either one reaches; `Marketing workspace` and `Engineering
 handbook` do.
 
-!!! info "The slug never disappears"
+!!! info "The prefix never disappears"
 
-    Wherever a display name is shown, the name is shown beside it. A run's tool
-    calls are recorded under the prefix, so a label that replaced it would leave
-    "why did this call `notion-2_search`" unanswerable from the page that names
-    the account. Clear the display name and the connection reads as its slug
-    again, which is what it did before you set one.
+    Wherever a name is shown, the prefix is shown beside it. A run's tool calls
+    are recorded under the prefix, so a name that replaced it would leave "why
+    did this call `notion-2_search`" unanswerable from the page that names the
+    account. Clear the name and the connection reads as its prefix again, which
+    is what it did before you set one.
 
 A spec names organization connections in `mcp_servers`, one entry per binding.
 Deleting a connection an agent still names loses that server for the agent, not

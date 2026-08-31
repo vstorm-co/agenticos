@@ -108,8 +108,7 @@ describe("ConnectServerDialog", () => {
 
   it("refuses a name the server would not accept, without calling the API", async () => {
     open(TOKEN_ENTRY);
-    // Exact: the form has a display name too, and /name/i matches both.
-    const name = screen.getByLabelText("Name");
+    const name = screen.getByLabelText("Tool prefix");
     await userEvent.clear(name);
     await userEvent.type(name, "Not A Name");
 

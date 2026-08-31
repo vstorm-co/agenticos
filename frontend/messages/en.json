@@ -2454,9 +2454,9 @@
     "failedLoadConnections": "Failed to load connections",
     "failedLoadOrgServers": "Failed to load the organization's MCP servers",
     "github": "github",
-    "name": "Name",
+    "name": "Tool prefix",
     "nameMustBeLowercase": "Name must be lowercase letters, digits and hyphens (max 32 characters).",
-    "namePrefixesToolNames": "Lowercase letters, digits and hyphens. It prefixes the server's tool names, so it has to be unique among {scope, select, organization {the organization's} other {your}} servers.",
+    "namePrefixesToolNames": "Lowercase letters, digits and hyphens. The model reads it before every tool call, so it has to be unique among {scope, select, organization {the organization's} other {your}} servers.",
     "needsAuthorization": "Needs authorization",
     "notCatalog": "not in the catalog",
     "notConnected": "Not connected",
@@ -2511,9 +2511,9 @@
     "agentsSpeakAsThisOne": "Agents speak as this one",
     "agentsSpeakAsThis": "Agents will speak as this account",
     "agentsNoLongerSpeak": "Agents no longer speak as this account",
-    "displayName": "Display name",
+    "displayName": "Name",
     "displayNamePlaceholder": "Marketing workspace",
-    "displayNameHint": "What this account is called on screen. Optional — without one it is shown under the technical name below."
+    "displayNameHint": "What this connection is called on screen. Optional — without one it is shown under its tool prefix."
   },
   "members": {
     "emailPlaceholder": "colleague@example.com",
