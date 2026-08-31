@@ -379,10 +379,14 @@ class SlackAdapter(ChannelAdapter):
             from slack_sdk.socket_mode.request import SocketModeRequest
             from slack_sdk.socket_mode.response import SocketModeResponse
         except ImportError as exc:
+            # Names the real dependency. It used to name `slack-sdk[socket-mode]`,
+            # an extra slack-sdk has never had - the only one is `optional` - so
+            # the one instruction this refusal existed to give could not be
+            # followed. `aiohttp` is declared in pyproject.toml for this import.
             raise ChannelNotConfigured(
                 message=(
-                    "Slack Socket Mode requires 'slack-sdk[socket-mode]'. "
-                    "Install with: pip install 'slack-sdk[socket-mode]'"
+                    "Slack Socket Mode needs aiohttp, which this environment does "
+                    "not have. Install it, or reinstall the backend's dependencies."
                 ),
                 details={"bot_id": bot_id},
             ) from exc

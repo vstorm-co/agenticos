@@ -13,6 +13,7 @@ version = "0.0.343"
 source = { editable = "." }
 dependencies = [
     { name = "aiogram" },
+    { name = "aiohttp" },
     { name = "aiosmtplib" },
     { name = "alembic" },
     { name = "anyio" },
@@ -84,6 +85,7 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "aiogram", specifier = ">=3.17,<4.0" },
+    { name = "aiohttp", specifier = ">=3.13.5" },
     { name = "aiosmtplib", specifier = ">=3.0.0" },
     { name = "alembic", specifier = ">=1.19.1" },
     { name = "anyio", specifier = ">=4.14.2" },
