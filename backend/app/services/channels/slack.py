@@ -387,8 +387,12 @@ class SlackAdapter(ChannelAdapter):
         async def handler(client_: Any, req: SocketModeRequest) -> None:
             await client_.send_socket_mode_response(SocketModeResponse(envelope_id=req.envelope_id))
             if req.type == "events_api":
-                event = req.payload.get("event", {})
-                await self._handle_event(event, bot_id)
+                # The whole payload, not `payload["event"]`. Slack states which
+                # installation an event was delivered for *beside* the event, so
+                # unwrapping here threw away the only thing that says whether the
+                # bot was named - and every Socket Mode message then looked like a
+                # platform that does not report mentions, which the router answers.
+                await self._handle_event(req.payload, bot_id)
 
         client.socket_mode_request_listeners.append(handler)  # type: ignore[arg-type]
         await client.connect()
@@ -596,9 +600,18 @@ class SlackAdapter(ChannelAdapter):
             )
         return response.content
 
-    async def _handle_event(self, event: dict[str, Any], bot_id: str) -> None:
-        """Handle a Slack event from Socket Mode or webhook."""
-        incoming = self.parse_incoming({"event": event}, bot_id)
+    async def _handle_event(self, payload: dict[str, Any], bot_id: str) -> None:
+        """Route one `events_api` payload, whole.
+
+        The **payload**, not the event inside it. It used to take the event and
+        rewrap it as `{"event": event}`, which reads identically for the text and
+        the channel and silently drops `authorizations` - the field naming the bot
+        user this was delivered for, and so the only way a synchronous parser can
+        tell whether the bot was named. Every Socket Mode message therefore
+        reached the router with `addressed` unset, which it answers, so the bot
+        replied to everything said in a channel it had been invited to.
+        """
+        incoming = self.parse_incoming(payload, bot_id)
         if incoming is None:
             return
 

@@ -337,3 +337,86 @@ class TestReadingWhoASlackMessageNamed:
 
         assert incoming.addressed is False
         assert ChannelMessageRouter._is_overheard(incoming) is False
+
+
+class TestTheSocketModeTransportObeysTheSameRule:
+    """The gate was `parse_incoming`'s and the payload never reached it whole.
+
+    `_handle_event` took the *event* and rewrapped it as `{"event": event}`,
+    which reads identically for the text and the channel - and drops
+    `authorizations`, the field naming the bot user the event was delivered for.
+    So every Socket Mode message arrived looking like a platform that does not
+    report mentions, which the router answers, and the bot went on replying to
+    everything in a channel after the rule was supposedly in place.
+
+    The first cut of the adapter's own tests missed it by building the shape the
+    *webhook* delivers - `authorizations` at the top level - and never the shape
+    this transport hands over. Both entry points are asserted here now.
+    """
+
+    @staticmethod
+    def _payload(text: str) -> dict[str, object]:
+        """An `events_api` payload as Socket Mode delivers it, envelope removed."""
+        return {
+            "type": "event_callback",
+            "team_id": "T1",
+            "authorizations": [{"user_id": "UBOT"}],
+            "event": {
+                "type": "message",
+                "user": "U1",
+                "channel": "C1",
+                "channel_type": "channel",
+                "text": text,
+                "ts": "1699999999.000100",
+            },
+        }
+
+    def test_a_channel_message_naming_nobody_is_overheard(self) -> None:
+        incoming = SlackAdapter().parse_incoming(self._payload("standup at 10 then"), "bot-1")
+
+        assert incoming is not None
+        assert incoming.addressed is False
+        assert ChannelMessageRouter._is_overheard(incoming) is True
+
+    def test_a_channel_message_naming_the_bot_is_answered(self) -> None:
+        incoming = SlackAdapter().parse_incoming(self._payload("<@UBOT> status?"), "bot-1")
+
+        assert incoming is not None
+        assert incoming.addressed is True
+        assert ChannelMessageRouter._is_overheard(incoming) is False
+
+    async def test_the_handler_hands_the_payload_over_whole(self) -> None:
+        """The seam the defect lived at, asserted directly.
+
+        `parse_incoming` is where the rule is read, and it was being handed a
+        reconstructed payload rather than the delivered one. Nothing downstream
+        could tell, which is why this is worth pinning at the boundary itself.
+        """
+        adapter = SlackAdapter()
+        payload = self._payload("<@UBOT> status?")
+        seen: list[dict[str, object]] = []
+
+        def _capture(raw: dict[str, object], bot_id: str) -> None:
+            seen.append(raw)
+            return
+
+        adapter.parse_incoming = _capture  # type: ignore[method-assign]
+        await adapter._handle_event(payload, "bot-1")
+
+        assert seen == [payload]
+        assert "authorizations" in seen[0]
+
+    def test_handing_over_only_the_inner_event_is_what_broke_it(self) -> None:
+        """The regression, stated as the shape rather than as the symptom: the
+        event alone carries no `authorizations`, so nothing can say who was named
+        and the router falls back to answering. A guard against anyone unwrapping
+        the payload again on the way in.
+        """
+        payload = self._payload("standup at 10 then")
+        inner = payload["event"]
+
+        unwrapped = SlackAdapter().parse_incoming({"event": inner}, "bot-1")
+
+        assert unwrapped is not None
+        assert unwrapped.addressed is None
+        assert ChannelMessageRouter._is_overheard(unwrapped) is False
