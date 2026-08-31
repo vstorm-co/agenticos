@@ -26,7 +26,13 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from pydantic_ai import Agent
-from pydantic_ai.messages import FunctionToolCallEvent, PartDeltaEvent, TextPartDelta
+from pydantic_ai.messages import (
+    FunctionToolCallEvent,
+    PartDeltaEvent,
+    PartStartEvent,
+    TextPart,
+    TextPartDelta,
+)
 
 from app.services.agent_runner import AgentIteration, RunStream
 
@@ -148,11 +154,22 @@ class LiveReply:
 def channel_stream(reply: LiveReply) -> RunStream:
     """Drive an agent run into `reply`.
 
-    Only two kinds of event matter to a chat window: text as it is written, and
-    a tool starting, which is the beginning of a silence somebody has to be told
-    about. Everything else the graph emits - part starts, tool results, the end
-    node - is either already covered by the text or is detail a chat should not
-    carry.
+    Three kinds of event matter to a chat window: a text part starting, the
+    deltas that continue it, and a tool starting - which is the beginning of a
+    silence somebody has to be told about. Tool results and the end node are
+    detail a chat should not carry.
+
+    **The part start is not optional, and reading it as optional is what made the
+    reply look broken.** `PartStartEvent` carries the *first* chunk of a text
+    part's content, and no delta repeats it - so listening to deltas alone
+    streamed an answer with its opening missing, and the finished text sent at the
+    end then replaced the whole message. Watching it, the reply appeared a
+    sentence in, grew, and then jumped as the beginning arrived. This docstring
+    used to say part starts were "already covered by the text", which is where the
+    belief was written down.
+
+    Only a `TextPart`: the same event fires for a tool call and, on a model that
+    exposes it, for thinking - neither of which is the answer.
     """
 
     async def stream(agent_run: AgentIteration[Any, Any]) -> None:
@@ -160,7 +177,9 @@ def channel_stream(reply: LiveReply) -> RunStream:
             if Agent.is_model_request_node(node):
                 async with node.stream(agent_run.ctx) as request_stream:
                     async for event in request_stream:
-                        if isinstance(event, PartDeltaEvent) and isinstance(
+                        if isinstance(event, PartStartEvent) and isinstance(event.part, TextPart):
+                            await reply.add(event.part.content)
+                        elif isinstance(event, PartDeltaEvent) and isinstance(
                             event.delta, TextPartDelta
                         ):
                             await reply.add(event.delta.content_delta)
