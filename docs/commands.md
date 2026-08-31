@@ -355,6 +355,11 @@ fresh environment — it is faster than reading logs.
 
 See [Channels](channels.md) for what each platform supports.
 
+Every command here acts for **one organization**, because a channel bot belongs
+to one. `--org <id>` names it, and a deployment with exactly one organization
+needs no flag. A deployment with several refuses rather than picking, and lists
+them with their ids — guessing would act on somebody else's bots.
+
 ```bash
 # Register a bot
 uv run agenticos cmd channel-add-bot \

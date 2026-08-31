@@ -944,6 +944,7 @@ deployment with no browser pointed at it:
 ```bash
 uv run agenticos cmd channel-add-bot \
     --platform mattermost --name "Ops" --token <bot-token> \
+    --org <organization-id> \
     --api-base-url https://mattermost.acme.internal \
     --webhook-secret <token-from-mattermost>   # omit for the event stream
 
