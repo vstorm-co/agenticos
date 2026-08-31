@@ -330,10 +330,24 @@ class TestAMentionAndTheThreadItOpensAreOneConversation:
         assert one is not None and two is not None
         assert one.platform_chat_id != two.platform_chat_id
 
-    def test_a_direct_message_stays_one_continuous_conversation(self):
-        """A DM is not threaded per turn - that would restart it every time."""
+    def test_a_direct_message_opens_a_thread_like_anywhere_else(self):
+        """It used to key on the chat, making a DM one conversation for ever: it
+        never rolls over, so it passes the context window in days and every turn
+        pays for the whole history. A thread per question is a per-topic context
+        instead. The cost is that a new message at the bottom of the DM starts
+        fresh - continuing means replying inside the thread, which the next test
+        is the other half of.
+        """
         first = MattermostAdapter().parse_incoming(_posted(id="p1"), "bot-1")
         second = MattermostAdapter().parse_incoming(_posted(id="p2"), "bot-1")
 
         assert first is not None and second is not None
-        assert first.platform_chat_id == second.platform_chat_id == "c1"
+        assert first.platform_chat_id == "c1:p1"
+        assert second.platform_chat_id == "c1:p2"
+
+    def test_a_reply_inside_a_direct_messages_thread_rejoins_it(self):
+        opened = MattermostAdapter().parse_incoming(_posted(id="p1"), "bot-1")
+        later = MattermostAdapter().parse_incoming(_posted(id="p8", root_id="p1"), "bot-1")
+
+        assert opened is not None and later is not None
+        assert later.platform_chat_id == opened.platform_chat_id

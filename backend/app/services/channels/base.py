@@ -90,22 +90,31 @@ def split_thread(platform_chat_id: str) -> tuple[str, str]:
     return channel, thread
 
 
-def thread_key(channel_id: str, *, thread_id: str, message_id: str | None, chat_type: str) -> str:
+def thread_key(channel_id: str, *, thread_id: str, message_id: str | None) -> str:
     """The id a message's conversation is keyed on, threads included.
 
-    Three cases, and the middle one is why this function exists.
+    **A thread is a conversation, wherever the thread is.** A message already in
+    one keys on it; a message that is not yet in one keys on *itself*, because
+    that is where the reply's thread will be rooted. Keyed on the bare channel
+    the two would be different conversations, so the agent would answer a
+    question and then, one message later in the thread it had just opened, have
+    no memory of it - and every unrelated mention in that channel would pile
+    into one conversation besides (#1339).
 
-    A message **already in a thread** keys on that thread, as it always has.
+    That now holds in a **direct message** too, where the chat used to be the
+    unit. One continuous conversation is the wrong default on a platform with
+    threads: a DM never rolls over, so it walks past the context window in days
+    and every turn pays for the whole history. Threading makes each question its
+    own conversation, which is a per-topic context rather than one that has to
+    be trimmed - and the cost is real and worth stating: a new message typed at
+    the bottom of a DM starts fresh, so continuing means replying **inside the
+    thread**. Conversations from before are not migrated; they stop being
+    reached, and nothing in them is lost.
 
-    A message at the **top of a channel** keys on *itself*, because the reply is
-    going to open a thread rooted there. Keyed on the bare channel it would be a
-    different conversation from the thread the agent is about to create, so the
-    agent would answer a question and then, in its own thread, have no memory of
-    it - and every unrelated mention in that channel would pile into one
-    conversation besides (#1339).
-
-    A **direct message** keys on the chat and never on a message. A DM is one
-    continuous conversation; threading each turn would restart it every time.
+    A platform that identifies no message keys on the chat, which is what
+    Telegram's ordinary chats would need - better one conversation per chat than
+    one per unidentifiable turn - though Telegram has no threads and does not
+    come through here at all.
 
     This is the only place that decides, and the adapters read the thread back
     out of the id with :func:`split_thread`. Two mechanisms - an id here and a
@@ -113,7 +122,7 @@ def thread_key(channel_id: str, *, thread_id: str, message_id: str | None, chat_
     """
     if thread_id:
         return f"{channel_id}:{thread_id}"
-    if chat_type == "private" or not message_id:
+    if not message_id:
         return channel_id
     return f"{channel_id}:{message_id}"
 

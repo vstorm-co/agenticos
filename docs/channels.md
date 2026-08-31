@@ -795,17 +795,26 @@ binding, and only in a channel. A direct message asks for the account first.
 
 ### One conversation per thread
 
-**In a channel, the unit is the thread, not the channel.** Mention the bot and
-it answers in a thread rooted at your message; that thread is one conversation,
-and it keeps its context for as long as people reply in it. Drop the bot into a
-thread that already exists and it joins that one instead.
+**The unit is the thread, and that now includes a direct message.** Send the bot
+a message and it answers in a thread rooted at yours; that thread is one
+conversation and keeps its context for as long as people reply in it. Reply
+inside a thread that already exists and it joins that one instead.
 
-So two people asking different things in the same channel get two
-conversations, and neither reads the other's context.
+So two people asking different things in the same channel get two conversations,
+and neither reads the other's context — and one person asking about two
+different things in a DM gets two, for the same reason.
 
-**In a DM the unit is the chat.** A direct message is one continuous
-conversation — threading each turn would restart it every time somebody
-answered.
+!!! warning "Continuing a conversation means replying in its thread"
+
+    A new message typed at the bottom of a chat is a **new** conversation with
+    no memory of the last one. That is the trade, and it is deliberate: a chat
+    keyed on itself never rolls over, so it walks past the context window in
+    days and every turn pays for the whole history behind it. A thread per
+    question is a context per topic instead of one long transcript somebody has
+    to trim.
+
+    A DM used to key on the chat. Conversations from before are not migrated —
+    they stop being reached, and nothing in them is lost.
 
 !!! info "This was wrong until recently"
 

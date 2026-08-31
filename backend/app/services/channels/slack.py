@@ -474,7 +474,6 @@ class SlackAdapter(ChannelAdapter):
             channel,
             thread_id=thread_ts or "",
             message_id=message_ts,
-            chat_type=chat_type,
         )
 
         return IncomingMessage(

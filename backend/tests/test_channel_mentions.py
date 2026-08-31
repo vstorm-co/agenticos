@@ -849,30 +849,49 @@ class TestWhatARoomRunsAs:
 class TestTheThreadAConversationIsKeyedOn:
     """`thread_key` - the one place that decides, since #1339.
 
-    A channel mention's reply opens a thread rooted at that message. Keyed on
-    the bare channel, the mention and the thread were two conversations, so the
-    agent answered and then had no memory of it one message later.
+    A mention's reply opens a thread rooted at that message. Keyed on the bare
+    channel, the mention and the thread were two conversations, so the agent
+    answered and then had no memory of it one message later.
     """
 
     def test_a_message_already_in_a_thread_keys_on_that_thread(self):
-        assert thread_key("c1", thread_id="root9", message_id="m2", chat_type="group") == "c1:root9"
+        assert thread_key("c1", thread_id="root9", message_id="m2") == "c1:root9"
 
     def test_a_channel_message_keys_on_itself(self):
         """Because that is where the reply's thread will be rooted."""
-        assert thread_key("c1", thread_id="", message_id="m1", chat_type="group") == "c1:m1"
+        assert thread_key("c1", thread_id="", message_id="m1") == "c1:m1"
 
-    def test_a_direct_message_keys_on_the_chat(self):
-        """One continuous conversation; threading each turn would restart it."""
-        assert thread_key("c1", thread_id="", message_id="m1", chat_type="private") == "c1"
+    def test_a_direct_message_keys_on_itself_too(self):
+        """It used to key on the chat, which made a DM one conversation for ever:
+        it never rolls over, so it walks past the context window in days and every
+        turn pays for the whole history. A thread per question is a per-topic
+        context instead - and the cost is that a new message at the bottom of the
+        DM starts fresh, so continuing means replying inside the thread.
+        """
+        assert thread_key("c1", thread_id="", message_id="m1") == "c1:m1"
+
+    def test_a_second_direct_message_is_a_second_conversation(self):
+        """The point of the change, stated as the thing somebody would notice."""
+        first = thread_key("c1", thread_id="", message_id="m1")
+        second = thread_key("c1", thread_id="", message_id="m2")
+
+        assert first != second
+
+    def test_a_reply_inside_that_thread_rejoins_the_first(self):
+        """And the other half: the conversation continues where it was opened."""
+        opened = thread_key("c1", thread_id="", message_id="m1")
+
+        assert thread_key("c1", thread_id="m1", message_id="m7") == opened
 
     def test_a_platform_that_sends_no_message_id_keys_on_the_chat(self):
-        """Better one conversation per channel than one per unidentifiable turn."""
-        assert thread_key("c1", thread_id="", message_id=None, chat_type="group") == "c1"
+        """Better one conversation per chat than one per unidentifiable turn.
+        Telegram is the shape that needs it, and has no threads to key on."""
+        assert thread_key("c1", thread_id="", message_id=None) == "c1"
 
     def test_the_channel_is_still_recoverable_from_the_key(self):
         """Everything scoped to the channel - membership, a shared workspace -
         reads `channel_key`, which must keep working over the new shape."""
-        key = thread_key("c1", thread_id="", message_id="m1", chat_type="group")
+        key = thread_key("c1", thread_id="", message_id="m1")
 
         assert channel_key(key) == "c1"
         assert split_thread(key) == ("c1", "m1")
