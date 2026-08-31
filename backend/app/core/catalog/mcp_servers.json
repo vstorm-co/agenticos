@@ -148,7 +148,7 @@
     "description": "Query a project's tables and read its schema over the management API.",
     "category": "data",
     "auth": "token",
-    "url": "",
+    "url": "https://mcp.supabase.com/mcp",
     "docs_url": "https://supabase.com/docs/guides/getting-started/mcp",
     "token_hint": "A personal access token. Point it at a read-only project or a branch - the server can run SQL.",
     "icon": "supabase"
@@ -159,7 +159,7 @@
     "description": "Query dashboards, panels and alert rules. Self-hosted: you supply the URL.",
     "category": "observability",
     "auth": "token",
-    "url": "",
+    "url": "https://mcp.grafana.com/mcp",
     "docs_url": "https://github.com/grafana/mcp-grafana",
     "token_hint": "A service-account token with Viewer permissions on the folders it should see.",
     "icon": "grafana"
@@ -192,7 +192,7 @@
     "description": "Read and write bases, tables and records.",
     "category": "data",
     "auth": "token",
-    "url": "",
+    "url": "https://mcp.airtable.com/mcp",
     "docs_url": "",
     "token_hint": "A personal access token scoped to the bases the agent should see.",
     "icon": "airtable"
@@ -236,7 +236,7 @@
     "description": "Tasks, docs and goals across spaces.",
     "category": "project-management",
     "auth": "oauth",
-    "url": "",
+    "url": "https://mcp.clickup.com/mcp",
     "docs_url": "",
     "token_hint": "",
     "icon": "clickup"
@@ -291,7 +291,7 @@
     "description": "Read and create content on boards.",
     "category": "design",
     "auth": "oauth",
-    "url": "",
+    "url": "https://mcp.miro.com/mcp",
     "docs_url": "",
     "token_hint": "",
     "icon": "miro"
@@ -302,7 +302,7 @@
     "description": "Diagram, ideate and align teams.",
     "category": "design",
     "auth": "oauth",
-    "url": "",
+    "url": "https://mcp.lucid.app/mcp",
     "docs_url": "",
     "token_hint": "",
     "icon": "lucid"
@@ -313,7 +313,7 @@
     "description": "Create hand-drawn style diagrams.",
     "category": "design",
     "auth": "none",
-    "url": "",
+    "url": "https://mcp.excalidraw.com/mcp",
     "docs_url": "",
     "token_hint": "",
     "icon": "excalidraw"
@@ -324,7 +324,7 @@
     "description": "Search, edit and get insights on Box content.",
     "category": "storage",
     "auth": "oauth",
-    "url": "",
+    "url": "https://mcp.box.com/mcp",
     "docs_url": "",
     "token_hint": "",
     "icon": "box"
@@ -335,7 +335,7 @@
     "description": "Search, organize and act on Dropbox content.",
     "category": "storage",
     "auth": "oauth",
-    "url": "",
+    "url": "https://mcp.dropbox.com/mcp",
     "docs_url": "",
     "token_hint": "",
     "icon": "dropbox"
@@ -368,7 +368,7 @@
     "description": "Send transactional and marketing email.",
     "category": "marketing",
     "auth": "token",
-    "url": "",
+    "url": "https://mcp.resend.com/mcp",
     "docs_url": "",
     "token_hint": "An API key. Sending is a side effect - scope it to one domain.",
     "icon": "resend"
@@ -379,7 +379,7 @@
     "description": "Query and manage product analytics.",
     "category": "analytics",
     "auth": "token",
-    "url": "",
+    "url": "https://mcp.posthog.com/mcp",
     "docs_url": "",
     "token_hint": "",
     "icon": "posthog"
@@ -390,7 +390,7 @@
     "description": "Analyze and query events.",
     "category": "analytics",
     "auth": "token",
-    "url": "",
+    "url": "https://mcp.mixpanel.com/mcp",
     "docs_url": "",
     "token_hint": "",
     "icon": "mixpanel"
@@ -434,7 +434,7 @@
     "description": "Incidents, services and on-call schedules.",
     "category": "observability",
     "auth": "oauth",
-    "url": "",
+    "url": "https://mcp.pagerduty.com/mcp",
     "docs_url": "",
     "token_hint": "",
     "icon": "pagerduty"
@@ -445,7 +445,7 @@
     "description": "API collections and specs, as context for a coding agent.",
     "category": "development",
     "auth": "token",
-    "url": "",
+    "url": "https://mcp.postman.com/mcp",
     "docs_url": "",
     "token_hint": "",
     "icon": "postman"
@@ -456,7 +456,7 @@
     "description": "Analyze, debug and manage projects and deployments.",
     "category": "development",
     "auth": "oauth",
-    "url": "",
+    "url": "https://mcp.vercel.com/",
     "docs_url": "",
     "token_hint": "",
     "icon": "vercel"
@@ -467,7 +467,7 @@
     "description": "Create, deploy and manage sites.",
     "category": "development",
     "auth": "oauth",
-    "url": "",
+    "url": "https://mcp.netlify.com/mcp",
     "docs_url": "",
     "token_hint": "",
     "icon": "netlify"
@@ -478,7 +478,7 @@
     "description": "Deploy, manage and debug apps and infrastructure.",
     "category": "development",
     "auth": "token",
-    "url": "",
+    "url": "https://mcp.railway.app/mcp",
     "docs_url": "",
     "token_hint": "",
     "icon": "railway"
@@ -500,7 +500,7 @@
     "description": "The Hub, and thousands of Gradio apps.",
     "category": "development",
     "auth": "token",
-    "url": "",
+    "url": "https://huggingface.co/mcp",
     "docs_url": "",
     "token_hint": "",
     "icon": "huggingface"
@@ -511,7 +511,7 @@
     "description": "Create, edit and manage documentation.",
     "category": "knowledge",
     "auth": "token",
-    "url": "",
+    "url": "https://mcp.gitbook.com/mcp",
     "docs_url": "",
     "token_hint": "",
     "icon": "gitbook"
@@ -522,7 +522,7 @@
     "description": "Generate diagrams and code from Figma context.",
     "category": "design",
     "auth": "oauth",
-    "url": "",
+    "url": "https://mcp.figma.com/mcp",
     "docs_url": "",
     "token_hint": "",
     "icon": "figma"
@@ -533,7 +533,7 @@
     "description": "Manage CMS, pages, assets and sites.",
     "category": "marketing",
     "auth": "oauth",
-    "url": "",
+    "url": "https://mcp.webflow.com/mcp",
     "docs_url": "",
     "token_hint": "",
     "icon": "webflow"
@@ -544,7 +544,7 @@
     "description": "Manage and build sites and apps.",
     "category": "marketing",
     "auth": "oauth",
-    "url": "",
+    "url": "https://mcp.wix.com/mcp",
     "docs_url": "",
     "token_hint": "",
     "icon": "wix"
@@ -577,7 +577,7 @@
     "description": "Web, app and market data.",
     "category": "marketing",
     "auth": "token",
-    "url": "",
+    "url": "https://mcp.similarweb.com/mcp",
     "docs_url": "",
     "token_hint": "",
     "icon": "similarweb"
@@ -599,7 +599,7 @@
     "description": "Design surveys, collect responses, analyze results.",
     "category": "productivity",
     "auth": "oauth",
-    "url": "",
+    "url": "https://mcp.surveymonkey.com/mcp",
     "docs_url": "",
     "token_hint": "",
     "icon": "surveymonkey"
@@ -632,7 +632,7 @@
     "description": "Read financials from any conversation.",
     "category": "finance",
     "auth": "oauth",
-    "url": "",
+    "url": "https://mcp.xero.com/mcp",
     "docs_url": "",
     "token_hint": "",
     "icon": "xero"
@@ -844,6 +844,193 @@
     "url": "https://mcp.smithery.ai/mcp",
     "docs_url": "https://smithery.ai/docs",
     "token_hint": "A Smithery API key. It decides which hosted servers the agent can reach, so it is worth reviewing what the account has installed.",
+    "icon": ""
+  },
+  {
+    "key": "logfire",
+    "name": "Pydantic Logfire",
+    "description": "Query traces, spans and metrics from a Logfire project with SQL.",
+    "category": "observability",
+    "auth": "token",
+    "url": "https://logfire-us.pydantic.dev/mcp",
+    "docs_url": "https://logfire.pydantic.dev/docs/reference/mcp-server/",
+    "token_hint": "A read token for the project. The host is regional - swap `logfire-us` for `logfire-eu` if the project lives there, or the token will not be recognised.",
+    "icon": "pydantic"
+  },
+  {
+    "key": "langsmith",
+    "name": "LangSmith",
+    "description": "Read traces, runs and datasets from a LangSmith workspace.",
+    "category": "observability",
+    "auth": "token",
+    "url": "https://api.smith.langchain.com/mcp",
+    "docs_url": "https://docs.langchain.com/langsmith/mcp",
+    "token_hint": "A LangSmith API key, scoped to the workspace whose traces the agent should read.",
+    "icon": ""
+  },
+  {
+    "key": "honeycomb",
+    "name": "Honeycomb",
+    "description": "Ask a question of production telemetry while an incident is open.",
+    "category": "observability",
+    "auth": "token",
+    "url": "https://mcp.honeycomb.io/mcp",
+    "docs_url": "https://docs.honeycomb.io/integrations/mcp/",
+    "token_hint": "A Honeycomb management or configuration key for the environment the agent may query.",
+    "icon": ""
+  },
+  {
+    "key": "exa",
+    "name": "Exa",
+    "description": "Search the web semantically and read the pages it finds.",
+    "category": "data",
+    "auth": "token",
+    "url": "https://mcp.exa.ai/mcp",
+    "docs_url": "https://docs.exa.ai/reference/exa-mcp",
+    "token_hint": "An Exa API key. Searches draw on the account's credits.",
+    "icon": ""
+  },
+  {
+    "key": "tavily",
+    "name": "Tavily",
+    "description": "Search, extract and crawl the web for an agent that needs current facts.",
+    "category": "data",
+    "auth": "token",
+    "url": "https://mcp.tavily.com/mcp",
+    "docs_url": "https://docs.tavily.com/documentation/mcp",
+    "token_hint": "A Tavily API key. Each search spends a credit on the account that owns it.",
+    "icon": ""
+  },
+  {
+    "key": "brightdata",
+    "name": "Bright Data",
+    "description": "Collect public web data through a managed scraping network.",
+    "category": "data",
+    "auth": "token",
+    "url": "https://mcp.brightdata.com/mcp",
+    "docs_url": "https://docs.brightdata.com/api-reference/MCP-Server",
+    "token_hint": "A Bright Data API token. Collection is billed by request, so give the agent one with a zone limit.",
+    "icon": ""
+  },
+  {
+    "key": "qdrant",
+    "name": "Qdrant",
+    "description": "Store and search vectors in a Qdrant collection.",
+    "category": "data",
+    "auth": "none",
+    "url": "https://mcp.qdrant.tech/mcp",
+    "docs_url": "https://github.com/qdrant/mcp-server-qdrant",
+    "token_hint": "",
+    "icon": ""
+  },
+  {
+    "key": "clerk",
+    "name": "Clerk",
+    "description": "Read users, sessions and organizations from a Clerk instance.",
+    "category": "development",
+    "auth": "oauth",
+    "url": "https://mcp.clerk.com/mcp",
+    "docs_url": "https://clerk.com/docs/mcp/build-mcp-server",
+    "token_hint": "",
+    "icon": "clerk"
+  },
+  {
+    "key": "workos",
+    "name": "WorkOS",
+    "description": "Manage SSO connections, directories and organizations.",
+    "category": "development",
+    "auth": "oauth",
+    "url": "https://mcp.workos.com/mcp",
+    "docs_url": "https://workos.com/docs/mcp",
+    "token_hint": "",
+    "icon": ""
+  },
+  {
+    "key": "render",
+    "name": "Render",
+    "description": "Read services, deploys and logs, and find out why one failed.",
+    "category": "development",
+    "auth": "token",
+    "url": "https://mcp.render.com/mcp",
+    "docs_url": "https://render.com/docs/mcp-server",
+    "token_hint": "A Render API key for the workspace whose services the agent may read.",
+    "icon": "render"
+  },
+  {
+    "key": "contentful",
+    "name": "Contentful",
+    "description": "Read and edit entries, assets and content types in a space.",
+    "category": "knowledge",
+    "auth": "token",
+    "url": "https://mcp.contentful.com/mcp",
+    "docs_url": "https://www.contentful.com/developers/docs/ai/mcp-server/",
+    "token_hint": "A Content Management API token, scoped to the space and environment the agent should reach.",
+    "icon": "contentful"
+  },
+  {
+    "key": "storyblok",
+    "name": "Storyblok",
+    "description": "Read and edit stories and components in a Storyblok space.",
+    "category": "knowledge",
+    "auth": "token",
+    "url": "https://mcp.storyblok.com/mcp",
+    "docs_url": "https://www.storyblok.com/docs/packages/storyblok-mcp",
+    "token_hint": "A personal access token for the space. A management token can publish, so use a read-only one unless the agent should.",
+    "icon": "storyblok"
+  },
+  {
+    "key": "attio",
+    "name": "Attio",
+    "description": "Read and update records, lists and notes in an Attio CRM.",
+    "category": "sales",
+    "auth": "oauth",
+    "url": "https://mcp.attio.com/mcp",
+    "docs_url": "https://developers.attio.com/docs/mcp",
+    "token_hint": "",
+    "icon": ""
+  },
+  {
+    "key": "pipedrive",
+    "name": "Pipedrive",
+    "description": "Read and update deals, contacts and activities in a pipeline.",
+    "category": "sales",
+    "auth": "oauth",
+    "url": "https://mcp.pipedrive.com/mcp",
+    "docs_url": "https://developers.pipedrive.com/mcp",
+    "token_hint": "",
+    "icon": ""
+  },
+  {
+    "key": "klaviyo",
+    "name": "Klaviyo",
+    "description": "Read campaigns, flows, lists and metrics for email and SMS.",
+    "category": "marketing",
+    "auth": "oauth",
+    "url": "https://mcp.klaviyo.com/mcp",
+    "docs_url": "https://developers.klaviyo.com/en/docs/klaviyo_mcp_server",
+    "token_hint": "",
+    "icon": ""
+  },
+  {
+    "key": "calcom",
+    "name": "Cal.com",
+    "description": "Read availability and book, move or cancel meetings.",
+    "category": "productivity",
+    "auth": "token",
+    "url": "https://mcp.cal.com/mcp",
+    "docs_url": "https://cal.com/docs/api-reference/v2/introduction",
+    "token_hint": "A Cal.com API key for the account whose calendar the agent may book against.",
+    "icon": "caldotcom"
+  },
+  {
+    "key": "vapi",
+    "name": "Vapi",
+    "description": "Create and inspect voice agents, calls and their transcripts.",
+    "category": "communication",
+    "auth": "token",
+    "url": "https://mcp.vapi.ai/mcp",
+    "docs_url": "https://docs.vapi.ai/sdk/mcp-server",
+    "token_hint": "A Vapi private API key. Placing calls costs money per minute, so use a key on an account with a cap.",
     "icon": ""
   },
   {

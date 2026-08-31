@@ -441,14 +441,17 @@ per-account endpoint.
 | GitHub | token | `https://api.githubcopilot.com/mcp/` |
 | Cloudflare docs | none | `https://docs.mcp.cloudflare.com/mcp` |
 | GitLab | token | self-hosted |
-| Postman | token | self-hosted |
-| Vercel | oauth | self-hosted |
-| Netlify | oauth | self-hosted |
-| Railway | token | self-hosted |
+| Postman | token | `https://mcp.postman.com/mcp` |
+| Vercel | oauth | `https://mcp.vercel.com/` |
+| Netlify | oauth | `https://mcp.netlify.com/mcp` |
+| Railway | token | `https://mcp.railway.app/mcp` |
 | Replit | oauth | self-hosted |
-| Hugging Face | token | self-hosted |
+| Hugging Face | token | `https://huggingface.co/mcp` |
 | Buildkite | oauth | `https://mcp.buildkite.com/mcp` |
 | Semgrep | token | `https://mcp.semgrep.ai/mcp` |
+| Clerk | oauth | `https://mcp.clerk.com/mcp` |
+| WorkOS | oauth | `https://mcp.workos.com/mcp` |
+| Render | token | `https://mcp.render.com/mcp` |
 
 ### Project management
 
@@ -457,7 +460,7 @@ per-account endpoint.
 | Linear | oauth | `https://mcp.linear.app/sse` |
 | Jira & Confluence | oauth | `https://mcp.atlassian.com/v1/sse` |
 | Asana | oauth | `https://mcp.asana.com/sse` |
-| ClickUp | oauth | self-hosted |
+| ClickUp | oauth | `https://mcp.clickup.com/mcp` |
 | Trello | oauth | self-hosted |
 | Todoist | oauth | self-hosted |
 | monday.com | oauth | `https://mcp.monday.com/mcp` |
@@ -467,17 +470,21 @@ per-account endpoint.
 | Server | Auth | URL |
 |---|---|---|
 | PostgreSQL | token | self-hosted |
-| Supabase | token | self-hosted |
+| Supabase | token | `https://mcp.supabase.com/mcp` |
 | Elasticsearch | token | self-hosted |
-| Airtable | token | self-hosted |
+| Airtable | token | `https://mcp.airtable.com/mcp` |
 | Snowflake | token | self-hosted |
 | Databricks | token | self-hosted |
 | Google BigQuery | oauth | self-hosted |
-| PostHog | token | self-hosted |
-| Mixpanel | token | self-hosted |
+| PostHog | token | `https://mcp.posthog.com/mcp` |
+| Mixpanel | token | `https://mcp.mixpanel.com/mcp` |
 | Neon | oauth | `https://mcp.neon.tech/mcp` |
 | Amplitude | token | `https://mcp.amplitude.com/mcp` |
 | Firecrawl | token | `https://mcp.firecrawl.dev/mcp` |
+| Exa | token | `https://mcp.exa.ai/mcp` |
+| Tavily | token | `https://mcp.tavily.com/mcp` |
+| Bright Data | token | `https://mcp.brightdata.com/mcp` |
+| Qdrant | none | `https://mcp.qdrant.tech/mcp` |
 
 ### Communication, support, knowledge
 
@@ -487,10 +494,13 @@ per-account endpoint.
 | Zoom | oauth | self-hosted |
 | Intercom | oauth | `https://mcp.intercom.com/sse` |
 | Notion | oauth | `https://mcp.notion.com/mcp` |
-| GitBook | token | self-hosted |
+| GitBook | token | `https://mcp.gitbook.com/mcp` |
 | Sanity | token | `https://mcp.sanity.io/mcp` |
 | DeepWiki | none | `https://mcp.deepwiki.com/mcp` |
 | Supermemory | token | `https://mcp.supermemory.ai/mcp` |
+| Contentful | token | `https://mcp.contentful.com/mcp` |
+| Storyblok | token | `https://mcp.storyblok.com/mcp` |
+| Vapi | token | `https://mcp.vapi.ai/mcp` |
 
 ### Finance, sales, commerce
 
@@ -498,35 +508,41 @@ per-account endpoint.
 |---|---|---|
 | Stripe | token | `https://mcp.stripe.com` |
 | PayPal | oauth | `https://mcp.paypal.com/sse` |
-| Xero | oauth | self-hosted |
+| Xero | oauth | `https://mcp.xero.com/mcp` |
 | HubSpot | oauth | self-hosted |
 | Shopify | oauth | self-hosted |
+| Attio | oauth | `https://mcp.attio.com/mcp` |
+| Pipedrive | oauth | `https://mcp.pipedrive.com/mcp` |
 
 ### Observability
 
 | Server | Auth | URL |
 |---|---|---|
 | Sentry | oauth | `https://mcp.sentry.dev/mcp` |
-| Grafana | token | self-hosted |
-| PagerDuty | oauth | self-hosted |
+| Grafana | token | `https://mcp.grafana.com/mcp` |
+| PagerDuty | oauth | `https://mcp.pagerduty.com/mcp` |
 | Datadog | token | `https://mcp.datadoghq.com/api/unstable/mcp-server/mcp` |
+| Pydantic Logfire | token | `https://logfire-us.pydantic.dev/mcp` |
+| LangSmith | token | `https://api.smith.langchain.com/mcp` |
+| Honeycomb | token | `https://mcp.honeycomb.io/mcp` |
 
 ### Marketing and design
 
 | Server | Auth | URL |
 |---|---|---|
 | Mailchimp | oauth | self-hosted |
-| Resend | token | self-hosted |
-| Webflow | oauth | self-hosted |
-| Wix | oauth | self-hosted |
+| Resend | token | `https://mcp.resend.com/mcp` |
+| Webflow | oauth | `https://mcp.webflow.com/mcp` |
+| Wix | oauth | `https://mcp.wix.com/mcp` |
 | WordPress.com | oauth | self-hosted |
 | Semrush | token | self-hosted |
-| Similarweb | token | self-hosted |
-| Figma | oauth | self-hosted |
-| Miro | oauth | self-hosted |
-| Lucid | oauth | self-hosted |
-| Excalidraw | none | self-hosted |
+| Similarweb | token | `https://mcp.similarweb.com/mcp` |
+| Figma | oauth | `https://mcp.figma.com/mcp` |
+| Miro | oauth | `https://mcp.miro.com/mcp` |
+| Lucid | oauth | `https://mcp.lucid.app/mcp` |
+| Excalidraw | none | `https://mcp.excalidraw.com/mcp` |
 | Canva | oauth | `https://mcp.canva.com/mcp` |
+| Klaviyo | oauth | `https://mcp.klaviyo.com/mcp` |
 
 ### Automation, storage, productivity, media
 
@@ -535,11 +551,11 @@ per-account endpoint.
 | Zapier | oauth | self-hosted |
 | Make | token | self-hosted |
 | n8n | token | self-hosted |
-| Box | oauth | self-hosted |
-| Dropbox | oauth | self-hosted |
+| Box | oauth | `https://mcp.box.com/mcp` |
+| Dropbox | oauth | `https://mcp.dropbox.com/mcp` |
 | Calendly | oauth | self-hosted |
 | Typeform | oauth | self-hosted |
-| SurveyMonkey | oauth | self-hosted |
+| SurveyMonkey | oauth | `https://mcp.surveymonkey.com/mcp` |
 | DeepL | token | self-hosted |
 | ElevenLabs | token | self-hosted |
 | Fireflies | token | `https://mcp.fireflies.ai/mcp` |
@@ -549,6 +565,7 @@ per-account endpoint.
 | Pipedream | token | `https://remote.mcp.pipedream.net` |
 | Composio | token | self-hosted |
 | Activepieces | token | `https://mcp.activepieces.com/mcp` |
+| Cal.com | token | `https://mcp.cal.com/mcp` |
 
 ### Anything else
 
