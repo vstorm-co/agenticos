@@ -15,6 +15,10 @@ import {
   FormField,
   Input,
 } from "@/components/ui";
+import {
+  TranscriptionFields,
+  type TranscriptionChoice,
+} from "@/components/channels/transcription-fields";
 import { submitFailure } from "@/lib/api-error";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
 import type { ChannelBot, ChannelBotUpdate, ChannelPlatform } from "@/types/channels";
@@ -38,6 +42,7 @@ export interface ChannelBotDraft {
   webhookSecret: string;
   signingSecret: string;
   appToken: string;
+  transcription: TranscriptionChoice;
 }
 
 /**
@@ -73,6 +78,15 @@ export function botPatch(bot: ChannelBot, draft: ChannelBotDraft): ChannelBotUpd
     if (appToken) patch.slack_app_token = appToken;
   }
 
+  // Both halves whenever either moved, because the server pairs them against the
+  // stored row: sending a provider alone would be refused as a setting that
+  // cannot run, and clearing means clearing both.
+  const { provider, model } = draft.transcription;
+  if (provider !== bot.speech_to_text_provider || model !== bot.speech_to_text_model) {
+    patch.speech_to_text_provider = provider;
+    patch.speech_to_text_model = model;
+  }
+
   return patch;
 }
 
@@ -105,6 +119,10 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
     webhookSecret: "",
     signingSecret: "",
     appToken: "",
+    transcription: {
+      provider: bot.speech_to_text_provider,
+      model: bot.speech_to_text_model,
+    },
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -247,6 +265,12 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
             </FormField>
           </div>
         )}
+
+        <TranscriptionFields
+          idPrefix="edit-channel"
+          value={draft.transcription}
+          onChange={(transcription) => setDraft((current) => ({ ...current, transcription }))}
+        />
       </div>
 
       <DialogFooter>

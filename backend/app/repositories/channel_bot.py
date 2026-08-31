@@ -111,12 +111,16 @@ async def create(
     access_policy: dict | None = None,
     slack_signing_secret_encrypted: str | None = None,
     slack_app_token_encrypted: str | None = None,
+    speech_to_text_provider: str | None = None,
+    speech_to_text_model: str | None = None,
 ) -> ChannelBot:
     """Create a new channel bot owned by an organization."""
     bot = ChannelBot(
         organization_id=organization_id,
         platform=platform,
         name=name,
+        speech_to_text_provider=speech_to_text_provider,
+        speech_to_text_model=speech_to_text_model,
         token_encrypted=token_encrypted,
         secret_key_version=secret_key_version,
         webhook_mode=webhook_mode,

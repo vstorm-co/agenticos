@@ -10,6 +10,7 @@ from pydantic import Field, model_validator
 
 from app.schemas.base import BaseSchema
 from app.schemas.urls import ServiceAddress
+from app.services.speech_to_text import is_offered
 
 
 class AccessPolicy(BaseSchema):
@@ -100,6 +101,45 @@ class ChannelBotCreate(BaseSchema):
         max_length=500,
         description="This Slack app's xapp- token, for Socket Mode. Slack bots only.",
     )
+    speech_to_text_provider: str | None = Field(
+        default=None,
+        max_length=32,
+        description=(
+            "Which provider transcribes voice notes, from the speech-to-text "
+            "catalog. Null for a bot that does not transcribe."
+        ),
+    )
+    speech_to_text_model: str | None = Field(
+        default=None,
+        max_length=255,
+        description="Which of that provider's transcription models to use.",
+    )
+
+    @model_validator(mode="after")
+    def _transcription_is_a_pair_the_catalog_lists(self) -> ChannelBotCreate:
+        """Both halves or neither, and the catalog has to list the model.
+
+        A provider with no model has nothing to call and a model with no provider
+        has nowhere to send it, so one without the other is a setting that reads as
+        configured and does nothing - the state somebody debugs by sending voice
+        notes into silence.
+
+        The model is checked against the catalog rather than left free text, unlike
+        the chat model field: the endpoint refuses an unknown model with an error
+        only the sender waiting for a reply ever sees, so a typo belongs on the
+        form. Same bargain `ImageGenerationConfig` makes, and for the same reason.
+        """
+        provider, model = self.speech_to_text_provider, self.speech_to_text_model
+        if (provider is None) != (model is None):
+            raise ValueError(
+                "Transcription needs a provider and a model together - one without "
+                "the other is a setting that cannot run"
+            )
+        if provider is not None and model is not None and not is_offered(provider, model):
+            raise ValueError(
+                f"'{model}' is not a transcription model this deployment offers for {provider}"
+            )
+        return self
 
     @model_validator(mode="after")
     def _a_self_hosted_bot_carries_its_server(self) -> ChannelBotCreate:
@@ -148,6 +188,24 @@ class ChannelBotUpdate(BaseSchema):
     is_active: bool | None = None
     slack_signing_secret: str | None = Field(default=None, min_length=8, max_length=255)
     slack_app_token: str | None = Field(default=None, min_length=8, max_length=500)
+    speech_to_text_provider: str | None = Field(default=None, max_length=32)
+    speech_to_text_model: str | None = Field(default=None, max_length=255)
+
+    @model_validator(mode="after")
+    def _a_named_transcription_model_is_one_that_exists(self) -> ChannelBotUpdate:
+        """Checked where both are given, which is how the form sends them.
+
+        A patch may legitimately carry one alone - the pairing is enforced against
+        the stored row in the service, which is the only place that knows what the
+        other half currently is. What can be decided here is whether a model this
+        request names is one the catalog lists.
+        """
+        provider, model = self.speech_to_text_provider, self.speech_to_text_model
+        if provider is not None and model is not None and not is_offered(provider, model):
+            raise ValueError(
+                f"'{model}' is not a transcription model this deployment offers for {provider}"
+            )
+        return self
 
 
 class BotAgent(BaseSchema):
@@ -192,6 +250,15 @@ class ChannelBotRead(BaseSchema):
     has_webhook_secret: bool = False
     has_slack_signing_secret: bool = False
     has_slack_app_token: bool = False
+    speech_to_text_provider: str | None = None
+    speech_to_text_model: str | None = None
+    """Which model transcribes voice notes here, or null for none.
+
+    Read back plainly: a provider id and a model id are choices somebody made,
+    not credentials. The key they run on is the organization's own model profile
+    and is never named here.
+    """
+
     connection: ChannelConnectionRead | None = None
     """The state of the socket this bot receives on, for a polling bot.
 

@@ -26,6 +26,7 @@ from app.services.channels import get_adapter
 from app.services.channels.attachments import ChannelAttachmentService
 from app.services.channels.base import (
     ChannelDirectoryUnsupported,
+    IncomingAttachment,
     IncomingMessage,
     OutgoingAttachment,
     OutgoingMessage,
@@ -41,6 +42,7 @@ from app.services.channels.mentions import (
     parse_mention,
 )
 from app.services.conversation import ConversationService
+from app.services.transcription import Recording, TranscriptionService
 
 logger = logging.getLogger(__name__)
 
@@ -276,7 +278,15 @@ class ChannelMessageRouter:
         # falls through to the default assistant, and fetching per path downloaded
         # the same attachment twice and left the first copy stored with nothing
         # pointing at it (#683).
+        # A voice note goes one way and every other attachment the other: the
+        # recording is transcribed and never handed to the agent, which cannot open
+        # it, and the rest is stored and can be read.
+        recordings, rest = self._split_recordings(incoming)
+        incoming.attachments = rest
         files, file_refusals = await self._receive_files(db, bot, incoming, identity)
+        transcripts, voice_refusals = await self._transcribe(db, bot, recordings)
+        file_refusals += voice_refusals
+        incoming.text = self._with_transcripts(incoming.text, transcripts)
 
         # The mention path opens its own placeholder lazily, because it may find
         # the handle names a colleague rather than an agent of ours and stay
@@ -573,6 +583,98 @@ class ChannelMessageRouter:
             # whatever else the room had been saying (#1353).
             thread_id=thread_id or None,
         )
+
+    @staticmethod
+    def _split_recordings(
+        incoming: IncomingMessage,
+    ) -> tuple[list[IncomingAttachment], list[IncomingAttachment]]:
+        """The voice notes on this message, and everything else.
+
+        Split rather than filtered, because the two go different ways. A document
+        or an image is stored and handed to the agent, which can read it. An
+        `audio/ogg` blob is a byte count to a model, so handing one over is
+        offering a file nobody can open - it is transcribed instead, and the
+        recording itself is not put in front of the agent at all.
+
+        On the mime type, which every adapter sets: Telegram invents
+        `voice.ogg` / `audio/ogg` for a voice note because the platform sends
+        neither a name nor a type, and the other two carry what was uploaded.
+        """
+        recordings = [a for a in incoming.attachments if a.mime_type.startswith("audio/")]
+        rest = [a for a in incoming.attachments if not a.mime_type.startswith("audio/")]
+        return recordings, rest
+
+    async def _transcribe(
+        self, db: Any, bot: Any, recordings: list[IncomingAttachment]
+    ) -> tuple[list[str], list[str]]:
+        """What the voice notes on this message said, and what could not be read.
+
+        Returns transcripts and refusal lines, the same pair `_receive_files`
+        returns, because they are answered the same way: the reply carries what did
+        not make it, and the turn goes ahead with what did.
+
+        A bot with no transcription configured says so once rather than silently
+        dropping the recording - a voice note that produces no reaction is
+        indistinguishable from a bot that is broken, and the sender has no way to
+        learn that this deployment simply does not listen.
+        """
+        if not recordings:
+            return [], []
+        if not bot.speech_to_text_provider or not bot.speech_to_text_model:
+            return [], [
+                "This bot cannot listen to voice messages - nobody has chosen a "
+                "transcription model for it."
+            ]
+
+        adapter = get_adapter(bot.platform)
+        token = unseal_bot_token(bot)
+        service = TranscriptionService(db)
+        transcripts: list[str] = []
+        refusals: list[str] = []
+        for recording in recordings:
+            try:
+                content = await adapter.download_attachment(token, recording)
+            except Exception:
+                logger.warning("Could not fetch a voice message: bot=%s", bot.id, exc_info=True)
+                refusals.append(f"{recording.filename}: could not be downloaded.")
+                continue
+            text = await service.transcribe(
+                Recording(
+                    content=content,
+                    filename=recording.filename,
+                    mime_type=recording.mime_type,
+                ),
+                organization_id=bot.organization_id,
+                provider=bot.speech_to_text_provider,
+                model=bot.speech_to_text_model,
+            )
+            if text is None:
+                refusals.append(f"{recording.filename}: could not be transcribed.")
+                continue
+            transcripts.append(text)
+        return transcripts, refusals
+
+    @staticmethod
+    def _with_transcripts(text: str, transcripts: list[str]) -> str:
+        """The turn's prompt, with what the voice notes said woven into it.
+
+        **Labelled, because an agent that thinks a transcript is typed text will
+        act on it as if every word were certain.** Speech recognition mishears
+        names, numbers and anything said over traffic, so an agent told the source
+        can hedge a figure it half-heard and ask rather than guess - and one told
+        nothing cannot. This is also what stops a recording being read as
+        instructions somebody typed: it is a quotation of what was said.
+
+        Woven into the message rather than sent as a second turn, because it is one
+        thing somebody did: a voice note with a caption is one message, and two
+        turns would have the agent answer the caption before hearing the recording.
+        """
+        if not transcripts:
+            return text
+        quoted = "\n\n".join(
+            f"[Voice message, transcribed]\n{transcript}" for transcript in transcripts
+        )
+        return f"{text}\n\n{quoted}".strip() if text else quoted
 
     async def _receive_files(
         self, db: Any, bot: Any, incoming: IncomingMessage, identity: Any

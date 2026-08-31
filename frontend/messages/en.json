@@ -3426,6 +3426,11 @@
       "signingSecretHint": "From the Slack app's Basic Information, under App Credentials. Inbound events are verified with it.",
       "supportBot": "Support bot",
       "tokenTooShort": "A token this short is not one the platform issued",
+      "transcriptionModel": "Transcription model",
+      "transcriptionModelHint": "Which of that provider's models to use.",
+      "transcriptionOff": "Do not transcribe",
+      "transcriptionProvider": "Voice transcription",
+      "transcriptionProviderHint": "Which provider turns a voice message into text before the agent reads it.",
       "webhook": "Webhook",
       "webhookToken": "No webhook token"
     },

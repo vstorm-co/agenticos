@@ -145,6 +145,27 @@ class ImageProviderList(BaseSchema):
     total: int
 
 
+class SpeechToTextModelRead(BaseSchema):
+    """One model that transcribes."""
+
+    id: str = Field(description="The id stored on the bot")
+    name: str = Field(description="What to show")
+    description: str = Field(description="When to reach for this one rather than another")
+
+
+class SpeechToTextProviderRead(BaseSchema):
+    """One provider that can transcribe, and what may be chosen on it."""
+
+    provider: str = Field(description="The catalog id, e.g. `openai`")
+    name: str = Field(description="What to show")
+    models: list[SpeechToTextModelRead]
+
+
+class SpeechToTextProviderList(BaseSchema):
+    items: list[SpeechToTextProviderRead]
+    total: int
+
+
 class ProviderModelList(BaseSchema):
     items: list[ProviderModelRead]
     total: int

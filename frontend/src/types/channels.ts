@@ -50,6 +50,16 @@ export interface ChannelBot {
    */
   connection: ChannelConnection | null;
   /**
+   * Which model transcribes voice notes here, or null for none.
+   *
+   * A pair that moves together: a provider with no model has nothing to call and
+   * a model with no provider has nowhere to send it. Read back plainly - these
+   * are choices somebody made, not credentials; the key they run on is the
+   * organization's own model profile and is never named here.
+   */
+  speech_to_text_provider: string | null;
+  speech_to_text_model: string | null;
+  /**
    * Who answers here, from the active bindings.
    *
    * A bot with none is registered and silent, which is the state somebody opens
@@ -102,6 +112,8 @@ export interface ChannelBotCreate {
   slack_signing_secret?: string;
   /** Slack only: this app's xapp- token, for Socket Mode (dev). */
   slack_app_token?: string;
+  speech_to_text_provider?: string | null;
+  speech_to_text_model?: string | null;
 }
 
 /**
@@ -126,4 +138,7 @@ export interface ChannelBotUpdate {
   webhook_secret?: string;
   slack_signing_secret?: string;
   slack_app_token?: string;
+  /** Both halves or neither; the server pairs them against the stored row. */
+  speech_to_text_provider?: string | null;
+  speech_to_text_model?: string | null;
 }

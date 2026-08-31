@@ -106,6 +106,7 @@ export const qk = {
     // One request rather than the catalog plus a listing per provider: which
     // models qualify is a rule the SDK enforces, so the server answers it.
     imageModels: () => ["providers", "image-models"] as const,
+    speechToTextModels: () => ["providers", "speech-to-text-models"] as const,
   },
   secrets: {
     all: () => ["secrets"] as const,

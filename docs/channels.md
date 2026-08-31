@@ -1064,6 +1064,33 @@ it is about to wait.
     operator two minutes and makes the chat say which agent it is talking to,
     which no amount of routing can. `@slug` still parses — as an alias for the
     agent behind this bot, refused when it names any other.
+- **A voice message is transcribed, where a bot has been given a model.** It is
+  the one attachment an agent cannot be handed as a file: it reads a PDF and
+  looks at a screenshot, and an `audio/ogg` blob is a byte count.
+
+    The recording is fetched, transcribed, and **woven into the same turn** as a
+    labelled quotation — `[Voice message, transcribed]` — rather than sent as a
+    second message. Labelled on purpose: speech recognition mishears names,
+    numbers and anything said over traffic, so an agent told the source can hedge
+    a figure it half-heard and ask, where one told nothing states it as fact. It
+    is also what keeps a recording a quotation rather than instructions somebody
+    typed. A voice note with a caption stays one message, because that is what
+    somebody sent.
+
+    Which model is a **pair on the bot** — a provider and one of its models, from
+    `app/core/catalog/speech_to_text_models.json` — chosen under **Channels**, and
+    null by default: transcription spends the organization's provider credit on
+    every recording, so it is opted into. The key is the one already configured
+    for that provider in the organization's model profiles; there is nothing new
+    to store. A bot with no model chosen says it cannot listen rather than
+    dropping the recording, because a voice note that produces no reaction is
+    indistinguishable from a broken bot.
+
+    Three providers ship: OpenAI, Groq and Mistral, all serving OpenAI's
+    `POST /audio/transcriptions`. Adding a model is an entry in that file. Every
+    failure — no credential, a recording over the endpoint's limit, a refusal, a
+    timeout — is reported on the reply and the turn goes ahead without it.
+
 - **Access policy per bot** — open, whitelist, or "must be linked to a member".
 - **A credential can be added or replaced after registration.** The pencil on a
   bot's row opens it: rename it, paste a rotated token, or supply the credential

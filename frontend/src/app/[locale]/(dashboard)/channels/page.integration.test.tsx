@@ -42,6 +42,8 @@ function bot(overrides: Partial<ChannelBot> = {}): ChannelBot {
     has_slack_signing_secret: false,
     has_slack_app_token: false,
     connection: null,
+    speech_to_text_provider: null,
+    speech_to_text_model: null,
     agents: [{ id: "a1", name: "Support", slug: "support", has_avatar: false }],
     created_at: "2026-08-09T18:00:00Z",
     ...overrides,
@@ -49,7 +51,24 @@ function bot(overrides: Partial<ChannelBot> = {}): ChannelBot {
 }
 
 function serve(bots: ChannelBot[]) {
-  vi.mocked(apiClient.get).mockResolvedValue({ items: bots, total: bots.length });
+  // By URL: the dialogs now also fetch the speech-to-text catalog, and a single
+  // resolved value would answer that with a list of bots.
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+    path.startsWith("/providers/speech-to-text-models")
+      ? {
+          items: [
+            {
+              provider: "openai",
+              name: "OpenAI",
+              models: [
+                { id: "whisper-1", name: "Whisper", description: "Widest language coverage." },
+              ],
+            },
+          ],
+          total: 1,
+        }
+      : { items: bots, total: bots.length },
+  );
 }
 
 async function mount() {
@@ -390,6 +409,63 @@ describe("the channels page", () => {
 
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
     expect(screen.getByText(/not one the platform issued/)).toBeVisible();
+  });
+
+  it("offers a transcription model for an existing bot", async () => {
+    // A voice note is the one attachment an agent cannot be handed as a file, so
+    // somebody has to choose what listens to it.
+    serve([bot({ platform: "telegram", name: "Jarvis", api_base_url: null })]);
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
+
+    expect(await screen.findByLabelText(/Voice transcription/)).toBeVisible();
+  });
+
+  it("sends both halves of the transcription pair together", async () => {
+    // A provider with no model has nothing to call, and the server refuses one
+    // alone - so the picker never produces that state.
+    const jarvis = bot({ platform: "telegram", name: "Jarvis", api_base_url: null });
+    serve([jarvis]);
+    vi.mocked(apiClient.patch).mockResolvedValue(jarvis);
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
+    await userEvent.click(await screen.findByLabelText(/Voice transcription/));
+    await userEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith(`/channels/bots/${jarvis.id}`, {
+        speech_to_text_provider: "openai",
+        speech_to_text_model: "whisper-1",
+      }),
+    );
+  });
+
+  it("clears both halves when transcription is turned off", async () => {
+    const listening = bot({
+      platform: "telegram",
+      name: "Jarvis",
+      api_base_url: null,
+      speech_to_text_provider: "openai",
+      speech_to_text_model: "whisper-1",
+    });
+    serve([listening]);
+    vi.mocked(apiClient.patch).mockResolvedValue(listening);
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
+    await userEvent.click(await screen.findByLabelText(/Voice transcription/));
+    await userEvent.click(await screen.findByRole("option", { name: "Do not transcribe" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith(`/channels/bots/${listening.id}`, {
+        speech_to_text_provider: null,
+        speech_to_text_model: null,
+      }),
+    );
   });
 
   it("removes a bot", async () => {
