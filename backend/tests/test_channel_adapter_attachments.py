@@ -724,3 +724,89 @@ class TestWhichSlackSubtypesAreSomebodyTalking:
             SlackAdapter().parse_incoming(self._event(subtype="file_share", bot_id="B1"), "bot-1")
             is None
         )
+
+
+class TestSlackReadsAThreadsEarlierFiles:
+    """The transcript alone was not enough, and the bot said so accurately: asked
+    "what do you see" about a screenshot posted one message earlier, it answered
+    that it could see no image in the conversation - only the text. It was right,
+    which is how a missing half announces itself rather than a broken one.
+    """
+
+    @staticmethod
+    def _client(*messages: dict[str, Any]) -> Any:
+        client = MagicMock()
+        client.conversations_replies = AsyncMock(return_value={"messages": list(messages)})
+        return client
+
+    async def test_a_photo_posted_before_the_bot_arrived_comes_back_as_a_handle(self):
+        client = self._client(
+            {
+                "user": "U1",
+                "text": "co tu widzisz",
+                "subtype": "file_share",
+                "files": [
+                    {
+                        "name": "screenshot.png",
+                        "mimetype": "image/png",
+                        "size": 2048,
+                        "url_private_download": "https://files.slack.test/screenshot.png",
+                    }
+                ],
+            },
+            {"user": "U1", "text": "@Jarvis"},
+        )
+
+        with patch("slack_sdk.web.async_client.AsyncWebClient", return_value=client):
+            found = await SlackAdapter().thread_attachments(
+                "tok", "C1", thread_id="1699.0001", api_base_url=None, limit=50
+            )
+
+        assert [a.filename for a in found] == ["screenshot.png"]
+        assert found[0].handle == "https://files.slack.test/screenshot.png"
+
+    async def test_the_bots_own_uploads_are_not_read_back(self):
+        """It posts charts and files of its own; feeding them back as somebody's
+        attachment would have the agent answering about its own output."""
+        client = self._client(
+            {
+                "bot_id": "B1",
+                "text": "here is the chart",
+                "files": [
+                    {
+                        "name": "chart.png",
+                        "mimetype": "image/png",
+                        "size": 10,
+                        "url_private_download": "https://files.slack.test/chart.png",
+                    }
+                ],
+            }
+        )
+
+        with patch("slack_sdk.web.async_client.AsyncWebClient", return_value=client):
+            found = await SlackAdapter().thread_attachments(
+                "tok", "C1", thread_id="1699.0001", api_base_url=None, limit=50
+            )
+
+        assert found == []
+
+    async def test_a_thread_of_plain_messages_costs_nothing_downstream(self):
+        client = self._client({"user": "U1", "text": "just talking"})
+
+        with patch("slack_sdk.web.async_client.AsyncWebClient", return_value=client):
+            found = await SlackAdapter().thread_attachments(
+                "tok", "C1", thread_id="1699.0001", api_base_url=None, limit=50
+            )
+
+        assert found == []
+
+    async def test_a_platform_without_threads_refuses_rather_than_answering_empty(self):
+        """The base is what Telegram and anything new gets: an empty list would be
+        a claim that the thread has no files."""
+        from app.services.channels.base import ChannelDirectoryUnsupported
+        from app.services.channels.telegram import TelegramAdapter
+
+        with pytest.raises(ChannelDirectoryUnsupported):
+            await TelegramAdapter().thread_attachments(
+                "tok", "C1", thread_id="x", api_base_url=None, limit=5
+            )

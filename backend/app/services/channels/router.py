@@ -29,6 +29,7 @@ from app.services.channels.base import (
     IncomingMessage,
     OutgoingAttachment,
     OutgoingMessage,
+    channel_key,
     split_thread,
 )
 from app.services.channels.dedupe import claim_delivery, release_delivery
@@ -85,6 +86,15 @@ def _as_command(text: str) -> str:
 # it is still bounded *for* is the same - a prompt is not a transcript, and one
 # thread's whole history is a per-turn bill that grows for ever.
 HISTORY_MESSAGES = 200
+
+THREAD_BACKFILL_FILES = 4
+"""How many of a thread's earlier files are fetched before the first answer.
+
+Much smaller than the message bound, because the costs are not comparable: a
+transcript of fifty lines is a prompt, and fifty downloads before an answer
+starts is a minute of silence and somebody's storage quota. Four is "look at this
+screenshot", and the handful of images a design review posts in a row.
+"""
 
 THREAD_BACKFILL_MESSAGES = 50
 """How much of a thread we were never told about is read before the first answer.
@@ -299,6 +309,9 @@ class ChannelMessageRouter:
             # session, stamped whether or not it found anything - a thread with
             # nothing above it must not be asked about on every turn.
             history = await self._thread_backfill(incoming, directory) + history
+            earlier, earlier_refusals = await self._thread_files(db, bot, incoming, identity)
+            files += earlier
+            file_refusals += earlier_refusals
             await channel_session_repo.update(
                 db,
                 db_session=session,
@@ -997,6 +1010,69 @@ class ChannelMessageRouter:
                 incoming.bot_id,
                 incoming.platform_chat_id,
             )
+
+    async def _thread_files(
+        self, db: Any, bot: Any, incoming: IncomingMessage, identity: Any
+    ) -> tuple[list[Any], list[str]]:
+        """The files posted in this thread before we were brought into it.
+
+        The transcript alone was not enough, and the bot said so accurately: asked
+        *"what do you see"* about a screenshot posted a message earlier, it
+        answered that it could see no image in the conversation - only the text.
+        It was right, which is the tell that this half was missing rather than
+        broken.
+
+        Fetched through `ChannelAttachmentService`, the same path an attachment on
+        the live message takes, so the size limits and the storage are one
+        mechanism rather than two. Attributed to whoever mentioned the bot: they
+        are the person who pointed it at this thread, and a stored file belongs to
+        a user row - which also means an unlinked sender gets none, exactly as
+        they get none of their own.
+
+        Bounded harder than the transcript is. A transcript of fifty lines is a
+        prompt; fifty downloads before an answer starts is a minute of silence and
+        somebody's storage quota, so only the last few files come back.
+        """
+        _, thread_id = split_thread(incoming.platform_chat_id)
+        if not thread_id or identity.user_id is None:
+            return [], []
+        if incoming.message_id and thread_id == incoming.message_id:
+            return [], []
+
+        adapter = get_adapter(incoming.platform)
+        token = unseal_bot_token(bot)
+        try:
+            handles = await adapter.thread_attachments(
+                token,
+                channel_key(incoming.platform_chat_id),
+                thread_id=thread_id,
+                api_base_url=getattr(bot, "api_base_url", None),
+                limit=THREAD_BACKFILL_MESSAGES,
+            )
+        except ChannelDirectoryUnsupported:
+            return [], []
+        except Exception:
+            logger.warning(
+                "Could not read the files above a new conversation: bot=%s chat=%s",
+                incoming.bot_id,
+                incoming.platform_chat_id,
+                exc_info=True,
+            )
+            return [], []
+
+        # The live message's own files are already in `files`, fetched from the
+        # event. Anything matching one of them would be stored and shown twice.
+        already = {(a.filename, a.size) for a in incoming.attachments}
+        wanted = [h for h in handles if (h.filename, h.size) not in already]
+        if not wanted:
+            return [], []
+
+        return await ChannelAttachmentService(db).receive(
+            adapter,
+            token,
+            wanted[-THREAD_BACKFILL_FILES:],
+            user_id=identity.user_id,
+        )
 
     @staticmethod
     async def _thread_backfill(incoming: IncomingMessage, directory: Any) -> list[ModelMessage]:

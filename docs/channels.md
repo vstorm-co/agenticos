@@ -1030,6 +1030,16 @@ it is about to wait.
     and reading that is not the same act as reading the room. The bot still sees
     only what its own membership allows, because the call goes through its token.
 
+    **The files posted in it come too**, up to four of them and only on Slack —
+    the transcript alone let the bot answer, accurately, that it could see no
+    image in a conversation whose first message was a screenshot. They are
+    fetched down the same path an attachment on the live message takes, so one
+    set of size limits applies, and they are attributed to whoever mentioned the
+    bot: that is the person who pointed it at the thread, and an unlinked sender
+    gets none, exactly as they get none of their own. Four rather than fifty,
+    because fifty downloads before an answer starts is a minute of silence.
+    Mattermost reads a thread's text but not yet its files.
+
     A read that fails costs the context and never the answer: no thread, a
     platform without them, a refusal or an error all produce an answer without
     the history above it, which is worse than one with and better than none.

@@ -350,6 +350,37 @@ class SlackAdapter(ChannelAdapter):
             for message in messages
         ]
 
+    async def thread_attachments(
+        self,
+        bot_token: str,
+        channel_id: str,
+        *,
+        thread_id: str,
+        api_base_url: str | None,
+        limit: int,
+    ) -> list[IncomingAttachment]:
+        """The files on a thread's earlier messages, oldest first.
+
+        `conversations.replies` again rather than a shape carried out of
+        `channel_history`: that answers the capability's contract, which holds no
+        handles, and reading the thread twice on the one turn that opens a
+        conversation is cheaper than inverting the layering to avoid it.
+
+        `_attachments` is the same reader the live path uses, because a message in
+        a thread's history carries `files` exactly as the event did - so a photo
+        posted before the bot arrived is described the same way as one posted to
+        it.
+        """
+        replies = await self._web(bot_token).conversations_replies(
+            channel=channel_id, ts=thread_id, limit=limit
+        )
+        found: list[IncomingAttachment] = []
+        for message in replies.get("messages") or []:
+            if message.get("bot_id"):
+                continue
+            found.extend(self._attachments(message))
+        return found
+
     async def start_polling(self, bot_id: str, bot_token: str) -> None:
         """Start Slack Socket Mode (equivalent to polling for dev)."""
         if bot_id in self._socket_tasks and not self._socket_tasks[bot_id].done():

@@ -397,6 +397,36 @@ class ChannelAdapter(ABC):
             f"{self.platform} does not let a bot read a channel's history."
         )
 
+    async def thread_attachments(
+        self,
+        bot_token: str,
+        channel_id: str,
+        *,
+        thread_id: str,
+        api_base_url: str | None,
+        limit: int,
+    ) -> list[IncomingAttachment]:
+        """Files posted in a thread before we were brought into it, as handles.
+
+        Separate from `channel_history` rather than carried on `ChannelPost`,
+        because of the layering: `ChannelPost` is the *capability's* contract and
+        lives in `app/agents/capabilities/channel_tools`, which this module
+        imports from - so a handle, which is transport, cannot hang off it
+        without inverting that. One method here answers with the transport type
+        and nothing has to move.
+
+        Handles, not bytes, like `IncomingAttachment` everywhere else: fetching
+        belongs to `ChannelAttachmentService`, which validates the size and
+        stores the row.
+
+        Raises:
+            ChannelDirectoryUnsupported: If this platform has no threads, or does
+                not let a bot read messages it was not sent.
+        """
+        raise ChannelDirectoryUnsupported(
+            f"{self.platform} does not let a bot read a thread's files."
+        )
+
     @abstractmethod
     async def start_polling(self, bot_id: str, bot_token: str) -> None:
         """Start long-polling loop for this bot (dev mode)."""
