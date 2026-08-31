@@ -14,7 +14,7 @@ and hold to 100% coverage. Everything here is a URL somebody pasted.
     A **capability** is the right shape for something the platform must guarantee
     — a budget guard, a sandbox, retrieval that cites its sources.
 
-    **MCP** is the right shape for the forty SaaS products a company happens to
+    **MCP** is the right shape for the dozens of SaaS products a company happens to
     use, where the guarantee that matters is only "the tools are the ones the
     vendor published".
 
@@ -408,6 +408,19 @@ This is a hand-maintained list, **not** a mirror of the public registry. Each en
 is a small promise — that somebody looked at the server, that the auth flow works,
 that the description is honest — and a mirrored registry cannot make that promise.
 
+!!! info "Four of these are gateways, and they are a different promise"
+
+    Composio, Pipedream, Activepieces and Smithery are not one product's API -
+    each is an endpoint onto hundreds or thousands of others, with the
+    credentials held on their side. So the catalog entry vouches for the
+    *gateway*, and what the agent can actually reach is decided in that
+    gateway's own console, by whoever configured it there.
+
+    Worth knowing before comparing catalog sizes with a vendor advertising
+    thousands of integrations: that number is almost always one endpoint of this
+    kind, not thousands of servers somebody reviewed. Both shapes are useful, and
+    they are not the same claim.
+
 !!! warning "A promise that has to be re-made"
 
     The promise decays. The official Postgres reference server was archived out
@@ -434,6 +447,8 @@ per-account endpoint.
 | Railway | token | self-hosted |
 | Replit | oauth | self-hosted |
 | Hugging Face | token | self-hosted |
+| Buildkite | oauth | `https://mcp.buildkite.com/mcp` |
+| Semgrep | token | `https://mcp.semgrep.ai/mcp` |
 
 ### Project management
 
@@ -445,6 +460,7 @@ per-account endpoint.
 | ClickUp | oauth | self-hosted |
 | Trello | oauth | self-hosted |
 | Todoist | oauth | self-hosted |
+| monday.com | oauth | `https://mcp.monday.com/mcp` |
 
 ### Data and analytics
 
@@ -459,6 +475,9 @@ per-account endpoint.
 | Google BigQuery | oauth | self-hosted |
 | PostHog | token | self-hosted |
 | Mixpanel | token | self-hosted |
+| Neon | oauth | `https://mcp.neon.tech/mcp` |
+| Amplitude | token | `https://mcp.amplitude.com/mcp` |
+| Firecrawl | token | `https://mcp.firecrawl.dev/mcp` |
 
 ### Communication, support, knowledge
 
@@ -469,6 +488,9 @@ per-account endpoint.
 | Intercom | oauth | `https://mcp.intercom.com/sse` |
 | Notion | oauth | `https://mcp.notion.com/mcp` |
 | GitBook | token | self-hosted |
+| Sanity | token | `https://mcp.sanity.io/mcp` |
+| DeepWiki | none | `https://mcp.deepwiki.com/mcp` |
+| Supermemory | token | `https://mcp.supermemory.ai/mcp` |
 
 ### Finance, sales, commerce
 
@@ -487,6 +509,7 @@ per-account endpoint.
 | Sentry | oauth | `https://mcp.sentry.dev/mcp` |
 | Grafana | token | self-hosted |
 | PagerDuty | oauth | self-hosted |
+| Datadog | token | `https://mcp.datadoghq.com/api/unstable/mcp-server/mcp` |
 
 ### Marketing and design
 
@@ -503,6 +526,7 @@ per-account endpoint.
 | Miro | oauth | self-hosted |
 | Lucid | oauth | self-hosted |
 | Excalidraw | none | self-hosted |
+| Canva | oauth | `https://mcp.canva.com/mcp` |
 
 ### Automation, storage, productivity, media
 
@@ -518,8 +542,19 @@ per-account endpoint.
 | SurveyMonkey | oauth | self-hosted |
 | DeepL | token | self-hosted |
 | ElevenLabs | token | self-hosted |
+| Fireflies | token | `https://mcp.fireflies.ai/mcp` |
+| Egnyte | oauth | `https://mcp-server.egnyte.com/mcp` |
+| Apify | token | `https://mcp.apify.com` |
+| Tally | token | `https://api.tally.so/mcp` |
+| Pipedream | token | `https://remote.mcp.pipedream.net` |
+| Composio | token | self-hosted |
+| Activepieces | token | `https://mcp.activepieces.com/mcp` |
 
 ### Anything else
+
+**Smithery** — token — `https://mcp.smithery.ai/mcp`. A registry gateway: the
+servers reached through it are whatever that account has installed on Smithery,
+so what the agent can do is decided there rather than here.
 
 **Custom server** — any MCP server reachable by URL. Its tools are introspected on
 connect, and nothing about it needs to be in the catalog first. The catalog saves
