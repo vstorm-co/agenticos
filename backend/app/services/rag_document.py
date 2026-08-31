@@ -2,7 +2,6 @@
 """RAG document service."""
 
 import anyio
-import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -34,8 +33,6 @@ from app.services.ingestion_config import (
     IngestionConfigService,
     IngestionOverride,
 )
-
-logger = logging.getLogger(__name__)
 
 
 def _tracked_item(doc: RAGDocument) -> RAGTrackedDocumentItem:
@@ -448,12 +445,16 @@ class RAGDocumentService:
         doc_id: str,
         ingestion_service: IngestionService,
     ) -> None:
-        """Delete a document with cascading cleanup.
+        """Delete a document's row, then its vectors and its file after the commit.
 
-        Removes the record and the vector store entry; the stored file is unlinked
-        after the commit (`spawn_after_commit`), so a rollback keeps it beside the
-        row it restores rather than stranding it on a missing file (#1293). Cleanup
-        failures are logged, not raised.
+        The row goes in the request's transaction; the vector-store entry and the
+        stored file are removed only once it commits (`spawn_after_commit`). Doing
+        either before the commit strands a rolled-back delete on state already gone -
+        a restored row pointing at vectors, or a file, the failed request deleted
+        anyway (#1293, #1347). Both are best-effort in the background: `remove_document`
+        catches its own store failures, and an escaped one is logged by the background
+        runner rather than raised. The store rides the process's vector engine, not
+        this request's session, so the deferred coroutine may hold it safely.
 
         **`ingestion_service` has no default, and that is the whole of it.** It
         was `Any = None`, and the vector cleanup ran only when a caller happened
@@ -465,18 +466,20 @@ class RAGDocumentService:
         the caller may omit is an argument some caller will.
         """
         doc = await self.get_document(doc_id)
-
-        if doc.vector_document_id:
-            try:
-                await ingestion_service.remove_document(doc.collection_name, doc.vector_document_id)
-            except Exception as e:
-                logger.warning("Failed to delete from vector store: %s", e)
-
+        collection_name = doc.collection_name
+        vector_document_id = doc.vector_document_id
         storage_path = doc.storage_path
         await rag_document_repo.delete(self.db, doc.id)
 
+        from app.core.background import spawn_after_commit
+
+        if vector_document_id:
+            spawn_after_commit(
+                self.db,
+                ingestion_service.remove_document(collection_name, vector_document_id),
+                name="delete-document-vectors",
+            )
         if storage_path:
-            from app.core.background import spawn_after_commit
             from app.services.file_storage import delete_files_best_effort
 
             spawn_after_commit(
