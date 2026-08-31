@@ -371,9 +371,23 @@ class ChannelAdapter(ABC):
         raise ChannelDirectoryUnsupported(f"{self.platform} has no channel search for a bot.")
 
     async def channel_history(
-        self, bot_token: str, channel_id: str, *, api_base_url: str | None, limit: int
+        self,
+        bot_token: str,
+        channel_id: str,
+        *,
+        api_base_url: str | None,
+        limit: int,
+        thread_id: str | None = None,
     ) -> list[ChannelPost]:
-        """The last `limit` messages in one channel, newest last.
+        """The last `limit` messages in one conversation, newest last.
+
+        `thread_id` is the conversation the agent is actually in. On a platform
+        with threads the channel and the thread are different transcripts, and
+        the agent answering inside a thread was being handed the *channel's* -
+        so "summarise what we decided above" summarised whatever else the room
+        had been saying. An adapter that supports threads reads the thread when
+        it is given one; `None` is the channel, which is what a top-level
+        message is in.
 
         Raises:
             ChannelDirectoryUnsupported: If this platform does not let a bot read

@@ -27,7 +27,7 @@ from app.services.channels.base import (
     IncomingMessage,
     OutgoingAttachment,
     OutgoingMessage,
-    channel_key,
+    split_thread,
 )
 from app.services.channels.dedupe import claim_delivery, release_delivery
 from app.services.channels.directory import BoundChannelDirectory
@@ -522,11 +522,17 @@ class ChannelMessageRouter:
         except KeyError:
             logger.warning("No adapter for %s; channel lookup unavailable", incoming.platform)
             return None
+        channel_id, thread_id = split_thread(incoming.platform_chat_id)
         return BoundChannelDirectory(
             adapter=adapter,
             bot_token=unseal_bot_token(bot),
-            channel_id=channel_key(incoming.platform_chat_id),
+            channel_id=channel_id,
             api_base_url=getattr(bot, "api_base_url", None),
+            # The conversation this run is in, which on a threaded platform is not
+            # the channel. `read_channel_history` was bound to `channel_key` alone,
+            # so an agent asked to summarise what was decided above summarised
+            # whatever else the room had been saying (#1353).
+            thread_id=thread_id or None,
         )
 
     async def _receive_files(

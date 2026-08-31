@@ -458,19 +458,37 @@ class MattermostAdapter(ChannelAdapter):
         ]
 
     async def channel_history(
-        self, bot_token: str, channel_id: str, *, api_base_url: str | None, limit: int
+        self,
+        bot_token: str,
+        channel_id: str,
+        *,
+        api_base_url: str | None,
+        limit: int,
+        thread_id: str | None = None,
     ) -> list[ChannelPost]:
-        """`GET /channels/{id}/posts`, newest last and without the system noise.
+        """The recent transcript, newest last and without the system noise.
 
-        Mattermost returns `order` newest first and a `posts` map beside it, so
-        the order is reversed here - a model reading a conversation top to bottom
-        gets it the way a person would.
+        `GET /posts/{root}/thread` for a thread and `GET /channels/{id}/posts`
+        for the channel: Mattermost has threads, so those are two transcripts and
+        the agent is in the thread. Asked for the channel while answering in a
+        thread, "summarise what we decided above" summarised the rest of the room
+        (#1353).
+
+        Both endpoints answer the same `{order, posts}` shape, so the reversal and
+        the system-message filter below serve either. `order` comes back newest
+        first, and a model reading a conversation top to bottom wants it the way a
+        person would.
         """
         base_url = self._server(api_base_url)
         headers = self._headers(bot_token)
+        url = (
+            f"{base_url}/api/v4/posts/{thread_id}/thread"
+            if thread_id
+            else f"{base_url}/api/v4/channels/{channel_id}/posts"
+        )
         async with self._client() as client:
             response = await client.get(
-                f"{base_url}/api/v4/channels/{channel_id}/posts",
+                url,
                 headers=headers,
                 params={"per_page": limit},
             )

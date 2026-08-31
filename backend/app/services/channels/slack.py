@@ -305,9 +305,25 @@ class SlackAdapter(ChannelAdapter):
         return found
 
     async def channel_history(
-        self, bot_token: str, channel_id: str, *, api_base_url: str | None, limit: int
+        self,
+        bot_token: str,
+        channel_id: str,
+        *,
+        api_base_url: str | None,
+        limit: int,
+        thread_id: str | None = None,
     ) -> list[ChannelPost]:
-        """`conversations.history`, reversed so the newest is last.
+        """The recent transcript, reversed so the newest is last.
+
+        `conversations.replies` for a thread and `conversations.history` for the
+        channel, because on Slack those are two different transcripts and the one
+        the agent is in is the thread. Asked for the channel while answering
+        inside a thread, "summarise what we decided above" summarised whatever
+        else the room had been saying (#1353).
+
+        `replies` returns the thread oldest-first with the parent at the top,
+        which is already the order a person reads - the reversal below applies to
+        `history`, which comes back newest-first.
 
         Authors stay as Slack ids. Resolving them would be one `users.info` per
         distinct speaker on top of the history call, and a transcript reads well
@@ -315,8 +331,15 @@ class SlackAdapter(ChannelAdapter):
         the tool for turning ids into people, and the model can call it when the
         answer actually depends on who spoke.
         """
-        response = await self._web(bot_token).conversations_history(channel=channel_id, limit=limit)
-        messages = list(reversed(response.get("messages") or []))
+        client = self._web(bot_token)
+        if thread_id:
+            replies = await client.conversations_replies(
+                channel=channel_id, ts=thread_id, limit=limit
+            )
+            messages = list(replies.get("messages") or [])
+        else:
+            response = await client.conversations_history(channel=channel_id, limit=limit)
+            messages = list(reversed(response.get("messages") or []))
         return [
             ChannelPost(
                 author=str(message.get("user") or message.get("bot_id") or "unknown"),

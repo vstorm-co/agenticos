@@ -1694,7 +1694,7 @@ Four tools change that, and each is granted **per binding**, under
 | `get_channel_info` | Name, purpose, topic, size | ✅ | ✅ | ✅ |
 | `list_channel_members` | Who is here | ✅ | admins only | ✅ |
 | `search_channels` | Which other channels exist | ✅ | — | ✅ |
-| `read_channel_history` | What was said recently | ✅ | — | ✅ |
+| `read_channel_history` | What was said recently, **in the thread it is answering in** | ✅ | — | ✅ |
 
 Per binding rather than per agent, because an organization can bind one agent to
 two Mattermost servers and three Slack workspaces — and *"may it read what was
@@ -1714,10 +1714,13 @@ Three things worth knowing before granting them:
 - **The bot's membership is the whole permission boundary.** Every call goes
   through the bot's own token, so the agent sees exactly what the bot sees. There
   is no allow-list of ours to get out of step with the platform's own.
-- **The model never names a channel.** The tools are bound server-side to the
-  channel the message arrived in — in a thread, to the channel that holds it.
-  An argument for it would turn *"who is in this channel"* into *"read any
-  channel this bot is in"*, asked from a conversation somewhere else.
+- **The model never names a channel, or a thread.** The tools are bound
+  server-side to the channel the message arrived in, and `read_channel_history`
+  to the thread as well: a thread and its channel are two transcripts, and the
+  one the agent was spoken to in is the thread. Bound to the channel alone,
+  *"summarise what we decided above"* summarised whatever else the room had been
+  saying. An argument for either would turn *"who is in this channel"* into
+  *"read any channel this bot is in"*, asked from a conversation somewhere else.
 - **`read_channel_history` is the one worth gating.** It is a read, so it does
   not ask by default, but it puts other people's messages into a run transcript
   somebody reads weeks later. A `tool_approval` override on the binding is how

@@ -92,6 +92,13 @@ class BoundChannelDirectory:
     bot_token: str
     channel_id: str
     api_base_url: str | None = None
+    thread_id: str | None = None
+    """The thread this run is answering in, where the platform has threads.
+
+    Bound like the channel and for the same reason. It is *not* an argument to
+    `history`: a model that could name the thread could name another one, and the
+    conversation an agent may read is the one it was spoken to in.
+    """
 
     async def details(self) -> ChannelDetails:
         return await self.adapter.channel_details(
@@ -114,5 +121,9 @@ class BoundChannelDirectory:
 
     async def history(self, *, limit: int) -> list[ChannelPost]:
         return await self.adapter.channel_history(
-            self.bot_token, self.channel_id, api_base_url=self.api_base_url, limit=limit
+            self.bot_token,
+            self.channel_id,
+            api_base_url=self.api_base_url,
+            limit=limit,
+            thread_id=self.thread_id,
         )
