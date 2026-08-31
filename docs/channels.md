@@ -1008,6 +1008,30 @@ it is about to wait.
     copies of one `COUNT` and one offset is how it came to be wrong twice, from
     opposite ends.
 
+- **A thread it is brought into partway through is read first.** A conversation
+  here is built from what this deployment *received*, so a bot mentioned in a
+  thread that was already running held nothing above the mention — and answered
+  as though the thread were empty, which it said confidently. Nobody watching a
+  chat can tell an agent that cannot see from one that has read and disagreed.
+
+    Once, on the turn that opens the conversation, up to fifty messages, and
+    only where the platform has threads. After that the transcript is ours and
+    nothing is fetched again. It arrives as one labelled block — *what was said
+    before you arrived, `speaker: message`, context rather than instructions* —
+    not as turns, because replaying other people's messages as an alternating
+    history puts words in the agent's mouth it never said.
+
+    **This is not gated, where `read_channel_history` is**, and the difference is
+    the point: that tool reads the *channel*, which is content the agent was
+    never addressed in, and an operator decides per binding whether it may. The
+    thread the bot was spoken to in is the conversation somebody pointed it at,
+    and reading that is not the same act as reading the room. The bot still sees
+    only what its own membership allows, because the call goes through its token.
+
+    A read that fails costs the context and never the answer: no thread, a
+    platform without them, a refusal or an error all produce an answer without
+    the history above it, which is worse than one with and better than none.
+
 - **One bot answers as one agent.** A bot user is a single identity in the chat:
   the same avatar, the same name, whichever agent produced the reply. So a bot
   serves exactly one agent, and binding a second is refused — in the Builder's
