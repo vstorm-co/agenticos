@@ -485,6 +485,14 @@ class SlackAdapter(ChannelAdapter):
         if not text and not attachments:
             return None
 
+        addressed = self._addressed(raw_payload, event)
+        # After `_addressed`, which is what the token is for. The model is the
+        # addressee, so being told its own id is noise: `<@U09MQFTBHTV> try again`
+        # is a question about a Slack id as far as it can tell, and an answer
+        # about one is what it gives. Somebody else's mention stays - "ask
+        # <@UADA>" is a fact about the request, not an envelope.
+        text = self._without_own_mention(text, raw_payload)
+
         user_id: str = event.get("user", "")
         channel: str = event.get("channel", "")
         channel_type: str = event.get("channel_type", "channel")
@@ -516,8 +524,30 @@ class SlackAdapter(ChannelAdapter):
             platform_display_name=None,
             message_id=message_ts,
             attachments=attachments,
-            addressed=self._addressed(raw_payload, event),
+            addressed=addressed,
         )
+
+    def _without_own_mention(self, text: str, raw_payload: dict[str, Any]) -> str:
+        """The message with the bot's own mention token taken out.
+
+        Slack substitutes `<@U0123>` for a real mention, and that token is the
+        envelope rather than the message: the agent *is* the addressee, so being
+        handed its own id as content is being asked about a Slack id. It answered
+        about one, saying it could see "just the mention" of a message that also
+        said `try again`.
+
+        Only the bot's own, and only when the payload says which that is. Somebody
+        else's mention is information about the request - "ask <@UADA> about
+        billing" - and stripping it would delete the point of the sentence.
+
+        Whitespace is collapsed after the removal so a leading mention does not
+        leave the prompt starting with a space, and a mid-sentence one does not
+        leave two.
+        """
+        own = self._own_user_id(raw_payload)
+        if not own:
+            return text
+        return " ".join(text.replace(f"<@{own}>", " ").split())
 
     @staticmethod
     def _own_user_id(raw_payload: dict[str, Any]) -> str | None:

@@ -420,3 +420,57 @@ class TestTheSocketModeTransportObeysTheSameRule:
         assert unwrapped is not None
         assert unwrapped.addressed is None
         assert ChannelMessageRouter._is_overheard(unwrapped) is False
+
+
+class TestWhatTheModelActuallyReceives:
+    """The mention token is the envelope, not the message.
+
+    `@Jarvis try again` reaches us as `<@UBOT> try again`, and nothing stripped
+    the token - so the agent was handed a Slack id as content and answered about
+    one, reporting "just the mention" of a message that also said `try again`.
+    """
+
+    @staticmethod
+    def _parse(text: str, *, own: bool = True) -> IncomingMessage:
+        payload: dict[str, object] = {
+            "event": {
+                "type": "message",
+                "user": "U1",
+                "channel": "C1",
+                "channel_type": "channel",
+                "text": text,
+                "ts": "1.0",
+            }
+        }
+        if own:
+            payload["authorizations"] = [{"user_id": "UBOT"}]
+        incoming = SlackAdapter().parse_incoming(payload, "bot-1")
+        assert incoming is not None
+        return incoming
+
+    def test_the_bots_own_mention_is_taken_out_of_the_prompt(self) -> None:
+        assert self._parse("<@UBOT> try again").text == "try again"
+
+    def test_it_is_still_read_as_addressed(self) -> None:
+        """Stripped after the decision, not before it - removing the token first
+        would make every mention look like ordinary chatter."""
+        incoming = self._parse("<@UBOT> try again")
+
+        assert incoming.addressed is True
+        assert incoming.text == "try again"
+
+    def test_a_mention_in_the_middle_leaves_no_double_space(self) -> None:
+        assert self._parse("can <@UBOT> look at this").text == "can look at this"
+
+    def test_somebody_elses_mention_is_left_alone(self) -> None:
+        """Ask <@UADA> about billing is a fact about the request; deleting it
+        would delete the point of the sentence."""
+        assert self._parse("<@UBOT> ask <@UADA> about billing").text == "ask <@UADA> about billing"
+
+    def test_a_bare_mention_leaves_an_empty_prompt_rather_than_a_token(self) -> None:
+        """Still delivered: an empty prompt with the conversation behind it gets a
+        "what do you need?" answer, where dropping the message gets silence."""
+        assert self._parse("<@UBOT>").text == ""
+
+    def test_nothing_is_stripped_when_the_payload_never_named_the_bot(self) -> None:
+        assert self._parse("<@UBOT> try again", own=False).text == "<@UBOT> try again"
