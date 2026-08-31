@@ -25,6 +25,15 @@ class McpConnectionCreate(BaseSchema):
     # None = expose every tool the server offers.
     allowed_tools: list[str] | None = Field(default=None, max_length=MAX_ALLOWED_TOOLS)
     is_enabled: bool = True
+    label: str | None = Field(
+        default=None,
+        max_length=64,
+        description=(
+            "What a person reads. `name` is the tool prefix and is constrained "
+            "to what a tool name can carry, which makes it a poor label for two "
+            "accounts on one service. Optional; the slug is shown when it is absent."
+        ),
+    )
 
 
 class McpConnectionUpdate(BaseSchema):
@@ -37,6 +46,15 @@ class McpConnectionUpdate(BaseSchema):
     # in a PATCH body is indistinguishable from "not provided").
     clear_allowed_tools: bool = False
     is_enabled: bool | None = None
+    label: str | None = Field(
+        default=None,
+        max_length=64,
+        description=(
+            'What a person reads, beside the slug the model does. `""` clears '
+            "it, which is how a connection goes back to showing its name; `null` "
+            "leaves it unchanged, as everywhere in a PATCH body."
+        ),
+    )
     is_default: bool | None = Field(
         default=None,
         description=(
@@ -73,6 +91,9 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
     # member's Notion and the organization's are the same service - the join the
     # substitution is made on.
     catalog_key: str | None = None
+    # What a person reads, where somebody set one. Null is not a gap to fill in:
+    # the slug is what the connection was always shown as.
+    label: str | None = None
     # Whether an agent speaking as this member uses this account. Only ever true
     # for one of their connections per service.
     is_default: bool = False
@@ -98,6 +119,7 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
             last_error=connection.last_error,
             last_checked_at=connection.last_checked_at,
             catalog_key=connection.catalog_key,
+            label=connection.label,
             is_default=connection.is_default,
             created_at=connection.created_at,
             updated_at=connection.updated_at,
@@ -126,6 +148,15 @@ class OrgMcpConnectionCreate(BaseSchema):
     auth_token: str | None = Field(default=None, max_length=4096)
     allowed_tools: list[str] | None = Field(default=None, max_length=MAX_ALLOWED_TOOLS)
     is_enabled: bool = True
+    label: str | None = Field(
+        default=None,
+        max_length=64,
+        description=(
+            "What a person reads. `name` is the tool prefix and is constrained "
+            "to what a tool name can carry, which makes it a poor label for two "
+            "accounts on one service. Optional; the slug is shown when it is absent."
+        ),
+    )
     # Which catalog entry this came from, when it did not come from a raw URL.
     catalog_key: str | None = Field(default=None, max_length=64)
 
@@ -138,6 +169,15 @@ class OrgMcpConnectionUpdate(BaseSchema):
     allowed_tools: list[str] | None = Field(default=None, max_length=MAX_ALLOWED_TOOLS)
     clear_allowed_tools: bool = False
     is_enabled: bool | None = None
+    label: str | None = Field(
+        default=None,
+        max_length=64,
+        description=(
+            'What a person reads, beside the slug the model does. `""` clears '
+            "it, which is how a connection goes back to showing its name; `null` "
+            "leaves it unchanged, as everywhere in a PATCH body."
+        ),
+    )
 
 
 class OrgMcpConnectionList(BaseSchema):

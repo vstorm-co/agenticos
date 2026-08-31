@@ -481,6 +481,7 @@ class McpConnectionService:
                 secret_key_version=sealed.key_version if sealed else current_key_version(),
                 allowed_tools=data.allowed_tools,
                 is_enabled=data.is_enabled,
+                label=_stored_label(data.label),
             )
         except IntegrityError as exc:
             raise AlreadyExistsError(
@@ -539,6 +540,9 @@ class McpConnectionService:
             update_data["oauth_payload"] = None
             update_data["oauth_pending_payload"] = None
             update_data["oauth_state"] = None
+
+        if "label" in update_data:
+            update_data["label"] = _stored_label(update_data["label"])
 
         if update_data.get("is_default"):
             if db_connection.catalog_key is None:
@@ -1190,6 +1194,7 @@ class McpConnectionService:
                 allowed_tools=data.allowed_tools,
                 catalog_key=data.catalog_key,
                 is_enabled=data.is_enabled,
+                label=_stored_label(data.label),
             )
         except IntegrityError as exc:
             raise AlreadyExistsError(
@@ -1220,6 +1225,9 @@ class McpConnectionService:
 
         if "url" in update_data:
             update_data["url"] = await _checked_url(update_data["url"])
+
+        if "label" in update_data:
+            update_data["label"] = _stored_label(update_data["label"])
 
         if "name" in update_data and update_data["name"] != db_connection.name:
             collision = await mcp_connection_repo.get_org_scoped_by_name(
@@ -1390,6 +1398,18 @@ class McpConnectionService:
                 details={"connection_id": str(connection_id)},
             )
         return db_connection
+
+
+def _stored_label(label: str | None) -> str | None:
+    """A label as the column holds it: trimmed, and empty means none.
+
+    `""` is how a PATCH says "clear this" - `None` is the sentinel for
+    "unchanged" everywhere in an update body, so it cannot also mean "remove".
+    Storing the empty string instead would make a connection whose label was
+    cleared render as a blank line rather than as its slug.
+    """
+    trimmed = (label or "").strip()
+    return trimmed or None
 
 
 async def build_toolsets_for_agent(

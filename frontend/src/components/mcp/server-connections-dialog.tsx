@@ -210,9 +210,6 @@ function Account({
 }) {
   const t = useTranslations("mcp");
   const state = connectionState(connection);
-  // The only thing that tells two accounts on one server apart, and the prefix
-  // the model reads before it calls a tool.
-  const name = connection.name;
 
   return (
     <li className="border-border flex items-center gap-2 rounded-lg border px-3 py-2">
@@ -228,8 +225,23 @@ function Account({
         )}
       />
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-mono text-sm">{name}</span>
-        <span className="text-muted-foreground text-xs">{t(MCP_STATE_LABEL[state])}</span>
+        {/* The label a person gave it, and always the slug underneath. Never
+            the label alone: the slug is the prefix the model reads before it
+            calls a tool, and a run's calls are recorded under it - so hiding it
+            leaves "why did it call `notion-2_search`" unanswerable from the
+            page that names the account. */}
+        <span className="block truncate text-sm">{connection.label ?? connection.name}</span>
+        <span className="text-muted-foreground text-xs">
+          {connection.label === null ? (
+            t(MCP_STATE_LABEL[state])
+          ) : (
+            <>
+              <span className="font-mono">{connection.name}</span>
+              {" · "}
+              {t(MCP_STATE_LABEL[state])}
+            </>
+          )}
+        </span>
         {onNominate && (
           <label className="mt-1 flex items-center gap-1.5">
             <Checkbox

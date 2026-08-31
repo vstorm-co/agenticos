@@ -49,6 +49,7 @@ export interface OrgMcpConnectionInput {
   allowed_tools?: string[] | null;
   is_enabled?: boolean;
   catalog_key?: string | null;
+  label?: string;
 }
 
 export interface OrgMcpConnectionPatch {
@@ -59,6 +60,8 @@ export interface OrgMcpConnectionPatch {
   allowed_tools?: string[];
   clear_allowed_tools?: boolean;
   is_enabled?: boolean;
+  /** `""` clears it, back to showing the slug. */
+  label?: string;
 }
 
 const ROOT = "/mcp-connections";

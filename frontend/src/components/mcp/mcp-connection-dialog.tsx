@@ -95,6 +95,7 @@ function ConnectionForm({
   onSubmit: (values: ConnectionFormValues) => void;
 }) {
   const t = useTranslations("mcp");
+  const [label, setLabel] = useState(draft.existing?.label ?? "");
   const [name, setName] = useState(
     draft.existing?.name ?? draft.suggestedName ?? draft.row.entry?.key ?? "",
   );
@@ -118,6 +119,22 @@ function ConnectionForm({
         </DialogTitle>
       </DialogHeader>
       <div className="space-y-4" data-tour="mcp-dialog-form">
+        {/* First, because it is the field a person is actually choosing. The
+            slug below it is a technical name with a constraint to explain, and
+            leading with that is what left two Notion accounts called `notion`
+            and `notion-2`. */}
+        <div>
+          <Label htmlFor="mcp-label">{t("displayName")}</Label>
+          <Input
+            id="mcp-label"
+            value={label}
+            onChange={(event) => setLabel(event.target.value)}
+            placeholder={t("displayNamePlaceholder")}
+            maxLength={64}
+            className="mt-1.5"
+          />
+          <p className="text-foreground/45 mt-1 text-[11px]">{t("displayNameHint")}</p>
+        </div>
         <div>
           <Label htmlFor="mcp-name">{t("name")}</Label>
           <Input
@@ -271,7 +288,7 @@ function ConnectionForm({
           {t("cancel")}
         </Button>
         <Button
-          onClick={() => onSubmit({ name, url, token, auth, clearToken, scope })}
+          onClick={() => onSubmit({ label, name, url, token, auth, clearToken, scope })}
           disabled={submitting}
           data-tour="mcp-dialog-connect"
         >

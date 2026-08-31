@@ -345,6 +345,7 @@ async def create(
     oauth_state: str | None = None,
     oauth_payload: str | None = None,
     oauth_pending_payload: str | None = None,
+    label: str | None = None,
 ) -> McpConnection:
     connection = McpConnection(
         user_id=user_id,
@@ -354,6 +355,7 @@ async def create(
         secret_key_version=secret_key_version,
         allowed_tools=allowed_tools,
         is_enabled=is_enabled,
+        label=label,
         auth_type=auth_type,
         oauth_state=oauth_state,
         oauth_payload=oauth_payload,
@@ -382,6 +384,7 @@ async def create_org_scoped(
     oauth_pending_payload: str | None = None,
     purpose: str = "mcp",
     portal_key: str | None = None,
+    label: str | None = None,
 ) -> McpConnection:
     """Store a connection the organization owns.
 
@@ -411,6 +414,7 @@ async def create_org_scoped(
         oauth_pending_payload=oauth_pending_payload,
         purpose=purpose,
         portal_key=portal_key,
+        label=label,
     )
     db.add(connection)
     await db.flush()

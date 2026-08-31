@@ -68,6 +68,7 @@ function connection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConn
     last_checked_at: null,
     catalog_key: "github",
     is_default: false,
+    label: null,
     granted_scopes: null,
     created_at: "2026-07-01T00:00:00Z",
     updated_at: null,
@@ -430,7 +431,8 @@ describe("several accounts on one server", () => {
     // The organization's section, where `github` is already taken.
     await userEvent.click(dialog.getByRole("button", { name: "Connect another" }));
 
-    expect(await screen.findByLabelText(/name/i)).toHaveValue("github-2");
+    // Exact: the form has a display name too, and /name/i matches both.
+    expect(await screen.findByLabelText("Name")).toHaveValue("github-2");
   });
 
   it("says where each owner's accounts can be used, which is the whole distinction", async () => {
@@ -516,5 +518,108 @@ describe("which of a member's own accounts an agent speaks as", () => {
     const boxes = dialog.getAllByLabelText("Agents speak as this one");
     expect(boxes[0]).toBeChecked();
     expect(boxes[1]).not.toBeChecked();
+  });
+});
+
+describe("naming a connection something a person can read", () => {
+  /**
+   * `name` is the tool prefix - lowercase, hyphens, unique per owner - which
+   * makes it a poor label: an organization with two Notion accounts chooses
+   * between `notion` and `notion-2`, and neither says which workspace it
+   * reaches. `label` is what a person reads, and the slug stays beside it.
+   */
+  // Its own, because the file's `clearAllMocks` lives inside the first
+  // `describe` and these are siblings of it - so call history otherwise carries
+  // from one test here into the next, and a "was this sent" assertion reads a
+  // neighbour's request.
+  beforeEach(() => vi.clearAllMocks());
+
+  it("shows the label a person set, with the slug still beside it", async () => {
+    await mount({
+      own: [
+        connection({ id: "p1", name: "notion", label: "Marketing workspace" }),
+        connection({ id: "p2", name: "notion-2", label: null }),
+      ],
+    });
+    const dialog = await openConnections();
+
+    expect(dialog.getByText("Marketing workspace")).toBeInTheDocument();
+    // Never the label alone: a run's tool calls are recorded under the prefix,
+    // so hiding it leaves "why did it call `notion_search`" unanswerable here.
+    expect(dialog.getByText("notion")).toBeInTheDocument();
+    // And a connection nobody labelled reads exactly as it always did.
+    expect(dialog.getByText("notion-2")).toBeInTheDocument();
+  });
+
+  it("sends a label typed on the way in", async () => {
+    await mount({ org: [] });
+    vi.mocked(apiClient.post).mockResolvedValue(connection({ id: "o9", name: "notion" }));
+
+    await within(githubRow()).getByRole("button", { name: "Connect" }).click();
+    const form = within(await screen.findByRole("dialog"));
+    await userEvent.type(form.getByLabelText("Display name"), "  Marketing workspace  ");
+    await userEvent.click(form.getByRole("button", { name: /Connect/ }));
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/mcp-connections",
+        // Trimmed by the service; the client sends what was typed minus the ends.
+        expect.objectContaining({ label: "Marketing workspace" }),
+      ),
+    );
+  });
+
+  it("sends nothing for a label left empty", async () => {
+    // An absent label is not `""`: the connection shows its slug, which is what
+    // it did before this field existed.
+    await mount({ org: [] });
+    vi.mocked(apiClient.post).mockResolvedValue(connection({ id: "o9", name: "github" }));
+
+    await within(githubRow()).getByRole("button", { name: "Connect" }).click();
+    const form = within(await screen.findByRole("dialog"));
+    await userEvent.click(form.getByRole("button", { name: /Connect/ }));
+
+    // The create, not the probe `handleTools` fires straight after it.
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/mcp-connections", expect.anything()),
+    );
+    const [, body] = vi
+      .mocked(apiClient.post)
+      .mock.calls.find(([path]) => path === "/mcp-connections")!;
+    expect(body).not.toHaveProperty("label");
+  });
+
+  it("clears a label by emptying the field, rather than leaving it alone", async () => {
+    // `""` is what removes one. Treating an emptied field as "nothing to say"
+    // would make a label impossible to take back.
+    await mount({
+      own: [connection({ id: "p1", name: "notion", label: "Marketing workspace" })],
+    });
+    vi.mocked(apiClient.patch).mockResolvedValue(connection({ id: "p1", name: "notion" }));
+    const dialog = await openConnections();
+
+    await userEvent.click(dialog.getByRole("button", { name: "Edit" }));
+    const form = within(await screen.findByRole("dialog"));
+    await userEvent.clear(form.getByLabelText("Display name"));
+    await userEvent.click(form.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith(
+        "/me/mcp-connections/p1",
+        expect.objectContaining({ label: "" }),
+      ),
+    );
+  });
+
+  it("seeds the field from the label a connection already has", async () => {
+    await mount({
+      own: [connection({ id: "p1", name: "notion", label: "Marketing workspace" })],
+    });
+    const dialog = await openConnections();
+
+    await userEvent.click(dialog.getByRole("button", { name: "Edit" }));
+
+    const form = within(await screen.findByRole("dialog"));
+    expect(form.getByLabelText("Display name")).toHaveValue("Marketing workspace");
   });
 });

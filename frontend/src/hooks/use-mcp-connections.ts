@@ -40,6 +40,8 @@ interface UseMcpConnectionsResult {
       is_enabled?: boolean;
       /** Speak as this one where an agent asked for the member's own account. */
       is_default?: boolean;
+      /** `""` clears it, back to showing the slug. */
+      label?: string;
     },
   ) => Promise<McpConnectionRecord>;
   remove: (id: string) => Promise<void>;

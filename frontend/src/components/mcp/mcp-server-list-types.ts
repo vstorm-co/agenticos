@@ -52,6 +52,8 @@ export interface DraftState {
  * and drilling a setter each into the dialog.
  */
 export interface ConnectionFormValues {
+  /** What a person reads. Empty means the connection shows its slug instead. */
+  label: string;
   name: string;
   url: string;
   token: string;

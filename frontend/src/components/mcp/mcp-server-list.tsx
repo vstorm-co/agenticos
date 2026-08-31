@@ -230,6 +230,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   const handleSubmit = async (values: ConnectionFormValues) => {
     if (!draft) return;
     const name = values.name.trim().toLowerCase();
+    const label = values.label.trim();
     const url = values.url.trim();
     // Only a token connection carries one. Switching to OAuth or None and
     // submitting must not quietly store whatever was typed before.
@@ -261,6 +262,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         const created = await api(scope).create({
           name,
           url,
+          ...(label ? { label } : {}),
           ...(token ? { auth_token: token } : {}),
           // Only the organization API records provenance; a personal connection
           // has no column for it and would 422 on an unexpected field.
@@ -279,6 +281,9 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         // bound to a server nobody has reached.
         await api(scope).update(existing.id, {
           ...(name !== existing.name ? { name } : {}),
+          // `""` is what clears one, so an emptied field has to be sent rather
+          // than treated as "nothing to say".
+          ...(label !== (existing.label ?? "") ? { label } : {}),
           ...(url !== existing.url ? { url } : {}),
           ...(token ? { auth_token: token } : values.clearToken ? { auth_token: "" } : {}),
         });

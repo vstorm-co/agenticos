@@ -151,6 +151,12 @@ class McpConnection(Base, TimestampMixin):
     scope: Mapped[str] = mapped_column(String(8), nullable=False, default="user", index=True)
     # Which catalog entry this came from, when it was not added by raw URL.
     catalog_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # What a person reads. `name` is the tool prefix and is constrained to what a
+    # tool name can carry, which makes it a poor label: two Notion accounts are
+    # `notion` and `notion-2`, and neither says which workspace it reaches.
+    # Optional, not unique, and never a replacement - the slug stays on screen
+    # beside it, because a run's tool calls are recorded under the prefix.
+    label: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Which of this member's accounts on one service an agent speaks as, where a
     # binding asked to substitute theirs and they hold more than one. False on
     # every row until somebody chooses: a single account is substituted whether

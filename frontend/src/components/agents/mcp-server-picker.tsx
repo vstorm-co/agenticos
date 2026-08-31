@@ -378,8 +378,14 @@ function ServerCard({
             </SelectTrigger>
             <SelectContent>
               {connections.map((option) => (
-                <SelectItem key={option.id} value={option.id} className="font-mono text-xs">
-                  {option.name}
+                <SelectItem key={option.id} value={option.id} className="text-xs">
+                  {/* The label if somebody set one, and the slug beside it
+                      either way - that is the prefix the model reads, and a
+                      run's tool calls are recorded under it. */}
+                  {option.label ?? option.name}
+                  {option.label !== null && (
+                    <span className="text-muted-foreground ml-2 font-mono">{option.name}</span>
+                  )}
                 </SelectItem>
               ))}
             </SelectContent>

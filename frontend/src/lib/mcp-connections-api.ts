@@ -27,6 +27,12 @@ export interface McpConnectionRecord {
   /** Which catalog entry it points at, where it was connected from one. */
   catalog_key: string | null;
   /**
+   * What a person reads. `name` is the tool prefix and is constrained to what a
+   * tool name can carry, which makes it a poor label for two accounts on one
+   * service. Null is not a gap: the slug is what the connection always showed.
+   */
+  label: string | null;
+  /**
    * Speak as this account where an agent binding asked for the member's own and
    * they hold several on this service. At most one of theirs per service, kept
    * so by a partial unique index (#1342).
@@ -67,6 +73,7 @@ export async function createMcpConnection(input: {
   auth_token?: string;
   allowed_tools?: string[] | null;
   is_enabled?: boolean;
+  label?: string;
 }): Promise<McpConnectionRecord> {
   return apiClient.post<McpConnectionRecord>(ROOT, input);
 }
@@ -83,6 +90,8 @@ export async function updateMcpConnection(
     is_enabled?: boolean;
     /** Speak as this one where an agent asked for the member's own account. */
     is_default?: boolean;
+    /** `""` clears it, back to showing the slug. */
+    label?: string;
   },
 ): Promise<McpConnectionRecord> {
   return apiClient.patch<McpConnectionRecord>(`${ROOT}/${id}`, patch);

@@ -80,6 +80,7 @@ def _connection(**overrides) -> McpConnection:
         "scope": "user",
         "catalog_key": None,
         "is_default": False,
+        "label": None,
         "name": "github",
         "url": "https://example.com/mcp",
         "auth_token": None,
@@ -1357,6 +1358,52 @@ class TestMcpConnectionService:
         assert update_data["last_status"] is None
 
     @pytest.mark.anyio
+    async def test_a_label_is_stored_beside_the_slug_the_model_reads(self, service, repo):
+        """`name` is the tool prefix and is constrained to what a tool name can
+        carry, which makes it a poor label for two accounts on one service."""
+        user_id = uuid4()
+        conn = _connection(user_id=user_id)
+        repo.get_by_id.return_value = conn
+
+        await service.update(
+            user_id=user_id,
+            connection_id=conn.id,
+            data=McpConnectionUpdate(label="  Kacper - workspace firmowy  "),
+        )
+
+        # Trimmed, and the name untouched: the two answer different questions.
+        assert repo.update.call_args.kwargs["update_data"] == {
+            "label": "Kacper - workspace firmowy"
+        }
+
+    @pytest.mark.anyio
+    async def test_an_empty_label_clears_it_rather_than_storing_a_blank(self, service, repo):
+        """`None` is "unchanged" everywhere in a PATCH body, so it cannot also
+        mean "remove". Storing `""` would render a blank line where the slug
+        used to be."""
+        user_id = uuid4()
+        conn = _connection(user_id=user_id, label="Old name")
+        repo.get_by_id.return_value = conn
+
+        await service.update(
+            user_id=user_id, connection_id=conn.id, data=McpConnectionUpdate(label="")
+        )
+
+        assert repo.update.call_args.kwargs["update_data"]["label"] is None
+
+    @pytest.mark.anyio
+    async def test_a_label_nobody_sent_is_left_alone(self, service, repo):
+        user_id = uuid4()
+        conn = _connection(user_id=user_id, label="Kept")
+        repo.get_by_id.return_value = conn
+
+        await service.update(
+            user_id=user_id, connection_id=conn.id, data=McpConnectionUpdate(is_enabled=False)
+        )
+
+        assert "label" not in repo.update.call_args.kwargs["update_data"]
+
+    @pytest.mark.anyio
     async def test_nominating_an_account_clears_the_siblings_first(self, service, repo):
         """The partial unique index is the constraint, so it is never asked to
         hold two: the others are cleared before this row is written (#1342)."""
@@ -2188,6 +2235,33 @@ class TestOrganizationConnections:
         assert "ghp-secret-9876" not in str(recorded)
 
     # -- updating -------------------------------------------------------
+
+    @pytest.mark.anyio
+    async def test_an_organizations_connection_takes_a_label_too(self, service, ctx, repo):
+        """The same two names as a personal one: a slug the model reads, and
+        prose a person does. An organization holding two Notion accounts is the
+        case the field exists for (#1341)."""
+        conn = self._org_connection(ctx)
+        repo.get_org_scoped_by_id.return_value = conn
+
+        await service.update_for_org(
+            ctx,
+            connection_id=conn.id,
+            data=OrgMcpConnectionUpdate(label="  Marketing workspace  "),
+        )
+
+        assert repo.update.call_args.kwargs["update_data"] == {"label": "Marketing workspace"}
+
+    @pytest.mark.anyio
+    async def test_clearing_an_organizations_label_stores_no_blank(self, service, ctx, repo):
+        conn = self._org_connection(ctx)
+        repo.get_org_scoped_by_id.return_value = conn
+
+        await service.update_for_org(
+            ctx, connection_id=conn.id, data=OrgMcpConnectionUpdate(label="")
+        )
+
+        assert repo.update.call_args.kwargs["update_data"]["label"] is None
 
     @pytest.mark.anyio
     async def test_a_replacement_credential_is_resealed_for_this_organization(

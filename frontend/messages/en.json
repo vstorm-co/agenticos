@@ -2510,7 +2510,10 @@
     "manageConnectionsOn": "Manage connections on {name}",
     "agentsSpeakAsThisOne": "Agents speak as this one",
     "agentsSpeakAsThis": "Agents will speak as this account",
-    "agentsNoLongerSpeak": "Agents no longer speak as this account"
+    "agentsNoLongerSpeak": "Agents no longer speak as this account",
+    "displayName": "Display name",
+    "displayNamePlaceholder": "Marketing workspace",
+    "displayNameHint": "What this account is called on screen. Optional — without one it is shown under the technical name below."
   },
   "members": {
     "emailPlaceholder": "colleague@example.com",

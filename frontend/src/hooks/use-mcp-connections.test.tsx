@@ -47,6 +47,7 @@ function connection(overrides: Partial<McpConnectionRecord> = {}): McpConnection
     last_checked_at: null,
     catalog_key: null,
     is_default: false,
+    label: null,
     created_at: "2026-07-01T00:00:00Z",
     updated_at: null,
     ...overrides,

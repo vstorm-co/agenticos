@@ -228,6 +228,29 @@ class TestMcpConnectionOwnership:
 
         await db.flush()
 
+    async def test_two_accounts_may_share_a_label_but_never_a_name(self, db):
+        """The constraint that matters is on the prefix, not on the label.
+
+        `name` becomes a tool name and has to be unambiguous to the model;
+        `label` is prose somebody typed, and two people describing two accounts
+        the same way is not an error to refuse (#1341).
+        """
+        org = await _org(db)
+        for name in ("notion", "notion-2"):
+            db.add(
+                McpConnection(
+                    id=uuid.uuid4(),
+                    organization_id=org.id,
+                    user_id=org.owner_user.id,
+                    scope="user",
+                    name=name,
+                    url="https://mcp.notion.com/mcp",
+                    label="Marketing workspace",
+                )
+            )
+
+        await db.flush()
+
     async def test_nominating_one_account_un_nominates_the_others(self, db):
         """The bulk update that keeps the index satisfiable, against real rows.
 
