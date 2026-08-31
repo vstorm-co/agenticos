@@ -82,9 +82,12 @@ test.describe("MCP servers", () => {
     await expect(manage).toContainText("connection");
 
     await manage.click();
+    // By their headings: the dialog also says "Yours" in the caption under it,
+    // and a substring match resolves to two elements and fails strict mode -
+    // which would be a test asserting on prose rather than on the two owners.
     const accounts = page.getByRole("dialog");
-    await expect(accounts.getByText("The organization's")).toBeVisible();
-    await expect(accounts.getByText("Yours")).toBeVisible();
+    await expect(accounts.getByRole("heading", { name: "The organization's" })).toBeVisible();
+    await expect(accounts.getByRole("heading", { name: "Yours" })).toBeVisible();
   });
 
   test("marks each card with the service's own logo", async ({ page }) => {
