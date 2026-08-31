@@ -61,6 +61,16 @@ class ChannelSession(Base, TimestampMixin):
 
     A timestamp rather than a boolean because it costs the same and answers
     "when", which is what somebody asks when a transcript looks short.
+
+    **Widening what "read the thread" means requires nulling this column in the
+    same change**, and `0068_reread_channel_threads` is the migration to copy. It
+    says *when* a thread was read and not *what* was read from it, so a stamp
+    written by an earlier, narrower reader is indistinguishable from a complete
+    one - and the rows that most need re-reading are exactly the ones that will
+    not be. That has now happened once: `0067` added the column when reading a
+    thread meant reading its text, files followed a few commits later, and every
+    session stamped in between held a screenshot the agent could not see while
+    reporting, accurately, that it could not see one.
     """
     """How many turns this chat has had, for "report usage every n messages".
 
