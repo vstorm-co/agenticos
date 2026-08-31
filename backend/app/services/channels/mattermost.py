@@ -30,6 +30,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import re
 import secrets
 from datetime import UTC, datetime
 from typing import Any
@@ -46,6 +47,7 @@ from app.agents.capabilities.channel_tools import (
 )
 from app.core.security import encode_untrusted
 from app.db.session import get_db_context
+from app.services.channels import connection_state
 from app.services.channels.base import (
     ChannelAdapter,
     IncomingAttachment,
@@ -121,6 +123,12 @@ class MattermostAdapter(ChannelAdapter):
         # Which account each bot is, so a mention of it can be told from a mention
         # of somebody else. Resolved per stream session - see `_own_user_id`.
         self._own_ids: dict[str, str] = {}
+        # The bot's own handle, beside its id and for a different job: the id is
+        # what a mention list is matched against, and the handle is what has to
+        # come *out* of the text. Mattermost writes a mention as literal
+        # `@username`, so without this the agent is handed its own handle as
+        # content and answers about it.
+        self._own_names: dict[str, str] = {}
         self._seq: dict[str, int] = {}
 
     def remember_server(self, bot_id: str, api_base_url: str) -> None:
@@ -524,6 +532,50 @@ class MattermostAdapter(ChannelAdapter):
             for post_id in order
         ]
 
+    async def thread_attachments(
+        self,
+        bot_token: str,
+        channel_id: str,
+        *,
+        thread_id: str,
+        api_base_url: str | None,
+        limit: int,
+    ) -> list[IncomingAttachment]:
+        """The files on a thread's earlier posts, oldest first.
+
+        `GET /posts/{root}/thread`, the same endpoint `channel_history` reads for
+        a thread, and `_attachments` builds the handles - so a file posted before
+        the bot arrived is described exactly as one posted to it.
+
+        The address comes from the argument rather than the per-session cache,
+        which is why `_attachments` takes one: this runs on the turn that opens a
+        conversation and belongs to no stream session, and on a webhook-mode bot
+        there is no session at all.
+        """
+        base_url = self._server(api_base_url)
+        async with self._client() as client:
+            response = await client.get(
+                f"{base_url}/api/v4/posts/{thread_id}/thread",
+                headers=self._headers(bot_token),
+                params={"per_page": limit},
+            )
+            response.raise_for_status()
+            payload = response.json()
+
+        posts = payload.get("posts") or {}
+        found: list[IncomingAttachment] = []
+        # `order` is newest first, like every Mattermost listing; reversed so the
+        # caller's "keep the last few" keeps the most recent, not the oldest.
+        for post_id in reversed(payload.get("order") or []):
+            post = posts.get(post_id) or {}
+            props = post.get("props") or {}
+            # Its own uploads: a chart it drew, a file it returned. Feeding those
+            # back would have the agent answering about its own output.
+            if props.get("from_bot") == "true" or props.get("from_webhook") == "true":
+                continue
+            found.extend(self._attachments(post, base_url=base_url))
+        return found
+
     async def start_polling(self, bot_id: str, bot_token: str) -> None:
         """Open the event stream for one bot."""
         existing = self._socket_tasks.get(bot_id)
@@ -560,10 +612,20 @@ class MattermostAdapter(ChannelAdapter):
                 # retry here spun the event loop at 100% CPU and starved every
                 # other task on the process.
                 logger.warning("Mattermost stream not started for bot %s", bot_id)
+                await connection_state.record_down(
+                    bot_id,
+                    "The Mattermost event stream cannot start. Check the bot's "
+                    "server URL, or switch it to webhook mode.",
+                )
                 return
             except Exception:
                 logger.exception(
                     "Mattermost stream failed for bot %s, retrying in %.0fs", bot_id, delay
+                )
+                await connection_state.record_down(
+                    bot_id,
+                    "The Mattermost event stream keeps dropping. Check that the "
+                    "server is reachable and the bot token is still valid.",
                 )
             # Outside the `except`: a session that ends by returning has to
             # yield before the next attempt, or this loop never suspends.
@@ -593,10 +655,37 @@ class MattermostAdapter(ChannelAdapter):
                     headers=self._headers(bot_token),
                 )
             response.raise_for_status()
-            return str(response.json().get("id") or "") or None
+            me = response.json()
+            username = str(me.get("username") or "")
+            if username:
+                self._own_names[bot_id] = username
+            return str(me.get("id") or "") or None
         except Exception:
             logger.warning("mattermost_own_id_unresolved", extra={"bot_id": bot_id}, exc_info=True)
             return None
+
+    def _without_own_mention(self, text: str, bot_id: str) -> str:
+        """The message with the bot's own `@handle` taken out.
+
+        Mattermost writes a mention as literal `@username` in the text, so the
+        handle is the envelope rather than the message: the agent *is* the
+        addressee, and handing it its own handle as content is what had Slack's
+        adapter answering "just the mention" about a message that said `try
+        again`.
+
+        Only the bot's own, and only when the handle is known - `@ada` is a
+        colleague, and deleting it would delete the point of the sentence.
+
+        The right-hand guard is a negative lookahead over the characters a
+        Mattermost username may hold, not `\b`: a word boundary matches between
+        `s` and `-`, so `@ops` ate `@ops-oncall` and left `-oncall` behind -
+        somebody else's handle, mangled. Whitespace is collapsed after, so a
+        leading mention leaves no gap and a mid-sentence one leaves no double.
+        """
+        own = self._own_names.get(bot_id)
+        if not own:
+            return text
+        return " ".join(re.sub(rf"@{re.escape(own)}(?![a-z0-9._-])", " ", text).split())
 
     async def _run_stream(self, bot_id: str, bot_token: str) -> None:
         """One authenticated session on the event stream."""
@@ -636,6 +725,7 @@ class MattermostAdapter(ChannelAdapter):
             own = await self._own_user_id(bot_id, bot_token)
             if own is not None:
                 self._own_ids[bot_id] = own
+            await connection_state.record_up(bot_id)
             keepalive = asyncio.create_task(self._keepalive(socket))
             try:
                 async for frame in socket:
@@ -723,7 +813,7 @@ class MattermostAdapter(ChannelAdapter):
         if props.get("from_bot") == "true" or props.get("from_webhook") == "true":
             return None
 
-        attachments = self._attachments(post, bot_id)
+        attachments = self._attachments(post, base_url=self._base_urls.get(bot_id, ""))
         text = (post.get("message") or "").strip()
         if not text and not attachments:
             return None
@@ -745,7 +835,10 @@ class MattermostAdapter(ChannelAdapter):
                 message_id=post.get("id"),
             ),
             chat_type="private" if channel_type == "D" else "group",
-            text=text,
+            # Stripped after `_addressed`, which reads the platform's own mention
+            # list rather than the text - so the order does not matter for the
+            # gate, and this keeps the two facts in one place.
+            text=self._without_own_mention(text, bot_id),
             raw=payload,
             platform_username=data.get("sender_name", "").lstrip("@") or None,
             platform_display_name=data.get("sender_name") or None,
@@ -779,7 +872,7 @@ class MattermostAdapter(ChannelAdapter):
             return False
         return own in mentioned if isinstance(mentioned, list) else False
 
-    def _attachments(self, post: dict[str, Any], bot_id: str) -> list[IncomingAttachment]:
+    def _attachments(self, post: dict[str, Any], *, base_url: str) -> list[IncomingAttachment]:
         """The files on a Mattermost post, as handles.
 
         A post carries `file_ids` and, on the socket, `metadata.files` with the
@@ -806,7 +899,6 @@ class MattermostAdapter(ChannelAdapter):
         # delivery (#692). Every Mattermost deployment is somebody's own server,
         # so the id alone is not enough to fetch anything - and the download
         # signature carries a token, not a bot.
-        base_url = self._base_urls.get(bot_id, "")
 
         found: list[IncomingAttachment] = []
         for file_id in file_ids:
@@ -868,7 +960,7 @@ class MattermostAdapter(ChannelAdapter):
         if payload.get("user_name") in {"", None} or str(payload.get("user_id") or "") == "":
             return None
 
-        attachments = self._attachments(payload, bot_id)
+        attachments = self._attachments(payload, base_url=self._base_urls.get(bot_id, ""))
         text = str(payload.get("text") or "").strip()
         if not text and not attachments:
             return None
@@ -890,7 +982,12 @@ class MattermostAdapter(ChannelAdapter):
                 message_id=str(payload.get("post_id") or "") or None,
             ),
             chat_type=chat_type,
-            text=text,
+            # A no-op on this transport unless the same deployment also runs a
+            # stream for some bot: nothing in a webhook body says which account
+            # the bot is, so the handle is usually unknown here. Applied anyway
+            # rather than skipped, because where it *is* known the trigger word
+            # people type is the handle, and it is the envelope there too.
+            text=self._without_own_mention(text, bot_id),
             raw=payload,
             platform_username=str(payload.get("user_name") or "") or None,
             platform_display_name=str(payload.get("user_name") or "") or None,
