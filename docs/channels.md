@@ -757,6 +757,26 @@ Eleven bot token scopes, each earning its place by a call the adapter makes:
 Five bot events: `app_mention`, `message.channels`, `message.groups`,
 `message.im`, `message.mpim`.
 
+`message.channels` and `message.groups` deliver **every** message in every
+channel the bot is in, not only the ones naming it — and that is deliberate, so
+subscribe to both. What decides whether the bot speaks is the rule below, read
+from the event: Slack substitutes `<@U0123>` for a real mention, so the adapter
+knows which messages were addressed to it and stays out of the rest. Keeping the
+whole conversation arriving is what an agent deciding *for itself* whether a
+message deserves an answer will need; a subscription narrowed to `app_mention`
+cannot be widened after the fact without every operator editing their Slack app.
+
+| Where | When it answers |
+|---|---|
+| **A direct message** | Always. There is nobody else in the room, so requiring a mention would be asking somebody to address the only participant |
+| **A group direct message** | Only when named. Several people share it, so it is a room rather than a conversation with one person |
+| **A channel** | Only when named — `@the-bot`, or `@agent-slug` for the agent behind it |
+
+A mention anywhere in the message counts, not only at the start. A handle typed
+without letting Slack resolve it stays plain text and is not a mention — the
+platform delivered none — and `@channel`, `@all`, `@here` and `@everyone` address
+the room rather than an agent.
+
 The bot sees what the app was installed with and nothing beyond it. Adding a
 scope later means reinstalling the app, which mints a new `xoxb-` token — paste
 that one in too, or the bot keeps the access it had.

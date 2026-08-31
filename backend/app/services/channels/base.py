@@ -185,10 +185,12 @@ class IncomingMessage:
     somebody asks it, while `None` leaves the behaviour a bot had before - answer
     whatever arrives, because what arrives is what that platform chose to deliver.
 
-    Only Mattermost sets it today, and it is the surface the difference was
-    reported on: its socket delivers *every* post in every channel the bot is in,
-    so a default agent answering all of them is a bot that talks over a team
-    (agenticos#634). Slack and Telegram deliver on their own subscription rules.
+    Mattermost and Slack both set it, and both for the same reason: each can be
+    handed every message in every channel the bot is in - Mattermost's socket
+    always is, and a Slack app subscribed to `message.channels` is - so a default
+    agent answering all of them is a bot that talks over a team
+    (agenticos#634, #1071). Telegram delivers on its own subscription rules and
+    leaves this unset.
     """
 
     attachments: list[IncomingAttachment] = field(default_factory=list)

@@ -464,7 +464,11 @@ class SlackAdapter(ChannelAdapter):
         thread_ts: str | None = event.get("thread_ts")
         message_ts: str | None = event.get("ts")
 
-        chat_type = "private" if channel_type in ("im", "mpim") else "group"
+        # `im` alone. An `mpim` is a direct message with several people in it,
+        # which makes it a room: the bot is one of its members, so a message
+        # naming nobody names nobody, and the account-linking URL - a bearer
+        # credential - must not be posted where the others can read it.
+        chat_type = "private" if channel_type == "im" else "group"
 
         platform_chat_id = thread_key(
             channel,
@@ -477,7 +481,6 @@ class SlackAdapter(ChannelAdapter):
             platform="slack",
             bot_id=bot_id,
             platform_user_id=user_id,
-            # `im` alone: `mpim` is a direct message with several people in it.
             one_to_one=channel_type == "im",
             platform_chat_id=platform_chat_id,
             chat_type=chat_type,
@@ -487,7 +490,61 @@ class SlackAdapter(ChannelAdapter):
             platform_display_name=None,
             message_id=message_ts,
             attachments=attachments,
+            addressed=self._addressed(raw_payload, event),
         )
+
+    @staticmethod
+    def _own_user_id(raw_payload: dict[str, Any]) -> str | None:
+        """The bot user this event was delivered for, from the payload itself.
+
+        Slack states the installation an event belongs to, which is what makes
+        this readable in a synchronous parser: Mattermost has to resolve its own
+        account over the API and cache it per session, and there is nothing to
+        resolve here. `authorizations` is the current field and `authed_users`
+        the one older payloads carry.
+        """
+        authorizations = raw_payload.get("authorizations")
+        if isinstance(authorizations, list):
+            for entry in authorizations:
+                if isinstance(entry, dict) and entry.get("user_id"):
+                    return str(entry["user_id"])
+        authed_users = raw_payload.get("authed_users")
+        if isinstance(authed_users, list) and authed_users:
+            return str(authed_users[0])
+        return None
+
+    def _addressed(self, raw_payload: dict[str, Any], event: dict[str, Any]) -> bool | None:
+        """Whether this message named the bot, as far as the payload will say.
+
+        Slack delivers what the app subscribed to, and `message.channels` is
+        every message in every channel the bot is in - so with that subscription
+        an unanswered question is not the same thing as no question, and a bot
+        that answered everything talked over the team it was invited to
+        (agenticos#1071). Reading it here rather than dropping the subscription
+        keeps the whole conversation arriving, which is what an agent deciding
+        for itself whether to answer will need.
+
+        `app_mention` is delivered only when the bot was named, so it needs
+        nothing read.
+
+        A `message` event is matched on the bot's own id appearing in the text as
+        `<@U0123>`, which is what Slack substitutes for a real mention. On the id
+        rather than on a name, for Mattermost's reason: `@ada` is somebody whose
+        display name the bot cannot resolve, and a bot called `bot` must not
+        answer the word "robot". A handle somebody typed without letting Slack
+        resolve it stays plain text and is not a mention here either - the
+        platform did not deliver one.
+
+        `None` where the payload never said which installation it was for, which
+        the router reads as "the platform did not say" and answers as it did
+        before. Going quiet on a payload we cannot read is the worse failure.
+        """
+        if event.get("type") == "app_mention":
+            return True
+        own = self._own_user_id(raw_payload)
+        if own is None:
+            return None
+        return f"<@{own}>" in (event.get("text") or "")
 
     @staticmethod
     def _attachments(event: dict[str, Any]) -> list[IncomingAttachment]:

@@ -39,6 +39,7 @@ import pytest
 from app.services.channels.base import IncomingMessage
 from app.services.channels.mattermost import MattermostAdapter
 from app.services.channels.router import ChannelMessageRouter
+from app.services.channels.slack import SlackAdapter
 
 pytestmark = pytest.mark.anyio
 
@@ -223,3 +224,116 @@ class TestTheOutgoingWebhookTransportObeysTheSameRule:
         delivered = self._delivered(channel_name="u1__u2")
 
         assert ChannelMessageRouter._is_overheard(delivered) is False
+
+
+class TestReadingWhoASlackMessageNamed:
+    """Slack delivers what the app subscribed to, and `message.channels` is every
+    message in every channel the bot is in - so the same defect Mattermost had
+    arrives here through a subscription rather than through a socket, and did:
+    the bot answered every message in a shared channel (#1071).
+
+    Dropping the subscription would have fixed the symptom and cost the thing an
+    agent deciding for itself whether to answer needs, which is the whole
+    conversation. So the adapter reads who was named instead.
+    """
+
+    @staticmethod
+    def _event(
+        *,
+        text: str = "standup at 10 then",
+        event_type: str = "message",
+        channel_type: str = "channel",
+        authorizations: object = ({"user_id": "UBOT"},),
+    ) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "event": {
+                "type": event_type,
+                "user": "U1",
+                "channel": "C1",
+                "channel_type": channel_type,
+                "text": text,
+                "ts": "1699999999.000100",
+            }
+        }
+        if authorizations is not None:
+            payload["authorizations"] = list(authorizations)
+        return payload
+
+    def _parsed(self, **kwargs: object) -> IncomingMessage:
+        incoming = SlackAdapter().parse_incoming(self._event(**kwargs), "bot-1")
+        assert incoming is not None
+        return incoming
+
+    def test_ordinary_channel_chatter_is_not_addressed_to_the_bot(self) -> None:
+        """The defect, and the whole point of the change: colleagues talking to
+        each other in a channel the bot sits in."""
+        assert self._parsed().addressed is False
+
+    def test_the_bots_own_id_in_the_text_is_a_mention_of_it(self) -> None:
+        assert self._parsed(text="<@UBOT> what is the refund window").addressed is True
+
+    def test_a_mention_anywhere_in_the_message_counts(self) -> None:
+        """Not anchored at the start: somebody writes a sentence and names the bot
+        in the middle of it, and that is still asking."""
+        assert self._parsed(text="can <@UBOT> take a look at this").addressed is True
+
+    def test_somebody_elses_mention_is_not(self) -> None:
+        """Matched on the id, not on a name - a bot called `bot` must not answer
+        the word "robot", and `@ada` is a colleague."""
+        assert self._parsed(text="<@UADA> can you look at this").addressed is False
+
+    def test_an_app_mention_event_needs_nothing_read(self) -> None:
+        """Slack delivers `app_mention` only when the bot was named, so it is
+        addressed whatever the text turns out to hold."""
+        assert self._parsed(event_type="app_mention", authorizations=None).addressed is True
+
+    def test_a_payload_that_never_said_which_bot_says_nothing_rather_than_no(self) -> None:
+        """`None`, not `False`. Reading a payload we cannot interpret as "ignore"
+        would take a working bot off the air, which is the worse of the two."""
+        assert self._parsed(authorizations=None).addressed is None
+
+    def test_the_older_authed_users_field_is_read_too(self) -> None:
+        payload = self._event(text="<@UBOT> hello", authorizations=None)
+        payload["authed_users"] = ["UBOT"]
+        incoming = SlackAdapter().parse_incoming(payload, "bot-1")
+
+        assert incoming is not None
+        assert incoming.addressed is True
+
+    def test_an_authorizations_entry_with_no_user_is_skipped(self) -> None:
+        payload = self._event(text="<@UBOT> hello", authorizations=({}, {"user_id": "UBOT"}))
+        incoming = SlackAdapter().parse_incoming(payload, "bot-1")
+
+        assert incoming is not None
+        assert incoming.addressed is True
+
+    def test_a_direct_message_is_answered_though_it_names_nobody(self) -> None:
+        """`addressed` is False on it - there is no mention in the text - and the
+        router answers anyway, because a one-to-one chat is always to the bot."""
+        incoming = self._parsed(channel_type="im")
+
+        assert incoming.chat_type == "private"
+        assert incoming.addressed is False
+        assert ChannelMessageRouter._is_overheard(incoming) is False
+
+    def test_a_group_direct_message_is_a_room_and_needs_naming(self) -> None:
+        """An `mpim` is a direct message with several people in it, so it was
+        classified `private` and skipped the gate entirely - the bot answered
+        every message in it. It is a room: the bot is one of its members, and the
+        account-linking URL is a bearer credential that must not be posted where
+        the others can read it.
+        """
+        incoming = self._parsed(channel_type="mpim")
+
+        assert incoming.chat_type == "group"
+        assert incoming.one_to_one is False
+        assert ChannelMessageRouter._is_overheard(incoming) is True
+
+    def test_an_agent_slug_still_reaches_the_bot_in_a_channel(self) -> None:
+        """The regression this had to avoid: a slug is a name in this product and
+        never appears in a platform mention list, so a gate trusting only the
+        mention would have silently broken every `@sales ...` in a channel."""
+        incoming = self._parsed(text="@sales what is the refund window")
+
+        assert incoming.addressed is False
+        assert ChannelMessageRouter._is_overheard(incoming) is False
