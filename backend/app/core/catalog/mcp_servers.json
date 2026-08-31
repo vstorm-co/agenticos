@@ -1034,6 +1034,50 @@
     "icon": ""
   },
   {
+    "key": "circleci",
+    "name": "CircleCI",
+    "description": "Read pipelines, workflows and job output, and find out why a build failed.",
+    "category": "development",
+    "auth": "oauth",
+    "url": "https://mcp.circleci.com/v1/mcp",
+    "docs_url": "https://circleci.com/docs/mcp-server/",
+    "token_hint": "",
+    "icon": "circleci"
+  },
+  {
+    "key": "newrelic",
+    "name": "New Relic",
+    "description": "Query APM data, logs and alerts with NRQL while something is on fire.",
+    "category": "observability",
+    "auth": "token",
+    "url": "https://mcp.newrelic.com/mcp",
+    "docs_url": "https://docs.newrelic.com/docs/mcp/getting-started/",
+    "token_hint": "A New Relic user API key for the account whose telemetry the agent may read.",
+    "icon": "newrelic"
+  },
+  {
+    "key": "statsig",
+    "name": "Statsig",
+    "description": "Read feature gates, experiments and their results.",
+    "category": "analytics",
+    "auth": "token",
+    "url": "https://api.statsig.com/v1/mcp",
+    "docs_url": "https://docs.statsig.com/mcp/",
+    "token_hint": "A Statsig console API key. A console key can change gate rollouts, so use a read-only one unless the agent should.",
+    "icon": ""
+  },
+  {
+    "key": "lusha",
+    "name": "Lusha",
+    "description": "Look up business contact and company data for a prospect.",
+    "category": "sales",
+    "auth": "token",
+    "url": "https://mcp.lusha.com/mcp",
+    "docs_url": "https://docs.lusha.com/apis/openapi/mcp-server",
+    "token_hint": "A Lusha API key. Every lookup spends a credit, so give the agent one on a plan with a cap.",
+    "icon": ""
+  },
+  {
     "key": "custom",
     "name": "Custom server",
     "description": "Any MCP server reachable by URL. Its tools are introspected on connect.",

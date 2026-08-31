@@ -408,6 +408,25 @@ This is a hand-maintained list, **not** a mirror of the public registry. Each en
 is a small promise — that somebody looked at the server, that the auth flow works,
 that the description is honest — and a mirrored registry cannot make that promise.
 
+!!! info "What mirroring would actually add"
+
+    The official registry was read in full in August 2026: 20,100 records, 7,127
+    of them the current version of an active server, 5,824 carrying a hosted
+    HTTPS endpoint, across 5,141 distinct hosts. So the "thousands of servers" a
+    registry advertises is real.
+
+    Cross-referenced against this catalog, **four** of those hosts belonged to a
+    company most readers would recognise and were missing here — CircleCI, New
+    Relic, Statsig and Lusha, all four now listed. The rest of the uncovered
+    5,000-odd are single-project servers, proxies on `workers.dev`, SEO tools and
+    games: alphabetically the first few are a land-price lookup, a contractor
+    bidding tool and a Hungarian window-quote service.
+
+    Both facts are worth holding at once. The catalog is not short of entries
+    because nobody looked; it is the length it is because a hand-checked list of
+    things a company actually uses converges at about a hundred. Anything past
+    that is reached with **Custom server**, which needs no catalog entry at all.
+
 !!! info "Four of these are gateways, and they are a different promise"
 
     Composio, Pipedream, Activepieces and Smithery are not one product's API -
@@ -452,6 +471,7 @@ per-account endpoint.
 | Clerk | oauth | `https://mcp.clerk.com/mcp` |
 | WorkOS | oauth | `https://mcp.workos.com/mcp` |
 | Render | token | `https://mcp.render.com/mcp` |
+| CircleCI | oauth | `https://mcp.circleci.com/v1/mcp` |
 
 ### Project management
 
@@ -485,6 +505,7 @@ per-account endpoint.
 | Tavily | token | `https://mcp.tavily.com/mcp` |
 | Bright Data | token | `https://mcp.brightdata.com/mcp` |
 | Qdrant | none | `https://mcp.qdrant.tech/mcp` |
+| Statsig | token | `https://api.statsig.com/v1/mcp` |
 
 ### Communication, support, knowledge
 
@@ -513,6 +534,7 @@ per-account endpoint.
 | Shopify | oauth | self-hosted |
 | Attio | oauth | `https://mcp.attio.com/mcp` |
 | Pipedrive | oauth | `https://mcp.pipedrive.com/mcp` |
+| Lusha | token | `https://mcp.lusha.com/mcp` |
 
 ### Observability
 
@@ -525,6 +547,7 @@ per-account endpoint.
 | Pydantic Logfire | token | `https://logfire-us.pydantic.dev/mcp` |
 | LangSmith | token | `https://api.smith.langchain.com/mcp` |
 | Honeycomb | token | `https://mcp.honeycomb.io/mcp` |
+| New Relic | token | `https://mcp.newrelic.com/mcp` |
 
 ### Marketing and design
 
