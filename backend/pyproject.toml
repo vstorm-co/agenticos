@@ -585,6 +585,11 @@ include = [
     "app/services/image_models.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
+    # Same shape and the same reason as `image_models`: what a picker offers is
+    # decided by filtering a data file against what the platform can actually
+    # reach, and an entry that quietly stops being offered - or starts being
+    # offered and fails on the first voice note - is invisible without a test.
+    "app/services/speech_to_text.py",
     # The rest of `app/services/rag/` came with the template and is reported
     # rather than gated. This module is ours and is only refusals - where a
     # remote file may be written, and what may reach a Drive query - so the
@@ -847,6 +852,11 @@ include = [
     "app/services/image_models.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
+    # Same shape and the same reason as `image_models`: what a picker offers is
+    # decided by filtering a data file against what the platform can actually
+    # reach, and an entry that quietly stops being offered - or starts being
+    # offered and fails on the first voice note - is invisible without a test.
+    "app/services/speech_to_text.py",
     # The rest of `app/services/rag/` came with the template and is reported
     # rather than gated. This module is ours and is only refusals - where a
     # remote file may be written, and what may reach a Drive query - so the
