@@ -49,7 +49,7 @@ dependencies = [
     # the OAuth handshake. Declared here rather than left transitive because the
     # middleware is ours: Starlette itself installs without it (#155).
     "itsdangerous>=2.2.0",
-    "prefect>=3.8.3",
+    "prefect>=3.8.4",
     # The floor is `pydantic-ai-harness`'s, not ours - nothing here needs a
     # feature of any particular release, and stating it is what keeps a resolver
     # from picking a slim the harness cannot run on. Dependabot raises it to
@@ -66,7 +66,7 @@ dependencies = [
     # Pydantic AI is: this is where those are maintained, and pinning would
     # freeze the detectors and the model registry they read. 0.21.0 is the floor
     # all three were written against.
-    "pydantic-ai-harness>=0.24.0",
+    "pydantic-ai-harness>=0.27.0",
     "websockets>=15.0",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason
@@ -79,19 +79,19 @@ dependencies = [
     "pillow>=10.0.0",
     "python-docx>=1.1.0",
     "openpyxl>=3.1.0",
-    "llama-cloud>=2.14.1",
-    "liteparse>=2.12.0",
+    "llama-cloud>=2.15.0",
+    "liteparse>=2.14.2",
     "google-api-python-client>=2.199.0",
-    "google-auth>=2.56.3",
-    "boto3>=1.43.78",
+    "google-auth>=2.57.0",
+    "boto3>=1.43.82",
     "httpx>=0.28.0",
-    "click>=8.1.0",
+    "click>=8.5.0",
     # `cli/commands.py` renders every list the CLI prints. It has no import site
     # under `app/`, which is how it was briefly deleted as dead (#155) - the
     # `deptry` step reads `cli/` as well for exactly that reason.
     "tabulate>=0.9.0",
     "tqdm>=4.70.0",
-    "tavily-python>=0.7.27",
+    "tavily-python>=0.8.0",
     "pydantic-monty>=0.0.21",
     "pydantic-ai-skills>=1.4.0",
     # `console` for the toolset, `remote` for the sandboxd client. Deliberately
@@ -116,9 +116,9 @@ dependencies = [
     # surface `tool_retry_notice` cannot reach, because a `ToolReturnPart` is
     # stored whole (#819). The floor is 0.2.20.
     "subagents-pydantic-ai>=0.2.21",
-    "cryptography>=50.0.0",
-    "aiogram>=3.17,<4.0",
-    "slack-sdk>=3.35.0",
+    "cryptography>=50.0.1",
+    "aiogram>=3.31.0,<4.0",
+    "slack-sdk>=3.44.0",
     # Cron schedules: the next fire after a given instant for a crontab
     # expression. Interval schedules need no library, but "daily/weekly at HH:MM"
     # and any raw crontab do - and getting DST and month lengths right by hand is
@@ -145,8 +145,8 @@ dev = [
     "anyio[trio]>=4.14.2",
     "pytest-cov>=6.1.0",
     "httpx>=0.28.0",
-    "ruff>=0.16.4",
-    "ty>=0.0.74",
+    "ruff>=0.16.5",
+    "ty>=0.0.75",
     "pre-commit>=4.6.2",
     "pytest-xdist>=3.8.0",
     # Shuffles the suite every run and prints the seed, so an order-dependent
