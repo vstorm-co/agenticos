@@ -245,6 +245,7 @@ def _modalities(row: dict[str, Any], path: str | None) -> tuple[str, ...]:
 
 
 _listing_client: httpx.AsyncClient | None = None
+_listing_loop: asyncio.AbstractEventLoop | None = None
 
 
 def _client() -> httpx.AsyncClient:
@@ -254,19 +255,39 @@ def _client() -> httpx.AsyncClient:
     the connection pool away before it was reused (#1263). Built lazily and
     rebuilt if it was closed; `close_listing_client` closes it at shutdown. The
     timeout rides each request, so one client serves every listing.
+
+    **Rebuilt when the event loop changes, and that is not tidiness.** An
+    `AsyncClient` holds connections bound to the loop that opened them, so one
+    built by a request and reused by a Prefect flow - or closed at shutdown from
+    a different loop - raises `RuntimeError: Event loop is closed` rather than
+    answering. It is the same hazard `rag_tasks._ingestion_service` builds
+    per-flow engines for (#948); one process here runs several loops, and this
+    is the one client shared across all of them.
     """
-    global _listing_client
-    if _listing_client is None or _listing_client.is_closed:
+    global _listing_client, _listing_loop
+    loop = asyncio.get_running_loop()
+    if _listing_client is None or _listing_client.is_closed or _listing_loop is not loop:
         _listing_client = httpx.AsyncClient()
+        _listing_loop = loop
     return _listing_client
 
 
 async def close_listing_client() -> None:
-    """Close the shared listing client at shutdown."""
-    global _listing_client
+    """Close the shared listing client at shutdown.
+
+    A client whose loop has already gone has nothing left to release, and
+    `aclose` says so by raising. Dropping the reference is the whole of the
+    close in that case; raising would take the application's shutdown down with
+    it over a socket that is already unusable.
+    """
+    global _listing_client, _listing_loop
     if _listing_client is not None and not _listing_client.is_closed:
-        await _listing_client.aclose()
+        try:
+            await _listing_client.aclose()
+        except RuntimeError:
+            logger.debug("listing client outlived its event loop; dropping it unclosed")
     _listing_client = None
+    _listing_loop = None
 
 
 async def _fetch(spec: ListingSpec, api_key: str | None) -> list[CatalogModel]:
