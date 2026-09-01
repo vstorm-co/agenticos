@@ -39,6 +39,16 @@ class McpConnectionCreate(BaseSchema):
             "accounts on one service. Optional; the slug is shown when it is absent."
         ),
     )
+    catalog_key: str | None = Field(
+        default=None,
+        max_length=255,
+        description=(
+            "Which server in the catalog or the registry mirror this is an "
+            "account on. It is what a binding matches against when it asks to "
+            "speak as the member's own account, so a connection created without "
+            "one can never be substituted for the organization's."
+        ),
+    )
 
 
 class McpConnectionUpdate(BaseSchema):
@@ -219,6 +229,15 @@ class McpOAuthStart(BaseSchema):
 
     name: str = Field(..., min_length=1, max_length=32, pattern=NAME_PATTERN)
     url: str = Field(..., min_length=1, max_length=2048)
+    catalog_key: str | None = Field(
+        default=None,
+        max_length=255,
+        description=(
+            "Which catalogued or mirrored server this authorises an account on. "
+            "Carried through the flow because a connection created without it can "
+            "never be substituted for the organization's."
+        ),
+    )
 
 
 class GithubOAuthStart(BaseSchema):

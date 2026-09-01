@@ -346,9 +346,11 @@ async def create(
     oauth_payload: str | None = None,
     oauth_pending_payload: str | None = None,
     label: str | None = None,
+    catalog_key: str | None = None,
 ) -> McpConnection:
     connection = McpConnection(
         user_id=user_id,
+        catalog_key=catalog_key,
         name=name,
         url=url,
         auth_token=auth_token,

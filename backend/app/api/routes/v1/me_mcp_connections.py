@@ -81,7 +81,9 @@ async def start_mcp_oauth(
 ) -> Any:
     """Begin the OAuth flow; returns the provider consent URL to redirect to."""
     try:
-        authorization_url = await service.oauth_start(user_id=user.id, name=data.name, url=data.url)
+        authorization_url = await service.oauth_start(
+            user_id=user.id, name=data.name, url=data.url, catalog_key=data.catalog_key
+        )
     except OAuthError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return McpOAuthStartResult(authorization_url=authorization_url)

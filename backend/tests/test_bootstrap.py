@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.agents.model_resolver import PROVIDERS
+from app.commands import bootstrap as bootstrap_cmd
 from app.commands.bootstrap import (
     DEFAULT_MODELS,
     _resolve_demo_agent,
@@ -273,6 +274,20 @@ class TestEndToEnd:
     the transaction is committed rather than left open.
     """
 
+    @pytest.fixture(autouse=True)
+    def mirror(self, monkeypatch):
+        """The registry-mirror step, stubbed for every test in this class.
+
+        It is a real repository call and these tests hand `_bootstrap` a
+        `MagicMock` session, so unstubbed it fails inside `count` at `await
+        db.execute(...)`. That is a fact about the fixture rather than about the
+        step, and the step has its own tests.
+        """
+        stub = AsyncMock()
+        monkeypatch.setattr(bootstrap_cmd, "_resolve_mcp_mirror", stub)
+        self.mirror = stub
+        return stub
+
     @staticmethod
     def _db_context(db):
         from contextlib import asynccontextmanager
@@ -319,6 +334,7 @@ class TestEndToEnd:
         # The agent must be given the model the previous step produced.
         assert demo.call_args.args[2] == profile_id
         assert resolve_model.await_count == 1
+        self.mirror.assert_awaited()
         db.commit.assert_awaited_once()
 
     @pytest.mark.anyio

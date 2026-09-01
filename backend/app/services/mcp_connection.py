@@ -463,6 +463,21 @@ class McpConnectionService:
         return await mcp_connection_repo.list_for_user(self.db, user_id=user_id)
 
     async def create(self, *, user_id: UUID, data: McpConnectionCreate) -> McpConnection:
+        """Store one member's own account on a server.
+
+        Raises:
+            BadRequestError: If `catalog_key` names neither a curated entry nor a
+                mirrored registry row. The key is what a binding matches on to
+                speak as this account, so a wrong one is a connection that
+                silently never substitutes rather than an obvious mistake.
+            AlreadyExistsError: If this member already has a connection by that
+                name.
+        """
+        if data.catalog_key is not None and not await self._known_catalog_key(data.catalog_key):
+            raise BadRequestError(
+                message=f"Unknown catalog server: {data.catalog_key}",
+                details={"catalog_key": data.catalog_key},
+            )
         url = await _checked_url(data.url)
         existing = await mcp_connection_repo.get_by_name(self.db, user_id=user_id, name=data.name)
         if existing is not None:
@@ -483,6 +498,7 @@ class McpConnectionService:
                 allowed_tools=data.allowed_tools,
                 is_enabled=data.is_enabled,
                 label=_stored_label(data.label),
+                catalog_key=data.catalog_key,
             )
         except IntegrityError as exc:
             raise AlreadyExistsError(
@@ -647,8 +663,21 @@ class McpConnectionService:
             ),
         )
 
-    async def oauth_start(self, *, user_id: UUID, name: str, url: str) -> str:
-        """Begin the OAuth authorization-code flow for a server this person owns."""
+    async def oauth_start(
+        self, *, user_id: UUID, name: str, url: str, catalog_key: str | None = None
+    ) -> str:
+        """Begin the OAuth authorization-code flow for a server this person owns.
+
+        `catalog_key` is stored on the row it creates, and that is the whole
+        reason it is a parameter: a personal connection without one can never be
+        substituted for the organization's, so an OAuth account authorised here
+        would be invisible to every binding that asked to speak as its owner.
+        """
+        if catalog_key is not None and not await self._known_catalog_key(catalog_key):
+            raise BadRequestError(
+                message=f"Unknown catalog server: {catalog_key}",
+                details={"catalog_key": catalog_key},
+            )
         return await self._oauth_start(
             name=name,
             url=url,
@@ -659,6 +688,7 @@ class McpConnectionService:
                 user_id=user_id,
                 auth_token=None,
                 allowed_tools=None,
+                catalog_key=catalog_key,
                 **kwargs,
             ),
         )
@@ -1501,7 +1531,18 @@ async def build_toolsets_for_agent(
                 name=connection.name,
                 url=speaking_as.url,
                 headers=headers,
-                allowed_tools=_narrowed_tools(speaking_as.allowed_tools, ref.allowed_tools),
+                # Three allowlists, all of them narrowing. The organization's is
+                # in there because substitution replaces the *credential* and
+                # nothing else: reading it off `speaking_as` handed a private run
+                # whatever the member's own connection allowed, so an
+                # organization restricted to read tools could gain write ones
+                # simply by being run by somebody with a broader personal
+                # account. Where nothing was substituted the first two are the
+                # same object and the fold is a no-op.
+                allowed_tools=_narrowed_tools(
+                    _narrowed_tools(connection.allowed_tools, speaking_as.allowed_tools),
+                    ref.allowed_tools,
+                ),
             )
         )
     return await build_mcp_toolsets(specs)

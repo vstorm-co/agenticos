@@ -739,6 +739,54 @@ class TestSpeakingAsTheMemberWhoAsked:
 
         assert owned.await_args.kwargs == {"user_id": user_id, "catalog_key": "notion"}
 
+    @pytest.mark.anyio
+    async def test_the_organizations_tool_ceiling_survives_the_substitution(self, monkeypatch):
+        """Substitution replaces the credential and nothing else.
+
+        The ceiling used to be read off the personal connection, so an
+        organization restricted to read tools gained write ones as soon as the
+        run belonged to somebody whose own account allowed everything - a
+        private run reaching past what an administrator had excluded.
+        """
+        seen = self._capture(monkeypatch)
+        org = _connection(name="crm", catalog_key="crm", allowed_tools=["read_record"])
+        mine = _connection(name="mine", catalog_key="crm", allowed_tools=None, is_default=True)
+        self._bound(monkeypatch, org)
+        self._owns(monkeypatch, [mine])
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[McpServerRef(connection_id=org.id, use_personal_when_available=True)],
+            personal_for_user_id=uuid4(),
+        )
+
+        assert seen[0][0].url == mine.url, "the credential should have been substituted"
+        assert seen[0][0].allowed_tools == ["read_record"]
+
+    @pytest.mark.anyio
+    async def test_the_members_own_exclusions_still_narrow(self, monkeypatch):
+        """The fold is an intersection in both directions: the organization is a
+        ceiling, and the member's own list can only take more away."""
+        seen = self._capture(monkeypatch)
+        org = _connection(
+            name="crm", catalog_key="crm", allowed_tools=["read_record", "write_record"]
+        )
+        mine = _connection(
+            name="mine", catalog_key="crm", allowed_tools=["read_record"], is_default=True
+        )
+        self._bound(monkeypatch, org)
+        self._owns(monkeypatch, [mine])
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[McpServerRef(connection_id=org.id, use_personal_when_available=True)],
+            personal_for_user_id=uuid4(),
+        )
+
+        assert seen[0][0].allowed_tools == ["read_record"]
+
 
 class TestAuthHeaders:
     @pytest.mark.anyio
@@ -2133,6 +2181,8 @@ class TestOrganizationConnections:
         mock_repo.get_org_scoped_by_id = AsyncMock(return_value=None)
         mock_repo.get_org_scoped_by_name = AsyncMock(return_value=None)
         mock_repo.get_by_id = AsyncMock()
+        mock_repo.get_by_name = AsyncMock(return_value=None)
+        mock_repo.create = AsyncMock()
         mock_repo.create_org_scoped = AsyncMock()
         mock_repo.update = AsyncMock()
         mock_repo.delete = AsyncMock()
@@ -2256,6 +2306,35 @@ class TestOrganizationConnections:
                 ),
             )
         repo.create_org_scoped.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_a_personal_connection_keeps_the_catalog_key_it_was_created_with(
+        self, service, ctx, repo, mirror
+    ):
+        """Without it the substitution join matches nothing, so
+        `use_personal_when_available` was a switch that could never fire: every
+        personal row carried `catalog_key = NULL`."""
+        await service.create(
+            user_id=ctx.user_id,
+            data=McpConnectionCreate(
+                name="mine", url="https://example.com/mcp", catalog_key="notion"
+            ),
+        )
+
+        assert repo.create.call_args.kwargs["catalog_key"] == "notion"
+
+    @pytest.mark.anyio
+    async def test_a_personal_connection_with_an_unknown_key_is_refused(
+        self, service, ctx, repo, mirror
+    ):
+        with pytest.raises(BadRequestError, match="Unknown catalog server"):
+            await service.create(
+                user_id=ctx.user_id,
+                data=McpConnectionCreate(
+                    name="mine", url="https://example.com/mcp", catalog_key="notoin"
+                ),
+            )
+        repo.create.assert_not_called()
 
     @pytest.mark.anyio
     async def test_a_mirrored_registry_key_is_accepted_for_an_organization(
