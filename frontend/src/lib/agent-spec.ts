@@ -89,6 +89,15 @@ export const THINKING_ID = "thinking";
 export const SANDBOX_ID = "sandbox";
 
 /**
+ * The memory capability, which has a management surface of its own.
+ *
+ * Its config is edited in the Toolbox like any other capability, but the rows it
+ * stores — an agent's files and facts — are reviewed and cleared in a dedicated
+ * Memory tab, which appears only when the capability is bound.
+ */
+export const MEMORY_ID = "memory";
+
+/**
  * The bindings with one capability switched on or off.
  *
  * Switching one on that is already on returns the list untouched, so a caller

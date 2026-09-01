@@ -244,6 +244,16 @@ export const qk = {
       ["context", "list", query] as const,
     detail: (id: string) => ["context", id] as const,
   },
+  // Keyed on the agent: every memory query is scoped to one agent's store, so
+  // `all(agentId)` is the invalidation root a write under that agent widens to.
+  memory: {
+    all: (agentId: string) => ["memory", agentId] as const,
+    files: (
+      agentId: string,
+      query: { scope: string; search: string; sort: string; skip: number; limit: number },
+    ) => ["memory", agentId, "files", query] as const,
+    file: (fileId: string) => ["memory", "file", fileId] as const,
+  },
   invitations: {
     all: () => ["invitations"] as const,
     list: (orgId: string) => ["invitations", orgId] as const,

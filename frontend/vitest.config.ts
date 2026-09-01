@@ -101,6 +101,7 @@ export default defineConfig({
         "src/components/sharing/**/*.tsx",
         "src/components/skills/**/*.tsx",
         "src/components/context/**/*.tsx",
+        "src/components/memory/**/*.tsx",
       ],
       exclude: [
         "node_modules",
