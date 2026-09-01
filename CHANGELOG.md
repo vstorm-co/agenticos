@@ -17,6 +17,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.352] - 2026-09-01
+
+### Changed
+
+- GitHub Actions: `openai/codex-action` 1.12, `astral-sh/setup-uv` 10.0.1 and
+  `docker/setup-buildx-action` 4.3.0. (#1357)
+
 ## [0.0.351] - 2026-09-01
 
 ### Changed
