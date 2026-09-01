@@ -18,6 +18,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -164,7 +165,9 @@ def service(rows: Rows, monkeypatch: pytest.MonkeyPatch) -> CollectionAccessServ
     monkeypatch.setattr(rag_document_repo, "get_by_id", by_id("documents"))
     monkeypatch.setattr(sync_source_repo, "get_by_id", by_id("sources"))
     monkeypatch.setattr(sync_log_repo, "get_by_id", by_id("logs"))
-    return CollectionAccessService(db=None)  # ty: ignore[invalid-argument-type]
+    # A stand-in session whose only job is to carry the advisory-lock execute the
+    # claim path takes (#1355); every repository call the tests exercise is patched.
+    return CollectionAccessService(db=MagicMock(execute=AsyncMock()))  # ty: ignore[invalid-argument-type]
 
 
 class TestWhoMayReadACollection:
@@ -336,6 +339,22 @@ class TestClaimingACollectionName:
         rows.collections = [_kb("handbook")]
 
         await service.claim(_ctx(), "handbook")
+
+    async def test_claiming_a_valid_name_takes_the_teardown_lock(
+        self, service: CollectionAccessService, rows: Rows, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The claim and a concurrent teardown of the same name serialize on one lock,
+        so a base created between the drop's re-check and its DROP keeps its table
+        (#1355). Taken after the identifier rule, which needs no database."""
+        from app.db.locks import LockScope
+
+        rows.collections = []
+        lock = AsyncMock()
+        monkeypatch.setattr("app.services.collection_access.hold_name", lock)
+
+        await service.claim(_ctx(), "handbook")
+
+        lock.assert_awaited_once_with(service.db, LockScope.COLLECTION_TEARDOWN, "handbook")
 
     async def test_a_name_another_organization_owns_is_refused(
         self, service: CollectionAccessService, rows: Rows

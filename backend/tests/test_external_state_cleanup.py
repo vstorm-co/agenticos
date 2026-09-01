@@ -96,7 +96,7 @@ class TestDispatch:
 
 @asynccontextmanager
 async def _db_ctx() -> Any:
-    yield MagicMock()
+    yield MagicMock(execute=AsyncMock())
 
 
 def _patch_cleanup(*, referenced: list[str]) -> Any:
@@ -168,6 +168,30 @@ class TestTheCleanup:
 
         make_engine.assert_not_called()
         assert result == {"unlinked": 1, "dropped": 0}
+
+    async def test_it_locks_each_collection_before_dropping(self) -> None:
+        """Each collection's re-check and drop are serialized against a concurrent
+        claim of the same name by an advisory lock, so a base created in the window
+        between them keeps its table (#1355, #913)."""
+        from app.db.locks import LockScope
+
+        _storage, _store, _engine, patches = _patch_cleanup(referenced=[])
+        lock = AsyncMock()
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patches[3],
+            patches[4],
+            patches[5],
+            patch("app.db.locks.hold_name", lock),
+        ):
+            await cleanup_external_state([], ["docs", "wiki"])
+
+        assert [call.args[1:] for call in lock.await_args_list] == [
+            (LockScope.COLLECTION_TEARDOWN, "docs"),
+            (LockScope.COLLECTION_TEARDOWN, "wiki"),
+        ]
 
 
 class TestTheFlow:

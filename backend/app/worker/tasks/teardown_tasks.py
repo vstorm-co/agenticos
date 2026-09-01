@@ -124,12 +124,14 @@ async def cleanup_external_state(
 
     Idempotent, because the flow's retries must be safe: unlinking a file already
     gone is a no-op, `delete_collection` issues `DROP TABLE IF EXISTS`, and each
-    collection is re-checked against the knowledge-base table so a name a second
-    org has claimed since the delete keeps its table (#913). The store rides an
-    engine built for this one run and disposed on the way out, because a pooled
-    connection made on one flow's event loop breaks the next (the reason
+    collection is re-checked against the knowledge-base table - under an advisory
+    lock it shares with the name's claim path - so a name a second org has claimed,
+    or is mid-claim on, since the delete keeps its table (#913, #1355). The store
+    rides an engine built for this one run and disposed on the way out, because a
+    pooled connection made on one flow's event loop breaks the next (the reason
     `rag_tasks._ingestion_service` builds per-flow engines too, #948).
     """
+    from app.db.locks import LockScope, hold_name
     from app.db.session import get_worker_db_context
     from app.repositories import knowledge_base_repo
     from app.services.embedding_resolution import embeddings_for_collection
@@ -160,6 +162,10 @@ async def cleanup_external_state(
             )
             async with get_worker_db_context() as db:
                 for collection in collections:
+                    # Serialize the re-check and the drop against a concurrent claim
+                    # of the same name, so a base created in the window between them
+                    # keeps its table (#1355). Held to the end of this transaction.
+                    await hold_name(db, LockScope.COLLECTION_TEARDOWN, collection)
                     if await knowledge_base_repo.list_by_collection_name(db, collection):
                         continue
                     with contextlib.suppress(SQLAlchemyError):

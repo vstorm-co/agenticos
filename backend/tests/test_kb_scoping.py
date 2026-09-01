@@ -118,7 +118,7 @@ class TestKBAccessControl:
 
     @pytest.fixture
     def mock_db(self):
-        db = MagicMock()
+        db = MagicMock(execute=AsyncMock())
         db.info = {}
         return db
 
@@ -664,7 +664,7 @@ class TestBindingAnEmbeddingSecret:
 
     @pytest.fixture
     def mock_db(self):
-        return MagicMock()
+        return MagicMock(execute=AsyncMock())
 
     def _secret(self, purpose: str = "openrouter"):
         secret = MagicMock()
@@ -750,7 +750,7 @@ class TestWhoServesTheEmbeddingModel:
 
     @pytest.fixture
     def mock_db(self):
-        return MagicMock()
+        return MagicMock(execute=AsyncMock())
 
     def _kb_row(self, *, provider: str = "openrouter", secret_id: uuid.UUID | None = None):
         return MagicMock(
@@ -929,7 +929,7 @@ class TestCollectionCounts:
 
     @pytest.fixture
     def mock_db(self):
-        return MagicMock()
+        return MagicMock(execute=AsyncMock())
 
     @pytest.mark.anyio
     async def test_counts_are_asked_for_by_collection_name_not_by_id(self, mock_db):

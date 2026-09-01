@@ -31,6 +31,8 @@ class LockScope(IntEnum):
     ORGANIZATIONS_PER_USER = 1
     #: How many agents one organization may hold.
     AGENTS_PER_ORGANIZATION = 2
+    #: A collection name's claim-and-create against its vector-table drop (#1355).
+    COLLECTION_TEARDOWN = 3
 
 
 def _key(subject: UUID) -> int:
@@ -51,3 +53,17 @@ async def hold_subject(db: AsyncSession, scope: LockScope, subject: UUID) -> Non
     count both callers read is already stale.
     """
     await db.execute(select(func.pg_advisory_xact_lock(scope.value, _key(subject))))
+
+
+async def hold_name(db: AsyncSession, scope: LockScope, name: str) -> None:
+    """Take the lock for a string subject - a collection name - until this tx ends.
+
+    The subject here is not a row's id but a name in the deployment-global vector
+    namespace, so the key is `hashtext(name)` rather than a UUID's low bits. Same
+    contract as :func:`hold_subject`: call it *before* the check it protects, so a
+    claim that reads "this name is free" and a teardown that reads "no base holds
+    this name" cannot both act - one drops the table the other just created (#1355).
+    Collisions cost a moment of waiting against an unrelated name, never a wrong
+    answer, because `hashtext` and the scope are the whole key.
+    """
+    await db.execute(select(func.pg_advisory_xact_lock(scope.value, func.hashtext(name))))
