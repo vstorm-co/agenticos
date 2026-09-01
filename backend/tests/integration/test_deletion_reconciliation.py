@@ -54,7 +54,7 @@ def _route_purge_dispatch_to_impl(monkeypatch: pytest.MonkeyPatch) -> None:
 
     async def _run(*, name: str, parameters: dict[str, Any], timeout: float) -> None:
         del name, timeout
-        await teardown_tasks.purge_org_external_state(**parameters)
+        await teardown_tasks.cleanup_external_state(**parameters)
 
     monkeypatch.setattr(teardown_tasks, "run_deployment", AsyncMock(side_effect=_run))
 

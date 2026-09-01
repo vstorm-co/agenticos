@@ -357,10 +357,12 @@ class RAGDocumentService:
         gone, and a directory synced nightly accumulates one dead row per file
         per run.
 
-        The stored files are unlinked after the commit (`spawn_after_commit`), so
-        a rollback leaves them beside the rows it restores rather than gone; an
-        unlink before the commit would strand a restored row on a missing file
-        (#1293). Best-effort on the same terms as `delete_document`.
+        The stored files are unlinked by a durable cleanup handed over after the
+        commit (`spawn_after_commit` → `dispatch_external_state_cleanup`), so a
+        rollback leaves them beside the rows it restores rather than gone (#1293),
+        and a worker restart mid-drain no longer orphans the ones still queued -
+        the run is recorded on the Prefect server and retried (#1349). An unlink
+        before the commit would strand a restored row on a missing file.
         """
         superseded = await rag_document_repo.get_superseded(
             self.db,
@@ -373,10 +375,12 @@ class RAGDocumentService:
             await rag_document_repo.delete(self.db, stale.id)
         if storage_paths:
             from app.core.background import spawn_after_commit
-            from app.services.file_storage import delete_files_best_effort
+            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
 
             spawn_after_commit(
-                self.db, delete_files_best_effort(storage_paths), name="retire-superseded-files"
+                self.db,
+                dispatch_external_state_cleanup(storage_paths, []),
+                name="retire-superseded-cleanup",
             )
 
     async def fail_ingestion(self, doc_id: str, error_message: str) -> None:
@@ -456,6 +460,12 @@ class RAGDocumentService:
         runner rather than raised. The store rides the process's vector engine, not
         this request's session, so the deferred coroutine may hold it safely.
 
+        A single document's cleanup stays in-process, where the bulk teardown paths
+        (`delete_by_collection`, `_retire_superseded`, `KnowledgeBaseService.delete`)
+        hand theirs to a durable Prefect run (#1349): the leak a lost single-document
+        task would strand is one file and one document's vectors, and a durable run
+        per document delete is disproportionate to that.
+
         **`ingestion_service` has no default, and that is the whole of it.** It
         was `Any = None`, and the vector cleanup ran only when a caller happened
         to pass one - so `DELETE /kb/{kb_id}/documents/{doc_id}`, which did not,
@@ -491,19 +501,23 @@ class RAGDocumentService:
 
         The bulk row delete used to return only a count, so nothing removed the
         uploaded files and every one was orphaned on disk when a collection was
-        dropped (#1265). The unlink runs after the commit (`spawn_after_commit`),
-        so a rollback keeps the files beside the rows it restores rather than
-        stranding them on missing files (#1293). It is best-effort, and
-        `delete_files_best_effort` resolves the storage backend only when it runs -
-        a misconfigured backend fails the background unlink, not the drop.
+        dropped (#1265). The unlink is handed to a durable cleanup after the commit
+        (`spawn_after_commit` → `dispatch_external_state_cleanup`), so a rollback
+        keeps the files beside the rows it restores (#1293) and a worker restart
+        mid-drain no longer loses the ones still queued - the run is recorded on the
+        Prefect server and retried (#1349). Best-effort: the cleanup resolves the
+        storage backend only when it runs, so a misconfigured backend fails the
+        background run, not the drop.
         """
         storage_paths = await rag_document_repo.delete_by_collection(self.db, collection_name)
         if storage_paths:
             from app.core.background import spawn_after_commit
-            from app.services.file_storage import delete_files_best_effort
+            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
 
             spawn_after_commit(
-                self.db, delete_files_best_effort(storage_paths), name="delete-collection-files"
+                self.db,
+                dispatch_external_state_cleanup(storage_paths, []),
+                name="delete-collection-cleanup",
             )
 
     async def get_parsed_content(

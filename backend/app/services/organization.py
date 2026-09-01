@@ -383,11 +383,11 @@ class OrganizationService:
         to_drop = list(dict.fromkeys(collections)) if self._vector_store is not None else []
         if storage_paths or to_drop:
             from app.core.background import spawn_after_commit
-            from app.worker.tasks.teardown_tasks import dispatch_org_purge_cleanup
+            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
 
             spawn_after_commit(
                 self.db,
-                dispatch_org_purge_cleanup(storage_paths, to_drop),
+                dispatch_external_state_cleanup(storage_paths, to_drop),
                 name="org_purge_cleanup",
             )
 

@@ -1,11 +1,8 @@
-import contextlib
 import logging
 import re
 import secrets
-from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
@@ -38,9 +35,6 @@ from app.services.ingestion_config import (
     deployment_embedding,
 )
 from app.services.rag import embedding_providers
-
-if TYPE_CHECKING:
-    from app.services.rag.vectorstore import BaseVectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -96,28 +90,6 @@ def _with_counts(kb: KnowledgeBase, counts: CollectionCounts | None) -> Knowledg
             "chunk_count": counts.chunks,
         }
     )
-
-
-async def _drop_collection_if_unreferenced(store: "BaseVectorStore", collection: str) -> None:
-    """Drop a collection's vector table after the commit, unless its name was reclaimed.
-
-    Deferred past the request's commit by :meth:`KnowledgeBaseService.delete`, so a
-    rolled-back delete leaves the `rag_<collection>` table beside the knowledge-base
-    and document rows it restores rather than dropping a table those rows still
-    describe (#1347). The reference check is re-read on a session of its own, because
-    the collection name is not tenant-unique: a second organization can claim it in the
-    window between the commit and this drop, and its table must survive (#913) - the
-    same re-check `OrganizationService.purge`'s durable cleanup makes. Runs in-process
-    on the request's own loop, so the pooled `get_db_context` is right; the store rides
-    the process's vector engine, not the request session, so holding it here is safe.
-    """
-    from app.db.session import get_db_context
-
-    async with get_db_context() as db:
-        if await knowledge_base_repo.list_by_collection_name(db, collection):
-            return
-    with contextlib.suppress(SQLAlchemyError):
-        await store.delete_collection(collection)
 
 
 class KnowledgeBaseService:
@@ -493,9 +465,7 @@ class KnowledgeBaseService:
         await service.check_llamaparse_secret(ctx.organization_id, chosen)
         return chosen
 
-    async def delete(
-        self, kb_id: UUID, *, ctx: AuthContext, vector_store: "BaseVectorStore"
-    ) -> None:
+    async def delete(self, kb_id: UUID, *, ctx: AuthContext) -> None:
         """Delete a knowledge base and everything it owns.
 
         The row is not the whole of it: deleting only the `knowledge_bases` row
@@ -504,15 +474,19 @@ class KnowledgeBaseService:
         files, and the physical `rag_<collection>` vector table all behind, with
         the collection name still blocking reuse (#1266). So the documents go, then
         the row, then the table - dropped only when no other base still references
-        the name, which is not tenant-unique (#913). The store is required, not
-        optional, so a delete route cannot silently skip the teardown again.
+        the name, which is not tenant-unique (#913).
 
-        The stored files and the vector table are torn down after the commit
-        (`spawn_after_commit`), so a rollback keeps them beside the rows it restores
-        rather than stranding those rows on a missing file or a table that is gone
-        (#1293, #1347). The deferred drop re-reads the reference check on its own
-        session, because the name is not tenant-unique and a second org can reclaim it
-        in the window between the commit and the drop (#913).
+        The stored files and the vector table are torn down by a durable cleanup
+        handed over after the commit (`spawn_after_commit` →
+        `dispatch_external_state_cleanup`). Deferring past the commit means a
+        rollback keeps them beside the rows it restores rather than stranding those
+        rows on a missing file or a dropped table (#1293, #1347); a Prefect
+        deployment run rather than an in-process task means a worker restart
+        mid-cleanup no longer orphans them - the run is recorded on the server and
+        retried (#1349). The flow re-reads the reference check on its own session
+        before dropping, because the name is not tenant-unique and a second org can
+        reclaim it in the window between the commit and the drop (#913), and it
+        builds its own vector engine - which is why this no longer takes a store.
         """
         # Access first, then the rule about default bases: "cannot delete the
         # default knowledge base" is a statement about a row, so answering it for
@@ -528,13 +502,7 @@ class KnowledgeBaseService:
         await knowledge_base_repo.lock(self.db, kb.id)
         storage_paths = await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
         await knowledge_base_repo.delete(self.db, kb.id)
-        if storage_paths:
-            from app.core.background import spawn_after_commit
-            from app.services.file_storage import delete_files_best_effort
-
-            spawn_after_commit(
-                self.db, delete_files_best_effort(storage_paths), name="delete-kb-files"
-            )
+        collections_to_drop: list[str] = []
         if not await knowledge_base_repo.list_by_collection_name(self.db, collection):
             # No base references the name any more, so any sync source still
             # pointing at it is dangling: `get_due_for_sync` would re-select it
@@ -543,12 +511,15 @@ class KnowledgeBaseService:
             # connector and vault credential, but stops being scheduled.
             for source in await sync_source_repo.get_all(self.db, collection_name=collection):
                 await sync_source_repo.update(self.db, source.id, is_active=False)
+            collections_to_drop = [collection]
+        if storage_paths or collections_to_drop:
             from app.core.background import spawn_after_commit
+            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
 
             spawn_after_commit(
                 self.db,
-                _drop_collection_if_unreferenced(vector_store, collection),
-                name="delete-kb-collection",
+                dispatch_external_state_cleanup(storage_paths, collections_to_drop),
+                name="delete-kb-cleanup",
             )
 
     def _check_create_permission(self, *, scope: str, ctx: AuthContext) -> None:
