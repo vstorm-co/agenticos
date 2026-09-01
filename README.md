@@ -40,7 +40,7 @@ agent writes the code, runs it in a locked box, and answers.
 
 <div align="center">
 
-<video src="https://github.com/user-attachments/assets/4d97bc60-f7be-43f2-97fe-cc4e0765e8ed" controls muted loop playsinline width="100%">
+<video src="https://github.com/user-attachments/assets/9a8e0f44-781c-4f93-990d-b5b7094cc8fc" controls muted loop playsinline width="100%">
   <img src="docs/assets/screens/chat-live-demo.webp" alt="Chat: a CSV becomes Python in a sandbox, then charts" width="100%">
 </video>
 

@@ -92,7 +92,7 @@ browser cannot handle the *element*, not when its source resolves to nothing. A
 real player needs a URL GitHub itself serves, so the README points at an
 attachment on GitHub's own CDN:
 
-    https://github.com/user-attachments/assets/4d97bc60-f7be-43f2-97fe-cc4e0765e8ed
+    https://github.com/user-attachments/assets/9a8e0f44-781c-4f93-990d-b5b7094cc8fc
 
 That URL answers a range request with `206`, which is what makes the timeline
 scrubbable rather than a play button. It was produced by dropping
