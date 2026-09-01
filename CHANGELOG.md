@@ -17,6 +17,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.351] - 2026-09-01
+
+### Changed
+
+- Backend dependencies: `pydantic[email]` 2.13.5, `prefect` 3.8.4,
+  `pydantic-ai-harness` 0.27.0, `llama-cloud` 2.15.0, `liteparse` 2.14.2,
+  `google-auth` 2.57.0, `boto3` 1.43.83, `click` 8.5.0, `tavily-python` 0.8.0,
+  `cryptography` 50.0.1, `aiogram` 3.31.0, `slack-sdk` 3.44.0, and the dev pins
+  `ruff` 0.16.5 and `ty` 0.0.75. (#1367)
+
 ## [0.0.350] - 2026-09-01
 
 ### Changed
