@@ -40,6 +40,7 @@ from app.agents.deps import AgentDeps
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import OrgRoleName
 from app.db.models.agent_run import RunStatus, RunSurface
+from app.services import agent_chat as agent_chat_service
 from app.services.agent_chat import (
     ChatAgentRunner,
     display_output,
@@ -50,6 +51,25 @@ from app.services.agent_chat import (
 from app.services.agent_runner import AgentRunnerService, PreparedRun
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def _no_shares(monkeypatch):
+    """Every conversation in this module has one reader unless a test says so.
+
+    `ChatAgentRunner` asks the share repository whether anybody else can read the
+    conversation before it lets a binding speak as the runner's own account, and
+    these tests hand it a `MagicMock` session - so the real call fails inside
+    `db.execute`. Staged here rather than per test, and overridden where a test
+    is about a shared conversation.
+    """
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        agent_chat_service.conversation_share_repo,
+        "get_shares_for_conversation",
+        AsyncMock(return_value=[]),
+    )
 
 
 class TestWhatTheTurnCost:
@@ -423,6 +443,36 @@ class TestWhoTheRunBelongsTo:
                 await _run(_db())
 
             runner.prepare.assert_not_called()
+
+    async def test_a_conversation_nobody_else_can_read_is_private(self):
+        """The condition a personal MCP substitution waits for."""
+        with _runner(_prepared()) as runner:
+            await _run(_db(), conversation_id=uuid.uuid4())
+
+        assert runner.prepare.call_args.kwargs["private_to_user"] is True
+
+    async def test_a_shared_conversation_is_not_private(self, monkeypatch):
+        """A dashboard conversation can be shared with a member or through a
+        public link, and both leave a second reader in the room. Marking the
+        whole web surface private let a binding query the runner's own
+        third-party account and persist the answer where other people read it."""
+        monkeypatch.setattr(
+            agent_chat_service.conversation_share_repo,
+            "get_shares_for_conversation",
+            AsyncMock(return_value=[MagicMock()]),
+        )
+
+        with _runner(_prepared()) as runner:
+            await _run(_db(), conversation_id=uuid.uuid4())
+
+        assert runner.prepare.call_args.kwargs["private_to_user"] is False
+
+    async def test_a_conversation_that_does_not_exist_yet_is_private(self):
+        """Nothing has been shared with anybody, so there is nobody else in it."""
+        with _runner(_prepared()) as runner:
+            await _run(_db(), conversation_id=None)
+
+        assert runner.prepare.call_args.kwargs["private_to_user"] is True
 
 
 class TestMeteringWhatTheTurnEmbedded:

@@ -1764,6 +1764,7 @@ class AgentRunnerService:
         channel_directory: ChannelDirectory | None = None,
         user_name: str | None,
         private_to_user: bool = False,
+        owner_user_id: UUID | None = None,
         extra_toolsets: list[Any] | None,
         exposure: AgentExposure | None,
         decided: dict[str, ApprovalDecision],
@@ -1872,7 +1873,13 @@ class AgentRunnerService:
         # conversation nobody else can read, *and* a person to attribute it to.
         # An API key run is neither, and a channel run is only the first when the
         # caller says the chat is one-to-one.
-        personal_mcp_user_id = ctx.user_id if private_to_user else None
+        #
+        # `owner_user_id` is who the run belongs to, and it is not always whoever
+        # is calling. A run that parked for approval is resumed by an approver,
+        # so deriving this from `ctx` alone read *their* personal account inside
+        # somebody else's conversation - the resume path passes the recorded
+        # owner and this falls back to the caller only for a run being started.
+        personal_mcp_user_id = (owner_user_id or ctx.user_id) if private_to_user else None
 
         # The MCP servers the spec binds, resolved here rather than by each
         # surface. A surface that forgot would produce an agent missing half its
@@ -3357,6 +3364,10 @@ class AgentRunnerService:
             # as a channel (#1343).
             approval_mode=state.admitted_as.approval_mode,
             private_to_user=state.admitted_as.private_to_user and run.user_id is not None,
+            # Whose run this is, not who is resuming it. An approver is allowed
+            # to release somebody else's parked run; they are not the account it
+            # speaks through.
+            owner_user_id=run.user_id,
             extra_toolsets=None,
             # A resumed run reuses its row, and the binding is reloaded above to
             # re-enrich the spec, so there is nothing left for `_assemble` to

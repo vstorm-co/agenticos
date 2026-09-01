@@ -2037,7 +2037,12 @@ class TestResume:
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
         ):
-            await service.resume(_ctx(), run.id)
+            resumer = _ctx()
+            # Kept for the tests that ask *whose* account the continuation spoke
+            # through: the approver releasing a parked run is not its owner.
+            self.resumed_run = run
+            self.resumer = resumer
+            await service.resume(resumer, run.id)
 
         return build
 
@@ -2090,6 +2095,28 @@ class TestResume:
 
         assert run_user_id is not None
         assert toolsets.await_args.kwargs["personal_for_user_id"] is not None
+
+    @pytest.mark.anyio
+    async def test_the_continuation_speaks_as_the_runs_owner_and_not_the_approver(self):
+        """A parked run is released by whoever may approve it, which is often
+        somebody else. Deriving the personal MCP identity from the resuming
+        caller read *their* third-party account inside the owner's conversation -
+        and the previous test could not catch it, because it asserted only that
+        the identity was not None."""
+        with patch(
+            "app.services.agent_runner.build_toolsets_for_agent",
+            new=AsyncMock(return_value=[]),
+        ) as toolsets:
+            await self._resumed(
+                paused_state={
+                    "messages": [],
+                    "tool_call_ids": {},
+                    "admitted_as": {"approval_mode": "follow_agent", "private_to_user": True},
+                }
+            )
+
+        assert self.resumer.user_id != self.resumed_run.user_id, "the fixture must differ"
+        assert toolsets.await_args.kwargs["personal_for_user_id"] == self.resumed_run.user_id
 
     @pytest.mark.anyio
     async def test_a_parked_channel_run_answers_as_the_organization(self):
