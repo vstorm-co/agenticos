@@ -589,6 +589,8 @@ include = [
     # decided by filtering a data file against what the platform can actually
     # reach, and an entry that quietly stops being offered - or starts being
     # offered and fails on the first voice note - is invisible without a test.
+    "app/services/mcp_listing.py",
+    "app/services/mcp_registry.py",
     "app/services/speech_to_text.py",
     "app/services/transcription.py",
     # The rest of `app/services/rag/` came with the template and is reported
@@ -857,6 +859,8 @@ include = [
     # decided by filtering a data file against what the platform can actually
     # reach, and an entry that quietly stops being offered - or starts being
     # offered and fails on the first voice note - is invisible without a test.
+    "app/services/mcp_listing.py",
+    "app/services/mcp_registry.py",
     "app/services/speech_to_text.py",
     "app/services/transcription.py",
     # The rest of `app/services/rag/` came with the template and is reported

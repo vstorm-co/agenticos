@@ -26,7 +26,14 @@ from fastapi.responses import FileResponse
 
 from app.agents.capabilities import all_capabilities
 from app.agents.spec import AgentSpec
-from app.api.deps import AgentRegistrySvc, AgentRunnerSvc, Auth, limit_agent_run, require
+from app.api.deps import (
+    AgentRegistrySvc,
+    AgentRunnerSvc,
+    Auth,
+    DBSession,
+    limit_agent_run,
+    require,
+)
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
 from app.db.models.agent_run import RunSurface
@@ -57,9 +64,9 @@ from app.schemas.agent import (
     TemplateInstallRequest,
     TemplateInstallResult,
 )
+from app.services import mcp_catalog, mcp_listing
 from app.services.capability_contracts import tool_contracts
 from app.services.file_storage import sniff_image_media_type
-from app.services.mcp_catalog import CATALOG
 
 router = APIRouter()
 
@@ -135,11 +142,16 @@ async def install_agent_template(
     response_model=McpCatalog,
     dependencies=[Depends(require(Perm.AGENTS_VIEW))],
 )
-async def list_mcp_catalog() -> Any:
-    """Servers an organization can connect in one click, plus the custom option.
+async def list_mcp_catalog(db: DBSession) -> Any:
+    """The whole curated catalog, unpaged, plus what the mirror reaches.
 
-    Hand-curated rather than mirrored from the public registry: each entry is a
-    small promise that the auth flow works and the description is honest.
+    Unpaged on purpose and not the browsable list: a caller resolving a
+    *connection* to the entry it points at needs every entry to compare against,
+    and a page cannot answer that. `/agents/mcp-servers` is the paged list.
+
+    Hand-curated rather than mirrored: each entry is a small promise that the
+    auth flow works and the description is honest. `registry_total` says how many
+    the mirror holds beside them, so a count line can say what searching reaches.
     """
     items = [
         McpCatalogEntry(
@@ -153,9 +165,46 @@ async def list_mcp_catalog() -> Any:
             token_hint=entry.token_hint or None,
             icon=entry.icon or None,
         )
-        for entry in CATALOG
+        for entry in mcp_catalog.CATALOG
     ]
-    return McpCatalog(items=items, total=len(items))
+    return McpCatalog(
+        items=items,
+        total=len(items),
+        registry_total=await mcp_listing.mirror_size(db),
+    )
+
+
+@router.get(
+    "/mcp-servers",
+    response_model=McpCatalog,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_mcp_servers(
+    db: DBSession,
+    q: str = Query("", max_length=100, description="Filter by name, description, host or category"),
+    category: str = Query("", max_length=32, description="One catalog category, or blank for all"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    """One paged list: the curated catalog, then the mirrored public registry.
+
+    The console used to hold the curated hundred and filter it in the browser,
+    which is right for a list the client holds - and this one stopped being that
+    when 5,703 mirrored servers arrived behind them. Merging two paged sources in
+    the browser means the browser working out which page of which source a page of
+    the list needs, so the join happens in `mcp_listing.page` and the client
+    renders rows.
+
+    A registry row carries `reviewed: false`, the only thing separating it from a
+    curated one: nobody here checked it, the description is the publisher's, and
+    there is no token hint because the registry has no such field.
+    """
+    found = await mcp_listing.page(db, query=q, category=category, skip=skip, limit=limit)
+    return McpCatalog(
+        items=[McpCatalogEntry(**vars(server)) for server in found.items],
+        total=found.total,
+        registry_total=found.registry_total,
+    )
 
 
 @router.get("", response_model=AgentList, dependencies=[Depends(require(Perm.AGENTS_VIEW))])

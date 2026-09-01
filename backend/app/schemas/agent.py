@@ -393,11 +393,28 @@ class McpCatalogEntry(BaseSchema):
         default=None,
         description="Brand mark to draw, by name. Null falls back to a monogram in the client.",
     )
+    reviewed: bool = Field(
+        default=True,
+        description=(
+            "Whether somebody here checked this entry - that the auth flow works and "
+            "the description is honest. False for a server mirrored from the public "
+            "registry, where the description is the publisher's and there is no token "
+            "hint because the registry has no such field."
+        ),
+    )
 
 
 class McpCatalog(BaseSchema):
     items: list[McpCatalogEntry]
     total: int
+    registry_total: int = Field(
+        default=0,
+        description=(
+            "How many servers the mirrored public registry holds, for a console that "
+            "has to say what searching reaches. Zero on the registry's own responses - "
+            "there `total` is the result count and this would be the same number twice."
+        ),
+    )
 
 
 class CapabilityCatalog(BaseSchema):

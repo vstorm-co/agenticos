@@ -157,6 +157,11 @@ export interface McpServerRow {
 /** Where custom servers sort, and what the heading over them says. */
 export const CUSTOM_CATEGORY = "custom";
 
+/** Whether this row is one somebody here vouched for. */
+export function isReviewed(row: McpServerRow): boolean {
+  return row.entry?.reviewed !== false;
+}
+
 /**
  * The catalog, with every connection folded onto the row it belongs to.
  *
@@ -189,23 +194,46 @@ export function rowForEntry(entry: McpCatalogEntry): McpServerRow {
   };
 }
 
-export function mergeServers(
+export function rowsForEntries(
+  entries: McpCatalogEntry[],
+  organization: OrgMcpConnectionRecord[],
+  personal: McpConnectionRecord[],
+): McpServerRow[] {
+  // One row per server, holding every connection to it. An entry with three
+  // organization accounts is one card listing three, not three cards that
+  // differ in nothing a reader can see - the extras used to fall through as
+  // "custom" servers, which is where a second account went to be mislabelled.
+  return entries.map((entry) => ({
+    ...rowForEntry(entry),
+    organizations: connectionsForEntry(entry, organization),
+    personals: connectionsForEntry(entry, personal),
+  }));
+}
+
+/**
+ * Connections that match no catalog entry, as their own rows.
+ *
+ * **`catalog` has to be the whole catalog, not a page of it.** Whether a
+ * connection is "not in the catalog" is a question about every entry, so asking
+ * it of a page answers "yes" for a connection whose entry is on a different
+ * page - and the Notion connection then appeared as an uncatalogued server at the
+ * foot of every page, five times over, until a search for "notion" brought the
+ * entry onto the page and it merged again.
+ */
+export function customRows(
   catalog: McpCatalogEntry[],
   organization: OrgMcpConnectionRecord[],
   personal: McpConnectionRecord[],
 ): McpServerRow[] {
   const claimed = new Set<string>();
-
-  // One row per server, holding every connection to it. An entry with three
-  // organization accounts is one card listing three, not three cards that
-  // differ in nothing a reader can see - the extras used to fall through as
-  // "custom" servers, which is where a second account went to be mislabelled.
-  const rows: McpServerRow[] = catalog.map((entry) => {
-    const organizations = connectionsForEntry(entry, organization);
-    const personals = connectionsForEntry(entry, personal);
-    for (const connection of [...organizations, ...personals]) claimed.add(connection.id);
-    return { ...rowForEntry(entry), organizations, personals };
-  });
+  for (const entry of catalog) {
+    for (const connection of [
+      ...connectionsForEntry(entry, organization),
+      ...connectionsForEntry(entry, personal),
+    ]) {
+      claimed.add(connection.id);
+    }
+  }
 
   const custom = (connection: McpConnectionRecord, isOrg: boolean): McpServerRow => ({
     key: connection.id,
@@ -223,8 +251,25 @@ export function mergeServers(
   });
 
   return [
-    ...rows,
     ...organization.filter((c) => !claimed.has(c.id)).map((c) => custom(c, true)),
     ...personal.filter((c) => !claimed.has(c.id)).map((c) => custom(c, false)),
+  ];
+}
+
+/**
+ * The whole catalog with every connection folded onto the row it belongs to.
+ *
+ * For a caller holding the entire catalog. The paged list cannot use this: it
+ * has one page of entries, and `customRows` needs all of them to decide what is
+ * uncatalogued.
+ */
+export function mergeServers(
+  catalog: McpCatalogEntry[],
+  organization: OrgMcpConnectionRecord[],
+  personal: McpConnectionRecord[],
+): McpServerRow[] {
+  return [
+    ...rowsForEntries(catalog, organization, personal),
+    ...customRows(catalog, organization, personal),
   ];
 }

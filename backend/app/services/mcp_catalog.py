@@ -64,5 +64,39 @@ CATALOG: tuple[CatalogEntry, ...] = catalog.load(
 BY_KEY: dict[str, CatalogEntry] = {entry.key: entry for entry in CATALOG}
 
 
+def categories() -> tuple[str, ...]:
+    """Every category the catalog uses, sorted.
+
+    Answered here rather than derived in the console from a page of rows: a page
+    holds whichever categories happened to land on it, so a filter built from one
+    offers a different set on page two.
+    """
+    return tuple(sorted({entry.category for entry in CATALOG}))
+
+
+def matching(query: str, *, category: str = "") -> tuple[CatalogEntry, ...]:
+    """Curated entries a query matches, in catalog order.
+
+    Catalog order rather than a ranking: the file is ordered by how likely
+    somebody is to want the entry, which is a judgement no substring test
+    improves on at a hundred rows. The registry needs ranking because it has five
+    thousand and no such order.
+    """
+    found = CATALOG
+    if category:
+        found = tuple(entry for entry in found if entry.category == category)
+    needle = query.strip().casefold()
+    if not needle:
+        return found
+    return tuple(
+        entry
+        for entry in found
+        if needle in entry.name.casefold()
+        or needle in entry.description.casefold()
+        or needle in entry.url.casefold()
+        or needle in entry.category.casefold()
+    )
+
+
 def get_entry(key: str) -> CatalogEntry | None:
     return BY_KEY.get(key)

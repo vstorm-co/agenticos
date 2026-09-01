@@ -45,8 +45,13 @@ repos:
       - id: check-merge-conflict
       - id: end-of-file-fixer
       - id: trailing-whitespace
+      # 1 MB catches an accidental binary. The one deliberate exception is the
+      # MCP registry snapshot: 5,703 servers at four fields each, and every
+      # field is read. It is bundled rather than fetched so a first
+      # `mcp-registry-sync` is deterministic and works with no outbound access.
       - id: check-added-large-files
         args: [--maxkb=1024]
+        exclude: ^backend/app/core/catalog/mcp_registry\.json$
       # A vault is not much use if a key reaches the repository beside it.
       - id: detect-private-key
 
@@ -67,8 +72,11 @@ repos:
         additional_dependencies: [tomli]
         # `skip` in .codespellrc governs codespell's own directory walk; it does
         # not apply to paths pre-commit hands it explicitly. The Polish message
-        # catalog has to be excluded here or every entry reads as a misspelling.
-        exclude: ^frontend/messages/pl\.json$
+        # catalog has to be excluded here or every entry reads as a misspelling,
+        # and the MCP registry snapshot carries 5,703 publishers' own
+        # descriptions - their typos are not ours to correct, and a `--fetch`
+        # would bring every one of them back.
+        exclude: ^(frontend/messages/pl\.json|backend/app/core/catalog/mcp_registry\.json)$
 
   - repo: https://github.com/google/yamlfmt
     rev: v0.21.0

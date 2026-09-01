@@ -18,7 +18,6 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  useListControls,
 } from "@/components/ui";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { McpConnectionDialog } from "@/components/mcp/mcp-connection-dialog";
@@ -31,6 +30,7 @@ import {
   type ToolPickerState,
 } from "@/components/mcp/mcp-server-list-types";
 import { useMcpServers } from "@/hooks";
+import { MCP_PAGE_SIZE, useMcpCatalog, useMcpCatalogPage } from "@/hooks/use-mcp-servers";
 import { cn } from "@/lib/utils";
 import { getErrorMessage } from "@/lib/api-error";
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
@@ -38,8 +38,11 @@ import { startMcpOAuth } from "@/lib/mcp-connections-api";
 import {
   connectionState,
   CUSTOM_CATEGORY,
+  customRows,
+  isReviewed,
   MCP_AUTH_LABEL,
   MCP_STATE_LABEL,
+  rowsForEntries,
 } from "@/lib/mcp-servers";
 import type { McpServerRow } from "@/lib/mcp-servers";
 import { useTranslations } from "next-intl";
@@ -96,42 +99,77 @@ interface McpServerListProps {
 export function McpServerList({ canManageOrganization }: McpServerListProps) {
   const t = useTranslations("mcp");
   const tErrors = useTranslations("errors");
-  const { rows, organization, personal, recordTools } = useMcpServers();
+  const { organization, personal, recordTools } = useMcpServers();
+  // The whole curated catalog, for the category filter alone - see below.
+  const catalog = useMcpCatalog();
   const [category, setCategory] = useState<string>("all");
   const [state, setState] = useState<StateFilter>("all");
+  // The query, the category and the page all go to the server, because the list
+  // is a request now rather than a filter over what the client holds. It held
+  // the curated hundred and filtered them locally, which was right until 5,703
+  // mirrored registry servers arrived behind them: filtering a page is filtering
+  // whatever that page happened to contain, and so is ranking one.
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
+  const listing = useMcpCatalogPage(query, category === "all" ? "" : category, page);
 
-  // The catalog is compiled into the deployment and merged with the
-  // organization's connections in the browser, so filtering it is a filter and
-  // not a request. A round trip per keystroke over data already in hand would
-  // be the slower design, not the more scalable one.
+  // The page's catalog entries with their connections folded on. Custom rows are
+  // *not* built from a page: whether a connection is "not in the catalog" is a
+  // question about every entry, so asking it of fifty answers "yes" for a
+  // connection whose entry is on another page - which put the Notion connection
+  // at the foot of every page as an uncatalogued server, five times over, until
+  // searching "notion" brought its entry onto the page and it merged again.
+  const pageRows = useMemo(
+    () => rowsForEntries(listing.servers, organization.connections, personal.connections),
+    [listing.servers, organization.connections, personal.connections],
+  );
+
+  // Asked of the whole catalog, and appended once - on the last page, after
+  // everything the catalog and the mirror hold, because that is where "and these
+  // are yours" belongs in a list of five thousand.
+  const customs = useMemo(
+    () => customRows(catalog.servers, organization.connections, personal.connections),
+    [catalog.servers, organization.connections, personal.connections],
+  );
+
+  const pageCount = Math.max(1, Math.ceil((listing.total + customs.length) / MCP_PAGE_SIZE));
+  const onLastPage = page >= pageCount - 1;
+  const rows = useMemo(
+    () => (onLastPage ? [...pageRows, ...customs] : pageRows),
+    [onLastPage, pageRows, customs],
+  );
+
+  // Answered by the server rather than derived from the rows on screen: a page
+  // holds whichever categories landed on it, so a filter built from one offers a
+  // different set on page two.
   const categories = useMemo(
-    () => [...new Set(rows.map((row) => row.category).filter(Boolean))].sort(),
-    [rows],
+    () => [...new Set(catalog.servers.map((entry) => entry.category).filter(Boolean))].sort(),
+    [catalog.servers],
   );
-  const narrowed = useMemo(
+
+  // The one filter still applied in the browser, and the only one that can be:
+  // whether anybody has connected a server is a fact the client holds and the
+  // server would have to be told. It narrows the page rather than the list, which
+  // is the honest limit of doing it here.
+  const visible = useMemo(
     () =>
-      // Custom servers last: the catalog is the point of the grid, and what
-      // somebody typed a URL for is the exception to it. Catalog order is
-      // otherwise preserved by `mergeServers`.
-      [...rows]
-        .sort(
-          (a, b) => Number(a.category === CUSTOM_CATEGORY) - Number(b.category === CUSTOM_CATEGORY),
-        )
-        .filter((row) => category === "all" || row.category === category)
-        .filter((row) => {
-          if (state === "all") return true;
-          const connected = row.organizations.length > 0 || row.personals.length > 0;
-          return state === "connected" ? connected : !connected;
-        }),
-    [rows, category, state],
+      rows.filter((row) => {
+        if (state === "all") return true;
+        const connected = row.organizations.length > 0 || row.personals.length > 0;
+        return state === "connected" ? connected : !connected;
+      }),
+    [rows, state],
   );
-  const list = useListControls({
-    items: narrowed,
-    matches: (row, query) =>
-      row.name.toLowerCase().includes(query) ||
-      rowDescription(row, t).toLowerCase().includes(query) ||
-      (row.url ?? "").toLowerCase().includes(query),
-  });
+
+  function ask(next: string) {
+    setQuery(next);
+    setPage(0);
+  }
+
+  function narrow(next: string) {
+    setCategory(next);
+    setPage(0);
+  }
 
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [managing, setManaging] = useState<McpServerRow | null>(null);
@@ -355,18 +393,12 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       <ListCard
         data-tour="mcp-catalog"
         title={t("servers")}
-        counted={t("serverCount", { count: rows.length })}
-        controls={
-          <SearchInput
-            value={list.query}
-            onChange={list.setQuery}
-            placeholder={t("searchServers")}
-          />
-        }
+        counted={t("serverCount", { count: listing.total + customs.length })}
+        controls={<SearchInput value={query} onChange={ask} placeholder={t("searchServers")} />}
         contentClassName="space-y-4 p-4"
       >
         <div data-tour="mcp-filter" className="flex flex-wrap items-center gap-2">
-          <Select value={category} onValueChange={setCategory}>
+          <Select value={category} onValueChange={narrow}>
             <SelectTrigger className="w-auto min-w-40" aria-label={t("category")}>
               <SelectValue />
             </SelectTrigger>
@@ -437,7 +469,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
          * only reason to lay a catalog out as a grid rather than as rows.
          */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {list.visible.map((row, index) => (
+          {visible.map((row, index) => (
             <Card
               key={row.key}
               role="group"
@@ -459,9 +491,24 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex items-start justify-between gap-2">
                       <span className="truncate text-sm font-medium">{row.name}</span>
-                      <Badge variant="outline" className="shrink-0">
-                        {t(MCP_AUTH_LABEL[row.auth])}
-                      </Badge>
+                      {/* One list holds both kinds, so the difference has to be
+                          on the row rather than in a heading over half of it.
+                          Nobody here checked a registry server: the description
+                          is the publisher's and there is no token hint, which is
+                          worth knowing before pasting a credential into it. */}
+                      {isReviewed(row) ? (
+                        <Badge variant="outline" className="shrink-0">
+                          {t(MCP_AUTH_LABEL[row.auth])}
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="secondary"
+                          className="shrink-0"
+                          title={t("fromRegistryHint")}
+                        >
+                          {t("fromRegistry")}
+                        </Badge>
+                      )}
                     </div>
                     <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
                       {row.category === CUSTOM_CATEGORY
@@ -566,12 +613,12 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         </div>
 
         <Pager
-          page={list.page}
-          pageCount={list.pageCount}
-          matched={list.matched}
-          total={list.total}
-          onPage={list.setPage}
-          counted={t("serverCount", { count: list.total })}
+          page={page}
+          pageCount={pageCount}
+          matched={listing.total + customs.length}
+          total={listing.total + customs.length}
+          onPage={setPage}
+          counted={t("serverCount", { count: listing.total + customs.length })}
         />
       </ListCard>
 

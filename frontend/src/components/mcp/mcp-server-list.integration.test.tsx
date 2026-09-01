@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { McpServerList } from "./mcp-server-list";
 import { apiClient } from "@/lib/api-client";
+import type { McpCatalogEntry } from "@/types/mcp";
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 
@@ -77,10 +78,64 @@ function connection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConn
   };
 }
 
+/** What the mirrored registry answers for the next search, set per test. */
+let registryResults: McpCatalogEntry[] = [];
+
+/** Every `/agents/mcp-servers` path the component asked for. */
+function listCalls(): string[] {
+  return vi
+    .mocked(apiClient.get)
+    .mock.calls.map(([path]) => path as string)
+    .filter((path) => path.startsWith("/agents/mcp-servers"));
+}
+
+/** One registry entry, which differs from a catalog one by `reviewed`. */
+function registryEntry(overrides: Partial<McpCatalogEntry> = {}): McpCatalogEntry {
+  return {
+    key: "com.example/thing",
+    name: "Some Thing",
+    description: "The publisher's own words.",
+    category: "other",
+    auth: "token",
+    url: "https://mcp.example.test/mcp",
+    docs_url: null,
+    token_hint: null,
+    icon: null,
+    reviewed: false,
+    ...overrides,
+  };
+}
+
 /** Route each GET to the list it is asking for, so the two owners stay distinct. */
 function serve(org: OrgMcpConnectionRecord[], own: McpConnectionRecord[]) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    // The unpaged curated catalog, which the category filter and the connection
+    // dialogs read - a page cannot answer "which entry is this connection".
     if (path === "/agents/mcp-catalog") return CATALOG;
+    // The paged list, which is the grid. The server joins the curated rows and
+    // the registry mirror; here the mock plays both, in that order.
+    if (path.startsWith("/agents/mcp-servers")) {
+      // Filters and pages the way the endpoint does. A mock that answered every
+      // query with everything would make "the grid narrows to what was searched
+      // for" a test of the mock.
+      const params = new URLSearchParams(path.split("?")[1] ?? "");
+      const needle = (params.get("q") ?? "").toLowerCase();
+      const skip = Number(params.get("skip") ?? 0);
+      const limit = Number(params.get("limit") ?? 50);
+      const all = [...CATALOG.items, ...registryResults];
+      const matched = needle
+        ? all.filter(
+            (entry) =>
+              entry.name.toLowerCase().includes(needle) ||
+              (entry.description ?? "").toLowerCase().includes(needle),
+          )
+        : all;
+      return {
+        items: matched.slice(skip, skip + limit),
+        total: matched.length,
+        registry_total: registryResults.length,
+      };
+    }
     if (path === "/mcp-connections") return { items: org, total: org.length };
     if (path === "/me/mcp-connections") return { items: own, total: own.length };
     throw new Error(`unexpected GET ${path}`);
@@ -109,7 +164,10 @@ async function mount({
 }
 
 describe("McpServerList", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    registryResults = [];
+  });
 
   it("keeps the card to two controls and counts what is behind them", async () => {
     // The card used to grow a chip per connection, so a server with three
@@ -621,5 +679,90 @@ describe("naming a connection something a person can read", () => {
 
     const form = within(await screen.findByRole("dialog"));
     expect(form.getByLabelText("Name")).toHaveValue("Marketing workspace");
+  });
+  it("finds a registry server in the same list as the catalog", async () => {
+    // The point of one list: a server the curated hundred has never heard of is
+    // found by typing its name, in the same grid, not on a second screen.
+    registryResults = [registryEntry({ name: "Weibo Reader" })];
+    await mount();
+
+    await userEvent.type(screen.getByPlaceholderText(/Search/i), "weibo");
+
+    expect(await screen.findByText("Weibo Reader")).toBeVisible();
+  });
+
+  it("says on the row that nobody here reviewed it", async () => {
+    // Hiding this would be the price of one list: the description is the
+    // publisher's and there is no token hint, which matters before somebody
+    // pastes a credential into it.
+    registryResults = [registryEntry()];
+    await mount();
+
+    await userEvent.type(screen.getByPlaceholderText(/Search/i), "thing");
+
+    expect(await screen.findByText("Registry")).toBeVisible();
+  });
+  it("asks the server for the query rather than filtering in the browser", async () => {
+    // The list stopped being one the client holds when 5,703 mirrored servers
+    // arrived behind the curated hundred, so the query is a request now.
+    await mount();
+
+    await userEvent.type(screen.getByPlaceholderText(/Search/i), "github");
+
+    await waitFor(() => expect(listCalls().some((p) => p.includes("q=github"))).toBe(true));
+  });
+
+  it("goes back to the first page when the query changes", async () => {
+    // Searching to three results while sitting on page four shows an empty grid
+    // under a pager that says there are three.
+    await mount();
+
+    await userEvent.type(screen.getByPlaceholderText(/Search/i), "github");
+
+    await waitFor(() =>
+      expect(listCalls().some((p) => p.includes("q=github") && p.includes("skip=0"))).toBe(true),
+    );
+  });
+
+  it("asks the server for the category too", async () => {
+    // Filtering a page by category is filtering whatever that page happened to
+    // hold, so the category is a request like the query.
+    await mount();
+
+    await userEvent.click(screen.getByRole("combobox", { name: /Category/i }));
+    await userEvent.click(await screen.findByRole("option", { name: /Development/i }));
+
+    await waitFor(() =>
+      expect(listCalls().some((p) => p.includes("category=development"))).toBe(true),
+    );
+  });
+
+  it("finds a registry server in the same list as the catalog", async () => {
+    // One list: a server the curated hundred has never heard of appears in the
+    // same grid, not on a second screen.
+    registryResults = [registryEntry({ name: "Weibo Reader" })];
+    await mount();
+
+    expect(await screen.findByText("Weibo Reader")).toBeVisible();
+  });
+
+  it("says on the row that nobody here reviewed it", async () => {
+    registryResults = [registryEntry()];
+    await mount();
+
+    expect(await screen.findByText("Registry")).toBeVisible();
+  });
+  it("does not call a connection uncatalogued because its entry is off-page", async () => {
+    // Whether a connection is "not in the catalog" is a question about every
+    // entry. Asked of a page it answers "yes" for a connection whose entry is on
+    // another page - so the GitHub connection below reads as an uncatalogued
+    // server the moment a search pushes the GitHub entry out of the page, which
+    // is how it appeared at the foot of every page of five thousand.
+    await mount({ org: [connection()] });
+
+    await userEvent.type(screen.getByPlaceholderText(/Search/i), "linear");
+
+    await waitFor(() => expect(screen.queryByText("GitHub")).toBeNull());
+    expect(screen.queryByText(/not from the catalog/i)).toBeNull();
   });
 });

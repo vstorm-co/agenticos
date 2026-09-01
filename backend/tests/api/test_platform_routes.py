@@ -312,6 +312,7 @@ CALLS: tuple[Call, ...] = (
     # Which providers can draw an image and which of their models may be asked to.
     # Gated the same way and for the same reason: it is the Builder's picker, and
     # "OpenAI draws through the Responses API" is not a secret.
+    Call("GET", "/agents/mcp-servers", Perm.AGENTS_VIEW),
     Call("GET", "/providers/image-models", Perm.AGENTS_VIEW),
     Call("GET", "/providers/speech-to-text-models", Perm.AGENTS_VIEW),
     Call("GET", "/providers/model-profiles", Perm.AGENTS_VIEW),

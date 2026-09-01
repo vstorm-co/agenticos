@@ -417,6 +417,10 @@ export const qk = {
     // Builder and Settings, and invalidating the agent registry must not
     // discard a catalog that only changes on redeploy.
     catalog: () => ["mcp-servers", "catalog"] as const,
+    // Keyed on the query and the page: the list is a request now, so each page
+    // of each query is its own resource rather than a filter over one blob.
+    listPage: (query: string, category: string, page: number) =>
+      ["mcp-servers", "list", query, category, page] as const,
   },
   sessions: {
     // The namespace, for invalidating every page at once: a revocation shifts

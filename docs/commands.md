@@ -351,6 +351,33 @@ uv run agenticos cmd seed --count 10 --clear
 migrations it needs. Run `doctor` first when something works locally and not on a
 fresh environment — it is faster than reading logs.
 
+### The MCP registry mirror
+
+```bash
+# Fill or refresh `mcp_registry_servers` from the bundled snapshot.
+uv run agenticos cmd mcp-registry-sync
+
+# Or from the live registry, which is how the mirror moves between deploys.
+uv run agenticos cmd mcp-registry-sync --fetch
+
+# Keep rows the registry no longer lists, rather than pruning them.
+uv run agenticos cmd mcp-registry-sync --no-prune
+```
+
+**`make platform-bootstrap` already loads it**, from the bundled snapshot, so a
+first-time setup needs none of this. It is skipped when the table already holds
+rows: a re-run of bootstrap must not spend seconds rewriting five thousand
+unchanged rows, and refreshing the mirror is this command's job rather than
+bootstrap's.
+
+Run it by hand on a deployment that predates the table, or to pick up a newer
+snapshot. The sync is idempotent: a second run stamps `synced_at` and changes
+nothing else unless the registry did.
+
+Pruning is what removes a delisted server. Without it the mirror only grows and a
+dead endpoint stays offerable for ever, so it is on by default and keyed on
+`synced_at` rather than on a diff of five thousand ids.
+
 ### Channel bots
 
 See [Channels](channels.md) for what each platform supports.

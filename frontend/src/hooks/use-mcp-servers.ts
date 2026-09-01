@@ -26,6 +26,45 @@ export function useMcpCatalog() {
   return { servers: data?.items ?? [], isLoading };
 }
 
+/** What one page of the server list holds. */
+export const MCP_PAGE_SIZE = 50;
+
+/**
+ * One page of the MCP list: the curated catalog, then the mirrored registry.
+ *
+ * A request rather than a filter, which is the opposite of what this page used
+ * to do. The curated hundred could be held and filtered in the browser; the
+ * 5,703 registry rows behind them cannot, and merging two paged sources in the
+ * browser means the browser working out which page of which source a page of the
+ * list needs. The server joins them and answers with rows.
+ *
+ * `registryTotal` is what the mirror holds, which the count line needs to say
+ * what the list reaches - zero until `agenticos cmd mcp-registry-sync` has run.
+ */
+export function useMcpCatalogPage(query: string, category: string, page: number) {
+  const needle = query.trim();
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: qk.mcpServers.listPage(needle, category, page),
+    queryFn: () =>
+      apiClient.get<McpCatalog>(
+        `/agents/mcp-servers?q=${encodeURIComponent(needle)}` +
+          `&category=${encodeURIComponent(category)}` +
+          `&skip=${page * MCP_PAGE_SIZE}&limit=${MCP_PAGE_SIZE}`,
+      ),
+    // A page already fetched is worth keeping while the next one loads, so
+    // paging does not blank the grid on every click.
+    placeholderData: (previous) => previous,
+    staleTime: Infinity,
+  });
+  return {
+    servers: data?.items ?? [],
+    total: data?.total ?? 0,
+    registryTotal: data?.registry_total ?? 0,
+    isLoading,
+    isFetching,
+  };
+}
+
 export type { McpServerRow };
 
 /**

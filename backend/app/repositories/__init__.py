@@ -53,6 +53,7 @@ from app.repositories import deployment_settings as deployment_settings_repo
 from app.repositories import dashboard_preset as dashboard_preset_repo
 
 from app.repositories import mcp_connection as mcp_connection_repo
+from app.repositories import mcp_registry_server as mcp_registry_server_repo
 from app.repositories import organization_secret as organization_secret_repo
 from app.repositories import teardown_intent as teardown_intent_repo
 
@@ -79,6 +80,7 @@ __all__ = [
     "deployment_settings_repo",
     "dashboard_preset_repo",
     "mcp_connection_repo",
+    "mcp_registry_server_repo",
     "teardown_intent_repo",
     "organization_secret_repo",
     "resource_grant_repo",

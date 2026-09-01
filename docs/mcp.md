@@ -424,8 +424,63 @@ that the description is honest — and a mirrored registry cannot make that prom
 
     Both facts are worth holding at once. The catalog is not short of entries
     because nobody looked; it is the length it is because a hand-checked list of
-    things a company actually uses converges at about a hundred. Anything past
-    that is reached with **Custom server**, which needs no catalog entry at all.
+    things a company actually uses converges at about a hundred.
+
+### The registry is in the same list, and in the database
+
+So the mirror is shipped too, and **/mcp is one list of all of them** — the
+curated hundred first, then 5,703 mirrored servers, paged. Not a curated grid
+with a search that reaches further: one list, one pager, one count.
+
+That needed a table. `mcp_registry_servers` is deployment-wide and has no
+`organization_id`, which is the whole reason it is a table rather than five
+thousand rows per tenant — the skill gallery settled the neighbouring question
+the other way, and the difference is that a catalog is not tenant data. It is
+filled by `agenticos cmd mcp-registry-sync`, from the bundled snapshot or, with
+`--fetch`, from the live registry.
+
+Held in the database because a file cannot be paged. 5,703 entries in memory
+could answer "servers matching 'linear'" and could not answer "the fourth page of
+all of them" without loading the lot and slicing it. The ranking moved into SQL
+with it, for the same reason: ranking a page is ranking whatever that page
+happened to contain. Three bands — the server *called* Linear, then names merely
+containing it, then descriptions that mention it — shorter name first inside a
+band, so `Stripe` beats `Sweden Payments (Stripe)`.
+
+It is one list with a fact on some rows rather than two lists. A registry row
+carries a **Registry** badge where a curated one carries its auth kind, because
+the difference is worth knowing before somebody pastes a credential: nobody here
+reviewed it, the description is the publisher's, and there is no token hint —
+the registry has no such field to mirror.
+
+Three things follow from the size, and each is why it is a search rather than a
+listing:
+
+- **Paged by the server, not filtered by the browser.** Fifty to a page, and the
+  query, the category and the page are all requests. A page boundary lands inside
+  the join — 99 curated rows against a page size of 50 — so the arithmetic lives
+  in `mcp_listing.page` with a test on the boundary, because an off-by-one there
+  skips a server or shows it twice on a list where nobody would notice which.
+- **A category asks for catalog entries only.** The mirror has no categories, so
+  answering one with mirrored rows would file uncategorised servers under a
+  heading that says otherwise.
+- **No baked logo.** The console inlines a favicon per curated host so a badge
+  renders offline; at 1.9 KB each, doing that for the mirror would be 10.5 MB of
+  base64 in a module the browser loads. Registry rows fall through to the
+  runtime favicon service, which is what it was written for.
+- **A snapshot, not a proxy.** An install must not stop working because somebody
+  else's registry is down, and a name that resolved yesterday resolving to
+  nothing today is worse than one that was never there.
+
+    `make platform-bootstrap` loads it, so a new deployment has it without
+    anybody reading this. `agenticos cmd mcp-registry-sync` refreshes it, and
+    `--fetch` reads the live registry rather than the bundled snapshot. On a
+    deployment that predates the table the list is the curated hundred until the
+    sync runs — which is what it was before any of this, so nothing regresses
+    while somebody gets round to it.
+
+A server in neither list is still reachable: **Custom server** takes any URL and
+needs no catalog entry at all.
 
 !!! info "Four of these are gateways, and they are a different promise"
 
