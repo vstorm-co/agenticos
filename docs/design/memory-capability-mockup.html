@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="en" class="">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Memory capability — frontend spec (in-app mockup)</title>
+<style>
+/* ============================================================
+   Tokens lifted verbatim from frontend/src/app/globals.css.
+   Standalone MOCKUP embedded in the real AgenticOS app chrome
+   (sidebar + agent page + tab bar). No backend, no repo code.
+   ============================================================ */
+:root{
+  --brand-h:259;--brand-c:0.19;
+  --brand-50:oklch(97% calc(var(--brand-c)*0.06) var(--brand-h));
+  --brand-100:oklch(94% calc(var(--brand-c)*0.12) var(--brand-h));
+  --brand-400:oklch(70% calc(var(--brand-c)*0.8) var(--brand-h));
+  --brand-700:oklch(48% calc(var(--brand-c)*0.98) var(--brand-h));
+  --brand-800:oklch(40% calc(var(--brand-c)*0.82) var(--brand-h));
+  --brand-900:oklch(31% calc(var(--brand-c)*0.62) var(--brand-h));
+  --brand-950:oklch(23% calc(var(--brand-c)*0.42) var(--brand-h));
+  --color-background:oklch(97.5% 0.003 250);
+  --color-foreground:oklch(15% 0 0);
+  --color-card:oklch(100% 0 0);
+  --color-popover:oklch(100% 0 0);
+  --color-primary:oklch(21% 0.01 250);
+  --color-primary-foreground:oklch(98.5% 0 0);
+  --color-primary-hover:oklch(30% 0.01 250);
+  --color-secondary:oklch(94% 0.004 250);
+  --color-secondary-foreground:oklch(20% 0 0);
+  --color-muted:oklch(94% 0.004 250);
+  --color-muted-foreground:oklch(45% 0 0);
+  --color-accent:oklch(94% 0.004 250);
+  --color-accent-foreground:oklch(20% 0 0);
+  --color-destructive:oklch(56% 0.17 25);
+  --color-destructive-foreground:oklch(98.5% 0 0);
+  --color-warning:oklch(64% 0.1 72);
+  --color-success:oklch(58% 0.1 155);
+  --color-border:oklch(89% 0.004 250);
+  --color-input:oklch(89% 0.004 250);
+  --color-brand:var(--brand-700);
+  --color-brand-hover:var(--brand-800);
+  --color-brand-foreground:oklch(100% 0 0);
+  --color-brand-subtle:var(--brand-50);
+  --color-brand-line:oklch(79% calc(var(--brand-c)*0.5) var(--brand-h));
+  --color-chart:oklch(64% 0.13 259);--color-track:oklch(95% 0.012 259);
+  --radius:0.5rem;--radius-card:1rem;--radius-pill:999px;
+  --shadow-card:0 1px 2px 0 oklch(0% 0 0/0.05),0 1px 3px 0 oklch(0% 0 0/0.03);
+  --shadow-float:0 4px 6px -2px oklch(0% 0 0/0.05),0 10px 15px -3px oklch(0% 0 0/0.08);
+  --font-body:"Inter",system-ui,sans-serif;
+  --font-mono:"Geist Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+html.dark{
+  --color-background:oklch(20% 0.006 250);--color-foreground:oklch(95% 0.005 250);
+  --color-card:oklch(24% 0.006 250);--color-popover:oklch(26% 0.006 250);
+  --color-primary:oklch(96% 0.003 250);--color-primary-foreground:oklch(16% 0.01 250);
+  --color-primary-hover:oklch(88% 0.004 250);
+  --color-secondary:oklch(28% 0.006 250);--color-secondary-foreground:oklch(95% 0 0);
+  --color-muted:oklch(28% 0.006 250);--color-muted-foreground:oklch(68% 0.008 250);
+  --color-accent:oklch(30% 0.006 250);--color-accent-foreground:oklch(95% 0 0);
+  --color-destructive:oklch(56% 0.17 25);--color-warning:oklch(78% 0.1 78);--color-success:oklch(74% 0.11 155);
+  --color-border:oklch(34% 0.008 250);--color-input:oklch(32% 0.008 250);
+  --color-brand:var(--brand-400);--color-brand-hover:var(--brand-300,oklch(79% calc(var(--brand-c)*0.5) var(--brand-h)));
+  --color-brand-foreground:oklch(17% 0.03 var(--brand-h));
+  --color-brand-subtle:var(--brand-950);--color-brand-line:var(--brand-800);
+  --color-chart:oklch(74% 0.1 259);--color-track:oklch(31% 0.022 259);
+}
+*{box-sizing:border-box;border-color:var(--color-border)}
+body{margin:0;background:var(--color-background);color:var(--color-foreground);
+  font-family:var(--font-body);-webkit-font-smoothing:antialiased;font-size:14px;line-height:1.5}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+h1,h2,h3,h4{margin:0;font-weight:600;letter-spacing:-0.01em}
+::selection{background:var(--color-brand);color:var(--color-brand-foreground)}
+svg{display:block}
+
+/* ---------- app shell ---------- */
+.app{display:flex;min-height:100vh}
+.sidebar{width:240px;flex:none;border-right:1px solid var(--color-border);
+  background:oklch(from var(--color-card) l c h/0.55);backdrop-filter:blur(24px);
+  display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.sb-brand{height:56px;flex:none;display:flex;align-items:center;gap:9px;padding:0 14px;border-bottom:1px solid var(--color-border);font-weight:600}
+.logo{height:26px;width:26px;border-radius:8px;background:var(--color-primary);color:var(--color-primary-foreground);display:grid;place-items:center;font-weight:700;font-size:13px}
+.sb-nav{display:flex;flex-direction:column;gap:20px;padding:16px 12px;overflow-y:auto}
+.sb-group{display:flex;flex-direction:column;gap:2px}
+.sb-glabel{color:var(--color-muted-foreground);padding:0 10px 6px;font-size:11px;font-weight:500;letter-spacing:.04em;text-transform:uppercase}
+.sb-item{display:flex;align-items:center;gap:10px;border-radius:8px;padding:6px 10px;font-size:14px;color:var(--color-muted-foreground);cursor:pointer;text-decoration:none}
+.sb-item:hover{color:var(--color-foreground)}
+.sb-item.active{background:var(--color-accent);color:var(--color-foreground);font-weight:500}
+.sb-item svg{height:16px;width:16px;flex:none}
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+
+/* mock strip */
+.mockbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:8px 24px;border-bottom:1px dashed var(--color-border);background:var(--color-brand-subtle);font-size:12px}
+.mockbar b{font-weight:600}
+.crumb{color:var(--color-muted-foreground)}
+.crumb b{color:var(--color-foreground)}
+.spacer{flex:1}
+.content{padding:22px 24px 90px;max-width:1180px;width:100%}
+
+/* ---------- primitives ---------- */
+.card{background:var(--color-card);border:1px solid var(--color-border);border-radius:var(--radius-card);box-shadow:var(--shadow-card)}
+.card-h{padding:20px 22px 0}.card-b{padding:22px}
+.card-t{font-weight:600;letter-spacing:-.01em;font-size:15px}
+.card-d{color:var(--color-muted-foreground);font-size:13px;margin-top:3px}
+.muted{color:var(--color-muted-foreground)}
+.sep{height:1px;background:var(--color-border);border:0;margin:0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap;border-radius:var(--radius-pill);
+  font-size:13px;font-weight:500;height:36px;padding:0 16px;cursor:pointer;border:1px solid transparent;transition:.15s;user-select:none}
+.btn:focus-visible{outline:2px solid var(--color-brand);outline-offset:2px}
+.btn-primary{background:var(--color-primary);color:var(--color-primary-foreground);box-shadow:var(--shadow-card)}
+.btn-primary:hover{background:var(--color-primary-hover)}
+.btn-outline{background:var(--color-card);border-color:var(--color-input);box-shadow:var(--shadow-card)}
+.btn-outline:hover{background:var(--color-accent)}
+.btn-ghost:hover{background:var(--color-accent)}
+.btn-destructive{background:var(--color-destructive);color:var(--color-destructive-foreground);box-shadow:var(--shadow-card)}
+.btn-destructive:hover{filter:brightness(.94)}
+.btn-sm{height:30px;padding:0 12px;font-size:12px}
+.badge{display:inline-flex;align-items:center;gap:5px;border-radius:var(--radius-pill);border:1px solid transparent;padding:2px 9px;font-size:11.5px;font-weight:500;line-height:1.4}
+.badge-outline{border-color:var(--color-border);color:var(--color-foreground)}
+.badge-secondary{background:var(--color-secondary);color:var(--color-secondary-foreground)}
+.badge-brand{background:var(--color-brand-subtle);color:var(--color-brand);border-color:var(--color-brand-line)}
+.badge-operator{background:color-mix(in oklab,var(--color-success) 14%,transparent);color:var(--color-success);border-color:color-mix(in oklab,var(--color-success) 34%,transparent)}
+.badge-agent{background:color-mix(in oklab,var(--color-warning) 14%,transparent);color:var(--color-warning);border-color:color-mix(in oklab,var(--color-warning) 36%,transparent)}
+.dot{height:6px;width:6px;border-radius:999px;background:currentColor;display:inline-block}
+.sw{position:relative;height:20px;width:36px;border-radius:999px;background:var(--color-input);border:2px solid transparent;cursor:pointer;transition:background .15s;flex:none;padding:0}
+.sw[aria-checked="true"]{background:var(--color-brand)}
+.sw::after{content:"";position:absolute;top:0;left:0;height:16px;width:16px;border-radius:999px;background:var(--color-background);box-shadow:0 1px 3px rgb(0 0 0/.3);transition:transform .15s}
+.sw[aria-checked="true"]::after{transform:translateX(16px)}
+.seg{display:inline-flex;background:var(--color-muted);border:1px solid var(--color-border);border-radius:var(--radius-pill);padding:3px;gap:2px}
+.seg button{border:0;background:none;border-radius:var(--radius-pill);padding:5px 13px;font-size:13px;font-weight:500;color:var(--color-muted-foreground);cursor:pointer}
+.seg button[aria-selected="true"]{background:var(--color-card);color:var(--color-foreground);box-shadow:var(--shadow-card)}
+.sel{height:36px;border-radius:10px;border:1px solid var(--color-input);background:var(--color-card);color:var(--color-foreground);padding:0 12px;font-size:13px;font-family:inherit}
+.inp{height:36px;border-radius:10px;border:1px solid var(--color-input);background:var(--color-card);color:var(--color-foreground);padding:0 12px;font-size:13px;font-family:inherit;width:100%}
+textarea.inp{height:auto;padding:10px 12px;line-height:1.55;resize:vertical}
+label.fld{display:block;font-size:12.5px;font-weight:600;margin-bottom:6px}
+.hint{font-size:12px;color:var(--color-muted-foreground);margin-top:6px}
+
+/* agent header + tabs */
+.agenthdr{display:flex;align-items:flex-start;gap:14px;margin-bottom:20px}
+.avatar{height:46px;width:46px;border-radius:12px;background:var(--avatar,oklch(86% 0.085 265));color:oklch(34% 0.03 265);display:grid;place-items:center;font-weight:700;font-size:17px;flex:none}
+.pagetitle{font-size:22px;font-weight:700;letter-spacing:-.02em}
+.tabs{display:flex;gap:22px;border-bottom:1px solid var(--color-border);color:var(--color-muted-foreground);overflow-x:auto}
+.tabs button{background:none;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;padding:0 2px 12px;font-size:14px;font-weight:500;color:inherit;cursor:pointer;display:inline-flex;gap:7px;align-items:center;white-space:nowrap}
+.tabs button[aria-selected="true"]{border-color:var(--color-foreground);color:var(--color-foreground)}
+.tabs .newpill{font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:var(--color-brand-subtle);color:var(--color-brand);border:1px solid var(--color-brand-line);border-radius:999px;padding:1px 6px}
+
+/* callouts */
+.callout{border-radius:12px;padding:11px 13px;font-size:13px;display:flex;gap:10px;line-height:1.5}
+.callout .ic{flex:none;font-size:14px}
+.co-warn{background:color-mix(in oklab,var(--color-warning) 10%,transparent);border:1px solid color-mix(in oklab,var(--color-warning) 30%,transparent)}
+.co-danger{background:color-mix(in oklab,var(--color-destructive) 9%,transparent);border:1px solid color-mix(in oklab,var(--color-destructive) 28%,transparent)}
+.co-info{background:var(--color-brand-subtle);border:1px solid var(--color-brand-line)}
+.co-muted{background:var(--color-muted);border:1px solid var(--color-border)}
+
+/* workbench */
+.wb{display:grid;grid-template-columns:minmax(0,17rem) minmax(0,1fr);gap:18px;align-items:start}
+.wb-rail{display:flex;flex-direction:column;gap:14px}
+.cap-cat{color:var(--color-muted-foreground);padding:0 4px 2px;font-size:11px;font-weight:500;letter-spacing:.04em;text-transform:uppercase}
+.cap-row{display:flex;align-items:flex-start;gap:8px;border-radius:10px;border:1px solid transparent;padding:8px 9px;cursor:pointer;transition:.12s}
+.cap-row:hover{background:oklch(from var(--color-accent) l c h/0.5)}
+.cap-row.focused{border-color:oklch(from var(--color-foreground) l c h/0.25);background:var(--color-accent)}
+.cap-row .nm{font-size:13px;font-weight:500;display:flex;align-items:center;gap:6px}
+.cap-row .ds{color:var(--color-muted-foreground);font-size:11.5px;margin-top:2px;display:block}
+.shield{color:var(--color-muted-foreground);font-size:11px}
+
+/* table */
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--color-muted-foreground);font-weight:600;padding:0 12px 10px}
+.tbl td{padding:12px;border-top:1px solid var(--color-border);vertical-align:middle}
+.row-click{cursor:pointer}.row-click:hover td{background:var(--color-accent)}
+.filemono{font-family:var(--font-mono);font-size:12.5px;font-weight:600}
+.strip{display:flex;flex-wrap:wrap;gap:22px;align-items:center;padding:12px 16px;border:1px solid var(--color-border);border-radius:12px;background:var(--color-card)}
+.strip .k{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--color-muted-foreground);font-weight:600}
+.strip .v{font-weight:600;font-family:var(--font-mono)}
+.meter{height:6px;width:110px;border-radius:999px;background:var(--color-track);overflow:hidden}
+.meter span{display:block;height:100%;background:var(--color-chart)}
+.empty{text-align:center;padding:44px 24px;border:1px dashed var(--color-border);border-radius:12px}
+.empty .big{font-size:15px;font-weight:600;margin-bottom:6px}
+.scrim{position:fixed;inset:0;background:oklch(0% 0 0/.45);display:none;align-items:center;justify-content:center;z-index:60;padding:20px}
+.scrim.open{display:flex}
+.modal{background:var(--color-popover);border:1px solid var(--color-border);border-radius:16px;box-shadow:var(--shadow-float);width:100%;max-width:560px;max-height:88vh;overflow:auto}
+.modal-h{padding:20px 22px 0}.modal-b{padding:20px 22px}.modal-f{padding:0 22px 20px;display:flex;gap:10px;justify-content:flex-end}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.rowflex{display:flex;align-items:center;gap:12px}
+.between{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.stack{display:flex;flex-direction:column;gap:18px}
+.chipline{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.kbd{font-family:var(--font-mono);font-size:11px;background:var(--color-muted);border:1px solid var(--color-border);border-radius:6px;padding:1px 6px}
+.hide{display:none!important}
+details.map{margin-top:24px;border:1px solid var(--color-border);border-radius:12px;background:var(--color-card)}
+details.map summary{cursor:pointer;padding:16px 18px;font-weight:600;list-style:none}
+details.map summary::-webkit-details-marker{display:none}
+.mapbody{padding:0 18px 18px}
+.maptable{width:100%;border-collapse:collapse;font-size:12.5px}
+.maptable th,.maptable td{text-align:left;padding:8px 10px;border-top:1px solid var(--color-border);vertical-align:top}
+.maptable th{color:var(--color-muted-foreground);text-transform:uppercase;font-size:10.5px;letter-spacing:.06em}
+.maptable code{font-family:var(--font-mono);font-size:11.5px}
+.tag{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--color-muted-foreground)}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== SIDEBAR (real nav) ===== -->
+  <aside class="sidebar">
+    <div class="sb-brand"><span class="logo">A</span> AgenticOS</div>
+    <nav class="sb-nav">
+      <div class="sb-group">
+        <a class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>Dashboard</a>
+        <a class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Chat</a>
+      </div>
+      <div class="sb-group">
+        <div class="sb-glabel">Build</div>
+        <a class="sb-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M12 8V4M8 3h8M8 14h.01M16 14h.01"/></svg>Agents</a>
+        <a class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/></svg>Skills</a>
+        <a class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg>Context</a>
+        <a class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Activity</a>
+        <a class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 2l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"/></svg>Routines</a>
+      </div>
+      <div class="sb-group">
+        <div class="sb-glabel">Knowledge</div>
+        <a class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5M3 12a9 3 0 0 0 18 0"/></svg>Knowledge bases</a>
+      </div>
+      <div class="sb-group">
+        <div class="sb-glabel">Workspace</div>
+        <a class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M8 10h.01M16 10h.01M8 14h.01M16 14h.01"/></svg>Organizations</a>
+        <a class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="15" r="4"/><path d="M10.85 12.15 19 4l2 2-1.5 1.5L18 6M16 8l1.5 1.5"/></svg>Vault</a>
+        <a class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22v-5M9 8V2M15 8V2M6 8h12v4a6 6 0 0 1-12 0z"/></svg>MCP servers</a>
+        <a class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/></svg>Channels</a>
+        <a class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2.97 12.92A2 2 0 0 0 2 14.63v3.24a2 2 0 0 0 .97 1.71l3 1.8a2 2 0 0 0 2.06 0L12 19v-5.5l-5-3zM7 16.5 2.74 13.5M7 16.5l4.26-3M7 16.5V21M17 12.92a2 2 0 0 0-.97 1.71v3.24a2 2 0 0 0 .97 1.71l3 1.8a2 2 0 0 0 2.06 0l3-1.8a2 2 0 0 0 .97-1.71v-3.24M12 6.81 7 3.5 12 .5l5 3z"/></svg>Sandboxes</a>
+        <a class="sb-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>Workspaces</a>
+      </div>
+    </nav>
+  </aside>
+
+  <!-- ===== MAIN ===== -->
+  <div class="main">
+    <div class="mockbar">
+      <span class="crumb">Agents / <b>Support Copilot</b></span>
+      <span class="spacer"></span>
+      <b>Mockup:</b>
+      <span>Memory lives in <b>two</b> places →</span>
+      <div class="seg" role="tablist" aria-label="jump">
+        <button role="tab" aria-selected="true" onclick="goTab('toolbox',this)">Toolbox › config</button>
+        <button role="tab" aria-selected="false" onclick="goTab('memory',this)">Memory tab › manage</button>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="toggleTheme()" id="themeBtn">☾ Dark</button>
+    </div>
+
+    <div class="content">
+      <!-- agent header -->
+      <div class="agenthdr">
+        <div class="avatar">SC</div>
+        <div style="flex:1">
+          <div class="rowflex"><span class="pagetitle">Support Copilot</span><span class="badge badge-secondary">Published · v7</span><span class="badge badge-outline">Draft changes</span></div>
+          <div class="muted" style="font-size:13px;margin-top:3px">Customer-facing assistant · answers from the KB, remembers per client</div>
+        </div>
+        <div class="rowflex"><button class="btn btn-outline btn-sm">Preview</button><button class="btn btn-primary btn-sm">Publish</button></div>
+      </div>
+
+      <!-- agent tab bar -->
+      <div class="tabs" role="tablist">
+        <button role="tab" aria-selected="false" onclick="goTab('build',this)">Build</button>
+        <button role="tab" aria-selected="true" id="tt-toolbox" onclick="goTab('toolbox',this)">Toolbox</button>
+        <button role="tab" aria-selected="false" onclick="goTab('mcp',this)">MCP servers</button>
+        <button role="tab" aria-selected="false" onclick="goTab('limits',this)">Limits</button>
+        <button role="tab" aria-selected="false" onclick="goTab('availability',this)">Availability</button>
+        <button role="tab" aria-selected="true" id="tt-memory" onclick="goTab('memory',this)" style="display:none">Memory <span class="newpill">new</span></button>
+        <button role="tab" aria-selected="false" onclick="goTab('history',this)">History</button>
+      </div>
+
+      <!-- ============ TOOLBOX TAB (capability config) ============ -->
+      <section id="pane-toolbox" style="margin-top:24px">
+        <div class="card">
+          <div class="card-h"><div class="card-t">Capabilities</div><div class="card-d">What this agent can do. Pick on the left; configure the one you're looking at on the right.</div></div>
+          <div class="card-b">
+            <div class="wb">
+              <!-- left rail -->
+              <div class="wb-rail">
+                <input class="inp" placeholder="Search capabilities…"/>
+                <div>
+                  <div class="cap-cat">Knowledge</div>
+                  <div class="cap-row" onclick="selCap(this)"><div style="flex:1"><span class="nm">Knowledge search</span><span class="ds">Search the bound knowledge bases</span></div><button class="sw" aria-checked="true" role="switch" onclick="event.stopPropagation()"></button></div>
+                  <div class="cap-row" onclick="selCap(this)"><div style="flex:1"><span class="nm">Context</span><span class="ds">Inject the org's standing context</span></div><button class="sw" aria-checked="true" role="switch" onclick="event.stopPropagation()"></button></div>
+                  <div class="cap-row focused" onclick="selCap(this)"><div style="flex:1"><span class="nm">Memory <span class="shield" title="acts on the world (writes)">◈</span></span><span class="ds">Persist &amp; recall facts across runs</span></div><button class="sw" id="capMem" aria-checked="true" role="switch" onclick="event.stopPropagation();toggleCap()"></button></div>
+                </div>
+                <div>
+                  <div class="cap-cat">Compute</div>
+                  <div class="cap-row" onclick="selCap(this)"><div style="flex:1"><span class="nm">Code execution</span><span class="ds">Run sandboxed Python</span></div><button class="sw" aria-checked="false" role="switch" onclick="event.stopPropagation()"></button></div>
+                  <div class="cap-row" onclick="selCap(this)"><div style="flex:1"><span class="nm">Charts</span><span class="ds">Render data as charts</span></div><button class="sw" aria-checked="false" role="switch" onclick="event.stopPropagation()"></button></div>
+                  <div class="cap-row" onclick="selCap(this)"><div style="flex:1"><span class="nm">Sandbox <span class="shield" title="acts on the world">◈</span></span><span class="ds">Files &amp; commands in a workspace</span></div><button class="sw" aria-checked="false" role="switch" onclick="event.stopPropagation()"></button></div>
+                </div>
+                <div>
+                  <div class="cap-cat">Web</div>
+                  <div class="cap-row" onclick="selCap(this)"><div style="flex:1"><span class="nm">Web search</span><span class="ds">Search the web mid-run</span></div><button class="sw" aria-checked="false" role="switch" onclick="event.stopPropagation()"></button></div>
+                  <div class="cap-row" onclick="selCap(this)"><div style="flex:1"><span class="nm">Web fetch</span><span class="ds">Read a URL</span></div><button class="sw" aria-checked="false" role="switch" onclick="event.stopPropagation()"></button></div>
+                </div>
+              </div>
+
+              <!-- right: Memory config panel -->
+              <div class="card" id="memCfg" style="box-shadow:none">
+                <div class="card-h between">
+                  <div><div class="card-t">Memory</div><div class="card-d mono" style="font-size:11.5px">capability id: memory · category: knowledge</div></div>
+                  <span class="badge badge-brand"><span class="dot"></span> Enabled</span>
+                </div>
+                <div class="card-b stack" id="memCfgBody">
+                  <!-- backend -->
+                  <div class="between">
+                    <div style="max-width:60%"><div style="font-weight:600;font-size:13.5px">Backend</div><div class="card-d">Where memories live. Native is self-hostable &amp; default; mem0 is opt-in.</div></div>
+                    <div class="seg" role="tablist"><button role="tab" aria-selected="true" id="beNative" onclick="setBackend('native')">Native</button><button role="tab" aria-selected="false" id="beMem0" onclick="setBackend('mem0')">mem0</button></div>
+                  </div>
+                  <hr class="sep"/>
+                  <!-- shapes -->
+                  <div>
+                    <div style="font-weight:600;font-size:13.5px">Shape</div><div class="card-d">Two independent switches. Both may be on; both off ⇒ the capability contributes nothing.</div>
+                    <div style="margin-top:12px;display:flex;flex-direction:column;gap:11px">
+                      <div class="between"><div><b>Files</b> — named records + a derived <span class="mono">MEMORY.md</span> index. <span class="muted">Exact recall.</span></div><button class="sw" id="shFiles" aria-checked="true" role="switch" onclick="toggleShape('shFiles')"></button></div>
+                      <div class="between"><div><b>Facts</b> — short facts, recalled semantically (pgvector). <span class="muted">Fuzzy recall.</span></div><button class="sw" id="shFacts" aria-checked="true" role="switch" onclick="toggleShape('shFacts')"></button></div>
+                    </div>
+                    <div id="shapeNone" class="callout co-warn hide" style="margin-top:11px"><span class="ic">⚠</span><div>Both shapes off — the capability won't attach. Enable Files and/or Facts.</div></div>
+                  </div>
+                  <hr class="sep"/>
+                  <!-- partition -->
+                  <div class="between"><div style="max-width:58%"><div style="font-weight:600;font-size:13.5px">Partition</div><div class="card-d">Whose memories these are.</div></div>
+                    <select class="sel" id="partition" onchange="onPartition()"><option value="shared" selected>Shared — one store per agent</option><option value="per_user">Per-user — private per end-user</option></select></div>
+                  <div id="partShared" class="callout co-muted"><span class="ic">🏢</span><div><b>Shared</b> — every end-user reads/writes one store (company memory). Promises no per-user isolation.</div></div>
+                  <div id="partPerUser" class="callout co-info hide"><span class="ic">👤</span><div><b>Per-user</b> — a private partition per end-user, keyed from a server-derived signal. On <b>hosted pages, the embed widget and anonymous visitors</b> there is no per-person signal, so per-user memory <b>refuses</b> there rather than pooling everyone into the owner's store.</div></div>
+                  <hr class="sep"/>
+                  <!-- injection -->
+                  <div class="between"><div style="max-width:58%"><div style="font-weight:600;font-size:13.5px">Injection</div><div class="card-d">How memory reaches the model.</div></div>
+                    <select class="sel" id="injection" onchange="onInjection()"><option value="none" selected>None — via tools only</option><option value="index">Index — inject the file index</option><option value="full">Full — inject file bodies</option></select></div>
+                  <div id="injWarn" class="callout co-warn hide"><span class="ic">⚠</span><div><b>Applies to operator-authored files only.</b> <b>Agent-authored</b> memory is <b>always tool-only</b> — never injected, in any partition (the poisoning defense). Injection splices only trusted, operator-authored content into instructions, like context.</div></div>
+                  <!-- mem0 -->
+                  <div id="mem0Panel" class="hide">
+                    <hr class="sep"/>
+                    <div style="font-weight:600;font-size:13.5px">mem0 connection</div><div class="card-d" style="margin-bottom:12px">Facts are stored in mem0. Files always stay native.</div>
+                    <div class="grid2">
+                      <div><label class="fld">API key (vault secret)</label><select class="sel" style="width:100%"><option>mem0 · prod ···· 4f9a</option><option>+ Add a new secret…</option></select><div class="hint">Vault kind <span class="mono">api_key</span>, purpose <span class="mono">mem0</span>. The model never sees it.</div></div>
+                      <div><label class="fld">Base URL</label><input class="inp" value="https://api.mem0.ai"/><div class="hint">Cloud, or a self-hosted mem0.</div></div>
+                    </div>
+                    <div class="callout co-warn" style="margin-top:12px"><span class="ic">🌐</span><div><b>Data residency.</b> mem0 <b>cloud</b> sends memory content off this deployment. Self-host mem0 to keep it in-house.</div></div>
+                    <div id="mem0H1" class="callout co-warn hide" style="margin-top:10px"><span class="ic">ℹ</span><div><b>mem0 has no effect here.</b> mem0 backs <b>Facts</b>, and Facts is off — so this config is treated as <b>Native</b> and no mem0 key is required. Enable Facts to use mem0. <span class="muted">(Publish normalizes backend→native; it won't reject.)</span></div></div>
+                  </div>
+                  <hr class="sep"/>
+                  <div class="between"><div class="mono" id="cfgSummary" style="font-size:12px;color:var(--color-muted-foreground)"></div><span class="muted" style="font-size:12px">Autosaved to draft · publish to apply</span></div>
+                </div>
+                <div id="memOff" class="card-b hide"><div class="empty" style="padding:30px"><div class="big">Memory is off</div><div class="muted">Toggle it on in the list to configure it. With it off the capability isn't bound to the spec.</div></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="callout co-info" style="margin-top:16px"><span class="ic">📍</span><div><b>Where you are:</b> Agents › Support Copilot › <b>Toolbox</b> tab › Capabilities. This is the spec-level config (what memory does). The stored memories themselves are managed in the <b>Memory</b> tab — <button class="btn btn-ghost btn-sm" style="height:22px;padding:0 8px" onclick="goTab('memory')">open it →</button></div></div>
+      </section>
+
+      <!-- ============ MEMORY TAB (management) ============ -->
+      <section id="pane-memory" class="hide" style="margin-top:24px">
+        <div class="between" style="margin-bottom:16px">
+          <div class="chipline"><span class="badge badge-secondary">Files</span><span class="badge badge-secondary">Facts</span><span class="badge badge-brand" id="mPartBadge"><span class="dot"></span> Shared</span><span class="badge badge-outline">Backend: Native</span></div>
+          <div class="rowflex"><button class="btn btn-outline btn-sm" id="emptyBtn" onclick="toggleEmpty()">Show empty state</button><button class="btn btn-destructive btn-sm" onclick="openClear()">Clear all memory…</button></div>
+        </div>
+
+        <div class="strip" style="margin-bottom:16px">
+          <div><div class="k">Embedding cost</div><div class="rowflex" style="margin-top:5px"><span class="v" style="font-size:13px">metered per run</span><a href="#" onclick="return false" style="font-size:12px;color:var(--color-brand);text-decoration:underline">View in Activity →</a></div></div>
+          <div><div class="k">Embedding model</div><div class="v" style="margin-top:5px;font-size:13px">text-embedding-3-large</div></div>
+          <div><div class="k">Facts</div><div class="v" style="margin-top:5px;font-size:13px">2</div></div>
+          <div><div class="k">Files</div><div class="v" style="margin-top:5px;font-size:13px">3</div></div>
+          <span class="spacer"></span><span class="badge badge-outline" title="runtime remember/recall metered into the run ledger">metered</span>
+        </div>
+
+        <div class="card" style="margin-bottom:16px"><div class="card-b rowflex" style="flex-wrap:wrap;gap:14px">
+          <div><label class="fld">Scope</label><div class="seg" role="tablist"><button role="tab" aria-selected="true" onclick="setScope('all',this)">All</button><button role="tab" aria-selected="false" onclick="setScope('shared',this)">Shared</button><button role="tab" aria-selected="false" onclick="setScope('per_user',this)">Per-user</button></div></div>
+          <div id="scopePicker" class="hide"><label class="fld">End-user</label><select class="sel"><option>user:0f3a91b2 — alicia@acme.example</option><option>chan:sl_U08K2QX — Slack · @dan</option><option>chan:tg_5521904 — Telegram · Priya</option></select></div>
+          <span class="spacer"></span><div><label class="fld">Search</label><input class="inp" placeholder="Search memory…" style="width:220px"/></div>
+        </div></div>
+
+        <div id="refusalState" class="callout co-info hide" style="margin-bottom:16px"><span class="ic">🚫</span><div><b>Per-user memory is unavailable on this surface.</b> This agent is reached through a hosted page / embed widget, which doesn't identify individual end-users — so there's no per-person key to scope a private store to. Use <b>Shared</b>, or expose the agent where people authenticate (web chat, API, linked Slack/Telegram).</div></div>
+
+        <div id="populated">
+          <div class="tabs" style="margin-bottom:18px"><button aria-selected="true" id="subFiles" onclick="setSub('files')">Files <span class="badge badge-secondary" style="padding:0 7px">3</span></button><button aria-selected="false" id="subFacts" onclick="setSub('facts')">Facts <span class="badge badge-secondary" style="padding:0 7px">2</span></button></div>
+
+          <div id="paneFiles">
+            <div class="between" style="margin-bottom:12px"><div class="muted" style="font-size:13px">Index (the agent's <span class="mono">MEMORY.md</span>, derived from the rows)</div><button class="btn btn-primary btn-sm" onclick="openNewFile()">+ New file</button></div>
+            <div class="card"><div class="card-b" style="padding:12px 10px"><table class="tbl">
+              <thead><tr><th>Name</th><th>Description</th><th>Origin</th><th>Kind</th><th>Partition</th><th>Updated</th></tr></thead>
+              <tbody>
+                <tr class="row-click" onclick="openFile('user-preferences','Preferred tone and response formats','operator','note','shared','2 days ago')"><td class="filemono">user-preferences</td><td class="muted">Preferred tone and response formats</td><td><span class="badge badge-operator"><span class="dot"></span>Operator</span></td><td><span class="badge badge-outline">note</span></td><td><span class="badge badge-secondary">Shared</span></td><td class="muted">2 days ago</td></tr>
+                <tr class="row-click" onclick="openFile('onboarding-runbook','Steps for setting up a new client workspace','operator','runbook','shared','6 days ago')"><td class="filemono">onboarding-runbook</td><td class="muted">Steps for setting up a new client workspace</td><td><span class="badge badge-operator"><span class="dot"></span>Operator</span></td><td><span class="badge badge-outline">runbook</span></td><td><span class="badge badge-secondary">Shared</span></td><td class="muted">6 days ago</td></tr>
+                <tr class="row-click" onclick="openFile('acme-account-notes','What the agent learned about the Acme account','agent','memory','per_user','5 hours ago')"><td class="filemono">acme-account-notes</td><td class="muted">What the agent learned about the Acme account</td><td><span class="badge badge-agent"><span class="dot"></span>Agent</span></td><td><span class="badge badge-outline">memory</span></td><td><span class="badge badge-brand"><span class="dot"></span>user:0f3a91b2</span></td><td class="muted">5 hours ago</td></tr>
+              </tbody></table></div></div>
+            <div class="hint" style="margin-top:10px"><span class="badge badge-operator" style="transform:scale(.92)"><span class="dot"></span>Operator</span> = trusted (injectable). <span class="badge badge-agent" style="transform:scale(.92)"><span class="dot"></span>Agent</span> = untrusted — not injected into instructions by default.</div>
+          </div>
+
+          <div id="paneFacts" class="hide">
+            <div class="callout co-muted" style="margin-bottom:14px"><span class="ic">ℹ</span><div>Facts are written by the agent while it runs. As an operator you can <b>review and delete</b> them — not create or edit. Search here is a plain-text <b>substring filter</b>; semantic recall is the agent's runtime tool, not an operator action (a KNN query would embed off-ledger).</div></div>
+            <div class="between" style="margin-bottom:12px"><input class="inp" placeholder="Filter facts (substring)…" style="max-width:340px"/><button class="btn btn-outline btn-sm" onclick="openClearFacts()">Clear all facts…</button></div>
+            <div class="card"><div class="card-b" style="padding:6px 0">
+              <div class="row-click" style="padding:14px 18px" onclick="openFact('The client prefers weekly email summaries sent on Fridays.','per_user · user:0f3a91b2','3 hours ago','0.91')"><div class="between"><div>The client prefers weekly email summaries sent on Fridays.</div><div class="chipline"><span class="badge badge-agent"><span class="dot"></span>Agent</span><span class="badge badge-brand"><span class="dot"></span>user:0f3a91b2</span></div></div><div class="muted" style="font-size:12px;margin-top:6px">created 3 hours ago</div></div>
+              <hr class="sep"/>
+              <div class="row-click" style="padding:14px 18px" onclick="openFact('Acme\'s fiscal year starts in April.','shared','1 day ago','0.86')"><div class="between"><div>Acme's fiscal year starts in April.</div><div class="chipline"><span class="badge badge-agent"><span class="dot"></span>Agent</span><span class="badge badge-secondary">Shared</span></div></div><div class="muted" style="font-size:12px;margin-top:6px">created 1 day ago</div></div>
+            </div></div>
+          </div>
+        </div>
+
+        <div id="emptyWrap" class="hide"><div class="empty"><div class="big">No memories yet</div><div class="muted" style="max-width:420px;margin:0 auto 14px">This agent hasn't remembered anything yet. Facts appear as the agent writes them during runs; you can add reference files yourself.</div><button class="btn btn-primary btn-sm" onclick="openNewFile()">+ New file</button></div></div>
+
+        <div class="card" style="margin-top:22px;border-color:color-mix(in oklab,var(--color-destructive) 40%,var(--color-border))"><div class="card-b between"><div><div class="card-t" style="color:var(--color-destructive)">Clear all memory</div><div class="card-d">Permanently delete every file and fact for this agent, in every partition. A store nobody can clear is a liability.</div></div><button class="btn btn-destructive" onclick="openClear()">Clear all memory…</button></div></div>
+
+        <div class="callout co-info" style="margin-top:16px"><span class="ic">📍</span><div><b>Where you are:</b> Agents › Support Copilot › <b>Memory</b> tab (new). This manages the stored memories. To change what memory <i>does</i> (backend, shapes, partition), go to <button class="btn btn-ghost btn-sm" style="height:22px;padding:0 8px" onclick="goTab('toolbox')">Toolbox → Memory config →</button></div></div>
+      </section>
+
+      <!-- other tabs (chrome completeness) -->
+      <section id="pane-other" class="hide" style="margin-top:24px"><div class="empty"><div class="big" id="otherName">—</div><div class="muted">Out of scope for this memory mockup — shown so the tab bar reads complete.</div></div></section>
+
+      <!-- coverage map -->
+      <details class="map">
+        <summary>Backend coverage checklist — UI element ↔ what the plan (Rev 5) requires</summary>
+        <div class="mapbody">
+          <div class="tag" style="margin:8px 0 4px">Placement</div>
+          <p class="muted" style="font-size:12.5px">Config → <b>Agents › [agent] › Toolbox › Capabilities › Memory</b> (spec-level, <code>MemoryConfig</code>). Management → <b>Agents › [agent] › Memory tab</b> (runtime data, <code>/api/v1/memory</code>).</p>
+          <div class="tag" style="margin:14px 0 4px">Toolbox config → <code>MemoryConfig</code> / spec binding</div>
+          <table class="maptable"><tr><th>UI</th><th>Backend</th></tr>
+            <tr><td>Memory switch in the capability list</td><td>bind <code>memory</code> in <code>AgentSpec.capabilities</code>; both shapes off ⇒ builder returns <code>None</code></td></tr>
+            <tr><td>Backend Native/mem0</td><td><code>MemoryConfig.backend</code></td></tr>
+            <tr><td>Files / Facts switches</td><td><code>enable_files</code>, <code>enable_facts</code> (N5 — not a scalar <code>shape</code>; <code>CONFIGS["memory"]</code> enables both for the drift test)</td></tr>
+            <tr><td>Partition</td><td><code>partition</code> (default <code>shared</code>)</td></tr>
+            <tr><td>Injection</td><td><code>injection</code> (default <code>none</code>); only <code>origin=operator</code> injected (§2a)</td></tr>
+            <tr><td>mem0 key / base URL</td><td><code>CapabilityBinding.secret_id</code> (vault <code>api_key</code>, purpose <code>mem0</code>, <code>required_when backend==mem0</code>); <code>mem0_base_url</code></td></tr>
+            <tr><td>mem0 without Facts</td><td><code>@model_validator</code> normalizes backend→native when facts off (H1) — <b>soft</b> (accepted), not a hard error</td></tr></table>
+          <div class="tag" style="margin:16px 0 4px">Memory tab → <code>/api/v1/memory</code> + models</div>
+          <table class="maptable"><tr><th>UI</th><th>Backend</th></tr>
+            <tr><td>Scope filter + end-user picker</td><td><code>end_user_scope_key</code> in <code>prepare</code>: <code>chan:{channel_identity_id}</code> → <code>user:{user_id}</code> (non-fallback) → REFUSE; new <code>AuthContext.subject_is_publisher_fallback</code> (N1)</td></tr>
+            <tr><td>Files table (index)</td><td><code>GET /api/v1/memory/files</code> → <code>agent_memory_files</code> (name, description, origin, kind, partition, updated_at)</td></tr>
+            <tr><td>New file · editor Save/Delete</td><td><code>POST</code> / <code>PATCH</code> / <code>DELETE /api/v1/memory/files/{id}</code> (operator; origin=operator)</td></tr>
+            <tr><td>Facts list + operator filter</td><td><code>GET /api/v1/memory/facts</code> → <code>agent_memory_facts</code>; operator filter is <b>substring/ILIKE</b> on <code>content</code> (no query embedding — C1/BONUS-3). Semantic KNN (deployment <code>EMBEDDING_MODEL</code>, F-N2) is the agent's runtime <code>recall</code> tool, not an operator endpoint.</td></tr>
+            <tr><td>Fact — Delete only</td><td><code>DELETE /api/v1/memory/facts/{id}</code>; no operator create/edit (N4)</td></tr>
+            <tr><td>Clear all</td><td><code>DELETE /api/v1/memory?agent_id</code> (#788 liability)</td></tr>
+            <tr><td>Metering strip</td><td>runtime <code>remember</code>/<code>recall</code> → <code>record_ambient_usage</code> in the run's <code>metered_by</code>; <b>not tagged per-capability</b> (C2) → run-level spend in Activity, not a memory-specific rollup</td></tr>
+            <tr><td>Origin / Partition badges</td><td><code>origin</code> (operator|agent), <code>partition</code>+<code>end_user_scope_key</code> columns</td></tr>
+            <tr><td>Refusal / empty / disabled</td><td>per-user on publisher-fallback surface refuses (N1); capability unbound</td></tr>
+            <tr><td>Auth (all routes)</td><td><code>resolve_access(agent, AGENTS_VIEW/EDIT)</code> — rides on the parent agent (no <code>memory:*</code>)</td></tr></table>
+        </div>
+      </details>
+
+    </div>
+  </div>
+</div>
+
+<!-- modals -->
+<div class="scrim" id="fileModal"><div class="modal"><div class="modal-h"><div class="between"><div class="card-t" id="fmTitle">Edit file</div><span id="fmOrigin"></span></div><div class="card-d" id="fmMeta"></div></div>
+  <div class="modal-b stack" style="gap:14px"><div><label class="fld">Name</label><input class="inp filemono" id="fmName"/></div><div><label class="fld">Description <span class="muted">(shown in the index)</span></label><input class="inp" id="fmDesc"/></div>
+  <div class="grid2"><div><label class="fld">Kind</label><input class="inp" id="fmKind"/></div><div><label class="fld">Partition</label><input class="inp" id="fmPart" disabled/></div></div>
+  <div><label class="fld">Content</label><textarea class="inp mono" rows="7" id="fmBody"></textarea></div>
+  <div id="fmUntrusted" class="callout co-warn hide"><span class="ic">⚠</span><div>Written by the <b>agent</b> (untrusted): readable on demand, <b>never injected</b>. Saving edits keeps it <b>agent</b>-origin — use <button class="btn btn-outline btn-sm" style="height:24px;margin:0 3px" onclick="return false">Promote to trusted</button> to make it operator-authored (and injectable). A deliberate action, never a side-effect of Save.</div></div></div>
+  <div class="modal-f"><button class="btn btn-ghost" onclick="closeModal('fileModal')">Cancel</button><button class="btn btn-destructive" onclick="closeModal('fileModal')">Delete</button><button class="btn btn-primary" onclick="closeModal('fileModal')">Save</button></div></div></div>
+
+<div class="scrim" id="factModal"><div class="modal" style="max-width:520px"><div class="modal-h"><div class="between"><div class="card-t">Fact</div><span class="badge badge-agent"><span class="dot"></span>Agent · untrusted</span></div></div>
+  <div class="modal-b stack" style="gap:14px"><div class="card" style="box-shadow:none"><div class="card-b" id="factBody" style="font-size:15px"></div></div>
+  <div class="chipline"><span class="badge badge-outline" id="factPart"></span><span class="muted" style="font-size:12px" id="factCreated"></span></div>
+  <div class="callout co-muted"><span class="ic">ℹ</span><div>Read-only. Facts are agent-written; an operator can delete but not edit them here.</div></div></div>
+  <div class="modal-f"><button class="btn btn-ghost" onclick="closeModal('factModal')">Close</button><button class="btn btn-destructive" onclick="closeModal('factModal')">Delete fact</button></div></div></div>
+
+<div class="scrim" id="newFileModal"><div class="modal"><div class="modal-h"><div class="card-t">New file</div><div class="card-d">Operator-authored files are trusted and may be injected.</div></div>
+  <div class="modal-b stack" style="gap:14px"><div class="grid2"><div><label class="fld">Name</label><input class="inp filemono" placeholder="escalation-matrix"/></div><div><label class="fld">Kind</label><input class="inp" placeholder="note"/></div></div>
+  <div><label class="fld">Description</label><input class="inp" placeholder="One line shown in the index"/></div><div><label class="fld">Partition</label><select class="sel" style="width:100%"><option>Shared</option><option>Per-user…</option></select></div>
+  <div><label class="fld">Content</label><textarea class="inp mono" rows="6" placeholder="Markdown…"></textarea></div></div>
+  <div class="modal-f"><button class="btn btn-ghost" onclick="closeModal('newFileModal')">Cancel</button><button class="btn btn-primary" onclick="closeModal('newFileModal')">Create file</button></div></div></div>
+
+<div class="scrim" id="clearModal"><div class="modal" style="max-width:460px"><div class="modal-h"><div class="card-t" style="color:var(--color-destructive)" id="clearTitle">Clear all memory?</div></div>
+  <div class="modal-b"><p id="clearMsg" style="margin:0"></p><div class="callout co-danger" style="margin-top:14px"><span class="ic">✕</span><div>Type <span class="kbd">DELETE</span> to confirm.</div></div><input class="inp" style="margin-top:10px" placeholder="DELETE"/></div>
+  <div class="modal-f"><button class="btn btn-ghost" onclick="closeModal('clearModal')">Cancel</button><button class="btn btn-destructive" onclick="closeModal('clearModal')">Clear memory</button></div></div></div>
+
+<script>
+function toggleTheme(){const h=document.documentElement;h.classList.toggle('dark');document.getElementById('themeBtn').textContent=h.classList.contains('dark')?'☀ Light':'☾ Dark';}
+const AGENT_TABS=['build','toolbox','mcp','limits','availability','memory','history'];
+function goTab(tab,btn){
+  document.getElementById('pane-toolbox').classList.toggle('hide',tab!=='toolbox');
+  document.getElementById('pane-memory').classList.toggle('hide',tab!=='memory');
+  const other=!['toolbox','memory'].includes(tab);
+  document.getElementById('pane-other').classList.toggle('hide',!other);
+  if(other)document.getElementById('otherName').textContent=({build:'Build',mcp:'MCP servers',limits:'Limits',availability:'Availability',history:'History'})[tab]||'—';
+  document.querySelectorAll('.tabs [role=tab]').forEach(b=>b.setAttribute('aria-selected', b.getAttribute('onclick').includes("'"+tab+"'")));
+  document.querySelectorAll('.mockbar .seg button').forEach(b=>b.setAttribute('aria-selected', b.getAttribute('onclick').includes("'"+tab+"'")));
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+// the Memory tab is always present in this mockup so its placement is visible
+document.getElementById('tt-memory').style.display='';
+
+/* capability list selection (visual) */
+function selCap(row){document.querySelectorAll('.cap-row').forEach(r=>r.classList.remove('focused'));row.classList.add('focused');}
+
+/* memory config */
+let backend='native';
+function sw(id){const el=document.getElementById(id);const v=el.getAttribute('aria-checked')==='true';el.setAttribute('aria-checked',!v);return !v;}
+function toggleCap(){const on=document.getElementById('capMem').getAttribute('aria-checked')==='true';
+  document.getElementById('memCfgBody').classList.toggle('hide',!on);document.getElementById('memOff').classList.toggle('hide',on);}
+function setBackend(b){backend=b;document.getElementById('beNative').setAttribute('aria-selected',b==='native');document.getElementById('beMem0').setAttribute('aria-selected',b==='mem0');document.getElementById('mem0Panel').classList.toggle('hide',b!=='mem0');refresh();}
+function toggleShape(id){sw(id);refresh();}
+function onPartition(){const v=document.getElementById('partition').value;document.getElementById('partShared').classList.toggle('hide',v!=='shared');document.getElementById('partPerUser').classList.toggle('hide',v!=='per_user');refresh();}
+function onInjection(){document.getElementById('injWarn').classList.toggle('hide',document.getElementById('injection').value==='none');refresh();}
+function refresh(){const files=document.getElementById('shFiles').getAttribute('aria-checked')==='true';const facts=document.getElementById('shFacts').getAttribute('aria-checked')==='true';
+  document.getElementById('shapeNone').classList.toggle('hide',files||facts);
+  document.getElementById('mem0H1').classList.toggle('hide',!(backend==='mem0'&&!facts));
+  const shapes=[files&&'files',facts&&'facts'].filter(Boolean).join('+')||'none';
+  document.getElementById('cfgSummary').textContent=`memory · backend=${backend} · ${shapes} · partition=${document.getElementById('partition').value} · injection=${document.getElementById('injection').value}`;}
+
+/* management */
+let empty=false;
+function setSub(t){document.getElementById('subFiles').setAttribute('aria-selected',t==='files');document.getElementById('subFacts').setAttribute('aria-selected',t==='facts');document.getElementById('paneFiles').classList.toggle('hide',t!=='files');document.getElementById('paneFacts').classList.toggle('hide',t!=='facts');}
+function setScope(s,btn){document.querySelectorAll('#pane-memory .seg button').forEach(b=>{if(b.getAttribute('onclick')&&b.getAttribute('onclick').includes('setScope'))b.setAttribute('aria-selected',b===btn);});
+  document.getElementById('scopePicker').classList.toggle('hide',s!=='per_user');
+  document.getElementById('mPartBadge').innerHTML='<span class="dot"></span> '+(s==='per_user'?'Per-user':s==='shared'?'Shared':'All');
+  document.getElementById('refusalState').classList.toggle('hide',s!=='per_user');
+  document.getElementById('populated').classList.toggle('hide',s==='per_user'||empty);}
+function toggleEmpty(){empty=!empty;document.getElementById('populated').classList.toggle('hide',empty);document.getElementById('emptyWrap').classList.toggle('hide',!empty);document.getElementById('emptyBtn').textContent=empty?'Show populated':'Show empty state';}
+function openFile(name,desc,origin,kind,part,updated){document.getElementById('fmTitle').textContent='Edit file';document.getElementById('fmName').value=name;document.getElementById('fmDesc').value=desc;document.getElementById('fmKind').value=kind;
+  document.getElementById('fmPart').value=part==='shared'?'Shared':'Per-user · user:0f3a91b2';document.getElementById('fmMeta').textContent='Updated '+updated;
+  document.getElementById('fmBody').value=origin==='operator'?'## Preferences\n- Tone: concise, friendly\n- Formats: bullets for steps, tables for comparisons':'Observed: the Acme account escalates via finance@acme.example and prefers Friday summaries.';
+  const op=origin==='operator';document.getElementById('fmOrigin').outerHTML='<span id="fmOrigin" class="badge '+(op?'badge-operator':'badge-agent')+'"><span class="dot"></span>'+(op?'Operator · trusted':'Agent · untrusted')+'</span>';
+  document.getElementById('fmUntrusted').classList.toggle('hide',op);openM('fileModal');}
+function openFact(text,part,created){document.getElementById('factBody').textContent=text;document.getElementById('factPart').innerHTML='<span class="dot"></span>'+part;document.getElementById('factCreated').textContent='created '+created;openM('factModal');}
+function openNewFile(){openM('newFileModal');}
+function openClear(){document.getElementById('clearTitle').textContent='Clear all memory?';document.getElementById('clearMsg').innerHTML='This permanently deletes <b>every file and fact</b> for Support Copilot across all partitions. This cannot be undone.';openM('clearModal');}
+function openClearFacts(){document.getElementById('clearTitle').textContent='Clear all facts?';document.getElementById('clearMsg').innerHTML='This permanently deletes <b>every fact</b> the agent has remembered. Files are kept.';openM('clearModal');}
+function openM(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+document.querySelectorAll('.scrim').forEach(s=>s.addEventListener('click',e=>{if(e.target===s)s.classList.remove('open');}));
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.scrim.open').forEach(s=>s.classList.remove('open'));});
+refresh();
+</script>
+</body>
+</html>
