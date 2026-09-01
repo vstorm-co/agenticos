@@ -8,7 +8,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import { PAGE_SIZE } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import type { MemoryFile, MemoryFileList } from "@/types/memory";
+import type { MemoryFactList, MemoryFile, MemoryFileList } from "@/types/memory";
 
 /** How the server may order a file listing. */
 export type MemorySort = "name" | "updated";
@@ -85,7 +85,7 @@ export function useMemoryFiles({
   });
 
   const invalidate = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: qk.memory.all(agentId) }),
+    () => queryClient.invalidateQueries({ queryKey: qk.memory.filesRoot(agentId) }),
     [queryClient, agentId],
   );
 
@@ -134,21 +134,28 @@ export function useMemoryFile(agentId: string, fileId: string | null) {
   const t = useTranslations("memory");
   const queryClient = useQueryClient();
 
-  const invalidate = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: qk.memory.all(agentId) }),
-    [queryClient, agentId],
-  );
-
   const { data, isLoading } = useQuery({
-    queryKey: qk.memory.file(fileId ?? ""),
+    queryKey: qk.memory.file(agentId, fileId ?? ""),
     queryFn: () => apiClient.get<MemoryFile>(`/memory/files/${fileId}`),
     enabled: fileId !== null,
   });
 
+  // Write the result over the open file's cache, then refresh the lists. A bare
+  // list invalidation would leave the editor showing the pre-write body — the
+  // detail query does not refetch on its own, and after a promote that is the
+  // difference between the file reading trusted and reading untrusted.
+  const settle = useCallback(
+    (updated: MemoryFile) => {
+      queryClient.setQueryData(qk.memory.file(agentId, fileId ?? ""), updated);
+      return queryClient.invalidateQueries({ queryKey: qk.memory.filesRoot(agentId) });
+    },
+    [queryClient, agentId, fileId],
+  );
+
   const save = useMutation({
     mutationFn: (edit: MemoryEdit) => apiClient.patch<MemoryFile>(`/memory/files/${fileId}`, edit),
-    onSuccess: async () => {
-      await invalidate();
+    onSuccess: async (updated) => {
+      await settle(updated);
       toast.success(t("saved"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
@@ -156,12 +163,70 @@ export function useMemoryFile(agentId: string, fileId: string | null) {
 
   const promote = useMutation({
     mutationFn: () => apiClient.post<MemoryFile>(`/memory/files/${fileId}/promote`, {}),
-    onSuccess: async () => {
-      await invalidate();
+    onSuccess: async (updated) => {
+      await settle(updated);
       toast.success(t("promoted"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   return { file: data, isLoading, save, promote };
+}
+
+interface MemoryFactsQuery {
+  agentId: string;
+  scope?: MemoryScope;
+  search?: string;
+  skip?: number;
+  limit?: number;
+}
+
+/**
+ * One agent's remembered facts, a page at a time.
+ *
+ * Newest first (the server's order — a fact has no name to sort by), and the
+ * search is a substring match on the content, never a semantic one: a KNN query
+ * would embed the operator's text off the run's spend ledger. Facts are the
+ * agent's to write; an operator only reviews and forgets them.
+ */
+export function useMemoryFacts({
+  agentId,
+  scope = "all",
+  search = "",
+  skip = 0,
+  limit = PAGE_SIZE,
+}: MemoryFactsQuery) {
+  const tErrors = useTranslations("errors");
+  const t = useTranslations("memory");
+  const queryClient = useQueryClient();
+
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: qk.memory.facts(agentId, { scope, search, skip, limit }),
+    queryFn: () => {
+      const params = new URLSearchParams({ agent_id: agentId, partition: scope });
+      if (search) params.set("q", search);
+      params.set("skip", String(skip));
+      params.set("limit", String(limit));
+      return apiClient.get<MemoryFactList>(`/memory/facts?${params}`);
+    },
+    placeholderData: (previous) => previous,
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => apiClient.delete<void>(`/memory/facts/${id}`),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: qk.memory.factsRoot(agentId) });
+      toast.success(t("factForgotten"));
+    },
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+
+  return {
+    facts: data?.items ?? [],
+    total: data?.total ?? 0,
+    isLoading,
+    error,
+    refetch,
+    remove,
+  };
 }

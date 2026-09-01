@@ -244,15 +244,23 @@ export const qk = {
       ["context", "list", query] as const,
     detail: (id: string) => ["context", id] as const,
   },
-  // Keyed on the agent: every memory query is scoped to one agent's store, so
-  // `all(agentId)` is the invalidation root a write under that agent widens to.
+  // Every memory query nests under the agent, the file detail included
+  // (`["memory", agentId, "file", id]`), so invalidating a `files`/`facts`
+  // sub-root refreshes the lists — a detail key outside that root is never
+  // reached by the invalidation, which leaves a promoted file showing its old
+  // untrusted state. A mutation also writes its result back over the detail.
   memory: {
-    all: (agentId: string) => ["memory", agentId] as const,
+    filesRoot: (agentId: string) => ["memory", agentId, "files"] as const,
     files: (
       agentId: string,
       query: { scope: string; search: string; sort: string; skip: number; limit: number },
     ) => ["memory", agentId, "files", query] as const,
-    file: (fileId: string) => ["memory", "file", fileId] as const,
+    file: (agentId: string, fileId: string) => ["memory", agentId, "file", fileId] as const,
+    factsRoot: (agentId: string) => ["memory", agentId, "facts"] as const,
+    facts: (
+      agentId: string,
+      query: { scope: string; search: string; skip: number; limit: number },
+    ) => ["memory", agentId, "facts", query] as const,
   },
   invitations: {
     all: () => ["invitations"] as const,

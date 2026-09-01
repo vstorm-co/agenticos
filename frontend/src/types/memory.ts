@@ -43,3 +43,25 @@ export interface MemoryFileList {
   items: MemoryFileSummary[];
   total: number;
 }
+
+/**
+ * One remembered fact, as an operator reviews it.
+ *
+ * Facts are agent-written and recalled semantically at runtime; an operator
+ * never authors or edits one (a query an operator typed would embed off the
+ * run's ledger), so there is no create or update shape — only review and delete.
+ * The content is included because a fact is short by nature: the listing is the
+ * content.
+ */
+export interface MemoryFact {
+  id: string;
+  agent_id: string;
+  content: string;
+  end_user_scope_key: string | null;
+  created_at: string | null;
+}
+
+export interface MemoryFactList {
+  items: MemoryFact[];
+  total: number;
+}

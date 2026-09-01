@@ -3,8 +3,9 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useMemoryFile, useMemoryFiles } from "./use-memory";
+import { useMemoryFacts, useMemoryFile, useMemoryFiles } from "./use-memory";
 import { apiClient } from "@/lib/api-client";
+import { qk } from "@/lib/query-keys";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -182,6 +183,87 @@ describe("useMemoryFile", () => {
     const { result } = renderHook(() => useMemoryFile("a1", "f1"), { wrapper });
 
     await expect(result.current.promote.mutateAsync()).rejects.toThrow();
+    expect(toastError).toHaveBeenCalled();
+  });
+
+  it("writes a saved file back over its detail cache, so a reopen is not stale", async () => {
+    // The detail key nests under the agent root, and the mutation writes its
+    // result there directly — a bare list invalidation would leave a reopened
+    // file (and, worse, a just-promoted one) showing its pre-write state.
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const scoped = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const updated = { id: "f1", name: "user-preferences", origin: "operator", content: "fresh" };
+    vi.mocked(apiClient.patch).mockResolvedValue(updated);
+    const { result } = renderHook(() => useMemoryFile("a1", "f1"), { wrapper: scoped });
+
+    await result.current.save.mutateAsync({
+      description: null,
+      content: "fresh",
+      format: "md",
+      kind: "note",
+    });
+
+    expect(client.getQueryData(qk.memory.file("a1", "f1"))).toEqual(updated);
+  });
+});
+
+describe("useMemoryFacts", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+  });
+
+  it("lists an agent's facts and reports the count", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [{ id: "x1", content: "fact" }],
+      total: 3,
+    });
+    const { result } = renderHook(() => useMemoryFacts({ agentId: "a1" }), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.total).toBe(3);
+  });
+
+  it("asks the server for the partition and page, with no sort", async () => {
+    const { result } = renderHook(
+      () => useMemoryFacts({ agentId: "a1", scope: "shared", search: "fy", skip: 50 }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/memory/facts?agent_id=a1&partition=shared&q=fy&skip=50&limit=50",
+    );
+  });
+
+  it("omits the filter from the query when there is none", async () => {
+    const { result } = renderHook(() => useMemoryFacts({ agentId: "a1" }), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/memory/facts?agent_id=a1&partition=all&skip=0&limit=50",
+    );
+  });
+
+  it("forgets a fact and reports it", async () => {
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    const { result } = renderHook(() => useMemoryFacts({ agentId: "a1" }), { wrapper });
+
+    await result.current.remove.mutateAsync("x1");
+
+    expect(apiClient.delete).toHaveBeenCalledWith("/memory/facts/x1");
+    expect(toastSuccess).toHaveBeenCalled();
+  });
+
+  it("toasts when forgetting a fact fails", async () => {
+    vi.mocked(apiClient.delete).mockRejectedValue(new Error("boom"));
+    const { result } = renderHook(() => useMemoryFacts({ agentId: "a1" }), { wrapper });
+
+    await expect(result.current.remove.mutateAsync("x1")).rejects.toThrow();
     expect(toastError).toHaveBeenCalled();
   });
 });

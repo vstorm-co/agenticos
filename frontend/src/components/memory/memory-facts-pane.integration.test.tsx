@@ -1,0 +1,146 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { MemoryFactsPane } from "./memory-facts-pane";
+import { apiClient } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-error";
+
+vi.mock("@/lib/api-client", () => ({
+  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+}));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+const FACT_SHARED = {
+  id: "x1",
+  agent_id: "a1",
+  content: "Acme's fiscal year starts in April.",
+  end_user_scope_key: null,
+  created_at: "2026-08-30T10:00:00Z",
+};
+// A fact with no timestamp exercises the guard that renders the "remembered"
+// line only when there is one.
+const FACT_USER = {
+  id: "x2",
+  agent_id: "a1",
+  content: "Prefers weekly summaries on Fridays.",
+  end_user_scope_key: "user:0f3a91b2",
+  created_at: null,
+};
+
+function factsReturning(items: unknown[], total = items.length) {
+  vi.mocked(apiClient.get).mockResolvedValue({ items, total });
+}
+
+function lastFactsCall(): string {
+  const calls = vi.mocked(apiClient.get).mock.calls.map(([url]) => url as string);
+  return calls.filter((url) => url.startsWith("/memory/facts?")).at(-1) ?? "";
+}
+
+function wrapper({ children }: { children: ReactNode }) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
+
+function mount(props: Partial<React.ComponentProps<typeof MemoryFactsPane>> = {}) {
+  render(<MemoryFactsPane agentId="a1" canEdit scope="all" {...props} />, { wrapper });
+}
+
+describe("MemoryFactsPane", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    factsReturning([FACT_SHARED, FACT_USER]);
+  });
+
+  it("lists the facts with their partition, and when a timestamped one was remembered", async () => {
+    mount();
+
+    expect(await screen.findByText("Acme's fiscal year starts in April.")).toBeInTheDocument();
+    expect(screen.getByText("Prefers weekly summaries on Fridays.")).toBeInTheDocument();
+    // Both are agent-written; one is shared, one is a private per-user partition.
+    expect(screen.getAllByText("Agent")).toHaveLength(2);
+    expect(screen.getByText("user:0f3a91b2")).toBeInTheDocument();
+    // Only the fact that carries a timestamp shows when it was remembered.
+    expect(screen.getAllByText(/^remembered/)).toHaveLength(1);
+  });
+
+  it("explains that facts are the agent's to write and only reviewable here", async () => {
+    mount();
+    await screen.findByText("Acme's fiscal year starts in April.");
+
+    expect(screen.getByText(/Review and forget them here/)).toBeInTheDocument();
+  });
+
+  it("filters facts by substring on the server", async () => {
+    mount();
+    await screen.findByText("Acme's fiscal year starts in April.");
+
+    await userEvent.type(screen.getByPlaceholderText("Filter facts…"), "fiscal");
+
+    await waitFor(() => expect(lastFactsCall()).toContain("q=fiscal"));
+  });
+
+  it("uses the partition the panel gave it", async () => {
+    mount({ scope: "shared" });
+
+    await waitFor(() => expect(lastFactsCall()).toContain("partition=shared"));
+  });
+
+  it("confirms before forgetting a fact", async () => {
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    mount();
+    await screen.findByText("Acme's fiscal year starts in April.");
+
+    await userEvent.click(screen.getAllByRole("button", { name: "Forget fact" })[0]!);
+    await userEvent.click(screen.getByRole("button", { name: "Forget" }));
+
+    await waitFor(() => expect(apiClient.delete).toHaveBeenCalledWith("/memory/facts/x1"));
+  });
+
+  it("backs out of forgetting without deleting anything", async () => {
+    mount();
+    await screen.findByText("Acme's fiscal year starts in April.");
+
+    await userEvent.click(screen.getAllByRole("button", { name: "Forget fact" })[0]!);
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(apiClient.delete).not.toHaveBeenCalled();
+  });
+
+  it("says the shelf is empty when the agent has remembered nothing", async () => {
+    factsReturning([], 0);
+    mount();
+
+    expect(await screen.findByText("No facts yet")).toBeInTheDocument();
+  });
+
+  it("distinguishes no matches from no facts", async () => {
+    factsReturning([], 0);
+    mount();
+    await screen.findByText("No facts yet");
+
+    await userEvent.type(screen.getByPlaceholderText("Filter facts…"), "zzz");
+
+    expect(await screen.findByText("No facts match")).toBeInTheDocument();
+  });
+
+  it("shows the failure instead of an empty shelf", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new ApiError(502, "upstream", null));
+    mount();
+
+    expect(await screen.findByText("Something went wrong")).toBeInTheDocument();
+  });
+
+  it("gives a viewer nothing to delete with", async () => {
+    mount({ canEdit: false });
+    await screen.findByText("Acme's fiscal year starts in April.");
+
+    expect(screen.queryByRole("button", { name: "Forget fact" })).not.toBeInTheDocument();
+  });
+});

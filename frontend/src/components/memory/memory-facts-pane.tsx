@@ -1,0 +1,158 @@
+"use client";
+
+import { useState } from "react";
+import { Info, Sparkles, Trash2 } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
+
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  ConfirmDialog,
+  ListCard,
+  ListCardEmpty,
+  PAGE_SIZE,
+  Pager,
+  SearchInput,
+  useDebounced,
+} from "@/components/ui";
+import { ErrorState, LoadingState } from "@/components/states";
+import { OriginBadge, PartitionBadge } from "@/components/memory/memory-badges";
+import { useMemoryFacts, type MemoryScope } from "@/hooks/use-memory";
+import { getErrorMessage } from "@/lib/api-error";
+import type { MemoryFact } from "@/types/memory";
+
+interface MemoryFactsPaneProps {
+  agentId: string;
+  canEdit: boolean;
+  /** The partition the whole Memory tab is filtered to; owned by the panel. */
+  scope: MemoryScope;
+}
+
+/**
+ * The facts half of the Memory tab.
+ *
+ * Facts are the agent's to write and recall by meaning; an operator only reviews
+ * and forgets them, so there is no create or edit here. The filter is a plain
+ * substring match, not the runtime semantic recall — a query an operator typed
+ * would embed off the run's spend ledger, which the intro says out loud.
+ */
+export function MemoryFactsPane({ agentId, canEdit, scope }: MemoryFactsPaneProps) {
+  const t = useTranslations("memory");
+  const tErrors = useTranslations("errors");
+  const format = useFormatter();
+
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
+  const search = useDebounced(query);
+
+  const { facts, total, isLoading, error, remove } = useMemoryFacts({
+    agentId,
+    scope,
+    search,
+    skip: page * PAGE_SIZE,
+    limit: PAGE_SIZE,
+  });
+
+  const [pendingDelete, setPendingDelete] = useState<MemoryFact | null>(null);
+
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const isFiltering = search.trim() !== "";
+
+  const controls = (
+    <SearchInput
+      value={query}
+      onChange={(next) => {
+        setQuery(next);
+        setPage(0);
+      }}
+      placeholder={t("filterFacts")}
+      className="sm:w-56"
+    />
+  );
+
+  return (
+    <>
+      <Alert className="mb-4">
+        <Info className="h-4 w-4" />
+        <AlertDescription>{t("factsIntro")}</AlertDescription>
+      </Alert>
+
+      <ListCard
+        title={t("facts")}
+        counted={error ? null : t("factCount", { count: total })}
+        controls={controls}
+      >
+        {error ? (
+          <ErrorState description={getErrorMessage(error, tErrors)} />
+        ) : isLoading ? (
+          <LoadingState variant="skeleton-cards" rows={3} />
+        ) : facts.length === 0 ? (
+          <ListCardEmpty
+            icon={Sparkles}
+            title={isFiltering ? t("noFactMatches") : t("noFactsYet")}
+            description={isFiltering ? t("noFactMatchesHint") : t("noFactsHint")}
+          />
+        ) : (
+          <div className="space-y-4">
+            <ul className="divide-border divide-y">
+              {facts.map((fact) => (
+                <li key={fact.id} className="flex items-start justify-between gap-3 py-3">
+                  <div className="min-w-0 space-y-1.5">
+                    <p className="text-foreground text-sm">{fact.content}</p>
+                    <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+                      <OriginBadge origin="agent" />
+                      <PartitionBadge scopeKey={fact.end_user_scope_key} />
+                      {fact.created_at !== null && (
+                        <span>
+                          {t("remembered", {
+                            when: format.relativeTime(new Date(fact.created_at)),
+                          })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {canEdit && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0"
+                      aria-label={t("forgetFact")}
+                      onClick={() => setPendingDelete(fact)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <Pager
+              page={page}
+              pageCount={pageCount}
+              matched={total}
+              total={total}
+              onPage={setPage}
+              counted={t("factCount", { count: total })}
+            />
+          </div>
+        )}
+      </ListCard>
+
+      {pendingDelete !== null && (
+        <ConfirmDialog
+          open
+          onOpenChange={() => setPendingDelete(null)}
+          title={t("forgetFactConfirm")}
+          description={t("forgetFactHint")}
+          confirmLabel={t("forget")}
+          destructive
+          loading={remove.isPending}
+          onConfirm={async () => {
+            await remove.mutateAsync(pendingDelete.id);
+            setPendingDelete(null);
+          }}
+        />
+      )}
+    </>
+  );
+}
