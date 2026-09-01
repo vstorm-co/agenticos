@@ -95,11 +95,16 @@ attachment on GitHub's own CDN:
     https://github.com/user-attachments/assets/4d97bc60-f7be-43f2-97fe-cc4e0765e8ed
 
 That URL answers a range request with `206`, which is what makes the timeline
-scrubbable rather than a play button. It was produced by dropping the 9.3 MB
-master into an issue comment — the upload happens on drop, so the comment itself
-never has to be posted. Replacing the clip means repeating that and swapping the
-URL; the master does not belong in the repository, because it is not served from
-there.
+scrubbable rather than a play button. It was produced by dropping
+`chat-live-demo-master.mp4` — 9.3 MB, 1912 wide — into an issue comment; the
+upload happens on drop, so the comment itself never has to be posted. Replacing
+the clip means repeating that and swapping the URL.
+
+The master sits beside these files and is **deliberately untracked**: it is
+served from GitHub's CDN, not from here, so committing it would cost 9.3 MB of
+history for nothing. That also makes it the one file in this directory a
+`git add -A` would sweep in by accident, which is a reason to stage paths rather
+than everything.
 
 `chat-live-demo.webp` stays nested inside the `<video>` as fallback content, for
 a renderer that strips the tag — npm, some PyPI mirrors, a few aggregators.
