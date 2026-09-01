@@ -201,19 +201,38 @@ class KnowledgeBaseService:
         )
 
     async def delete_for_rag_collection(self, kb: KnowledgeBase) -> None:
-        """Delete the KB row a dropped collection belonged to.
+        """Delete the KB row a dropped collection belonged to, and drop its table.
 
         Keeps the KB table in sync when a collection is dropped via
-        `DELETE /rag/collections/{name}`. A default KB is left intact so the
-        org keeps a usable knowledge base.
+        `DELETE /rag/collections/{name}`. A default KB is left intact so the org
+        keeps a usable knowledge base - and its row then still references the name,
+        so the table is kept too.
 
         Takes the row rather than the name: the caller has already resolved
         which knowledge base it is allowed to act on, and looking the name up
         again would find whichever row the database returned first - possibly
         another organization's, where two of them share a collection name.
+
+        The vector table is dropped by the durable cleanup handed over after the
+        commit (`spawn_after_commit` → `dispatch_external_state_cleanup`), not in the
+        request. In-request the /rag route's drop stranded a rolled-back delete on a
+        dropped table, lost it to a worker restart, dropped a table a second base
+        still referenced (it took no re-check), and raced a concurrent claim of the
+        name (#1347, #1349, #1355, #913). The flow re-reads the reference check under
+        the `COLLECTION_TEARDOWN` lock and drops only what no base still claims.
         """
+        collection = kb.collection_name
         if not kb.is_default:
             await knowledge_base_repo.delete(self.db, kb.id)
+        if not await knowledge_base_repo.list_by_collection_name(self.db, collection):
+            from app.core.background import spawn_after_commit
+            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
+
+            spawn_after_commit(
+                self.db,
+                dispatch_external_state_cleanup([], [collection]),
+                name="drop-rag-collection",
+            )
 
     async def get(self, kb_id: UUID, *, ctx: AuthContext) -> KnowledgeBase:
         """The knowledge base, or "not found" - for absent and out-of-reach alike."""

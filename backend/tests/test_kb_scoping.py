@@ -448,6 +448,71 @@ class TestKBAccessControl:
         dispatch.assert_not_awaited()
 
     @pytest.mark.anyio
+    async def test_dropping_a_rag_collection_deletes_the_row_and_dispatches_the_drop(
+        self, mock_db, monkeypatch
+    ):
+        """`DELETE /rag/collections/{name}` reaches here: the KB row goes in the
+        request, the table drop is handed to the durable, locked cleanup (#1355)."""
+        kb = _kb("org", is_default=False)
+        kb.collection_name = "docs"
+        dispatch = _patch_dispatch(monkeypatch)
+        with (
+            patch("app.repositories.knowledge_base_repo.delete", new=AsyncMock()) as deleted,
+            patch(
+                "app.repositories.knowledge_base_repo.list_by_collection_name",
+                new=AsyncMock(return_value=[]),
+            ),
+        ):
+            await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
+            background.start_deferred(mock_db)
+            await background.drain(timeout=5.0)
+
+        deleted.assert_awaited_once()
+        dispatch.assert_awaited_once_with([], ["docs"])
+
+    @pytest.mark.anyio
+    async def test_dropping_a_default_rag_collection_keeps_the_row_and_the_table(
+        self, mock_db, monkeypatch
+    ):
+        """A default base is left intact, so its row still references the name and
+        the table is kept - nothing is deleted and no drop is dispatched."""
+        kb = _kb("org", is_default=True)
+        kb.collection_name = "docs"
+        dispatch = _patch_dispatch(monkeypatch)
+        with (
+            patch("app.repositories.knowledge_base_repo.delete", new=AsyncMock()) as deleted,
+            patch(
+                "app.repositories.knowledge_base_repo.list_by_collection_name",
+                new=AsyncMock(return_value=[kb]),
+            ),
+        ):
+            await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
+
+        deleted.assert_not_awaited()
+        dispatch.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_dropping_a_rag_collection_a_sibling_still_holds_keeps_the_table(
+        self, mock_db, monkeypatch
+    ):
+        """The row goes, but a second base still claims the name, so the table is
+        kept and no drop is dispatched (#913)."""
+        kb = _kb("org", is_default=False)
+        kb.collection_name = "docs"
+        dispatch = _patch_dispatch(monkeypatch)
+        with (
+            patch("app.repositories.knowledge_base_repo.delete", new=AsyncMock()) as deleted,
+            patch(
+                "app.repositories.knowledge_base_repo.list_by_collection_name",
+                new=AsyncMock(return_value=[MagicMock()]),
+            ),
+        ):
+            await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
+
+        deleted.assert_awaited_once()
+        dispatch.assert_not_awaited()
+
+    @pytest.mark.anyio
     async def test_personal_kb_non_owner_is_refused_as_missing(self, mock_db):
         """Somebody else's personal base is reported absent, not forbidden.
 
