@@ -1,88 +1,42 @@
 <div align="center">
 
-<img src="docs/assets/mark.svg" alt="" width="84" height="84">
+<img src="docs/assets/mark.svg" alt="" width="76" height="76">
 
 <h1>AgenticOS</h1>
 
 <p>
   <b>The operating system for your company's AI agents.</b><br>
-  Processes, permissions, resource limits, drivers and an audit log.<br>
-  <b>Self-hosted</b>, open source, and yours — on your Postgres, in your Docker, under your domain.
+  Processes, permissions, resource limits, drivers and an audit log — self-hosted,
+  on your Postgres, in your Docker, under your domain.
 </p>
 
 <p>
+  <a href="#-quick-start">Quick start</a> &middot;
+  <a href="#what-it-looks-like">Screens</a> &middot;
   <a href="docs/index.md">Docs</a> &middot;
-  <a href="docs/install.md">Install</a> &middot;
-  <a href="docs/first-agent.md">Your first agent</a> &middot;
-  <a href="#-what-makes-it-an-operating-system">Why it is an OS</a> &middot;
-  <a href="#-what-an-agent-can-actually-do">What agents can do</a> &middot;
-  <a href="#-why-agenticos">Comparison</a> &middot;
-  <a href="docs/mcp.md">Integrations</a> &middot;
-  <a href="CHANGELOG.md">Changelog</a> &middot;
-  <a href="llms.txt">llms.txt</a>
+  <a href="#why-it-is-called-an-operating-system">Why an OS</a> &middot;
+  <a href="#compared-with-the-alternatives">Comparison</a>
 </p>
 
 <p>
   <a href="https://github.com/vstorm-co/agenticos/actions/workflows/ci.yml"><img src="https://github.com/vstorm-co/agenticos/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
   <a href="https://github.com/vstorm-co/agenticos/releases"><img src="https://img.shields.io/github/v/release/vstorm-co/agenticos?label=release&color=blue" alt="Release"></a>
   <a href="docs/testing.md"><img src="https://img.shields.io/badge/platform%20layer-100%25-brightgreen" alt="Coverage"></a>
-  <a href="docs/index.md"><img src="https://img.shields.io/badge/docs-mkdocs-blue" alt="Docs"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-Apache--2.0-blue" alt="Licence"></a>
-  <a href="SECURITY.md"><img src="https://img.shields.io/badge/security-policy-blueviolet?logo=shieldsdotio&logoColor=white" alt="Security policy"></a>
-  <a href="https://github.com/vstorm-co/agenticos/stargazers"><img src="https://img.shields.io/github/stars/vstorm-co/agenticos?style=flat&logo=github&color=e3b341" alt="Stars"></a>
-</p>
-
-<p>
-  <a href="backend/pyproject.toml"><img src="https://img.shields.io/badge/python-3.12-3776ab?logo=python&logoColor=white" alt="Python 3.12"></a>
-  <a href="backend/pyproject.toml"><img src="https://img.shields.io/badge/FastAPI-Pydantic%20v2-009688?logo=fastapi&logoColor=white" alt="FastAPI"></a>
   <a href="https://ai.pydantic.dev"><img src="https://img.shields.io/badge/Powered%20by-Pydantic%20AI-E92063?logo=pydantic&logoColor=white" alt="Pydantic AI"></a>
-  <a href="frontend/package.json"><img src="https://img.shields.io/badge/Next.js-15-000000?logo=nextdotjs&logoColor=white" alt="Next.js 15"></a>
-  <a href="docker-compose.yml"><img src="https://img.shields.io/badge/Postgres-pgvector-4169e1?logo=postgresql&logoColor=white" alt="Postgres + pgvector"></a>
-  <a href="https://modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-any%20server-6f42c1" alt="MCP"></a>
+  <a href="https://github.com/vstorm-co/agenticos/stargazers"><img src="https://img.shields.io/github/stars/vstorm-co/agenticos?style=flat&logo=github&color=e3b341" alt="Stars"></a>
 </p>
 
 </div>
 
 ---
 
-**A company ends up with agents in five places** — one in a vendor's console, one
-somebody wrote in LangChain, one inside a SaaS product — and nobody can answer
-four questions: *what agents do we run, what did they cost, what did they touch,
-and who said they could.*
-
+A company ends up with agents in five places and cannot answer four questions:
+**what do we run, what did it cost, what did it touch, and who said it could.**
 AgenticOS is one place to build them and one set of books for all of them.
 
-- 🏗️ **Built by whoever knows the answer.** Instructions, a model, capabilities
-  and limits, edited in a browser and published as a version. Changing what an
-  agent says is not a pull request, a review and a release.
-- 🧰 **Agents that do the work, not just talk about it.** Retrieval over your own
-  documents, a real browser, Python in a sandbox with files and a shell, charts,
-  images, delegation to subagents - and any of
-  [any MCP server by URL](docs/mcp.md) — 99 checked by us, and 5,703 more
-  mirrored from the public registry and searchable by name.
-- 🔌 **Everywhere, from one runner.** Web chat, a hosted page with no login, an
-  embeddable widget, the HTTP API, a raw WebSocket to build your own frontend,
-  Slack, Telegram, Mattermost, and schedules that need nobody typing.
-- 🛡️ **Governed, because forty agents need it.** Budgets that stop a run before
-  the model request, approval on anything side-effecting, an audit trail, and
-  tenant isolation enforced by the schema.
-
-**Code defines, configuration composes.** A business team assembles agents in a
-browser and never opens Python; engineers extend what there is to assemble - a
-capability is typed, tested code in this repository, and adding one makes it a
-switch in everybody's Builder. Configuration can only ever reach what code
-registered, which is what makes a no-code Builder safe to hand to somebody who
-is not an engineer.
-
-So the ceiling is not a config file. It is whatever your engineers put in the
-registry - and it is Apache-2.0, on your hardware, so that includes whatever you
-write for your own use case.
-
-## What it looks like
-
-A spreadsheet dropped into the chat, one sentence asking for charts. The agent
-writes the code, runs it in a locked box, and answers with the charts and what
-they say.
+Below: a spreadsheet dropped into the chat, one sentence asking for charts. The
+agent writes the code, runs it in a locked box, and answers.
 
 <div align="center">
 
@@ -92,234 +46,7 @@ they say.
 
 </div>
 
-### Inside one agent
-
-An agent is a form, not a codebase: instructions, a model, tools, limits.
-Nothing ships until **Publish**.
-
-<img src="docs/assets/screens/dark/builder-build.webp" alt="Defining an agent: instructions, model, and the version that is live" width="100%">
-
-<table>
-<tr>
-<td width="50%">
-
-**Toolbox** — What the agent may do, as switches — your documents, a browser, Python, charts, delegation. Each one can require a person's approval first. This is the **AI harness**, assembled in a form.
-
-<img alt="Toolbox" src="docs/assets/screens/dark/builder-toolbox.webp" width="100%">
-
-</td>
-<td width="50%">
-
-**Visual map** — The agent as a graph: what reaches it, what it reaches for. A dashed box is something nobody attached.
-
-<img alt="Visual map" src="docs/assets/screens/dark/builder-visual-map.webp" width="100%">
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-**Limits** — A monthly cap per agent, checked *before* each model call rather than added up after — plus a step limit, for the loop that is cheap and never stops.
-
-<img alt="Limits" src="docs/assets/screens/dark/builder-limits.webp" width="100%">
-
-</td>
-<td width="50%">
-
-**History** — Every version it has had, still readable. Rolling back is a click.
-
-<img alt="History" src="docs/assets/screens/dark/builder-history.webp" width="100%">
-
-</td>
-</tr>
-</table>
-
-<sub>These four are dark only — the light half has not been captured.</sub>
-
-### Everything else it takes to run forty of them
-
-<table>
-<tr>
-<td width="50%">
-
-**Agents** — Every agent you run, with the version that is live and who may use it.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agents.webp">
-  <img alt="Agents" src="docs/assets/screens/light/agents.webp" width="100%">
-</picture>
-
-</td>
-<td width="50%">
-
-**Templates** — Start from one built for your industry; you get a draft to adjust and publish.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agents-templates-dialog.webp">
-  <img alt="Templates" src="docs/assets/screens/light/agents-templates-dialog.webp" width="100%">
-</picture>
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-**One answer, opened up** — Every answer recorded: the question, what it looked at, every tool call, the duration, the cost to a fraction of a cent.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity-run-detail.webp">
-  <img alt="One answer, opened up" src="docs/assets/screens/light/activity-run-detail.webp" width="100%">
-</picture>
-
-</td>
-<td width="50%">
-
-**How your documents are read** — Three PDF readers — PyMuPDF, LiteParse, LlamaParse — plus chunking and OCR. Per collection, overridable on the next file. A scanned price list and a contract do not want the same one.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-base-upload-parsing-dialog.webp">
-  <img alt="How your documents are read" src="docs/assets/screens/light/knowledge-base-upload-parsing-dialog.webp" width="100%">
-</picture>
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-**Your documents** — A folder an agent may read. Upload, then say which agents see which folders.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-base-detail.webp">
-  <img alt="Your documents" src="docs/assets/screens/light/knowledge-base-detail.webp" width="100%">
-</picture>
-
-</td>
-<td width="50%">
-
-**Skills** — A procedure written once in plain language, used by every agent bound to it. Edit here; live on the next answer, with no release.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/skills.webp">
-  <img alt="Skills" src="docs/assets/screens/light/skills.webp" width="100%">
-</picture>
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-**Context** — Standing facts — product names, policy, house tone — in one place instead of forty prompts.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/context.webp">
-  <img alt="Context" src="docs/assets/screens/light/context.webp" width="100%">
-</picture>
-
-</td>
-<td width="50%">
-
-**It asks before it acts** — Anything that sends, files or refunds waits for a person, with the intended action written out. Decided exactly once.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity-approvals.webp">
-  <img alt="It asks before it acts" src="docs/assets/screens/light/activity-approvals.webp" width="100%">
-</picture>
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-**What it costs** — Spend by period and by agent. The cap is checked before the model is asked, so a runaway stops mid-sentence instead of arriving as an invoice.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity-spend.webp">
-  <img alt="What it costs" src="docs/assets/screens/light/activity-spend.webp" width="100%">
-</picture>
-
-</td>
-<td width="50%">
-
-**Keys and credentials** — Every key, encrypted and separated per team. Replaceable, never readable again — including by whoever runs the server.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/vault.webp">
-  <img alt="Keys and credentials" src="docs/assets/screens/light/vault.webp" width="100%">
-</picture>
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-**The tools you already pay for** — Any MCP server by URL: 99 checked with their OAuth wired, plus 5,703 mirrored from the public registry and searchable by name. No connector to write.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/mcp-servers.webp">
-  <img alt="The tools you already pay for" src="docs/assets/screens/light/mcp-servers.webp" width="100%">
-</picture>
-
-</td>
-<td width="50%">
-
-**Where people meet it** — Slack, Telegram, Mattermost, a website widget, your own software over the API. Published once; same limits everywhere.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/channels.webp">
-  <img alt="Where people meet it" src="docs/assets/screens/light/channels.webp" width="100%">
-</picture>
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-**Work nobody has to start** — Schedules and event triggers — the 07:00 triage, the Monday summary. Same limits, same record.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/routines.webp">
-  <img alt="Work nobody has to start" src="docs/assets/screens/light/routines.webp" width="100%">
-</picture>
-
-</td>
-<td width="50%">
-
-**Where code runs** — Code the agent writes runs in a locked box with its own files, not on your servers. Readable afterwards.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/sandboxes.webp">
-  <img alt="Where code runs" src="docs/assets/screens/light/sandboxes.webp" width="100%">
-</picture>
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-**Teams, kept apart** — Many teams or clients on one install. The separation is in the database schema, not in the application remembering.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/organizations.webp">
-  <img alt="Teams, kept apart" src="docs/assets/screens/light/organizations.webp" width="100%">
-</picture>
-
-</td>
-<td width="50%">
-
-**One screen for the morning** — What ran, what it cost, what is waiting, what is unhealthy. Each card only shows for people allowed to see it.
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/dashboard.webp">
-  <img alt="One screen for the morning" src="docs/assets/screens/light/dashboard.webp" width="100%">
-</picture>
-
-</td>
-</tr>
-</table>
-
-<sub>Screenshots follow your GitHub theme. <a href="docs/screens.md">All 35 screens</a>.</sub>
-
-## ⚡ Get it running
+## ⚡ Quick start
 
 One command. It checks what your machine is missing and tells you how to get it,
 asks four questions, and hands back a console with a working agent in it. Nothing
@@ -400,11 +127,194 @@ one secret that cannot have one (`SANDBOXD_TOKEN`) is generated into
 only question that matters — can this deployment actually run an agent — and
 [docs/install.md](docs/install.md) has the rest.
 
-## 🧩 What makes it an operating system
+## What you get
 
-Plenty of things in this category are called an OS. Here the word is a
-specification rather than a label: an operating system does seven things, and
-each row below is a mechanism you can read in the source.
+- 🏗️ **Built by whoever knows the answer.** Instructions, a model, capabilities
+  and limits, edited in a browser and published as a version. Changing what an
+  agent says is not a pull request, a review and a release.
+- 🧰 **Agents that do the work.** Retrieval over your own documents, a real
+  browser, Python in a sandbox with files and a shell, charts, images, delegation
+  — and [any MCP server by URL](docs/mcp.md): 99 checked, 5,703 more mirrored
+  from the public registry.
+- 🔌 **Everywhere, from one runner.** Web chat, a hosted page with no login, an
+  embeddable widget, the HTTP API, a raw WebSocket, Slack, Telegram, Mattermost,
+  and schedules that need nobody typing.
+- 🛡️ **Governed, because forty agents need it.** Budgets that stop a run before
+  the model request, approval on anything side-effecting, an audit trail, and
+  tenant isolation enforced by the schema.
+
+**Code defines, configuration composes.** A business team assembles agents in a
+browser and never opens Python; engineers extend what there is to assemble, and
+configuration can only ever reach what code registered. The ceiling is the
+registry, not a config file — and it is Apache-2.0, on your hardware.
+
+## What it looks like
+
+### Inside one agent
+
+An agent is a form, not a codebase: instructions, a model, tools, limits.
+Nothing ships until **Publish**.
+
+<img src="docs/assets/screens/dark/builder-build.webp" alt="Defining an agent: instructions, model, and the version that is live" width="100%">
+
+<table>
+<tr>
+<td width="50%">
+
+**Toolbox** — What the agent may do, as switches — your documents, a browser, Python, charts, delegation. Each one can require a person's approval first. This is the **AI harness**, assembled in a form.
+
+<img alt="Toolbox" src="docs/assets/screens/dark/builder-toolbox.webp" width="100%">
+
+</td>
+<td width="50%">
+
+**Visual map** — The agent as a graph: what reaches it, what it reaches for. A dashed box is something nobody attached.
+
+<img alt="Visual map" src="docs/assets/screens/dark/builder-visual-map.webp" width="100%">
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Limits** — A monthly cap per agent, checked *before* each model call rather than added up after — plus a step limit, for the loop that is cheap and never stops.
+
+<img alt="Limits" src="docs/assets/screens/dark/builder-limits.webp" width="100%">
+
+</td>
+<td width="50%">
+
+**History** — Every version it has had, still readable. Rolling back is a click.
+
+<img alt="History" src="docs/assets/screens/dark/builder-history.webp" width="100%">
+
+</td>
+</tr>
+</table>
+
+<sub>These four are dark only — the light half has not been captured.</sub>
+
+### Running forty of them
+
+<table>
+<tr>
+<td width="50%">
+
+**Agents** — Every agent you run, with the version that is live and who may use it.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agents.webp">
+  <img alt="Agents" src="docs/assets/screens/light/agents.webp" width="100%">
+</picture>
+
+</td>
+<td width="50%">
+
+**Templates** — Start from one built for your industry; you get a draft to adjust and publish.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agents-templates-dialog.webp">
+  <img alt="Templates" src="docs/assets/screens/light/agents-templates-dialog.webp" width="100%">
+</picture>
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**One answer, opened up** — Every answer recorded: the question, what it looked at, every tool call, the duration, the cost to a fraction of a cent.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity-run-detail.webp">
+  <img alt="One answer, opened up" src="docs/assets/screens/light/activity-run-detail.webp" width="100%">
+</picture>
+
+</td>
+<td width="50%">
+
+**How your documents are read** — Three PDF readers — PyMuPDF, LiteParse, LlamaParse — plus chunking and OCR. Per collection, overridable on the next file. A scanned price list and a contract do not want the same one.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-base-upload-parsing-dialog.webp">
+  <img alt="How your documents are read" src="docs/assets/screens/light/knowledge-base-upload-parsing-dialog.webp" width="100%">
+</picture>
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Context** — Standing facts — product names, policy, house tone — in one place instead of forty prompts.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/context.webp">
+  <img alt="Context" src="docs/assets/screens/light/context.webp" width="100%">
+</picture>
+
+</td>
+<td width="50%">
+
+**It asks before it acts** — Anything that sends, files or refunds waits for a person, with the intended action written out. Decided exactly once.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity-approvals.webp">
+  <img alt="It asks before it acts" src="docs/assets/screens/light/activity-approvals.webp" width="100%">
+</picture>
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**What it costs** — Spend by period and by agent. The cap is checked before the model is asked, so a runaway stops mid-sentence instead of arriving as an invoice.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity-spend.webp">
+  <img alt="What it costs" src="docs/assets/screens/light/activity-spend.webp" width="100%">
+</picture>
+
+</td>
+<td width="50%">
+
+**Keys and credentials** — Every key, encrypted and separated per team. Replaceable, never readable again — including by whoever runs the server.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/vault.webp">
+  <img alt="Keys and credentials" src="docs/assets/screens/light/vault.webp" width="100%">
+</picture>
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**The tools you already pay for** — Any MCP server by URL: 99 checked with their OAuth wired, plus 5,703 mirrored from the public registry and searchable by name. No connector to write.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/mcp-servers.webp">
+  <img alt="The tools you already pay for" src="docs/assets/screens/light/mcp-servers.webp" width="100%">
+</picture>
+
+</td>
+<td width="50%">
+
+**Where people meet it** — Slack, Telegram, Mattermost, a website widget, your own software over the API. Published once; same limits everywhere.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/channels.webp">
+  <img alt="Where people meet it" src="docs/assets/screens/light/channels.webp" width="100%">
+</picture>
+
+</td>
+</tr>
+
+
+<sub>Screenshots follow your GitHub theme. <a href="docs/screens.md">All 35 screens</a>.</sub>
+
+## Why it is called an operating system
+
+The word is a specification here, not a label. An operating system does seven
+things, and each row is a mechanism you can read in the source.
 
 | What an operating system does | What AgenticOS does |
 |---|---|
@@ -421,11 +331,15 @@ like to be judged on, and
 [When to use something else](docs/about/comparison.md) is where we run it against
 the alternatives - including the rows where the honest answer here is "not yet".
 
-## 🧰 What an agent can actually do
+Apply the same seven to anything else in the category. That is the test we would
+like to be judged on, and
+[When to use something else](docs/about/comparison.md) runs it against the
+alternatives — including the rows where the honest answer here is "not yet".
+
+## What an agent can do
 
 Switched on per agent, in the Builder. Each carries its own settings, its own
-permission scope and - where it acts on the outside world - its own approval
-gate.
+permission scope and — where it acts on the outside world — its own approval gate.
 
 | | |
 |---|---|
@@ -436,24 +350,7 @@ gate.
 | **Stay inside the lines** | Guardrails that redact or block, per-tool output caps, and the clock |
 | **Anything else** | [Any MCP server by URL](docs/mcp.md) - 99 checked with their OAuth flows wired, plus 5,703 mirrored from the public registry, and no connector to write |
 
-## 📚 Retrieval you can actually tune
-
-Most platforms give you one ingestion path and a slider. Here every collection
-carries its own settings, and any upload can override them.
-
-| | |
-|---|---|
-| **Three PDF parsers** | `pymupdf` local and fast, and the only one that extracts embedded images for description · `liteparse` local and layout-aware, keeping tables as ASCII grids rather than flattening them · `llamaparse` a cloud service returning markdown, for scans the local two mangle |
-| **Chunking** | `recursive`, `markdown` or `fixed`, with your own size and overlap |
-| **OCR** | On demand or automatic, with a language |
-| **Images inside documents** | Described by a model profile you choose, with your own prompt |
-| **Embeddings** | Per organization, in your own pgvector - a vector written for one tenant cannot be read by another |
-| **Sources** | Upload, or sync a Google Drive folder or an S3 bucket on a schedule |
-
-[File processing →](docs/file-processing.md) ·
-[The recipe, step by step →](docs/howto/set-up-knowledge-base.md)
-
-## 🔌 Where it answers
+## Where it answers
 
 Publish once. The same runner serves all of these, so an answer does not depend
 on where the question came from.
@@ -468,7 +365,7 @@ on where the question came from.
 | **Slack, Telegram, Mattermost** | Where an `@mention` runs as **the person who sent it**, not as the bot |
 | **Schedules and triggers** | A clock, a webhook, or a mailbox we poll - [routines](docs/triggers.md) |
 
-## 🆚 Why AgenticOS?
+## Compared with the alternatives
 
 The only one of these you can run to completion on infrastructure you already
 own, with agents a non-engineer edits and an accountant can audit.
@@ -496,146 +393,55 @@ own, with agents a non-engineer edits and an accountant can audit.
 corrections welcome via PR. The last three rows are ours to fix and are on the
 <a href="https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md">roadmap</a>.</sub>
 
-## Why
+## Why it exists
 
 Most agent frameworks give you a library. You write Python, you deploy it, and
 every change to an agent's behaviour is a pull request, a review and a release.
 That is the right shape for a product feature and the wrong shape for the forty
-small agents a company actually wants - because the person who knows what the
+small agents a company actually wants — because the person who knows what the
 agent should say is not the person with commit access.
 
 AgenticOS moves the agent out of the code and puts governance around it instead.
-
-| | |
-|---|---|
-| **Agents** | Built in a UI, versioned on publish, exportable as YAML into your own git repository |
-| **[Capabilities](docs/reference/capabilities.md)** | Retrieval, web search and fetch, a real browser, Python, a sandbox with files and a shell, charts, images, delegation, planning, guardrails - switched on per agent |
-| **[Integrations](docs/mcp.md)** | Any MCP server by URL: 99 checked - GitHub, Linear, Notion, Slack, Stripe, Postgres, Sentry - plus 5,703 mirrored from the public registry, searchable by name. No connector to write |
-| **[Models](docs/models.md)** | 27 providers, a key per organization, fallback on outage, or self-hosted Ollama and LiteLLM |
-| **[Knowledge](docs/file-processing.md)** | Retrieval over your documents with three PDF parsers, your own chunking, OCR and image description - per collection, overridable per upload. Google Drive and S3 sync |
-| **[Skills](docs/skills.md)** | Written know-how the agent loads only when it decides it is relevant |
-| **[Routines](docs/triggers.md)** | A schedule fires on the clock, a trigger fires on an arrival - a run with the same budget and books as any other |
-| **[Governance](docs/governance.md)** | Monthly budgets that stop a run, human approval for anything side-effecting, an audit trail, per-agent alerts |
-| **[Surfaces](docs/channels.md)** | Web chat, a hosted page with no login, an embeddable widget, the HTTP API, a raw WebSocket for your own frontend, Slack, Telegram, Mattermost - one runner behind all of them |
-| **[Sandbox](docs/sandbox.md)** | A workspace an agent gets files and a shell in, with a record of what it did there |
-| **[Access](docs/permissions.md)** | Permission catalog in code, roles composed from it, per-resource sharing |
-| **Multi-tenant** | Organization isolation enforced by database constraints, not only by service code |
-
 [Secrets](docs/secrets.md) are sealed per organization: a key copied from one
 tenant's database row cannot be decrypted for another, and no API response ever
-returns one. `agenticos cmd vault-rotate` walks every envelope in the deployment.
+returns one.
 
-## Stack
-
-| Component | Technology |
-|---|---|
-| Backend | FastAPI + Pydantic v2 |
-| Database | PostgreSQL (async via asyncpg) + pgvector |
-| Agent runtime | [Pydantic AI](https://ai.pydantic.dev) |
-| Tool protocol | [MCP](https://modelcontextprotocol.io) over streamable HTTP and SSE |
-| Auth | JWT + refresh tokens, API keys, Google OAuth, magic links |
-| Cache | Redis |
-| Background work | Prefect |
-| Frontend | Next.js 15 + React 19 + Tailwind v4 |
-
-Nothing phones home. Model prices come from a bundled
-[`genai-prices`](https://github.com/pydantic/genai-prices) snapshot, and the only
-outbound calls are the ones your agents make.
-
-## 📖 Documentation
-
-The docs are built with MkDocs and live in [`docs/`](docs/).
-
-```bash
-make docs         # serve on http://localhost:8001, live reload
-make docs-build   # build with --strict, which is what CI runs
-```
+## Docs
 
 | | |
 |---|---|
-| [Concepts](docs/concepts.md) | Spec, version, exposure, trigger, run - the five nouns everything is built from |
-| [Permissions](docs/permissions.md) | The three layers, scopes, and how a grant widens access without promoting anybody |
-| [Governance](docs/governance.md) | Budgets, approvals, alerts, audit |
-| [Capabilities](docs/reference/capabilities.md) | Every capability that ships, its tools, config and scope |
-| [MCP](docs/mcp.md) | Connections, the server catalog, OAuth, what is *not* gated |
-| [Models](docs/models.md) | Providers, model profiles, fallbacks, how a run is costed |
-| [Secrets](docs/secrets.md) | The vault, secret kinds, and what never leaves it |
-| [Skills](docs/skills.md) | The format, the bundled library, skills versus knowledge |
-| [Channels](docs/channels.md) | Slack, Telegram, Mattermost, the widget, the raw WebSocket |
-| [The agent spec](docs/reference/spec.md) | Field by field, generated from the source |
-| [Configuration](docs/configuration.md) | Every setting, and the production checklist |
-| [Architecture](docs/architecture.md) | Routes → services → repositories, and why |
-| [When to use something else](docs/about/comparison.md) | An honest comparison, including where this one loses |
+| [Install](docs/install.md) · [Your first agent](docs/first-agent.md) | From nothing to an agent that answers |
+| [Concepts](docs/concepts.md) | Spec, version, exposure, trigger, run — the five nouns |
+| [Permissions](docs/permissions.md) · [Governance](docs/governance.md) | Who may do what; budgets, approvals, audit |
+| [Capabilities](docs/reference/capabilities.md) · [MCP](docs/mcp.md) | What an agent can do, and how to add a tool |
+| [Models](docs/models.md) · [Secrets](docs/secrets.md) | Providers, profiles, cost; the vault |
+| [Knowledge](docs/file-processing.md) · [Skills](docs/skills.md) | Parsers, chunking, OCR; written know-how |
+| [Channels](docs/channels.md) · [API](docs/api.md) | Slack, Telegram, widget, WebSocket, HTTP |
+| [Architecture](docs/architecture.md) · [Testing](docs/testing.md) | How it is built, and how it is verified |
 
-## Development
-
-```bash
-make check          # every CI job except e2e — about five minutes
-make test           # backend + the 100% coverage gate on the platform layer
-make test-fast      # no coverage, for the write-run-write loop
-make test-frontend  # vitest, no coverage — the loop, not the gate
-make test-frontend-cov  # vitest + the gate CI applies
-make lint           # ruff, ty, eslint, prettier, tsc, and the guard scripts
-make test-e2e       # playwright, against a running stack
-make test-migrations  # apply and roll back the whole chain
-make format         # ruff + prettier
-make help           # everything else
-```
-
-`make check` is `lint test test-frontend-cov build-frontend docs-build audit` —
-every job in [`ci.yml`](.github/workflows/ci.yml) except `e2e`, which needs a
-seeded backend, and the image scan, which runs only on a push to `main`. The
-workflow calls those same targets rather than repeating their commands, and
-`backend/tests/test_ci_parity.py` fails if the two drift.
-
-The **platform layer** - everything AgenticOS adds on top of the generated
-template - is held at 100% coverage and CI fails below it. The exact list is
-`[tool.coverage.run] include` in `backend/pyproject.toml`, mirrored in
-`[[tool.ty.overrides]]` because a module held to 100% coverage is held to the type
-checker too. Template-inherited subsystems are reported by `make coverage-all` but
-do not gate the build; see [Testing](docs/testing.md) for why, and for what belongs
-in each test layer.
-
-> [!IMPORTANT]
-> The database must be `pgvector/pgvector:pg16`, not stock Postgres. The
-> retrieval store issues `CREATE EXTENSION IF NOT EXISTS vector` the first time a
-> collection is written to, and stock Postgres answers
-> `extension "vector" is not available` - a 500 before any row is committed. If
-> document ingestion fails on a fresh environment, check the image first.
+Built with MkDocs: `make docs` serves them on :8001. Stack, in one line: FastAPI
++ Pydantic v2, PostgreSQL with pgvector, Redis, Prefect,
+[Pydantic AI](https://ai.pydantic.dev), Next.js 15. Nothing phones home — the
+only outbound calls are the ones your agents make.
 
 ## Contributing
 
-Read [Architecture](docs/architecture.md) and [Patterns](docs/patterns.md)
-first - the layering is enforced by tests, not by convention. Then
-[Adding a feature](docs/adding_features.md).
+`make check` before a pull request: every CI job except e2e, about five minutes.
+New behaviour ships with a test; a bug ships with a regression test. The
+**platform layer is held at 100% coverage** and CI fails below it.
 
-New behaviour ships with tests; a bug ships with a regression test. Run
-`make check` before opening a pull request - it is every CI job except the two
-named above, and a test keeps that true.
-
-Three things that trip up a first change here:
-
-- **An agent is a file; a tool is code.** There is no `@agent.tool` and no agent
-  module to decorate - a new tool is typed Python that registers a capability,
-  and from then on it is a switch in everybody's Builder. See
-  [Add a capability](docs/howto/add-capability.md).
-- **`require(...)` gates go on collection routes only.** A permission gate on a
-  per-resource route cannot see that row's grants, so it refuses a Viewer who was
-  explicitly given access. Per-resource routes hand the decision to a service that
-  calls `resolve_access`. See [Permissions](docs/permissions.md).
-- **If the tool you need already exists as an MCP server, write no code.** Point at
-  it and its tools appear in the Builder. See [MCP](docs/mcp.md).
-
-If you work on this with an AI agent, [`.claude/`](.claude/README.md) holds the
-repository's own rules and task skills - the same conventions, written for a machine.
-
-Good first issues are
+Three things that trip up a first change: a tool is code and an agent is not
+(there is no `@agent.tool` — a capability registers, and then it is a switch in
+everybody's Builder); `require(...)` gates go on collection routes only; and if
+the tool already exists as an MCP server, write none.
+[CONTRIBUTING.md](CONTRIBUTING.md) has the rest, [`.claude/`](.claude/README.md)
+has the same conventions written for a machine, and good first issues are
 [labelled here](https://github.com/vstorm-co/agenticos/labels/good%20first%20issue).
 
-## 🌐 Vstorm OSS ecosystem
+<details>
+<summary><b>The rest of the Vstorm OSS ecosystem</b></summary>
 
-AgenticOS is the platform end of a set of open-source tools for production AI
-agents. Everything below runs on [Pydantic AI](https://ai.pydantic.dev).
+Everything below runs on [Pydantic AI](https://ai.pydantic.dev).
 
 | Project | What it is | |
 |---|---|---|
@@ -650,6 +456,10 @@ agents. Everything below runs on [Pydantic AI](https://ai.pydantic.dev).
 
 Browse them all at **[oss.vstorm.co](https://oss.vstorm.co)**.
 
+Browse them all at **[oss.vstorm.co](https://oss.vstorm.co)**.
+
+</details>
+
 ## Licence
 
 Apache License 2.0 - see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
@@ -657,6 +467,30 @@ Apache License 2.0 - see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
 Apache-2.0 rather than MIT because AgenticOS is meant to be deployed inside other
 companies: the explicit patent grant is the part their legal review asks about,
 and MIT is silent on it.
+
+---
+
+<div align="center">
+
+### Need help putting agents into production?
+
+<p>
+We are <a href="https://vstorm.co"><b>Vstorm</b></a> — an applied agentic AI engineering
+consultancy with 30+ production agent implementations.<br>
+AgenticOS is what we build them on, and we deploy it inside client
+infrastructure: your cloud, your data centre, or air-gapped.
+</p>
+
+<a href="https://vstorm.co/contact-us/">
+  <img src="https://img.shields.io/badge/Talk%20to%20us%20%E2%86%92-0066FF?style=for-the-badge&logoColor=white" alt="Talk to us">
+</a>
+
+<br><br>
+
+Built with care by <a href="https://vstorm.co"><b>Vstorm</b></a> ·
+<a href="https://oss.vstorm.co">oss.vstorm.co</a>
+
+</div>
 
 ---
 
