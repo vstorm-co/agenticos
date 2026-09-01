@@ -17,6 +17,45 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.345] - 2026-09-01
+
+### Fixed
+
+- **The RAG delete paths did their vector-store work inside the request
+  transaction.** #1293 deferred the file unlinks; the store side effects stayed
+  where they were, so the same rollback left the vectors gone.
+  `RAGDocumentService.delete_document`'s `remove_document` and
+  `KnowledgeBaseService.delete`'s `delete_collection` `DROP TABLE` now go over with
+  `spawn_after_commit` too. The collection drop is the sharper of the two: a
+  rollback used to restore the knowledge-base and `rag_documents` rows pointing at
+  a table that no longer existed, which is a correctness fault rather than a
+  recoverable leak. The deferred drop re-reads its `list_by_collection_name`
+  reference check on a session of its own, because the name is not tenant-unique
+  and a second organization can reclaim it in the window between the commit and
+  the drop (#913) - the same re-check the org purge's durable cleanup makes. (#1347)
+- Still deferred in-process, so a crash between the commit and the dispatch loses
+  the cleanup; that durability gap is #1349. (#1347)
+
+## [0.0.344] - 2026-09-01
+
+### Fixed
+
+- **The RAG delete paths unlinked stored uploads inside the request transaction.**
+  `rag_document.delete_by_collection`, `delete_document`, `complete_ingestion`'s
+  `_retire_superseded` and `knowledge_base.delete` all removed the file before the
+  commit, so a commit that then failed rolled the `rag_documents` rows back and left
+  the files gone - a restored row pointing at a missing upload, its download and
+  re-ingestion broken, and the original that could have rebuilt the vectors lost. All
+  four now hand the unlink to `spawn_after_commit` after deleting the rows, through
+  one shared `delete_files_best_effort(paths)` in `app/services/file_storage.py`
+  which holds only ids, resolves the storage backend when it runs, and suppresses a
+  file already gone. The table drop and the sync-source deactivation stay in the
+  transaction. (#1293)
+- The vector-store half of those same paths - `delete_document`'s `remove_document`
+  and `knowledge_base.delete`'s `DROP TABLE` - still runs before the commit, which is
+  the same rollback class on the store's own engine and needs the #913 reference
+  re-check moved with it. Filed as #1347 rather than widened into this change. (#1293)
+
 ## [0.0.343] - 2026-08-28
 
 ### Changed
