@@ -10,13 +10,40 @@ this proves the two contend on one collection name and do not on two.
 from __future__ import annotations
 
 import asyncio
+import uuid
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.core.exceptions import AlreadyExistsError
+from app.core.permissions import AuthContext, OrgRoleName
 from app.db.locks import LockScope, hold_name
+from app.repositories import collection_teardown_repo
+from app.services.collection_access import CollectionAccessService
 
 pytestmark = pytest.mark.anyio
+
+
+async def test_a_reserved_name_cannot_be_reclaimed_until_it_is_released(db: AsyncSession) -> None:
+    """The tombstone a delete commits (#1362) blocks a claim of the name until the
+    cleanup drops the table and releases it - so a concurrent claim cannot adopt the
+    victim's still-populated table. A mocked session cannot show the reservation
+    query refusing; this drives it against the real row.
+    """
+    ctx = AuthContext(
+        user_id=uuid.uuid4(),
+        organization_id=uuid.uuid4(),
+        role=OrgRoleName.OWNER.value,
+        is_app_admin=False,
+    )
+    name = f"kbnine{uuid.uuid4().hex[:12]}"
+
+    await collection_teardown_repo.reserve(db, name)
+    with pytest.raises(AlreadyExistsError):
+        await CollectionAccessService(db).claim(ctx, name)
+
+    await collection_teardown_repo.release(db, name)
+    await CollectionAccessService(db).claim(ctx, name)  # released, so no longer refused
 
 
 async def test_two_holders_of_one_name_serialize(engine: AsyncEngine) -> None:

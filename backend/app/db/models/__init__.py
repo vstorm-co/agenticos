@@ -18,6 +18,7 @@ from app.db.models.channel_session import ChannelSession
 from app.db.models.organization import Invitation, Organization, OrganizationMember
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.knowledge_base import KnowledgeBase
+from app.db.models.collection_teardown import CollectionTeardown
 from app.db.models.user_slash_command import UserSlashCommand
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.dashboard_layout import DashboardLayout
@@ -64,6 +65,7 @@ __all__ = [
     "Invitation",
     "AppAdminAuditLog",
     "KnowledgeBase",
+    "CollectionTeardown",
     "UserSlashCommand",
     "DeploymentSettings",
     "DashboardLayout",

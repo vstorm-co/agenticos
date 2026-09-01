@@ -30,6 +30,7 @@ from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.sync_log import SyncLog
 from app.db.models.sync_source import SyncSource
 from app.db.vector_tables import MAX_COLLECTION_NAME_LENGTH
+from app.repositories import collection_teardown_repo
 from app.services.collection_access import CollectionAccessService, readable_kb, writable_kb
 
 pytestmark = pytest.mark.anyio
@@ -133,6 +134,7 @@ def _grant_repo(rows: Rows, monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture
 def service(rows: Rows, monkeypatch: pytest.MonkeyPatch) -> CollectionAccessService:
     from app.repositories import (
+        collection_teardown_repo,
         knowledge_base_repo,
         rag_document_repo,
         sync_log_repo,
@@ -141,6 +143,11 @@ def service(rows: Rows, monkeypatch: pytest.MonkeyPatch) -> CollectionAccessServ
 
     async def list_by_collection_name(_db: object, collection_name: str) -> list[KnowledgeBase]:
         return [kb for kb in rows.collections if kb.collection_name == collection_name]
+
+    async def not_reserved(_db: object, _name: str) -> bool:
+        return False
+
+    monkeypatch.setattr(collection_teardown_repo, "is_reserved", not_reserved)
 
     async def get_accessible(_db: object, **_kwargs: object) -> list[KnowledgeBase]:
         return rows.accessible
@@ -361,6 +368,18 @@ class TestClaimingACollectionName:
     ) -> None:
         """They would share one vector table, which is the whole problem."""
         rows.collections = [_kb("handbook", organization_id=OTHER_ORG)]
+
+        with pytest.raises(AlreadyExistsError):
+            await service.claim(_ctx(), "handbook")
+
+    async def test_a_reserved_name_is_refused_until_its_teardown_finishes(
+        self, service: CollectionAccessService, rows: Rows, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A name whose last row is gone but whose table has not been dropped yet
+        carries a teardown reservation; claiming it would adopt that lingering,
+        populated table, so it is refused until the cleanup releases it (#1362)."""
+        rows.collections = []
+        monkeypatch.setattr(collection_teardown_repo, "is_reserved", AsyncMock(return_value=True))
 
         with pytest.raises(AlreadyExistsError):
             await service.claim(_ctx(), "handbook")

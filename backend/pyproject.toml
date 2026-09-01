@@ -542,6 +542,7 @@ include = [
     "app/services/channels/membership.py",
     "app/services/channels/mentions.py",
     "app/services/collection_access.py",
+    "app/repositories/collection_teardown.py",
     "app/services/embed_session.py",
     "app/services/embedding_resolution.py",
     "app/services/approvals.py",
@@ -778,6 +779,7 @@ include = [
     "app/services/channels/membership.py",
     "app/services/channels/mentions.py",
     "app/services/collection_access.py",
+    "app/repositories/collection_teardown.py",
     # One visitor's turn on a public widget: who it runs as, how often they may
     # ask, and what the page is allowed to put in front of the model. An
     # unreachable `except BudgetExceeded` sat here for as long as it was
