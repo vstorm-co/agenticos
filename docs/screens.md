@@ -4,9 +4,9 @@ One page, every module, described. Screenshots follow the theme you are
 reading the site in - switch it with the toggle in the header and every image
 on this page switches with it.
 
-Captured 2026-09-01 from a running deployment. Both themes of every screen are
-in the repository under `docs/assets/screens/`, named identically in
-`light/` and `dark/`.
+Captured 2026-09-01 from a running deployment: 35 screens, 27 of them in both
+themes under `docs/assets/screens/`, named identically in `light/` and `dark/`.
+The eight Builder screens are dark only, and say so where they appear.
 
 ## The chat, in twenty seconds
 
@@ -277,7 +277,8 @@ This deployment's own identity and policy: sign-up, invitations, notices, and wh
 
 ## Recap
 
-- Every module has both themes in `docs/assets/screens/`, under the same name.
+- 27 modules have both themes in `docs/assets/screens/`, under the same name;
+  the eight Builder screens are dark only.
 - On this site an image is written twice, with `#only-light` and `#only-dark`;
   Material shows the one matching the reader's palette.
 - In the README the same pair goes in a `<picture>` with

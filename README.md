@@ -79,9 +79,10 @@ write for your own use case.
 
 ## What it looks like
 
-A CSV dropped into the chat, one sentence of instruction, and the agent writes
-Python, runs it in a sandbox and answers with charts it drew from the data — no
-plugin, no notebook, nothing configured for this file in particular.
+Somebody drops a spreadsheet into the chat and asks, in one sentence, to see it
+as charts. The agent works out how, does the arithmetic itself in a locked box,
+and answers with the charts and what they say. Nobody built a report for this
+file, and nobody wrote any code.
 
 <div align="center">
 
@@ -93,23 +94,26 @@ plugin, no notebook, nothing configured for this file in particular.
 
 ### Inside one agent
 
-An agent is configuration, not code — and the header says `published` beside
-`Draft differs from v40`, because editing does not ship.
+An agent is defined on a form, not in a codebase: what it should do, which model
+answers, what it is allowed to touch, and what it may spend. So the person who
+actually knows the answer writes it — support writes the support agent — and
+nothing reaches a customer until somebody presses **Publish**. The badge here
+says v40 is live while the draft is still being worked on.
 
-<img src="docs/assets/screens/dark/builder-build.webp" alt="The agent builder: instructions, model and endpoint, with the published version and a differing draft" width="100%">
+<img src="docs/assets/screens/dark/builder-build.webp" alt="Defining an agent: what it should do, which model answers, and the version that is live" width="100%">
 
 <table>
 <tr>
 <td width="50%">
 
-**Toolbox** — Every capability as a switch, with the per-tool approval gate beside each. Configuration reaches only what code registered.
+**Toolbox** — A language model on its own can only write text back at you. **Tools** are what let it act — search your own documents, read a web page, do the arithmetic, open a ticket. Everything wrapped around the model to make it useful and keep it in bounds is what the industry now calls an **AI harness**, and this is where you assemble one: switch on what this agent may do, and set anything consequential to ask a person first.
 
 <img alt="Toolbox" src="docs/assets/screens/dark/builder-toolbox.webp" width="100%">
 
 </td>
 <td width="50%">
 
-**Visual map** — The same agent as a graph: what reaches it, and what it reaches for. A dashed box is something nothing is attached to.
+**Visual map** — The same agent as a picture, for the conversation where somebody asks what it can reach. Solid boxes are things it has; a dashed one is something nobody attached — a spending ceiling that was never set shows up as a gap rather than hiding as a default.
 
 <img alt="Visual map" src="docs/assets/screens/dark/builder-visual-map.webp" width="100%">
 
@@ -118,14 +122,14 @@ An agent is configuration, not code — and the header says `published` beside
 <tr>
 <td width="50%">
 
-**Limits** — One monthly cap, checked before each model request, and a step ceiling for the other runaway: a tool loop that is cheap per call and never finishes.
+**Limits** — The two ways an AI project surprises you on the invoice, both capped here. A monthly ceiling per agent, checked *before* each question goes to the model rather than added up afterwards — and a step limit for the other case, an agent that loops cheaply and never stops.
 
 <img alt="Limits" src="docs/assets/screens/dark/builder-limits.webp" width="100%">
 
 </td>
 <td width="50%">
 
-**History** — Every version this agent has had. The one that was live in March is still readable, which makes a rollback a choice rather than an excavation.
+**History** — Every version this agent has ever had, still readable. What it was told to say in March is a question with an answer, and going back to it is a click rather than an investigation.
 
 <img alt="History" src="docs/assets/screens/dark/builder-history.webp" width="100%">
 
@@ -133,18 +137,18 @@ An agent is configuration, not code — and the header says `published` beside
 </tr>
 </table>
 
-<sub>These four are dark only — the light half of the Builder has not been captured, so unlike every other screenshot here they do not follow your theme.</sub>
+<sub>These four are dark only — the light half of this screen has not been captured, so unlike every other screenshot here they do not follow your theme.</sub>
 
-### Every module
+### Everything else it takes to run forty of them
 
 Screenshots follow your GitHub theme — light or dark, whichever you are reading
-in. [All 27 screens, both themes](docs/screens.md).
+in. [All 35 screens](docs/screens.md).
 
 <table>
 <tr>
 <td width="50%">
 
-**Agents** — The catalog. Every agent carries the version that is live, who may reach it, and whether a draft is waiting to be published.
+**Agents** — Every agent the company runs, in one list, with the version that is live and who is allowed to use it. The point of one list: somebody can finally answer *what do we run, and who signed off on it*.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agents.webp">
@@ -154,7 +158,7 @@ in. [All 27 screens, both themes](docs/screens.md).
 </td>
 <td width="50%">
 
-**Templates** — Agents by industry, over the catalog. Installing one creates a draft you finish and publish — nothing runs until you do.
+**Templates** — You do not start from a blank page. Pick something close to your industry, and you get a draft to adjust and publish — a first working agent in an afternoon rather than a project.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agents-templates-dialog.webp">
@@ -166,21 +170,21 @@ in. [All 27 screens, both themes](docs/screens.md).
 <tr>
 <td width="50%">
 
-**One run, opened** — Tokens in and out, cost to four decimal places, how long it took, and the timeline of every turn and tool call it made.
+**One answer, opened up** — Every time an agent answers anybody, it is recorded: what it was asked, what it looked at, what it decided, how long it took and what it cost — to a fraction of a cent. This is the screen that turns *the AI said something odd* into something you can actually check.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity-run-detail.webp">
-  <img alt="One run, opened" src="docs/assets/screens/light/activity-run-detail.webp" width="100%">
+  <img alt="One answer, opened up" src="docs/assets/screens/light/activity-run-detail.webp" width="100%">
 </picture>
 
 </td>
 <td width="50%">
 
-**Parsing, per upload** — PyMuPDF, LiteParse or LlamaParse; chunking strategy, size and overlap; OCR and its language. Set on the collection, overridable on the next file you add - a scanned rate card and a Markdown runbook do not want the same parser.
+**How your documents are read** — A PDF is not text — somebody has to read it out of the page, and a scanned price list, a contract and a spreadsheet each need a different reader. Most products choose one for you and hide it; here you choose per folder, or for the next file you upload. Wrong reader is the difference between an answer and *I cannot find that*.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-base-upload-parsing-dialog.webp">
-  <img alt="Parsing, per upload" src="docs/assets/screens/light/knowledge-base-upload-parsing-dialog.webp" width="100%">
+  <img alt="How your documents are read" src="docs/assets/screens/light/knowledge-base-upload-parsing-dialog.webp" width="100%">
 </picture>
 
 </td>
@@ -188,17 +192,17 @@ in. [All 27 screens, both themes](docs/screens.md).
 <tr>
 <td width="50%">
 
-**A collection** — Documents, their chunk counts and what failed to ingest. Upload here, then choose in chat which collections an agent may search.
+**Your documents** — A folder of documents an agent may read — handbooks, policies, price lists. Upload them here, and then say which agents may look inside which folders.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-base-detail.webp">
-  <img alt="A collection" src="docs/assets/screens/light/knowledge-base-detail.webp" width="100%">
+  <img alt="Your documents" src="docs/assets/screens/light/knowledge-base-detail.webp" width="100%">
 </picture>
 
 </td>
 <td width="50%">
 
-**Skills** — Know-how written once and shared by every agent bound to it — how refunds are handled, what the house style is. Edit it here and every agent bound to it is current on its next run.
+**Skills** — A procedure written once, in plain language, and used by every agent that needs it: how a refund is handled, how a complaint is answered. Change the wording here and every agent using it is current on its next answer — no release, no developer.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/skills.webp">
@@ -210,7 +214,7 @@ in. [All 27 screens, both themes](docs/screens.md).
 <tr>
 <td width="50%">
 
-**Context** — Standing context every agent can draw on — a glossary, a policy, a brand voice. Injected into the prompt or read on demand, and current the moment you edit it.
+**Context** — The standing facts an agent should never get wrong: what your products are called, which policy applies, how the company sounds in writing. Written in one place instead of pasted into forty prompts.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/context.webp">
@@ -220,11 +224,11 @@ in. [All 27 screens, both themes](docs/screens.md).
 </td>
 <td width="50%">
 
-**Approvals** — Everything waiting on a person, with what the agent intends to do. Decided exactly once - a second decision on a settled approval is refused.
+**It asks before it acts** — Anything that leaves a mark — sending the email, raising the ticket, issuing the refund — stops here and waits for a person, with what the agent intends to do written out. Decided once and only once: nobody can approve what somebody else already rejected.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity-approvals.webp">
-  <img alt="Approvals" src="docs/assets/screens/light/activity-approvals.webp" width="100%">
+  <img alt="It asks before it acts" src="docs/assets/screens/light/activity-approvals.webp" width="100%">
 </picture>
 
 </td>
@@ -232,21 +236,21 @@ in. [All 27 screens, both themes](docs/screens.md).
 <tr>
 <td width="50%">
 
-**Spend** — What the organization actually spent, by period. A budget is checked <i>before</i> the model request, so a run that breaches one stops mid-answer and still records what it cost.
+**What it costs** — What the company spent, by period and by agent. Every agent has a monthly ceiling checked before it asks the model anything, so a runaway stops mid-sentence instead of arriving as a surprise invoice at the end of the month.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/activity-spend.webp">
-  <img alt="Spend" src="docs/assets/screens/light/activity-spend.webp" width="100%">
+  <img alt="What it costs" src="docs/assets/screens/light/activity-spend.webp" width="100%">
 </picture>
 
 </td>
 <td width="50%">
 
-**Vault** — Every key this organization has stored, sealed per tenant. Replaceable, never readable again - and rotating one is invisible to a published agent, which references the secret rather than its value.
+**Keys and credentials** — Every key the company has given its agents, encrypted and separated per team. Replaceable, never readable again — including by whoever runs the server. Rotating one takes a paste and nothing has to be republished.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/vault.webp">
-  <img alt="Vault" src="docs/assets/screens/light/vault.webp" width="100%">
+  <img alt="Keys and credentials" src="docs/assets/screens/light/vault.webp" width="100%">
 </picture>
 
 </td>
@@ -254,21 +258,21 @@ in. [All 27 screens, both themes](docs/screens.md).
 <tr>
 <td width="50%">
 
-**MCP servers** — Connect any MCP server by URL and its tools become switches in the Builder. 99 curated entries plus 5,703 mirrored from the public registry, searchable by name.
+**The tools you already pay for** — Agents can use the systems the company already runs — a helpdesk, a CRM, a repository, a database — through the open standard those products are publishing for exactly this (MCP). 99 connections checked by us plus 5,703 from the public directory, searchable by name. Connect one for the company, or just for yourself.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/mcp-servers.webp">
-  <img alt="MCP servers" src="docs/assets/screens/light/mcp-servers.webp" width="100%">
+  <img alt="The tools you already pay for" src="docs/assets/screens/light/mcp-servers.webp" width="100%">
 </picture>
 
 </td>
 <td width="50%">
 
-**Channels** — The chat platforms this organization answers on - Slack, Telegram, Mattermost. One bot serves one agent, bound under that agent's Availability tab.
+**Where people meet it** — The same agent answers wherever your team already works — Slack, Telegram, Mattermost, a widget on your website, or your own software through the API. One agent, published once, with the same limits and the same record everywhere.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/channels.webp">
-  <img alt="Channels" src="docs/assets/screens/light/channels.webp" width="100%">
+  <img alt="Where people meet it" src="docs/assets/screens/light/channels.webp" width="100%">
 </picture>
 
 </td>
@@ -276,21 +280,21 @@ in. [All 27 screens, both themes](docs/screens.md).
 <tr>
 <td width="50%">
 
-**Routines** — What agents do with nobody typing: a schedule, or an event that arrives. The run is recorded and budgeted like any other.
+**Work nobody has to start** — Agents that run on a schedule, or when something happens: the Monday summary, the alert that gets triaged at 07:00, the inbox that gets sorted overnight. Same limits, same approvals, same record as anything a person asked for.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/routines.webp">
-  <img alt="Routines" src="docs/assets/screens/light/routines.webp" width="100%">
+  <img alt="Work nobody has to start" src="docs/assets/screens/light/routines.webp" width="100%">
 </picture>
 
 </td>
 <td width="50%">
 
-**Sandboxes** — Where agents run shell commands and keep files. An agent names a connection by id, so moving to another host is one edit here rather than republishing every agent.
+**Where code runs** — When an agent needs to compute something it writes the code and runs it — in a locked box with its own files, not on your servers. You can read afterwards exactly what it ran.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/sandboxes.webp">
-  <img alt="Sandboxes" src="docs/assets/screens/light/sandboxes.webp" width="100%">
+  <img alt="Where code runs" src="docs/assets/screens/light/sandboxes.webp" width="100%">
 </picture>
 
 </td>
@@ -298,21 +302,21 @@ in. [All 27 screens, both themes](docs/screens.md).
 <tr>
 <td width="50%">
 
-**Organizations** — Switch between them, manage members, create new ones. Authority inside an organization is a membership row plus the permission catalog — there is no role column on a user.
+**Teams, kept apart** — One installation, many teams or clients, and no way for one to see another's agents, documents or costs — separation the database enforces rather than the application remembering to. Who can do what is granted, not assumed.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/organizations.webp">
-  <img alt="Organizations" src="docs/assets/screens/light/organizations.webp" width="100%">
+  <img alt="Teams, kept apart" src="docs/assets/screens/light/organizations.webp" width="100%">
 </picture>
 
 </td>
 <td width="50%">
 
-**Dashboard** — Arrangeable widgets over the whole deployment and then this organization - runs, spend, service health, answer quality. Each card is gated on the permission its data needs.
+**One screen for the morning** — What ran, what it cost, what is waiting on somebody, and whether anything is unhealthy — arranged the way you want to read it. Each card only appears for people allowed to see what is on it.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/dashboard.webp">
-  <img alt="Dashboard" src="docs/assets/screens/light/dashboard.webp" width="100%">
+  <img alt="One screen for the morning" src="docs/assets/screens/light/dashboard.webp" width="100%">
 </picture>
 
 </td>
