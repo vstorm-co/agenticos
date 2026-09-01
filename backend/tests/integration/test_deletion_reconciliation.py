@@ -528,12 +528,25 @@ class TestDeletingAnOrg:
         assert storage.get_full_path(stored_path) is not None
         await storage.delete(stored_path)
 
-    async def test_a_recreated_collection_survives_the_deferred_drop(
+    async def test_a_reclaim_during_the_deferred_drop_is_refused_until_it_finishes(
         self, engine: AsyncEngine
     ) -> None:
-        """The drop runs after the commit that frees the collection name, so a
-        second org can reclaim it before the cleanup fires; the deferred cleanup
-        re-checks references and leaves the new tenant's table in place (#1137)."""
+        """The drop runs after the commit that frees the name, so between the two the
+        name is reserved (#1362): a second org's claim is refused rather than adopting
+        the victim's still-populated table, and once the cleanup drops it and releases
+        the name a fresh claim succeeds against a table that is gone."""
+        from app.core.exceptions import AlreadyExistsError
+        from app.core.permissions import AuthContext, OrgRoleName
+        from app.services.collection_access import CollectionAccessService
+
+        def _ctx(user_id: uuid.UUID, org_id: uuid.UUID) -> AuthContext:
+            return AuthContext(
+                user_id=user_id,
+                organization_id=org_id,
+                role=OrgRoleName.OWNER.value,
+                is_app_admin=False,
+            )
+
         store = PgVectorStore(
             settings=app_settings.rag,
             embedding_service=MagicMock(),
@@ -557,21 +570,30 @@ class TestDeletingAnOrg:
             org = await s.get(Organization, org_id)
             await OrganizationService(s, vector_store=store).purge(org)
             await s.commit()
-            # A second org claims the freed name before the deferred cleanup runs.
+            # The name is reserved until the drop runs, so a second org's claim of it
+            # in the window is refused - it cannot adopt the lingering populated table.
             async with factory() as claimant:
                 other = _user()
                 claimant.add(other)
                 await claimant.flush()
                 other_org = await _org(claimant, other)
-                claimant.add(_org_collection(other_org.id, collection))
-                await claimant.commit()
+                with pytest.raises(AlreadyExistsError):
+                    await CollectionAccessService(claimant).claim(
+                        _ctx(other.id, other_org.id), collection
+                    )
+                await claimant.rollback()
             start_deferred(s)
         await drain()
 
+        # The cleanup dropped the table and released the name, so it is now claimable
+        # afresh against a table that no longer holds the first org's chunks.
         async with factory() as s:
-            assert (
-                await s.execute(text("SELECT to_regclass(:t)"), {"t": table})
-            ).scalar() is not None
+            assert (await s.execute(text("SELECT to_regclass(:t)"), {"t": table})).scalar() is None
+            user2 = _user()
+            s.add(user2)
+            await s.flush()
+            org2 = await _org(s, user2)
+            await CollectionAccessService(s).claim(_ctx(user2.id, org2.id), collection)
 
     async def test_a_personal_collection_survives_its_orgs_deletion(
         self, engine: AsyncEngine

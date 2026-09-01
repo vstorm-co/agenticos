@@ -17,6 +17,7 @@ from app.repositories import conversation_share as conversation_share_repo
 from app.repositories import message_rating as message_rating_repo
 
 from app.repositories import knowledge_base as knowledge_base_repo
+from app.repositories import collection_teardown as collection_teardown_repo
 
 from app.repositories import channel_bot as channel_bot_repo
 from app.repositories import channel_identity as channel_identity_repo
@@ -66,6 +67,7 @@ __all__ = [
     "conversation_share_repo",
     "message_rating_repo",
     "knowledge_base_repo",
+    "collection_teardown_repo",
     "channel_bot_repo",
     "channel_identity_repo",
     "channel_link_request_repo",

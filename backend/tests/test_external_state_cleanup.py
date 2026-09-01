@@ -99,16 +99,16 @@ async def _db_ctx() -> Any:
     yield MagicMock(execute=AsyncMock())
 
 
-def _patch_cleanup(*, referenced: list[str]) -> Any:
-    """Patch everything `cleanup_external_state` reaches, so the store and the
-    reference check are controllable. `referenced` names the collections a base
-    still claims - those must not be dropped."""
+def _patch_cleanup() -> Any:
+    """Patch everything `cleanup_external_state` reaches - the store and the
+    reservation release - so the drops are controllable. It no longer re-checks the
+    knowledge-base table: the delete path already decided each name should be dropped
+    and reserved it, so the cleanup drops unconditionally, then releases the name's
+    reservation (#1362)."""
     storage = MagicMock(delete=AsyncMock())
     store = MagicMock(delete_collection=AsyncMock())
     engine = MagicMock(dispose=AsyncMock())
-
-    async def _list(_db: object, name: str) -> list[object]:
-        return [MagicMock()] if name in referenced else []
+    release = AsyncMock()
 
     patches = [
         patch("app.services.file_storage.get_file_storage", return_value=storage),
@@ -116,46 +116,47 @@ def _patch_cleanup(*, referenced: list[str]) -> Any:
         patch("app.services.rag.vectorstore.PgVectorStore", return_value=store),
         patch("app.services.rag.embeddings.EmbeddingService", return_value=MagicMock()),
         patch("app.db.session.get_worker_db_context", _db_ctx),
-        patch("app.repositories.knowledge_base_repo.list_by_collection_name", new=_list),
+        patch("app.repositories.collection_teardown_repo.release", release),
     ]
-    return storage, store, engine, patches
+    return storage, store, engine, release, patches
 
 
 class TestTheCleanup:
-    async def test_it_unlinks_every_file_and_drops_every_unreferenced_table(self) -> None:
-        storage, store, engine, patches = _patch_cleanup(referenced=[])
+    async def test_it_unlinks_every_file_and_drops_and_releases_every_table(self) -> None:
+        storage, store, engine, release, patches = _patch_cleanup()
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             result = await cleanup_external_state(["u/a.txt", "u/b.txt"], ["docs", "wiki"])
 
         assert storage.delete.await_count == 2
         assert store.delete_collection.await_count == 2
+        assert [call.args[1] for call in release.await_args_list] == ["docs", "wiki"]
         assert result == {"unlinked": 2, "dropped": 2}
         engine.dispose.assert_awaited_once()
 
-    async def test_it_leaves_a_table_a_base_still_references(self) -> None:
-        """`collection_name` is not tenant-unique, so a name a second org has
-        claimed since the purge must keep its table (#913)."""
-        storage, store, _engine, patches = _patch_cleanup(referenced=["wiki"])
+    async def test_a_failed_drop_leaves_the_reservation_for_a_retry(self) -> None:
+        """The name stays reserved when the drop fails: the table may still hold data,
+        so freeing the name would let a claim adopt it. A retry drops and releases it
+        (#1362)."""
+        _storage, store, _engine, release, patches = _patch_cleanup()
+        store.delete_collection = AsyncMock(side_effect=SQLAlchemyError("blip"))
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            result = await cleanup_external_state([], ["docs", "wiki"])
+            result = await cleanup_external_state([], ["docs"])
 
-        store.delete_collection.assert_awaited_once_with("docs")
-        assert result == {"unlinked": 0, "dropped": 1}
+        release.assert_not_awaited()
+        assert result == {"unlinked": 0, "dropped": 0}
 
-    async def test_a_failed_unlink_or_drop_does_not_abort_the_rest(self) -> None:
-        """Best-effort: a file already gone or a table that never existed is not a
-        reason to abandon the cleanup a retry would otherwise repeat."""
-        storage, store, _engine, patches = _patch_cleanup(referenced=[])
+    async def test_a_failed_unlink_does_not_abort_the_rest(self) -> None:
+        """Best-effort: a file already gone is not a reason to abandon the cleanup."""
+        storage, _store, _engine, _release, patches = _patch_cleanup()
         storage.delete = AsyncMock(side_effect=OSError("gone"))
-        store.delete_collection = AsyncMock(side_effect=SQLAlchemyError("no such table"))
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             result = await cleanup_external_state(["u/a.txt"], ["docs"])
 
-        assert result == {"unlinked": 1, "dropped": 0}
+        assert result == {"unlinked": 1, "dropped": 1}
 
     async def test_no_collections_touches_no_store(self) -> None:
         """A purge that only left files behind builds no vector-store engine."""
-        storage, _store, _engine, patches = _patch_cleanup(referenced=[])
+        storage, _store, _engine, _release, patches = _patch_cleanup()
         with (
             patches[0],
             patch.object(teardown_tasks, "create_async_engine") as make_engine,
@@ -169,13 +170,12 @@ class TestTheCleanup:
         make_engine.assert_not_called()
         assert result == {"unlinked": 1, "dropped": 0}
 
-    async def test_it_locks_each_collection_before_dropping(self) -> None:
-        """Each collection's re-check and drop are serialized against a concurrent
-        claim of the same name by an advisory lock, so a base created in the window
-        between them keeps its table (#1355, #913)."""
+    async def test_it_locks_and_releases_each_collection_it_drops(self) -> None:
+        """The drop takes the advisory lock it shares with the claim path (#1355), and
+        releases the name's reservation only after the table is gone (#1362)."""
         from app.db.locks import LockScope
 
-        _storage, _store, _engine, patches = _patch_cleanup(referenced=[])
+        _storage, _store, _engine, release, patches = _patch_cleanup()
         lock = AsyncMock()
         with (
             patches[0],
@@ -192,6 +192,34 @@ class TestTheCleanup:
             (LockScope.COLLECTION_TEARDOWN, "docs"),
             (LockScope.COLLECTION_TEARDOWN, "wiki"),
         ]
+        assert [call.args[1] for call in release.await_args_list] == ["docs", "wiki"]
+
+    async def test_a_legacy_run_without_a_reservation_skips_a_reclaimed_name(self) -> None:
+        """A run queued before #1362 carries no reservation; if the name was reclaimed
+        since, it falls back to the reference check and does not drop the new tenant's
+        table - the safety an upgrade replaying an old run needs (#1362 review)."""
+        _storage, store, _engine, release, patches = _patch_cleanup()
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patches[3],
+            patches[4],
+            patches[5],
+            patch(
+                "app.repositories.collection_teardown_repo.is_reserved",
+                AsyncMock(return_value=False),
+            ),
+            patch(
+                "app.repositories.knowledge_base_repo.list_by_collection_name",
+                AsyncMock(return_value=[MagicMock()]),
+            ),
+        ):
+            result = await cleanup_external_state([], ["docs"])
+
+        store.delete_collection.assert_not_awaited()
+        release.assert_not_awaited()
+        assert result == {"unlinked": 0, "dropped": 0}
 
 
 class TestTheFlow:

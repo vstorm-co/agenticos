@@ -22,7 +22,6 @@ submitted still loses the cleanup, which only a record committed *with* the dele
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import logging
 
 from prefect import flow
@@ -123,17 +122,23 @@ async def cleanup_external_state(
     left of them.
 
     Idempotent, because the flow's retries must be safe: unlinking a file already
-    gone is a no-op, `delete_collection` issues `DROP TABLE IF EXISTS`, and each
-    collection is re-checked against the knowledge-base table - under an advisory
-    lock it shares with the name's claim path - so a name a second org has claimed,
-    or is mid-claim on, since the delete keeps its table (#913, #1355). The store
-    rides an engine built for this one run and disposed on the way out, because a
+    gone is a no-op, and `delete_collection` issues `DROP TABLE IF EXISTS`. The delete
+    path decided each name should be dropped and reserved it against reuse
+    (`collection_teardowns`, #1362), so a reserved name is dropped whatever now claims
+    it - the reservation blocked any legitimate claim. A name with no reservation is a
+    run queued by code from before #1362 (an upgrade replaying an old run under the
+    retained deployment name), and that one falls back to the reference check so it
+    does not drop a name reclaimed since. The table is dropped and only then is the
+    reservation released, so a claim never sees the name free while its populated table
+    still exists; a drop that fails leaves the reservation in place for a retry. The
+    advisory lock serialises the drop against a claim's reservation check (#1355). The
+    store rides an engine built for this one run and disposed on the way out, because a
     pooled connection made on one flow's event loop breaks the next (the reason
     `rag_tasks._ingestion_service` builds per-flow engines too, #948).
     """
     from app.db.locks import LockScope, hold_name
     from app.db.session import get_worker_db_context
-    from app.repositories import knowledge_base_repo
+    from app.repositories import collection_teardown_repo, knowledge_base_repo
     from app.services.embedding_resolution import embeddings_for_collection
     from app.services.file_storage import get_file_storage
     from app.services.rag.embeddings import EmbeddingService
@@ -162,15 +167,26 @@ async def cleanup_external_state(
             )
             async with get_worker_db_context() as db:
                 for collection in collections:
-                    # Serialize the re-check and the drop against a concurrent claim
-                    # of the same name, so a base created in the window between them
-                    # keeps its table (#1355). Held to the end of this transaction.
                     await hold_name(db, LockScope.COLLECTION_TEARDOWN, collection)
-                    if await knowledge_base_repo.list_by_collection_name(db, collection):
+                    # A run this code reserved drops unconditionally; a legacy run from
+                    # before the reservation existed - an upgrade executing an old
+                    # queued run under the retained deployment name - has no row, so it
+                    # falls back to the reference check and does not drop a name that
+                    # was reclaimed since it was queued (#1362 review, #913).
+                    reserved = await collection_teardown_repo.is_reserved(db, collection)
+                    if not reserved and await knowledge_base_repo.list_by_collection_name(
+                        db, collection
+                    ):
                         continue
-                    with contextlib.suppress(SQLAlchemyError):
+                    try:
                         await store.delete_collection(collection)
-                        dropped += 1
+                    except SQLAlchemyError as exc:
+                        # The table may still hold data, so leave the name reserved for
+                        # a retry rather than freeing it now (#1362).
+                        logger.warning("Failed to drop collection %s: %s", collection, exc)
+                        continue
+                    dropped += 1
+                    await collection_teardown_repo.release(db, collection)
         finally:
             await engine.dispose()
 

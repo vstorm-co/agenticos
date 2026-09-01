@@ -41,6 +41,7 @@ from app.db.models.sync_log import SyncLog
 from app.db.models.sync_source import SyncSource
 from app.db.vector_tables import validate_collection_name
 from app.repositories import (
+    collection_teardown_repo,
     knowledge_base_repo,
     rag_document_repo,
     sync_log_repo,
@@ -228,6 +229,14 @@ class CollectionAccessService:
         """
         validate_collection_name(name, metadata=Base.metadata)
         await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, name)
+        if await collection_teardown_repo.is_reserved(self.db, name):
+            # The name's last row is gone but its vector table has not been dropped
+            # yet, so claiming it now would adopt that lingering, populated table
+            # (#1362). The reservation lifts when the durable cleanup drops the table.
+            raise AlreadyExistsError(
+                message=f"A collection named '{name}' is being torn down; try again shortly",
+                details={"collection": name},
+            )
         for kb in await knowledge_base_repo.list_by_collection_name(self.db, name):
             if not await writable_kb(self.db, ctx, kb):
                 raise AlreadyExistsError(

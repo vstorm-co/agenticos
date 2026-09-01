@@ -23,9 +23,11 @@ from app.core.security import (
     verify_password,
     verify_special_token,
 )
+from app.db.locks import LockScope, hold_name
 from app.db.models.user import User
 from app.db.updates import writable
 from app.repositories import (
+    collection_teardown_repo,
     knowledge_base_repo,
     member_repo,
     organization_repo,
@@ -546,8 +548,13 @@ class UserService:
             collection = kb.collection_name
             storage_paths.extend(await rag_document_repo.delete_by_knowledge_base(self.db, kb.id))
             await knowledge_base_repo.delete(self.db, kb.id)
+            # Hold the name against a concurrent claim while the reference check and
+            # reservation are made, then reserve it until the deferred drop runs, so a
+            # create cannot slip a new base onto the name and lose its table (#1362).
+            await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
             if not await knowledge_base_repo.list_by_collection_name(self.db, collection):
                 collections_to_drop.append(collection)
+                await collection_teardown_repo.reserve(self.db, collection)
         if storage_paths or collections_to_drop:
             from app.core.background import spawn_after_commit
             from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup

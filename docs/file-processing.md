@@ -557,6 +557,16 @@ caller *can* read — and now one of them is theirs. A name a caller does not su
 is derived from the display name plus six random hex characters, and is claimed on
 the same path rather than trusted for being random.
 
+**And a name mid-teardown is not free either.** Dropping a collection removes its
+knowledge-base rows in the request but drops the physical `rag_<name>` vector table
+only *after* the request commits, handed to a durable worker — so a rollback keeps
+the table beside the rows it restores, and a process that dies mid-cleanup does not
+orphan it. Between that commit and the drop the name has no row but its table still
+holds the old tenant's chunks, so `claim` also refuses a name reserved in
+`collection_teardowns` — a row committed *with* the delete and cleared once the table
+is gone. Without it, a claim in that window would have `CREATE TABLE IF NOT EXISTS`
+adopt the lingering table and read another tenant's data (#1362).
+
 `documents` was also the **default** collection, so the CLI quickstart used to aim
 at the tracking table; the default is now `default`. A knowledge base created with
 the old name before this landed still exists and is still deletable, but nothing
