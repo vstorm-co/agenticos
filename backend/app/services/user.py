@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import func, select
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -512,11 +511,11 @@ class UserService:
 
         await organization_secret_repo.promote_owned_private_to_org(self.db, owner_user_id=user_id)
 
+        await self._purge_personal_collections(user_id)
+
         vector_store = self._vector_store or process_vector_store(
             settings.rag, EmbeddingService(settings=settings.rag)
         )
-        await self._purge_personal_collections(vector_store, user_id)
-
         org_service = OrganizationService(self.db, vector_store=vector_store)
         for org in created:
             if org.is_personal:
@@ -526,35 +525,38 @@ class UserService:
                     self.db, org=org, new_creator_id=heirs[org.id]
                 )
 
-    async def _purge_personal_collections(
-        self, vector_store: "BaseVectorStore", user_id: UUID
-    ) -> None:
+    async def _purge_personal_collections(self, user_id: UUID) -> None:
         """Remove the user's personal-scoped knowledge bases whole (#1131).
 
         Mirrors `OrganizationService.purge`'s collection teardown for the rows the
-        org purge cannot see. Each base's document rows and stored files go first,
-        then the base row; the physical `rag_<collection>` table is dropped only
-        when no other base still references the name - it is not tenant-unique
-        (#913), so two of them can share one table. The document rows are keyed on
-        `knowledge_base_id`, so a shared collection's other rows are untouched; a
-        shared table is left in place, with only this base's uploads unlinked.
+        org purge cannot see. Each base's document rows and the base row go in the
+        request's transaction; the stored files and the physical `rag_<collection>`
+        tables are handed to the durable cleanup after the commit
+        (`spawn_after_commit` → `dispatch_external_state_cleanup`), so a rollback
+        keeps them, a worker restart mid-cleanup does not orphan them (#1349), and
+        the drop takes the `COLLECTION_TEARDOWN` lock and re-reads the reference
+        check on its own session, so a name a second base still holds - or is
+        mid-claim on - keeps its table (#913, #1355). A table is queued for drop
+        only when no other base claims the name; it is not tenant-unique, so two
+        bases can share one.
         """
-        storage = get_file_storage()
+        storage_paths: list[str] = []
+        collections_to_drop: list[str] = []
         for kb in await knowledge_base_repo.list_personal_by_owner(self.db, user_id):
             collection = kb.collection_name
-            storage_paths = await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
+            storage_paths.extend(await rag_document_repo.delete_by_knowledge_base(self.db, kb.id))
             await knowledge_base_repo.delete(self.db, kb.id)
-            for storage_path in storage_paths:
-                with contextlib.suppress(Exception):
-                    await storage.delete(storage_path)
-            still_shared = await knowledge_base_repo.list_by_collection_name(self.db, collection)
-            if still_shared:
-                continue
-            # Best-effort, and only against the database: a zero-document
-            # collection has no table yet (`DROP TABLE IF EXISTS` no-ops), and any
-            # other database failure is not a reason to abandon the rest.
-            with contextlib.suppress(SQLAlchemyError):
-                await vector_store.delete_collection(collection)
+            if not await knowledge_base_repo.list_by_collection_name(self.db, collection):
+                collections_to_drop.append(collection)
+        if storage_paths or collections_to_drop:
+            from app.core.background import spawn_after_commit
+            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
+
+            spawn_after_commit(
+                self.db,
+                dispatch_external_state_cleanup(storage_paths, collections_to_drop),
+                name="purge-personal-collections",
+            )
 
     async def admin_update(
         self, user_id: UUID, user_in: UserUpdate, *, acting_admin_id: UUID

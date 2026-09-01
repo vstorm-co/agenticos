@@ -259,6 +259,11 @@ class TestDeletingAUser:
         async with factory() as s:
             await UserService(s, vector_store=store).delete(user_id)
             await s.commit()
+            # The personal-collection teardown is now deferred like the org purge's
+            # (#1359): a real request starts it from `_managed_session` after the
+            # commit; a raw session starts it here, then drains the run.
+            start_deferred(s)
+        await drain()
 
         async with factory() as s:
             assert await s.get(KnowledgeBase, kb_id) is None
