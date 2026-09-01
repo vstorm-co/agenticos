@@ -1,11 +1,13 @@
-"""The org-teardown cleanup survives the process that dispatched it (#1274).
+"""External-state cleanup survives the process that dispatched it (#1274, #1349).
 
-`OrganizationService.purge` used to hand its external cleanup - unlinking stored
-uploads, dropping vector tables - to an in-process `spawn_after_commit` task,
-which died with the process. It now submits a durable Prefect deployment run: the
-run and its parameters are recorded on the server and retried by a worker. These
-pin the two halves - the dispatch submits the right run, and the cleanup it runs
-is idempotent and re-checks a shared collection name before dropping it.
+A committed delete - an organization purge (`OrganizationService.purge`) or a RAG
+collection drop (`KnowledgeBaseService.delete`, `RAGDocumentService`) - used to hand
+its external cleanup, unlinking stored uploads and dropping vector tables, to an
+in-process `spawn_after_commit` task that died with the process. It now submits a
+durable Prefect deployment run: the run and its parameters are recorded on the
+server and retried by a worker. These pin the two halves - the dispatch submits the
+right run, and the cleanup it runs is idempotent and re-checks a shared collection
+name before dropping it.
 """
 
 from __future__ import annotations
@@ -19,9 +21,9 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.worker.tasks import teardown_tasks
 from app.worker.tasks.teardown_tasks import (
-    dispatch_org_purge_cleanup,
-    org_purge_cleanup_flow,
-    purge_org_external_state,
+    cleanup_external_state,
+    dispatch_external_state_cleanup,
+    external_state_cleanup_flow,
 )
 
 pytestmark = pytest.mark.anyio
@@ -33,10 +35,10 @@ class TestDispatch:
         makes the cleanup outlive the process that dispatched it."""
         run = AsyncMock()
         with patch.object(teardown_tasks, "run_deployment", run):
-            await dispatch_org_purge_cleanup(["a/one.txt"], ["docs"])
+            await dispatch_external_state_cleanup(["a/one.txt"], ["docs"])
 
         run.assert_awaited_once_with(
-            name="org-purge-cleanup/org-purge-cleanup",
+            name="external-state-cleanup/external-state-cleanup",
             parameters={"storage_paths": ["a/one.txt"], "collections": ["docs"]},
             timeout=0,
         )
@@ -44,10 +46,10 @@ class TestDispatch:
     async def test_a_purge_with_no_paths_still_submits_the_table_drops(self) -> None:
         run = AsyncMock()
         with patch.object(teardown_tasks, "run_deployment", run):
-            await dispatch_org_purge_cleanup([], ["docs"])
+            await dispatch_external_state_cleanup([], ["docs"])
 
         run.assert_awaited_once_with(
-            name="org-purge-cleanup/org-purge-cleanup",
+            name="external-state-cleanup/external-state-cleanup",
             parameters={"storage_paths": [], "collections": ["docs"]},
             timeout=0,
         )
@@ -59,7 +61,7 @@ class TestDispatch:
         paths = [f"u/{i}.txt" for i in range(teardown_tasks._MAX_PATHS_PER_RUN + 1)]
         run = AsyncMock()
         with patch.object(teardown_tasks, "run_deployment", run):
-            await dispatch_org_purge_cleanup(paths, ["docs"])
+            await dispatch_external_state_cleanup(paths, ["docs"])
 
         assert run.await_count == 2
         first, second = run.await_args_list
@@ -74,7 +76,7 @@ class TestDispatch:
             patch.object(teardown_tasks, "run_deployment", run),
             patch("asyncio.sleep", new=AsyncMock()),
         ):
-            await dispatch_org_purge_cleanup(["a/one.txt"], [])
+            await dispatch_external_state_cleanup(["a/one.txt"], [])
 
         assert run.await_count == 2
 
@@ -87,7 +89,7 @@ class TestDispatch:
             patch.object(teardown_tasks, "run_deployment", run),
             patch("asyncio.sleep", new=AsyncMock()),
         ):
-            await dispatch_org_purge_cleanup(["a/one.txt"], [])
+            await dispatch_external_state_cleanup(["a/one.txt"], [])
 
         assert run.await_count == teardown_tasks._SUBMIT_ATTEMPTS
 
@@ -98,7 +100,7 @@ async def _db_ctx() -> Any:
 
 
 def _patch_cleanup(*, referenced: list[str]) -> Any:
-    """Patch everything `purge_org_external_state` reaches, so the store and the
+    """Patch everything `cleanup_external_state` reaches, so the store and the
     reference check are controllable. `referenced` names the collections a base
     still claims - those must not be dropped."""
     storage = MagicMock(delete=AsyncMock())
@@ -123,7 +125,7 @@ class TestTheCleanup:
     async def test_it_unlinks_every_file_and_drops_every_unreferenced_table(self) -> None:
         storage, store, engine, patches = _patch_cleanup(referenced=[])
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            result = await purge_org_external_state(["u/a.txt", "u/b.txt"], ["docs", "wiki"])
+            result = await cleanup_external_state(["u/a.txt", "u/b.txt"], ["docs", "wiki"])
 
         assert storage.delete.await_count == 2
         assert store.delete_collection.await_count == 2
@@ -135,7 +137,7 @@ class TestTheCleanup:
         claimed since the purge must keep its table (#913)."""
         storage, store, _engine, patches = _patch_cleanup(referenced=["wiki"])
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            result = await purge_org_external_state([], ["docs", "wiki"])
+            result = await cleanup_external_state([], ["docs", "wiki"])
 
         store.delete_collection.assert_awaited_once_with("docs")
         assert result == {"unlinked": 0, "dropped": 1}
@@ -147,7 +149,7 @@ class TestTheCleanup:
         storage.delete = AsyncMock(side_effect=OSError("gone"))
         store.delete_collection = AsyncMock(side_effect=SQLAlchemyError("no such table"))
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
-            result = await purge_org_external_state(["u/a.txt"], ["docs"])
+            result = await cleanup_external_state(["u/a.txt"], ["docs"])
 
         assert result == {"unlinked": 1, "dropped": 0}
 
@@ -162,7 +164,7 @@ class TestTheCleanup:
             patches[4],
             patches[5],
         ):
-            result = await purge_org_external_state(["u/a.txt"], [])
+            result = await cleanup_external_state(["u/a.txt"], [])
 
         make_engine.assert_not_called()
         assert result == {"unlinked": 1, "dropped": 0}
@@ -171,10 +173,10 @@ class TestTheCleanup:
 class TestTheFlow:
     async def test_it_runs_the_cleanup(self) -> None:
         """The `@flow` wrapper is thin: it carries the durability and delegates the
-        work to `purge_org_external_state`."""
+        work to `cleanup_external_state`."""
         impl = AsyncMock(return_value={"unlinked": 1, "dropped": 1})
-        with patch.object(teardown_tasks, "purge_org_external_state", impl):
-            result = await org_purge_cleanup_flow(["u/a.txt"], ["docs"])
+        with patch.object(teardown_tasks, "cleanup_external_state", impl):
+            result = await external_state_cleanup_flow(["u/a.txt"], ["docs"])
 
         impl.assert_awaited_once_with(["u/a.txt"], ["docs"])
         assert result == {"unlinked": 1, "dropped": 1}

@@ -1,12 +1,22 @@
-"""Durable teardown of a deleted organization's external state.
+"""Durable teardown of external state a committed delete left behind.
 
-`OrganizationService.purge` commits the relational teardown of an organization -
-its rows, its knowledge bases, its document records - and then hands the external
-side effects, unlinking the stored uploads and dropping the vector tables, to
-this flow. Handing them over rather than running them in the request process is
-what makes them survive: the run is recorded on the Prefect server and retried by
-a worker, where the in-process `spawn_after_commit` task it replaces was lost the
-moment the process that dispatched it died (#1274).
+Two callers hand work here, and for the same reason. `OrganizationService.purge`
+commits an organization's relational teardown - its rows, its knowledge bases, its
+document records - and the RAG delete paths (`KnowledgeBaseService.delete`,
+`RAGDocumentService.delete_by_collection` / `_retire_superseded`) commit the removal
+of a collection's or a base's document rows. Both then have external side effects
+left over: the stored uploads to unlink and the physical `rag_<collection>` vector
+tables to drop.
+
+Running those in the request process is what #1293 and #1347 did with
+`spawn_after_commit` - which fixes the *ordering* (a rollback no longer strands a
+restored row on a gone file or table) but not the *durability*: the in-process task
+is lost the moment the process that queued it dies (#1349). Handing it to a Prefect
+deployment run instead makes it survive - the run is recorded on the server, its
+parameters are the durable record, and a worker retries it (#1274). The gap none of
+this closes is commit-to-dispatch: a crash after the commit but before the run is
+submitted still loses the cleanup, which only a record committed *with* the delete
+(an outbox) would close.
 """
 
 from __future__ import annotations
@@ -25,12 +35,13 @@ from app.core.logging import setup_logging
 
 logger = logging.getLogger(__name__)
 
-_ORG_PURGE_DEPLOYMENT = "org-purge-cleanup/org-purge-cleanup"
+_CLEANUP_DEPLOYMENT = "external-state-cleanup/external-state-cleanup"
 
-# One run carries at most this many storage paths. A large org can leave tens of
-# thousands of files behind, and a path can be long; the whole parameter payload
-# has to stay under Prefect's 512 KiB flow-parameter limit, or `run_deployment`
-# rejects the run after the rows that carried the paths are already gone (#1274).
+# One run carries at most this many storage paths. A large org - or a large
+# collection - can leave tens of thousands of files behind, and a path can be long;
+# the whole parameter payload has to stay under Prefect's 512 KiB flow-parameter
+# limit, or `run_deployment` rejects the run after the rows that carried the paths
+# are already gone (#1274).
 _MAX_PATHS_PER_RUN = 500
 
 # The submission is fired after the commit that removed the rows, so a run lost to
@@ -43,22 +54,22 @@ _SUBMIT_ATTEMPTS = 3
 _SUBMIT_BACKOFF_SECONDS = 2.0
 
 
-async def dispatch_org_purge_cleanup(storage_paths: list[str], collections: list[str]) -> None:
-    """Submit an org's external-state cleanup as durable flow runs, and return.
+async def dispatch_external_state_cleanup(storage_paths: list[str], collections: list[str]) -> None:
+    """Submit a committed delete's external-state cleanup as durable flow runs.
 
     Each run submits-and-returns (`run_deployment(timeout=0)`): the run is recorded
     on the Prefect server and executed by a worker, so a process that dies after the
     commit no longer takes the cleanup with it - the run and its parameters are the
-    durable record, and the flow's own retries re-run it if a worker dies (#1274).
-    Handed to `spawn_after_commit` by `OrganizationService.purge`, so it runs only
-    once the relational teardown has committed.
+    durable record, and the flow's own retries re-run it if a worker dies (#1274,
+    #1349). Handed to `spawn_after_commit` by its caller, so it runs only once the
+    relational teardown has committed.
 
     The paths are chunked across runs so no run's parameters approach Prefect's
     512 KiB limit. Collections ride the first run only - `delete_collection` is
     idempotent, but re-checking them once is enough. The window none of this closes
     is commit-to-dispatch: a crash after the commit but before this fires still
     loses the cleanup, which only a record committed *with* the delete (an outbox)
-    would close - a larger change #1274 deferred.
+    would close - a larger change deferred.
     """
     chunks = [
         storage_paths[i : i + _MAX_PATHS_PER_RUN]
@@ -82,32 +93,33 @@ async def _submit_cleanup_run(storage_paths: list[str], collections: list[str]) 
             # returns in an async context with the `FlowRun` a sync caller gets, and
             # ty cannot tell which applies. Awaiting it is correct here.
             await run_deployment(  # ty: ignore[invalid-await]
-                name=_ORG_PURGE_DEPLOYMENT,
+                name=_CLEANUP_DEPLOYMENT,
                 parameters={"storage_paths": storage_paths, "collections": collections},
                 timeout=0,
             )
         except Exception:
             if attempt == _SUBMIT_ATTEMPTS - 1:
-                logger.exception("org_purge_cleanup submission failed after retries")
+                logger.exception("external_state_cleanup submission failed after retries")
                 return
             await asyncio.sleep(_SUBMIT_BACKOFF_SECONDS * (attempt + 1))
         else:
             return
 
 
-async def purge_org_external_state(
+async def cleanup_external_state(
     storage_paths: list[str], collections: list[str]
 ) -> dict[str, int]:
-    """Unlink a purged org's stored uploads and drop its unreferenced vector tables.
+    """Unlink a committed delete's stored uploads and drop its unreferenced vector tables.
 
     The cleanup itself, plain async so it is testable without a Prefect runtime
-    and reusable by the flow below. Runs after the org's rows are committed-gone,
-    so the paths and collection names it is handed are all that is left of them.
+    and reusable by the flow below. Runs after the rows that named this state are
+    committed-gone, so the paths and collection names it is handed are all that is
+    left of them.
 
     Idempotent, because the flow's retries must be safe: unlinking a file already
     gone is a no-op, `delete_collection` issues `DROP TABLE IF EXISTS`, and each
     collection is re-checked against the knowledge-base table so a name a second
-    org has claimed since the purge keeps its table (#913). The store rides an
+    org has claimed since the delete keeps its table (#913). The store rides an
     engine built for this one run and disposed on the way out, because a pooled
     connection made on one flow's event loop breaks the next (the reason
     `rag_tasks._ingestion_service` builds per-flow engines too, #948).
@@ -145,20 +157,22 @@ async def purge_org_external_state(
         finally:
             await engine.dispose()
 
-    logger.info("org_purge_cleanup", extra={"unlinked": len(storage_paths), "dropped": dropped})
+    logger.info(
+        "external_state_cleanup", extra={"unlinked": len(storage_paths), "dropped": dropped}
+    )
     return {"unlinked": len(storage_paths), "dropped": dropped}
 
 
-@flow(name="org-purge-cleanup", log_prints=True, retries=3, retry_delay_seconds=30)
-async def org_purge_cleanup_flow(
+@flow(name="external-state-cleanup", log_prints=True, retries=3, retry_delay_seconds=30)
+async def external_state_cleanup_flow(
     storage_paths: list[str], collections: list[str]
 ) -> dict[str, int]:
-    """The durable wrapper: what `dispatch_org_purge_cleanup` submits.
+    """The durable wrapper: what `dispatch_external_state_cleanup` submits.
 
-    Thin over :func:`purge_org_external_state` so the cleanup can be tested
-    without a Prefect runtime. The `@flow` is what carries the durability - the
-    run and its parameters are recorded on the Prefect server, and `retries` re-run
-    it on a worker if it or the process it was dispatched from dies (#1274).
+    Thin over :func:`cleanup_external_state` so the cleanup can be tested without a
+    Prefect runtime. The `@flow` is what carries the durability - the run and its
+    parameters are recorded on the Prefect server, and `retries` re-run it on a
+    worker if it or the process it was dispatched from dies (#1274, #1349).
     """
     setup_logging()
-    return await purge_org_external_state(storage_paths, collections)
+    return await cleanup_external_state(storage_paths, collections)

@@ -52,6 +52,14 @@ async def _run_deferred(db: MagicMock) -> None:
     await background.drain(timeout=5.0)
 
 
+def _patch_dispatch(monkeypatch) -> AsyncMock:
+    """Stand in for the durable cleanup dispatch, so a test can assert what a
+    committed delete hands to Prefect without a runner behind it."""
+    dispatch = AsyncMock()
+    monkeypatch.setattr("app.worker.tasks.teardown_tasks.dispatch_external_state_cleanup", dispatch)
+    return dispatch
+
+
 def _row(*, vector_document_id: str | None, storage_path: str = "") -> MagicMock:
     return MagicMock(
         id=uuid.uuid4(),
@@ -326,56 +334,37 @@ class TestTheCLISync:
 
 
 class TestDroppingACollection:
-    async def test_it_unlinks_the_stored_uploads_after_the_commit(self, monkeypatch):
-        """The bulk row delete returns the storage paths, and the unlink is deferred
-        past the commit so a rollback keeps the files (#1265, #1293)."""
+    async def test_it_dispatches_a_durable_cleanup_after_the_commit(self, monkeypatch):
+        """The bulk row delete returns the storage paths, and their unlink is handed
+        to a durable Prefect run after the commit - so a rollback keeps the files
+        (#1265, #1293) and a worker restart mid-drain does not orphan them (#1349)."""
         monkeypatch.setattr(
             rag_document_repo,
             "delete_by_collection",
             AsyncMock(return_value=["rag/docs/a.pdf", "rag/docs/b.md"]),
         )
-        storage = MagicMock(delete=AsyncMock())
-        monkeypatch.setattr("app.services.file_storage.get_file_storage", lambda: storage)
+        dispatch = _patch_dispatch(monkeypatch)
         db = _deferring_db()
 
         await RAGDocumentService(db).delete_by_collection("docs")
-        storage.delete.assert_not_awaited()
+        dispatch.assert_not_awaited()
 
         await _run_deferred(db)
-        assert storage.delete.await_count == 2
-        storage.delete.assert_any_await("rag/docs/a.pdf")
-        storage.delete.assert_any_await("rag/docs/b.md")
+        dispatch.assert_awaited_once_with(["rag/docs/a.pdf", "rag/docs/b.md"], [])
 
-    async def test_a_rolled_back_drop_keeps_the_files(self, monkeypatch):
-        """The unlink is discarded when the transaction that removed the rows did
+    async def test_a_rolled_back_drop_dispatches_nothing(self, monkeypatch):
+        """The cleanup is discarded when the transaction that removed the rows did
         not commit, so the restored rows still point at their files (#1293)."""
         monkeypatch.setattr(
             rag_document_repo,
             "delete_by_collection",
             AsyncMock(return_value=["rag/docs/a.pdf"]),
         )
-        storage = MagicMock(delete=AsyncMock())
-        monkeypatch.setattr("app.services.file_storage.get_file_storage", lambda: storage)
+        dispatch = _patch_dispatch(monkeypatch)
         db = _deferring_db()
 
         await RAGDocumentService(db).delete_by_collection("docs")
         background.discard_deferred(db)
         await background.drain(timeout=5.0)
 
-        storage.delete.assert_not_awaited()
-
-    async def test_a_failed_unlink_does_not_raise(self, monkeypatch):
-        """A file already gone is not a reason for the deferred unlink to fail."""
-        monkeypatch.setattr(
-            rag_document_repo,
-            "delete_by_collection",
-            AsyncMock(return_value=["rag/docs/gone.pdf"]),
-        )
-        storage = MagicMock(delete=AsyncMock(side_effect=FileNotFoundError()))
-        monkeypatch.setattr("app.services.file_storage.get_file_storage", lambda: storage)
-        db = _deferring_db()
-
-        await RAGDocumentService(db).delete_by_collection("docs")
-        await _run_deferred(db)
-
-        storage.delete.assert_awaited_once()
+        dispatch.assert_not_awaited()
