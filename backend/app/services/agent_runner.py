@@ -528,7 +528,7 @@ class PausedRunState(BaseModel):
         ),
     )
     admitted_as: AdmittedAs = Field(
-        default_factory=lambda: AdmittedAs(),
+        default_factory=AdmittedAs,
         description=(
             "What the request that parked this run asked for, so the continuation "
             "is the same run rather than a default-mode one wearing its id"
@@ -1051,7 +1051,7 @@ class PreparedRun:
     library emits no event for.
     """
 
-    admitted_as: AdmittedAs = field(default_factory=lambda: AdmittedAs())
+    admitted_as: AdmittedAs = field(default_factory=AdmittedAs)
     """What the request that started this run said about it, for a resume to restore.
 
     A resumed run is rebuilt from the row, and the row records the surface and
