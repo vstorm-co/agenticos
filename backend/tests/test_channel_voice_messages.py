@@ -22,7 +22,7 @@ from uuid import uuid4
 import pytest
 
 from app.services.channels.base import IncomingAttachment, IncomingMessage
-from app.services.channels.router import ChannelMessageRouter
+from app.services.channels.router import TRANSCRIPTION_MAX_BYTES, ChannelMessageRouter
 
 pytestmark = pytest.mark.anyio
 
@@ -146,6 +146,52 @@ class TestWhenItCannotListen:
 
         assert transcripts == ["the second one"]
         assert refusals == ["a.ogg: could not be downloaded."]
+
+    async def test_a_recording_too_large_to_transcribe_is_refused_before_it_is_fetched(self):
+        """`TranscriptionService` applies its cap to bytes already in memory, so
+        the voice path buffered the whole remote file before any limit applied -
+        and a channel bot is a rate-limited public surface, so one large file, or
+        a few senders at once, was a worker's memory."""
+        adapter = MagicMock()
+        adapter.download_attachment = AsyncMock(return_value=b"ogg")
+        huge = IncomingAttachment(
+            filename="long.ogg",
+            mime_type="audio/ogg",
+            size=TRANSCRIPTION_MAX_BYTES + 1,
+            handle="h",
+        )
+
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+        ):
+            transcripts, refusals = await ChannelMessageRouter()._transcribe(
+                MagicMock(), _bot(), [huge]
+            )
+
+        adapter.download_attachment.assert_not_awaited()
+        assert transcripts == []
+        assert "too large to transcribe" in refusals[0]
+
+    async def test_a_recording_at_the_limit_is_still_fetched(self):
+        """The cap is a ceiling, not a margin."""
+        adapter = MagicMock()
+        adapter.download_attachment = AsyncMock(return_value=b"ogg")
+        edge = IncomingAttachment(
+            filename="edge.ogg", mime_type="audio/ogg", size=TRANSCRIPTION_MAX_BYTES, handle="h"
+        )
+
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+            patch(
+                "app.services.channels.router.TranscriptionService.transcribe",
+                AsyncMock(return_value="just fits"),
+            ),
+        ):
+            transcripts, _ = await ChannelMessageRouter()._transcribe(MagicMock(), _bot(), [edge])
+
+        assert transcripts == ["just fits"]
 
     async def test_a_transcription_that_fails_is_reported_not_raised(self):
         adapter = MagicMock()

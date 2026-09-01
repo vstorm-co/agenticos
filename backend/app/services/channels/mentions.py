@@ -249,6 +249,7 @@ class ChannelAgentRouter:
         turn: int = 0,
         attachments: list[ChatFile] | None = None,
         stream: RunStream | None = None,
+        message_history: list[Any] | None = None,
     ) -> AnsweredTurn:
         """Run the agent named in `text` and return what it said.
 
@@ -353,6 +354,10 @@ class ChannelAgentRouter:
             conversation_id=conversation_id,
             channel_key=(None if platform_chat_id is None else channel_key(platform_chat_id)),
             channel_directory=channel_directory,
+            # The thread this agent was brought into, where the router read one.
+            # Without it a named agent answered an existing thread as though it
+            # were empty, because only the default path prepended the backfill.
+            message_history=message_history,
             # The binding is what let this message through, so it is also what
             # the run is attributed to and bounded by. Resolving it here and
             # then not passing it on would leave a cap somebody set on this bot

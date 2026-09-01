@@ -520,7 +520,23 @@ class SkillService:
             if entry.name in names:
                 skipped.append(entry.name)
                 continue
-            await self._copy_library_skill(ctx, entry, seeded=False)
+            # Inside a SAVEPOINT, because the name check above is a read and two
+            # members installing one shelf at the same time both pass it. The
+            # loser's insert then violated `uq_skill_org_name` as an unhandled
+            # IntegrityError, which rolled back every skill that request had
+            # already copied - where the endpoint promises the shelf continues
+            # and this entry is reported as `skipped`. The savepoint makes that
+            # promise true: the conflict undoes this copy and nothing else.
+            try:
+                async with self.db.begin_nested():
+                    await self._copy_library_skill(ctx, entry, seeded=False)
+            except IntegrityError:
+                logger.warning(
+                    "Gallery skill %r was installed concurrently; reported as skipped", entry.key
+                )
+                skipped.append(entry.name)
+                names.add(entry.name)
+                continue
             # Two keys in one request can carry the same name only if the
             # gallery ships a duplicate; tracking it here keeps that a skip
             # rather than a unique-name violation mid-request.

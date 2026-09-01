@@ -346,6 +346,8 @@ class SlackAdapter(ChannelAdapter):
                 author=str(message.get("user") or message.get("bot_id") or "unknown"),
                 text=str(message.get("text") or ""),
                 posted_at=self._posted_at(message.get("ts")),
+                post_id=str(message.get("ts")) if message.get("ts") else None,
+                author_id=(str(message.get("user")) if message.get("user") else None),
             )
             for message in messages
         ]

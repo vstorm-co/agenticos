@@ -528,6 +528,10 @@ class MattermostAdapter(ChannelAdapter):
                 author=named.get(str(posts[post_id].get("user_id")), "unknown"),
                 text=str(posts[post_id].get("message") or ""),
                 posted_at=_posted_at(posts[post_id].get("create_at")),
+                post_id=str(post_id),
+                author_id=(
+                    str(posts[post_id].get("user_id")) if posts[post_id].get("user_id") else None
+                ),
             )
             for post_id in order
         ]

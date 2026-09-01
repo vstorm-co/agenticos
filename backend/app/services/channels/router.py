@@ -5,7 +5,7 @@ import json
 import logging
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -42,6 +42,7 @@ from app.services.channels.mentions import (
     parse_mention,
 )
 from app.services.conversation import ConversationService
+from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
 from app.services.transcription import Recording, TranscriptionService
 
 logger = logging.getLogger(__name__)
@@ -288,6 +289,31 @@ class ChannelMessageRouter:
         file_refusals += voice_refusals
         incoming.text = self._with_transcripts(incoming.text, transcripts)
 
+        # Above the branch, not below it. A message naming `@agent-slug` is
+        # answered by `_answer_mention` and never reached this, so a named agent
+        # brought into an existing thread got neither the transcript nor the
+        # earlier files - and because the session was never stamped, every later
+        # message to it skipped the backfill too.
+        thread_history: list[ModelMessage] = []
+        if session.thread_backfilled_at is None:
+            thread_history, read_transcript = await self._thread_backfill(incoming, directory, bot)
+            earlier, earlier_refusals, read_files = await self._thread_files(
+                db, bot, incoming, identity, handled=recordings
+            )
+            files += earlier
+            file_refusals += earlier_refusals
+            # Stamped only when both reads answered. A transient platform failure
+            # used to be recorded as "backfilled", so every later turn skipped
+            # the read permanently and the conversation never got its context. An
+            # empty *successful* read is still a stamp: a thread with nothing
+            # above it must not be asked about on every turn.
+            if read_transcript and read_files:
+                await channel_session_repo.update(
+                    db,
+                    db_session=session,
+                    update_data={"thread_backfilled_at": datetime.now(UTC)},
+                )
+
         # The mention path opens its own placeholder lazily, because it may find
         # the handle names a colleague rather than an agent of ours and stay
         # silent - a "…" posted up front would be left hanging under two people's
@@ -304,6 +330,7 @@ class ChannelMessageRouter:
             admit_unlinked,
             files=files,
             file_refusals=file_refusals,
+            thread_history=thread_history,
         ):
             return
 
@@ -313,20 +340,7 @@ class ChannelMessageRouter:
         # everything before it is the history. The turn itself is written by the
         # runner, which is also what records the tool calls, the model and the
         # version this bot's own write dropped.
-        history = await self._load_history(db, session.conversation_id)
-        if session.thread_backfilled_at is None:
-            # The thread above this message, which we were never sent. Once per
-            # session, stamped whether or not it found anything - a thread with
-            # nothing above it must not be asked about on every turn.
-            history = await self._thread_backfill(incoming, directory) + history
-            earlier, earlier_refusals = await self._thread_files(db, bot, incoming, identity)
-            files += earlier
-            file_refusals += earlier_refusals
-            await channel_session_repo.update(
-                db,
-                db_session=session,
-                update_data={"thread_backfilled_at": datetime.now(UTC)},
-            )
+        history = thread_history + await self._load_history(db, session.conversation_id)
         try:
             answered = await ChannelAgentRouter(db).answer_default(
                 incoming.text,
@@ -432,6 +446,7 @@ class ChannelMessageRouter:
         *,
         files: list[Any],
         file_refusals: list[str],
+        thread_history: list[ModelMessage] | None = None,
     ) -> bool:
         """Answer `@handle …` with that agent, and report whether we did.
 
@@ -470,6 +485,7 @@ class ChannelMessageRouter:
                 turn=session.turn_count,
                 attachments=files,
                 stream=channel_stream(live),
+                message_history=thread_history or None,
             )
         except UnaddressedMessage:
             return False
@@ -632,6 +648,19 @@ class ChannelMessageRouter:
         transcripts: list[str] = []
         refusals: list[str] = []
         for recording in recordings:
+            # Checked against the claim first, the same way an ordinary
+            # attachment is. `TranscriptionService` applies `MAX_BYTES` to bytes
+            # already in memory, so the voice path buffered the whole remote file
+            # before any limit applied - and a channel bot is a rate-limited
+            # public surface, so one large file, or a few senders at once, was a
+            # worker's memory.
+            if recording.size > TRANSCRIPTION_MAX_BYTES:
+                refusals.append(
+                    f"{recording.filename}: too large to transcribe "
+                    f"({recording.size // (1024 * 1024)} MB; the limit is "
+                    f"{TRANSCRIPTION_MAX_BYTES // (1024 * 1024)} MB)."
+                )
+                continue
             try:
                 content = await adapter.download_attachment(token, recording)
             except Exception:
@@ -1114,8 +1143,13 @@ class ChannelMessageRouter:
             )
 
     async def _thread_files(
-        self, db: Any, bot: Any, incoming: IncomingMessage, identity: Any
-    ) -> tuple[list[Any], list[str]]:
+        self,
+        db: Any,
+        bot: Any,
+        incoming: IncomingMessage,
+        identity: Any,
+        handled: Sequence[IncomingAttachment] = (),
+    ) -> tuple[list[Any], list[str], bool]:
         """The files posted in this thread before we were brought into it.
 
         The transcript alone was not enough, and the bot said so accurately: asked
@@ -1137,9 +1171,9 @@ class ChannelMessageRouter:
         """
         _, thread_id = split_thread(incoming.platform_chat_id)
         if not thread_id or identity.user_id is None:
-            return [], []
+            return [], [], True
         if incoming.message_id and thread_id == incoming.message_id:
-            return [], []
+            return [], [], True
 
         adapter = get_adapter(incoming.platform)
         token = unseal_bot_token(bot)
@@ -1152,7 +1186,7 @@ class ChannelMessageRouter:
                 limit=THREAD_BACKFILL_MESSAGES,
             )
         except ChannelDirectoryUnsupported:
-            return [], []
+            return [], [], True
         except Exception:
             logger.warning(
                 "Could not read the files above a new conversation: bot=%s chat=%s",
@@ -1160,24 +1194,34 @@ class ChannelMessageRouter:
                 incoming.platform_chat_id,
                 exc_info=True,
             )
-            return [], []
+            # A failure, so the caller does not stamp the session: a transient
+            # read recorded as "backfilled" skips these files for ever.
+            return [], [], False
 
         # The live message's own files are already in `files`, fetched from the
         # event. Anything matching one of them would be stored and shown twice.
-        already = {(a.filename, a.size) for a in incoming.attachments}
+        #
+        # `handled` rather than `incoming.attachments`, because the voice notes
+        # were taken out of that list before this ran: a recording on a message
+        # replying inside an existing thread was downloaded once to transcribe
+        # and again here, then stored and handed to the agent as exactly the
+        # unreadable audio file the transcription path exists to avoid.
+        already = {(a.filename, a.size) for a in (*incoming.attachments, *handled)}
         wanted = [h for h in handles if (h.filename, h.size) not in already]
         if not wanted:
-            return [], []
+            return [], [], True
 
-        return await ChannelAttachmentService(db).receive(
+        received, refusals = await ChannelAttachmentService(db).receive(
             adapter,
             token,
             wanted[-THREAD_BACKFILL_FILES:],
             user_id=identity.user_id,
         )
+        return received, refusals, True
 
-    @staticmethod
-    async def _thread_backfill(incoming: IncomingMessage, directory: Any) -> list[ModelMessage]:
+    async def _thread_backfill(
+        self, incoming: IncomingMessage, directory: Any, bot: Any
+    ) -> tuple[list[ModelMessage], bool]:
         """What was said in this thread before we were brought into it.
 
         A conversation here is built from what this deployment *received*, so a
@@ -1205,22 +1249,28 @@ class ChannelMessageRouter:
         message *is* the thread's root, the platform has no threads, the bot may
         not read them, the call failed. An answer without the context above it is
         worse than one with; an answer nobody gets is worse than both.
+
+        Returns the messages and whether the read *succeeded*, because the caller
+        stamps the session on the strength of it: a transient platform failure
+        recorded as "backfilled" meant every later turn skipped the read and the
+        conversation never got its context at all. An empty successful read is
+        still a success.
         """
         if directory is None:
-            return []
+            return [], True
         _, thread_id = split_thread(incoming.platform_chat_id)
         if not thread_id:
-            return []
+            return [], True
         # A message that opens its own thread has nothing above it, and the id is
         # already known - so this is one saved round trip on the common case of a
         # bot being addressed at the top of a channel.
         if incoming.message_id and thread_id == incoming.message_id:
-            return []
+            return [], True
 
         try:
             posts = await directory.history(limit=THREAD_BACKFILL_MESSAGES)
         except ChannelDirectoryUnsupported:
-            return []
+            return [], True
         except Exception:
             logger.warning(
                 "Could not read the thread above a new conversation: bot=%s chat=%s",
@@ -1228,17 +1278,16 @@ class ChannelMessageRouter:
                 incoming.platform_chat_id,
                 exc_info=True,
             )
-            return []
+            return [], False
 
-        # The turn being answered is the prompt, and the platform returns it as
-        # the last line of its own thread. Left in, it would be asked twice.
+        admitted = self._backfill_admits(bot)
         lines = [
             f"{post.author}: {post.text}"
             for post in posts
-            if post.text and post.text != incoming.text
+            if post.text and not self._is_current_post(post, incoming) and admitted(post)
         ]
         if not lines:
-            return []
+            return [], True
 
         transcript = "\n".join(lines)
         return [
@@ -1254,7 +1303,51 @@ class ChannelMessageRouter:
                     )
                 ]
             )
-        ]
+        ], True
+
+    @staticmethod
+    def _is_current_post(post: Any, incoming: IncomingMessage) -> bool:
+        """Whether this history entry is the message being answered.
+
+        By id where the adapter carries one. Comparing text was silent and
+        wrong: the adapter strips the platform's own mention out of
+        `incoming.text` and the transcription path appends to it, so the same
+        post came back looking different - and the model was handed the question
+        twice, once as its prompt and once inside a block labelled as other
+        people's words. Text is the fallback for an adapter with no id.
+        """
+        post_id = getattr(post, "post_id", None)
+        if post_id and incoming.message_id:
+            return str(post_id) == str(incoming.message_id)
+        return bool(post.text) and post.text == incoming.text
+
+    def _backfill_admits(self, bot: Any) -> Callable[[Any], bool]:
+        """Which earlier speakers may be quoted into the prompt.
+
+        The bot's own access policy, applied to authors rather than only to the
+        sender. On a whitelisted bot a denied participant could post into a
+        thread before an allowed member first mentioned the bot, and every word
+        of it was copied into a `UserPromptPart` - so somebody the operator had
+        excluded could plant text asking the agent to search bound collections
+        or call an MCP tool, and the answer went back to the thread they were
+        reading. "Context, not instructions" is a sentence in a prompt, not a
+        boundary.
+
+        An author the platform did not identify is dropped under a whitelist:
+        unattributable text is exactly what must not be quoted where only named
+        people may speak. `group_only` and `open` need no author filter - the
+        first gated the room, and the second admits everybody in it.
+        """
+        policy = self._parse_policy(bot)
+        if policy.get("mode") != "whitelist":
+            return lambda _post: True
+        allowed = {str(entry) for entry in policy.get("whitelist", [])}
+
+        def _admits(post: Any) -> bool:
+            author_id = getattr(post, "author_id", None)
+            return author_id is not None and str(author_id) in allowed
+
+        return _admits
 
     @staticmethod
     async def _load_history(db: Any, conversation_id: Any) -> list[ModelMessage]:

@@ -10,6 +10,7 @@ import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app.agents.capabilities.skills import SAFE_SKILL_TOOLS, Skills
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
@@ -1380,6 +1381,35 @@ class TestSkillGallery:
         assert result.unknown == ["healthcare/nope"]
         assert copy.await_count == 1
         assert copy.await_args.kwargs["seeded"] is False
+
+    @pytest.mark.anyio
+    async def test_a_shelf_survives_somebody_installing_the_same_skill_at_once(self):
+        """The name check is a read, so two members installing one shelf both
+        pass it. The loser's insert violated `uq_skill_org_name` unhandled,
+        rolling back every skill that request had already copied - where the
+        endpoint promises the shelf continues and the entry is `skipped`."""
+        first = _bundled("shift-handover")
+        clash = _bundled("consent-explainer")
+
+        def _get(key: str):
+            return {"healthcare/handover": first, "healthcare/consent": clash}.get(key)
+
+        async def _copy(_ctx, entry, *, seeded):
+            if entry.name == "consent-explainer":
+                raise IntegrityError("insert", {}, Exception("uq_skill_org_name"))
+
+        with (
+            patch(f"{SKILLS_PATH}.skill_repo.list_names", new=AsyncMock(return_value=set())),
+            patch(f"{SKILLS_PATH}.skill_library.gallery_get", side_effect=_get),
+            patch.object(SkillService, "_copy_library_skill", side_effect=_copy),
+        ):
+            result = await SkillService(_db()).install_gallery(
+                _ctx(), ["healthcare/handover", "healthcare/consent"]
+            )
+
+        assert result.installed == ["shift-handover"]
+        assert result.skipped == ["consent-explainer"]
+        assert result.unknown == []
 
     @pytest.mark.anyio
     async def test_a_key_repeated_in_one_request_installs_once(self):
