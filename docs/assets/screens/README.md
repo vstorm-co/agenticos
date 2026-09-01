@@ -67,8 +67,15 @@ the one place you want to check the layout the one place it cannot be checked.
 Relative `src` on an `<img>` is rewritten by GitHub and works. Relative `srcset`
 on a `<source>` inside `<picture>` is less certain — if GitHub does not rewrite
 it, a dark-mode reader simply gets the light image, which is a degradation
-rather than a break. The `<video>` is the same bargain: if a relative video
-`src` does not play, the animated WebP nested inside it does.
+rather than a break.
+
+**A `<video>` with a relative `src` does not work at all**, and nesting an
+`<img>` inside it does not save the situation: fallback content is shown when a
+browser cannot handle the *element*, not when its source resolves to nothing. So
+the README hero is the animated WebP, which autoplays and loops everywhere, with
+the mp4 behind a link beside it. A real player needs a URL GitHub itself serves
+— `raw.githubusercontent.com/.../main/...` once this is on `main`, or an
+attachment URL from dragging the file into an issue comment once.
 
 ## How the split was made
 

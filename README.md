@@ -85,11 +85,9 @@ plugin, no notebook, nothing configured for this file in particular.
 
 <div align="center">
 
-<video src="docs/assets/screens/chat-live-demo.mp4"
-       poster="docs/assets/screens/chat-live-demo-poster.webp"
-       controls muted loop playsinline width="100%">
-  <img src="docs/assets/screens/chat-live-demo.webp" alt="Chat: a CSV becomes Python in a sandbox, then charts" width="100%">
-</video>
+<img src="docs/assets/screens/chat-live-demo.webp" alt="Chat: a CSV becomes Python in a sandbox, then charts" width="100%">
+
+<sub><a href="docs/assets/screens/chat-live-demo.mp4">The same twenty seconds as video</a> — full quality, with controls.</sub>
 
 </div>
 
@@ -117,6 +115,18 @@ in. [All 27 screens, both themes](docs/screens.md).
 </td>
 <td width="50%">
 
+**Templates** — Agents by industry, over the catalog. Installing one creates a draft you finish and publish — nothing runs until you do.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agents-templates-dialog.webp">
+  <img alt="Templates" src="docs/assets/screens/light/agents-templates-dialog.webp" width="100%">
+</picture>
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
 **One run, opened** — Tokens in and out, cost to four decimal places, how long it took, and the timeline of every turn and tool call it made.
 
 <picture>
@@ -125,8 +135,6 @@ in. [All 27 screens, both themes](docs/screens.md).
 </picture>
 
 </td>
-</tr>
-<tr>
 <td width="50%">
 
 **Parsing, per upload** — PyMuPDF, LiteParse or LlamaParse; chunking strategy, size and overlap; OCR and its language. Set on the collection, overridable on the next file you add - a scanned rate card and a Markdown runbook do not want the same parser.
@@ -137,6 +145,8 @@ in. [All 27 screens, both themes](docs/screens.md).
 </picture>
 
 </td>
+</tr>
+<tr>
 <td width="50%">
 
 **A collection** — Documents, their chunk counts and what failed to ingest. Upload here, then choose in chat which collections an agent may search.
@@ -147,8 +157,28 @@ in. [All 27 screens, both themes](docs/screens.md).
 </picture>
 
 </td>
+<td width="50%">
+
+**Skills** — Know-how written once and shared by every agent bound to it — how refunds are handled, what the house style is. Edit it here and every agent bound to it is current on its next run.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/skills.webp">
+  <img alt="Skills" src="docs/assets/screens/light/skills.webp" width="100%">
+</picture>
+
+</td>
 </tr>
 <tr>
+<td width="50%">
+
+**Context** — Standing context every agent can draw on — a glossary, a policy, a brand voice. Injected into the prompt or read on demand, and current the moment you edit it.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/context.webp">
+  <img alt="Context" src="docs/assets/screens/light/context.webp" width="100%">
+</picture>
+
+</td>
 <td width="50%">
 
 **Approvals** — Everything waiting on a person, with what the agent intends to do. Decided exactly once - a second decision on a settled approval is refused.
@@ -159,6 +189,8 @@ in. [All 27 screens, both themes](docs/screens.md).
 </picture>
 
 </td>
+</tr>
+<tr>
 <td width="50%">
 
 **Spend** — What the organization actually spent, by period. A budget is checked <i>before</i> the model request, so a run that breaches one stops mid-answer and still records what it cost.
@@ -169,8 +201,6 @@ in. [All 27 screens, both themes](docs/screens.md).
 </picture>
 
 </td>
-</tr>
-<tr>
 <td width="50%">
 
 **Vault** — Every key this organization has stored, sealed per tenant. Replaceable, never readable again - and rotating one is invisible to a published agent, which references the secret rather than its value.
@@ -181,9 +211,11 @@ in. [All 27 screens, both themes](docs/screens.md).
 </picture>
 
 </td>
+</tr>
+<tr>
 <td width="50%">
 
-**MCP servers** — Connect any MCP server by URL and its tools become switches in the Builder. Organization-wide, or private to your own chat.
+**MCP servers** — Connect any MCP server by URL and its tools become switches in the Builder. 99 curated entries plus 5,703 mirrored from the public registry, searchable by name.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/mcp-servers.webp">
@@ -191,8 +223,6 @@ in. [All 27 screens, both themes](docs/screens.md).
 </picture>
 
 </td>
-</tr>
-<tr>
 <td width="50%">
 
 **Channels** — The chat platforms this organization answers on - Slack, Telegram, Mattermost. One bot serves one agent, bound under that agent's Availability tab.
@@ -203,6 +233,8 @@ in. [All 27 screens, both themes](docs/screens.md).
 </picture>
 
 </td>
+</tr>
+<tr>
 <td width="50%">
 
 **Routines** — What agents do with nobody typing: a schedule, or an event that arrives. The run is recorded and budgeted like any other.
@@ -213,8 +245,6 @@ in. [All 27 screens, both themes](docs/screens.md).
 </picture>
 
 </td>
-</tr>
-<tr>
 <td width="50%">
 
 **Sandboxes** — Where agents run shell commands and keep files. An agent names a connection by id, so moving to another host is one edit here rather than republishing every agent.
@@ -222,6 +252,18 @@ in. [All 27 screens, both themes](docs/screens.md).
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/sandboxes.webp">
   <img alt="Sandboxes" src="docs/assets/screens/light/sandboxes.webp" width="100%">
+</picture>
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Organizations** — Switch between them, manage members, create new ones. Authority inside an organization is a membership row plus the permission catalog — there is no role column on a user.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/organizations.webp">
+  <img alt="Organizations" src="docs/assets/screens/light/organizations.webp" width="100%">
 </picture>
 
 </td>
