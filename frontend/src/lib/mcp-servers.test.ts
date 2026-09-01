@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import type { McpConnectionRecord } from "./mcp-connections-api";
 import type { OrgMcpConnectionRecord } from "./org-mcp-connections-api";
-import { CUSTOM_CATEGORY, connectionState, matchingCustomRows, mergeServers } from "./mcp-servers";
+import {
+  CUSTOM_CATEGORY,
+  connectionState,
+  matchingCustomRows,
+  mergeServers,
+  narrowedSelection,
+} from "./mcp-servers";
 import type { McpCatalogEntry } from "@/types/mcp";
 
 const GITHUB: McpCatalogEntry = {
@@ -283,5 +289,28 @@ describe("matchingCustomRows", () => {
 
   it("shows them when the selected category is the custom one", () => {
     expect(matchingCustomRows(rows, "", CUSTOM_CATEGORY)).toHaveLength(2);
+  });
+});
+
+describe("narrowedSelection", () => {
+  const tools = [{ name: "read" }, { name: "write" }];
+
+  it("is unrestricted when a probed catalogue is fully checked", () => {
+    expect(narrowedSelection(new Set(["read", "write"]), tools, true)).toBeNull();
+  });
+
+  it("is a list when a probed catalogue is partly checked", () => {
+    expect(narrowedSelection(new Set(["read"]), tools, true)).toEqual(["read"]);
+  });
+
+  it("keeps the list when nothing has been probed, however complete it looks", () => {
+    // The bug this exists for: with no probe the picker displays the binding's
+    // own names, so all-checked is true by construction and saving without a
+    // change rewrote a reviewed subset to every tool the connection permits.
+    expect(narrowedSelection(new Set(["read"]), [{ name: "read" }], false)).toEqual(["read"]);
+  });
+
+  it("keeps an empty list rather than reading it as unrestricted", () => {
+    expect(narrowedSelection(new Set(), tools, true)).toEqual([]);
   });
 });

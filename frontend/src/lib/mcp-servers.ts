@@ -232,6 +232,29 @@ export function rowsForEntries(
  * A custom row has a name and a URL and no description, so those two are what a
  * query can match - the same fields somebody typing a search would expect.
  */
+/**
+ * What a tool picker's state means as an allowlist: a list, or unrestricted.
+ *
+ * Null means "no narrowing from here", so tools the server adds later flow
+ * through instead of silently staying off. It is only honest to write when the
+ * catalogue on screen was a real probe.
+ *
+ * `probed` is the whole reason this is a function. A connection nothing has
+ * probed has no catalogue, so the picker falls back to displaying the names the
+ * binding already holds - and then "everything is checked" is true by
+ * construction. Saving without touching anything rewrote a reviewed subset to
+ * unrestricted, quietly handing the agent every tool the connection permits,
+ * including write and destructive ones added since.
+ */
+export function narrowedSelection(
+  checked: Set<string>,
+  tools: readonly { name: string }[],
+  probed: boolean,
+): string[] | null {
+  if (probed && checked.size === tools.length) return null;
+  return [...checked];
+}
+
 export function matchingCustomRows(
   rows: McpServerRow[],
   query: string,

@@ -120,6 +120,7 @@ import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 import { DIALOG_CANVAS, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { narrowedSelection } from "@/lib/mcp-servers";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -846,11 +847,17 @@ export default function AgentBuilderPage({ params }: PageProps) {
         // a list that would freeze out a tool the server adds later.
         onSave={() => {
           if (toolPicker === null) return;
-          const every = toolPicker.checked.size === toolPicker.tools.length;
+          const allowed = narrowedSelection(
+            toolPicker.checked,
+            toolPicker.tools,
+            // Only a real probe can mean "everything": where the catalogue is
+            // the binding's own names, all-checked is true by construction.
+            toolPicker.connection.last_tools !== null,
+          );
           update({
             mcp_servers: spec.mcp_servers.map((ref) =>
               ref.connection_id === toolPicker.connection.id
-                ? { ...ref, allowed_tools: every ? null : [...toolPicker.checked] }
+                ? { ...ref, allowed_tools: allowed }
                 : ref,
             ),
           });

@@ -150,6 +150,24 @@ describe("ConnectServerDialog", () => {
       openSpy.mockRestore();
     });
 
+    it("asks for a tab it can still write to, and severs the opener itself", async () => {
+      // `window.open(..., "noopener")` returns null in a browser that
+      // implements the feature, even though the tab was created - so the
+      // success path read that as blocked, navigated the Builder itself, and
+      // discarded the unsaved draft this dialog exists to preserve.
+      const tab = { location: { href: "" }, close: vi.fn(), opener: {} as unknown };
+      const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+      vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent" });
+
+      open(OAUTH_ENTRY);
+      await submit();
+
+      await waitFor(() => expect(tab.location.href).toBe("https://consent"));
+      expect(openSpy).toHaveBeenCalledWith("", "_blank");
+      expect(tab.opener).toBeNull();
+      openSpy.mockRestore();
+    });
+
     it("navigates in place when the tab was blocked anyway", async () => {
       const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
       vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent" });

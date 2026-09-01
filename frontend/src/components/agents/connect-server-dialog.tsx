@@ -82,7 +82,13 @@ function ConnectForm({
     }
 
     if (values.auth === "oauth") {
-      const tab = window.open("", "_blank", "noopener");
+      // Opened without `noopener`, then severed by hand. A browser that
+      // implements the feature returns `null` even though it created the tab -
+      // so the success path read that as "popup blocked", navigated the Builder
+      // itself to the consent screen, discarded the unsaved draft this dialog
+      // exists to preserve, and left a blank tab behind.
+      const tab = window.open("", "_blank");
+      if (tab) tab.opener = null;
       setSubmitting(true);
       try {
         const { authorization_url } = await startMcpOAuth({ name, url }, "organization");
