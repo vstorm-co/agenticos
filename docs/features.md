@@ -107,8 +107,10 @@ endpoint.
 ## Any MCP server, by URL
 
 Connect a server and its tools appear in the Toolbox, namespaced so two servers
-offering `search` do not collide. 59 of the common ones — GitHub, Linear, Notion,
+offering `search` do not collide. 99 of the common ones — GitHub, Linear, Notion,
 Slack, Stripe, Postgres — are in the picker with their OAuth flows already wired.
+Beside them sit 5,703 more, mirrored from the public MCP registry and searchable
+by name: nobody here reviewed those, and the list says which kind a row is.
 
 !!! info
 

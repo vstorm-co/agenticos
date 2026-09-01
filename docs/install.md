@@ -5,6 +5,24 @@ This page is those four commands and what to do when one of them does not work.
 
 Every step is idempotent — re-run any of them whenever you are not sure it took.
 
+## One command
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
+```
+
+`scripts/quickstart.sh` checks what is missing and names the command that
+installs it for your platform, clones if you are not already in a clone, asks
+four questions, brings the stack up, creates an organization with an owner and a
+published agent, and optionally mirrors the MCP registry and starts the console.
+
+It takes `--check` to only report what is missing, `--dry-run` to print every
+command it would run without running one, and `--yes` with `--provider`,
+`--api-key`, `--email`, `--password` and `--org` for an unattended install.
+
+Everything below is what it does, in case you would rather do it yourself - and
+there is no step it takes that you cannot.
+
 ## Requirements
 
 | Tool | Version | Get it |

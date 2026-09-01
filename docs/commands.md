@@ -351,6 +351,22 @@ uv run agenticos cmd seed --count 10 --clear
 migrations it needs. Run `doctor` first when something works locally and not on a
 fresh environment — it is faster than reading logs.
 
+### Getting a deployment up
+
+```bash
+# Prerequisites, a clone, four questions, and a running agent.
+curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
+# Only report what this machine is missing.
+./scripts/quickstart.sh --check
+# Print every command it would run, run none of them.
+./scripts/quickstart.sh --dry-run
+# Unattended.
+./scripts/quickstart.sh --yes --provider anthropic --api-key sk-ant-... --org Acme
+```
+
+It is a wrapper around `make dev`, `make dev-frontend`, `agenticos cmd bootstrap`
+and `agenticos cmd mcp-registry-sync` — nothing it does is unavailable by hand.
+
 ### The MCP registry mirror
 
 ```bash

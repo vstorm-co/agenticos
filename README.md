@@ -58,7 +58,8 @@ AgenticOS is one place to build them and one set of books for all of them.
 - 🧰 **Agents that do the work, not just talk about it.** Retrieval over your own
   documents, a real browser, Python in a sandbox with files and a shell, charts,
   images, delegation to subagents - and any of
-  [59 MCP servers](docs/mcp.md) by URL when the tool already exists.
+  [any MCP server by URL](docs/mcp.md) — 99 checked by us, and 5,703 more
+  mirrored from the public registry and searchable by name.
 - 🔌 **Everywhere, from one runner.** Web chat, a hosted page with no login, an
   embeddable widget, the HTTP API, a raw WebSocket to build your own frontend,
   Slack, Telegram, Mattermost, and schedules that need nobody typing.
@@ -323,45 +324,94 @@ in. [All 35 screens](docs/screens.md).
 </tr>
 </table>
 
-## ⚡ Get to a running agent
+## ⚡ Get it running
 
-Four commands, about five minutes. Needs Docker, GNU Make, [uv](https://astral.sh/uv)
-and [bun](https://bun.sh); on Windows, WSL2. There is no `.env` to write first -
-every compose variable has a default, and the one secret that cannot have one
-(`SANDBOXD_TOKEN`) is generated into `backend/.env` for you.
+One command. It checks what your machine is missing and tells you how to get it,
+asks four questions, and hands back a console with a working agent in it. Nothing
+leaves your machine.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
+```
+
+<table>
+<tr><td width="33%">
+
+**macOS**
+
+Docker Desktop or [OrbStack](https://orbstack.dev). `git`, `make` and `python3`
+come with the Xcode command line tools:
+
+```bash
+xcode-select --install
+```
+
+</td><td width="33%">
+
+**Linux**
+
+Docker, and the compose plugin:
+
+```bash
+curl -fsSL https://get.docker.com | sh
+sudo apt install make git python3 \
+     docker-compose-plugin
+```
+
+</td><td width="33%">
+
+**Windows**
+
+Through WSL2, which is one command in an administrator PowerShell:
+
+```powershell
+wsl --install
+```
+
+Then Docker Desktop with WSL2 integration on, and run the installer inside the
+Ubuntu shell.
+
+</td></tr>
+</table>
+
+**`uv` and `bun` are not needed.** They are for working *on* AgenticOS; the stack
+and the console both run as containers.
+
+### What it asks
+
+| | |
+|---|---|
+| **Which model** | OpenAI, Anthropic, Google, OpenRouter — or *decide later*, which creates everything and lets you paste a key in the console |
+| **Your key** | Typed hidden, stored encrypted in your own database, never printed back |
+| **Your login and organization name** | Defaults are fine for a look around |
+| **Two switches** | Start the web console; mirror the public MCP registry so 5,703 tool servers are searchable by name |
+
+Add `--check` to only find out what is missing, `--dry-run` to see every command
+it would run without running one, or drive it unattended:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash -s -- \
+  --yes --provider anthropic --api-key sk-ant-... --org "Acme"
+```
+
+### Or type the four commands yourself
+
+The installer is a wrapper around these, and there is no step it takes that you
+cannot take by hand:
 
 ```bash
 git clone https://github.com/vstorm-co/agenticos && cd agenticos
 make dev                                          # postgres (pgvector), redis, api, prefect, sandbox
-make dev-frontend                                 # the Next.js container — a separate compose file
+make dev-frontend                                 # the console — a separate compose file
 make platform-bootstrap BOOTSTRAP_API_KEY=sk-...  # an org, an owner, a key, a model, a published agent
 open http://localhost:3000                        # sign in as admin@example.com / admin123
 ```
 
-Then open **Agents → Getting Started → Test** and ask it something.
-
-`make platform-bootstrap` is the step that matters, because an empty install is a
-chicken-and-egg problem: an agent needs a model, a model needs a key, a key needs
-an organization. It walks that chain once. Leave `BOOTSTRAP_API_KEY` out and
-everything is still created - the agent is saved as a draft rather than published,
-because an agent with no model cannot answer. Add a key under **Settings → AI
-providers**, then publish.
-
-Every command here is idempotent; re-run any of them whenever you are not sure
-they worked.
-
-| | |
-|---|---|
-| Frontend | <http://localhost:3000> |
-| API · OpenAPI | <http://localhost:8000> · `/docs` |
-| Prefect | <http://localhost:4200> |
-
-If something does not come up, `uv run agenticos cmd doctor` (from `backend/`)
-checks the database, the vault, whether there is a model an agent could actually
-run on and whether every sandbox connection answers - and says which one is
-missing. [Install](docs/install.md) has the step-by-step version of all of this,
-the prerequisites table, the host-Python workflow and a table of what each
-failure means.
+There is no `.env` to write first: every compose variable has a default, and the
+one secret that cannot have one (`SANDBOXD_TOKEN`) is generated into
+`backend/.env` for you. If something does not come up, `make doctor` answers the
+only question that matters — can this deployment actually run an agent — and
+[docs/install.md](docs/install.md) has the rest.
 
 ## 🧩 What makes it an operating system
 
@@ -397,7 +447,7 @@ gate.
 | **Do the work** | Run Python, keep a [sandbox](docs/sandbox.md) with files and a shell, draw charts, generate images |
 | **Handle what is too big for one answer** | Delegate to subagents, keep a task list, think longer, compact a long conversation |
 | **Stay inside the lines** | Guardrails that redact or block, per-tool output caps, and the clock |
-| **Anything else** | [Any MCP server by URL](docs/mcp.md) - 59 in the picker with OAuth wired, and no connector to write |
+| **Anything else** | [Any MCP server by URL](docs/mcp.md) - 99 checked with their OAuth flows wired, plus 5,703 mirrored from the public registry, and no connector to write |
 
 ## 📚 Retrieval you can actually tune
 
@@ -448,7 +498,7 @@ own, with agents a non-engineer edits and an accountant can audit.
 | Human approval on side-effecting tools | ✅ | ✅ | ~ | DIY |
 | Multi-tenant isolation in the schema | ✅ | ~ | ✅ | DIY |
 | Per-organization secret vault | ✅ | ✅ | ✅ | DIY |
-| **Any MCP server by URL, 59 in the picker** | ✅ | ✅ | ~ | ~ |
+| **Any MCP server by URL, 99 checked + 5,703 mirrored** | ✅ | ✅ | ~ | ~ |
 | **Slack, Telegram, widget, hosted page and API from one runner** | ✅ | — | ~ | DIY |
 | ACL-aware connectors to 275+ SaaS systems | — | ~ | ✅ | — |
 | Evaluation harness | — | — | ✅ | ~ |
@@ -473,7 +523,7 @@ AgenticOS moves the agent out of the code and puts governance around it instead.
 |---|---|
 | **Agents** | Built in a UI, versioned on publish, exportable as YAML into your own git repository |
 | **[Capabilities](docs/reference/capabilities.md)** | Retrieval, web search and fetch, a real browser, Python, a sandbox with files and a shell, charts, images, delegation, planning, guardrails - switched on per agent |
-| **[Integrations](docs/mcp.md)** | Any MCP server by URL, with 59 in the picker - GitHub, Linear, Notion, Slack, Stripe, Postgres, Sentry. No connector to write |
+| **[Integrations](docs/mcp.md)** | Any MCP server by URL: 99 checked - GitHub, Linear, Notion, Slack, Stripe, Postgres, Sentry - plus 5,703 mirrored from the public registry, searchable by name. No connector to write |
 | **[Models](docs/models.md)** | 27 providers, a key per organization, fallback on outage, or self-hosted Ollama and LiteLLM |
 | **[Knowledge](docs/file-processing.md)** | Retrieval over your documents with three PDF parsers, your own chunking, OCR and image description - per collection, overridable per upload. Google Drive and S3 sync |
 | **[Skills](docs/skills.md)** | Written know-how the agent loads only when it decides it is relevant |
